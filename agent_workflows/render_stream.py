@@ -173,7 +173,11 @@ def activity_for_item(item: dict[str, Any]) -> str | None:
     Returns ``None`` when no signal is present, which lets the caller fall back to the item's native
     status (generic `active` for a `running` item). Deliberately NOT a guess: inventing an activity
     from an absent signal is what criterion A3's evidence rule forbids.
+
+    Refuses a non-mapping entry by returning None, since an unreadable entry cannot signal any in-flight activity.
     """
+    if not isinstance(item, Mapping):
+        return None
 
     def _present(value: Any) -> bool:
         return bool(value) and str(value).strip().lower() not in ("none", "unknown")
@@ -2069,7 +2073,12 @@ def item_is_dispatchable_work(item: Mapping[str, Any]) -> bool:
     `reviewed` entry is never dispatched (`initial_queue_status` gives it that status precisely because
     its plan status is outside `NON_TERMINAL_QUEUE_STATUSES`), so counting it promises an agent turn
     that cannot happen. Measured in the same run: 2 of the 62.
+
+    Refuses a non-mapping entry by returning False, which is fail-closed and ensures an unreadable entry never inflates the progress denominator or claims to be dispatchable work.
     """
+
+    if not isinstance(item, Mapping):
+        return False
 
     initial = str(item.get("initial_status") or "").strip()
     # The queue builder preserves exactly one terminal status, `executed` (see
@@ -2219,6 +2228,30 @@ STRANDED_OUTCOME = "STRANDED"
 #: rather than repeating a literal string.
 NO_WORK_OUTCOME = "NO WORK PERFORMED"
 
+#: The render-facing status token :func:`render_run_summary_table` emits for a queue entry that
+#: was NOT a mapping (165lkb E-02).
+#:
+#: CENSUS CONTRACT: A corrupted or non-mapping entry gets its own visible row and its own counted
+#: bucket in the `Progress:` status census, preserving the one-row-per-entry census property so a
+#: corrupted state file cannot read as a shorter or cleaner run than it was.
+#:
+#: COORDINATED DUPLICATION WITH SIBLING PLAN 0kh97v (F-12): Pending plan 0kh97v (from fcodik) adds a
+#: report-facing token of the SAME SPELLING in `runner_shared`. `render_stream` cannot import it:
+#: `runner_shared` imports `render_stream` at module level, so a reverse import would cycle, and this
+#: module's header restricts first-party imports to `term` and `lifecycle_style`. The two constants
+#: are therefore independent definitions with the same spelling by design.
+#:
+#: LIFECYCLE RESOLUTION (F-13): This token deliberately resolves to the `unknown` stage through
+#: :func:`resolve_item_lifecycle` with a diagnostic, which is the correct and honest resolution for an
+#: entry whose state genuinely cannot be determined (spec `uonrjg` Section 7.2). It must NOT be added
+#: to `lifecycle_style._RUNNER_ITEM_PAIRS` (which would assert it is a known runner state) or to
+#: `runner_shutdown.KNOWN_ITEM_STATUSES` (which would cause Phase 0 shutdown coherence checks to treat
+#: it as a driver-written status).
+MALFORMED_ENTRY_TOKEN = "malformed-entry"
+
+#: Placeholder marker in summary table cells for fields that could not be read from a non-mapping queue entry.
+UNREADABLE_MARKER = "(unreadable)"
+
 
 def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
     """True when this run dispatched nothing AND at least one artifact carries an actionable remedy.
@@ -2354,7 +2387,11 @@ def _interrupt_reason_of(item: dict[str, Any]) -> str | None:
     duplicating a field is how the two copies come to disagree; the attempt record is the one place
     that reason legitimately lives. The item-level read is kept FIRST so an already-hoisted value (and
     any future runner that does write one) still wins.
+
+    Refuses a non-mapping entry by returning None, since an unreadable entry carries no attempt record or interrupt reason.
     """
+    if not isinstance(item, Mapping):
+        return None
     direct = item.get("interrupt_reason")
     if direct:
         return str(direct)
@@ -2653,9 +2690,14 @@ def format_generated_next_actions_summary_block(
     bold: str = "",
     reset: str = "",
 ) -> list[str]:
-    """The generated next actions block for the run summary table (E-06)."""
+    """The generated next actions block for the run summary table (E-06).
+
+    Skips non-mapping queue entries, since an unreadable entry cannot carry generated next actions.
+    """
     actions: list[tuple[str, dict[str, Any]]] = []
     for item in queue or ():
+        if not isinstance(item, Mapping):
+            continue
         for act in item.get("generated_next_actions") or []:
             actions.append((str(item.get("id6") or ""), act))
     if not actions:
@@ -2795,7 +2837,11 @@ def render_run_summary_table(
         _fallback = len(_rank)
         queue = sorted(
             queue,
-            key=lambda it: (_rank.get(str(it.get("id6")), _fallback),),
+            key=lambda it: (
+                _rank.get(str(it.get("id6")), _fallback)
+                if isinstance(it, Mapping)
+                else _fallback,
+            ),
         )
     run_id = state.get("run_id", "run-unknown")
     created_ts = _parse_iso_timestamp(state.get("created_at"))
@@ -2822,6 +2868,34 @@ def render_run_summary_table(
     completed_count = 0
 
     for idx, item in enumerate(queue):
+        if not isinstance(item, Mapping):
+            # 165lkb E-03 / PR-103: placeholder row for an unreadable queue entry.
+            # pos is pre-formatted as string to bypass ':02d' format strings (F-20)
+            # and position is the entry's frozen identity so we never fabricate a number.
+            status_counts[MALFORMED_ENTRY_TOKEN] = (
+                status_counts.get(MALFORMED_ENTRY_TOKEN, 0) + 1
+            )
+            items_data.append(
+                {
+                    "seq": f"{idx + 1:02d}",
+                    "pos": UNREADABLE_MARKER,
+                    "id6": UNREADABLE_MARKER,
+                    "setid": UNREADABLE_MARKER,
+                    "action": UNREADABLE_MARKER,
+                    "status": MALFORMED_ENTRY_TOKEN,
+                    "activity": None,
+                    "verify": "-",
+                    "dur_str": "-",
+                    "cost_str": "-",
+                    "tok_tot_str": "-",
+                    "tok_in_str": "-",
+                    "tok_out_str": "-",
+                    "tok_cache_str": "-",
+                    "has_run": False,
+                }
+            )
+            continue
+
         # runorder (prpipy) E-05: `seq` is this row's place in the EXECUTION order (the list is
         # already sorted above), `pos` is the item's FROZEN identity. They are separate columns
         # because they answer different questions and conflating them is what hid the ordering bug.
@@ -2962,10 +3036,13 @@ def render_run_summary_table(
     # Outcome label
     if exit_reason:
         outcome_str = exit_reason
-    elif any(it.get("status") == "interrupted" for it in queue):
+    elif any(
+        isinstance(it, Mapping) and it.get("status") == "interrupted" for it in queue
+    ):
         outcome_str = "INTERRUPTED"
     elif any(
-        it.get("status")
+        isinstance(it, Mapping)
+        and it.get("status")
         in (
             "failed",
             "failed-safely",
@@ -2981,7 +3058,8 @@ def render_run_summary_table(
     ):
         outcome_str = "FAILED"
     elif any(
-        it.get("status")
+        isinstance(it, Mapping)
+        and it.get("status")
         in (
             "blocked",
             "dependency-blocked",
@@ -2995,7 +3073,8 @@ def render_run_summary_table(
         outcome_str = "BLOCKED"
     elif (
         all(
-            it.get("status")
+            isinstance(it, Mapping)
+            and it.get("status")
             in ("executed", "reviewed", "approved", "substantially-complete")
             for it in queue
         )
@@ -3047,7 +3126,8 @@ def render_run_summary_table(
         outcome_str = "COMPLETED"
     elif (
         all(
-            it.get("status")
+            isinstance(it, Mapping)
+            and it.get("status")
             in ("executed", "reviewed", "approved", "substantially-complete")
             for it in queue
         )
@@ -3382,6 +3462,8 @@ def render_run_summary_table(
     # still renders its reason instead of silence.
     diag_lines = []
     for it in queue:
+        if not isinstance(it, Mapping):
+            continue
         st = it.get("status")
         id6 = it.get("id6")
         refusal = refusal_of_item(it)

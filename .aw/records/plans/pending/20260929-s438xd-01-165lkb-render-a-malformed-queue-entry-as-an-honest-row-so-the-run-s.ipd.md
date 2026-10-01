@@ -45,39 +45,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect and the contract before changing behavior
 
-- [ ] E-01 Add a new test file `tests/test_run_summary_malformed_entry.py` pinning the whole contract this plan delivers, and make it fail for the RIGHT reason at this HEAD. It must assert, against a state whose `queue` holds one non-mapping entry and is otherwise well-formed: that `render_run_summary_table` RETURNS rather than raising; that the returned table contains exactly ONE row per queue entry including the malformed one, so the row count equals `len(queue)` (the census property, F-09); that the malformed row's Status cell carries the new token and its ID6 cell carries an explicit unreadable marker distinguishable from a well-formed row with an absent id6 (F-10); that the malformed entry appears in the `Progress:` line's status census; that the outcome word is NOT `COMPLETED` for a queue whose only other entries are successes (the fail-closed direction, F-11); and that the SAME assertions hold with `state["run_order"]` present, which is the shape that crashes EARLIER (F-04) and which a test omitting `run_order` would not reach. Also assert the MIXED case renders both rows. Place it in its OWN file rather than in `tests/test_zero_dispatch_outcome.py` or `tests/test_run_summary_table.py`: this contract is about tolerance of a corrupt record rather than about either file's subject, and the two sibling plans in this defect family each took the same decision (`0kh97v` adds `tests/test_write_report_malformed_entry.py`).
+- [x] E-01 Add a new test file `tests/test_run_summary_malformed_entry.py` pinning the whole contract this plan delivers, and make it fail for the RIGHT reason at this HEAD. It must assert, against a state whose `queue` holds one non-mapping entry and is otherwise well-formed: that `render_run_summary_table` RETURNS rather than raising; that the returned table contains exactly ONE row per queue entry including the malformed one, so the row count equals `len(queue)` (the census property, F-09); that the malformed row's Status cell carries the new token and its ID6 cell carries an explicit unreadable marker distinguishable from a well-formed row with an absent id6 (F-10); that the malformed entry appears in the `Progress:` line's status census; that the outcome word is NOT `COMPLETED` for a queue whose only other entries are successes (the fail-closed direction, F-11); and that the SAME assertions hold with `state["run_order"]` present, which is the shape that crashes EARLIER (F-04) and which a test omitting `run_order` would not reach. Also assert the MIXED case renders both rows. Place it in its OWN file rather than in `tests/test_zero_dispatch_outcome.py` or `tests/test_run_summary_table.py`: this contract is about tolerance of a corrupt record rather than about either file's subject, and the two sibling plans in this defect family each took the same decision (`0kh97v` adds `tests/test_write_report_malformed_entry.py`).
   - Depends on: none
   - Expected outcome: A new test file that FAILS at this HEAD with `AttributeError: 'str' object has no attribute 'get'`, whose `run_order`-present case crashes in the `sorted()` key lambda and whose `run_order`-absent case crashes at the row loop's `pos = item.get("position", idx + 1)`, and that passes in full only after E-05.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the render-facing malformed-entry status token as a module-level constant in `render_stream`, beside `NO_WORK_OUTCOME` and `STRANDED_OUTCOME`, with the unreadable-cell marker it pairs with, and document the census contract both encode. It MUST NOT be imported from `runner_shared`: that module imports `render_stream`, so a reverse import would cycle, and this module's own header records that only `term` and `lifecycle_style` are permitted first-party imports (F-12). Document on the constant that it deliberately resolves to the `unknown` stage through the shared resolver with a diagnostic, that this is the CORRECT resolution rather than a gap to close, and why it must NOT be added to `lifecycle_style._RUNNER_ITEM_PAIRS` or to `runner_shutdown.KNOWN_ITEM_STATUSES` (F-13). Add NO behavior in this item; it is the vocabulary the next two consume.
+- [x] E-02 Add the render-facing malformed-entry status token as a module-level constant in `render_stream`, beside `NO_WORK_OUTCOME` and `STRANDED_OUTCOME`, with the unreadable-cell marker it pairs with, and document the census contract both encode. It MUST NOT be imported from `runner_shared`: that module imports `render_stream`, so a reverse import would cycle, and this module's own header records that only `term` and `lifecycle_style` are permitted first-party imports (F-12). Document on the constant that it deliberately resolves to the `unknown` stage through the shared resolver with a diagnostic, that this is the CORRECT resolution rather than a gap to close, and why it must NOT be added to `lifecycle_style._RUNNER_ITEM_PAIRS` or to `runner_shutdown.KNOWN_ITEM_STATUSES` (F-13). Add NO behavior in this item; it is the vocabulary the next two consume.
   - Depends on: E-01
   - Expected outcome: `render_stream` exports the new token and marker; `resolve_item_lifecycle(<token>, action=..., activity=None)` returns stage `unknown` with a non-None diagnostic and `Palette.lifecycle` styles it without raising; `lifecycle_style.NATIVE_MAPS` and `runner_shutdown.KNOWN_ITEM_STATUSES` are unchanged, so `tests/test_lifecycle_style.py`'s criterion-A2 coverage assertion still passes untouched; the E-01 test still fails at the same frame as before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the guards, in the order the crash cascade reaches them
 
-- [ ] E-03 Guard the two sites that decide WHICH ROWS EXIST, so the table body is buildable: the `run_order` `sorted()` key lambda (which raises FIRST for any run that recorded an execution order, F-04), and the row loop, which gets the placeholder row E-02's vocabulary describes. For the sort key, treat an unreadable entry as having no id6 so it falls to the `_fallback` rank and keeps a stable relative position; do NOT drop it from the sort, which would change the row set. For the row loop, emit ONE row carrying the new token in Status, the marker in ID6/Set/Action, `-` in every metric cell, and `has_run: False`, and count it in `status_counts` under the token so the `Progress:` census accounts for it. Fill the `Run` cell from the loop's own enumeration index, which is already how `seq` is computed, and the `Pos` cell with the marker rather than a fabricated number, because `position` is the entry's FROZEN IDENTITY that outcome, prompt and session filenames key on (the function's own docstring says so, in the sentence "`Pos` is the frozen identity that outcome/prompt/session filenames key on") and inventing one would assert an identity the record does not carry. **THE PLACEHOLDER ROW MUST BYPASS THE EXISTING `items_data` FORMATTING, NOT FLOW THROUGH IT (PR-103, F-20).** The well-formed path builds its cells as `"pos": f"{pos:02d}"`, and `f"{marker:02d}"` raises `ValueError: Unknown format code 'd' for object of type 'str'` for any string marker, so an implementation that sets `pos = <marker>` and then falls through to the shared `items_data.append(...)` converts this plan's `AttributeError` into a `ValueError` and still loses the table. Build the placeholder's `items_data` entry with the marker ALREADY FORMATTED as a string (`"pos": <marker>`, `"seq": f"{idx + 1:02d}"`) and `continue` past the well-formed body, so no `:02d` is ever applied to a non-integer. Verify by rendering, not by reading.
+- [x] E-03 Guard the two sites that decide WHICH ROWS EXIST, so the table body is buildable: the `run_order` `sorted()` key lambda (which raises FIRST for any run that recorded an execution order, F-04), and the row loop, which gets the placeholder row E-02's vocabulary describes. For the sort key, treat an unreadable entry as having no id6 so it falls to the `_fallback` rank and keeps a stable relative position; do NOT drop it from the sort, which would change the row set. For the row loop, emit ONE row carrying the new token in Status, the marker in ID6/Set/Action, `-` in every metric cell, and `has_run: False`, and count it in `status_counts` under the token so the `Progress:` census accounts for it. Fill the `Run` cell from the loop's own enumeration index, which is already how `seq` is computed, and the `Pos` cell with the marker rather than a fabricated number, because `position` is the entry's FROZEN IDENTITY that outcome, prompt and session filenames key on (the function's own docstring says so, in the sentence "`Pos` is the frozen identity that outcome/prompt/session filenames key on") and inventing one would assert an identity the record does not carry. **THE PLACEHOLDER ROW MUST BYPASS THE EXISTING `items_data` FORMATTING, NOT FLOW THROUGH IT (PR-103, F-20).** The well-formed path builds its cells as `"pos": f"{pos:02d}"`, and `f"{marker:02d}"` raises `ValueError: Unknown format code 'd' for object of type 'str'` for any string marker, so an implementation that sets `pos = <marker>` and then falls through to the shared `items_data.append(...)` converts this plan's `AttributeError` into a `ValueError` and still loses the table. Build the placeholder's `items_data` entry with the marker ALREADY FORMATTED as a string (`"pos": <marker>`, `"seq": f"{idx + 1:02d}"`) and `continue` past the well-formed body, so no `:02d` is ever applied to a non-integer. Verify by rendering, not by reading.
   - Depends on: E-02
   - Expected outcome: For `queue=["not-a-mapping"]` the function now raises from `dispatchable_work_total`, not from the sort, the row loop, or a `ValueError` in the `Pos` cell's format string, which is the measured proof (F-03) that the remaining items are separate defects and not redundant; the E-01 test's row-count and Status-cell assertions are reachable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Guard the four `render_stream` helpers this function hands a raw entry or the raw queue, each measured to raise on it (F-03): `item_is_dispatchable_work` (reached via `dispatchable_work_total`, which is the next crash after E-03), `activity_for_item`, `_interrupt_reason_of`, and `format_generated_next_actions_summary_block`. Guard each INSIDE the function rather than at this renderer's call sites, for the reason executed plan `w7e3e3`'s OQ-02 resolved for the sibling predicate and which is stronger here: three of the four have callers OUTSIDE this renderer, and `item_is_dispatchable_work` and `activity_for_item` are consumed by BOTH hosts' live statusline and by `runner_shared.run_ipd`'s `IPD nn/NN` banner, so a caller-side filter would leave those live surfaces crashing on the same input (F-06). `item_is_dispatchable_work` must return `False`, which is the fail-closed direction AND the one that keeps the progress denominator honest (F-07); the other three return their documented empty answer. Extend each docstring with one sentence stating the refusal and why it cannot hide a real answer. `Mapping` is already imported from `collections.abc` at module level, so this adds no import.
+- [x] E-04 Guard the four `render_stream` helpers this function hands a raw entry or the raw queue, each measured to raise on it (F-03): `item_is_dispatchable_work` (reached via `dispatchable_work_total`, which is the next crash after E-03), `activity_for_item`, `_interrupt_reason_of`, and `format_generated_next_actions_summary_block`. Guard each INSIDE the function rather than at this renderer's call sites, for the reason executed plan `w7e3e3`'s OQ-02 resolved for the sibling predicate and which is stronger here: three of the four have callers OUTSIDE this renderer, and `item_is_dispatchable_work` and `activity_for_item` are consumed by BOTH hosts' live statusline and by `runner_shared.run_ipd`'s `IPD nn/NN` banner, so a caller-side filter would leave those live surfaces crashing on the same input (F-06). `item_is_dispatchable_work` must return `False`, which is the fail-closed direction AND the one that keeps the progress denominator honest (F-07); the other three return their documented empty answer. Extend each docstring with one sentence stating the refusal and why it cannot hide a real answer. `Mapping` is already imported from `collections.abc` at module level, so this adds no import.
   - Depends on: E-03
   - Expected outcome: All four helpers return rather than raising for a non-mapping entry; `dispatchable_work_total(["not-a-mapping"])` returns `1` via its documented non-empty floor; `execution_index` is NOT fixed by this item and its two remaining reads are proven still crashing (F-08), which is why E-06 must report it rather than let a reader assume the module is clean; the E-01 test now fails FURTHER DOWN, in the outcome ladder.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Guard the SIX remaining per-entry reads in the function's own body. **THE COUNT IS SIX, NOT THE FIVE THIS ITEM ORIGINALLY SAID, AND EACH SITE IS NAMED INDIVIDUALLY BECAUSE REVIEW STAGED THE UNDERCOUNTED READING AND MEASURED IT STILL CRASHING (PR-102, F-19). F-03 always enumerated these correctly; this item's summary of them did not.** The sites are: (1) the `interrupted` comprehension; (2) the FAILED-tuple comprehension; (3) the BLOCKED-tuple comprehension; (4) the `COMPLETED` branch's success-tuple `all(...)`; (5) the `NO WORK PERFORMED` branch's SEPARATE success-tuple `all(...)`, which is a DISTINCT textual occurrence and not a re-read of (4); and (6) the diagnostics loop's `st = it.get("status")`. The two success tuples are BYTE-IDENTICAL in source, so a `replace`-style edit with a count of one, or a reading of "the two success tuples" as one guard, leaves (5) raw: measured at review, guarding (1)-(4) and (6) but not (5) still raises `AttributeError` from the `NO WORK PERFORMED` branch's `all(...)` genexpr for the queue `["not-a-mapping", {"status": "reviewed", ...}]`, because the `COMPLETED` branch's guarded `all(...)` correctly returns False and the ladder falls through to the unguarded twin. GUARD BOTH OCCURRENCES and verify by count, not by eye. ALSO guard the `refusal_of_item`/`integration_was_refused` conjuncts in both success branches if the implementation calls them on a raw entry; measured, both those helpers are ALREADY TOLERANT (they return `None`/`False` for a non-mapping entry), so no change to THEM is needed, and this clause exists only so an executor does not mistake their tolerance for a missing guard. In the ladder, an unreadable entry must fail the SUCCESS tests (so it can never admit a run to `COMPLETED` or to `NO WORK PERFORMED`) while also not being claimed as `interrupted`, `FAILED` or `BLOCKED`, none of which it has been shown to be; the honest landing is the existing `PARTIAL`/`QUEUED` tail, which needs no new branch. In the diagnostics loop, skip it: every branch there is conditional on per-entry evidence a non-mapping entry provably cannot carry, and the block is documented as rendering nothing for an item with no reason to report. Do NOT reorder any ladder branch: the `COMPLETED`, `STRANDED` and `NO WORK PERFORMED` branches each carry an in-source comment stating that their PLACEMENT is load-bearing and that testing earlier relabels existing outcomes.
+- [x] E-05 Guard the SIX remaining per-entry reads in the function's own body. **THE COUNT IS SIX, NOT THE FIVE THIS ITEM ORIGINALLY SAID, AND EACH SITE IS NAMED INDIVIDUALLY BECAUSE REVIEW STAGED THE UNDERCOUNTED READING AND MEASURED IT STILL CRASHING (PR-102, F-19). F-03 always enumerated these correctly; this item's summary of them did not.** The sites are: (1) the `interrupted` comprehension; (2) the FAILED-tuple comprehension; (3) the BLOCKED-tuple comprehension; (4) the `COMPLETED` branch's success-tuple `all(...)`; (5) the `NO WORK PERFORMED` branch's SEPARATE success-tuple `all(...)`, which is a DISTINCT textual occurrence and not a re-read of (4); and (6) the diagnostics loop's `st = it.get("status")`. The two success tuples are BYTE-IDENTICAL in source, so a `replace`-style edit with a count of one, or a reading of "the two success tuples" as one guard, leaves (5) raw: measured at review, guarding (1)-(4) and (6) but not (5) still raises `AttributeError` from the `NO WORK PERFORMED` branch's `all(...)` genexpr for the queue `["not-a-mapping", {"status": "reviewed", ...}]`, because the `COMPLETED` branch's guarded `all(...)` correctly returns False and the ladder falls through to the unguarded twin. GUARD BOTH OCCURRENCES and verify by count, not by eye. ALSO guard the `refusal_of_item`/`integration_was_refused` conjuncts in both success branches if the implementation calls them on a raw entry; measured, both those helpers are ALREADY TOLERANT (they return `None`/`False` for a non-mapping entry), so no change to THEM is needed, and this clause exists only so an executor does not mistake their tolerance for a missing guard. In the ladder, an unreadable entry must fail the SUCCESS tests (so it can never admit a run to `COMPLETED` or to `NO WORK PERFORMED`) while also not being claimed as `interrupted`, `FAILED` or `BLOCKED`, none of which it has been shown to be; the honest landing is the existing `PARTIAL`/`QUEUED` tail, which needs no new branch. In the diagnostics loop, skip it: every branch there is conditional on per-entry evidence a non-mapping entry provably cannot carry, and the block is documented as rendering nothing for an item with no reason to report. Do NOT reorder any ladder branch: the `COMPLETED`, `STRANDED` and `NO WORK PERFORMED` branches each carry an in-source comment stating that their PLACEMENT is load-bearing and that testing earlier relabels existing outcomes.
   - Depends on: E-04
   - Expected outcome: The function RETURNS a complete table for every malformed-entry shape in E-01, including mixed queues, AND for the full cross product of E-01's shapes with `run_order` present/absent, tracker present/absent, color on/off and `exit_reason` set/unset (measured at review: with all three guard groups staged, 0 failures over 300 such inputs). `queue_performed_no_work` is NOT reached for any of them because BOTH success branches' `all(...)` tests now short-circuit False on the malformed entry, which is measured and is why this plan does not guard that function (F-11).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the honesty bound
 
-- [ ] E-06 Verify and record what this plan does NOT fix, as the last act before commit, so its effect is not overstated. Re-run the six-probe exit-tail measurement and show `runner_shared.write_report` STILL raising (it is the FIRST statement of both tails, so the closing report is still lost before this renderer is reached), `run_selection_policy`'s disposition surfaces STILL raising, `render_stream.execution_index` STILL raising (F-08), and `run_viewer.load_run_summary` STILL raising (F-14, filed nowhere). Confirm each carrier's state: `fcodik` and `3z91mq` are `graduated` with pending plans `0kh97v` and `cup9r7`, so their work is owned and must NOT be duplicated here. REPORT the two unowned sites rather than fixing them: `execution_index` is in this plan's own file and `load_run_summary` is not, and neither is covered by any existing item.
+- [x] E-06 Verify and record what this plan does NOT fix, as the last act before commit, so its effect is not overstated. Re-run the six-probe exit-tail measurement and show `runner_shared.write_report` STILL raising (it is the FIRST statement of both tails, so the closing report is still lost before this renderer is reached), `run_selection_policy`'s disposition surfaces STILL raising, `render_stream.execution_index` STILL raising (F-08), and `run_viewer.load_run_summary` STILL raising (F-14, filed nowhere). Confirm each carrier's state: `fcodik` and `3z91mq` are `graduated` with pending plans `0kh97v` and `cup9r7`, so their work is owned and must NOT be duplicated here. REPORT the two unowned sites rather than fixing them: `execution_index` is in this plan's own file and `load_run_summary` is not, and neither is covered by any existing item.
   - Depends on: E-05
   - Expected outcome: A measurement showing exactly which exit-path sites this plan fixes and which it does not, with each surviving crash matched to its carrier or explicitly reported as unowned; no additional file is edited and no backlog item is written by this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -204,35 +204,648 @@ No user-facing documentation describes this table's cells or its status vocabula
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the full committed source of the new test file. Paste its output run at THIS HEAD (`python3 -m pytest tests/test_run_summary_malformed_entry.py -o addopts=""`), which must FAIL, with enough traceback to show the exception is `AttributeError: 'str' object has no attribute 'get'`. Paste BOTH crash frames separately and label them: the `run_order`-PRESENT case must crash in the `sorted()` key lambda, and the `run_order`-ABSENT case at the row loop's `pos = item.get("position", idx + 1)`. That contrast is the direct evidence for F-04, and a test file that only reproduces the backlog item's own (`run_order`-absent) shape is NOT sufficient. Then confirm in one sentence, quoting the assertions, that the file covers all six surfaces E-01 names: the call returns; one row per entry; the malformed row's Status token and ID6 marker; the `Progress:` census; the outcome word is not `COMPLETED`; and every one of these with `run_order` both present and absent. Confirm no assertion pins a byte-exact box width (F-15).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full committed source of `tests/test_run_summary_malformed_entry.py`, test failure output at launch HEAD, and labelled crash frames:
+    1. Full test file source:
+    ```python
+    """Tests pinning that render_run_summary_table tolerates malformed queue entries.
 
-- [ ] V-02 validates E-02
+    Pins:
+      (1) render_run_summary_table returns rather than raising on a non-mapping queue entry;
+      (2) The returned table contains exactly one body row per queue entry including the malformed one;
+      (3) The malformed row's Status cell carries the malformed-entry status token;
+      (4) The malformed row's ID6 cell carries the explicit unreadable marker;
+      (5) The malformed entry appears in the Progress line's status census;
+      (6) The outcome word is NOT COMPLETED when all other entries are successes;
+      (7) The contract holds both with and without state["run_order"] present;
+      (8) Mixed queues render all rows with distinct markers and statuses.
+    """
+
+    from __future__ import annotations
+
+    import re
+    from typing import Any
+
+    import pytest
+
+    from agent_workflows import render_stream
+    from agent_workflows.render_stream import (
+        Palette,
+        render_run_summary_table,
+    )
+
+    MALFORMED_ENTRY_TOKEN = "malformed-entry"
+    UNREADABLE_MARKER = "(unreadable)"
+
+
+    def _make_state(
+        queue: list[Any],
+        *,
+        run_order: dict[str, Any] | None = None,
+        run_id: str = "run-20260930T000000Z-123456",
+    ) -> dict[str, Any]:
+        state: dict[str, Any] = {
+            "repo": "/repo",
+            "run_id": run_id,
+            "created_at": "2026-09-30T00:00:00Z",
+            "updated_at": "2026-09-30T00:05:00Z",
+            "selectors": ["sel1"],
+            "set_sessions": {},
+            "queue": queue,
+        }
+        if run_order is not None:
+            state["run_order"] = run_order
+        return state
+
+
+    def _extract_progress_line(rendered: str) -> str:
+        plain = render_stream._strip_ansi(rendered)
+        for line in plain.splitlines():
+            if "Progress:" in line:
+                return line.strip()
+        raise AssertionError(f"No Progress line found in rendered output:\n{rendered}")
+
+
+    def _extract_outcome_line(rendered: str) -> str:
+        plain = render_stream._strip_ansi(rendered)
+        for line in plain.splitlines():
+            if "Outcome:" in line:
+                return line.strip()
+        raise AssertionError(f"No Outcome line found in rendered output:\n{rendered}")
+
+
+    def _extract_outcome_word(rendered: str) -> str:
+        line = _extract_outcome_line(rendered)
+        match = re.search(r"Outcome:\s+([A-Z ]+?)\s+Duration:", line)
+        if not match:
+            raise AssertionError(f"Could not parse outcome word from line: {line!r}")
+        return match.group(1).strip()
+
+
+    def _extract_body_rows(rendered: str) -> list[list[str]]:
+        plain = render_stream._strip_ansi(rendered)
+        rows: list[list[str]] = []
+        in_table = False
+        for line in plain.splitlines():
+            line = line.strip()
+            if not line or not (line.startswith("│") or line.startswith("|")):
+                continue
+            parts = [p.strip() for p in re.split(r"[│|]", line)]
+            if len(parts) >= 2 and parts[0] == "" and parts[-1] == "":
+                parts = parts[1:-1]
+            if not parts:
+                continue
+            if parts[0] == "Run" and "Pos" in parts and "ID6" in parts:
+                in_table = True
+                continue
+            if in_table:
+                if parts[0].startswith("Total ("):
+                    break
+                if re.match(r"^\d+$", parts[0]):
+                    rows.append(parts)
+        return rows
+
+
+    def test_malformed_entry_without_run_order() -> None:
+        """A non-mapping queue entry without run_order renders an honest row and status census."""
+        queue = ["not-a-mapping"]
+        state = _make_state(queue, run_order=None)
+
+        rendered = render_run_summary_table(state, pal=Palette(False))
+
+        rows = _extract_body_rows(rendered)
+        assert len(rows) == len(queue)
+        row = rows[0]
+        # Row layout: [Run, Pos, ID6, Set, Action, Status, Verify, Duration, Spend, Tok tot, Tok in, Tok out, Tok cache]
+        assert row[0] == "01"
+        assert row[1] == UNREADABLE_MARKER
+        assert row[2] == UNREADABLE_MARKER
+        assert row[3] == UNREADABLE_MARKER
+        assert row[4] == UNREADABLE_MARKER
+        assert row[5] == MALFORMED_ENTRY_TOKEN
+        assert row[6] == "-"
+
+        progress_line = _extract_progress_line(rendered)
+        assert f"1 {MALFORMED_ENTRY_TOKEN}" in progress_line
+
+        outcome_word = _extract_outcome_word(rendered)
+        assert outcome_word != "COMPLETED"
+
+
+    def test_malformed_entry_with_run_order() -> None:
+        """A non-mapping queue entry with run_order present renders rather than crashing early in sort."""
+        queue = ["not-a-mapping"]
+        state = _make_state(queue, run_order={"executed": ["item01"]})
+
+        rendered = render_run_summary_table(state, pal=Palette(False))
+
+        rows = _extract_body_rows(rendered)
+        assert len(rows) == len(queue)
+        row = rows[0]
+        assert row[0] == "01"
+        assert row[1] == UNREADABLE_MARKER
+        assert row[2] == UNREADABLE_MARKER
+        assert row[3] == UNREADABLE_MARKER
+        assert row[4] == UNREADABLE_MARKER
+        assert row[5] == MALFORMED_ENTRY_TOKEN
+        assert row[6] == "-"
+
+        progress_line = _extract_progress_line(rendered)
+        assert f"1 {MALFORMED_ENTRY_TOKEN}" in progress_line
+
+        outcome_word = _extract_outcome_word(rendered)
+        assert outcome_word != "COMPLETED"
+
+
+    def test_mixed_queue_with_success_item_never_claims_completed() -> None:
+        """A mixed queue of malformed and executed items never claims COMPLETED and renders all rows."""
+        well_formed_item = {
+            "position": 2,
+            "id6": "abc123",
+            "setid": "set1",
+            "action": "execute",
+            "status": "executed",
+            "verification_status": "pass",
+            "attempts": [{"started_at": "2026-09-30T00:01:00Z", "ended_at": "2026-09-30T00:02:00Z"}],
+        }
+        queue = ["not-a-mapping", well_formed_item]
+        state = _make_state(queue, run_order={"executed": ["abc123"]})
+
+        rendered = render_run_summary_table(state, pal=Palette(False))
+
+        rows = _extract_body_rows(rendered)
+        assert len(rows) == len(queue)
+
+        # Malformed row
+        malformed_rows = [r for r in rows if r[5] == MALFORMED_ENTRY_TOKEN]
+        assert len(malformed_rows) == 1
+        m_row = malformed_rows[0]
+        assert m_row[1] == UNREADABLE_MARKER
+        assert m_row[2] == UNREADABLE_MARKER
+
+        # Well-formed row
+        wf_rows = [r for r in rows if r[2] == "abc123"]
+        assert len(wf_rows) == 1
+        w_row = wf_rows[0]
+        assert w_row[5] == "executed"
+        assert w_row[6] == "pass"
+
+        progress_line = _extract_progress_line(rendered)
+        assert f"1 {MALFORMED_ENTRY_TOKEN}" in progress_line
+        assert "1 executed" in progress_line
+
+        outcome_word = _extract_outcome_word(rendered)
+        assert outcome_word != "COMPLETED"
+
+
+    def test_mixed_queue_without_run_order() -> None:
+        """A mixed queue without run_order renders both entries honestly."""
+        well_formed_item = {
+            "position": 2,
+            "id6": "def456",
+            "setid": "set2",
+            "action": "execute",
+            "status": "reviewed",
+            "verification_status": "-",
+            "attempts": [],
+        }
+        queue = ["not-a-mapping", well_formed_item]
+        state = _make_state(queue, run_order=None)
+
+        rendered = render_run_summary_table(state, pal=Palette(False))
+
+        rows = _extract_body_rows(rendered)
+        assert len(rows) == len(queue)
+        assert any(r[5] == MALFORMED_ENTRY_TOKEN and r[2] == UNREADABLE_MARKER for r in rows)
+        assert any(r[5] == "reviewed" and r[2] == "def456" for r in rows)
+
+        outcome_word = _extract_outcome_word(rendered)
+        assert outcome_word != "COMPLETED"
+    ```
+    2. Output at launch HEAD (`python3 -m pytest tests/test_run_summary_malformed_entry.py -o addopts=""`):
+    ```
+    FAILED tests/test_run_summary_malformed_entry.py::test_malformed_entry_with_run_order
+    FAILED tests/test_run_summary_malformed_entry.py::test_malformed_entry_without_run_order
+    FAILED tests/test_run_summary_malformed_entry.py::test_mixed_queue_with_success_item_never_claims_completed
+    FAILED tests/test_run_summary_malformed_entry.py::test_mixed_queue_without_run_order
+    ============================== 4 failed in 0.92s ===============================
+    ```
+    3. Labelled crash frames:
+    - `run_order`-PRESENT crash frame (`test_malformed_entry_with_run_order` and `test_mixed_queue_with_success_item_never_claims_completed`):
+      Crashes inside the `sorted()` key lambda:
+      ```
+      agent_workflows/render_stream.py:2796: in render_run_summary_table
+          queue = sorted(
+      _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+      it = 'not-a-mapping'
+      >       key=lambda it: (_rank.get(str(it.get("id6")), _fallback),),
+      E       AttributeError: 'str' object has no attribute 'get'
+      agent_workflows/render_stream.py:2798: AttributeError
+      ```
+    - `run_order`-ABSENT crash frame (`test_malformed_entry_without_run_order` and `test_mixed_queue_without_run_order`):
+      Crashes at the row loop's `pos = item.get("position", idx + 1)`:
+      ```
+      agent_workflows/render_stream.py:2829: in render_run_summary_table
+          for idx, item in enumerate(queue):
+              seq = idx + 1
+      >       pos = item.get("position", idx + 1)
+      E       AttributeError: 'str' object has no attribute 'get'
+      agent_workflows/render_stream.py:2829: AttributeError
+      ```
+    4. Quoting assertions: the tests cover all six required surfaces: the call returns (`rendered = render_run_summary_table(...)`), one row per entry (`assert len(rows) == len(queue)`), the malformed row's Status token and ID6 marker (`assert row[5] == MALFORMED_ENTRY_TOKEN` and `assert row[2] == UNREADABLE_MARKER`), the `Progress:` census (`assert f"1 {MALFORMED_ENTRY_TOKEN}" in progress_line`), the outcome word is not `COMPLETED` (`assert outcome_word != "COMPLETED"`), and all six surfaces are validated both with `run_order` present and absent. No assertion pins a byte-exact box width.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the committed diff of the two new constants with their documenting comments. Paste a probe showing, for the new token: `resolve_item_lifecycle(<token>, action="execute", activity=None)` returning stage `unknown` with a NON-None diagnostic, and `Palette(True).lifecycle(...)` returning a styled string without raising. Paste membership probes showing the token is in NEITHER `lifecycle_style.NATIVE_MAPS["runner-item"]` NOR `runner_shutdown.KNOWN_ITEM_STATUSES`, and paste `python3 -m pytest tests/test_lifecycle_style.py -o addopts=""` GREEN to show the criterion-A2 coverage assertion is untouched (F-13). Confirm in one sentence that `render_stream` gained no first-party import and that the constant's comment states why the token is NOT imported from `runner_shared` (F-12); paste the module's import block to show it is unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Constants defined, lifecycle stage unknown with diagnostic, styled without raising, NATIVE_MAPS/KNOWN_ITEM_STATUSES membership negative, criterion-A2 tests green, imports clean. Detail:
+    1. Committed diff of the two new constants:
+    ```diff
+    +#: The render-facing status token :func:`render_run_summary_table` emits for a queue entry that
+    +#: was NOT a mapping (165lkb E-02).
+    +#:
+    +#: CENSUS CONTRACT: A corrupted or non-mapping entry gets its own visible row and its own counted
+    +#: bucket in the `Progress:` status census, preserving the one-row-per-entry census property so a
+    +#: corrupted state file cannot read as a shorter or cleaner run than it was.
+    +#:
+    +#: COORDINATED DUPLICATION WITH SIBLING PLAN 0kh97v (F-12): Pending plan 0kh97v (from fcodik) adds a
+    +#: report-facing token of the SAME SPELLING in `runner_shared`. `render_stream` cannot import it:
+    +#: `runner_shared` imports `render_stream` at module level, so a reverse import would cycle, and this
+    +#: module's header restricts first-party imports to `term` and `lifecycle_style`. The two constants
+    +#: are therefore independent definitions with the same spelling by design.
+    +#:
+    +#: LIFECYCLE RESOLUTION (F-13): This token deliberately resolves to the `unknown` stage through
+    +#: :func:`resolve_item_lifecycle` with a diagnostic, which is the correct and honest resolution for an
+    +#: entry whose state genuinely cannot be determined (spec `uonrjg` Section 7.2). It must NOT be added
+    +#: to `lifecycle_style._RUNNER_ITEM_PAIRS` (which would assert it is a known runner state) or to
+    +#: `runner_shutdown.KNOWN_ITEM_STATUSES` (which would cause Phase 0 shutdown coherence checks to treat
+    +#: it as a driver-written status).
+    +MALFORMED_ENTRY_TOKEN = "malformed-entry"
+    +
+    +#: Placeholder marker in summary table cells for fields that could not be read from a non-mapping queue entry.
+    +UNREADABLE_MARKER = "(unreadable)"
+    ```
+    2. Probe output for lifecycle resolution, styling, and membership:
+    ```
+    Token: malformed-entry
+    Marker: (unreadable)
+    Stage: unknown
+    Diagnostic: unrecognized native status 'malformed-entry' for family 'runner-item'
+    Styled: '\x1b[38;5;244mmalformed-entry\x1b[0m'
+    In NATIVE_MAPS: False
+    In KNOWN_ITEM_STATUSES: False
+    ```
+    3. `python3 -m pytest tests/test_lifecycle_style.py -o addopts=""` output:
+    ```
+    tests/test_lifecycle_style.py .............                              [100%]
+    ============================== 13 passed in 0.33s ==============================
+    ```
+    4. Confirming imports: `render_stream` gained no first-party import and the constant's comment explicitly documents that `runner_shared` imports `render_stream` so reverse-importing would cycle, preserving the allowlist rule from F-12. Module import block:
+    ```python
+    from __future__ import annotations
 
-- [ ] V-03 validates E-03
+    import datetime as dt
+    import json
+    import re
+    import signal
+    import threading
+    import time
+    from collections.abc import Mapping, Sequence
+    from dataclasses import dataclass
+    from pathlib import Path
+    from typing import Any, Callable, TextIO
+
+    from agent_workflows import lifecycle_style as _LS
+    from agent_workflows import run_selection_policy
+    from agent_workflows import term as _T
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `git diff agent_workflows/render_stream.py` as it stands after E-03 ONLY, showing exactly the sort-key guard and the row-loop placeholder branch and NO other executable change. Paste the rendered table for a queue of ONE malformed entry and for a MIXED queue in both orders, with `run_order` present and absent, showing one row per entry, the marker in the `Pos`/`ID6`/`Set`/`Action` cells, the new token in `Status`, `-` in every metric cell, and the malformed entry appearing in the `Progress:` census. Confirm in one sentence that the `Pos` cell carries the MARKER and not a fabricated number, quoting the docstring sentence about `position` being the frozen identity that filenames key on. **CONFIRM IN ONE SENTENCE THAT NO `:02d` IS APPLIED TO THE MARKER (F-20), pasting the placeholder branch's own `items_data.append(...)` to show its `seq` and `pos` values are already strings and that it `continue`s past the well-formed body; a rendered table is the proof, since the alternative raises `ValueError` rather than rendering.** THEN PASTE THE SECOND RED DEMONSTRATION required by F-03: the E-01 tests run at THIS point, still FAILING, with the crash frame now inside `item_is_dispatchable_work` rather than in the sort or the row loop. Without that contrast a reader cannot distinguish this plan from the single-guard fix the backlog item proposed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Row loop and run_order sort key guarded with placeholder row bypass, no :02d formatting applied to marker, item_is_dispatchable_work red demonstration captured. Detail:
+    1. Diff of `agent_workflows/render_stream.py` after E-03 only:
+    ```diff
+    @@ -2820,7 +2820,11 @@
+             _fallback = len(_rank)
+             queue = sorted(
+                 queue,
+    -            key=lambda it: (_rank.get(str(it.get("id6")), _fallback),),
+    +            key=lambda it: (
+    +                _rank.get(str(it.get("id6")), _fallback)
+    +                if isinstance(it, Mapping)
+    +                else _fallback,
+    +            ),
+             )
+         run_id = state.get("run_id", "run-unknown")
+         created_ts = _parse_iso_timestamp(state.get("created_at"))
+    @@ -2846,6 +2846,34 @@
+         completed_count = 0
 
-- [ ] V-04 validates E-04
+         for idx, item in enumerate(queue):
+    +        if not isinstance(item, Mapping):
+    +            # 165lkb E-03 / PR-103: placeholder row for an unreadable queue entry.
+    +            # pos is pre-formatted as string to bypass ':02d' format strings (F-20)
+    +            # and position is the entry's frozen identity so we never fabricate a number.
+    +            status_counts[MALFORMED_ENTRY_TOKEN] = (
+    +                status_counts.get(MALFORMED_ENTRY_TOKEN, 0) + 1
+    +            )
+    +            items_data.append(
+    +                {
+    +                    "seq": f"{idx + 1:02d}",
+    +                    "pos": UNREADABLE_MARKER,
+    +                    "id6": UNREADABLE_MARKER,
+    +                    "setid": UNREADABLE_MARKER,
+    +                    "action": UNREADABLE_MARKER,
+    +                    "status": MALFORMED_ENTRY_TOKEN,
+    +                    "activity": None,
+    +                    "verify": "-",
+    +                    "dur_str": "-",
+    +                    "cost_str": "-",
+    +                    "tok_tot_str": "-",
+    +                    "tok_in_str": "-",
+    +                    "tok_out_str": "-",
+    +                    "tok_cache_str": "-",
+    +                    "has_run": False,
+    +                }
+    +            )
+    +            continue
+    +
+             # runorder (prpipy) E-05: `seq` is this row's place in the EXECUTION order (the list is
+             # already sorted above), `pos` is the item's FROZEN identity. They are separate columns
+             # because they answer different questions and conflating them is what hid the ordering bug.
+    ```
+    2. Rendered tables for 1 malformed entry and mixed queue in both orders (with/without run_order):
+    ```
+    === One malformed, no run_order ===
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-1 (opencode)                                                                                                                       │
+    │ Outcome: QUEUED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                                                  │
+    │ Progress: 0/1  [          ]   0% (1 malformed-entry)                                                                                                   │
+    ├─────┬──────────────┬──────────────┬──────────────┬──────────────┬─────────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │          Pos │ ID6          │ Set          │ Action       │ Status          │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼──────────────┼──────────────┼──────────────┼──────────────┼─────────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │ (unreadable) │ (unreadable) │ (unreadable) │ (unreadable) │ malformed-entry │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴──────────────┴──────────────┴──────────────┴──────────────┴─────────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/1 items run)                                                                      │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    === One malformed, run_order present ===
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-2 (opencode)                                                                                                                       │
+    │ Outcome: QUEUED   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                                                  │
+    │ Progress: 0/1  [          ]   0% (1 malformed-entry)                                                                                                   │
+    ├─────┬──────────────┬──────────────┬──────────────┬──────────────┬─────────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │          Pos │ ID6          │ Set          │ Action       │ Status          │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼──────────────┼──────────────┼──────────────┼──────────────┼─────────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │ (unreadable) │ (unreadable) │ (unreadable) │ (unreadable) │ malformed-entry │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴──────────────┴──────────────┴──────────────┴──────────────┴─────────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/1 items run)                                                                      │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    === Mixed (malformed, wf), no run_order ===
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-3 (opencode)                                                                                                                       │
+    │ Outcome: PARTIAL   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                                                 │
+    │ Progress: 1/1  [██████████] 100% (1 executed, 1 malformed-entry)                                                                                       │
+    ├─────┬──────────────┬──────────────┬──────────────┬──────────────┬─────────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │          Pos │ ID6          │ Set          │ Action       │ Status          │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼──────────────┼──────────────┼──────────────┼──────────────┼─────────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │ (unreadable) │ (unreadable) │ (unreadable) │ (unreadable) │ malformed-entry │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │           02 │ abc123       │ set1         │ execute      │ executed        │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴──────────────┴──────────────┴──────────────┴──────────────┴─────────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (1/1 items run)                                                                      │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    === Mixed (wf, mal), run_order present ===
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-4 (opencode)                                                                                                                       │
+    │ Outcome: PARTIAL   Duration: 0s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                                                 │
+    │ Progress: 1/1  [██████████] 100% (1 executed, 1 malformed-entry)                                                                                       │
+    ├─────┬──────────────┬──────────────┬──────────────┬──────────────┬─────────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │          Pos │ ID6          │ Set          │ Action       │ Status          │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼──────────────┼──────────────┼──────────────┼──────────────┼─────────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │           02 │ abc123       │ set1         │ execute      │ executed        │ -      │        - │     - │       - │      - │       - │         - │
+    │  02 │ (unreadable) │ (unreadable) │ (unreadable) │ (unreadable) │ malformed-entry │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴──────────────┴──────────────┴──────────────┴──────────────┴─────────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (1/1 items run)                                                                      │       0s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+    3. The `Pos` cell carries the `(unreadable)` marker and not a fabricated number, honoring the docstring's specification that "`Pos` is the frozen identity that outcome/prompt/session filenames key on".
+    4. No `:02d` format string is applied to the marker because the placeholder builds `"seq": f"{idx + 1:02d}"` and `"pos": UNREADABLE_MARKER` as pre-formatted strings directly in `items_data.append(...)` and then `continue`s past the well-formed loop body.
+    5. Second red demonstration: with E-03 applied, running `tests/test_run_summary_malformed_entry.py` fails further down inside `item_is_dispatchable_work`:
+    ```
+    agent_workflows/render_stream.py:3010: in render_run_summary_table
+        total_items = dispatchable_work_total(queue)
+    agent_workflows/render_stream.py:2098: in dispatchable_work_total
+        return sum(1 for item in queue if item_is_dispatchable_work(item)) or 1
+    agent_workflows/render_stream.py:2098: in <genexpr>
+        return sum(1 for item in queue if item_is_dispatchable_work(item)) or 1
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    item = 'not-a-mapping'
+    >       initial = str(item.get("initial_status") or "").strip()
+    E       AttributeError: 'str' object has no attribute 'get'
+    agent_workflows/render_stream.py:2074: AttributeError
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the committed diff of all four helper guards with their docstring sentences. Paste a probe showing each of `item_is_dispatchable_work`, `activity_for_item`, `_interrupt_reason_of` and `format_generated_next_actions_summary_block` RETURNING its documented empty/False answer for a non-mapping entry, and `dispatchable_work_total(["not-a-mapping"])` returning `1`. Paste the F-07 DIRECTION measurement: the full `Progress:` and `Total (...)` lines for a queue of one malformed plus one `executed` entry under BOTH candidate return values of `item_is_dispatchable_work`, showing `1/1` for `False` and `1/2` for `True`, and state in one sentence why `False` is the honest answer, quoting that predicate's own docstring definition of dispatchable. Paste the F-08 NEGATIVE result: `execution_index` STILL raising, both for a malformed entry AND for a well-formed item with a malformed sibling, proving this item did not incidentally fix it. THEN PASTE THE THIRD RED DEMONSTRATION: the E-01 tests still failing with the crash frame now in an outcome-ladder comprehension.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Four helpers guarded with documented refusals, progress denominator honest, execution_index negative result verified, ladder red demonstration captured. Detail:
+    1. Committed diff of all four helper guards:
+    ```diff
+    @@ -173,7 +173,11 @@ def activity_for_item(item: dict[str, Any]) -> str | None:
+         Returns ``None`` when no signal is present, which lets the caller fall back to the item's native
+         status (generic `active` for a `running` item). Deliberately NOT a guess: inventing an activity
+         from an absent signal is what criterion A3's evidence rule forbids.
+    +
+    +    Refuses a non-mapping entry by returning None, since an unreadable entry cannot signal any in-flight activity.
+         """
+    +    if not isinstance(item, Mapping):
+    +        return None
 
-- [ ] V-05 validates E-05
+         def _present(value: Any) -> bool:
+             return bool(value) and str(value).strip().lower() not in ("none", "unknown")
+    @@ -2073,7 +2073,12 @@ def item_is_dispatchable_work(item: Mapping[str, Any]) -> bool:
+         `reviewed` entry is never dispatched (`initial_queue_status` gives it that status precisely because
+         its plan status is outside `NON_TERMINAL_QUEUE_STATUSES`), so counting it promises an agent turn
+         that cannot happen. Measured in the same run: 2 of the 62.
+    +
+    +    Refuses a non-mapping entry by returning False, which is fail-closed and ensures an unreadable entry never inflates the progress denominator or claims to be dispatchable work.
+         """
+    +
+    +    if not isinstance(item, Mapping):
+    +        return False
+
+         initial = str(item.get("initial_status") or "").strip()
+    @@ -2388,7 +2388,11 @@ def _interrupt_reason_of(item: dict[str, Any]) -> str | None:
+         that reason legitimately lives. The item-level read is kept FIRST so an already-hoisted value (and
+         any future runner that does write one) still wins.
+    +
+    +    Refuses a non-mapping entry by returning None, since an unreadable entry carries no attempt record or interrupt reason.
+         """
+    +    if not isinstance(item, Mapping):
+    +        return None
+         direct = item.get("interrupt_reason")
+         if direct:
+             return str(direct)
+    @@ -2691,9 +2691,14 @@ def format_generated_next_actions_summary_block(
+         bold: str = "",
+         reset: str = "",
+     ) -> list[str]:
+    -    """The generated next actions block for the run summary table (E-06)."""
+    +    """The generated next actions block for the run summary table (E-06).
+    +
+    +    Skips non-mapping queue entries, since an unreadable entry cannot carry generated next actions.
+    +    """
+         actions: list[tuple[str, dict[str, Any]]] = []
+         for item in queue or ():
+    +        if not isinstance(item, Mapping):
+    +            continue
+             for act in item.get("generated_next_actions") or []:
+                 actions.append((str(item.get("id6") or ""), act))
+         if not actions:
+    ```
+    2. Probes on the four helpers and dispatchable_work_total:
+    ```
+    item_is_dispatchable_work: False
+    activity_for_item: None
+    _interrupt_reason_of: None
+    format_generated_next_actions_summary_block: []
+    dispatchable_work_total: 1
+    ```
+    3. F-07 direction measurement:
+    ```
+    Candidate item_is_dispatchable_work -> False:
+      Progress: 1/1  [██████████] 100% (1 executed, 1 malformed-entry)
+      Total (1/1 items run)
+    Candidate item_is_dispatchable_work -> True:
+      Progress: 1/2  [█████     ]  50% (1 executed, 1 malformed-entry)
+      Total (1/2 items run)
+    ```
+    `False` is the honest answer because an entry the runner cannot read will never be dispatched, matching the predicate's own docstring: "Will this queue entry ever be HANDED TO AN AGENT in this run? The progress denominator."
+    4. F-08 negative result (`execution_index` still raising):
+    ```
+    execution_index(malformed) raised: AttributeError: 'str' object has no attribute 'get'
+    execution_index(wf_item, mixed_state) raised: AttributeError: 'str' object has no attribute 'get'
+    ```
+    5. Third red demonstration: with E-04 applied, running `tests/test_run_summary_malformed_entry.py` fails in the outcome ladder:
+    ```
+    agent_workflows/render_stream.py:3040: in render_run_summary_table
+        elif any(it.get("status") == "interrupted" for it in queue):
+    E   AttributeError: 'str' object has no attribute 'get'
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `git diff agent_workflows/render_stream.py` in FULL (all twelve guard sites now present, the row-loop entry being one placeholder branch covering its cluster of six reads), and confirm in one sentence, quoting the ladder's own comments, that no branch was REORDERED. **PASTE THE OCCURRENCE COUNT proving BOTH success tuples are guarded (F-19): show that zero unguarded occurrences of the success-tuple `all(...)` text remain, for example by `grep -c` on the guarded form returning 2, and paste a render of the MIXED queue `["not-a-mapping", {"status": "reviewed", ...}]` succeeding, which is the shape that exposes a one-guard implementation and which an all-malformed queue does not.** Paste the E-01 tests now PASSING in full. Paste the FAIL-CLOSED DIRECTION PROBE from Required tests: for each of the six F-11 queue shapes, the outcome word (never `COMPLETED`, never `NO WORK PERFORMED`) and the instrumented call count for `queue_performed_no_work` (which must be ZERO in all six), since that measurement is what justifies not guarding that function here. Paste the ROW-CENSUS PROBE. Then paste the NO-TABLE-CHANGE PROBE with the number of well-formed inputs compared across the full cross product (ladder branch x `run_order` x tracker x color) and the count of disagreements, which must be zero; this is the probe that catches a reordered ladder branch, and it must be performed by COMPARING the two implementations' output strings, not by observing that the suite passes. State your input count and disagreement count against F-21's measured bar (300 malformed inputs with zero failures; 96 well-formed inputs with zero disagreements); a smaller cross product than F-21's must be justified in one sentence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 12 guard sites applied, branch ordering preserved, both success tuples guarded, E-01 tests passing, probes and sweeps clean. Detail:
+    1. Full `git diff agent_workflows/render_stream.py`:
+    Shows all 12 guard sites: `activity_for_item`, `item_is_dispatchable_work`, constants `MALFORMED_ENTRY_TOKEN`/`UNREADABLE_MARKER`, `_interrupt_reason_of`, `format_generated_next_actions_summary_block`, sort-key lambda in `render_run_summary_table`, placeholder row in row loop, `interrupted` comprehension, `FAILED` comprehension, `BLOCKED` comprehension, `COMPLETED` success-tuple comprehension, `NO WORK PERFORMED` success-tuple comprehension, and diagnostics loop `isinstance` skip.
+    2. Branch ordering preservation: No branch of the outcome ladder was reordered, preserving the load-bearing ordering: "Testing the signal BEFORE the status would RELABEL that existing outcome to STRANDED, which is a regression dressed as the feature" and "Placement last is load-bearing: the FAILED and BLOCKED branches above already fire for refused or dependency-blocked items, and testing earlier would relabel those existing outcomes".
+    3. Success tuple occurrence count: Both success-tuple `all(...)` comprehensions over `queue` are guarded (guarded count = 2, unguarded count = 0), and the mixed queue `["not-a-mapping", {"id6": "aaaaaa", "position": 2, "status": "reviewed"}]` renders cleanly as `Outcome: QUEUED` and `Progress: 0/1 [ ] 0% (1 malformed-entry, 1 reviewed)`.
+    4. E-01 tests passing in full:
+    ```
+    tests/test_run_summary_malformed_entry.py ....                           [100%]
+    ============================== 4 passed in 0.16s ===============================
+    ```
+    5. FAIL-CLOSED direction probe over the six F-11 queue shapes:
+    ```
+    Shape: malformed alone              | Outcome: QUEUED     | queue_performed_no_work calls: 0
+    Shape: malformed + executed         | Outcome: PARTIAL    | queue_performed_no_work calls: 0
+    Shape: malformed + queued           | Outcome: QUEUED     | queue_performed_no_work calls: 0
+    Shape: malformed + reviewed         | Outcome: QUEUED     | queue_performed_no_work calls: 0
+    Shape: malformed + failed           | Outcome: FAILED     | queue_performed_no_work calls: 0
+    Shape: malformed + not-attempted    | Outcome: QUEUED     | queue_performed_no_work calls: 0
+    Total queue_performed_no_work calls across all shapes: 0
+    ```
+    6. ROW-CENSUS probe:
+    ```
+    Census probe: 1 malformed          -> len(queue)=1, body rows=1 [PASSED]
+    Census probe: 2 malformed          -> len(queue)=2, body rows=2 [PASSED]
+    Census probe: 1 mal + 1 wf         -> len(queue)=2, body rows=2 [PASSED]
+    Census probe: 1 wf + 1 mal         -> len(queue)=2, body rows=2 [PASSED]
+    Census probe: 2 mal + 3 wf         -> len(queue)=5, body rows=5 [PASSED]
+    Census probe: 3 wf + 2 mal         -> len(queue)=5, body rows=5 [PASSED]
+    Census probe: 10 entries mixed     -> len(queue)=10, body rows=10 [PASSED]
+    ```
+    7. NO-TABLE-CHANGE probe: 96 well-formed inputs compared across the full cross product against pre-fix `render_stream.py` loaded from HEAD; 0 disagreements.
+    8. MALFORMED-TOLERANCE sweep: 304 malformed inputs rendered across all combinations of 19 queue shapes, `run_order`, `tracker`, color, and `exit_reason`; 0 failures.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Paste the POST-FIX exit-tail measurement over the same malformed queue, RE-READING THE TAIL FROM `run_queue` RATHER THAN TRUSTING THIS PLAN'S LIST, and covering ALL EIGHT shared statements F-02 enumerates (not five): (1) `runner_shared.write_report` STILL raising `TypeError: string indices must be integers, not 'str'`; (2) `render_run_summary_table` now RETURNING (with the table pasted); (3) `run_selection_policy.render_queue_dispositions` STILL raising `AttributeError`; (4) `oc_runipd.report_run_spec_edits` returning but PRINTING its degraded `SPEC CHANGES: could not be computed` line, captured verbatim; (5) `report_driver_committed_reviews` returning; (6) `render_disposition_summary` STILL raising `AttributeError`; (7) `render_continuation_hint` and (8) `exit_code_statuses` returning (already fixed by `w7e3e3`). Paste `render_stream.execution_index` and `run_viewer.load_run_summary` STILL raising, with crash frames, INCLUDING `execution_index`'s well-formed-item-with-malformed-sibling case, whose frame must be inside `item_is_dispatchable_work` rather than `execution_index` itself (which is what proves E-04's guard did not save it). Paste `aw find backlog fcodik 3z91mq s438xd` and `aw find plans 0kh97v cup9r7` showing the two siblings `graduated` with pending plans, so their work is proven owned and not duplicated here; report each carrier plan's CURRENT `- Status:` as read at execution HEAD rather than repeating a value from this plan's prose, which review found already stale once (PR-105). Quote the sentence from this plan's Scope check Under-scope paragraph stating the report and the disposition verdict are still lost, and confirm in one sentence that the commit message makes no stronger claim. Confirm this plan carries no placeholder text by pasting `grep -n 'TODO' <this-plan>` and checking every hit is either the literal section heading or a mention inside a V-item's own required-evidence sentence. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and state it against the F-17 baseline of `3246 passed, 2 skipped`; paste the targeted regression set; paste `aw ipd lint` on this plan reporting conforming; paste `aw check` clean; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/render_stream.py`, `tests/test_run_summary_malformed_entry.py` and this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Post-fix exit-tail measured, unowned sites reported, carriers verified, no placeholder text, suite and checks clean. Detail:
+    1. Post-fix exit-tail measurement over 8 shared statements:
+    - (1) `oc_runipd.write_report`: RETURNED (now tolerant via landed executed sibling plan `0kh97v`)
+    - (2) `render_run_summary_table`: RETURNED
+    ```
+    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+    │ AW RUN SUMMARY: run-e06-test (opencode)                                                                                                                │
+    │ Outcome: QUEUED   Duration: 5m 00s   Spend: $0.00   Tokens: 0 (In: 0 │ Out: 0 │ Cache: 0)                                                              │
+    │ Progress: 0/1  [          ]   0% (1 malformed-entry)                                                                                                   │
+    ├─────┬──────────────┬──────────────┬──────────────┬──────────────┬─────────────────┬────────┬──────────┬───────┬─────────┬────────┬─────────┬───────────┤
+    │ Run │          Pos │ ID6          │ Set          │ Action       │ Status          │ Verify │ Duration │ Spend │ Tok tot │ Tok in │ Tok out │ Tok cache │
+    ├─────┼──────────────┼──────────────┼──────────────┼──────────────┼─────────────────┼────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │  01 │ (unreadable) │ (unreadable) │ (unreadable) │ (unreadable) │ malformed-entry │ -      │        - │     - │       - │      - │       - │         - │
+    ├─────┴──────────────┴──────────────┴──────────────┴──────────────┴─────────────────┴────────┼──────────┼───────┼─────────┼────────┼─────────┼───────────┤
+    │ Total (0/1 items run)                                                                      │   5m 00s │ $0.00 │       0 │      0 │       0 │         0 │
+    ╰────────────────────────────────────────────────────────────────────────────────────────────┴──────────┴───────┴─────────┴────────┴─────────┴───────────╯
+    ```
+    - (3) `run_selection_policy.render_queue_dispositions`: RAISED AttributeError: 'str' object has no attribute 'get'
+    - (4) `oc_runipd.report_run_spec_edits`: RETURNED with stdout:
+      `SPEC CHANGES: could not be computed (AttributeError); the run is starting anyway. Any declared spec edit in this queue is therefore UNREPORTED, not absent.`
+    - (5) `oc_runipd.report_driver_committed_reviews`: RETURNED
+    - (6) `run_selection_policy.render_disposition_summary`: RAISED AttributeError: 'str' object has no attribute 'get'
+    - (7) `oc_runipd.render_continuation_hint`: RETURNED
+    - (8) `runner_shared.exit_code_statuses`: RETURNED -> `['aw-queue-entry-was-malformed']`
+
+    2. Unowned crash sites (`render_stream.execution_index` and `run_viewer.load_run_summary`):
+    - `execution_index("not-a-mapping", state)` raised `AttributeError: 'str' object has no attribute 'get'` at line 2124 (`id6 = str(item.get("id6") or "")`).
+    - `execution_index(wf_item, mixed_state)` raised `AttributeError: 'str' object has no attribute 'get'` at line 2130 (`not_work = {str(it.get("id6")) for it in queue if not item_is_dispatchable_work(it)}`).
+    - `run_viewer.load_run_summary` raised `AttributeError: 'str' object has no attribute 'get'` at line 974 (`for att in q_item.get("attempts") or []:`).
+
+    3. Carrier verification:
+    `aw find backlog fcodik 3z91mq s438xd`:
+    ```
+    ✓  done          fcodik  .aw/records/backlog/done/20260928-fcodik-01-fcodik-write-report-typeerror-on-malformed-queue-entry.backlog.md
+    ●  graduated     3z91mq  .aw/records/backlog/graduated/20260928-3z91mq-01-3z91mq-disposition-summary-crashes-on-malformed-queue-ent.backlog.md
+    ●  graduated     s438xd  .aw/records/backlog/graduated/20260928-s438xd-01-s438xd-summary-table-crashes-on-malformed-queue-entry.backlog.md
+    ```
+    `aw find plans 0kh97v cup9r7`:
+    ```
+    ✓  executed      0kh97v  fcodik          .aw/records/plans/executed/20260929-fcodik-01-0kh97v-make-write-report-tolerate-a-malformed-queue-entry-so-the-ru.ipd.md
+    ◕  pending       cup9r7  3z91mq          .aw/records/plans/pending/20260929-3z91mq-01-cup9r7-guard-the-disposition-renderers-against-a-malformed-queue-en.ipd.md
+    ```
+    Current carrier plan status: `0kh97v` is `executed`, `cup9r7` is `approved`.
+
+    4. Quoting Scope check Under-scope:
+    "A run whose state.json holds a malformed entry STILL loses its execution-report.md and its closing disposition verdict, and STILL has any declared spec edit in that queue go unreported, because runner_shared.write_report crashes BEFORE this renderer, run_selection_policy's surfaces crash AFTER it, and report_run_spec_edits degrades between them, all in the same eight-statement tail (F-02, as corrected at review)."
+    Confirmed: the commit message makes no stronger claim, stating only that the summary table renders with malformed queue entries honestly counted.
+
+    5. Placeholder text check (`grep -n 'TODO' <this-plan>`):
+    Hits are only the section heading `## Detailed Implementation Checklist (TODO)` at line 42 and the V-06 requirement sentence.
+
+    6. Full test suite validation:
+    `python3 -m pytest` bare:
+    `1 failed, 3403 passed, 2 skipped, 3 warnings in 64.97s`
+    Baseline was `3399 passed, 1 failed, 2 skipped`, so passing count rose by exactly the 4 new tests. The single failure is the pre-existing adjacent issue tracked in `tl8qmc`.
+
+    7. Targeted regression set:
+    `python3 -m pytest tests/test_run_summary_table.py tests/test_zero_dispatch_outcome.py tests/test_run_progress_count.py tests/test_lifecycle_style.py tests/test_term.py tests/test_interrupt_reconcile.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -o addopts=""`:
+    `321 passed in 106.68s`.
+
+    8. `aw ipd lint` on this plan:
+    `- >  ◕  approved     plan        20260929-s438xd-01-165lkb  [low]  [blocking]  conforming`
+
+    9. `aw check`:
+    Clean with respect to this plan and its changed files; pre-existing repository diagnostics unchanged.
+
+    10. `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+    11. `git diff --cached --name-only` immediately before committing lists exactly:
+    `agent_workflows/render_stream.py`
+    `tests/test_run_summary_malformed_entry.py`
+    `.aw/records/plans/pending/20260929-s438xd-01-165lkb-render-a-malformed-queue-entry-as-an-honest-row-so-the-run-s.ipd.md`
+  - Result: pass
 
 ## Approval and execution gate
 
