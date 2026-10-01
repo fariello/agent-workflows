@@ -6,7 +6,7 @@
 - Scope: IN: add ONE resolver to `runner_shared` that maps a recorded `driver.id` to its `HostLabels` by DISCOVERING every `HostLabels` instance in the module (the same discovery shape `tests/test_hostdedup_third_host.py` already uses), keyed on `.id` plus `.argv_tokens`; re-point `run_viewer.load_run_summary`'s `driver_id` arm at it while leaving its `elif driver_path` substring/stem fallback BYTE-IDENTICAL; re-point `run_dashboard._run_host`'s two `startswith` tests at the same resolver so an unregistered id falls through to its existing `options`/`cost_attribution`/`format` chain instead of being misrouted; and pin all three properties with outcome tests, including the pre-cutover corpus shapes and a registered-then-unregistered third host. OUT, each for a stated reason: the `elif driver_path` fallback's own literals, which MUST keep labelling the 253 id-less records measured in the local corpus (F-04) and whose `runipd.py`/`ipdrunner.py` generations match NO live descriptor, so folding them into a descriptor lookup would regress historical runs - this is precisely the blast radius the backlog item warned of; `run_analytics_sources.driver_generation`/`_GENERATION_HOSTS`, which is a THIRD vocabulary that is deliberately basename-keyed for the pre-cutover corpus and already routes both live hosts correctly (F-05); adding any FIELD to `HostLabels`, since every field must be justified by a named consumer and this plan needs none; `host_capability_registry`'s `display_name` table and `host_cmd.DEFAULT_HOSTS`, which are a separate installed-host vocabulary keyed on CLI host names rather than on driver ids (F-06); and the `"runagy"` spelling, which is NOT derivable from `.id`+`.argv_tokens` and is handled explicitly in E-01 rather than dropped (F-03).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, agent_workflows/run_dashboard.py, tests/test_hostdedup_third_host.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: agent
 - Id: o55eli
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: o55eli verified (set gxsprh, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
