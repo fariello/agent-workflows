@@ -6,7 +6,7 @@
 - Scope: Replace `_dir_signature`'s hand-enumerated, depth-truncated mtime walk with a recursive `os.scandir` fingerprint over the record trees carrying each directory's mtime AND its sorted entry-name set, so a same-tick addition, an addition in an untyped tree, and an addition below the old depth cap are all visible. IN: `agent_workflows/artifact_audit.py`'s `_dir_signature` and the cache commentary above `_INDEX_CACHE` that currently justifies the mtime-only design; and a new `tests/test_artifact_audit_index_cache.py` carrying an outcome test per route plus a cache-still-works test proving the fix did not simply disable memoization. OUT: `build_index`'s traversal, `find_artifact`'s two tiers, `audit_artifact`'s fresh status read, `_INDEX_CACHE_MAX`'s wholesale-clear eviction (F-09), the residual same-tick IN-PLACE `- Id:` edit route (F-06, deferred with a carrier), and any change to `selectors`.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_index_cache.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dea7dr
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dea7dr verified (set 8mkt5l, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-007, all FIXED in place. Reviewed at HEAD `ebbb5dc5` in an isolated lane; typed record at `.aw/records/reviews/20260929-8mkt5l-01-dea7dr-make-the-artifact-audit-index-cache-see-a-change-its-directo.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
