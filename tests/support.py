@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import unittest.mock
@@ -457,3 +458,163 @@ def _write_windows_launcher(path: Path, body: str) -> Path:
     shebang = f"#!{sys.executable}\r\n".encode("utf-8")
     exe.write_bytes(launcher + shebang + buf.getvalue())
     return exe
+
+
+# --------------------------------------------------------------------------------------
+# Bounded section extractors for the test suite (IPD `78rxzc`).
+# --------------------------------------------------------------------------------------
+
+
+class SectionBoundError(AssertionError):
+    """Raised when a section boundary cannot be located or is invalid.
+
+    Subclasses ``AssertionError`` so a refusal reports as a test FAILURE rather than an
+    ERROR (the assertion cannot be made, not that the helper crashed), and cannot be
+    swallowed by an ``except Exception`` in a caller's cleanup path.
+    """
+
+
+def _find_marker(
+    text: str,
+    marker: str,
+    start: int = 0,
+    *,
+    anchored: bool = True,
+) -> tuple[int, int] | None:
+    if not isinstance(marker, str):
+        raise TypeError(f"marker must be str, got {type(marker).__name__}")
+    if not isinstance(text, str):
+        raise TypeError(f"text must be str, got {type(text).__name__}")
+    if not marker:
+        raise ValueError("marker cannot be empty")
+
+    if anchored:
+        m = re.compile(r"(?m)^" + re.escape(marker)).search(text, start)
+        return (m.start(), m.end()) if m else None
+    idx = text.find(marker, start)
+    return (idx, idx + len(marker)) if idx != -1 else None
+
+
+def section(
+    text: str,
+    start_marker: str,
+    end_marker: str,
+    *,
+    anchored: bool = True,
+    include_end: bool = False,
+) -> str:
+    """Extract bounded text between ``start_marker`` and ``end_marker``, refusing on missing bounds.
+
+    Returns ``text[start:end]`` (or through ``end_marker`` when ``include_end=True``).
+    The extracted section includes ``start_marker``; this deliberately differs from
+    production helper ``attention._history_section_lines`` (which returns body lines stripped
+    of the heading line), because test callers typically assert on the heading or index
+    relative to the marker.
+
+    Refuses rather than falls back:
+    - If ``start_marker`` is absent, raises :class:`SectionBoundError` naming the marker.
+    - If ``end_marker`` is absent after ``start_marker``, raises :class:`SectionBoundError`
+      stating that the section extent is unknown, that unrelated later additions would enter it,
+      and that :func:`final_section` is the remedy for a genuinely terminal section.
+
+    Markers are literal strings (no regex patterns are accepted, preventing unbounded reads
+    via patterns like ``.*``).
+
+    Matching is line-anchored by default (``anchored=True``), matching at line start
+    (``(?m)^`` + ``re.escape``). This fixes a measured defect where body prose quotes a heading
+    before the real heading. Tracked ``.md`` files containing ``## Workflow history`` where an
+    unanchored ``.find`` diverges from a line-anchored match numbered 33 of 1806 at authoring,
+    104 of 1891 at review, and 122 of 3077 at execution.
+
+    The anchored default produces three distinct outcomes:
+    1. Anchored match found: starts extraction at the real line-anchored heading.
+    2. Marker exists only in prose: anchored search finds nothing and raises
+       :class:`SectionBoundError` on the start marker, pointing at ``anchored=False``.
+       (Review measured 66 such files; execution measured 80).
+    3. ``anchored=False`` restores substring search behavior and its attendant defect.
+
+    The ``anchored=False`` escape exists for callers that intentionally do unanchored matching,
+    notably ``tests/test_merge_conflict_sendback.py`` which lowercases its subject before
+    splitting (searching for ``## conflict details``, which no line in the original text starts with).
+    """
+    start_span = _find_marker(text, start_marker, 0, anchored=anchored)
+    if start_span is None:
+        if anchored and start_marker in text:
+            raise SectionBoundError(
+                f"start marker {start_marker!r} not found at line start (marker exists unanchored; "
+                f"pass anchored=False if matching in prose was intended)"
+            )
+        raise SectionBoundError(f"start marker {start_marker!r} not found in text")
+
+    search_start = start_span[1]
+    end_span = _find_marker(text, end_marker, search_start, anchored=anchored)
+    if end_span is None:
+        if anchored and end_marker in text[search_start:]:
+            raise SectionBoundError(
+                f"end marker {end_marker!r} not found at line start after start marker {start_marker!r}: "
+                f"section extent is unknown (marker exists unanchored; pass anchored=False if matching in prose was intended; "
+                f"an unrelated later change would enter it; use final_section to declare a genuinely terminal section)"
+            )
+        raise SectionBoundError(
+            f"end marker {end_marker!r} not found after start marker {start_marker!r}: "
+            f"section extent is unknown (an unrelated later change would enter it; "
+            f"use final_section to declare a genuinely terminal section)"
+        )
+
+    start = start_span[0]
+    end = end_span[1] if include_end else end_span[0]
+    return text[start:end]
+
+
+def final_section(
+    text: str,
+    start_marker: str,
+    *,
+    next_marker: str,
+    anchored: bool = True,
+) -> str:
+    """Extract a terminal section from ``start_marker`` to end of text, refusing if followed by ``next_marker``.
+
+    This provides an honest declaration that a section runs to the end of input, and fails
+    with :class:`SectionBoundError` naming the offset if a subsequent section is introduced,
+    falsifying the terminal premise.
+
+    Unlike unbounded slicing (``text[start:]``), which silently absorbs subsequent sections,
+    ``final_section`` detects when the section is no longer terminal.
+    """
+    start_span = _find_marker(text, start_marker, 0, anchored=anchored)
+    if start_span is None:
+        if anchored and start_marker in text:
+            raise SectionBoundError(
+                f"start marker {start_marker!r} not found at line start (marker exists unanchored; "
+                f"pass anchored=False if matching in prose was intended)"
+            )
+        raise SectionBoundError(f"start marker {start_marker!r} not found in text")
+
+    search_start = start_span[1]
+    next_span = _find_marker(text, next_marker, search_start, anchored=anchored)
+    if next_span is not None:
+        raise SectionBoundError(
+            f"terminal section starting at {start_marker!r} is followed by next marker {next_marker!r} "
+            f"at offset {next_span[0]}: premise that section runs to end of text is falsified"
+        )
+
+    return text[start_span[0] :]
+
+
+def section_lines(
+    text: str,
+    start_marker: str,
+    end_marker: str,
+    *,
+    anchored: bool = True,
+    include_end: bool = False,
+) -> list[str]:
+    """Return ``section(...).splitlines()``. Thin wrapper forwarding parameters unchanged."""
+    return section(
+        text,
+        start_marker,
+        end_marker,
+        anchored=anchored,
+        include_end=include_end,
+    ).splitlines()
