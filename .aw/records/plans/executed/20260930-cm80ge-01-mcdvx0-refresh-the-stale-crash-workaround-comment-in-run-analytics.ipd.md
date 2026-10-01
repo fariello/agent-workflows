@@ -6,7 +6,7 @@
 - Scope: Rewrite the stale crash narrative in that one comment block so it describes live behavior, state the reason the no-context call SURVIVES on its own terms, and PIN that reason with one behavioral test (added at review, PR-002: the `next`-survives property is an emitted-output claim, so P16 requires it be tested rather than forbidding it; only a comment-TEXT tripwire is forbidden). Authoring measurement CORRECTS the reason the two carrier items propose: counts are no longer the differentiator, because `_PRESERVED_FIELDS` now retains `total`/`emitted`/`omitted` through any projection, so a projected summary keeps its counts either way; the field the projection actually drops is `next`, the paging continuation. The comment must therefore rest on `next` rather than repeat a counts rationale this plan measured false. Prose only: the `render_summary` call, its arguments, and every other executable line are untouched, and no command's output changes. Also closes duplicate carrier `o8vgss`, which describes the same comment.
 - Scope-Paths: agent_workflows/run_analytics_cli.py, tests/test_run_analytics_cli.py, .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md, .aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: mcdvx0
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mcdvx0 verified (set cm80ge, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-005 all FIXED; findings in .aw/records/reviews/20260930-cm80ge-01-mcdvx0-refresh-the-stale-crash-workaround-comment-in-run-analytics.review.md
 
