@@ -699,8 +699,9 @@ def run_status_is_nonterminal(status: str) -> bool:
     WHY THE DERIVATION CATCHES THEM FOR FREE: neither `reviewed` nor `queued` is in
     ``_TERMINAL_EXPECTED_DIR``, so both map to `pending` and are forward-eligible without being named.
 
-    `tests/test_artifact_audit.py` pins this against BOTH host drivers' `TERMINAL_STATES`, in the style
-    of `runner_shutdown.KNOWN_ITEM_STATUSES`, so a driver adding a status cannot drift silently.
+    `tests/test_artifact_audit.py:TestArtifactAuditEngine.test_terminal_states_tolerance_and_counterexample_trichotomy`
+    pins this against `runner_shared.TERMINAL_STATES` (shared by both host drivers), in the style of
+    `runner_shutdown.KNOWN_ITEM_STATUSES`, so a driver adding a status cannot drift silently.
     """
     return expected_dir_for_status(status) == "pending"
 
@@ -1230,71 +1231,6 @@ def read_declared_status(path: Path) -> Optional[str]:
         return None
     m = _STATUS_LINE_RE.search(txt)
     return m.group(1).strip() if m else None
-
-
-def _status_disagrees(recorded: str, declared: str) -> bool:
-    """Does a record's own ``declared`` status disagree with the ``recorded`` one?
-
-    The tolerance bands are:
-      * executed/complete: declared must be executed or complete
-      * reviewed: declared may be reviewed or approved
-      * any non-executed outcome (in-flight states like queued, running, interrupted, or
-        terminal failure states like fail-gate, fail-begin, fail-lane, fail-verify, fail-depend,
-        fail-merge, not-run, failed, cancelled, abandoned?, already-landed, and their legacy
-        aliases): declared may be any pre-terminal value (approved, to-review, draft, reviewed,
-        queued, running), because a plan whose execution was not completed legitimately still
-        carries its authoring status in pending/.
-      * otherwise the two must be equal.
-
-    The accepted pre-terminal values do NOT admit executed. If an interrupted, failed, or blocked
-    item's plan sits in executed/ reading - Status: executed, that remains a status mismatch
-    (and location mismatch) until forward finalization is evidenced.
-    """
-    from agent_workflows.runner_shared import canonical_terminal_status
-
-    rec = canonical_terminal_status(recorded)
-    dec = canonical_terminal_status(declared)
-    if rec in ("executed", "complete"):
-        return dec not in ("executed", "complete")
-    if rec == "retired":
-        return dec not in ("superseded", "not-executed")
-    if rec == "reviewed":
-        return dec not in ("reviewed", "approved")
-    if rec in (
-        "queued",
-        "queued?",
-        "running",
-        "interrupted",
-        "fail-gate",
-        "fail-begin",
-        "fail-lane",
-        "fail-verify",
-        "fail-depend",
-        "fail-merge",
-        "not-run",
-        "failed",
-        "cancelled",
-        "abandoned",
-        "abandoned?",
-        "already-landed",
-    ) or recorded in (
-        "queued",
-        "queued?",
-        "running",
-        "dependency-blocked",
-        "blocked",
-        "interrupted",
-        "abandoned?",
-    ):
-        return dec not in (
-            "approved",
-            "to-review",
-            "draft",
-            "reviewed",
-            "queued",
-            "running",
-        )
-    return dec != rec
 
 
 def audit_artifact(
