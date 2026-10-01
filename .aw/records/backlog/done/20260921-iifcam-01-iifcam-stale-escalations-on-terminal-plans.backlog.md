@@ -1,5 +1,5 @@
 - Id: iifcam
-- Status: graduated
+- Status: done
 - Graduated-To: iifcam
 - Set: iifcam
 - Priority: low
@@ -7,5 +7,6 @@
 - Summary: Two terminal plans carry a stale escalated finding whose question was answered
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD khiueh executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-iifcam-01-khiueh-clear-the-two-stale-escalations-by-amending-the-review-recor.ipd.md); evidence .aw/records/plans/executed/20260929-iifcam-01-khiueh-clear-the-two-stale-escalations-by-amending-the-review-recor.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: khiueh
 - 2026-09-21 created (aw backlog): Found while executing plan qhy3i3 (rdyrecheck-01) by running its new aw ipd recheck-readiness --stale-findings over all 702 plans. Two plans still carry a BLOCKER finding recorded open while the Blocking: yes question it was escalated as is Status: resolved: ki6tom PR-201 (OQ-02) in not-executed/, and yku4ga PR-701 (OQ-02) in superseded/. These are the genuine remaining instances of the one-directional escalation loop that qhy3i3 E-07 closes. They were NOT amended: both plans are terminal and RETIRED, so appending a review round would edit the record of a plan that will never run, and AGENTS.md forbids adding commits to a plan already filed terminal. Recorded so the observation is not lost; the correct disposition (amend for tidiness, or leave the retired record as history) is a maintainer judgement.
