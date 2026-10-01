@@ -128,6 +128,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: no work is owed; the limit is inherent to git hooks and the portable authority (the `aw check` rule family plus CI) is what E-04 delivers.
 - CHANGING THE SETTER. Sibling plan `nvsz19` owns the setter path and this item was split out of it precisely so the two paths stay separable. Nothing here touches `status_set.py`, and the two plans do not conflict: `nvsz19` refuses the tooled write, this plan refuses the hand-edited commit.
   - Carrier: nvsz19
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-ipdsetback-01-nvsz19-route-plan-status-transitions-through-the-shared-lifecycle-p.ipd.md
 - CHANGING `check_lifecycle_transitions`' SCOPE OR SEVERITY. It stays pending-scoped and history-based (F-14). Making it whole-tree or authoritative would re-litigate the grandfathered terminal corpus, which the item's own SCOPE NOTE forbids.
   - Carrier-Declined: no work is owed. The rule is correct as shipped and its scoping is deliberate grandfathering recorded in its own comment.
 

@@ -6,7 +6,7 @@
 - Scope: Give the plan branch of `status_set.validate_transition_allowed` the same shape the SPECS branch beside it already has - one delegation to the shared transition predicate - so all setter spellings fail closed on an illegal plan edge. Preserve the three ENUMERATED legal backward recovery edges, preserve retirement into `superseded`/`not-executed`, and preserve the shipped `--allow-terminal-reopen` escape hatch, which a naive gate is MEASURED to break.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_plan_transition_gate.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,14 +17,14 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nvsz19
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nvsz19 verified (set ipdsetback, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_status_set.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801, PR-802, PR-803, PR-804, PR-805 all fixed. Reviewed at HEAD `fd9e05db`. Every one of the plan's 15 authored findings was re-measured and all 15 hold, including the 26/19/5/2 corpus sweep and the exact 3 probe-red tests. THREE MEASURED DESIGN ERRORS WERE CORRECTED, each of which would have shipped a regression. PR-801: F-06 claimed the finalize delegation is UPSTREAM of the gate site; it is DOWNSTREAM (proven by spying on `validate_transition_allowed`), so omitting `actor=` is not sufficient and the gate must skip a normalized `-> executed` target or it converts that path's exit `2` into a `1`. PR-802: E-04's remedy was keyed on `--allow-terminal-reopen` being PASSED, which leaves the BARE terminal case refusing at `1` from the new gate instead of `2` from the shipped guard, reddening two of the three tests E-05 expects to pass unchanged; the carve-out is now on the terminal SOURCE unconditionally. PR-803: the gate never case-folded the source, and 25 live plans carry an uppercase `- Status:`, so the exact edge the plan refuses passed at exit `0` through an unfolded gate. The corrected shape was then BUILT AND MEASURED end to end (F-07b): correct exit codes on all 10 classes and a bare suite of `3368 passed, 2 skipped` with zero test edits.
-- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `rrvrwv`. THE ITEM'S HEADLINE REPRO NO LONGER REPRODUCES AND THE PLAN SAYS SO RATHER THAN INHERITING IT. The item was filed 2026-09-21; `setterguard 4bc1nd` landed a terminal-reopen guard on 2026-09-22 (commit `c23a02a1`), one day later, so `aw ipd set reviewed <executed-plan>` now exits `2` and writes nothing (measured, F-01). The item's DIAGNOSIS is nonetheless exactly right and its EXPECTED behavior is still unmet: the setter still does not consult `validate_transition`, and four illegal NONTERMINAL backwards edges remain performable at exit `0` (F-02). The plan therefore targets the unfixed general defect the item names rather than the one instance that another plan incidentally closed, and it records the superseded repro so no reviewer re-measures it. TWO MEASUREMENTS CHANGED THE DESIGN. (1) A naive delegation BREAKS THE SHIPPED ESCAPE HATCH: measured with a throwaway probe patch, `--allow-terminal-reopen` stops working (3 shipped tests fail, F-07), because the new gate sits ABOVE the guard that flag overrides. (2) `validate_transition` does not know `superseded`/`not-executed`/`reusable`, returning `unknown target status`, so an unguarded delegation would REFUSE LEGITIMATE RETIREMENT (F-05). Both are handled in E-02/E-03 and fenced by V-02/V-03. (NOTE added at review 2026-09-30: this bullet's original remedy for (1) - carving out the terminal case only when `--allow-terminal-reopen` was passed - was itself measured wrong and was corrected to an unconditional terminal-source carve-out; see PR-802 and the review record.)
+- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -36,47 +36,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise before changing anything
 
-- [ ] E-01 Re-measure the defect at the executing HEAD and record the numbers in V-01's evidence, because this plan's premise ALREADY MOVED ONCE (the backlog item's headline repro was closed by other work between filing and authoring) and may move again. In a throwaway git repo OUTSIDE the records tree (use a gitignored `tmp/` path inside the lane; never mutate a real record to gather evidence), seed one plan per case and run the setter, recording exit code and the resulting on-disk `- Status:` for each: (a) the four illegal nonterminal backwards edges `approved -> draft`, `approved -> to-review`, `reviewed -> draft`, `to-review -> draft`, each of which must measure exit `0` WITH THE STATUS REWRITTEN; (b) the backlog item's ORIGINAL repro `executed -> reviewed`, which must measure exit `2` and NOTHING written, confirming `4bc1nd` closed it; (c) the same illegal edge through BOTH real spellings `aw set` and `aw ipd set`, since a gate in only one is bypassable by choosing the other. ALSO record, by direct interpreter call, that `validate_transition` refuses every edge in (a). If the (a) cases already refuse at HEAD, STOP and report: the defect has been closed by other work and this plan needs re-authoring rather than execution.
+- [x] E-01 Re-measure the defect at the executing HEAD and record the numbers in V-01's evidence, because this plan's premise ALREADY MOVED ONCE (the backlog item's headline repro was closed by other work between filing and authoring) and may move again. In a throwaway git repo OUTSIDE the records tree (use a gitignored `tmp/` path inside the lane; never mutate a real record to gather evidence), seed one plan per case and run the setter, recording exit code and the resulting on-disk `- Status:` for each: (a) the four illegal nonterminal backwards edges `approved -> draft`, `approved -> to-review`, `reviewed -> draft`, `to-review -> draft`, each of which must measure exit `0` WITH THE STATUS REWRITTEN; (b) the backlog item's ORIGINAL repro `executed -> reviewed`, which must measure exit `2` and NOTHING written, confirming `4bc1nd` closed it; (c) the same illegal edge through BOTH real spellings `aw set` and `aw ipd set`, since a gate in only one is bypassable by choosing the other. ALSO record, by direct interpreter call, that `validate_transition` refuses every edge in (a). If the (a) cases already refuse at HEAD, STOP and report: the defect has been closed by other work and this plan needs re-authoring rather than execution.
   ALSO RE-DERIVE THE SUITE BASELINE HERE, before changing anything: run `python3 -m pytest` BARE and record the `N passed` line with the HEAD commit, because every count written in this plan is a LIVE measurement that has already drifted twice (`3246` at authoring, `3368` at review, F-08) and V-06 compares against THIS number rather than against any constant in the plan. Record any pre-existing failure as pre-existing now, so it cannot later be mistaken for damage this change caused.
   - Depends on: none
   - Expected outcome: A recorded table showing exit `0` plus a rewritten status for all four illegal nonterminal edges on both spellings, exit `2` for the superseded `executed -> reviewed` repro, and `ok=False` from `validate_transition` for all four. PLUS the re-derived bare-suite baseline with its HEAD commit. This is the falsifiable baseline the plan rests on.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Enumerate, BY MEASUREMENT, the full set of plan transitions the setter must keep allowing, and record it as the fence the gate is written against. This exists as its own item because the naive gate is measured to break several of them, and a reader cannot tell which edges are legal from the rank order alone. For every ordered pair drawn from `status_set.TYPE_STATUSES["plans"]` (normalized through `status_set.normalize_target_status`, so the `pending` and `done` aliases are resolved first), record what `ipd_lifecycle.validate_transition` returns and classify the pair into exactly one of: FORWARD-LEGAL; ENUMERATED-BACKWARD-LEGAL (the three edges in `ipd_lifecycle._LEGAL_BACKWARD_EDGES`); OFF-SEQUENCE (the target is absent from `_PLAN_STATUS_RANKS`, so the predicate answers `unknown target status` - this is the RETIREMENT class and must NOT be refused); or ILLEGAL-BACKWARD (the class this plan refuses). Explicitly record the disposition of `superseded`, `not-executed` and `reusable` as targets AND as sources, since a retired plan is a legitimate source for a reopen.
+- [x] E-02 Enumerate, BY MEASUREMENT, the full set of plan transitions the setter must keep allowing, and record it as the fence the gate is written against. This exists as its own item because the naive gate is measured to break several of them, and a reader cannot tell which edges are legal from the rank order alone. For every ordered pair drawn from `status_set.TYPE_STATUSES["plans"]` (normalized through `status_set.normalize_target_status`, so the `pending` and `done` aliases are resolved first), record what `ipd_lifecycle.validate_transition` returns and classify the pair into exactly one of: FORWARD-LEGAL; ENUMERATED-BACKWARD-LEGAL (the three edges in `ipd_lifecycle._LEGAL_BACKWARD_EDGES`); OFF-SEQUENCE (the target is absent from `_PLAN_STATUS_RANKS`, so the predicate answers `unknown target status` - this is the RETIREMENT class and must NOT be refused); or ILLEGAL-BACKWARD (the class this plan refuses). Explicitly record the disposition of `superseded`, `not-executed` and `reusable` as targets AND as sources, since a retired plan is a legitimate source for a reopen.
   THREE CLASSES ARE NOT VISIBLE IN THAT PAIR TABLE AND MUST BE RECORDED SEPARATELY, because each is a measured way a gate written from the table alone goes wrong (review 2026-09-30). FIRST, a TERMINAL SOURCE (`executed`, and `superseded`/`not-executed` which `_plans_mod.TERMINAL` also contains): record that the predicate calls `executed -> anything` ILLEGAL-BACKWARD while the shipped terminal-reopen guard downstream already owns that class with its own exit `2` and its own override flag, so the new gate must classify it as NOT-MINE. Note that `superseded`/`not-executed`/`reusable` as SOURCES measure `ok=True` for a forward target, so the predicate does not refuse them and only the `TERMINAL` membership decides. SECOND, the target `executed`: record that the predicate refuses it from `draft` and `to-review` on its terminal-predecessor branch even with NO `actor` passed, so this target is a live refusal the gate would introduce, and that it is owned DOWNSTREAM (F-06b). THIRD, CASE: record what the predicate answers for an UPPERCASE source (`APPROVED`, `EXECUTED`, `DONE`), which is `ok=True` because `_status_rank` is a bare dict lookup, and count the live uppercase plans in the corpus so the executor knows the size of the hole (F-06c).
   - Depends on: E-01
   - Expected outcome: A recorded four-way classification of every plan status pair, naming which pairs the gate must refuse and which it must let through untouched, with the retirement and recovery classes explicitly listed, PLUS the three separately-recorded classes above (terminal source, `-> executed` target, uppercase source) each with its measured predicate answer and its owner.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: install the gate where the specs precedent already sits
 
-- [ ] E-03 In `status_set.validate_transition_allowed`, add a `rec.record_type == "plans"` branch delegating to `ipd_lifecycle.validate_transition`, sited beside the existing `rec.record_type == "specs"` branch and following its exact shape (compare current status against normalized target, skip when equal, refuse with the predicate's own reason). THE SITE IS LOAD-BEARING and must be justified in the comment: this one function is reached by BOTH real spellings (`aw set` and `aw ipd set` both dispatch into `status_set.run_set_command`, which calls it in its pre-flight loop), so one delegation here cannot be dodged by choosing another spelling, and it lands inside the established "Refusing before making changes" all-or-nothing batch contract, before the dry-run branch and before any write. FIVE REFUSALS-TO-REFUSE are mandatory, each with its reason in the comment: (1) treat `unknown target status` as NOT-A-REFUSAL and fall through, because `superseded`/`not-executed`/`reusable` are absent from `_PLAN_STATUS_RANKS` and refusing them would break legitimate retirement (E-02's OFF-SEQUENCE class); (2) do NOT pass `actor=`, because that argument makes every `-> executed` target fail as `unauthorized terminal transition` for the setter's default actor; (3) do NOT re-list the legal backward edges here - consult `_LEGAL_BACKWARD_EDGES` through the predicate, never a second copy, since a re-listed copy is what desynced this setter once already; (4) SKIP A NORMALIZED `-> executed` TARGET ENTIRELY, because omitting `actor` is NOT sufficient: the finalize delegation sits DOWNSTREAM of this site, not upstream, so without the skip this gate preempts it and converts its exit `2` into a `1` for a `draft`/`to-review` source (F-06b); (5) CASE-FOLD THE SOURCE through `normalize_target_status(rec.status, "plans")` before consulting the predicate, because `read_artifact_record` captures the token verbatim and `_status_rank` is a bare dict lookup, so an uppercase `- Status: APPROVED` measures `ok=True` and walks straight through the gate - and 25 live plans carry one (F-06c). Items (4) and (5) are E-04's terminal-source carve-out's siblings and may be implemented in the same helper.
+- [x] E-03 In `status_set.validate_transition_allowed`, add a `rec.record_type == "plans"` branch delegating to `ipd_lifecycle.validate_transition`, sited beside the existing `rec.record_type == "specs"` branch and following its exact shape (compare current status against normalized target, skip when equal, refuse with the predicate's own reason). THE SITE IS LOAD-BEARING and must be justified in the comment: this one function is reached by BOTH real spellings (`aw set` and `aw ipd set` both dispatch into `status_set.run_set_command`, which calls it in its pre-flight loop), so one delegation here cannot be dodged by choosing another spelling, and it lands inside the established "Refusing before making changes" all-or-nothing batch contract, before the dry-run branch and before any write. FIVE REFUSALS-TO-REFUSE are mandatory, each with its reason in the comment: (1) treat `unknown target status` as NOT-A-REFUSAL and fall through, because `superseded`/`not-executed`/`reusable` are absent from `_PLAN_STATUS_RANKS` and refusing them would break legitimate retirement (E-02's OFF-SEQUENCE class); (2) do NOT pass `actor=`, because that argument makes every `-> executed` target fail as `unauthorized terminal transition` for the setter's default actor; (3) do NOT re-list the legal backward edges here - consult `_LEGAL_BACKWARD_EDGES` through the predicate, never a second copy, since a re-listed copy is what desynced this setter once already; (4) SKIP A NORMALIZED `-> executed` TARGET ENTIRELY, because omitting `actor` is NOT sufficient: the finalize delegation sits DOWNSTREAM of this site, not upstream, so without the skip this gate preempts it and converts its exit `2` into a `1` for a `draft`/`to-review` source (F-06b); (5) CASE-FOLD THE SOURCE through `normalize_target_status(rec.status, "plans")` before consulting the predicate, because `read_artifact_record` captures the token verbatim and `_status_rank` is a bare dict lookup, so an uppercase `- Status: APPROVED` measures `ok=True` and walks straight through the gate - and 25 live plans carry one (F-06c). Items (4) and (5) are E-04's terminal-source carve-out's siblings and may be implemented in the same helper.
   - Depends on: E-02
   - Expected outcome: One delegation in `validate_transition_allowed` refusing E-02's ILLEGAL-BACKWARD class with the predicate's own reason string, letting the FORWARD-LEGAL, ENUMERATED-BACKWARD-LEGAL and OFF-SEQUENCE classes through unchanged, skipping the `-> executed` target and the terminal-source class so their existing owners keep them, case-folding the source so the uppercase corpus is covered, and duplicating no transition table into `status_set.py`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the new gate STAND ASIDE FOR THE WHOLE TERMINAL-SOURCE CLASS, unconditionally, so the shipped terminal-reopen guard downstream keeps sole ownership of it. MEASURED with a probe: a delegation that does not exclude a terminal source causes `aw ipd set approved <executed-plan> --allow-terminal-reopen` to refuse at exit `1`, breaking the escape hatch that `setterguard 4bc1nd` deliberately shipped (its OQ-01 chose an overridable gate over an absolute refusal, on the ground that an unescapable refusal gets routed around by hand-editing, which is less auditable). The new gate sits ABOVE that guard in the call order, so it fires first and the flag never gets its say.
+- [x] E-04 Make the new gate STAND ASIDE FOR THE WHOLE TERMINAL-SOURCE CLASS, unconditionally, so the shipped terminal-reopen guard downstream keeps sole ownership of it. MEASURED with a probe: a delegation that does not exclude a terminal source causes `aw ipd set approved <executed-plan> --allow-terminal-reopen` to refuse at exit `1`, breaking the escape hatch that `setterguard 4bc1nd` deliberately shipped (its OQ-01 chose an overridable gate over an absolute refusal, on the ground that an unescapable refusal gets routed around by hand-editing, which is less auditable). The new gate sits ABOVE that guard in the call order, so it fires first and the flag never gets its say.
   THE CONDITION IS "SOURCE IS TERMINAL", **NOT** "SOURCE IS TERMINAL AND THE FLAG WAS PASSED" (review 2026-09-30, PR-802). Keying the carve-out on the flag is measured to leave the BARE terminal case refusing at exit `1` from the new gate, because with no flag the new gate still fires first and the downstream guard is never reached; that silently reclassifies a shipped `cannot-run` (`2`) as a domain finding (`1`), changing the documented exit contract and reddening two of E-05's three tests. Skip a terminal source ALWAYS and let the flag be consulted only where it already is, by the existing guard. Compute "terminal" through `normalize_target_status(rec.status, "plans")` case-folded against a set DERIVED from `_plans_mod.TERMINAL`, never a re-listed literal, so the 25 uppercase-status plans of F-06c are classified correctly; `reusable` is deliberately NOT in `TERMINAL`, so a `reusable` source stays gated, and the predicate already answers `ok=True` for `reusable -> draft`.
   ALSO SKIP A NORMALIZED `-> executed` TARGET, for the F-06b ordering reason: that target is owned by the finalize delegation, which sits DOWNSTREAM of this site, so without the skip the new gate preempts it and changes its exit `2` refusal into a `1`.
   Do NOT add a new override flag: `--allow-terminal-reopen` already covers the terminal case, and an illegal NONTERMINAL backwards edge (`approved -> draft`) is exactly what this plan refuses and is deliberately given no escape hatch. If the executor concludes an escape hatch IS needed for the nonterminal class, do not invent one: record it as an open question for the maintainer, since adding one would change a public contract.
   - Depends on: E-03
   - Expected outcome: `--allow-terminal-reopen` behaves exactly as it does at HEAD (performs the reopen, records itself in the artifact history, exit `0`); the bare terminal case still refuses at exit `2` through the EXISTING guard with its EXISTING message; every `-> executed` request still reaches the finalize delegation and keeps its exit `2` actor refusal; a plan whose `- Status:` is uppercase is gated exactly as a lowercase one; and the illegal nonterminal class refuses with no flag able to override it. VERIFIED ACHIEVABLE at review: a probe implementing exactly this shape produced `2`/`0` on the bare/override terminal pair, `1` on all four illegal nonterminal edges with and without the flag, `1` on the uppercase cases, `2` on `-> executed`, `0` on all three enumerated legal backward edges, all three retirements and all three forward edges, and a bare suite of `3368 passed, 2 skipped` with ZERO test edits.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the behavior by outcome
 
-- [ ] E-05 Reconcile the three shipped tests the probe measured red, updating each ONLY where the contract genuinely changed and never by weakening the guard. They are `test_status_set.py::TestStatusSetCommands::test_set_plan_status_from_executed_to_pending_moves_file_back`, `::TerminalReopenRefusalTests::test_terminal_plan_reopen_is_refused_across_spellings_and_states`, and `::TerminalReopenRefusalTests::test_the_override_performs_it_and_records_itself_in_the_history`. Two of the three assert the terminal case refuses at exit `2`, and the probe returned `1` because the new gate fired first: after E-04 these must pass UNCHANGED, because the existing guard regains ownership of the terminal case. That is the DISCRIMINATING TEST for whether E-04 was implemented correctly, so if any of the three still needs an edit to pass, treat that as evidence E-04 is wrong and fix the code rather than the test. The third asserts the override works and must likewise pass unchanged. Record for each test whether it needed an edit and why; an edit to the exit code these tests expect requires an explicit justification in V-05, since silently converting a `2` to a `1` would change the CLI's documented three-state exit contract.
+- [x] E-05 Reconcile the three shipped tests the probe measured red, updating each ONLY where the contract genuinely changed and never by weakening the guard. They are `test_status_set.py::TestStatusSetCommands::test_set_plan_status_from_executed_to_pending_moves_file_back`, `::TerminalReopenRefusalTests::test_terminal_plan_reopen_is_refused_across_spellings_and_states`, and `::TerminalReopenRefusalTests::test_the_override_performs_it_and_records_itself_in_the_history`. Two of the three assert the terminal case refuses at exit `2`, and the probe returned `1` because the new gate fired first: after E-04 these must pass UNCHANGED, because the existing guard regains ownership of the terminal case. That is the DISCRIMINATING TEST for whether E-04 was implemented correctly, so if any of the three still needs an edit to pass, treat that as evidence E-04 is wrong and fix the code rather than the test. The third asserts the override works and must likewise pass unchanged. Record for each test whether it needed an edit and why; an edit to the exit code these tests expect requires an explicit justification in V-05, since silently converting a `2` to a `1` would change the CLI's documented three-state exit contract.
   ZERO EDITS IS NOT MERELY THE EXPECTATION, IT IS MEASURED ACHIEVABLE (F-07b): a probe implementing E-04 as revised ran the bare suite at `3368 passed, 2 skipped` with all three of these tests green and no test file touched. So an executor who finds themselves editing any of the three has implemented E-04 wrongly, and the specific error to look for first is keying the terminal carve-out on `--allow-terminal-reopen` rather than on the terminal source (PR-802).
   - Depends on: E-04
   - Expected outcome: All three tests green, with an explicit per-test record of whether it was edited; the expectation is ZERO edits, and any edit is justified in V-05 or reverted in favor of fixing the code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `tests/test_plan_transition_gate.py` pinning the gate BY OUTCOME - driving the real CLI and asserting on real exit codes and real on-disk file state, never by reading production source, counting callers, or asserting a comment survives. Cover, each as its own case: (a) each of the four illegal nonterminal backwards edges refuses nonzero AND leaves the file byte-identical and unmoved; (b) the same edge refuses through BOTH real spellings, so the gate is not spelling-dependent; (c) each of the three enumerated legal backward recovery edges (`approved -> reviewed`, `auto-approved -> reviewed`, `reviewed -> to-review`) still SUCCEEDS at exit `0`, one of which is the recovery command spec `25kzda` prescribes by name in its `IPD-AUTO-APPROVAL` row, so refusing it would break a documented recovery procedure; (d) ordinary forward edges (`draft -> to-review`, `to-review -> reviewed`, `reviewed -> approved`) still succeed; (e) retirement into `superseded` and into `not-executed` still succeeds from a nonterminal source, which is the OFF-SEQUENCE class and the regression that would be most expensive to ship; (f) a NON-PLAN artifact is untouched - a spec transition its own table permits still succeeds, and a backlog transition still succeeds - proving the gate is keyed on `record_type`; (g) the refusal is reported in agent/JSON mode with a machine-readable rule token and a nonzero `exit` field, not only in human prose, since an unattended agent reads that surface; and (h) `--dry-run` on an illegal edge refuses rather than PREVIEWING a transition that can never be performed.
+- [x] E-06 Add `tests/test_plan_transition_gate.py` pinning the gate BY OUTCOME - driving the real CLI and asserting on real exit codes and real on-disk file state, never by reading production source, counting callers, or asserting a comment survives. Cover, each as its own case: (a) each of the four illegal nonterminal backwards edges refuses nonzero AND leaves the file byte-identical and unmoved; (b) the same edge refuses through BOTH real spellings, so the gate is not spelling-dependent; (c) each of the three enumerated legal backward recovery edges (`approved -> reviewed`, `auto-approved -> reviewed`, `reviewed -> to-review`) still SUCCEEDS at exit `0`, one of which is the recovery command spec `25kzda` prescribes by name in its `IPD-AUTO-APPROVAL` row, so refusing it would break a documented recovery procedure; (d) ordinary forward edges (`draft -> to-review`, `to-review -> reviewed`, `reviewed -> approved`) still succeed; (e) retirement into `superseded` and into `not-executed` still succeeds from a nonterminal source, which is the OFF-SEQUENCE class and the regression that would be most expensive to ship; (f) a NON-PLAN artifact is untouched - a spec transition its own table permits still succeeds, and a backlog transition still succeeds - proving the gate is keyed on `record_type`; (g) the refusal is reported in agent/JSON mode with a machine-readable rule token and a nonzero `exit` field, not only in human prose, since an unattended agent reads that surface; and (h) `--dry-run` on an illegal edge refuses rather than PREVIEWING a transition that can never be performed.
   TWO FURTHER CASES ARE MANDATORY, each pinning a regression this review MEASURED a naive gate causing (PR-801, PR-803). (i) THE `-> executed` PATH IS UNDISTURBED: `aw ipd set executed <plan>` from each of `draft`, `to-review`, `reviewed` and `approved` still reaches the finalize delegation and still exits `2` with ITS message (the `--actor` refusal), NOT exit `1` with a transition message; assert on the exit code AND on a distinguishing fragment of the finalize message, since the whole failure mode is one refusal being silently substituted for another. (j) AN UPPERCASE `- Status:` IS GATED IDENTICALLY: seed a plan carrying `- Status: APPROVED` and one carrying `- Status: REVIEWED` and assert `-> draft` refuses nonzero and leaves the file byte-identical, because 25 live plans carry an uppercase status and an unfolded gate passes them at exit `0` (F-06c).
   For case (a), record the measured pre-change exit `0` from E-01 in a comment so a future reader can tell the test would have caught this. For (i) and (j), record likewise that a naive gate was measured to break them, so a later reader does not mistake these cases for over-testing.
   - Depends on: E-04
   - Expected outcome: A new test module whose TEN cases pass after the change, with case (a) documented as failing before it, and cases (c) through (f) plus (i) and (j) constituting the fence against an over-broad gate.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -172,37 +172,374 @@ DOCUMENTATION READ BUT NOT EDITED: `docs/cli-output-contract.md` Section 3 (the 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pasted baseline table from E-01 showing, for each of the four illegal nonterminal edges and for BOTH the `aw set` and `aw ipd set` spellings, the actual exit code and the resulting on-disk `- Status:` line, demonstrating exit `0` with the status rewritten. PLUS the `executed -> reviewed` case showing exit `2` and an unmoved file, confirming F-01. PLUS pasted interpreter output showing `validate_transition` returns `ok=False` with its reason for all four. Paste the actual command output, not a description. State the HEAD commit the measurement was taken at, and confirm the throwaway repo was outside the records tree so no real record was mutated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured at executing HEAD `ab1d5d20ecd01d2eabdda3a7208fede771cf6f72` in `tmp/throwaway_repo` (outside records tree; zero tracked records mutated): all 4 illegal nonterminal edges measured rc=0 with status rewritten on both `aw set` and `aw ipd set`; `executed -> reviewed` measured rc=2 and unmoved file; `validate_transition` direct call returned ok=False for all 4; bare suite baseline passed at 3890 passed, 2 skipped, 3 warnings in 266.88s.
+    Direct interpreter call:
+    ```
+    validate_transition('approved', 'draft'): ok=False, reason=missing predecessor: backwards transition 'approved' -> 'draft'
+    validate_transition('approved', 'to-review'): ok=False, reason=missing predecessor: backwards transition 'approved' -> 'to-review'
+    validate_transition('reviewed', 'draft'): ok=False, reason=missing predecessor: backwards transition 'reviewed' -> 'draft'
+    validate_transition('to-review', 'draft'): ok=False, reason=missing predecessor: backwards transition 'to-review' -> 'draft'
+    ```
 
-- [ ] V-02 validates E-02
+    CLI measurements in throwaway repo before change:
+    ```
+    [a] approved -> draft via 'aw set': rc=0, on-disk - Status: draft
+    [a] approved -> draft via 'aw ipd set': rc=0, on-disk - Status: draft
+    [a] approved -> to-review via 'aw set': rc=0, on-disk - Status: to-review
+    [a] approved -> to-review via 'aw ipd set': rc=0, on-disk - Status: to-review
+    [a] reviewed -> draft via 'aw set': rc=0, on-disk - Status: draft
+    [a] reviewed -> draft via 'aw ipd set': rc=0, on-disk - Status: draft
+    [a] to-review -> draft via 'aw set': rc=0, on-disk - Status: draft
+    [a] to-review -> draft via 'aw ipd set': rc=0, on-disk - Status: draft
+    [b] executed -> reviewed via 'aw set': rc=2, on-disk - Status: executed
+        output summary: FAIL     refusing to move 1 plan(s) BACKWARDS out of a terminal disposition to 'reviewed'. A terminal plan is a historical record: re-opening it in place would assert that completed, validated work is pending again. AGENTS.md directs a CORRECTIVE IPD for a post-execution gap, not an in-place edit of the executed plan. If this plan reached a terminal state in error, pass --allow-terminal-reopen (recorded in the artifact's history).
+    [b] executed -> reviewed via 'aw ipd set': rc=2, on-disk - Status: executed
+        output summary: FAIL     refusing to move 1 plan(s) BACKWARDS out of a terminal disposition to 'reviewed'. A terminal plan is a historical record: re-opening it in place would assert that completed, validated work is pending again. AGENTS.md directs a CORRECTIVE IPD for a post-execution gap, not an in-place edit of the executed plan. If this plan reached a terminal state in error, pass --allow-terminal-reopen (recorded in the artifact's history).
+    ```
+
+    Bare suite baseline at HEAD commit `ab1d5d20ecd01d2eabdda3a7208fede771cf6f72`:
+    ```
+    3890 passed, 2 skipped, 3 warnings in 266.88s (0:04:26)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The pasted four-way classification table from E-02 covering every ordered pair of normalized plan statuses, with each pair labelled FORWARD-LEGAL, ENUMERATED-BACKWARD-LEGAL, OFF-SEQUENCE, or ILLEGAL-BACKWARD. The table must explicitly show `superseded`, `not-executed` and `reusable` as OFF-SEQUENCE targets (the retirement class the gate must not refuse) and must list exactly the three members of `_LEGAL_BACKWARD_EDGES` as ENUMERATED-BACKWARD-LEGAL. PLUS the three separately-recorded classes E-02 now requires, each with its measured predicate answer and the component that OWNS it: the terminal-source class (owned by the shipped terminal-reopen guard), the `-> executed` target class (owned by the finalize delegation), and the uppercase-source class (owned by this gate via case-folding) together with the live count of uppercase-status plans in the corpus. Paste the generating command and its real output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full 81-pair matrix measured via `python3 tmp/measure_e02.py` classifying pairs into FORWARD-LEGAL, ENUMERATED-BACKWARD-LEGAL (3 edges), OFF-SEQUENCE (superseded/not-executed/reusable targets), and ILLEGAL-BACKWARD; 3 separate classes recorded: terminal source (executed/superseded/not-executed owned downstream), target executed (draft/to-review owned downstream), uppercase source (APPROVED/REVIEWED/EXECUTED/DONE/DRAFT return ok=True from un-folded predicate; 25 uppercase status plans in corpus: 18 EXECUTED + 7 DONE).
+    Generating command: `python3 tmp/measure_e02.py`
+    Real output:
+    ```
+    Normalized statuses: ['approved', 'auto-approved', 'draft', 'executed', 'not-executed', 'reusable', 'reviewed', 'superseded', 'to-review']
 
-- [ ] V-03 validates E-03
+    === Ordered Pair Matrix ===
+    Source          Target          ok     Classification            Reason
+    --------------------------------------------------------------------------------
+    approved        approved        True   FORWARD-LEGAL
+    approved        auto-approved   True   FORWARD-LEGAL
+    approved        draft           False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'approved' -> 'draft'
+    approved        executed        True   FORWARD-LEGAL
+    approved        not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    approved        reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    approved        reviewed        True   ENUMERATED-BACKWARD-LEGAL
+    approved        superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    approved        to-review       False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'approved' -> 'to-review'
+    auto-approved   approved        True   FORWARD-LEGAL
+    auto-approved   auto-approved   True   FORWARD-LEGAL
+    auto-approved   draft           False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'auto-approved' -> 'draft'
+    auto-approved   executed        True   FORWARD-LEGAL
+    auto-approved   not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    auto-approved   reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    auto-approved   reviewed        True   ENUMERATED-BACKWARD-LEGAL
+    auto-approved   superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    auto-approved   to-review       False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'auto-approved' -> 'to-review'
+    draft           approved        True   FORWARD-LEGAL
+    draft           auto-approved   True   FORWARD-LEGAL
+    draft           draft           True   FORWARD-LEGAL
+    draft           executed        False  ILLEGAL-BACKWARD          missing predecessor: terminal transition 'draft' -> 'executed' requires at least 'reviewed'
+    draft           not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    draft           reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    draft           reviewed        True   FORWARD-LEGAL
+    draft           superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    draft           to-review       True   FORWARD-LEGAL
+    executed        approved        False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'executed' -> 'approved'
+    executed        auto-approved   False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'executed' -> 'auto-approved'
+    executed        draft           False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'executed' -> 'draft'
+    executed        executed        True   FORWARD-LEGAL
+    executed        not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    executed        reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    executed        reviewed        False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'executed' -> 'reviewed'
+    executed        superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    executed        to-review       False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'executed' -> 'to-review'
+    not-executed    approved        True   FORWARD-LEGAL
+    not-executed    auto-approved   True   FORWARD-LEGAL
+    not-executed    draft           True   FORWARD-LEGAL
+    not-executed    executed        False  ILLEGAL-BACKWARD          missing predecessor: terminal transition 'not-executed' -> 'executed' requires at least 'reviewed'
+    not-executed    not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    not-executed    reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    not-executed    reviewed        True   FORWARD-LEGAL
+    not-executed    superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    not-executed    to-review       True   FORWARD-LEGAL
+    reusable        approved        True   FORWARD-LEGAL
+    reusable        auto-approved   True   FORWARD-LEGAL
+    reusable        draft           True   FORWARD-LEGAL
+    reusable        executed        False  ILLEGAL-BACKWARD          missing predecessor: terminal transition 'reusable' -> 'executed' requires at least 'reviewed'
+    reusable        not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    reusable        reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    reusable        reviewed        True   FORWARD-LEGAL
+    reusable        superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    reusable        to-review       True   FORWARD-LEGAL
+    reviewed        approved        True   FORWARD-LEGAL
+    reviewed        auto-approved   True   FORWARD-LEGAL
+    reviewed        draft           False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'reviewed' -> 'draft'
+    reviewed        executed        True   FORWARD-LEGAL
+    reviewed        not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    reviewed        reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    reviewed        reviewed        True   FORWARD-LEGAL
+    reviewed        superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    reviewed        to-review       True   ENUMERATED-BACKWARD-LEGAL
+    superseded      approved        True   FORWARD-LEGAL
+    superseded      auto-approved   True   FORWARD-LEGAL
+    superseded      draft           True   FORWARD-LEGAL
+    superseded      executed        False  ILLEGAL-BACKWARD          missing predecessor: terminal transition 'superseded' -> 'executed' requires at least 'reviewed'
+    superseded      not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    superseded      reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    superseded      reviewed        True   FORWARD-LEGAL
+    superseded      superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    superseded      to-review       True   FORWARD-LEGAL
+    to-review       approved        True   FORWARD-LEGAL
+    to-review       auto-approved   True   FORWARD-LEGAL
+    to-review       draft           False  ILLEGAL-BACKWARD          missing predecessor: backwards transition 'to-review' -> 'draft'
+    to-review       executed        False  ILLEGAL-BACKWARD          missing predecessor: terminal transition 'to-review' -> 'executed' requires at least 'reviewed'
+    to-review       not-executed    False  OFF-SEQUENCE              unknown target status 'not-executed'
+    to-review       reusable        False  OFF-SEQUENCE              unknown target status 'reusable'
+    to-review       reviewed        True   FORWARD-LEGAL
+    to-review       superseded      False  OFF-SEQUENCE              unknown target status 'superseded'
+    to-review       to-review       True   FORWARD-LEGAL
+
+    === Three Separate Classes ===
+
+    1. TERMINAL SOURCE CLASS (owned by shipped terminal-reopen guard downstream):
+    plans.TERMINAL: ('executed', 'superseded', 'not-executed')
+      executed -> draft: ok=False, reason=missing predecessor: backwards transition 'executed' -> 'draft'
+      executed -> to-review: ok=False, reason=missing predecessor: backwards transition 'executed' -> 'to-review'
+      executed -> reviewed: ok=False, reason=missing predecessor: backwards transition 'executed' -> 'reviewed'
+      executed -> approved: ok=False, reason=missing predecessor: backwards transition 'executed' -> 'approved'
+      executed -> executed: ok=True, reason=
+      superseded -> draft: ok=True, reason=
+      superseded -> to-review: ok=True, reason=
+      superseded -> reviewed: ok=True, reason=
+      superseded -> approved: ok=True, reason=
+      superseded -> executed: ok=False, reason=missing predecessor: terminal transition 'superseded' -> 'executed' requires at least 'reviewed'
+      not-executed -> draft: ok=True, reason=
+      not-executed -> to-review: ok=True, reason=
+      not-executed -> reviewed: ok=True, reason=
+      not-executed -> approved: ok=True, reason=
+      not-executed -> executed: ok=False, reason=missing predecessor: terminal transition 'not-executed' -> 'executed' requires at least 'reviewed'
+
+    2. TARGET 'executed' CLASS (owned by downstream finalize delegation):
+      draft -> executed: ok=False, reason=missing predecessor: terminal transition 'draft' -> 'executed' requires at least 'reviewed'
+      to-review -> executed: ok=False, reason=missing predecessor: terminal transition 'to-review' -> 'executed' requires at least 'reviewed'
+      reviewed -> executed: ok=True, reason=
+      approved -> executed: ok=True, reason=
+      auto-approved -> executed: ok=True, reason=
+      executed -> executed: ok=True, reason=
+      superseded -> executed: ok=False, reason=missing predecessor: terminal transition 'superseded' -> 'executed' requires at least 'reviewed'
+      not-executed -> executed: ok=False, reason=missing predecessor: terminal transition 'not-executed' -> 'executed' requires at least 'reviewed'
+      reusable -> executed: ok=False, reason=missing predecessor: terminal transition 'reusable' -> 'executed' requires at least 'reviewed'
+
+    3. UPPERCASE SOURCE CLASS (owned by gate via case-folding):
+      validate_transition('APPROVED', 'draft'): ok=True, reason=
+      validate_transition('APPROVED', 'to-review'): ok=True, reason=
+      validate_transition('REVIEWED', 'draft'): ok=True, reason=
+      validate_transition('REVIEWED', 'to-review'): ok=True, reason=
+      validate_transition('EXECUTED', 'draft'): ok=True, reason=
+      validate_transition('EXECUTED', 'to-review'): ok=True, reason=
+      validate_transition('DONE', 'draft'): ok=True, reason=
+      validate_transition('DONE', 'to-review'): ok=True, reason=
+      validate_transition('DRAFT', 'draft'): ok=True, reason=
+      validate_transition('DRAFT', 'to-review'): ok=True, reason=
+
+    Live corpus count of uppercase status plans: 25 files total under .aw/records/plans/executed/
+      - Status: EXECUTED: 18
+      - Status: DONE: 7
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: The diff of `validate_transition_allowed` pasted, showing the delegation, the `unknown target status` fall-through, the `-> executed` skip, the case-folded source read, and the absence of any `actor=` argument. PLUS negative evidence that no table was duplicated: pasted output of a search over `agent_workflows/status_set.py` for the legal-backward edge literals and for `_PLAN_STATUS_RANKS`, showing the file consults the predicate and holds no second copy of the enumeration; the terminal set must likewise be shown DERIVED from `_plans_mod.TERMINAL` rather than re-listed. PLUS pasted CLI output showing an illegal nonterminal edge now refused nonzero with the predicate's own reason, a retirement into `superseded` from a nonterminal source still succeeding at exit `0`, and a plan carrying an UPPERCASE `- Status: APPROVED` refused on `-> draft` (which measures exit `0` without the case-fold, so this is the discriminating case for refusal (5)).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff of validate_transition_allowed shows delegation to ipd_lifecycle.validate_transition, unknown target status fall-through, -> executed skip, case-folded source read, no actor= argument; negative search shows no duplicate tables (_PLAN_STATUS_RANKS/_LEGAL_BACKWARD_EDGES) and terminal set derived from _plans_mod.TERMINAL; CLI tests confirm illegal edge refused at rc=1 with predicate reason, retirement to superseded succeeds at rc=0, uppercase APPROVED -> draft refused at rc=1.
+    Pasted diff of `agent_workflows/status_set.py`:
+    ```diff
+    --- a/agent_workflows/status_set.py
+    +++ b/agent_workflows/status_set.py
+    @@ -742,6 +742,51 @@ def validate_transition_allowed(
+                         # wording that could drift from the other surface's.
+                         return False, " ".join(reason.split())
 
-- [ ] V-04 validates E-04
+    +    if rec.record_type == "plans":
+    +        from agent_workflows import ipd_lifecycle as _life
+    +
+    +        # ipdsetback nvsz19 E-03/E-04: THE PLAN TRANSITION GATE.
+    +        # THE SITE IS LOAD-BEARING: this function is reached by BOTH real spellings (`aw set` and
+    +        # `aw ipd set` both dispatch into `status_set.run_set_command`, which calls it in its pre-flight
+    +        # loop), so one delegation here cannot be dodged by choosing another spelling. It lands inside
+    +        # the established "Refusing before making changes" all-or-nothing batch contract, before the
+    +        # dry-run branch and before any write.
+    +        #
+    +        # FIVE REFUSALS-TO-REFUSE ARE MANDATORY:
+    +        # (1) Treat `unknown target status` as NOT-A-REFUSAL and fall through: `superseded`,
+    +        #     `not-executed`, and `reusable` are absent from `_PLAN_STATUS_RANKS`, and refusing them
+    +        #     would break legitimate retirement / off-sequence moves (E-02's OFF-SEQUENCE class).
+    +        # (2) Do NOT pass `actor=`: that argument makes every `-> executed` target fail as
+    +        #     `unauthorized terminal transition` for the setter's default actor.
+    +        # (3) Do NOT re-list the legal backward edges here: consult `_LEGAL_BACKWARD_EDGES` through
+    +        #     the predicate, never a second copy, avoiding desync.
+    +        # (4) SKIP A NORMALIZED `-> executed` TARGET ENTIRELY (F-06b): the finalize delegation sits
+    +        #     DOWNSTREAM of this site in `run_set_command`. Without this skip, this gate would preempt
+    +        #     it and convert its exit 2 actor refusal into an exit 1 transition refusal on
+    +        #     `draft`/`to-review -> executed`.
+    +        # (5) CASE-FOLD THE SOURCE through `normalize_target_status(rec.status, "plans")` (F-06c):
+    +        #     `read_artifact_record` captures the on-disk token verbatim and `_status_rank` is a bare
+    +        #     dict lookup, so an uppercase `- Status: APPROVED` measures `ok=True` without folding,
+    +        #     and 25 live plans carry one.
+    +        #
+    +        # TERMINAL-SOURCE CARVE-OUT (E-04, PR-802): Stand aside for the WHOLE terminal-source class
+    +        # unconditionally, so the shipped terminal-reopen guard downstream keeps sole ownership of it.
+    +        # Keying the carve-out on the flag would preempt the bare terminal case with exit 1 instead of 2.
+    +        # The terminal set is derived from `_plans_mod.TERMINAL`, never a re-listed literal.
+    +        raw_source = rec.status or ""
+    +        source_status = normalize_target_status(raw_source, "plans").strip().lower()
+    +
+    +        if source_status and source_status != norm_status:
+    +            terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+    +            is_terminal_source = source_status in terminal_statuses
+    +            is_target_executed = norm_status == "executed"
+    +
+    +            if not is_terminal_source and not is_target_executed:
+    +                ok, reason = _life.validate_transition(source_status, norm_status)
+    +                if not ok:
+    +                    if not (reason and reason.startswith("unknown target status")):
+    +                        return False, f"Illegal plan transition: {reason}"
+    +
+         # apprvguard Order 01 (d7bnhc): THE APPROVAL GATE. Until this existed, reaching `approved` - the
+     ```
+
+    Negative evidence (no table duplication):
+    ```
+    $ git grep -n "_PLAN_STATUS_RANKS = " agent_workflows/status_set.py
+    (no match)
+    $ git grep -n "_LEGAL_BACKWARD_EDGES = " agent_workflows/status_set.py
+    (no match)
+    $ git grep -n "('approved', 'reviewed')" agent_workflows/status_set.py
+    (no match)
+    $ git grep -n "('reviewed', 'to-review')" agent_workflows/status_set.py
+    (no match)
+    $ git grep -n "('auto-approved', 'reviewed')" agent_workflows/status_set.py
+    (no match)
+    $ git grep -n "terminal_statuses =" agent_workflows/status_set.py
+    agent_workflows/status_set.py:779:            terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+    ```
+
+    Pasted CLI output:
+    1. Illegal nonterminal edge refused with predicate's own reason:
+    ```
+    $ aw ipd set draft pl0001 --yes
+    FAIL     Validation error on 20260901-testset-01-pl0001-test-plan.ipd.md: Illegal plan transition: missing predecessor: backwards transition 'approved' -> 'draft'. Refusing before making changes.
+    Exit code: 1
+    ```
+    2. Retirement into `superseded` from a nonterminal source succeeding at exit 0:
+    ```
+    $ aw ipd set superseded pl0002 --yes
+    -    plan        20260901-testset-01-pl0002  [medium]  approved → ↪  superseded
+    Committed 2 path(s): 668f6a21e70c7a9d0d46f0dc9898d52084cea03d:
+    .aw/records/plans/pending/20260901-testset-01-pl0002-test-plan.ipd.md
+    .aw/records/plans/superseded/20260901-testset-01-pl0002-test-plan.ipd.md
+    Exit code: 0
+    ```
+    3. Plan carrying UPPERCASE `- Status: APPROVED` refused on `-> draft`:
+    ```
+    $ aw ipd set draft pl0003 --yes
+    FAIL     Validation error on 20260901-testset-01-pl0003-test-plan.ipd.md: Illegal plan transition: missing predecessor: backwards transition 'approved' -> 'draft'. Refusing before making changes.
+    Exit code: 1
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted CLI output for all three terminal-case variants against a plan seeded in `executed/`: (a) bare, showing exit `2` and the EXISTING terminal-reopen message, proving that guard still owns the case; (b) with `--allow-terminal-reopen`, showing exit `0`, the file relocated out of `executed/`, and the override recorded in the artifact's `## Workflow history` actor string (paste the written history line); (c) an illegal NONTERMINAL edge with `--allow-terminal-reopen` passed, showing it is STILL refused, proving the flag did not become a general backwards override. If (c) succeeds, E-04 is wrong and must be fixed before this item is marked verified.
     (a) IS THE DISCRIMINATING CASE FOR THE PR-802 CORRECTION and must be read carefully rather than as a generic nonzero: exit `1` there means the carve-out was keyed on the FLAG instead of on the terminal SOURCE, so the new gate fired before the existing guard and silently replaced a `cannot-run` with a `findings`. Assert the exit code AND a distinguishing fragment of the terminal-reopen message ("BACKWARDS out of a terminal disposition"), since the failure mode is one refusal substituted for another at a different exit code.
     PLUS a fourth variant (d) proving the `-> executed` path is undisturbed: `aw ipd set executed <plan>` from a `draft` source showing exit `2` and the FINALIZE delegation's message (the `--actor` refusal), not exit `1` with a transition message. Without E-04's `-> executed` skip this measures `1` (F-06b), so (d) is the discriminating case for refusal (4).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CLI tests in throwaway repo confirm: (a) bare executed -> reviewed exits 2 with terminal-reopen message; (b) executed -> reviewed --allow-terminal-reopen exits 0, relocates file to pending/, records --allow-terminal-reopen in history line; (c) approved -> draft --allow-terminal-reopen still refuses at exit 1; (d) draft -> executed exits 2 with finalize actor message.
+    (a) Bare executed -> reviewed (exit code: 2):
+    ```
+    FAIL     refusing to move 1 plan(s) BACKWARDS out of a terminal disposition to 'reviewed'. A terminal plan is a historical record: re-opening it in place would assert that completed, validated work is pending again. AGENTS.md directs a CORRECTIVE IPD for a post-execution gap, not an in-place edit of the executed plan. If this plan reached a terminal state in error, pass --allow-terminal-reopen (recorded in the artifact's history).
+    Refusing; nothing was written:
+      20260901-testset-01-pl0004-test-plan.ipd.md  (- Status: executed)
+    ```
+    (b) With `--allow-terminal-reopen` (exit code: 0):
+    ```
+    -    plan        20260901-testset-01-pl0005  [medium]  executed → ◑  reviewed
+    Committed 2 path(s): 26e8f27638a3b705e7759d4d7b8e6a3a8be35748:
+    .aw/records/plans/executed/20260901-testset-01-pl0005-test-plan.ipd.md
+    .aw/records/plans/pending/20260901-testset-01-pl0005-test-plan.ipd.md
+    ```
+    Relocated to `.aw/records/plans/pending/20260901-testset-01-pl0005-test-plan.ipd.md`.
+    History line:
+    ```
+    - 2026-10-01 reviewed (aw set, --allow-terminal-reopen): status set to reviewed
+    ```
+    (c) Illegal nonterminal edge with `--allow-terminal-reopen` passed (exit code: 1):
+    ```
+    FAIL     Validation error on 20260901-testset-01-pl0006-test-plan.ipd.md: Illegal plan transition: missing predecessor: backwards transition 'approved' -> 'draft'. Refusing before making changes.
+    ```
+    (d) draft -> executed (exit code: 2):
+    ```
+    FAIL     moving a plan to 'executed' now delegates into the gated `aw ipd finalize`, which REQUIRES an attributed --actor <agent/model> (the machine-default is rejected). Re-run: aw set executed pl0007 --actor <agent/model> --message <summary>
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted output of `python3 -m pytest tests/test_status_set.py` showing it green, with the `N passed` line. PLUS an explicit per-test statement for each of the three probe-red tests saying whether it was EDITED, with `git diff` over `tests/test_status_set.py` pasted to prove it. The expected diff is EMPTY, and an empty diff is MEASURED ACHIEVABLE rather than merely hoped (F-07b), so a non-empty one is first evidence that E-04's carve-out was keyed on the flag instead of on the terminal source (PR-802). If it is not empty, justify each edit against the F-07 measurement and explain why the change is a genuine contract change rather than a weakened assertion, or revert it and fix the code instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: python3 -m pytest tests/test_status_set.py passed (93 passed in 18.77s); zero edits to tests/test_status_set.py (git diff empty) across all three probe-red tests.
+    Pasted test output:
+    ```
+    93 passed in 18.77s
+    ```
+    Per-test record for the three probe-red tests:
+    - `test_status_set.py::TestStatusSetCommands::test_set_plan_status_from_executed_to_pending_moves_file_back`: NOT EDITED (0 edits)
+    - `test_status_set.py::TerminalReopenRefusalTests::test_terminal_plan_reopen_is_refused_across_spellings_and_states`: NOT EDITED (0 edits)
+    - `test_status_set.py::TerminalReopenRefusalTests::test_the_override_performs_it_and_records_itself_in_the_history`: NOT EDITED (0 edits)
 
-- [ ] V-06 validates E-06
+    Pasted `git diff tests/test_status_set.py` (empty):
+    ```
+    $ git diff tests/test_status_set.py
+    (empty)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted output of `python3 -m pytest tests/test_plan_transition_gate.py` showing all TEN cases passing with the `N passed` line. Then pasted output of `python3 -m pytest` (BARE) showing the whole fast suite green with its `N passed` line, compared against the baseline RE-DERIVED AT THE EXECUTING HEAD (pasted from E-01, not against any count written in this plan, which has drifted twice: `3246` at authoring, `3368` at review) and accounting for the delta as exactly the tests added. Then pasted output of the named fence modules from Required tests green. Then pasted output of `aw ipd lint --phase pre-transition` on this plan conforming, `aw check release-gates` passing, and `aw sanitize --agent` over this plan and the captured evidence with zero `fail` findings. If any listed test was already failing before this change, say so with the pre-change result rather than attributing it to this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_plan_transition_gate.py passed (10 passed in 2.48s); bare suite python3 -m pytest passed (3900 passed, 2 skipped, 3 warnings in 74.66s vs baseline 3890 passed: exactly +10 delta); named fence modules passed (245 passed in 5.80s); aw ipd lint --phase pre-transition conforms; aw check release-gates conforms (517 gates); aw sanitize --agent clean (0 leaks).
+    1. Pasted output of `python3 -m pytest tests/test_plan_transition_gate.py`:
+    ```
+    10 passed in 2.48s
+    ```
+    2. Bare suite before and after:
+    Baseline at executing HEAD commit `ab1d5d20ecd01d2eabdda3a7208fede771cf6f72`:
+    ```
+    3890 passed, 2 skipped, 3 warnings in 266.88s (0:04:26)
+    ```
+    Bare suite after change:
+    ```
+    3900 passed, 2 skipped, 3 warnings in 74.66s (0:01:14)
+    ```
+    Delta: exactly +10 passed tests, matching the 10 outcome-pinning tests added in `tests/test_plan_transition_gate.py`.
+
+    3. Named fence modules:
+    `python3 -m pytest tests/test_ipd_lifecycle_backward_edges.py tests/test_ipd_lifecycle_cli.py tests/test_lifecycle_dirs.py tests/test_spec_review_attestation.py tests/test_check_engine.py tests/test_history_order.py tests/test_run_selection_policy.py tests/test_plan_priority_required.py`
+    ```
+    245 passed in 5.80s
+    ```
+
+    4. Pre-transition lint:
+    `aw ipd lint --phase pre-transition .aw/records/plans/pending/20260929-ipdsetback-01-nvsz19-route-plan-status-transitions-through-the-shared-lifecycle-p.ipd.md`
+    ```
+    ✓ CONFORMS  no findings
+    ```
+
+    5. Release-gates check:
+    `aw check release-gates`
+    ```
+    ✓ CONFORMS  517 release-gates checked
+    ```
+
+    6. Local leak scan:
+    `aw sanitize --agent`
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
