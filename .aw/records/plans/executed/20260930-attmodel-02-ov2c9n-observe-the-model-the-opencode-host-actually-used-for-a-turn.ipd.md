@@ -6,7 +6,7 @@
 - Scope: Close that gap with the route that DOES work, measured at authoring rather than assumed: OpenCode's own `opencode export <sessionID>` emits the session's authoritative model as `info.model.id` (plus `providerID` and `variant`), and every attempt already records the `sessionID` needed to ask. Add a best-effort, never-raising reader that asks the host for the model of THIS attempt's session and records it as an OBSERVATION in its own keys (`host_model`, `host_model_provider`, `host_model_variant`, `host_model_source`), distinct from Order 01's frozen `model`. EXCLUDES changing Order 01's field or its precedence, because a request and an observation must stay separately falsifiable. EXCLUDES the Antigravity host, whose stream DOES carry a model on its `init` event and therefore needs a different and cheaper mechanism, deferred with the reason recorded. EXCLUDES making anything GATE on the observation, and excludes any refusal, warning-to-failure, or disposition change: a host that cannot be asked must cost the run nothing.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/runner_shared.py, tests/test_attempt_host_model_observation.py
 - Item-Dependencies: executed:czut8j
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ov2c9n
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ov2c9n verified (set attmodel, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-qswokt-01-qswokt-observe-and-record-the-model-used-by-the-antigravi.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 all FIXED. Host surface re-executed under 1.18.33 rather than read, and two premises did not hold. PR-001 (BLOCKER): info.model is SESSION-CURRENT, not turn-specific (two turns, one session, two models -> export reports only the second), and session reuse is a shipped default (max_items_per_session 4; a review sweep shares one session run-wide), so the titular claim to record what a turn ran was unsupportable; narrowed the claim to the read window, mandated a mechanism-naming source label, pinned it as E-05 case (h), recorded OQ-04. PR-002 (HIGH): the export SPLITS id from providerID where --model JOINS them, so recording bare id would report a false substitution on EVERY oc run, inverting the headline capability; now records the joined value plus case (g). PR-003: reader would hardcode opencode while run_opencode resolves options.get(opencode). PR-004/PR-005: two cited enforcement mechanisms do not exist (NoRunnerImportTests; test_run_flag_surface.py deleted in 19313eed), both rules kept on live bases. PR-006: timings re-measured at 1.41-1.50s vs the plan's 4.71s/1.39s. PR-007/PR-008: host-free required cases; scope fence and conditional finalize ownership added. Suite green: 3512 passed, 2 skipped.
 
