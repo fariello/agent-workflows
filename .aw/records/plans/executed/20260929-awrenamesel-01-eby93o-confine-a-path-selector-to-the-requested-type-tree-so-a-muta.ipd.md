@@ -9,7 +9,7 @@
 - Scope: Add ONE containment predicate to `agent_workflows/selectors.py` and enforce it in `selectors.resolve_for_mutation`, so a resolved path that is not inside any of the requested type's own `record_dirs` is REFUSED with a message naming the requested type and the path, instead of being mutated. THE PREDICATE MUST FAIL CLOSED ON AN EMPTY `record_dirs` LIST (OQ-02, re-resolved at review): measured, a skip-on-empty variant is byte-identically as broken as no guard at all, because in a cross-type call the empty list belongs to the ATTACKING type (F-15). Enforce it at the MUTATION wrapper only, leaving the read-side `resolve` unchanged. Add the outcome tests this hole has none of. EXCLUDES: changing `selectors.resolve` precedence or its read-side behavior (every reader depends on the path rule and `aw find` is deliberately permissive); the `status_set` `Type mismatch` refusal (already correct, must stay byte-unchanged and must not be refactored into this predicate); routing the plans backend through the shared resolver (Order 02's fence); the `roadmaps` addressability question (Order 03's fence); and `archive`, which does not use `resolve_for_mutation` at all.
 - Scope-Paths: agent_workflows/selectors.py, tests/test_selector_type_containment.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: eby93o
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: eby93o verified (set awrenamesel, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; PR-601 (BLOCKER), PR-602 (HIGH), PR-603 (LOW), all FIXED. OQ-02 re-resolved to FAIL CLOSED after prototyping measured that the authored fail-open answer leaves the guard byte-identically as broken as no guard.
 
