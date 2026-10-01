@@ -1585,6 +1585,181 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertEqual(res_reinv.exit_code, LC.EXIT_CANNOT_RUN)
         self.assertIn("unknown-outcome", res_reinv.message)
 
+    def test_finalize_precheck_agrees_with_finalize_on_unknown_outcome_journal(self):
+        """Precheck and finalize both refuse with EXIT_CANNOT_RUN on unknown-outcome journal (bn58ha/hlv737)."""
+        self._begin_and_work()
+        with mock.patch.object(
+            LC,
+            "_rollback_precommit",
+            return_value=(False, "simulated rollback failure"),
+        ):
+            res_fault = LC.finalize(
+                self.root,
+                self.plan,
+                "opencode/test",
+                "m",
+                apply=True,
+                fault_injection="after_move",
+            )
+        self.assertEqual(res_fault.exit_code, LC.EXIT_CANNOT_RUN)
+
+        j = LC.read_finalize_journal(self.root, "abc123")
+        assert j is not None
+        self.assertEqual(j["phase"], LC.PHASE_UNKNOWN_OUTCOME)
+
+        # Call finalize_precheck and finalize(..., apply=False) on the SAME state
+        pre_rc, pre_msg, pre_ev, pre_findings = LC.finalize_precheck(
+            self.root, self.plan
+        )
+        res_fin = LC.finalize(
+            self.root, self.plan, "opencode/test", "preview", apply=False
+        )
+
+        self.assertNotEqual(res_fin.exit_code, 0)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertNotEqual(
+            pre_rc,
+            0,
+            f"precheck returned exit {pre_rc} while finalize returned {res_fin.exit_code}: {pre_msg}",
+        )
+        self.assertEqual(pre_rc, res_fin.exit_code)
+        self.assertEqual(pre_rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(pre_msg, res_fin.message)
+        self.assertEqual(pre_findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+
+    def test_finalize_precheck_non_refusing_journal_phases_control(self):
+        """Precheck does not refuse on pre-commit phases, complete phase, or absent journal (bn58ha/hlv737)."""
+        self._begin_and_work()
+
+        # 1. No journal at all (ordinary path)
+        LC._clear_finalize_journal(self.root, "abc123")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(rc, LC.EXIT_OK, f"precheck refused with no journal: {msg}")
+        self.assertEqual(findings, ())
+
+        # 2. Iterate the pre-commit phases from the shipped constant
+        for phase in sorted(LC._PRE_COMMIT_PHASES):
+            LC._write_finalize_journal(self.root, {"plan_id": "abc123", "phase": phase})
+            j = LC.read_finalize_journal(self.root, "abc123")
+            assert j is not None
+            self.assertEqual(j["phase"], phase)
+            rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+            self.assertEqual(
+                rc,
+                LC.EXIT_OK,
+                f"precheck unexpectedly refused on pre-commit phase {phase}: {msg}",
+            )
+            self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # 3. PHASE_COMPLETE (stale complete journal)
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "abc123", "phase": LC.PHASE_COMPLETE}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(
+            rc,
+            LC.EXIT_OK,
+            f"precheck unexpectedly refused on phase {LC.PHASE_COMPLETE}: {msg}",
+        )
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+    def test_finalize_precheck_precedence_over_receipt_refusals(self):
+        """Precheck journal gate preempts receipt refusals when wedged, and preserves them when journal-free (bn58ha/hlv737)."""
+        # Case A: Never-issued receipt
+        # Fresh plan fixture without calling LC.begin
+        raw_plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="def456",
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+            ),
+            "20260824-demo-02-def456-other.ipd.md",
+        )
+        _commit_all(self.root, "add unbegun plan")
+        self.assertIsNone(LC.read_receipt(self.root, "def456"))
+
+        # A1: Without journal -> receipt-never-issued refusal
+        LC._clear_finalize_journal(self.root, "def456")
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, raw_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_NEVER_ISSUED, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # A2: With unknown-outcome journal -> journal refusal preempts and matches finalize
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "def456", "phase": LC.PHASE_UNKNOWN_OUTCOME}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, raw_plan)
+        res_fin = LC.finalize(
+            self.root, raw_plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+        self.assertEqual(msg, res_fin.message)
+
+        # Case B: Already-finalized plan
+        # Must reach this state through a REAL CLEAN finalize (exercising plan_already_finalized)
+        self._begin_and_work()
+        res_clean = LC.finalize(
+            self.root, self.plan, "opencode/test", "clean", apply=True
+        )
+        self.assertEqual(res_clean.exit_code, LC.EXIT_OK)
+        executed_plan = self._executed_path()
+        self.assertTrue(executed_plan.is_file())
+        self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
+
+        # B1: Without journal -> receipt-consumed-already-finalized refusal
+        LC._clear_finalize_journal(self.root, "abc123")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, executed_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_ALREADY_FINALIZED, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # B2: With unknown-outcome journal -> journal refusal preempts and matches finalize
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "abc123", "phase": LC.PHASE_UNKNOWN_OUTCOME}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, executed_plan)
+        res_fin = LC.finalize(
+            self.root, executed_plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+        self.assertEqual(msg, res_fin.message)
+
+        # Case C: Stale receipt
+        # Begin plan, then rewrite frozen region so digest mismatches
+        stale_plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="ghi789",
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+            ),
+            "20260824-demo-03-ghi789-stale.ipd.md",
+        )
+        _commit_all(self.root, "add plan for stale receipt test")
+        LC.begin(self.root, stale_plan, "opencode/test", timestamp="t")
+        self.assertTrue(LC.receipt_path_for(self.root, "ghi789").exists())
+
+        # Modify frozen region (e.g. modify Goal or Scope)
+        stale_text = stale_plan.read_text(encoding="utf-8").replace(
+            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
+            "- Scope-Paths: agent_workflows/demo.py",
+        )
+        stale_plan.write_text(stale_text, encoding="utf-8")
+
+        # C1: Without journal -> receipt-stale refusal
+        LC._clear_finalize_journal(self.root, "ghi789")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "ghi789"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, stale_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_STALE, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
     def test_rollback_restores_recorded_index_entry_not_head(self):
         """Rollback restores the recorded index entry byte-for-byte instead of resetting to HEAD."""
         plan_rel = str(self.plan.relative_to(self.root))
