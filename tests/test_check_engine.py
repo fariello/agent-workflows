@@ -593,6 +593,52 @@ class CollisionTests(unittest.TestCase):
             "an `error` about a foreign id6 in a real slot, while the advisory is a `warning` about a "
             "grandfathered name. This row passing with BOTH ids would mean the trap re-opened",
         ),
+        # PATH LITERALS, NOT CONSTANTS: written as literals rather than through the
+        # PLANS/WALK constants (which point at pending/ and the live walkthroughs dir)
+        # because the fixtures are terminal on purpose. Tidying them onto constants
+        # would silently retire both rows.
+        (
+            "a walkthrough with no declared Id whose slot is a RETIRED plan's identity",
+            (
+                (
+                    ".aw/records/plans/executed/20260101-demo-01-aaa111-a.ipd.md",
+                    _plan_text("aaa111", status="executed"),
+                ),
+                (
+                    ".aw/records/walkthroughs/20260101-demo-01-aaa111-w.walkthrough.md",
+                    _walk_text(),
+                ),
+            ),
+            (IDENTITY_SLOT,),
+            (
+                "20260101-demo-01-aaa111-w.walkthrough.md",
+                "aaa111",
+                "20260101-demo-01-aaa111-a.ipd.md",
+            ),
+            (),
+            "IDENTITY-SLOT RULE (b) WITH A RETIRED OWNER (backlog e2j5w4, collpop t0jyb2): the "
+            "fixture is TERMINAL ON PURPOSE and this row exists because the corpus, not the rule logic, "
+            "is what regressed. An executed plan's id6 is permanently cited, so a live walkthrough "
+            "squatting it in its identity slot must be reported even when the owner is in terminal "
+            "history. The finding must name the offender AND the owner",
+        ),
+        (
+            "a RETIRED plan whose declared Id differs from its filename slot",
+            (
+                (
+                    ".aw/records/plans/executed/20260101-demo-01-slotaa-a.ipd.md",
+                    _plan_text("fmbbb1", status="executed"),
+                ),
+            ),
+            (IDENTITY_SLOT,),
+            ("slotaa", "fmbbb1"),
+            (),
+            "IDENTITY-SLOT RULE (a) WITH A RETIRED VIOLATOR (backlog e2j5w4, collpop t0jyb2): the "
+            "fixture is TERMINAL ON PURPOSE and this row exists because the corpus, not the rule logic, "
+            "is what regressed. Rule (a) never consults another file, so widening only the global "
+            "ownership gather would leave a retired violator blind while rule (b) passed. The detail "
+            "must cite both ids",
+        ),
     )
 
     def test_one_pass_reports_exactly_the_collisions_present(self):

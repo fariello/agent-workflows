@@ -2323,6 +2323,21 @@ def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
     ``check.id6-identity-slot`` Drift for each file whose filename identity slot holds an id6 that
     is not that file's own unique identity. See ``check_collisions`` for the precise (a)/(b) rule.
 
+    THE INPUT CORPUS IS TERMINAL-INCLUSIVE BY CONTRACT (backlog e2j5w4, collpop t0jyb2).
+    ``records`` must never be given a liveness-filtered list. An executed artifact's id6 is
+    permanently cited across the repository (in Item-Dependencies, From-Backlog, From-Spec,
+    review names, and commit history), so an identity slot reusing an executed artifact's id6
+    collides with a permanently cited handle and breaks single-handle lookup (for example
+    ``aw find <id6>``), the exact reason ``check.id6-collision`` already consumes terminal
+    records. The caller (``check_collisions``) enforces this by enumerating all supported types
+    with ``include_retired=True`` unconditionally and appending to ``records`` unguarded, while
+    only the subsequent setid pass consults ``caller_visible``. This invariant is pinned by the
+    two terminal-fixture regression rows in ``tests/test_check_engine.py::CollisionTests``
+    (covering a retired owner and a retired violator) and by
+    ``tests/test_collision_population_parity.py`` (noting that the latter's own parity assertions
+    survive the regression because both surfaces regress together, so the ``CollisionTests``
+    rows are the primary defence).
+
     THIS RULE IS DELIBERATELY BLIND TO THE DECLARED-DUPLICATE SHAPE, AND THAT IS NOT A GAP TO CLOSE
     HERE (IPD ``sk7ggr`` E-03, OQ-01). Two files of DIFFERENT types that both DECLARE and both SLOT
     the same id6 produce ZERO findings from this function, by construction: rule (a) compares each
