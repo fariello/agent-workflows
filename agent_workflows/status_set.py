@@ -742,6 +742,51 @@ def validate_transition_allowed(
                     # wording that could drift from the other surface's.
                     return False, " ".join(reason.split())
 
+    if rec.record_type == "plans":
+        from agent_workflows import ipd_lifecycle as _life
+
+        # ipdsetback nvsz19 E-03/E-04: THE PLAN TRANSITION GATE.
+        # THE SITE IS LOAD-BEARING: this function is reached by BOTH real spellings (`aw set` and
+        # `aw ipd set` both dispatch into `status_set.run_set_command`, which calls it in its pre-flight
+        # loop), so one delegation here cannot be dodged by choosing another spelling. It lands inside
+        # the established "Refusing before making changes" all-or-nothing batch contract, before the
+        # dry-run branch and before any write.
+        #
+        # FIVE REFUSALS-TO-REFUSE ARE MANDATORY:
+        # (1) Treat `unknown target status` as NOT-A-REFUSAL and fall through: `superseded`,
+        #     `not-executed`, and `reusable` are absent from `_PLAN_STATUS_RANKS`, and refusing them
+        #     would break legitimate retirement / off-sequence moves (E-02's OFF-SEQUENCE class).
+        # (2) Do NOT pass `actor=`: that argument makes every `-> executed` target fail as
+        #     `unauthorized terminal transition` for the setter's default actor.
+        # (3) Do NOT re-list the legal backward edges here: consult `_LEGAL_BACKWARD_EDGES` through
+        #     the predicate, never a second copy, avoiding desync.
+        # (4) SKIP A NORMALIZED `-> executed` TARGET ENTIRELY (F-06b): the finalize delegation sits
+        #     DOWNSTREAM of this site in `run_set_command`. Without this skip, this gate would preempt
+        #     it and convert its exit 2 actor refusal into an exit 1 transition refusal on
+        #     `draft`/`to-review -> executed`.
+        # (5) CASE-FOLD THE SOURCE through `normalize_target_status(rec.status, "plans")` (F-06c):
+        #     `read_artifact_record` captures the on-disk token verbatim and `_status_rank` is a bare
+        #     dict lookup, so an uppercase `- Status: APPROVED` measures `ok=True` without folding,
+        #     and 25 live plans carry one.
+        #
+        # TERMINAL-SOURCE CARVE-OUT (E-04, PR-802): Stand aside for the WHOLE terminal-source class
+        # unconditionally, so the shipped terminal-reopen guard downstream keeps sole ownership of it.
+        # Keying the carve-out on the flag would preempt the bare terminal case with exit 1 instead of 2.
+        # The terminal set is derived from `_plans_mod.TERMINAL`, never a re-listed literal.
+        raw_source = rec.status or ""
+        source_status = normalize_target_status(raw_source, "plans").strip().lower()
+
+        if source_status and source_status != norm_status:
+            terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+            is_terminal_source = source_status in terminal_statuses
+            is_target_executed = norm_status == "executed"
+
+            if not is_terminal_source and not is_target_executed:
+                ok, reason = _life.validate_transition(source_status, norm_status)
+                if not ok:
+                    if not (reason and reason.startswith("unknown target status")):
+                        return False, f"Illegal plan transition: {reason}"
+
     # apprvguard Order 01 (d7bnhc): THE APPROVAL GATE. Until this existed, reaching `approved` - the
     # state that LICENSES EXECUTION - required only that the status token be spelled correctly. On
     # 2026-08-30 a blanket "I APPROVE all the reviewed IPDs" therefore swept FIVE plans whose own
