@@ -1,5 +1,5 @@
 - Id: g0bdgg
-- Status: graduated
+- Status: done
 - Graduated-To: g0bdgg
 - Blocks-Release: next
 - Set: g0bdgg
@@ -8,6 +8,7 @@
 - Summary: SubcommandDescriptionTests fails on eight subparser description gaps
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD ypnk56 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-g0bdgg-01-ypnk56-give-the-eight-description-gap-subparsers-a-fuller-authored.ipd.md); evidence .aw/records/plans/executed/20260929-g0bdgg-01-ypnk56-give-the-eight-description-gap-subparsers-a-fuller-authored.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: ypnk56
 - 2026-09-26 note (aw backlog): CI step 'Run slow-marked tests' (tests.yml, plan 4petcj) is advisory because of this item's slow-test failure; when the last of the owning items (57dwkc, 3ypquf, 4vfkl1, g0bdgg) closes, remove its continue-on-error so the slow set fails closed.
 - 2026-09-26 created (aw backlog): SubcommandDescriptionTests fails on eight subparser description gaps
