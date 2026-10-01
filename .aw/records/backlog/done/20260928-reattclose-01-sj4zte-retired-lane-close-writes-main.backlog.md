@@ -1,5 +1,5 @@
 - Id: sj4zte
-- Status: graduated
+- Status: done
 - Graduated-To: reattclose
 - Blocks-Release: next
 - Set: reattclose
@@ -8,6 +8,7 @@
 - Summary: integrate_retired_lane closes its backlog item in the shared checkout after tearing its lane down, the same defect as a4em7s at a second call site
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD eg9jjm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-reattclose-02-eg9jjm-perform-the-retired-lane-backlog-close-in-a-coordinator-owne.ipd.md); evidence .aw/records/plans/executed/20260929-reattclose-02-eg9jjm-perform-the-retired-lane-backlog-close-in-a-coordinator-owne.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: eg9jjm
 - 2026-09-28 created (aw backlog): Filed while authoring pjuoyj (graduates a4em7s); measured, see body.
 
