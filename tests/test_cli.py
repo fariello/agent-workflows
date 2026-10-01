@@ -25,7 +25,7 @@ from tests.support import init_repo
 from agent_workflows import cli, config as CFG
 
 # Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
-# `-m "not slow"`). Run with `make test-all`.
+# `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
 pytestmark = pytest.mark.slow
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
