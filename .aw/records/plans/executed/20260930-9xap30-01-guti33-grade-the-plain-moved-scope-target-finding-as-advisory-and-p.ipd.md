@@ -6,7 +6,7 @@
 - Scope: IN: (a) re-tier the PLAIN `moved` classification to `info` (NOT `warning`, and that difference is the plan's single most load-bearing measurement, see F-05) while `moved-terminal` and `vanished` stay `error`, by stamping a per-finding severity in `check_scope_path_target_stale` the way `check_durable_carrier` already stamps its own staged tier, leaving the registry entry at `error` so an unclassified finding still fails toward visible; (b) amend the registry comment and spec `25kzda` Section 5.7's paragraph so the published contract states the severity split rather than only the refusal split; (c) extend `tests/test_scope_path_target_stale.py` with behavior tests pinning the per-classification severity and the resulting exit code; (d) one CHANGELOG line. OUT: changing WHICH classifications the rule reports (all three still report, which is the design `6h8j1r` F-8 states and which this plan must not quietly narrow); changing the runner's refusal set; the backlog item's option (c), teaching every status setter to rewrite citing `Scope-Paths` (see OQ-01, which routes the underlying cause to the maintainer with its cost measured, and the Deferred section, which carries it); repairing whatever live stale entries exist in other agents' pending plans (not this plan's files, see the shared-checkout rule, and the population turns over daily per F-01); and `agent_workflows/doctor.py`, which never runs this rule at all (F-07).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_scope_path_target_stale.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: guti33
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: guti33 verified (set 9xap30, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
