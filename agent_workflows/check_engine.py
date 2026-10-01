@@ -289,6 +289,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.scope-path-target-stale": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD h65phz (backlog 089bq4): a spec citing a `tests/test_*.py` path that does not exist on disk.
+    # Scoped to SPECS (contract claims a reader relies on) and specifically to the normative body: the
+    # plans tree and the `## Workflow history` section of a spec are deliberately excluded because
+    # executed plans and dated history notes are historical records whose citations were true when
+    # written, and rewriting history is forbidden by AGENTS.md.
+    # Severity is `error` because review F-11 measured the body-scoped specs tree as clean after E-04.
+    "check.test-citation-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # setidhard Order bwgyum (spec 4w7d6s G3/G5): the FORWARD half of the graduation link - a source
     # (backlog item or spec) whose `- Graduated-To:` names a plan Set that does not exist. Same severity
     # (`error`), same assurance class, and the SAME invariant I-07 as its `From-Backlog` back-link twin
@@ -1256,7 +1265,10 @@ def check_content(
             include_retired=include_retired,
         ):
             try:
-                drift.extend(_specs.validate_spec(p, p.read_text(encoding="utf-8")))
+                text = p.read_text(encoding="utf-8")
+                drift.extend(_specs.validate_spec(p, text))
+                if p.name.endswith(".spec.md"):
+                    drift.extend(check_spec_test_citations_for_text(repo_root, p, text))
             except OSError:
                 continue
     elif record_type == "backlog":
@@ -6807,6 +6819,68 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
                     recovery=recovery,
                 )
             )
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# IPD h65phz (backlog 089bq4): spec test-citation freshness.
+#
+# Flag any spec citing a `tests/test_*.py` path that does not exist on disk.
+# Scoped to SPECS (contract claims a reader relies on) and specifically to the normative
+# body: the plans tree and the `## Workflow history` section of a spec are deliberately
+# excluded because executed plans and dated history notes are historical records whose
+# citations were true when written, and rewriting history is forbidden by AGENTS.md.
+
+_TEST_CITATION_DANGLING_RULE = "check.test-citation-dangling"
+_TEST_PATH_RE = _re.compile(r"tests/test_[a-zA-Z0-9_]+\.py")
+
+
+def check_spec_test_citations_for_text(
+    repo_root: Path, path: Path, text: str
+) -> List[_core.Drift]:
+    """Flag missing tests/test_*.py citations in a spec's normative body (IPD h65phz).
+
+    Exempts ## Workflow history: dated history notes record past measurements and
+    are historical records rather than live contract claims.
+    """
+    repo_root = Path(repo_root)
+    parts = _re.split(r"(?m)^##[ \t]+Workflow history\b", text, maxsplit=1)
+    normative_body = parts[0]
+    drift: List[_core.Drift] = []
+    seen_paths: set = set()
+
+    from agent_workflows import specs as _specs
+
+    loc = _specs.drift_location(path)
+
+    for m in _TEST_PATH_RE.finditer(normative_body):
+        cited_path = m.group(0)
+        if cited_path in seen_paths:
+            continue
+        seen_paths.add(cited_path)
+        target = repo_root / cited_path
+        if not target.is_file():
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        loc,
+                        _TEST_CITATION_DANGLING_RULE,
+                        f"Cited test file {cited_path!r} does not exist on disk",
+                    ),
+                    observed=f"Spec body cites {cited_path}",
+                    required=f"{cited_path} must exist on disk, or citation must be removed/corrected",
+                    recovery=f"restore the test file or update the citation in {path.name}",
+                )
+            )
+    return drift
+
+
+def check_spec_test_citations(repo_root: Path) -> List[_core.Drift]:
+    """Flag any spec citing a tests/test_*.py path that does not exist on disk (IPD h65phz)."""
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    for path, text in _iter_spec_records(repo_root):
+        drift.extend(check_spec_test_citations_for_text(repo_root, path, text))
     return drift
 
 

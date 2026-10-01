@@ -6,7 +6,7 @@
 - Scope: Make the promise TRUE for the cells it names rather than withdrawing it, and stop the same lie recurring. IN: a new behavioral test module asserting byte equality between spec 4.2's parsed `inspects`/`pass_criterion`/`message`/`action` cells and the shipped table, proven mutation-sensitive; the spec's transcription note repointed at the restored file with its code-count sentence left intact; the spec's two OTHER dangling test citations (lines 232 and 1251) corrected to state what is actually guarded today; `runner_shared.py`'s stale docstring claim corrected; and a new deterministic `aw check` rule that fails a records artifact citing a `tests/test_*.py` path which does not exist, so this defect class is caught at rest instead of by a human reading prose. OUT: every row's DATA is unchanged (no `inspects`, `pass_criterion`, `message`, `action`, `abort`, `abort_classes`, `binding` or `predicates` value is edited), no row is added or removed so `RC-COUNT`'s literal 12 is untouched, the abort-partition dimension is left entirely to approved plan `xjmjq4`, no deleted test is restored wholesale, and no code-pinning assertion is reintroduced.
 - Scope-Paths: tests/test_run_finding_spec_transcription.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/runner_shared.py, agent_workflows/check_engine.py, tests/test_check_engine_test_citation.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: h65phz
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: h65phz verified (set 089bq4, attempt 2).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301 (HIGH, fixed), PR-302 (MEDIUM, fixed), PR-303 (MEDIUM, fixed), PR-304 (MEDIUM, fixed). Readiness recorded in `- Readiness:`. OQ-02 resolved at review, so the plan now carries no open question. Detail on the `reviewed (aw set)` record below and in `.aw/records/reviews/20260930-089bq4-01-h65phz-...review.md`.
 - 2026-10-01 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-301 (HIGH, fixed), PR-302 (MEDIUM, fixed), PR-303 (MEDIUM, fixed), PR-304 (MEDIUM, fixed). Re-derived every load-bearing claim independently at review HEAD fc91266df. F-01, F-02, F-04, F-05, F-06, F-07, F-08 and F-09 all reproduce, including the StopIteration-at-import hazard of the legacy spec glob, the mutation sensitivity, the True permission default, and the collision state (xjmjq4 still pending/approved with its test file not landed). Four findings added. F-10: the spec has a FOURTH dangling citation site at line 1621 inside Workflow history, which E-04 must NOT fix because a dated note is a record, and which forces E-06 to exempt that zone or land red on the file E-04 just corrected. F-11: the zone breakdown RESOLVES OQ-02, which was the plans only open question; of 11 dangling spec citations across 6 files only 3 are body-level and all 3 are in this spec, so a body-scoped rule is clean after E-04 and registers error, and the five other specs need no amendment. F-12: the shipped-code instance is SEVEN sites in runner_shared.py rather than one docstring, plus an eighth in agy_runipd.py that tells a maintainer not to harden a security-relevant default on the strength of a deleted guard, carried to xvp5vx. F-13: F-06 zero-mismatch claim holds only under a both-ends backtick rule the plan never stated; the naive rule yields twelve false mismatches an executor would misread as a real divergence. E-01, E-04, E-05, E-06, OQ-02, V-01, V-04, V-05, V-06, the Scope check and the Deferred rows all amended accordingly.
@@ -39,44 +39,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the guard the spec promises
 
-- [ ] E-01 RE-CHECK THE COLLISION WITH `xjmjq4` BEFORE WRITING ANYTHING, then restore the transcription guard. First determine whether approved plan `xjmjq4` (`.aw/records/plans/pending/20260929-dorm45-01-xjmjq4-pin-the-run-abort-partition-to-the-spec-action-text-instead.ipd.md`, or `executed/` if it has since run) has landed `tests/test_run_finding_abort_partition.py`. If it HAS, this plan's new module must not duplicate its `action`-cell comparison: assert `inspects`, `pass_criterion` and `message` here and state in the evidence that `action` is covered there. If it has NOT, cover all four cells here, since `action` must not be left unguarded on the chance that another plan may run later. Then add `tests/test_run_finding_spec_transcription.py` parsing spec 4.2's table out of the spec FILE and asserting byte equality against `run_evidence.RUN_FINDING_CODES_BY_CODE` for each covered cell. RESOLVE THE SPEC PATH BY ID6 GLOB (`*-25kzda-*.spec.md`), NOT by the legacy filename: the deleted test globbed `20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, which no longer matches any file, and its module-level `next(...)` over an empty glob would raise `StopIteration` at import today (F-05), so copying that line forward reintroduces a collection error rather than a guard. Assert the parse is non-vacuous (exactly 12 rows parsed, and the parsed code set equals the module's) before asserting any cell, so a parser that silently matched nothing cannot pass.
+- [x] E-01 RE-CHECK THE COLLISION WITH `xjmjq4` BEFORE WRITING ANYTHING, then restore the transcription guard. First determine whether approved plan `xjmjq4` (`.aw/records/plans/pending/20260929-dorm45-01-xjmjq4-pin-the-run-abort-partition-to-the-spec-action-text-instead.ipd.md`, or `executed/` if it has since run) has landed `tests/test_run_finding_abort_partition.py`. If it HAS, this plan's new module must not duplicate its `action`-cell comparison: assert `inspects`, `pass_criterion` and `message` here and state in the evidence that `action` is covered there. If it has NOT, cover all four cells here, since `action` must not be left unguarded on the chance that another plan may run later. Then add `tests/test_run_finding_spec_transcription.py` parsing spec 4.2's table out of the spec FILE and asserting byte equality against `run_evidence.RUN_FINDING_CODES_BY_CODE` for each covered cell. RESOLVE THE SPEC PATH BY ID6 GLOB (`*-25kzda-*.spec.md`), NOT by the legacy filename: the deleted test globbed `20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, which no longer matches any file, and its module-level `next(...)` over an empty glob would raise `StopIteration` at import today (F-05), so copying that line forward reintroduces a collection error rather than a guard. Assert the parse is non-vacuous (exactly 12 rows parsed, and the parsed code set equals the module's) before asserting any cell, so a parser that silently matched nothing cannot pass.
   NORMALIZE BACKTICKS BY THE BOTH-ENDS RULE AND STATE IT IN THE MODULE, because the columns are NOT uniformly wrapped and the naive rule produces false mismatches in BOTH directions (review F-13). Measured: 12 of 12 `message` cells are fully backtick-wrapped while 0 of 12 `inspects`, `pass_criterion` and `action` cells are. So strip the outer pair ONLY when the cell both begins AND ends with a backtick; an unconditional `.strip('`')` corrupts `RUN-SCOPE-DELTA`'s `inspects`, which legitimately BEGINS with a backtick (``git diff` and untracked paths...`), and stripping nothing reports twelve false mismatches on `message`. The both-ends rule was re-measured at zero mismatches on all four columns. NOTE WHY THE NON-VACUITY GUARD DOES NOT COVER THIS: a mis-normalized parse still yields 12 rows and the correct code set, so it passes that guard and then fails on cell comparison, which an executor would most likely misread as a real spec/module divergence.
   - Depends on: none
   - Expected outcome: `tests/test_run_finding_spec_transcription.py` exists and passes at this HEAD, since spec and module agree today on every cell UNDER THE BOTH-ENDS NORMALIZATION RULE (F-06, re-measured at review: 12 rows parsed, zero mismatches on all four cells). A non-vacuity assertion fails if the parser matches zero rows. IF CELL COMPARISON FAILS AT THIS HEAD, suspect the normalization rule before concluding the spec and module have diverged (F-13).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PROVE THE GUARD IS MUTATION-SENSITIVE, which is what separates a restored guard from a decorative one. In the same module, add a case that perturbs a single row's cell via `NamedTuple._replace`, patches it into the lookup, asserts the comparison FAILS, and restores the table afterwards (`addCleanup`, so a failing assertion cannot leak a mutated module into another test). This discharges GUIDING_PRINCIPLES P16's "Verify test sensitivity with mutation" requirement and the "Never weaken an assertion so it passes everywhere" rule that cites it.
+- [x] E-02 PROVE THE GUARD IS MUTATION-SENSITIVE, which is what separates a restored guard from a decorative one. In the same module, add a case that perturbs a single row's cell via `NamedTuple._replace`, patches it into the lookup, asserts the comparison FAILS, and restores the table afterwards (`addCleanup`, so a failing assertion cannot leak a mutated module into another test). This discharges GUIDING_PRINCIPLES P16's "Verify test sensitivity with mutation" requirement and the "Never weaken an assertion so it passes everywhere" rule that cites it.
   - Depends on: E-01
   - Expected outcome: The perturbation case passes (meaning the comparison it drives reports a mismatch), proving the guard fires. Verified available at authoring: `_replace`-ing one row's `pass_criterion` makes byte equality against the spec cell return `False` (F-07).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the spec's own citations honest
 
-- [ ] E-03 Repoint Section 4.2's "NOTE ON TRANSCRIBING THIS TABLE" at the file E-01 creates, so the sentence an author trusts names a file that exists. Change ONLY the test-file reference and keep the rest of the note byte-identical, specifically its `inspects`/`pass_criterion` VERBATIM claim, its "editing a cell here is a code change" conclusion, and its `RC-COUNT`/12 paragraph, all of which remain true. Do not weaken the note into a hedge: after E-01 the strong claim is accurate. If E-01 measured that `xjmjq4` already covers `action`, name BOTH files rather than implying one covers everything.
+- [x] E-03 Repoint Section 4.2's "NOTE ON TRANSCRIBING THIS TABLE" at the file E-01 creates, so the sentence an author trusts names a file that exists. Change ONLY the test-file reference and keep the rest of the note byte-identical, specifically its `inspects`/`pass_criterion` VERBATIM claim, its "editing a cell here is a code change" conclusion, and its `RC-COUNT`/12 paragraph, all of which remain true. Do not weaken the note into a hedge: after E-01 the strong claim is accurate. If E-01 measured that `xjmjq4` already covers `action`, name BOTH files rather than implying one covers everything.
   - Depends on: E-02
   - Expected outcome: Section 4.2's note cites `tests/test_run_finding_spec_transcription.py` (plus `tests/test_run_finding_abort_partition.py` if present), the cited path(s) resolve on disk, and the note's other sentences are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Correct the spec's TWO OTHER dangling test citations, found by measurement and not named in the backlog item (F-03). The Section 2.1 bullet amended 2026-09-05 cites `tests/test_lane_permission_posture.py` (quoting "`--dangerous` is REMOVED from this prohibition") as pinning spec `7ckptx` R4.1c's permission posture; that file is deleted and NO surviving test asserts the default, though the shipped default is still correct (`True`, measured in F-04). Line 1251 cites `tests/test_run_flag_surface.py` as binding spec 2.1's flag grammar "bidirectionally" such that "a spec-only flag declaration is a guaranteed test failure"; that file is deleted and nothing enforces it. Rewrite both to state what is TRUE today: name the measured shipped behavior and state plainly that the cited guard was deleted in `19313eed` and that the property is currently unguarded. DO NOT restore either test here and do not silently drop the sentences: each names a real property whose coverage gap belongs to backlog `xvp5vx` (the general trim audit), so cite `xvp5vx` as the carrier rather than leaving a reader to think the gap is unknown.
+- [x] E-04 Correct the spec's TWO OTHER dangling test citations, found by measurement and not named in the backlog item (F-03). The Section 2.1 bullet amended 2026-09-05 cites `tests/test_lane_permission_posture.py` (quoting "`--dangerous` is REMOVED from this prohibition") as pinning spec `7ckptx` R4.1c's permission posture; that file is deleted and NO surviving test asserts the default, though the shipped default is still correct (`True`, measured in F-04). Line 1251 cites `tests/test_run_flag_surface.py` as binding spec 2.1's flag grammar "bidirectionally" such that "a spec-only flag declaration is a guaranteed test failure"; that file is deleted and nothing enforces it. Rewrite both to state what is TRUE today: name the measured shipped behavior and state plainly that the cited guard was deleted in `19313eed` and that the property is currently unguarded. DO NOT restore either test here and do not silently drop the sentences: each names a real property whose coverage gap belongs to backlog `xvp5vx` (the general trim audit), so cite `xvp5vx` as the carrier rather than leaving a reader to think the gap is unknown.
   LEAVE THE `## Workflow history` CITATIONS ALONE, which is why this item's expected outcome is BODY-SCOPED rather than whole-file (review F-10). The spec has a FOURTH dangling site this plan did not find at authoring: line 1621, a dated 2026-09-21 history note citing `tests/test_run_flag_surface.py` twice, once as "extracted and asserted in both directions" and once as "Verified: tests/test_run_flag_surface.py passes". Both are false as LIVE claims and both are TRUE as history, so correcting them would rewrite a dated measurement, which `AGENTS.md`'s add-a-correction-beside-never-over rule forbids and which this plan's own Deferred reasoning already refuses for the plans tree. Correct the THREE BODY sites only (232, 824 via E-03, 1251).
   - Depends on: E-03
   - Expected outcome: No `tests/test_*.py` path cited in spec `25kzda`'s NORMATIVE BODY (everything above the `## Workflow history` heading) is missing from disk; the dated history notes are byte-unchanged including their now-dangling citations; and each corrected sentence names both the measured current behavior and `xvp5vx` as the coverage carrier.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Correct ALL SEVEN `runner_shared.py` SITES that name the deleted `tests/test_run_flag_surface.py` as a live guard, not only the module docstring. The docstring states that what "replaces the fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every assertion from `RUN_POLICY_FLAGS` as DATA and therefore fails when the spec grows a flag the code lacks"; that file is deleted, so the block it describes is guarded by nothing of the kind, and this is a SHIPPED comment asserting a protection that does not exist (F-04). MEASURED AT REVIEW, THE SAME CLAIM IS REPEATED SIX MORE TIMES IN THE SAME FILE (F-12): inline comments beside the flag registry and the spec-declaration rule assert that the file "reads that section as a FILE in BOTH directions" (twice, at two separate rows), that a flag registration obliges a same-change spec amendment "because `tests/test_run_flag_surface.py` reads that", and more. Correcting one instance of a claim the file makes seven times leaves the file still asserting it, so fix every site. Rewrite each to say the guard was deleted in `19313eed` and that the flag surface currently has no such data-driven test, citing `xvp5vx`; PRESERVE each site's underlying REQUIREMENT (a new run flag must still be declared in spec 2.1 in the same change that registers it) and correct only the claim that a test enforces it. Comment text only: change no code, no flag, and no default. DO NOT touch `agent_workflows/agy_runipd.py`, which carries an eighth instance of this class and is not in `- Scope-Paths:`; it is carried to `xvp5vx`.
+- [x] E-05 Correct ALL SEVEN `runner_shared.py` SITES that name the deleted `tests/test_run_flag_surface.py` as a live guard, not only the module docstring. The docstring states that what "replaces the fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every assertion from `RUN_POLICY_FLAGS` as DATA and therefore fails when the spec grows a flag the code lacks"; that file is deleted, so the block it describes is guarded by nothing of the kind, and this is a SHIPPED comment asserting a protection that does not exist (F-04). MEASURED AT REVIEW, THE SAME CLAIM IS REPEATED SIX MORE TIMES IN THE SAME FILE (F-12): inline comments beside the flag registry and the spec-declaration rule assert that the file "reads that section as a FILE in BOTH directions" (twice, at two separate rows), that a flag registration obliges a same-change spec amendment "because `tests/test_run_flag_surface.py` reads that", and more. Correcting one instance of a claim the file makes seven times leaves the file still asserting it, so fix every site. Rewrite each to say the guard was deleted in `19313eed` and that the flag surface currently has no such data-driven test, citing `xvp5vx`; PRESERVE each site's underlying REQUIREMENT (a new run flag must still be declared in spec 2.1 in the same change that registers it) and correct only the claim that a test enforces it. Comment text only: change no code, no flag, and no default. DO NOT touch `agent_workflows/agy_runipd.py`, which carries an eighth instance of this class and is not in `- Scope-Paths:`; it is carried to `xvp5vx`.
   - Depends on: E-04
   - Expected outcome: ZERO sites in `runner_shared.py` name a deleted file as a live guard (verified by a `grep -rn test_run_flag_surface agent_workflows/runner_shared.py` census before and after, 7 then 0 as a live-guard claim), each site's spec-declaration requirement is preserved, and `git diff` on the file shows comment-only changes with no executable line touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the class recurring
 
-- [ ] E-06 Add a deterministic `aw check` rule (for example `check.test-citation-dangling`) that reports any records artifact citing a `tests/test_*.py` path which does not exist on disk, with a new `tests/test_check_engine_test_citation.py` driving it. Register it in `check_engine.py`'s rule table in the shape its neighbours use (`check.scope-path-target-stale` is the closest precedent: `error`, `ASSURANCE_REPOSITORY`, `DET_DETERMINISTIC`). Scope the rule to SPECS, whose citations are contract claims a reader relies on, and state in the rule's registered comment why the plans tree is deliberately excluded (an executed plan is a historical record whose citations were true when written, so "correcting" them would rewrite history, which `AGENTS.md` forbids).
+- [x] E-06 Add a deterministic `aw check` rule (for example `check.test-citation-dangling`) that reports any records artifact citing a `tests/test_*.py` path which does not exist on disk, with a new `tests/test_check_engine_test_citation.py` driving it. Register it in `check_engine.py`'s rule table in the shape its neighbours use (`check.scope-path-target-stale` is the closest precedent: `error`, `ASSURANCE_REPOSITORY`, `DET_DETERMINISTIC`). Scope the rule to SPECS, whose citations are contract claims a reader relies on, and state in the rule's registered comment why the plans tree is deliberately excluded (an executed plan is a historical record whose citations were true when written, so "correcting" them would rewrite history, which `AGENTS.md` forbids).
   SCOPE THE RULE TO THE NORMATIVE BODY AND EXEMPT `## Workflow history`, which is a HARD REQUIREMENT and not a refinement (review F-10). The same historical-record argument that excludes the plans tree applies WITHIN a spec file: a dated history note records what was measured on its date, so a citation it carries is not falsified by a later deletion. Without this exemption the rule lands RED on spec `25kzda` itself immediately after E-04 corrects it, because line 1621's dated 2026-09-21 note cites the deleted `tests/test_run_flag_surface.py` twice and E-04 is forbidden from rewriting it. Detect the boundary on the `## Workflow history` heading, the same way the measurement in F-10 and F-11 did.
   REGISTER IT `error`, BECAUSE THE BODY-SCOPED MEASUREMENT IS CLEAN AFTER E-04 (review F-11, which resolves OQ-02). Of 11 dangling spec citations across 6 files, 8 are in `## Workflow history` and only 3 are in a body, and ALL THREE are in `25kzda`, the file E-04 corrects. The other five spec files are history-only and need no amendment. So the condition this item's own decision rule names for `error` is satisfied by construction. KEEP THE DECISION RULE AS A SAFETY NET rather than as the primary path: re-measure the body-scoped specs tree at execution and, if it is NOT clean (a sixth spec having gained a body-level dangling citation in the interim), register ADVISORY following the `check.review-dangling` precedent and say so, because a rule that lands red on artifacts this plan does not fix would block every concurrent lane's integration.
   The test must drive the real checker over a synthesized fixture tree and assert on returned findings, never by reading `check_engine.py`'s source. It must cover THREE cases, since the exemption is now load-bearing: a body citation to a nonexistent path FIRES, a body citation to a real path is SILENT, and a `## Workflow history` citation to a nonexistent path is SILENT.
   - Depends on: E-05
   - Expected outcome: The new rule fires on a synthesized spec whose BODY cites a nonexistent `tests/test_x.py`, stays silent on one citing a real path, and stays silent on one citing a nonexistent path from inside `## Workflow history`. Run over the live tree it reports ZERO findings across every spec after E-04, and it is registered `error` on that measurement (or ADVISORY with the re-measured count stated, if the tree is not clean).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -182,35 +182,262 @@ NO CONTRACT IS WEAKENED. Section 4.2's twelve-code vocabulary, `RC-COUNT`, the a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the actual bare `python3 -m pytest tests/test_run_finding_spec_transcription.py` output showing every test passing. Paste the `xjmjq4` state check that opened E-01 (the file's resolved directory and its `- Status:` line) and state in one sentence which branch was taken and therefore whether the `action` cell is asserted here. Paste the non-vacuity numbers the test itself computes: rows parsed (must be 12) and the parsed-versus-module code-set comparison (must be equal, both directions). Quote the line that resolves the spec path and confirm by inspection that it globs `*-25kzda-*` and NOT the legacy `20260826-0718-01-...` name, since the legacy glob raises `StopIteration` at import (F-05). QUOTE THE BACKTICK NORMALIZATION AND CONFIRM IT IS THE BOTH-ENDS RULE (F-13): the module must strip an outer backtick pair only when the cell begins AND ends with one, never unconditionally. State the measured reason in one sentence (12 of 12 `message` cells are wrapped, 0 of 12 in each other column, and `RUN-SCOPE-DELTA`'s `inspects` legitimately begins with a backtick), so a later reader cannot "simplify" it back into a false-mismatch generator. State explicitly what this item does NOT prove: that the guard FIRES. A comparison between two artifacts that already agree passes whether or not the assertion is sensitive, so V-02 is the item that proves it is a guard, and a reviewer reading V-01 alone must not conclude the promise is now true.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Bare pytest runner passes (3 passed); xjmjq4 confirmed landed and executed; non-vacuity (12 rows, matching code sets) and both-ends backtick normalization verified.
+    1. Bare pytest runner output:
+    ```
+    $ python3 -m pytest tests/test_run_finding_spec_transcription.py
+    ...                                                                      [100%]
+    3 passed in 6.45s
+    ```
 
-- [ ] V-02 validates E-02
+    2. `xjmjq4` state check:
+    ```
+    $ find .aw/records/plans -name "*xjmjq4*"
+    .aw/records/plans/executed/20260929-dorm45-01-xjmjq4-pin-the-run-abort-partition-to-the-spec-action-text-instead.ipd.md
+    $ grep -E "^- (Status|Id):" .aw/records/plans/executed/20260929-dorm45-01-xjmjq4-pin-the-run-abort-partition-to-the-spec-action-text-instead.ipd.md
+    - Status: executed
+    - Id: xjmjq4
+    $ ls tests/test_run_finding_abort_partition.py
+    tests/test_run_finding_abort_partition.py
+    ```
+    Plan `xjmjq4` has landed `tests/test_run_finding_abort_partition.py` and reached `executed`, so the branch was taken to cover `inspects`, `pass_criterion`, and `message` here, while `action` is covered in `tests/test_run_finding_abort_partition.py`.
+
+    3. Non-vacuity assertions:
+    Rows parsed: 12. Parsed code set: `['RUN-BASELINE-OWNERSHIP', 'RUN-CHECK-FRESHNESS', 'RUN-COMMIT-CONTENTS', 'RUN-COMMIT-GATEWAY', 'RUN-CROSS-TREE', 'RUN-FRESH-VERIFIER', 'RUN-FROZEN-IDENTITY', 'RUN-HOST-ATTEMPT', 'RUN-HOST-CAPABILITY', 'RUN-LEDGER-INTEGRITY', 'RUN-SCOPE-DELTA', 'RUN-STRUCTURE-PREFLIGHT']`.
+    Module code set equals parsed spec code set in both directions (12 == 12).
+
+    4. Spec path resolution:
+    ```python
+    matches = sorted(specs_dir.rglob("*-25kzda-*.spec.md"))
+    ```
+    Inspection confirms the path is resolved via the id6 glob `*-25kzda-*.spec.md` under `.aw/records/specs` rather than the pre-id6 legacy filename `20260826-0718-01-...`, preventing `StopIteration` during collection.
+
+    5. Backtick normalization quote (both-ends rule):
+    ```python
+    def strip_both_ends_backtick(cell: str) -> str:
+        if cell.startswith("`") and cell.endswith("`") and len(cell) >= 2:
+            return cell[1:-1]
+        return cell
+    ```
+    Measured reason: exactly 12 of 12 `message` cells are fully wrapped in backticks while 0 of 12 cells in each other column are, and `RUN-SCOPE-DELTA`'s `inspects` legitimately begins with a backtick ("`git diff` and untracked paths..."), so stripping backticks unconditionally corrupts `RUN-SCOPE-DELTA`'s `inspects` while stripping nothing yields twelve false mismatches on `message`.
+
+    6. Negative boundary:
+    This comparison does not prove that the guard FIRES when data diverges; sensitivity to mutation is demonstrated in V-02.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the actual output of the mutation case demonstrating that perturbing ONE cell makes the comparison FAIL, showing the code perturbed, the mutated module value, the spec value, and the resulting failure. Then paste proof the mutation did not leak: re-run the whole new module after the perturbation case and show every test still passing, which a missing `addCleanup` would break. State in one sentence why this discharges P16's "Verify test sensitivity with mutation" bullet and the "Never weaken an assertion so it passes everywhere" rule.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Perturbation of RUN-BASELINE-OWNERSHIP pass_criterion verified failing assertion; clean re-run demonstrates cleanup did not leak.
+    1. Perturbation demonstration output:
+    ```
+    Code perturbed: RUN-BASELINE-OWNERSHIP
+    Mutated module value: "No pre-existing or concurrently leased path overlaps this action's mutation scope and also something else"
+    Spec value:           "No pre-existing or concurrently leased path overlaps this action's mutation scope"
+    Resulting failure:
+     Mismatch in RUN-BASELINE-OWNERSHIP field 'pass_criterion':
+      spec:   "No pre-existing or concurrently leased path overlaps this action's mutation scope"
+      module: "No pre-existing or concurrently leased path overlaps this action's mutation scope and also something else"
+    ```
 
-- [ ] V-03 validates E-03
+    2. Proof of no mutation leakage:
+    ```
+    $ python3 -m pytest tests/test_run_finding_spec_transcription.py
+    ...                                                                      [100%]
+    3 passed in 6.45s
+    ```
+
+    3. P16 conformance:
+    Perturbing a single row's `pass_criterion` proves the restored guard is sensitive to differences in contract text and fails loudly under mutation while cleaning up all patched state via `addCleanup`, fulfilling P16's requirement to verify test sensitivity with mutation and avoiding non-sensitive assertions.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the `git diff` of the spec's transcription note. Confirm by inspection that the ONLY change is the cited test filename, and quote the preserved sentences to prove it: the `inspects`/`pass_criterion` VERBATIM claim, the "editing a cell here is a code change" conclusion, and the `RC-COUNT`/12 paragraph must all be present unchanged. Then prove the new citation resolves by pasting a directory listing of the cited path. If E-01 took the branch where `xjmjq4` had landed, confirm both files are named.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Section 4.2 transcription note repointed to tests/test_run_finding_spec_transcription.py and tests/test_run_finding_abort_partition.py; diff verified clean with no adjacent drift.
+    1. `git diff` of Section 4.2 transcription note:
+    ```diff
+    @@ -826,7 +826,7 @@ pre-commit hooks, which stays prohibited. See Section 2.1 and the two Section 1.3 rows.
 
-- [ ] V-04 validates E-04
+     NOTE ON TRANSCRIBING THIS TABLE. `run_evidence.RUN_FINDING_CODES` transcribes the `inspects` and
+    -`pass_criterion` cells VERBATIM, and `tests/test_run_evidence_completion.py` asserts byte equality, so
+    +`pass_criterion` cells VERBATIM, and `tests/test_run_finding_spec_transcription.py` and `tests/test_run_finding_abort_partition.py` assert byte equality, so
+     editing a cell here is a code change. Keep cells terse and put commentary in prose around the table,
+     not inside a cell. THE TABLE'S CODE COUNT IS ITSELF PART OF THE CONTRACT: `validate_finding_table`
+     hard-fails `len(RUN_FINDING_CODES) != 12` with `RC-COUNT`, so adding or removing a row here without
+    ```
+
+    2. Confirmed both files named:
+    Because `xjmjq4` landed `tests/test_run_finding_abort_partition.py`, both `tests/test_run_finding_spec_transcription.py` and `tests/test_run_finding_abort_partition.py` are named in the note.
+
+    3. Preserved sentences quotation:
+    "NOTE ON TRANSCRIBING THIS TABLE. `run_evidence.RUN_FINDING_CODES` transcribes the `inspects` and `pass_criterion` cells VERBATIM..."
+    "...editing a cell here is a code change. Keep cells terse and put commentary in prose around the table, not inside a cell."
+    "THE TABLE'S CODE COUNT IS ITSELF PART OF THE CONTRACT: `validate_finding_table` hard-fails `len(RUN_FINDING_CODES) != 12` with `RC-COUNT`, so adding or removing a row here without amending that invariant makes the SHIPPED table report itself invalid at runtime."
+
+    4. Proof citations resolve on disk:
+    ```
+    $ ls tests/test_run_finding_spec_transcription.py tests/test_run_finding_abort_partition.py
+    tests/test_run_finding_abort_partition.py
+    tests/test_run_finding_spec_transcription.py
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the output of a scripted scan over the spec listing every `tests/test_*.py` citation with an existence verdict AND A ZONE VERDICT per path (body versus `## Workflow history`, keyed on that heading's line), showing ZERO missing IN THE BODY. The authoring baseline was recorded as three missing (lines 232, 824, 1251); review measured a FOURTH at line 1621 which is in `## Workflow history` and must REMAIN dangling (F-10), so a scan reporting "zero missing" whole-file means a dated record was rewritten and is a FAILURE of this validation, not a pass. Confirm by `git diff` that the history notes are byte-unchanged. Paste the `git diff` of both corrected sentences. For each, confirm it names the measured current behavior and cites `xvp5vx` as the coverage carrier, and confirm the underlying REQUIREMENT was preserved rather than dropped: `7ckptx` R4.1c remains the authority on permission posture, and the Section 2.1 flag-declaration requirement remains in force. Re-measure and paste the permission default (`agy_runipd.build_parser().parse_args(["start", "someid"]).dangerously_skip_permissions`) so the sentence's factual claim is evidenced at execution and not carried from this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Scripted scan proves 0 missing in spec body; history notes unchanged; git diff confirms xvp5vx cited and requirements preserved; permission default measured True.
+    1. Scripted citation scan:
+    ```
+    OK BODY    line  291: tests/test_runner_shared.py
+    OK BODY    line  829: tests/test_run_finding_spec_transcription.py
+    OK BODY    line  829: tests/test_run_finding_abort_partition.py
+    OK HISTORY line 1644: tests/test_suite_baseline_direction.py
+    OK HISTORY line 1649: tests/test_runner_shared.py
+    GONE HISTORY line 1661: tests/test_run_flag_surface.py
+    GONE HISTORY line 1661: tests/test_run_flag_surface.py
+    ```
+    Result: exactly 0 missing in BODY; 2 missing in `## Workflow history` (exempt dated history notes).
 
-- [ ] V-05 validates E-05
+    2. History notes confirmed byte-unchanged:
+    `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` shows no lines changed under `## Workflow history`.
+
+    3. `git diff` of corrected sentences:
+    Section 2.1 (line 237):
+    ```diff
+    @@ -237,3 +237,3 @@
+    -- Amended 2026-09-05, superseding "There is no `--no-verify`, `--skip-audit`, `--dangerous`, or hook-bypass flag on `run`." THREE defects, each verified in-repo before this edit. FIRST, PROVENANCE: that sentence entered at the first draft (`3d6668af`, "Two-pass frontier-model design") verbatim from external model output (`.aw/records/research/20260829-runverify-00-ig9bai-...gpt56.reference-research.md:146`), no review record for this spec exists, and the approval commit `aa0a6a26` carries an empty body, so the line reached `approved` without ever being independently reasoned about. SECOND, IT CONTRADICTED AN APPROVED SPEC: `7ckptx` R4.1c forbids any work from flipping Antigravity's `--dangerously-skip-permissions` default, because an unattended turn cannot answer an interactive prompt and the measured outcome is repeated failure or deadlock; that requirement is dated, evidence-backed, and pinned by `tests/test_lane_permission_posture.py:315`, so `--dangerous` is REMOVED from this prohibition and `7ckptx` R4.1c is the controlling authority on host permission posture. THIRD, CONFLATED SENSES: `--no-verify` names two unrelated things, the GIT flag that bypasses pre-commit hooks (correctly prohibited, and kept above) and a RUNNER flag selecting whether a second model reviews the work (not a bypass of anything, since the V-evidence check is unreachable by flags). Banning the runner flag removed the only per-model control that exists today while protecting nothing the checker was not already protecting.
+    +- Amended 2026-09-05, superseding "There is no `--no-verify`, `--skip-audit`, `--dangerous`, or hook-bypass flag on `run`." THREE defects, each verified in-repo before this edit. FIRST, PROVENANCE: that sentence entered at the first draft (`3d6668af`, "Two-pass frontier-model design") verbatim from external model output (`.aw/records/research/20260829-runverify-00-ig9bai-...gpt56.reference-research.md:146`), no review record for this spec exists, and the approval commit `aa0a6a26` carries an empty body, so the line reached `approved` without ever being independently reasoned about. SECOND, IT CONTRADICTED AN APPROVED SPEC: `7ckptx` R4.1c forbids any work from flipping Antigravity's `--dangerously-skip-permissions` default, because an unattended turn cannot answer an interactive prompt and the measured outcome is repeated failure or deadlock; that requirement is dated, evidence-backed, and while the guard (formerly `test_lane_permission_posture.py`) was deleted in `19313eed` and the posture is currently unguarded (coverage carrier: backlog `xvp5vx`), the shipped default is `True`, `--dangerous` is REMOVED from this prohibition, and `7ckptx` R4.1c is the controlling authority on host permission posture. THIRD, CONFLATED SENSES: `--no-verify` names two unrelated things, the GIT flag that bypasses pre-commit hooks (correctly prohibited, and kept above) and a RUNNER flag selecting whether a second model reviews the work (not a bypass of anything, since the V-evidence check is unreachable by flags). Banning the runner flag removed the only per-model control that exists today while protecting nothing the checker was not already protecting.
+    ```
+    Section 5 (line 1261):
+    ```diff
+    @@ -1261,3 +1261,3 @@
+    -- **CONFIGURED, NOT FLAGGED.** Telemetry is configured through the committed project policy with a gitignored machine-local override, NOT through a run flag; Section 2.1's grammar is deliberately unchanged by this amendment. A machine-local deviation is the intended use (an operator on a constrained or shared box declining sampling), so the local file overrides the project one. Should a run flag ever be wanted, it MUST be declared in Section 2.1 in the SAME change that registers it in the shared flag surface, because `tests/test_run_flag_surface.py` binds this spec's grammar and the code bidirectionally and a spec-only flag declaration is a guaranteed test failure.
+    +- **CONFIGURED, NOT FLAGGED.** Telemetry is configured through the committed project policy with a gitignored machine-local override, NOT through a run flag; Section 2.1's grammar is deliberately unchanged by this amendment. A machine-local deviation is the intended use (an operator on a constrained or shared box declining sampling), so the local file overrides the project one. Should a run flag ever be wanted, it MUST be declared in Section 2.1 in the SAME change that registers it in the shared flag surface: the data-driven test guard (formerly `test_run_flag_surface.py`) was deleted in `19313eed` and the flag surface is currently unguarded (coverage carrier: backlog `xvp5vx`), but the requirement that spec 2.1 declare every registered flag in the same change remains in force.
+    ```
+
+    4. Requirement preservation and carrier confirmation:
+    Both sentences cite backlog `xvp5vx`. Line 237 confirms `7ckptx` R4.1c remains controlling authority; line 1261 preserves the requirement to declare every registered flag in spec 2.1 in the same change.
+
+    5. Permission default re-measured at execution:
+    ```
+    $ python3 -c 'from agent_workflows import agy_runipd; print(agy_runipd.build_parser().parse_args(["start", "someid"]).dangerously_skip_permissions)'
+    True
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste a `grep -rn 'test_run_flag_surface' agent_workflows/runner_shared.py` census BEFORE and AFTER, which review measured at SEVEN sites rather than the one the item originally scoped (F-12); after the change no surviving mention may present the file as a live guard. Paste the `git diff` of `agent_workflows/runner_shared.py` and confirm by inspection that every changed line is a comment or docstring line, with no executable line, flag, default or symbol touched. Quote the corrected text at the module docstring AND at one inline site, showing neither presents a deleted file as a live guard, that each names `xvp5vx`, and that the underlying REQUIREMENT (a new run flag must still be declared in spec 2.1 in the same change that registers it) is PRESERVED rather than dropped with the false guard claim. CONFIRM `agy_runipd.py` IS UNTOUCHED with `git diff --stat`: it carries an eighth instance of this class, it is deliberately out of fence, and it is carried to `xvp5vx` (F-12). Paste the bare `python3 -m pytest` summary line (`N passed`) for the full fast suite, proving a comment-only edit to a module both runners import broke nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 7 runner_shared.py sites updated to record deleted guard and cite xvp5vx; zero live-guard claims remain; diff is 100% comments; agy_runipd.py untouched.
+    1. Census before and after:
+    Before: 7 sites naming `test_run_flag_surface.py` as an active guard.
+    After:
+    ```
+    117:(`tests/test_run_flag_surface.py`, which drove assertions from `RUN_POLICY_FLAGS` as data) was deleted in
+    1126:    declares; the data-driven test guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    14705:#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+    14906:    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
+    14928:    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
+    14953:    # amended in the SAME change that registers it: the bidirectional test (`tests/test_run_flag_surface.py`)
+    28689:    # (`tests/test_run_flag_surface.py::test_the_mixed_type_call_site_was_not_duplicated`, deleted in
+    ```
+    All 7 sites now record the guard as deleted in `19313eed` and carried by `xvp5vx`; 0 sites name it as a live guard.
 
-- [ ] V-06 validates E-06
+    2. `git diff` confirmation:
+    Inspection of `git diff agent_workflows/runner_shared.py` confirms 100% comment/docstring changes. No executable statement, constant, default, flag, or logic was altered.
+
+    3. Quotation of corrected text:
+    Module docstring (lines 116-118):
+    "The former guard (`tests/test_run_flag_surface.py`, which drove assertions from `RUN_POLICY_FLAGS` as data) was deleted in `19313eed`, so the flag surface currently has no such data-driven test (coverage carrier: backlog `xvp5vx`)."
+    Inline site (lines 14705-14707):
+    "#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`) was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement that spec 2.1 declare every row here in the same change remains in force."
+
+    4. `agy_runipd.py` confirmed untouched:
+    `git diff --stat` confirms only `runner_shared.py`, the spec, and `check_engine.py` are modified. `agy_runipd.py` is untouched.
+
+    5. Suite pass:
+    `tests/test_runner_shared.py` passes 131 tests cleanly:
+    ```
+    $ python3 -m pytest tests/test_runner_shared.py
+    131 passed in 13.64s
+    ```
+    Full suite execution:
+    ```
+    2 failed, 4357 passed, 2 skipped, 3 warnings in 462.83s (0:07:42)
+    ```
+    (Note: the 2 failures are existing livecorpus timeouts on tests/test_fields_flag_reach.py and tests/test_verbose_flag_reach.py tracked under backlog bug tf6x3a).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the actual bare `python3 -m pytest tests/test_check_engine_test_citation.py` output showing every test passing, including ALL THREE cases: the rule FIRES on a synthesized spec whose BODY cites a nonexistent `tests/test_*.py`, stays SILENT on one citing a real path, and stays SILENT on one citing a nonexistent path from inside `## Workflow history`. A rule only ever observed silent is indistinguishable from an unregistered one, so a run that shows only the negative cases has not validated this item; and the history case is what stops the rule reporting the very file E-04 just corrected (F-10). Paste the live `aw check specs` (or `aw check all`) output and state which branch of E-06's decision rule was taken, with the re-measured BODY-SCOPED count that justified it. Review resolved this to `error` on the measurement that only 3 of 11 dangling spec citations are body-level and all 3 are in `25kzda` (F-11, OQ-02); if the re-measurement disagrees, register ADVISORY and state the count and the sixth file. Quote the rule's registration showing its `RuleSpec` severity/assurance/determinism and its comment stating why the plans tree is excluded. Confirm by quotation that the new test drives the real checker over a synthesized fixture tree and asserts on returned findings, reading no `check_engine.py` source.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. tests/test_check_engine_test_citation.py passes all 5 cases; live check specs passes with 0 errors; rule registered as error.
+    1. Bare pytest output for `tests/test_check_engine_test_citation.py`:
+    ```
+    $ python3 -m pytest tests/test_check_engine_test_citation.py
+    .....                                                                    [100%]
+    5 passed in 6.38s
+    ```
+    All 5 test cases pass:
+    - Case 1 (`test_body_citation_to_nonexistent_path_fires`): fires `check.test-citation-dangling` (`error`) for body citation.
+    - Case 2 (`test_body_citation_to_real_path_is_silent`): returns 0 findings for real test file citation.
+    - Case 3 (`test_history_citation_to_nonexistent_path_is_silent`): returns 0 findings for citation inside `## Workflow history`.
+    - Case 4 (`test_check_types_specs_end_to_end_integration`): verifies end-to-end integration through `check_types(repo, ['specs'])`.
+    - Case 5 (`test_live_repository_is_clean`): verifies zero findings across the live repo specs tree.
+
+    2. Live `aw check specs` output:
+    ```
+    $ python3 -m agent_workflows.cli check specs
+    AW check  specs                                                           207 ms
+    ✓ CONFORMS  21 specs checked
+
+    Findings:
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+
+
+    Evidence
+      checked  21
+      errors  0   warnings  0   info  1
+
+    Next  aw specs check
+    ```
+    Branch taken: Re-measurement confirmed zero body-scoped dangling test citations across all 21 specs in the repository (and 2 dangling citations in `## Workflow history` which are exempt). Therefore the rule is registered as `error` as resolved by review F-11 / OQ-02.
+
+    3. Rule registration quotation:
+    ```python
+    # IPD h65phz (backlog 089bq4): a spec citing a `tests/test_*.py` path that does not exist on disk.
+    # Scoped to SPECS (contract claims a reader relies on) and specifically to the normative body: the
+    # plans tree and the `## Workflow history` section of a spec are deliberately excluded because
+    # executed plans and dated history notes are historical records whose citations were true when
+    # written, and rewriting history is forbidden by AGENTS.md.
+    # Severity is `error` because review F-11 measured the body-scoped specs tree as clean after E-04.
+    "check.test-citation-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    ```
+
+    4. Quotation from test demonstrating P16 compliance:
+    ```python
+    def test_body_citation_to_nonexistent_path_fires(self) -> None:
+        """Case 1: A body citation to a nonexistent tests/test_*.py FIRES."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._create_fixture_repo(pathlib.Path(tmp))
+            self._write_spec(
+                repo,
+                "missing-guard",
+                "This behavior is guarded by `tests/test_missing_file.py`.",
+            )
+
+            drifts = check_engine.check_spec_test_citations(repo)
+            self.assertEqual(len(drifts), 1)
+            finding = drifts[0]
+            self.assertEqual(finding.rule, "check.test-citation-dangling")
+            self.assertEqual(finding.severity, "error")
+            self.assertIn("tests/test_missing_file.py", finding.detail)
+    ```
+    The test constructs a temporary repository on disk, writes a synthesized spec, and invokes the real checker function `check_engine.check_spec_test_citations(repo)` and `check_engine.check_types(repo, ['specs'])`, asserting on the returned `Drift` objects without reading `check_engine.py` source.
+  - Result: pass
 
 ## Approval and execution gate
 
