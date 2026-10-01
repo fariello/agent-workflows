@@ -9739,7 +9739,12 @@ def _run_plans(
     # (IPD awretrofit Order 06).
     explicit_dir = getattr(args, "dir", None)
     root = resolve_verb_repo_root(explicit_dir)
-    if not explicit_dir and not is_project_dir(root):
+    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
+    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
+    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
+    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
+    # cli-output-contract.md Section 3 / 11.4.
+    if not is_project_dir(root):
         if ctx.is_agent or ctx.is_json:
             # nogitmsg `quqyc4` E-05 / backlog `5x195l`: THIS BRANCH USED TO CRASH. It built
             # `exit_code=3` and emitted it, but `aw.agent/v1` admits only 0/1/2 and additionally
@@ -9771,14 +9776,20 @@ def _run_plans(
             # `aw install <absolute root>`, because the absolute form is unemittable for the leak
             # reason above (decision 03-quqyc4-D2); `aw install` defaults to cwd.
             git_root = git_root_for_message(root)
+            summary = (
+                "no AW project found at the specified directory; "
+                "--dir is honored verbatim with no upward climb"
+                if explicit_dir
+                else (
+                    "no AW project found at the working directory or any ancestor; "
+                    "cd into the repository or pass --dir <repo>"
+                )
+            )
             res = CommandResult(
                 command="ipd board",
                 status="cannot-run",
                 exit_code=2,
-                summary=(
-                    "no AW project found at the working directory or any ancestor; "
-                    "cd into the repository or pass --dir <repo>"
-                ),
+                summary=summary,
                 next_actions=(
                     [
                         NextAction(
@@ -9795,7 +9806,9 @@ def _run_plans(
         # is to tell the operator what to run, and `aw plans` is NOT a registered command: it exits 2
         # from argparse as an invalid choice (measured). So the pre-change message misdirected the
         # operator from inside the help text.
-        sys.stderr.write(no_project_message("ipd board", root) + "\n")
+        sys.stderr.write(
+            no_project_message("ipd board", root, explicit=bool(explicit_dir)) + "\n"
+        )
         return 3
 
     # Validate --status up front so a typo teaches the valid set instead of silently
