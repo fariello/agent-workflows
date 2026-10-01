@@ -1,11 +1,13 @@
 - Id: u8dl3q
-- Status: open
+- Status: graduated
+- Graduated-To: u8dl3q
 - Set: u8dl3q
 - Priority: low
 - Work-Kind: chore
 - Summary: Render the orchestrator row grammar, its refusal message, the scaffold skeleton, and the docs from one source so the instruction and the check cannot drift (spec r07vma OQ-01)
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20260930T053059Z-3200713: l1xkrr
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for the spec r07vma OQ-01 residue that plan zojfn6 deliberately leaves open
 
 Approved spec `r07vma` OQ-01 asks how the AUTHORING INSTRUCTIONS are kept from drifting away from the ENFORCING CODE, and carries a PROPOSED DIRECTION rather than a decision: hold the row GRAMMAR as data in the rule module and render the refusal message, the `aw ipd scaffold` skeleton, and the documentation from that one source. It is explicitly `Blocking: no`.
