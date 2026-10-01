@@ -35569,8 +35569,14 @@ def process_backlog_close(
     close_backlog_item: Callable[..., tuple[int, str]],
     commit_backlog_close: Callable[..., Any],
     wrote_in: str | None = None,
+    host_label: str,
 ) -> None:
     """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
+
+    ``host_label`` has NO DEFAULT, on purpose (plan nf71bz, citing the established
+    `integrate_lane_branch(..., host_label=)` precedent and HostLabels conventions). A defaulted value
+    would misattribute in durable history which driver closed an item across two durable sinks:
+    the backlog-close commit message and the item's own tracked `## Workflow history` line.
 
     Records the verdict on the queue item either way, so E-06 can report every item left open WITH
     ITS REASON rather than merely noting that something did not happen.
@@ -35671,7 +35677,7 @@ def process_backlog_close(
         item["backlog_close"] = record
         return
     message = (
-        f"closed by aw oc run: IPD {item['id6']} executed "
+        f"closed by {host_label}: IPD {item['id6']} executed "
         f"({verdict.reason}); evidence {verdict.evidence}"
     )
     rc, out = close_backlog_item(

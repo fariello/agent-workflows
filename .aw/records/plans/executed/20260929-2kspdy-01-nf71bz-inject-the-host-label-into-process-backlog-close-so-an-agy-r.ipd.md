@@ -6,7 +6,7 @@
 - Scope: IN: (a) add a default-free keyword-only `host_label: str` parameter to `runner_shared.process_backlog_close` and build the message from it; (b) bind each host's own value in the two one-line wrappers (`oc_runipd.process_backlog_close` -> `OC_HOST_LABELS.command`, `agy_runipd.process_backlog_close` -> `AGY_HOST_LABELS.command`), reading the value from the EXISTING `HostLabels.command` field rather than writing a fresh literal; (c) a new behavior test that drives the real shared function per host and asserts the label in the message actually reaching the closers, plus a no-default test. OUT: the four prose-only `oc` tokens the carrying item already cleared as correct (`queue_sort_key`, `run_order_rationale`, `render_runs_pointer`, `dependency_status_detailed`); any change to WHICH items close, to the close eligibility verdict, to the release-gate predicate, or to the lane-versus-main write tree; any change to `HostLabels` itself or to the other host-label call sites that are already correct; restoring the deleted `tests/test_runner_backlog_close.py` / `tests/test_runner_layering.py` (F-05).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_backlog_close_host_label.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: nf71bz
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: nf71bz verified (set 2kspdy, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, zero deferred, zero open. THE PLAN IS CORRECT AND I VERIFIED IT BY BUILDING IT at HEAD `5790526b`, rather than by reading it. Every E-01 premise reproduces exactly: `grep -rn "closed by aw" agent_workflows/ --include=*.py` returns ONE hit in `runner_shared.py` and zero in `oc_runipd.py`; no `host_label` in any of the three signatures; `.command` already reads `aw oc run` / `aw agy run`. I then APPLIED E-02 and E-03 as a trial patch and drove both hosts' real `process_backlog_close`: the literal left the package entirely, the signature reported `KEYWORD_ONLY NO DEFAULT`, omitting the binding raised `TypeError: process_backlog_close() missing 1 required keyword-only argument: 'host_label'`, the `oc` host wrote `closed by aw oc run:` and the `agy` host wrote `closed by aw agy run:`, and a bare suite passed `3371 passed, 2 skipped` with no pre-existing test modified. Patch reverted; nothing from it committed (F-10). I also CONFIRMED THE DEFECT AT THE MESSAGE LEVEL for the first time: at base, both hosts' `close_backlog_item` AND `commit_backlog_close` receive `closed by aw oc run:`, so F-04's two-sink claim is now observed rather than inferred (F-11). PR-001 (HIGH): E-04's fixture as specified would never have reached the message. `evaluate_backlog_close` applies the earned gate, so an open item plus an executed carrier returns `close=False` with "this run executed none of its carriers, so the close was not earned" and builds NO message; the test would have asserted on `None` and passed before and after. I hit this on the first probe; the working recipe (`item["last_plan_path"]` absolute, do NOT pre-set `earned_paths` because the function overwrites it) is now in E-04 with a mandatory `closed is True` guard, and V-04 now refuses a pre-fix failure whose cause is the fixture (F-12). PR-002 (MEDIUM): E-02 said to place the parameter "beside the three existing injected closers", but the keyword-only block ends with a DEFAULTED `wrote_in`; the shape I actually drove appends after it, and `wrote_in` is bound by no caller anywhere, so grouping a required parameter before it would misread. PR-003 (MEDIUM): F-09's baseline was stale by 125 tests in one day (`3246` authored, `3371` measured), and it sat in E-05's and V-05's acceptance bars; both now require the executor's own pre-edit measurement. PR-004 (MEDIUM): F-08 overstated its evidence, claiming `test_registry_closure_every_host_labels_routable_by_analytics` consumes `SCRIPTED_HOST_LABELS`; it discovers labels from `vars(runner_shared)` (yielding only the two real hosts) and names the descriptor in its docstring alone, while `test_pin_measured_turn_execution_limits` pins that a descriptor-only host cannot execute a turn at all. The no-default case is sound on the convention and the surviving `integrate_lane_branch` precedent, so the row is corrected rather than dropped. Also corrected: both drivers still cite the DELETED `tests/test_runner_backlog_close.py::SharedNotCopied` as the guard on the single-delegating-statement shape (zero hits in `tests/`), now recorded as under-scope and carried by `p7k57l`. PR-005: the gate gained the post-review status sentence, the feasibility paragraph, the review-corrections paragraph, and a stale-import warning. OQ-01 RESOLVED as already-answered: the carrier `p7k57l` is filed, `open`, and accurately scoped. Findings and decisions D-1..D-4 in `.aw/records/reviews/20260929-2kspdy-01-nf71bz-inject-the-host-label-into-process-backlog-close-so-an-agy-r.review.md`.
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Confirm the premise at the execution base
 
-- [ ] E-01 Re-measure the defect where it actually lives now, because the carrying item's coordinate is stale (F-01) and a fix applied to the old address would be a no-op. Run `grep -rn "closed by aw" agent_workflows/ --include=*.py` and confirm EXACTLY ONE hit, inside `runner_shared.process_backlog_close`. Then confirm no host-label parameter exists anywhere in the chain and that the correct per-host values are already available as data:
+- [x] E-01 Re-measure the defect where it actually lives now, because the carrying item's coordinate is stale (F-01) and a fix applied to the old address would be a no-op. Run `grep -rn "closed by aw" agent_workflows/ --include=*.py` and confirm EXACTLY ONE hit, inside `runner_shared.process_backlog_close`. Then confirm no host-label parameter exists anywhere in the chain and that the correct per-host values are already available as data:
 
   ```
   python3 -c "
@@ -51,37 +51,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
   - Depends on: none
   - Expected outcome: one literal hit in the shared body; NO `host_label` in any of the three signatures; and `.command` already reading `aw oc run` / `aw agy run`. STOP AND REPORT if the literal is absent or already parameterized: the defect would already be fixed and this plan's premise wrong.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Make the label a parameter and bind it per host
 
-- [ ] E-02 In `runner_shared.process_backlog_close`, add a keyword-only `host_label: str` with NO DEFAULT, placed beside the three existing injected closers (`run_checked`, `close_backlog_item`, `commit_backlog_close`), and build the message from it, replacing the literal `f"closed by aw oc run: IPD {item['id6']} executed "` with the interpolated label. Change NOTHING else about the message: the remainder (`({verdict.reason}); evidence {verdict.evidence}`) stays byte-identical, so an `oc` run's record is unchanged. Document in the docstring WHY there is no default, citing the established `integrate_lane_branch(..., host_label=)` precedent and the two durable sinks from F-04.
+- [x] E-02 In `runner_shared.process_backlog_close`, add a keyword-only `host_label: str` with NO DEFAULT, placed beside the three existing injected closers (`run_checked`, `close_backlog_item`, `commit_backlog_close`), and build the message from it, replacing the literal `f"closed by aw oc run: IPD {item['id6']} executed "` with the interpolated label. Change NOTHING else about the message: the remainder (`({verdict.reason}); evidence {verdict.evidence}`) stays byte-identical, so an `oc` run's record is unchanged. Document in the docstring WHY there is no default, citing the established `integrate_lane_branch(..., host_label=)` precedent and the two durable sinks from F-04.
   PLACE IT AFTER `wrote_in`, NOT BETWEEN THE CLOSERS, and the reason is mechanical rather than stylistic (review PR-002). The current keyword-only block ends `commit_backlog_close, wrote_in: str | None = None`, so inserting a NO-DEFAULT parameter before `wrote_in` is legal Python for keyword-only arguments but leaves a defaulted parameter reading as though it were part of the required injection group. Appending after `wrote_in` was the shape review actually drove end to end (both hosts, real function, correct labels, suite green), so it is the shape with evidence behind it. `wrote_in` is also NEVER BOUND by any caller today (measured: zero `wrote_in=` call sites anywhere in `agent_workflows/`), which is precisely why it must not be mistaken for a live injected dependency when reading the signature.
   - Depends on: E-01
   - Expected outcome: the shared body contains no `aw oc run` literal; `inspect.signature` shows `host_label` as KEYWORD_ONLY with no default, so a host that forgets to bind it raises `TypeError` at the call rather than silently misattributing. Review drove exactly this and measured `TypeError: process_backlog_close() missing 1 required keyword-only argument: 'host_label'`, so that is the expected text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Bind each host's own label in its existing one-line wrapper, passing `host_label=runner_shared.OC_HOST_LABELS.command` in `oc_runipd.process_backlog_close` and `host_label=runner_shared.AGY_HOST_LABELS.command` in `agy_runipd.process_backlog_close`. Read the value from the `HostLabels` descriptor; do NOT write a fresh string literal in either wrapper, since a second copy of a value that already exists as data is how these two drifted in the first place. Keep both wrappers a SINGLE delegating `return runner_shared.<same name>(...)` statement so they remain the shape the shared-not-copied convention requires (F-03).
+- [x] E-03 Bind each host's own label in its existing one-line wrapper, passing `host_label=runner_shared.OC_HOST_LABELS.command` in `oc_runipd.process_backlog_close` and `host_label=runner_shared.AGY_HOST_LABELS.command` in `agy_runipd.process_backlog_close`. Read the value from the `HostLabels` descriptor; do NOT write a fresh string literal in either wrapper, since a second copy of a value that already exists as data is how these two drifted in the first place. Keep both wrappers a SINGLE delegating `return runner_shared.<same name>(...)` statement so they remain the shape the shared-not-copied convention requires (F-03).
   - Depends on: E-02
   - Expected outcome: both wrappers still delegate in one statement and both now pass a label; no new string literal is introduced in either driver.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the behavior so it cannot regress
 
-- [ ] E-04 Add `tests/test_backlog_close_host_label.py` with tests that exercise the REAL shared function per host (no source inspection, no substring search of production code): for each of `oc_runipd` and `agy_runipd`, call that host's `process_backlog_close` against a temp git repo holding a genuine open backlog item and a satisfying executed carrier, with the two closers replaced by recording fakes, then assert on the `message` argument each closer ACTUALLY received. Assert the `oc` host's message begins `closed by aw oc run:` and the `agy` host's begins `closed by aw agy run:`, and assert the two differ. Add one test asserting `host_label` has NO DEFAULT in the shared signature (via `inspect.signature`, which reads the live callable's contract rather than its source text) and one asserting the non-label remainder of the message is unchanged for the `oc` host, so the fix is proven not to have disturbed the existing record shape.
+- [x] E-04 Add `tests/test_backlog_close_host_label.py` with tests that exercise the REAL shared function per host (no source inspection, no substring search of production code): for each of `oc_runipd` and `agy_runipd`, call that host's `process_backlog_close` against a temp git repo holding a genuine open backlog item and a satisfying executed carrier, with the two closers replaced by recording fakes, then assert on the `message` argument each closer ACTUALLY received. Assert the `oc` host's message begins `closed by aw oc run:` and the `agy` host's begins `closed by aw agy run:`, and assert the two differ. Add one test asserting `host_label` has NO DEFAULT in the shared signature (via `inspect.signature`, which reads the live callable's contract rather than its source text) and one asserting the non-label remainder of the message is unchanged for the `oc` host, so the fix is proven not to have disturbed the existing record shape.
   THE FIXTURE MUST EARN THE CLOSE, AND THIS IS THE ONE THING MOST LIKELY TO COST AN EXECUTOR A PASS (review PR-001). An item with an open status and an executed carrier is NOT sufficient: `evaluate_backlog_close` applies the E-04 earned gate, so a fixture that merely HAS an executed carrier returns `close=False` with `"this run executed none of its carriers, so the close was not earned (all carriers were already executed before this run)"`, and no message is ever built, so the test asserts on `None` and proves nothing. Review hit exactly this on the first attempt. THE WORKING RECIPE, driven end to end at review: set `item["last_plan_path"]` to the ABSOLUTE path of the executed carrier, which `collect_earned_paths` relativizes into the earned set; do NOT pre-set `item["earned_paths"]`, because `process_backlog_close` OVERWRITES it from `collect_earned_paths` before the verdict is taken. The queue item needs `id6`, `from_backlog`, and `last_plan_path`; the state needs `repo`, `run_id`, and `queue`. Assert the verdict actually closed (`item["backlog_close"]["closed"] is True`) BEFORE asserting on the message, so a future fixture drift fails loudly instead of silently asserting on `None`.
   PATCH THE CLOSERS ON THE HOST MODULE, NOT ON `runner_shared`. Each host wrapper passes its OWN `close_backlog_item` / `commit_backlog_close`, so `mock.patch.object(mod, "close_backlog_item", fake)` is what the injection seam is for (and is the reason the injection exists per the Step 0 convention); patching `runner_shared`'s copies would not be seen. Redirect stdout/stderr, because the success path prints a colored confirmation line.
   BEWARE A STALE-IMPORT FALSE NEGATIVE, recorded because review hit it and briefly mis-concluded the fix did not work. A probe script placed in a SUBDIRECTORY resolved `agent_workflows` from a DIFFERENT checkout (Python puts the script's own directory on `sys.path`, not the repo root), so it exercised unpatched code and reported `aw oc run` for both hosts after a correct fix. A test under `tests/` run through `python3 -m pytest` from the repo root does not have this problem; the warning exists for any ad-hoc probe an executor writes while iterating. Confirm `agent_workflows.__file__` points inside the working tree before believing a negative result.
   - Depends on: E-03
   - Expected outcome: a test file that fails on the pre-fix code at the `agy` assertion and passes after, covering both sinks by asserting on what `close_backlog_item` and `commit_backlog_close` each received. Review PRE-VERIFIED this is achievable: driving both hosts' real `process_backlog_close` with the recipe above produced `closed by aw oc run: ...` for BOTH hosts at base (the defect, reproduced at the message level for the first time) and `closed by aw oc run:` / `closed by aw agy run:` respectively after a trial fix.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Run the full suite BARE as `python3 -m pytest` and confirm no regression against a baseline MEASURED AT THE EXECUTION BASE, not against any number written in this plan. Pay specific attention to `tests/test_backlog_production.py` and `tests/test_hostdedup_third_host.py`, both of which drive both hosts and are the likeliest places a missing binding surfaces.
+- [x] E-05 Run the full suite BARE as `python3 -m pytest` and confirm no regression against a baseline MEASURED AT THE EXECUTION BASE, not against any number written in this plan. Pay specific attention to `tests/test_backlog_production.py` and `tests/test_hostdedup_third_host.py`, both of which drive both hosts and are the likeliest places a missing binding surfaces.
   MEASURE YOUR OWN BASELINE FIRST; THE AUTHORED ONE IS ALREADY WRONG (review PR-003). F-09 records `3246 passed, 2 skipped` from 2026-09-29. Re-measured at review one day later: `3371 passed, 2 skipped`, a rise of 125 from unrelated work. So take a bare run BEFORE the first edit, record that number, and require `>= baseline + <new tests>` against it. A plan-quoted absolute count is a live-artifact bar and cannot be one (the repository's own re-derivation convention).
   REVIEW ALREADY RAN THE SUITE AGAINST A TRIAL FIX AND IT WAS GREEN, which bounds the regression risk but does NOT substitute for this item: a trial patch is not the authored change, and no new test existed in that run. Result recorded in the review record so the executor can compare rather than re-discover.
   - Depends on: E-04
   - Expected outcome: the suite is green with the new tests included and the count has risen by the number of tests E-04 adds, measured against the executor's OWN pre-edit baseline; no pre-existing test needed modification.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,30 +163,167 @@ N/A. No `.spec.md` governs the close message's host label, and no user-facing do
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual output of `grep -rn "closed by aw" agent_workflows/ --include=*.py` showing EXACTLY ONE hit and that it is in `runner_shared.py`, plus the actual stdout of the E-01 `python3 -c` block showing no `host_label` in any of the three signatures and `.command` reading `aw oc run` / `aw agy run`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Exact single hit in `runner_shared.process_backlog_close` (`runner_shared.py:35674`) for literal `closed by aw oc run:`; live signature check shows no host_label in shared or host signatures; OC and AGY .command descriptors read 'aw oc run' and 'aw agy run'.
+  - Result: pass
+    ```
+    $ grep -rn "closed by aw" agent_workflows/ --include=*.py
+    agent_workflows/runner_shared.py:35674:        f"closed by aw oc run: IPD {item['id6']} executed "
 
-- [ ] V-02 validates E-02
+    $ python3 -c "
+    import inspect
+    from agent_workflows import runner_shared as rs, oc_runipd, agy_runipd
+    print('shared:', list(inspect.signature(rs.process_backlog_close).parameters))
+    print('oc   :', list(inspect.signature(oc_runipd.process_backlog_close).parameters))
+    print('agy  :', list(inspect.signature(agy_runipd.process_backlog_close).parameters))
+    print('OC .command :', rs.OC_HOST_LABELS.command)
+    print('AGY .command:', rs.AGY_HOST_LABELS.command)"
+    shared: ['run_dir', 'state', 'item', 'lane_repo', 'lane_handle', 'run_checked', 'close_backlog_item', 'commit_backlog_close', 'wrote_in']
+    oc   : ['run_dir', 'state', 'item', 'lane_repo', 'lane_handle']
+    agy  : ['run_dir', 'state', 'item', 'lane_repo', 'lane_handle']
+    OC .command : aw oc run
+    AGY .command: aw agy run
+    ```
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual output of `python3 -c "import inspect; from agent_workflows import runner_shared as rs; p=inspect.signature(rs.process_backlog_close).parameters['host_label']; print(p.kind, 'NO DEFAULT' if p.default is inspect._empty else repr(p.default))"` showing `KEYWORD_ONLY NO DEFAULT`. Then paste `grep -rn "closed by aw" agent_workflows/ --include=*.py` showing the `aw oc run` literal is GONE from the shared body (the remaining hit, if any, must be the interpolated form). Also paste the actual `TypeError` from calling the shared function with the label omitted, proving it fails loudly rather than defaulting.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Signature check confirms host_label is KEYWORD_ONLY NO DEFAULT; grep confirms literal is gone from agent_workflows/; calling with omitted label raises TypeError.
+  - Result: pass
+    ```
+    $ python3 -c "import inspect; from agent_workflows import runner_shared as rs; p=inspect.signature(rs.process_backlog_close).parameters['host_label']; print(p.kind, 'NO DEFAULT' if p.default is inspect._empty else repr(p.default))"
+    KEYWORD_ONLY NO DEFAULT
 
-- [ ] V-03 validates E-03
+    $ grep -rn "closed by aw" agent_workflows/ --include=*.py
+    (exit 1, no hits found)
+
+    $ python3 -c "
+    from pathlib import Path
+    from agent_workflows import runner_shared as rs
+    rs.process_backlog_close(
+        Path('.'),
+        {},
+        {},
+        run_checked=lambda *a, **k: '',
+        close_backlog_item=lambda *a, **k: (0, ''),
+        commit_backlog_close=lambda *a, **k: None,
+    )"
+    TypeError: process_backlog_close() missing 1 required keyword-only argument: 'host_label'
+    ```
+
+- [x] V-03 validates E-03
   - Required evidence: paste the actual stdout of a check that BOTH hosts pass a label and that neither wrapper introduces a new literal: `grep -n "host_label" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` showing each passes `runner_shared.<OC|AGY>_HOST_LABELS.command` (not a quoted string), and `grep -c "aw agy run\|aw oc run" ` over the two wrapper bodies showing no new string literal was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Both wrappers delegate passing runner_shared.<OC|AGY>_HOST_LABELS.command; neither wrapper introduces a string literal.
+  - Result: pass
+    ```
+    $ grep -n "host_label" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py:620:# two neighbours, which need this host's `run_checked`/`host_label`). The `as <same-name>` FORM is
+    agent_workflows/oc_runipd.py:1295:        host_label=runner_shared.OC_HOST_LABELS.command,
+    agent_workflows/oc_runipd.py:1423:#   * `host_label` is the ONE value the two runners' `integrate_lane_branch` bodies actually differed
+    agent_workflows/oc_runipd.py:1471:    OWN `host_label`, so the merge subject on main still reads `integrate(aw oc run): ...`.
+    agent_workflows/oc_runipd.py:1474:    as it binds `host_label`. THE SIGNATURE IS DELIBERATELY UNCHANGED, and that is the point:
+    agent_workflows/oc_runipd.py:1486:        host_label="aw oc run",
+    agent_workflows/oc_runipd.py:1499:    ordering, the `host_label` merge subject) are the SAME code an execute integration runs; only the
+    agent_workflows/oc_runipd.py:1513:        host_label="aw oc run",
+    agent_workflows/oc_runipd.py:3350:        host_labels=runner_shared.OC_HOST_LABELS,
+    agent_workflows/oc_runipd.py:3911:                host_labels=runner_shared.OC_HOST_LABELS,
+    agent_workflows/agy_runipd.py:324:# need this host's `run_checked`/`host_label` and so keep wrappers). The `as <same-name>` form marks
+    agent_workflows/agy_runipd.py:1526:# THE `host_label` BINDING BELOW IS THIS FILE'S WHOLE STAKE IN THE MOVE: the shared function gives it
+    agent_workflows/agy_runipd.py:1609:        host_label=runner_shared.AGY_HOST_LABELS.command,
+    agent_workflows/agy_runipd.py:1653:    `host_label`.
+    agent_workflows/agy_runipd.py:1656:    exactly as it binds `host_label`, so this wrapper's SIGNATURE is unchanged and the shipped contract
+    agent_workflows/agy_runipd.py:1665:        host_label="aw agy run",
+    agent_workflows/agy_runipd.py:1676:    The agy twin of `oc_runipd.integrate_review_lane_branch`, binding THIS host's `host_label` so a
+    agent_workflows/agy_runipd.py:1687:        host_label="aw agy run",
+    agent_workflows/agy_runipd.py:2863:        host_labels=runner_shared.AGY_HOST_LABELS,
+    agent_workflows/agy_runipd.py:3372:                host_labels=runner_shared.AGY_HOST_LABELS,
 
-- [ ] V-04 validates E-04
+    $ sed -n '1277,1296p' agent_workflows/oc_runipd.py | grep -c -E "aw agy run|aw oc run"
+    0
+
+    $ sed -n '1591,1610p' agent_workflows/agy_runipd.py | grep -c -E "aw agy run|aw oc run"
+    0
+    ```
+
+- [x] V-04 validates E-04
   - Required evidence: FIRST demonstrate the test catching the live bug: with the E-02/E-03 changes stashed or reverted, run `python3 -m pytest tests/test_backlog_close_host_label.py -o addopts=""` and paste the actual FAILING output showing the `agy` assertion failing with `aw oc run` observed where `aw agy run` was expected. THEN restore the fix and paste the actual PASSING output of the same command with per-test counts. A test that passes both before and after has not proven anything and must be rewritten. ALSO PASTE THE EARNED-GATE GUARD passing in both runs: the assertion that `item["backlog_close"]["closed"] is True` must hold in the PRE-FIX run too, because that is what distinguishes "the label is wrong" from "the fixture never reached the message" (F-12). A pre-fix failure whose cause is `close=False` and a `None` message does NOT satisfy this item; the pre-fix failure must be a label mismatch on a message that was actually built.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pre-fix run demonstrated the live bug failing on agy with 'closed by aw oc run:' while earned-gate guard passed; post-fix run passes all 4 tests.
+  - Result: pass
+    ```
+    Pre-fix failure showing agy assertion failing with 'closed by aw oc run:' observed where 'closed by aw agy run:' was expected, and earned gate guard (item["backlog_close"]["closed"] is True) passing:
+    $ python3 -m pytest tests/test_backlog_close_host_label.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1946914362
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
 
-- [ ] V-05 validates E-05
+    tests/test_backlog_close_host_label.py FF.F                              [100%]
+
+    =================================== FAILURES ===================================
+    _________ test_shared_process_backlog_close_host_label_has_no_default __________
+        def test_shared_process_backlog_close_host_label_has_no_default() -> None:
+            sig = inspect.signature(runner_shared.process_backlog_close)
+    >       assert "host_label" in sig.parameters, "host_label parameter must exist in runner_shared.process_backlog_close"
+    E       AssertionError: host_label parameter must exist in runner_shared.process_backlog_close
+    ________________________ test_agy_host_binds_agy_label _________________________
+        ...
+        # PR-001 / F-12: The earned-gate guard must pass.
+        assert item.get("backlog_close", {}).get("closed") is True
+        ...
+        msg = close_messages[0]
+    >   assert msg.startswith("closed by aw agy run:"), f"Expected msg to start with 'closed by aw agy run:', got: {msg}"
+    E   AssertionError: Expected msg to start with 'closed by aw agy run:', got: closed by aw oc run: IPD pln999 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-test-01-pln999-plan.ipd.md); evidence .aw/records/plans/executed/20260929-test-01-pln999-plan.ipd.md
+    _________________ test_host_messages_differ_between_oc_and_agy _________________
+        ...
+        assert oc_msgs[0].startswith("closed by aw oc run:")
+    >   assert agy_msgs[0].startswith("closed by aw agy run:")
+    E   AssertionError: assert False
+    E    +  where False = 'closed by aw oc run: ...'.startswith('closed by aw agy run:')
+    =========================== short test summary info ============================
+    FAILED tests/test_backlog_close_host_label.py::test_shared_process_backlog_close_host_label_has_no_default
+    FAILED tests/test_backlog_close_host_label.py::test_agy_host_binds_agy_label
+    FAILED tests/test_backlog_close_host_label.py::test_host_messages_differ_between_oc_and_agy
+    ========================= 3 failed, 1 passed in 0.39s ==========================
+
+    Post-fix pass output:
+    $ python3 -m pytest tests/test_backlog_close_host_label.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2398914433
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items                                                             collected 4 items
+
+    tests/test_backlog_close_host_label.py ....                              [100%]
+
+    ============================== 4 passed in 1.64s ===============================
+    ```
+
+- [x] V-05 validates E-05
   - Required evidence: paste TWO bare `python3 -m pytest` summary lines with no added flags: the executor's OWN PRE-EDIT baseline, taken before the first change, and the post-change run, showing no failures and a passed count equal to that baseline plus the tests E-04 added. Do NOT compare against F-09's `3246`, which review re-measured as `3371` a day later; a plan-quoted absolute count is not a valid bar. Explicitly confirm `tests/test_backlog_production.py` and `tests/test_hostdedup_third_host.py` are among the passing tests and that no pre-existing test file was modified (`git diff --stat` over `tests/` should show only the new file).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Baseline 3911 passed, post-change 3915 passed (+4 new tests from E-04); targeted tests passed (30 in 20.12s); git diff confirms only the new test was added.
+  - Result: pass
+    ```
+    Pre-edit baseline:
+    3911 passed, 2 skipped, 3 warnings in 143.32s (0:02:23)
+
+    Post-change run:
+    3915 passed, 2 skipped, 3 warnings in 121.45s (0:02:01)
+
+    Targeted tests:
+    $ python3 -m pytest tests/test_backlog_production.py tests/test_hostdedup_third_host.py
+    30 passed in 20.12s
+
+    Tests git diff:
+    $ git diff --stat tests/
+    (empty, no pre-existing tests modified)
+    $ git status --short tests/
+    ?? tests/test_backlog_close_host_label.py
+    ```
 
 ## Approval and execution gate
 
