@@ -1,5 +1,5 @@
 - Id: 4vfkl1
-- Status: graduated
+- Status: done
 - Graduated-To: 4vfkl1
 - Blocks-Release: next
 - Set: 4vfkl1
@@ -8,6 +8,7 @@
 - Summary: Two slow-marked test_installer deep-cleanup tests fail at HEAD: .aw/ remains after records removal
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 5j7jv1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-4vfkl1-01-5j7jv1-remove-the-install-emitted-layout-artifacts-on-uninstall-so.ipd.md); evidence .aw/records/plans/executed/20260928-4vfkl1-01-5j7jv1-remove-the-install-emitted-layout-artifacts-on-uninstall-so.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235941Z-1396311: 5j7jv1
 - 2026-09-26 note (aw backlog): CI step 'Run slow-marked tests' (tests.yml, plan 4petcj) is advisory because of this item's slow-test failure; when the last of the owning items (57dwkc, 3ypquf, 4vfkl1, g0bdgg) closes, remove its continue-on-error so the slow set fails closed.
 - 2026-09-18 open (aw set): Gated on next per the every-live-bug-gates-the-release rule (AGENTS.md); backfilled by nobugship rgaasb E-04.

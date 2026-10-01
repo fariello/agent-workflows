@@ -4986,6 +4986,12 @@ def uninstall_repo(
                 _record_changed(rel)
                 actions.append(f"removed {rel}")
 
+    for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH):
+        if (repo_root / rel).is_file():
+            _uninstall_remove(repo_root, rel, use_git)
+            _record_changed(rel)
+            actions.append(f"removed {rel}")
+
     aw_gi = ".aw/.gitignore"
     if (repo_root / aw_gi).is_file():
         _uninstall_remove(repo_root, aw_gi, use_git)
