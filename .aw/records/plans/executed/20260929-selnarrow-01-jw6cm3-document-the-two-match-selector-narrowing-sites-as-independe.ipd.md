@@ -6,7 +6,7 @@
 - Scope: Correct the record for `status_set.match_selector`'s two type-narrowing sites and pin the unpinned half. Write a docstring and two code comments stating WHICH selector kinds each site guards and that neither is redundant, replacing the current docstring's single-authority framing. Add tests pinning the resolver-narrowing site for the `status`, `stem` and `substring` kinds and the fast-path site for the `id6` kind plus a `setid` companion assertion (the pair is what isolates the fast path, since an `id6` test alone fails under both mutations; see F-9), each passing an UNNARROWED record list so `scoped_type` is the only filter, and each demonstrated by mutation to FAIL when its site is removed. Amend spec `2lcqno` N3, whose "ONE DOCUMENTED HOLE" paragraph names only the direct-PATH exemption and reads as though a single narrowing mechanism covers everything else. Changes NO runtime behavior: no filter is removed, no precedence changes, no public signature changes.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py, .aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: jw6cm3
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jw6cm3 verified (set selnarrow, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
