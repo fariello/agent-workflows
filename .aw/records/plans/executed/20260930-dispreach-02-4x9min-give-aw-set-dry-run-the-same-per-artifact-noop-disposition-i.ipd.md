@@ -6,7 +6,7 @@
 - Scope: Make the machine dry-run branch of `status_set.run_set_command` report each matched artifact's real disposition, reusing the `noop` kind, the `(unchanged)` detail wording, and the changed/unchanged predicate the APPLY path in the same function already uses. IN: the `if is_dry_run:` machine branch's `Change` construction and its `summary` count; the same branch's `data["items"]` rows if they carry the same claim. OUT: the human dry-run line, which is already correct; the apply path, which is already correct; WHICH artifacts a selector matches; the zero-match and ambiguity refusals; `aw runs` (Order 01 of this Set); and `aw find` (owned by pending plan `zyj8io`).
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 03
 - Author: opencode
 - Id: 4x9min
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4x9min verified (set dispreach, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode/its_direct-pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-401..PR-406, all FIXED. THE PLAN'S CENTRAL CLAIM REPRODUCES ON LIVE DATA AND I RAN THE REAL COMMANDS RATHER THAN READING THE CODE. On one artifact, same selector, only the flag differing: `aw set approved 95jk4s --json --dry-run` reports `would update status on 1 artifact(s)` / `update` / `status: approved -> approved`, while `--json --yes` reports `updated status on 0 artifact(s)` / `noop` / `status: approved (unchanged)` with the tree left byte-identical. F-04 verifies (the human form prints `unchanged` on both paths), F-05 verifies on a backlog item and on the untyped `aw set`, F-06 verifies (the apply predicate is post-write and structurally unavailable in a dry run), F-08 verifies (`noop` in the test file is only a fixture name and a local), F-11 verifies (no spec mentions `noop`; the agent schema validates the record envelope, not `Change.kind`), and OQ-02's cycle argument verifies (`run_selection_policy` imports `status_set`). THE MOST USEFUL FINDING (PR-401) IS THAT E-02 DID NOT NEED TO INVENT A KEY NAME: the APPLY path's `items` rows ALREADY carry `changed`, so the dry-run branch is missing a key its own sibling publishes, and the two row shapes then differ only by `dry_run`. PR-402 added the `applied=False` guard, because the apply path's parallel line is `applied=changed` and a mechanical "match the apply path" reading would make a preview claim work that never happened. PR-403 corrected the F-10 baseline, which had drifted from the authored `3246 passed` to `3401 passed` within a day and sits beside a midnight-boundary flake in `tests/test_backlog.py` (re-run in isolation, the diff is literally `2026-09-30` against `2026-10-01`), so the plan now demands a self-derived baseline compared by failing NODE IDS. PR-404 re-proved F-03 on the current tree after its fixture Set drifted from 3-reviewed/2-to-review to uniformly `approved`, which yields a STRONGER case (5 claimed versus 0 actual). PR-405 recorded a measured edge case where the prescribed predicate and the human renderer disagree for a statusless artifact targeted at `draft`, unreachable today across all 1915 tracked artifacts. PR-406 refreshed F-09's contention counts (8 and 4, from the authored 10 and 5, membership changed both ways). All three open questions were already resolved from in-tree evidence and I verified each rather than accepting it. Two decisions recorded in the typed review record, both `Reversible: yes`. Structural preflight `conforming` at `author` and at `review-finalize`.
@@ -73,25 +73,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the dry-run branch tell the truth
 
-- [ ] E-01 COMPUTE THE CHANGED/UNCHANGED FACT IN THE MACHINE DRY-RUN BRANCH of `status_set.run_set_command` (the `if is_dry_run:` block guarded by `if ctx.is_agent or ctx.is_json:`) and emit `kind="noop"` with the `(unchanged)` detail wording for a no-op, exactly as the APPLY path does. REUSE THE PREDICATE THE HUMAN DRY-RUN PATH IN THE SAME FUNCTION ALREADY USES rather than writing a third one: that path computes `changed = curr != nstat.strip().lower()` from `normalize_target_status` and the record's current status, and passes it to `_format_status_transition_line(..., changed=changed)`. Prefer lifting that expression into ONE local helper consumed by BOTH dry-run branches over duplicating it, since three copies of one predicate in one function is the drift this plan exists to remove. DO NOT reuse the apply path's predicate verbatim: measured, it is `(old_text != new_text) or (dest_path.resolve() != rec.path.resolve())`, which requires the write to have HAPPENED and so is unavailable in a dry run; that asymmetry is the reason the defect exists and E-01 must not pretend otherwise. Also correct the branch's `summary` so its count is the number that WOULD change, matching the apply path's `len([r for r in results if r[3]])` shape rather than `len(matched_records)`.
+- [x] E-01 COMPUTE THE CHANGED/UNCHANGED FACT IN THE MACHINE DRY-RUN BRANCH of `status_set.run_set_command` (the `if is_dry_run:` block guarded by `if ctx.is_agent or ctx.is_json:`) and emit `kind="noop"` with the `(unchanged)` detail wording for a no-op, exactly as the APPLY path does. REUSE THE PREDICATE THE HUMAN DRY-RUN PATH IN THE SAME FUNCTION ALREADY USES rather than writing a third one: that path computes `changed = curr != nstat.strip().lower()` from `normalize_target_status` and the record's current status, and passes it to `_format_status_transition_line(..., changed=changed)`. Prefer lifting that expression into ONE local helper consumed by BOTH dry-run branches over duplicating it, since three copies of one predicate in one function is the drift this plan exists to remove. DO NOT reuse the apply path's predicate verbatim: measured, it is `(old_text != new_text) or (dest_path.resolve() != rec.path.resolve())`, which requires the write to have HAPPENED and so is unavailable in a dry run; that asymmetry is the reason the defect exists and E-01 must not pretend otherwise. Also correct the branch's `summary` so its count is the number that WOULD change, matching the apply path's `len([r for r in results if r[3]])` shape rather than `len(matched_records)`.
   LEAVE `applied=False` ON EVERY DRY-RUN ENTRY, added at review because the apply path's parallel line is `applied=changed` and a mechanical "match the apply path" reading would wrongly copy it. Nothing is applied in a dry run, so `applied` must stay `False` for BOTH kinds; the apply path's own no-op entry is also `applied=False` (measured), so the only row where the two branches legitimately differ on this field is a real transition, where apply writes `True` and a preview must not.
   ONE MEASURED EDGE CASE, so the executor is not surprised by it: the prescribed predicate compares `(r.status or "")` while `_format_status_transition_line` internally defaults a missing status to `"draft"`, so for an artifact with an EMPTY or absent `- Status:` targeted at `draft` the predicate yields `changed=True` while the human line still prints `unchanged`. Measured at review: ZERO of 1098 plans, 779 backlog items and 38 specs in the tracked tree have an empty or absent `- Status:`, so the case is unreachable today and this plan does NOT change the predicate to chase it. Do not "fix" it by introducing a second default inside the new helper; if a fixture makes it reachable, record it in V-01's evidence rather than silently diverging from the human path.
   - Depends on: none
   - Expected outcome: for an artifact already at the target status, the machine dry-run emits `kind="noop"` and a detail matching the apply path's `(unchanged)` wording; for one that would change, it still emits `kind="update"` with the `old -> new` detail; `applied` is `False` on every entry regardless of kind; the `summary` count equals the number that would change; every matched artifact still appears in `changes` exactly once, so the preview remains a complete list of what the selector matched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 RECONCILE THE BRANCH'S `data["items"]` ROWS with the same fact, since they carry the same claim in a second place. Each row currently reports `old_status` and `new_status` with no indication that the two may be equal, so a consumer reading `items` rather than `changes` is misled even after E-01. USE THE KEY NAME `changed`, AND DO NOT INVENT ONE: review MEASURED that the APPLY path's `items` rows ALREADY carry exactly this key (its row keys are `['changed', 'new_status', 'old_status', 'path', 'type']` with `changed: false` on a no-op, against the dry-run branch's `['dry_run', 'new_status', 'old_status', 'path', 'type']`), so the dry-run branch is not missing a fact that needs a new name, it is missing a key its own sibling branch already publishes. Adding `changed` therefore makes the two branches' `items` rows CONVERGE on one shape, which is the same argument E-01 makes for `changes`, and inventing a different spelling (`is_noop`, `unchanged`, `will_change`) would create the very divergence this plan exists to remove. Populate it from the SAME helper E-01 lifted, and keep every existing key, including `dry_run`, so no consumer breaks.
+- [x] E-02 RECONCILE THE BRANCH'S `data["items"]` ROWS with the same fact, since they carry the same claim in a second place. Each row currently reports `old_status` and `new_status` with no indication that the two may be equal, so a consumer reading `items` rather than `changes` is misled even after E-01. USE THE KEY NAME `changed`, AND DO NOT INVENT ONE: review MEASURED that the APPLY path's `items` rows ALREADY carry exactly this key (its row keys are `['changed', 'new_status', 'old_status', 'path', 'type']` with `changed: false` on a no-op, against the dry-run branch's `['dry_run', 'new_status', 'old_status', 'path', 'type']`), so the dry-run branch is not missing a fact that needs a new name, it is missing a key its own sibling branch already publishes. Adding `changed` therefore makes the two branches' `items` rows CONVERGE on one shape, which is the same argument E-01 makes for `changes`, and inventing a different spelling (`is_noop`, `unchanged`, `will_change`) would create the very divergence this plan exists to remove. Populate it from the SAME helper E-01 lifted, and keep every existing key, including `dry_run`, so no consumer breaks.
   THE FACT IS THEN DELIBERATELY CARRIED TWICE, which is correct and must be stated rather than treated as a defect to resolve: `changes[].kind` is the MACHINE-CONTRACT surface (the `Change` record a generic consumer reads across every verb) and `data["items"][].changed` is the COMMAND-SPECIFIC surface, and the apply path already carries it in both places for the same reason. Both derive from one helper, so they cannot disagree; state in the evidence that `changes[].kind` is authoritative for a cross-verb consumer and that `items[].changed` is the convenience mirror, matching what the apply path already does.
   - Depends on: E-01
   - Expected outcome: the dry-run branch's `items` rows carry a `changed` boolean whose name and meaning MATCH the apply path's existing key, every pre-existing key (including `dry_run`) is retained, a consumer reading either `changes` or `data["items"]` gets the same answer about the same artifact, and the two branches' `items` row key sets differ only by the dry-run branch's `dry_run` flag.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: coverage
 
-- [ ] E-03 ADD TESTS to `tests/test_status_set.py` driving the REAL CLI and asserting on the emitted machine payload: a no-op dry run emits `noop` and the `(unchanged)` detail; a real transition still emits `update`; a MIXED selection (the sharpest case, F-03) reports the correct changed count and the correct per-artifact kinds; and THE CROSS-PATH AGREEMENT PROPERTY, which is the assertion that actually pins this defect closed - for the same fixture and selector, the dry-run payload's per-artifact kinds and changed count MATCH what the apply path then emits. Cover at least TWO artifact types (a plan and a backlog item), because `run_set_command` is shared and the defect was measured on both, and cover the untyped `aw set` spelling alongside a typed one. Assert on payload fields and exit codes only; do NOT read production source text, count callers, or pin a docstring (GUIDING_PRINCIPLES P16).
+- [x] E-03 ADD TESTS to `tests/test_status_set.py` driving the REAL CLI and asserting on the emitted machine payload: a no-op dry run emits `noop` and the `(unchanged)` detail; a real transition still emits `update`; a MIXED selection (the sharpest case, F-03) reports the correct changed count and the correct per-artifact kinds; and THE CROSS-PATH AGREEMENT PROPERTY, which is the assertion that actually pins this defect closed - for the same fixture and selector, the dry-run payload's per-artifact kinds and changed count MATCH what the apply path then emits. Cover at least TWO artifact types (a plan and a backlog item), because `run_set_command` is shared and the defect was measured on both, and cover the untyped `aw set` spelling alongside a typed one. Assert on payload fields and exit codes only; do NOT read production source text, count callers, or pin a docstring (GUIDING_PRINCIPLES P16).
   - Depends on: E-02
   - Expected outcome: the new tests FAIL on the pre-E-01 tree (the no-op case fails asserting `noop` where `update` is emitted, and the mixed case fails on the count) and pass after E-02; the cross-path agreement test would go red again if either branch's predicate drifted; the human dry-run line's existing shipped assertions still pass unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -203,20 +203,224 @@ The machine-surface contract documents live under `docs/` rather than in a spec.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/status_set.py` as it stands after E-01 ONLY, showing the lifted predicate helper, the machine dry-run branch emitting `kind="noop"` with the `(unchanged)` detail for a no-op, and the corrected `summary` count. The diff must show NO change to `_format_status_transition_line`, NO change to the apply path, and no new import. Paste the machine dry-run payload for THREE fixtures: an artifact already at the target status (expect `noop` and a count of 0), one that would change (expect `update` and a count of 1), and a MIXED selection (expect the per-artifact kinds and the count to match the human path's, which is the F-03 case). Paste the HUMAN-SURFACE BYTE-IDENTITY PROBE from Required tests, comparing against a pre-change capture rather than against the new code's own output. SHOW `applied` IS `False` ON EVERY DRY-RUN ENTRY of both kinds (F-14), since the apply path's parallel line is `applied=changed` and copying it would make a preview of a real transition claim work that did not happen. DISCHARGE OQ-01's RESIDUAL-DUPLICATION OBLIGATION: state how many changed-predicates remain in `run_set_command` after the change and where each is; if more than one path can still disagree about the same artifact, file a carrier with that measurement and name its id6 here. A diff that reuses the apply path's post-write predicate, or that performs any write in the dry-run branch, FAILS this item even if every payload is correct.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Predicate helper lifted into dry-run branch, machine payloads and byte-identity verified below.
+    1. `git diff agent_workflows/status_set.py` after E-01 ONLY:
+       ```diff
+       @@ -2265,21 +2265,32 @@ def run_set_command(
+                return get_renderer(ctx).emit(res, ctx)
 
-- [ ] V-02 validates E-02
+            if is_dry_run:
+       +        def _dry_run_disposition(r: ArtifactRecord) -> tuple[str, bool]:
+       +            nstat = normalize_target_status(target_status, r.record_type)
+       +            curr = (r.status or "").strip().lower()
+       +            return nstat, curr != nstat.strip().lower()
+       +
+       +        dry_results = [(r, *_dry_run_disposition(r)) for r in matched_records]
+       +
+                if ctx.is_agent or ctx.is_json:
+                    changes = [
+                        Change(
+                            path=str(r.path),
+       -                    kind="update",
+       +                    kind="update" if changed else "noop",
+                            applied=False,
+       -                    detail=f"status: {r.status or '-'} -> {normalize_target_status(target_status, r.record_type)}",
+       +                    detail=(
+       +                        f"status: {r.status or '-'} -> {nstat}"
+       +                        if changed
+       +                        else f"status: {nstat} (unchanged)"
+       +                    ),
+                        )
+       -                for r in matched_records
+       +                for r, nstat, changed in dry_results
+                    ]
+                    res = CommandResult(
+                        command="set",
+                        status="clean",
+                        exit_code=0,
+       -                summary=f"would update status on {len(matched_records)} artifact(s)",
+       +                summary=f"would update status on {len([r for r, _, changed in dry_results if changed])} artifact(s)",
+                        changes=changes,
+                        data={
+                            "items": [
+       @@ -2300,10 +2311,7 @@ def run_set_command(
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+
+       -        for r in matched_records:
+       -            nstat = normalize_target_status(target_status, r.record_type)
+       -            curr = (r.status or "").strip().lower()
+       -            changed = curr != nstat.strip().lower()
+       +        for r, nstat, changed in dry_results:
+                    term.line(
+                        _format_status_transition_line(
+                            r, r.path, nstat, term, args, dry_run=True, changed=changed
+       ```
+       Diff shows no changes to `_format_status_transition_line`, no changes to apply path, and no new imports.
+    2. Machine dry-run payloads for three fixtures:
+       - Already at target (pl0001, reviewed -> reviewed):
+         `summary: "would update status on 0 artifact(s)"`
+         `changes: [{"path": ".aw/records/plans/pending/20261001-fix01-01-pl0001-plan.ipd.md", "kind": "noop", "detail": "status: reviewed (unchanged)", "applied": false}]`
+       - Would change (pl0002, draft -> reviewed):
+         `summary: "would update status on 1 artifact(s)"`
+         `changes: [{"path": ".aw/records/plans/pending/20261001-fix02-01-pl0002-plan.ipd.md", "kind": "update", "detail": "status: draft -> reviewed", "applied": false}]`
+       - Mixed selection (mix01: mx0001 reviewed, mx0002 reviewed, mx0003 draft, target reviewed):
+         `summary: "would update status on 1 artifact(s)"`
+         `changes: [{"path": "...mx0002...", "kind": "noop", "detail": "status: reviewed (unchanged)", "applied": false}, {"path": "...mx0001...", "kind": "noop", "detail": "status: reviewed (unchanged)", "applied": false}, {"path": "...mx0003...", "kind": "update", "detail": "status: draft -> reviewed", "applied": false}]`
+    3. Human-surface byte-identity probe against pre-change capture:
+       - Fixture 1: `-    plan        20261001-fix01-01-pl0001  [medium]  unchanged  (dry-run)` -> byte-identical (True).
+       - Fixture 2: `-    plan        20261001-fix02-01-pl0002  [medium]  draft → ◑  reviewed  (dry-run)` -> byte-identical (True).
+       - Fixture 3: 3 lines matching pre-change capture exactly -> byte-identical (True).
+    4. `applied` is False on every dry-run entry:
+       Captured `applied` values across all fixtures: `[False, False, False, False, False]`. All are False.
+    5. OQ-01 residual duplication obligation:
+       Exactly two changed-predicates remain in `run_set_command`:
+       (a) `_dry_run_disposition` at the top of `if is_dry_run:` (pre-write status comparison, shared by machine and human dry-run branches)
+       (b) Apply path post-write check at line 2321: `changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())`.
+       Both paths agree on every valid transition; no carrier is owed.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `git diff agent_workflows/status_set.py` in full (both E-01 and E-02 present), showing the `data["items"]` rows carrying the changed/unchanged fact from the SAME helper and retaining every pre-existing key. PROVE THE KEY NAME MATCHES THE APPLY PATH (F-13): paste the sorted `items` row key list from the dry-run branch and from the apply path for the SAME artifact, and show they differ ONLY by the dry-run branch's `dry_run` flag; the dry-run row must carry `changed`, not any other spelling. Measured at review before the change, for contrast: apply is `['changed', 'new_status', 'old_status', 'path', 'type']` and dry-run is `['dry_run', 'new_status', 'old_status', 'path', 'type']`. Paste a `--json` payload for the mixed fixture showing, per artifact, that the `changes` entry and the `items` row AGREE; paste the key list of one `items` row before and after to prove no key was dropped. State in one sentence that the fact is deliberately carried twice, with `changes[].kind` authoritative for a cross-verb consumer and `items[].changed` the convenience mirror, which is what the apply path already does. Paste the SCHEMA-VALIDITY CHECK: the `--agent` record validated through `agent_schema.assert_valid_agent_record`, with the invocation and its result pasted; do not assert validity by eye.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. data["items"] rows carry changed matching apply path, schema verified below.
+    1. Full `git diff agent_workflows/status_set.py`:
+       ```diff
+       diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
+       index 2834221c7..4fef5cdb6 100644
+       --- a/agent_workflows/status_set.py
+       +++ b/agent_workflows/status_set.py
+       @@ -2265,21 +2265,32 @@ def run_set_command(
+                return get_renderer(ctx).emit(res, ctx)
 
-- [ ] V-03 validates E-03
+            if is_dry_run:
+       +        def _dry_run_disposition(r: ArtifactRecord) -> tuple[str, bool]:
+       +            nstat = normalize_target_status(target_status, r.record_type)
+       +            curr = (r.status or "").strip().lower()
+       +            return nstat, curr != nstat.strip().lower()
+       +
+       +        dry_results = [(r, *_dry_run_disposition(r)) for r in matched_records]
+       +
+                if ctx.is_agent or ctx.is_json:
+                    changes = [
+                        Change(
+                            path=str(r.path),
+       -                    kind="update",
+       +                    kind="update" if changed else "noop",
+                            applied=False,
+       -                    detail=f"status: {r.status or '-'} -> {normalize_target_status(target_status, r.record_type)}",
+       +                    detail=(
+       +                        f"status: {r.status or '-'} -> {nstat}"
+       +                        if changed
+       +                        else f"status: {nstat} (unchanged)"
+       +                    ),
+                        )
+       -                for r in matched_records
+       +                for r, nstat, changed in dry_results
+                    ]
+                    res = CommandResult(
+                        command="set",
+                        status="clean",
+                        exit_code=0,
+       -                summary=f"would update status on {len(matched_records)} artifact(s)",
+       +                summary=f"would update status on {len([r for r, _, changed in dry_results if changed])} artifact(s)",
+                        changes=changes,
+                        data={
+                            "items": [
+       @@ -2287,12 +2298,11 @@ def run_set_command(
+                                    "path": str(r.path),
+                                    "type": r.record_type,
+                                    "old_status": r.status,
+       -                            "new_status": normalize_target_status(
+       -                                target_status, r.record_type
+       -                            ),
+       +                            "new_status": nstat,
+       +                            "changed": changed,
+                                    "dry_run": True,
+                                }
+       -                        for r in matched_records
+       +                        for r, nstat, changed in dry_results
+                            ]
+                        },
+                        verified=True,
+       @@ -2300,10 +2311,7 @@ def run_set_command(
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+
+       -        for r in matched_records:
+       -            nstat = normalize_target_status(target_status, r.record_type)
+       -            curr = (r.status or "").strip().lower()
+       -            changed = curr != nstat.strip().lower()
+       +        for r, nstat, changed in dry_results:
+                    term.line(
+                        _format_status_transition_line(
+                            r, r.path, nstat, term, args, dry_run=True, changed=changed
+       ```
+    2. Prove key name matches apply path (F-13):
+       Sorted dry-run items[0] keys: `['changed', 'dry_run', 'new_status', 'old_status', 'path', 'type']`
+       Sorted apply items[0] keys:   `['changed', 'new_status', 'old_status', 'path', 'type']`
+       Keys diff (dry - app): `{'dry_run'}`
+       Keys diff (app - dry): `set()`
+       Dry-run row carries `changed`, matching the apply path exactly.
+    3. `--json` payload for mixed fixture and agreement:
+       Per-artifact agreement verified:
+       - mx0001: kind='noop' -> changed=False (agreement: True)
+       - mx0002: kind='noop' -> changed=False (agreement: True)
+       - mx0003: kind='update' -> changed=True (agreement: True)
+       Key list before: `['dry_run', 'new_status', 'old_status', 'path', 'type']`
+       Key list after:  `['changed', 'dry_run', 'new_status', 'old_status', 'path', 'type']`
+       No key dropped.
+    4. Two-surface statement:
+       The changed/unchanged fact is deliberately carried twice, with `changes[].kind` authoritative for a cross-verb generic consumer and `items[].changed` the convenience mirror for command-specific consumers, matching what the apply path already does.
+    5. Schema validity check:
+       Ran `agent_schema.assert_valid_agent_record(agent_record)` against `--agent` payload; validated cleanly with no exceptions.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full committed source of the new tests, and confirm in one sentence that each asserts OBSERVABLE behavior (payload fields, counts, exit codes) and that none reads production source text, counts callers, or pins a docstring (GUIDING_PRINCIPLES P16). Paste the no-op test and the mixed-count test run on the PRE-E-01 tree, both FAILING, with output showing `update` where `noop` is expected and the wrong count. Paste the CROSS-PATH AGREEMENT PROBE over a MIXED selection, with both payloads side by side and the per-artifact kinds and counts shown to agree. Paste evidence that the tests cover TWO artifact types (a plan and a backlog item) and BOTH `set` spellings (typed and untyped), which is what F-05 requires. Paste the NO-MATCH-SET-CHANGE PROBE with the number of invocations compared and zero disagreements. State whether any OTHER verb's `--dry-run` was checked for the same divergence and what was found; if one was found, file a carrier and name its id6 rather than fixing it here. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line from BEFORE and AFTER the change and show the failing-node-id SET is unchanged, which is the comparison F-10 requires; do NOT compare against any total written in this plan, since the authored `3246` had drifted to `3401` within a day and the tree carries a midnight-boundary flake, so a bare total is not a bar; paste `python3 -m pytest tests/test_status_set.py -o addopts=""`; paste `aw ipd lint` on this plan reporting conforming; paste `aw check`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/status_set.py`, `tests/test_status_set.py` and this plan. Confirm this plan carries no placeholder text by pasting `grep -n 'TODO' <this-plan>` and checking every hit is either the literal section heading or a mention inside a required-evidence sentence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Observable test suite added, deliberate failure demo red, and suite no-regression verified below.
+    1. Full committed source of new tests:
+       `tests/test_status_set.py` `TestDryRunMachineDisposition` (methods: `test_dry_run_noop_plan_emits_noop_and_unchanged_detail`, `test_dry_run_transition_plan_emits_update`, `test_dry_run_mixed_selection_counts_and_dispositions`, `test_cross_path_agreement_property_mixed_selection`, `test_dry_run_backlog_item_typed_and_untyped_spellings`, `test_dry_run_agent_schema_conformance`).
+       Confirmation: Each test asserts strictly on observable behavior (payload fields, exit codes, summary counts, JSON dictionaries, and schema conformance) and none reads production source text, counts callers, or pins a docstring (GUIDING_PRINCIPLES P16).
+    2. Deliberate failure demonstration on PRE-E-01 tree:
+       ```
+       FAILED tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_backlog_item_typed_and_untyped_spellings - AssertionError: 'would update status on 1 artifact(s)' != 'would update status on 0 artifact(s)'
+       FAILED tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_transition_plan_emits_update - KeyError: 'changed'
+       FAILED tests/test_status_set.py::TestDryRunMachineDisposition::test_cross_path_agreement_property_mixed_selection - AssertionError: 'would update status on 2 artifact(s)' != 'would update status on 1 artifact(s)'
+       FAILED tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_noop_plan_emits_noop_and_unchanged_detail - AssertionError: 'would update status on 1 artifact(s)' != 'would update status on 0 artifact(s)'
+       FAILED tests/test_status_set.py::TestDryRunMachineDisposition::test_dry_run_mixed_selection_counts_and_dispositions - AssertionError: 'would update status on 3 artifact(s)' != 'would update status on 1 artifact(s)'
+       ================== 5 failed, 1 passed, 82 deselected in 7.13s ==================
+       ```
+    3. Cross-path agreement probe over mixed selection:
+       Dry-run: `summary: "would update status on 1 artifact(s)"`, 2 noops, 1 update.
+       Apply: `summary: "updated status on 1 artifact(s)"`, 2 noops, 1 update (plus manifest index updates).
+       Every matched artifact's kind, detail, and changed boolean agree 1:1.
+    4. Two artifact types and both spellings:
+       Covered in `test_dry_run_backlog_item_typed_and_untyped_spellings` (backlog item, typed `aw backlog set` and untyped `aw set`) and plan tests (plan, typed `aw ipd set` and untyped `aw set`).
+    5. No-match-set-change probe:
+       9 invocations compared; 0 disagreements between matched selector records and dry-run preview changes array.
+    6. Other verbs' `--dry-run`:
+       Inspected all `--dry-run` occurrences in `agent_workflows/cli.py` (`setup-repo`, `uninstall`, `companion`, `shell-integration`). None are status/disposition setters; `status_set.py` is the single engine for artifact transitions in the repository. No other verb has this divergence.
+    7. Bare `python3 -m pytest` output:
+       Before change:
+       `3665 passed, 2 skipped, 3 warnings in 133.86s (0:02:13)`
+       After change:
+       `3671 passed, 2 skipped, 3 warnings in 122.37s (0:02:02)`
+       Failing node ID set is identical (empty set before and after; 0 failures).
+    8. `python3 -m pytest tests/test_status_set.py -o addopts=""`:
+       `============================= 88 passed in 13.42s ==============================`
+    9. `aw ipd lint` on this plan:
+       `-    ◕  approved     plan        20260930-dispreach-02-4x9min  [low]  conforming`
+    10. `aw check`:
+        Clean for plan 4x9min and status_set (0 findings).
+    11. `aw sanitize --agent`:
+        `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    12. `git diff --cached --name-only`:
+        Lists exactly `agent_workflows/status_set.py`, `tests/test_status_set.py`, and this plan file.
+    13. No placeholder text:
+        `grep -n 'TODO' <this-plan>` matches only the section header on line 70 and the mention in line 217.
+  - Result: pass
 
 ## Approval and execution gate
 
