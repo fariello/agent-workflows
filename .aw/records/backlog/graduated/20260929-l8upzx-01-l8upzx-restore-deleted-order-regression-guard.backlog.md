@@ -1,11 +1,13 @@
 - Id: l8upzx
-- Status: open
+- Status: graduated
+- Graduated-To: l8upzx
 - Set: l8upzx
 - Priority: medium
 - Work-Kind: chore
 - Summary: Restore the deleted Order regression guard for aw group plans and aw rename plans (PlansGroupPreservesOrderTests, deleted in 19313eed)
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: fv6kep
 - 2026-09-29 created (aw backlog): Filed at /plan-review of plan 949enf (finding PR-003/F-14).
 
 FOUND 2026-09-29 during /plan-review of plan 949enf (Set j84jg3), which restores the DATE half of a deleted regression guard and is the change that revealed the Order half is also gone.
