@@ -50,39 +50,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the disagreement before changing anything
 
-- [ ] E-01 Write the FAILING regression test FIRST, in `tests/test_ipd_lifecycle_cli.py`, asserting the two surfaces AGREE. Wedge the journal into `PHASE_UNKNOWN_OUTCOME` using the technique the existing test `test_unrecoverable_failures_and_unknown_outcome` already uses (`mock.patch.object(LC, "_rollback_precommit", return_value=(False, ...))` plus `fault_injection="after_move"`), assert `LC.read_finalize_journal(...)["phase"] == LC.PHASE_UNKNOWN_OUTCOME` as the PRECONDITION, then call `LC.finalize_precheck` and `LC.finalize(..., apply=False)` on the SAME state and assert both are nonzero. Run it and paste the FAILURE, which must show precheck returning 0 while finalize returns 2. Do NOT edit `ipd_lifecycle.py` in this item: the failure is the evidence the defect is real and that the test bites, and a test written after the fix cannot prove either.
+- [x] E-01 Write the FAILING regression test FIRST, in `tests/test_ipd_lifecycle_cli.py`, asserting the two surfaces AGREE. Wedge the journal into `PHASE_UNKNOWN_OUTCOME` using the technique the existing test `test_unrecoverable_failures_and_unknown_outcome` already uses (`mock.patch.object(LC, "_rollback_precommit", return_value=(False, ...))` plus `fault_injection="after_move"`), assert `LC.read_finalize_journal(...)["phase"] == LC.PHASE_UNKNOWN_OUTCOME` as the PRECONDITION, then call `LC.finalize_precheck` and `LC.finalize(..., apply=False)` on the SAME state and assert both are nonzero. Run it and paste the FAILURE, which must show precheck returning 0 while finalize returns 2. Do NOT edit `ipd_lifecycle.py` in this item: the failure is the evidence the defect is real and that the test bites, and a test written after the fix cannot prove either.
   - Depends on: none
   - Expected outcome: one new test that FAILS at unmodified HEAD with an assertion naming precheck's exit 0, and whose precondition assertion proves the journal really is in `unknown-outcome` (so a future change to what wedges it makes this test fail loudly rather than pass vacuously).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the asymmetry
 
-- [ ] E-02 Add the journal read to `ipd_lifecycle.finalize_precheck`. Site it AFTER the `- Id:` resolution (the function needs `plan_id` to find the journal, and it already refuses `EXIT_CANNOT_RUN` when the id is absent) and BEFORE the begin-receipt check, mirroring `finalize`'s own ORDER, where `_early_recovery_result` runs before `finalize_precheck` is called at all. Refuse for `PHASE_UNKNOWN_OUTCOME` ONLY, with `EXIT_CANNOT_RUN` (2) so the precheck's code matches the code `finalize` returns for the same state, and reuse `finalize`'s existing refusal wording (which names the plan id and the absolute journal path to clear) rather than composing a second message: the journal path is the only part a human can act on. Leave every other phase falling through to the existing logic untouched, and do not read the journal a second time anywhere. RECORD IN THE COMMENT THAT THE SITE IS A PRECEDENCE DECISION, not merely a place: because it precedes the receipt read, it PREEMPTS both receipt refusals for a plan that is wedged AND has no usable receipt. Measured at review, both at HEAD and with this gate prototyped (F-12): an already-finalized plan carrying a wedged journal goes from exit 1 `receipt-consumed-already-finalized` to exit 2 with the journal finding, and a never-issued receipt goes from exit 1 `receipt-never-issued` to the same. That is the INTENDED order, because `finalize` was measured returning exit 2 for both those same states, so a precheck that reported the receipt class instead would re-open the very disagreement this plan closes. Say so in the comment, so a later reader does not "restore" the receipt refusal by moving this gate down.
+- [x] E-02 Add the journal read to `ipd_lifecycle.finalize_precheck`. Site it AFTER the `- Id:` resolution (the function needs `plan_id` to find the journal, and it already refuses `EXIT_CANNOT_RUN` when the id is absent) and BEFORE the begin-receipt check, mirroring `finalize`'s own ORDER, where `_early_recovery_result` runs before `finalize_precheck` is called at all. Refuse for `PHASE_UNKNOWN_OUTCOME` ONLY, with `EXIT_CANNOT_RUN` (2) so the precheck's code matches the code `finalize` returns for the same state, and reuse `finalize`'s existing refusal wording (which names the plan id and the absolute journal path to clear) rather than composing a second message: the journal path is the only part a human can act on. Leave every other phase falling through to the existing logic untouched, and do not read the journal a second time anywhere. RECORD IN THE COMMENT THAT THE SITE IS A PRECEDENCE DECISION, not merely a place: because it precedes the receipt read, it PREEMPTS both receipt refusals for a plan that is wedged AND has no usable receipt. Measured at review, both at HEAD and with this gate prototyped (F-12): an already-finalized plan carrying a wedged journal goes from exit 1 `receipt-consumed-already-finalized` to exit 2 with the journal finding, and a never-issued receipt goes from exit 1 `receipt-never-issued` to the same. That is the INTENDED order, because `finalize` was measured returning exit 2 for both those same states, so a precheck that reported the receipt class instead would re-open the very disagreement this plan closes. Say so in the comment, so a later reader does not "restore" the receipt refusal by moving this gate down.
   - Depends on: E-01
   - Expected outcome: `finalize_precheck` returns `(2, <the unknown-outcome message>, evidence, findings)` for a wedged plan, and returns exactly what it returns today for every other state. E-01's test passes. The comment states the precedence consequence and names it intended.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a module-level finding-id constant for this refusal beside the existing `FINDING_RECEIPT_*` family, and emit it in E-02's findings tuple. Follow the convention that family documents: a short token like the two `receipt-*` ids, NOT a sentence, because unlike `FINDING_RECEIPT_STALE` there is no pre-existing shipped string being preserved here, so nothing forces the sentence form. The reason this is its own item rather than a line inside E-02: `runner_shared`'s comment on `RETRYABLE_FINALIZE_FINDING_TEXTS` records that keying a driver decision on refusal PROSE is the fragile coupling the repository is trying to retire, and a new refusal class that ships with no id perpetuates it. Do NOT add any consumer of the new id in this plan (no runner branch, no retry classification); minting the id is the deliverable, and a consumer is a separate decision with its own risk.
+- [x] E-03 Add a module-level finding-id constant for this refusal beside the existing `FINDING_RECEIPT_*` family, and emit it in E-02's findings tuple. Follow the convention that family documents: a short token like the two `receipt-*` ids, NOT a sentence, because unlike `FINDING_RECEIPT_STALE` there is no pre-existing shipped string being preserved here, so nothing forces the sentence form. The reason this is its own item rather than a line inside E-02: `runner_shared`'s comment on `RETRYABLE_FINALIZE_FINDING_TEXTS` records that keying a driver decision on refusal PROSE is the fragile coupling the repository is trying to retire, and a new refusal class that ships with no id perpetuates it. Do NOT add any consumer of the new id in this plan (no runner branch, no retry classification); minting the id is the deliverable, and a consumer is a separate decision with its own risk.
   - Depends on: E-02
   - Expected outcome: one new constant, exported at module level, present in the findings tuple of the new refusal and absent from every other refusal. A caller can distinguish "wedged journal" from "stale receipt" and from "no receipt" without matching prose.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the CONTROL test, in the same file, proving the fix is narrow: for each journal phase `finalize_precheck` must NOT refuse on, assert it still returns what it returns today. Iterate the THREE pre-commit phases from the shipped constant `LC._PRE_COMMIT_PHASES` rather than naming one of them, so a phase added to that set is covered automatically instead of silently escaping the control; all three (`prepared`, `mutating`, `ready-to-commit`) were measured at review returning precheck exit 0 and `finalize(apply=False)` exit 0, because `_finalize_transaction` ROLLS a pre-commit phase BACK and proceeds rather than refusing. Then `PHASE_COMPLETE` (measured exit 0, because the transaction CLEARS a stale complete journal and proceeds), and NO journal at all (the ordinary path). `PHASE_COMMITTED_INCOMPLETE` is deliberately absent from this list AND from E-02's refusing set: F-6 measures the two surfaces already disagreeing in the opposite direction there, and F-11 measures the `finalize` side of that case being itself defective, so asserting either verdict would pin a behavior backlog `hernns` may change. This is the item that stops E-02 becoming a blanket "any journal refuses", which would break the resume and rollback paths that are the whole reason the journal exists.
+- [x] E-04 Add the CONTROL test, in the same file, proving the fix is narrow: for each journal phase `finalize_precheck` must NOT refuse on, assert it still returns what it returns today. Iterate the THREE pre-commit phases from the shipped constant `LC._PRE_COMMIT_PHASES` rather than naming one of them, so a phase added to that set is covered automatically instead of silently escaping the control; all three (`prepared`, `mutating`, `ready-to-commit`) were measured at review returning precheck exit 0 and `finalize(apply=False)` exit 0, because `_finalize_transaction` ROLLS a pre-commit phase BACK and proceeds rather than refusing. Then `PHASE_COMPLETE` (measured exit 0, because the transaction CLEARS a stale complete journal and proceeds), and NO journal at all (the ordinary path). `PHASE_COMMITTED_INCOMPLETE` is deliberately absent from this list AND from E-02's refusing set: F-6 measures the two surfaces already disagreeing in the opposite direction there, and F-11 measures the `finalize` side of that case being itself defective, so asserting either verdict would pin a behavior backlog `hernns` may change. This is the item that stops E-02 becoming a blanket "any journal refuses", which would break the resume and rollback paths that are the whole reason the journal exists.
   - Depends on: E-02
   - Expected outcome: five control assertions passing (three pre-commit phases driven off `_PRE_COMMIT_PHASES`, `complete`, and no journal), each pinning a NON-refusal, so a later widening of E-02's condition fails a test instead of silently wedging every recoverable transaction.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the PRECEDENCE test, in the same file, pinning what E-02's chosen site does to the two receipt refusals. Assert BOTH directions, because only the pair states the contract. WITHOUT a journal: a never-issued receipt still returns `EXIT_FINDINGS` with `FINDING_RECEIPT_NEVER_ISSUED`, and an already-finalized plan still returns `EXIT_FINDINGS` with `FINDING_RECEIPT_ALREADY_FINALIZED`, each with the new journal id ABSENT, which is what proves the gate did not swallow them. WITH a hand-wedged `unknown-outcome` journal on the SAME two fixtures: both return `EXIT_CANNOT_RUN` carrying the new id, and `finalize` on the identical state returns `EXIT_CANNOT_RUN` too, which is what proves the preemption is agreement with `finalize` rather than a lost refusal. Measured at review (F-12) in both configurations, so the expected values are observed and not predicted. Use `plan_already_finalized`'s real precondition for the already-finalized fixture (run a CLEAN finalize first, which moves the plan to `executed/` and consumes the receipt) rather than hand-writing an executed-looking path, so the test cannot pass against a weakened predicate.
+- [x] E-06 Add the PRECEDENCE test, in the same file, pinning what E-02's chosen site does to the two receipt refusals. Assert BOTH directions, because only the pair states the contract. WITHOUT a journal: a never-issued receipt still returns `EXIT_FINDINGS` with `FINDING_RECEIPT_NEVER_ISSUED`, and an already-finalized plan still returns `EXIT_FINDINGS` with `FINDING_RECEIPT_ALREADY_FINALIZED`, each with the new journal id ABSENT, which is what proves the gate did not swallow them. WITH a hand-wedged `unknown-outcome` journal on the SAME two fixtures: both return `EXIT_CANNOT_RUN` carrying the new id, and `finalize` on the identical state returns `EXIT_CANNOT_RUN` too, which is what proves the preemption is agreement with `finalize` rather than a lost refusal. Measured at review (F-12) in both configurations, so the expected values are observed and not predicted. Use `plan_already_finalized`'s real precondition for the already-finalized fixture (run a CLEAN finalize first, which moves the plan to `executed/` and consumes the receipt) rather than hand-writing an executed-looking path, so the test cannot pass against a weakened predicate.
   - Depends on: E-02, E-03
   - Expected outcome: four assertions passing, two pinning each receipt refusal UNCHANGED when no journal exists and two pinning the journal refusal winning when one does, with `finalize`'s matching code pasted beside the wedged pair.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record it and prove no regression
 
-- [ ] E-05 Add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, in the user-facing register with no em or en dashes, saying that a preview of a plan whose previous finalize was interrupted ambiguously now reports the problem instead of reporting that the transition may proceed. Then establish and compare the suite baseline: run `python3 -m pytest` BARE at the unmodified HEAD of this lane BEFORE any source edit and record the summary line plus the full FAILED set, run it again after E-01 through E-04 and E-06, and account for every difference. The baseline half must be performed FIRST, before E-01 writes its test, because a baseline taken afterwards cannot distinguish a failure this plan caused from one it inherited. DO NOT ASSUME A PRE-EXISTING FAILURE: this lane's HEAD was measured GREEN at review on 2026-09-30 (`3344 passed, 2 skipped, 3 warnings`, 207 deselected), so re-derive the baseline rather than inheriting that number, and treat ANY failure in the after-run as this plan's until proven otherwise by the before-run showing the same node id.
+- [x] E-05 Add ONE `- Fixed:` line under `## 2.0.0 (pending)` in `CHANGELOG.md`, in the user-facing register with no em or en dashes, saying that a preview of a plan whose previous finalize was interrupted ambiguously now reports the problem instead of reporting that the transition may proceed. Then establish and compare the suite baseline: run `python3 -m pytest` BARE at the unmodified HEAD of this lane BEFORE any source edit and record the summary line plus the full FAILED set, run it again after E-01 through E-04 and E-06, and account for every difference. The baseline half must be performed FIRST, before E-01 writes its test, because a baseline taken afterwards cannot distinguish a failure this plan caused from one it inherited. DO NOT ASSUME A PRE-EXISTING FAILURE: this lane's HEAD was measured GREEN at review on 2026-09-30 (`3344 passed, 2 skipped, 3 warnings`, 207 deselected), so re-derive the baseline rather than inheriting that number, and treat ANY failure in the after-run as this plan's until proven otherwise by the before-run showing the same node id.
   - Depends on: E-04, E-06
   - Expected outcome: one CHANGELOG entry describing the fix in user terms, and two pasted bare-suite summary lines with their FAILED sets plus an explicit statement of whether the sets are identical.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -214,35 +214,299 @@ The only documentation this plan changes is the in-code comment at the new gate 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new test's name and full source, and paste its FAILING output against unmodified `ipd_lifecycle.py`. The failure must show `finalize_precheck` returning exit code 0 while `finalize` returned 2. Confirm the test asserts the journal phase as a PRECONDITION (quote that assertion) so it cannot pass vacuously if the wedging technique stops wedging, and confirm it drives the real functions in a real temporary git repository rather than stubbing either.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured failure against unmodified code, verified assertion preconditions and outcomes:
+    Test name: `test_finalize_precheck_agrees_with_finalize_on_unknown_outcome_journal`
+    Full source from `tests/test_ipd_lifecycle_cli.py`:
+    ```python
+    def test_finalize_precheck_agrees_with_finalize_on_unknown_outcome_journal(self):
+        """Precheck and finalize both refuse with EXIT_CANNOT_RUN on unknown-outcome journal (bn58ha/hlv737)."""
+        self._begin_and_work()
+        with mock.patch.object(
+            LC,
+            "_rollback_precommit",
+            return_value=(False, "simulated rollback failure"),
+        ):
+            res_fault = LC.finalize(
+                self.root,
+                self.plan,
+                "opencode/test",
+                "m",
+                apply=True,
+                fault_injection="after_move",
+            )
+        self.assertEqual(res_fault.exit_code, LC.EXIT_CANNOT_RUN)
 
-- [ ] V-02 validates E-02
+        j = LC.read_finalize_journal(self.root, "abc123")
+        assert j is not None
+        self.assertEqual(j["phase"], LC.PHASE_UNKNOWN_OUTCOME)
+
+        # Call finalize_precheck and finalize(..., apply=False) on the SAME state
+        pre_rc, pre_msg, pre_ev, pre_findings = LC.finalize_precheck(self.root, self.plan)
+        res_fin = LC.finalize(self.root, self.plan, "opencode/test", "preview", apply=False)
+
+        self.assertNotEqual(res_fin.exit_code, 0)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertNotEqual(
+            pre_rc,
+            0,
+            f"precheck returned exit {pre_rc} while finalize returned {res_fin.exit_code}: {pre_msg}",
+        )
+        self.assertEqual(pre_rc, res_fin.exit_code)
+        self.assertEqual(pre_rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(pre_msg, res_fin.message)
+        self.assertEqual(pre_findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+    ```
+    Failing output against unmodified `ipd_lifecycle.py`:
+    ```
+    tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_precheck_agrees_with_finalize_on_unknown_outcome_journal FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ RollbackFailureSemanticsTests.test_finalize_precheck_agrees_with_finalize_on_unknown_outcome_journal _
+    ...
+    >       self.assertNotEqual(
+                pre_rc,
+                0,
+                f"precheck returned exit {pre_rc} while finalize returned {res_fin.exit_code}: {pre_msg}",
+            )
+    E       AssertionError: 0 == 0 : precheck returned exit 0 while finalize returned 2: precheck passed (receipt valid, pre-transition conforming; scope delta computed).
+
+    tests/test_ipd_lifecycle_cli.py:1616: AssertionError
+    ======================= 1 failed, 58 deselected in 1.30s =======================
+    ```
+    The failure showed `finalize_precheck` returning exit 0 while `finalize` returned 2.
+    Precondition assertion quoted:
+    `self.assertEqual(j["phase"], LC.PHASE_UNKNOWN_OUTCOME)`
+    Confirmed: Drives real functions in a real temporary git repository initialized via `_init_git(self.root)` without stubbing either function.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the added gate in `finalize_precheck`, showing it sits after the `- Id:` resolution and before the begin-receipt read. Paste a transcript on a wedged plan showing `finalize_precheck` now returns exit 2 with the message naming the plan id and the absolute journal path, beside `finalize`'s return on the same state, and state explicitly that both codes are 2 and both messages name the same path. Confirm by quoting the unchanged lines that `finalize`, `_early_recovery_result` and `_finalize_transaction` were NOT modified. Quote the comment sentence that names the precedence consequence (F-12) and confirm it says the preemption is intended, since a comment that only explains WHERE the gate sits is what let this consequence go unmeasured at authoring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified gate diff in finalize_precheck and transcript agreement with finalize:
+    Diff of added gate in `finalize_precheck`:
+    ```diff
+    @@ -2676,6 +2676,22 @@ def finalize_precheck(
+         if not plan_id:
+             return EXIT_CANNOT_RUN, f"plan {plan_path} has no '- Id:' handle.", evidence, ()
 
-- [ ] V-03 validates E-03
+    +    journal = read_finalize_journal(repo_root, plan_id)
+    +    if journal is not None and journal.get("phase") == PHASE_UNKNOWN_OUTCOME:
+    +        # PRECEDENCE DECISION: siting this gate before the receipt read PREEMPTS both receipt
+    +        # refusals (receipt-never-issued and receipt-consumed-already-finalized) for a plan that
+    +        # carries a wedged journal. This preemption is INTENDED and matches `finalize`, which was
+    +        # measured returning exit 2 with the unknown-outcome journal message for both states (F-12).
+    +        # Yielding to the receipt refusals would re-open the very disagreement this gate closes.
+    +        return (
+    +            EXIT_CANNOT_RUN,
+    +            f"finalize journal for {plan_id} is in unknown-outcome (ambiguous prior "
+    +            f"attempt); resolve manually and clear "
+    +            f"{finalize_journal_path(repo_root, plan_id)}.",
+    +            evidence,
+    +            (FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,),
+    +        )
+    +
+         # 1. matching begin receipt must exist and still match the plan digest.
+    ```
+    Transcript on wedged plan:
+    - `finalize_precheck`: `rc = 2`, `msg = "finalize journal for abc123 is in unknown-outcome (ambiguous prior attempt); resolve manually and clear .../ipd_finalize_abc123.json."`
+    - `finalize(..., apply=False)`: `exit_code = 2`, `message = "finalize journal for abc123 is in unknown-outcome (ambiguous prior attempt); resolve manually and clear .../ipd_finalize_abc123.json."`
+    Both exit codes are 2 and both messages name the identical journal path.
+    Unchanged functions confirmation:
+    - In `finalize`:
+      `early = _early_recovery_result(repo_root, plan_path, evidence)`
+    - In `_early_recovery_result`:
+      `if phase == PHASE_UNKNOWN_OUTCOME:`
+    - In `_finalize_transaction`:
+      `elif phase == PHASE_UNKNOWN_OUTCOME:`
+    Precedence comment quoted:
+    `PRECEDENCE DECISION: siting this gate before the receipt read PREEMPTS both receipt refusals (receipt-never-issued and receipt-consumed-already-finalized) for a plan that carries a wedged journal. This preemption is INTENDED and matches `finalize`, which was measured returning exit 2 with the unknown-outcome journal message for both states (F-12). Yielding to the receipt refusals would re-open the very disagreement this gate closes.`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: quote the new constant's definition and its docstring comment, and paste the findings tuple actually returned by the new refusal showing the id present. Paste the findings tuples from the no-receipt, already-finalized and stale-receipt refusals ON FIXTURES CARRYING NO JOURNAL, showing the new id ABSENT from each, so the ids stay distinct. State explicitly that the journal-free precondition is required and why: F-12 measured that the same two receipt fixtures WITH a wedged journal correctly return the journal refusal instead, so asserting the receipt tuples without that precondition would be asserting something false. Paste a search proving no consumer was added (no branch anywhere keys on the new constant), since adding one is explicitly out of scope.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified new finding constant definition, distinct tuples, and absence of consumer:
+    Constant definition and docstring:
+    ```python
+    #: A prior finalize attempt wedged the transaction journal in unknown-outcome (ambiguous/corrupt
+    #: evidence; fail closed, never success). Emitted by `finalize_precheck` so callers can branch on
+    #: the wedged journal refusal without matching prose (E-03).
+    FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME = "finalize-journal-unknown-outcome"
+    ```
+    Findings tuple returned by the new refusal:
+    `('finalize-journal-unknown-outcome',)`
+    Findings tuples on fixtures carrying NO journal:
+    - No receipt: `('receipt-never-issued', 'missing begin receipt at ...')` (new id absent)
+    - Already finalized: `('receipt-consumed-already-finalized',)` (new id absent)
+    - Stale receipt: `('plan content digest no longer matches the receipt', 'Scope-Paths entry REMOVED since begin (a contract reduction, never accepted as a widening): agent_workflows/demo.py')` (new id absent)
+    The journal-free precondition is strictly required because, as measured in F-12, fixtures carrying a wedged `unknown-outcome` journal correctly return the journal refusal (`FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME`) instead, preempting the receipt refusals.
+    Search proving no consumer added (`git grep "FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME"`):
+    ```
+    agent_workflows/ipd_lifecycle.py:FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME = "finalize-journal-unknown-outcome"
+    agent_workflows/ipd_lifecycle.py:            (FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,),
+    tests/test_ipd_lifecycle_cli.py:        self.assertEqual(pre_findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+    tests/test_ipd_lifecycle_cli.py:            self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+    tests/test_ipd_lifecycle_cli.py:        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+    tests/test_ipd_lifecycle_cli.py:        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+    tests/test_ipd_lifecycle_cli.py:        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+    tests/test_ipd_lifecycle_cli.py:        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+    tests/test_ipd_lifecycle_cli.py:        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+    ```
+    No branch anywhere in production code keys on the new constant.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the control assertions' source and their passing output, and confirm the pre-commit arm reads `LC._PRE_COMMIT_PHASES` rather than naming a phase literal (quote that line), so the control cannot silently stop covering a phase. Then paste proof they BITE: temporarily widen E-02's condition to refuse on any non-None journal, paste the resulting FAILURES naming which controls broke, restore, and paste the restored passes. Confirm `PHASE_COMMITTED_INCOMPLETE` is absent from both the refusing set and the control set, and state the F-6 plus F-11 reason in one line (the `finalize` side of that case is itself under question as backlog `hernns`) so the exclusion is on the record rather than looking like an oversight.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified control tests iterate _PRE_COMMIT_PHASES, bite when widened, and restore:
+    Control test source from `tests/test_ipd_lifecycle_cli.py`:
+    ```python
+    def test_finalize_precheck_non_refusing_journal_phases_control(self):
+        """Precheck does not refuse on pre-commit phases, complete phase, or absent journal (bn58ha/hlv737)."""
+        self._begin_and_work()
 
-- [ ] V-05 validates E-05
+        # 1. No journal at all (ordinary path)
+        LC._clear_finalize_journal(self.root, "abc123")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(rc, LC.EXIT_OK, f"precheck refused with no journal: {msg}")
+        self.assertEqual(findings, ())
+
+        # 2. Iterate the pre-commit phases from the shipped constant
+        for phase in sorted(LC._PRE_COMMIT_PHASES):
+            LC._write_finalize_journal(self.root, {"plan_id": "abc123", "phase": phase})
+            j = LC.read_finalize_journal(self.root, "abc123")
+            assert j is not None
+            self.assertEqual(j["phase"], phase)
+            rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+            self.assertEqual(
+                rc,
+                LC.EXIT_OK,
+                f"precheck unexpectedly refused on pre-commit phase {phase}: {msg}",
+            )
+            self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # 3. PHASE_COMPLETE (stale complete journal)
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "abc123", "phase": LC.PHASE_COMPLETE}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(
+            rc,
+            LC.EXIT_OK,
+            f"precheck unexpectedly refused on phase {LC.PHASE_COMPLETE}: {msg}",
+        )
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+    ```
+    Quoted line iterating the shipped constant:
+    `for phase in sorted(LC._PRE_COMMIT_PHASES):`
+    Passing output:
+    `tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_precheck_non_refusing_journal_phases_control PASSED [100%]`
+    Proof controls BITE: When E-02 was temporarily widened to `if journal is not None:`, the control test failed loudly:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_precheck_non_refusing_journal_phases_control
+    AssertionError: 2 != 0 : precheck unexpectedly refused on pre-commit phase mutating: finalize journal for abc123 is in unknown-outcome (ambiguous prior attempt); resolve manually and clear /tmp/tmp5ik9fa6w/.aw/state/runtime/transactions/ipd_finalize_abc123.json.
+    ```
+    Restored pass:
+    `tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_precheck_non_refusing_journal_phases_control PASSED [100%]`
+    Exclusion reason: `PHASE_COMMITTED_INCOMPLETE` is absent from both sets because the `finalize` side of that case is itself defective (a preview performs a resume and consumes the begin receipt, filed as backlog `hernns`).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the added CHANGELOG line and confirm it is under `## 2.0.0 (pending)`, is user-facing, and contains no em or en dash. Paste the BARE `python3 -m pytest` summary line from before any edit and after the change, plus the FAILED set for each, and state whether the two FAILED sets are identical; any new failure must be fixed or explained with evidence. Also paste the focused `python3 -m pytest tests/test_ipd_lifecycle_cli.py` summary. Confirm no flag was added to the bare invocation (no `-n0`, no extra `-q`, no `-p no:randomly`) and that the pre-change baseline was captured before E-01's test was written. If the before-run is GREEN (as it was at review: `3344 passed, 2 skipped`), say so rather than hunting for an expected pre-existing failure, and treat any after-run failure as this plan's.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added user-facing CHANGELOG line without dashes and verified full test suite before/after comparison:
+    Added CHANGELOG line:
+    `- Fixed: `aw ipd finalize` preview now reports an ambiguous prior finalize attempt instead of reporting that the transition may proceed.`
+    Confirmed under `## 2.0.0 (pending)`, user-facing, contains 0 em dashes and 0 en dashes.
+    Bare `python3 -m pytest` summary before any edit:
+    `3825 passed, 2 skipped, 3 warnings in 239.18s (0:03:59)`
+    FAILED set before: `[]` (0 failed, green baseline).
+    Bare `python3 -m pytest` summary after change:
+    `3828 passed, 2 skipped, 3 warnings in 75.83s (0:01:15)`
+    FAILED set after: `[]` (0 failed).
+    The two FAILED sets are identical (`[] == []`). Exactly 3 new tests added and passed.
+    Focused test summary:
+    `tests/test_ipd_lifecycle_cli.py`: `61 passed in 30.35s`
+    Confirmed: Bare invocations used `python3 -m pytest` with no `-n0`, no extra `-q`, and no `-p no:randomly`. Pre-change baseline was captured at lane HEAD before writing E-01's test.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the four precedence assertions' source and their passing output. For the two journal-free cases, paste the exit code and findings tuple showing the receipt id present and the new journal id ABSENT. For the two wedged cases, paste the precheck's exit code and findings tuple BESIDE `finalize`'s exit code on the identical state, and state explicitly that both are 2, which is the property making the preemption agreement rather than a lost refusal. Confirm the already-finalized fixture reached its state through a real clean `finalize` (so `plan_already_finalized`'s own predicate is exercised) rather than by hand-placing a file in `executed/`, and quote the line that does it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified all four precedence assertions in both journal-free and wedged configurations:
+    Four precedence assertions' source from `tests/test_ipd_lifecycle_cli.py`:
+    ```python
+    def test_finalize_precheck_precedence_over_receipt_refusals(self):
+        """Precheck journal gate preempts receipt refusals when wedged, and preserves them when journal-free (bn58ha/hlv737)."""
+        # Case A: Never-issued receipt
+        raw_plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="def456",
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+            ),
+            "20260824-demo-02-def456-other.ipd.md",
+        )
+        _commit_all(self.root, "add unbegun plan")
+        self.assertIsNone(LC.read_receipt(self.root, "def456"))
+
+        # A1: Without journal -> receipt-never-issued refusal
+        LC._clear_finalize_journal(self.root, "def456")
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, raw_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_NEVER_ISSUED, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # A2: With unknown-outcome journal -> journal refusal preempts and matches finalize
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "def456", "phase": LC.PHASE_UNKNOWN_OUTCOME}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, raw_plan)
+        res_fin = LC.finalize(self.root, raw_plan, "opencode/test", "preview", apply=False)
+        self.assertEqual(rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+        self.assertEqual(msg, res_fin.message)
+
+        # Case B: Already-finalized plan
+        self._begin_and_work()
+        res_clean = LC.finalize(self.root, self.plan, "opencode/test", "clean", apply=True)
+        self.assertEqual(res_clean.exit_code, LC.EXIT_OK)
+        executed_plan = self._executed_path()
+        self.assertTrue(executed_plan.is_file())
+        self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
+
+        # B1: Without journal -> receipt-consumed-already-finalized refusal
+        LC._clear_finalize_journal(self.root, "abc123")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, executed_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_ALREADY_FINALIZED, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # B2: With unknown-outcome journal -> journal refusal preempts and matches finalize
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "abc123", "phase": LC.PHASE_UNKNOWN_OUTCOME}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, executed_plan)
+        res_fin = LC.finalize(
+            self.root, executed_plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+        self.assertEqual(msg, res_fin.message)
+    ```
+    Passing output:
+    `tests/test_ipd_lifecycle_cli.py::RollbackFailureSemanticsTests::test_finalize_precheck_precedence_over_receipt_refusals PASSED [100%]`
+    Two journal-free cases:
+    - Never-issued receipt: exit code 1 (`EXIT_FINDINGS`), findings: `('receipt-never-issued', 'missing begin receipt at ...')`, new id `finalize-journal-unknown-outcome` ABSENT.
+    - Already-finalized: exit code 1 (`EXIT_FINDINGS`), findings: `('receipt-consumed-already-finalized',)`, new id `finalize-journal-unknown-outcome` ABSENT.
+    Two wedged cases:
+    - Never-issued receipt with wedged journal: precheck exit code 2, `finalize` exit code 2. Findings: `('finalize-journal-unknown-outcome',)`.
+    - Already-finalized with wedged journal: precheck exit code 2, `finalize` exit code 2. Findings: `('finalize-journal-unknown-outcome',)`.
+    Both precheck and finalize return exit code 2 on the identical state.
+    Real clean finalize confirmation quoted:
+    `res_clean = LC.finalize(self.root, self.plan, "opencode/test", "clean", apply=True)`
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1335,6 +1335,11 @@ FINDING_RECEIPT_ALREADY_FINALIZED = "receipt-consumed-already-finalized"
 #: replacing it, which is what gives a caller a third thing to branch on at zero behavioral cost.
 FINDING_RECEIPT_STALE = "plan content digest no longer matches the receipt"
 
+#: A prior finalize attempt wedged the transaction journal in unknown-outcome (ambiguous/corrupt
+#: evidence; fail closed, never success). Emitted by `finalize_precheck` so callers can branch on
+#: the wedged journal refusal without matching prose (E-03).
+FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME = "finalize-journal-unknown-outcome"
+
 #: THE CONTRACT REDUCTION FINDING NAMES ITS INVARIANT TEXT AS ITS ID, following the precedent
 #: set by FINDING_RECEIPT_STALE above. Because the emitted string is composed with a singular/plural
 #: stem ("Scope-Paths entry..." vs "Scope-Paths entries..."), this constant names the invariant
@@ -2670,6 +2675,22 @@ def finalize_precheck(
     plan_id = (doc.meta_fields.get("Id") or "").strip()
     if not plan_id:
         return EXIT_CANNOT_RUN, f"plan {plan_path} has no '- Id:' handle.", evidence, ()
+
+    journal = read_finalize_journal(repo_root, plan_id)
+    if journal is not None and journal.get("phase") == PHASE_UNKNOWN_OUTCOME:
+        # PRECEDENCE DECISION: siting this gate before the receipt read PREEMPTS both receipt
+        # refusals (receipt-never-issued and receipt-consumed-already-finalized) for a plan that
+        # carries a wedged journal. This preemption is INTENDED and matches `finalize`, which was
+        # measured returning exit 2 with the unknown-outcome journal message for both states (F-12).
+        # Yielding to the receipt refusals would re-open the very disagreement this gate closes.
+        return (
+            EXIT_CANNOT_RUN,
+            f"finalize journal for {plan_id} is in unknown-outcome (ambiguous prior "
+            f"attempt); resolve manually and clear "
+            f"{finalize_journal_path(repo_root, plan_id)}.",
+            evidence,
+            (FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,),
+        )
 
     # 1. matching begin receipt must exist and still match the plan digest.
     #
