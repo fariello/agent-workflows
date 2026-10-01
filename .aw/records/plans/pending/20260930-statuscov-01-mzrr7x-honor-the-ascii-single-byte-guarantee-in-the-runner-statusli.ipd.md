@@ -6,7 +6,7 @@
 - Scope: Repair the three broken links so the ASCII mode the code already implements is reachable, and give `format_progress_bar` the ASCII branch it lacks. IN: a `use_unicode` parameter on `format_progress_bar` with an ASCII fill that preserves the current visible width exactly and keeps a started run distinguishable from an un-started one and an incomplete run from a complete one (F-12); forwarding `use_unicode` from `format_statusline_lines` to that call; a `use_unicode` source on `Statusline` derived from the `Palette` it is already given; the runner-side `Palette` constructions that feed a statusline, so `term.should_unicode` reaches them; and a behavioral regression module asserting ASCII-mode purity. OUT: every other column, label, width computation and pad in `format_statusline_lines` (plan `it6tpj` owns those and this plan must not collide), `render_run_summary_table`'s own identical leak (same root cause, its own carrier), the ambiguous-width half spec Section 9.4 declines to guarantee, the ANSI palette, and which columns exist.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_statusline_ascii_mode.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - From-Spec: uonrjg
 - Work-Kind: bug
@@ -20,6 +20,7 @@
 - Id: mzrr7x
 
 ## Workflow history
+- 2026-10-01 reviewed (aw set): status set to reviewed
 - 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed). Reviewed in an isolated lane at HEAD `8a0c31093`; structural preflight conforming (exit 0, zero findings) before and after. The defect diagnosis is excellent and reproduces EXACTLY: nine non-ASCII code points under `AW_ASCII_ONLY=1`, U+2588 at states 1 through 10 and absent only at 0, U+258D on the fractional branch, `Statusline.__init__` carrying no `use_unicode`, `Palette(False).use_unicode` True, cp1252 rendering the header as `?`, and an `ascii` stream raising. F-05's staged fix reproduces too (1105 combinations, zero byte differences, width parity at every state). THE ONE SUBSTANTIVE DEFECT IS IN THE PRESCRIBED FIX: `int(round(frac*width))` collapses `79/80` into `80/80` and `1/80` into `0/80`, so a bug fix would ship a new wrong answer on the same user-perceptible test that earns this plan its gate; E-01 now requires a boundary-preserving fill and E-05/V-01 require the proof. Also corrected: the `Palette` target is ONE construction per runner rather than six and five, `run_opencode` has a stderr palette that must not be touched, and the suite baseline is stale (now fully green at `3674 passed`).
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
 
