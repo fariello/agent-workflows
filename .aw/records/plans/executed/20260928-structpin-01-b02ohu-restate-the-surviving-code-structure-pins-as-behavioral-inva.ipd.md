@@ -6,7 +6,7 @@
 - Scope: Restate or delete the SIX surviving code-structure pins (A1..A6) so each asserts the invariant it stands for through the code's observable behavior, and delete THREE dead census residues (D1..D3) that no test reads. Every replacement is proven feasible by measurement recorded in Findings, so this plan changes test mechanism WITHOUT weakening any claim. EXCLUDES the guard that stops new pins being written, which is Order 02 (`76ic0k`) and depends on this plan landing first. EXCLUDES every row in Findings marked LEGITIMATE or BEHAVIORAL, naming them explicitly so a later reader does not re-litigate them. EXCLUDES `tests/test_walkthrough_id6.py`, whose literal `24` is a census over the live RECORDS tree rather than over code structure; it is filed separately (see Deferred).
 - Scope-Paths: tests/test_runner_shared.py, tests/test_host_capability_wiring.py, tests/test_interactivity_resolver.py, tests/test_spec_review_attestation.py, tests/test_lifecycle_style.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: b02ohu
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: b02ohu verified (set structpin, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-305 all FIXED, none deferred or open, no BLOCKER and no HIGH. THIS PLAN IS EXCEPTIONALLY WELL MEASURED and every load-bearing claim reproduced at review HEAD 7547091e: the whole-suite scan returns the same 4 files and 23 hits; all five E-03 delegations flip under a term.is_interactive monkeypatch and engine.is_interactive_session(yes=True) returns False even under a True patch (I additionally confirmed WHY the patch reaches them, which the plan does not state: all five bind through a module attribute, not a from-import); E-05's partition is exactly 39 common UPPER names / 38 identity re-exports / 1 genuine co-definition DEFAULT_STALL_TIMEOUT at 900.0; both hosts refuse --raw --quiet at exit 2 with the quoted stderr; D1's class body is [Expr, Assign, Assign] with zero test methods; D2's nine tables measure 1,1,1,1,1,2,2,2,2 and the set is genuinely closed; E-01's premise is live (the retained behavioral sibling PASSES by name, not skipped). TWO MEDIUM RECIPE DEFECTS, both in E-04's neighbourhood. PR-301: the reference-surface step cannot be executed as written, because verbose_help is keyword-only with no default, so add_output_mode_flags(parser) raises TypeError; the surface claim is correct once the keyword is supplied, and E-04 now says so with all four subparser surfaces re-measured. PR-302: OQ-01 authorized an assertIs identity assertion that would FAIL, because each host holds a thin WRAPPER rather than a re-export (both is-comparisons False, neither host exposes the name), so the clause is withdrawn; a resolved question authorizing a red test is worse than an open one. PR-303 examines the two IPD-Z602 density advisories on merits rather than deferring to the lint, keeping E-04 and E-06 whole with recorded reasoning. I also checked a mechanism the plan's own scan omits: P16 names read_text(), and an independent scan finds exactly two sites, both already declared sanctioned exceptions, so the completeness claim survives. The deferred walkthrough tripwire is confirmed real and imminent (both literals live, tree at exactly 24, passing today) and its carrier zf1m48 is a live release-blocking bug, so deferring it does not lose the gate. Bare suite 3246 passed, 2 skipped.
 
