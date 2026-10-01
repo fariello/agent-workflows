@@ -130,6 +130,7 @@ Every figure below was driven in this lane at base commit `4848bb81`. Counts are
   - Carrier-Declined: nothing is owed; the function is right and stays the authority for a lane.
 - THE `cli._run_check` `startswith("warn")` TALLY. Owned by pending plan `tzjtg4` with `cli.py` in its declared fence. This plan does not touch `cli.py`.
   - Carrier: tzjtg4
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-checkinfotally-01-tzjtg4-tally-aw-check-findings-by-registered-severity-so-an-advisor.ipd.md
 - `dangling-consumed-by` AND `unrecognized-model`, the two other `research_index` rule constants. Both are unregistered but neither fires on this tree, so registering them would be an unmeasured severity decision, which is exactly the accident this plan exists to stop.
   - Carrier: 1urnej
 
