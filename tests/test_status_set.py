@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import re
+import shlex
 import shutil
 import tempfile
 import unittest
@@ -2859,6 +2861,519 @@ Test goal.
         drift_after = check_engine.check_status_untooled(self.repo_root)
         self.assertEqual(drift_after, [])
         self.assertEqual(self._newest_history_token(dest_path), "not-executed")
+
+
+class SetterRefusalRetryCommandTests(StatusSetTestBase):
+    """Behavioral tests pinning that refusal hints echo a runnable command reproducing the caller's request (IPD 5poaqh)."""
+
+    def test_case_a_confirmation_refusal_echoes_typed_verb_and_flags(self):
+        """Case (a): the confirmation refusal from aw ipd set names aw ipd set and carries --actor, --message, --no-commit, --priority."""
+        self.create_plan(
+            "20260930-retrycmd-01-rt0001-a.ipd.md", "rt0001", "retrycmd", "to-review"
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "reviewed",
+                    "rt0001",
+                    "--actor",
+                    "me model=x",
+                    "-m",
+                    "retire note",
+                    "--no-commit",
+                    "--priority",
+                    "high",
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 2)
+        data = json.loads(buf.getvalue())
+        cmd = data["next_actions"][0]["command"]
+        self.assertTrue(
+            cmd.startswith("aw ipd set reviewed rt0001"),
+            f"Expected 'aw ipd set', got: {cmd}",
+        )
+        self.assertIn("--message 'retire note'", cmd)
+        self.assertIn("--actor 'me model=x'", cmd)
+        self.assertIn("--no-commit", cmd)
+        self.assertIn("--priority high", cmd)
+        self.assertIn("--yes", cmd)
+
+    def test_case_b_confirmation_refusal_emitted_command_reexecutes_and_preserves_attribution(
+        self,
+    ):
+        """Case (b): the emitted command, re-executed with --dir re-supplied, produces a history line carrying actor/message and does not self-commit."""
+        support.init_repo(self.repo_root)
+        plan = self.create_plan(
+            "20260930-retrycmd-02-rt0002-b.ipd.md", "rt0002", "retrycmd", "to-review"
+        )
+        support.git(self.repo_root, "add", "-A")
+        support.git(self.repo_root, "commit", "-m", "init")
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "reviewed",
+                    "rt0002",
+                    "--actor",
+                    "worker model=y",
+                    "-m",
+                    "reviewed for release",
+                    "--no-commit",
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 2)
+        data = json.loads(buf.getvalue())
+        cmd = data["next_actions"][0]["command"]
+
+        # Parse and re-execute command
+        tokens = shlex.split(cmd)
+        self.assertEqual(tokens[0], "aw")
+        argv = tokens[1:] + ["--dir", str(self.repo_root)]
+        rc_exec = cli.main(argv)
+        self.assertEqual(rc_exec, 0)
+
+        # Inspect resulting file
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Status: reviewed", text)
+        self.assertIn("worker model=y", text)
+        self.assertIn("reviewed for release", text)
+
+        # Verify no commit was made (uncommitted changes present)
+        st = support.git(self.repo_root, "status", "--porcelain")
+        self.assertIn(plan.name, st.stdout)
+
+    def test_case_c_untyped_set_plans_reviewed_preserves_leading_type_token(self):
+        """Case (c): untyped aw set plans reviewed <setid> hint is byte-identical to aw set plans reviewed <setid> --yes."""
+        self.create_plan(
+            "20260930-retrycmd-03-rt0003-c.ipd.md", "rt0003", "retryset3", "to-review"
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "set",
+                    "plans",
+                    "reviewed",
+                    "retryset3",
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 2)
+        data = json.loads(buf.getvalue())
+        cmd = data["next_actions"][0]["command"]
+        self.assertEqual(cmd, "aw set plans reviewed retryset3 --yes")
+
+    def test_case_d_terminal_reopen_hint_names_typed_verb_and_reexecutes_with_attribution(
+        self,
+    ):
+        """Case (d): terminal-reopen hint names typed verb, carries actor/message, and re-executing writes attributed history."""
+        plan = self.create_plan(
+            "20260930-retrycmd-04-rt0004-d.ipd.md",
+            "rt0004",
+            "retryset4",
+            "executed",
+            disposition="executed",
+        )
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "rt0004",
+                    "--actor",
+                    "maintainer model=z",
+                    "-m",
+                    "reopen for hotfix",
+                    "--no-commit",
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 2)
+        data = json.loads(buf.getvalue())
+        self.assertEqual(len(data["next_actions"]), 2)
+        self.assertEqual(
+            data["next_actions"][0]["command"],
+            "aw ipd scaffold --title <corrective plan title>",
+        )
+
+        override_cmd = data["next_actions"][1]["command"]
+        self.assertTrue(
+            override_cmd.startswith("aw ipd set approved rt0004"),
+            f"Expected 'aw ipd set', got: {override_cmd}",
+        )
+        self.assertIn("--actor 'maintainer model=z'", override_cmd)
+        self.assertIn("--message 'reopen for hotfix'", override_cmd)
+        self.assertIn("--allow-terminal-reopen", override_cmd)
+        self.assertIn("--yes", override_cmd)
+
+        # Re-execute the override command
+        tokens = shlex.split(override_cmd)
+        self.assertEqual(tokens[0], "aw")
+        argv = tokens[1:] + ["--dir", str(self.repo_root)]
+        rc_exec = cli.main(argv)
+        self.assertEqual(rc_exec, 0)
+
+        # Inspect moved file
+        moved = self.repo_root / ".aw" / "records" / "plans" / "pending" / plan.name
+        self.assertTrue(moved.is_file())
+        text = moved.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        self.assertIn("maintainer model=z", text)
+        self.assertIn("reopen for hotfix", text)
+
+    def test_case_e_missing_actor_hint_quoting_balanced_for_mixed_quotes(self):
+        """Case (e): missing---actor hint with mixed quotes is parseable by shlex.split into one token (repr() raises)."""
+        self.create_plan(
+            "20260930-retrycmd-05-rt0005-e.ipd.md",
+            "rt0005",
+            "retryset5",
+            "approved",
+            disposition="pending",
+        )
+        mixed_msg = 'say "hi" and it\'s'
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "executed",
+                    "rt0005",
+                    "--message",
+                    mixed_msg,
+                    "--json",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 2)
+        data = json.loads(buf.getvalue())
+        cmd = data["next_actions"][0]["command"]
+        self.assertTrue(
+            cmd.startswith("aw ipd set executed rt0005"),
+            f"Expected 'aw ipd set', got: {cmd}",
+        )
+        self.assertIn("--actor <agent/model>", cmd)
+        self.assertIn(cmd, data["summary"])
+
+        # Quoting must be balanced so shlex.split parses it into tokens
+        tokens = shlex.split(cmd)
+        msg_idx = tokens.index("--message")
+        self.assertEqual(tokens[msg_idx + 1], mixed_msg)
+
+    def test_case_f_hand_built_namespace_without_command_falls_back_to_aw_set(self):
+        """Case (f): hand-built namespace without command attribute falls back to aw set."""
+        self.create_plan(
+            "20260930-retrycmd-06-rt0006-f.ipd.md", "rt0006", "retryset6", "to-review"
+        )
+        from agent_workflows import status_set
+
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            ns = argparse.Namespace(dir=str(self.repo_root), json=True)
+            rc = status_set.run_set_command(
+                ["reviewed", "rt0006"],
+                repo_root=self.repo_root,
+                args=ns,
+            )
+        self.assertEqual(rc, 2)
+        data = json.loads(buf.getvalue())
+        cmd = data["next_actions"][0]["command"]
+        self.assertEqual(cmd, "aw set reviewed rt0006 --yes")
+
+    def test_case_g_no_path_valued_flags_echoed_and_agent_render_succeeds(self):
+        """Case (g): no path-valued flags in hints; --agent render succeeds with home-prefixed path values."""
+        self.create_plan(
+            "20260930-retrycmd-07-rt0007-g.ipd.md", "rt0007", "retryset7", "to-review"
+        )
+        fake_ev = "/home" + "/operator/checkout/evidence.md"
+        fake_gatedir = "/home" + "/operator/checkout/gates"
+        fake_scope = "/home" + "/operator/checkout/file.txt=why"
+
+        # 1. confirmation refusal site
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "reviewed",
+                    "rt0007",
+                    "--dir",
+                    str(self.repo_root),
+                    "--json",
+                ]
+            )
+        self.assertEqual(rc, 2)
+        cmd1 = json.loads(buf.getvalue())["next_actions"][0]["command"]
+        self.assertNotIn("--dir", cmd1)
+
+        buf_agent = io.StringIO()
+        with patch("sys.stdout", buf_agent):
+            rc_agent = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "reviewed",
+                    "rt0007",
+                    "--dir",
+                    str(self.repo_root),
+                    "--agent",
+                ]
+            )
+        self.assertEqual(rc_agent, 2)
+        self.assertIn("aw.agent/v1", buf_agent.getvalue())
+
+        # 2. terminal-reopen site
+        self.create_plan(
+            "20260930-retrycmd-08-rt0008-g.ipd.md",
+            "rt0008",
+            "retryset8",
+            "executed",
+            disposition="executed",
+        )
+        buf_reopen = io.StringIO()
+        with patch("sys.stdout", buf_reopen):
+            rc_reopen = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "approved",
+                    "rt0008",
+                    "--dir",
+                    str(self.repo_root),
+                    "--agent",
+                ]
+            )
+        self.assertEqual(rc_reopen, 2)
+        self.assertIn("aw.agent/v1", buf_reopen.getvalue())
+
+        # 3. missing-actor site
+        self.create_plan(
+            "20260930-retrycmd-09-rt0009-g.ipd.md",
+            "rt0009",
+            "retryset9",
+            "approved",
+            disposition="pending",
+        )
+        buf_actor = io.StringIO()
+        with patch("sys.stdout", buf_actor):
+            rc_actor = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "executed",
+                    "rt0009",
+                    "--message",
+                    "done note",
+                    "--dir",
+                    str(self.repo_root),
+                    "--agent",
+                ]
+            )
+        self.assertEqual(rc_actor, 2)
+        self.assertIn("aw.agent/v1", buf_actor.getvalue())
+
+        # 4. backlog set caller with --evidence and --gate-dir
+        bk_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "open"
+            / "20260930-bk0001-test.md"
+        )
+        bk_path.write_text(
+            "# Backlog item\n\n- Id: bk0001\n- Status: open\n- Work-Kind: bug\n- Priority: high\n",
+            encoding="utf-8",
+        )
+        buf_bk = io.StringIO()
+        with patch("sys.stdout", buf_bk):
+            rc_bk = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "done",
+                    "bk0001",
+                    "--evidence",
+                    fake_ev,
+                    "--gate-dir",
+                    fake_gatedir,
+                    "--dir",
+                    str(self.repo_root),
+                    "--json",
+                ]
+            )
+        self.assertEqual(rc_bk, 2)
+        cmd_bk = json.loads(buf_bk.getvalue())["next_actions"][0]["command"]
+        self.assertNotIn("--evidence", cmd_bk)
+        self.assertNotIn("--gate-dir", cmd_bk)
+        self.assertNotIn("--dir", cmd_bk)
+
+        # And --agent render succeeds for backlog set even with home-prefixed evidence and gate-dir
+        buf_bk_agent = io.StringIO()
+        with patch("sys.stdout", buf_bk_agent):
+            rc_bk_agent = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "done",
+                    "bk0001",
+                    "--evidence",
+                    fake_ev,
+                    "--gate-dir",
+                    fake_gatedir,
+                    "--dir",
+                    str(self.repo_root),
+                    "--agent",
+                ]
+            )
+        self.assertEqual(rc_bk_agent, 2)
+        self.assertIn("aw.agent/v1", buf_bk_agent.getvalue())
+
+        # And scope-reason excluded
+        buf_scope = io.StringIO()
+        with patch("sys.stdout", buf_scope):
+            rc_scope = cli.main(
+                [
+                    "ipd",
+                    "set",
+                    "reviewed",
+                    "rt0007",
+                    "--scope-reason",
+                    fake_scope,
+                    "--dir",
+                    str(self.repo_root),
+                    "--json",
+                ]
+            )
+        self.assertEqual(rc_scope, 2)
+        cmd_scope = json.loads(buf_scope.getvalue())["next_actions"][0]["command"]
+        self.assertNotIn("--scope-reason", cmd_scope)
+
+    def test_case_h_specs_and_backlog_set_emit_long_message_and_reexecute(self):
+        """Case (h): specs and backlog set emit --message (never -m) and re-executing exits 0."""
+        # 1. specs set
+        spec_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "20260930-sp0010-01-sp0010-test.spec.md"
+        )
+        spec_path.write_text(
+            "# Spec\n\n- Id: sp0010\n- Status: draft\n\n## Workflow history\n- 2026-09-30 draft: created\n",
+            encoding="utf-8",
+        )
+        buf_spec = io.StringIO()
+        with patch("sys.stdout", buf_spec):
+            rc_spec = cli.main(
+                [
+                    "specs",
+                    "set",
+                    "to-review",
+                    "sp0010",
+                    "--message",
+                    "spec ready for review",
+                    "--dir",
+                    str(self.repo_root),
+                    "--json",
+                ]
+            )
+        self.assertEqual(rc_spec, 2)
+        data_spec = json.loads(buf_spec.getvalue())
+        cmd_spec = data_spec["next_actions"][0]["command"]
+        self.assertTrue(
+            cmd_spec.startswith("aw specs set to-review sp0010"),
+            f"Expected 'aw specs set', got: {cmd_spec}",
+        )
+        self.assertIn("--message 'spec ready for review'", cmd_spec)
+        self.assertNotIn(" -m ", cmd_spec)
+
+        # Re-execute specs command
+        tokens_spec = shlex.split(cmd_spec)
+        self.assertEqual(tokens_spec[0], "aw")
+        argv_spec = tokens_spec[1:] + ["--dir", str(self.repo_root)]
+        rc_exec_spec = cli.main(argv_spec)
+        self.assertEqual(rc_exec_spec, 0)
+        to_review_file = (
+            self.repo_root / ".aw" / "records" / "specs" / "to-review" / spec_path.name
+        )
+        self.assertTrue(to_review_file.is_file())
+        self.assertIn("- Status: to-review", to_review_file.read_text(encoding="utf-8"))
+
+        # 2. backlog set
+        bk_path = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "open"
+            / "20260930-bk0010-test.md"
+        )
+        bk_path.write_text(
+            "# Backlog item\n\n- Id: bk0010\n- Status: open\n- Work-Kind: bug\n- Priority: high\n",
+            encoding="utf-8",
+        )
+        buf_bk = io.StringIO()
+        with patch("sys.stdout", buf_bk):
+            rc_bk = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "done",
+                    "bk0010",
+                    "--message",
+                    "backlog work done",
+                    "--dir",
+                    str(self.repo_root),
+                    "--json",
+                ]
+            )
+        self.assertEqual(rc_bk, 2)
+        data_bk = json.loads(buf_bk.getvalue())
+        cmd_bk = data_bk["next_actions"][0]["command"]
+        self.assertTrue(
+            cmd_bk.startswith("aw backlog set done bk0010"),
+            f"Expected 'aw backlog set', got: {cmd_bk}",
+        )
+        self.assertIn("--message 'backlog work done'", cmd_bk)
+        self.assertNotIn(" -m ", cmd_bk)
+
+        # Re-execute backlog command
+        tokens_bk = shlex.split(cmd_bk)
+        self.assertEqual(tokens_bk[0], "aw")
+        argv_bk = tokens_bk[1:] + ["--dir", str(self.repo_root)]
+        rc_exec_bk = cli.main(argv_bk)
+        self.assertEqual(rc_exec_bk, 0)
+        done_file = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "done"
+            / "20260930-bk0010-test.md"
+        )
+        self.assertTrue(done_file.is_file())
+        self.assertIn("- Status: done", done_file.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
