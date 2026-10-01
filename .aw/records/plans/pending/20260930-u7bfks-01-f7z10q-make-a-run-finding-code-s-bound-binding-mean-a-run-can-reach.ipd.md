@@ -129,6 +129,7 @@ All measurements taken in this lane worktree at HEAD `25224ceb`.
   - Carrier-Declined: A pre-existing gap this plan measured but did not create, and no obligation follows from fixing the binding model. Recorded here so the next author of that question has the measurement; filing an item for it is a judgement for the maintainer, since it may be deliberate that the freeze-time refusal codes are driver-local.
 - THE PRE-EXISTING STRUCTURE PIN IN `tests/test_host_capability_wiring.py`, which `ast.parse`s `runner_shared.py` to assert a name appears in it, contrary to P16.
   - Carrier: b02ohu
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-structpin-01-b02ohu-restate-the-surviving-code-structure-pins-as-behavioral-inva.ipd.md
   - Carrier-Note: Pending plan `b02ohu` ("restate the surviving code-structure pins as behavioral invariants", Set `structpin`, approved) owns restating this class, and its sibling `76ic0k` ("refuse a new code-structure pin in tests at author time") owns refusing new ones. Named here because this plan's subject invites exactly that anti-pattern and E-07 must not extend it; the file is not in `- Scope-Paths:` and is not edited.
 
 ## Scope check
