@@ -6,7 +6,7 @@
 - Scope: Declare a SECOND, IPD-scoped finding-code table in `run_evidence.py` beside the existing `RUN_FINDING_CODES`, carrying exactly the three pre-transition rows spec 4.6 specifies, each pinned field-by-field against the spec's own table by a test, and each carrying the binding state a per-clause COVERAGE MEASUREMENT against its own `pass_criterion` supports (`BOUND` only where a shipped predicate decides every clause; otherwise an honest unbound state naming the undecided clause). This makes the codes IMPORTABLE and enumerable so a later consumer can key on them. It does NOT rename any `ipd_lint` diagnostic code, does NOT change any emitted byte, does NOT change which refusals are retryable, and does NOT bind the other eight codes.
 - Scope-Paths: agent_workflows/run_evidence.py, tests/test_ipd_exec_finding_codes.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6uhtko
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6uhtko verified (set ibuxe6, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED. The BLOCKER (PR-001) is that TWO of the three rows' spec `pass_criterion` clauses are NOT decided by any shipped predicate, so the authored `binding=BOUND` would have been the fail-OPEN checker this module's own comment forbids; MEASURED by driving real `ipd_lint.lint_file` over a plan whose `Observed evidence` is gibberish with no receipt, artifact or command, which PASSES `pre-transition`. E-02 is reframed from transcription into a per-clause coverage measurement whose OUTPUT is the binding value, E-05 is split into three right-sized items (E-05/E-06/E-07), and the title, Goal and Scope no longer promise three bindings the evidence does not support.
