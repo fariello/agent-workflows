@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: `run_analytics_cli._emit_query_agent` carries a comment block above its `render_summary` call asserting that passing the output context with `ctx.fields` set RAISES `ValueError: Invalid aw.agent/v1 record: Summary record missing required field 'total'`, that the defect "lives in `renderers.py` / `agent_schema.py`" outside the authoring plan's scope, and that it "is REPORTED ... and NOT fixed here". Plan `gygujf` fixed exactly that defect, so the comment now tells a reader a live bug exists where none does. Measured at this HEAD: the call it says crashes returns a valid record carrying `total`/`emitted`/`omitted`. The comment additionally names `agent_schema._MANDATORY_FIELDS` as the set the projector preserves, which `gygujf` superseded with `_PRESERVED_FIELDS`, so the citation points at the wrong constant.
 - Scope: Rewrite the stale crash narrative in that one comment block so it describes live behavior, state the reason the no-context call SURVIVES on its own terms, and PIN that reason with one behavioral test (added at review, PR-002: the `next`-survives property is an emitted-output claim, so P16 requires it be tested rather than forbidding it; only a comment-TEXT tripwire is forbidden). Authoring measurement CORRECTS the reason the two carrier items propose: counts are no longer the differentiator, because `_PRESERVED_FIELDS` now retains `total`/`emitted`/`omitted` through any projection, so a projected summary keeps its counts either way; the field the projection actually drops is `next`, the paging continuation. The comment must therefore rest on `next` rather than repeat a counts rationale this plan measured false. Prose only: the `render_summary` call, its arguments, and every other executable line are untouched, and no command's output changes. Also closes duplicate carrier `o8vgss`, which describes the same comment.
-- Scope-Paths: agent_workflows/run_analytics_cli.py, tests/test_run_analytics_cli.py, .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md
+- Scope-Paths: agent_workflows/run_analytics_cli.py, tests/test_run_analytics_cli.py, .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md, .aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: mcdvx0
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mcdvx0 verified (set cm80ge, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-005 all FIXED; findings in .aw/records/reviews/20260930-cm80ge-01-mcdvx0-refresh-the-stale-crash-workaround-comment-in-run-analytics.review.md
 
@@ -40,17 +40,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the comment describe live behavior
 
-- [ ] E-01 In `agent_workflows/run_analytics_cli.py`, rewrite the comment block in `run_analytics_cli._emit_query_agent` that begins `THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, AND THIS WORKS AROUND A` and runs to just above the `parts.append(renderer.render_summary(` call. DELETE the three stale paragraphs: the `Measured:` paragraph asserting the `ValueError` (false per F-01, and its `_MANDATORY_FIELDS` citation names the superseded constant per F-02), the `This is NOT caused by this plan:` paragraph (its Scope-Paths reasoning belonged to the authoring plan and reads as a live report of an unfixed bug), and the trailing `Projecting a summary's counts away would be wrong anyway:` paragraph (F-05: true about the counts but no longer the reason for THIS call, and duplicative of the neighboring block). WRITE IN THEIR PLACE a short block resting on the ONE difference that survives, per F-04: the summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`, so projecting this record could drop the paging continuation and emit a truncated answer (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest, which is the one field on this record a caller cannot reconstruct. State that the counts are NOT the reason, explicitly and in one clause, because that is the plausible-but-wrong rationale two separate carrier items already reached (F-03): `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through any projection, so they are safe either way. CITE the fixed defect as history in a form a reader can look up (backlog `3f4ayi`, plan `gygujf`) and say plainly that it USED to also force this shape and no longer does, so a reader who finds this comment while chasing that `ValueError` learns it is closed instead of re-filing it a third time. Keep the existing capitalized-lead comment style of the function's neighbors. Do NOT restate the `emitted + omitted == total` invariant here: the adjacent `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block already owns it. TOUCH NO EXECUTABLE LINE: the `parts.append(...)` call, all eight of its keyword arguments, `total = max(result.total, result.emitted)`, and every other statement in the function stay byte-identical, because this plan asserts the call is CORRECT and is only fixing the account of why.
+- [x] E-01 In `agent_workflows/run_analytics_cli.py`, rewrite the comment block in `run_analytics_cli._emit_query_agent` that begins `THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, AND THIS WORKS AROUND A` and runs to just above the `parts.append(renderer.render_summary(` call. DELETE the three stale paragraphs: the `Measured:` paragraph asserting the `ValueError` (false per F-01, and its `_MANDATORY_FIELDS` citation names the superseded constant per F-02), the `This is NOT caused by this plan:` paragraph (its Scope-Paths reasoning belonged to the authoring plan and reads as a live report of an unfixed bug), and the trailing `Projecting a summary's counts away would be wrong anyway:` paragraph (F-05: true about the counts but no longer the reason for THIS call, and duplicative of the neighboring block). WRITE IN THEIR PLACE a short block resting on the ONE difference that survives, per F-04: the summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`, so projecting this record could drop the paging continuation and emit a truncated answer (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest, which is the one field on this record a caller cannot reconstruct. State that the counts are NOT the reason, explicitly and in one clause, because that is the plausible-but-wrong rationale two separate carrier items already reached (F-03): `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through any projection, so they are safe either way. CITE the fixed defect as history in a form a reader can look up (backlog `3f4ayi`, plan `gygujf`) and say plainly that it USED to also force this shape and no longer does, so a reader who finds this comment while chasing that `ValueError` learns it is closed instead of re-filing it a third time. Keep the existing capitalized-lead comment style of the function's neighbors. Do NOT restate the `emitted + omitted == total` invariant here: the adjacent `THE SUMMARY CARRIES THE QUERY'S COUNTS, NOT THE STREAM'S` block already owns it. TOUCH NO EXECUTABLE LINE: the `parts.append(...)` call, all eight of its keyword arguments, `total = max(result.total, result.emitted)`, and every other statement in the function stay byte-identical, because this plan asserts the call is CORRECT and is only fixing the account of why.
   - Depends on: none
   - Expected outcome: The comment block above `_emit_query_agent`'s `render_summary` call no longer asserts any `ValueError`, no longer says a defect is unfixed or out of scope, and no longer cites `_MANDATORY_FIELDS`; it gives the `next` rationale, explicitly disclaims the counts rationale, and cites `3f4ayi`/`gygujf` as closed history. `git diff` for this file shows comment lines only, with zero changes to any line ending in a statement.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Close duplicate carrier `o8vgss` (F-06) so the tree does not keep an open item whose subject E-01 just removed. Run `aw backlog set done .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md --evidence <this plan's path>`, which cites an in-tree artifact as the satisfying evidence. The item carries NO `- Blocks-Release:` gate (verify this before the call, and if that is somehow untrue STOP and report rather than closing it, because a gated close has its own predicate and its own legitimacy rules). Record in its history that the comment it describes was fixed by this plan, not that the item was mistaken: `o8vgss`'s measurement was CORRECT, it simply arrived at the same live defect from a second direction, and its note about the counts rationale being "arguably still correct on its own separate ground" is the very inference F-03 measured false, which is worth recording as the reason this plan rests on `next` instead. If `aw backlog set done` refuses for any reason, do NOT hand-edit the record: report the refusal verbatim and leave the item open, since E-01 stands on its own without it.
+- [x] E-02 Close duplicate carrier `o8vgss` (F-06) so the tree does not keep an open item whose subject E-01 just removed. Run `aw backlog set done .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md --evidence <this plan's path>`, which cites an in-tree artifact as the satisfying evidence. The item carries NO `- Blocks-Release:` gate (verify this before the call, and if that is somehow untrue STOP and report rather than closing it, because a gated close has its own predicate and its own legitimacy rules). Record in its history that the comment it describes was fixed by this plan, not that the item was mistaken: `o8vgss`'s measurement was CORRECT, it simply arrived at the same live defect from a second direction, and its note about the counts rationale being "arguably still correct on its own separate ground" is the very inference F-03 measured false, which is worth recording as the reason this plan rests on `next` instead. If `aw backlog set done` refuses for any reason, do NOT hand-edit the record: report the refusal verbatim and leave the item open, since E-01 stands on its own without it.
   - Depends on: E-01
   - Expected outcome: `o8vgss` is `- Status: done` under `.aw/records/backlog/done/`, moved by the tool with an appended history line citing this plan, and `aw check` reports no new violation. Alternatively, a verbatim refusal is reported and the item is untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Prove the change is inert as the LAST act before commit, since E-01's whole claim is that no behavior changes. THREE CHECKS. FIRST, byte-identical output: capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` before and after E-01 and diff the two pairs; each must be identical, which is what "comment-only" means operationally. SECOND, run the suite BARE as `python3 -m pytest` (the configured `addopts` already supply `-q -n auto`; do not add flags) and paste the actual summary line.
+- [x] E-03 Prove the change is inert as the LAST act before commit, since E-01's whole claim is that no behavior changes. THREE CHECKS. FIRST, byte-identical output: capture `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` before and after E-01 and diff the two pairs; each must be identical, which is what "comment-only" means operationally. SECOND, run the suite BARE as `python3 -m pytest` (the configured `addopts` already supply `-q -n auto`; do not add flags) and paste the actual summary line.
 
     THE SUITE BAR IS AN UNCHANGED FAILURE SET, NOT A PASS COUNT, AND THAT IS A CORRECTION (F-11). The authored bar ("`3387 passed, 2 skipped` or more", F-08) is UNREACHABLE and would block this plan on a defect it cannot cause. Re-measured at review (HEAD `eeb13f6c`): the bare suite reports `1 failed, 3457 passed, 2 skipped`, and the failure is `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, which is TIME-DEPENDENT: `agent_workflows/backlog.py` stamps history dates from the LOCAL clock while `agent_workflows/status_set.py` uses UTC, so a cross-spelling comparison is red for the part of every day when the two dates differ. The same narrowed run under `TZ=UTC` PASSES. It is filed as a release-blocking `bug` three times over (`fnb8pl`, `lq2w86`, `2wae2x`) and has NOTHING to do with a comment in `run_analytics_cli.py`.
 
@@ -59,11 +59,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THIRD, confirm the diff's shape mechanically rather than by eye: `git diff --stat` must name `agent_workflows/run_analytics_cli.py` only among source files, and every added or removed line in `git diff -- agent_workflows/run_analytics_cli.py` must be a comment line (matching `^[+-]\s*#` or a blank), with NO added or removed executable statement. If any executable line appears in that diff, E-01 overreached: revert it and redo E-01 as prose only.
   - Depends on: E-02
   - Expected outcome: Both command outputs are byte-identical before and after; the suite summary line is pasted alongside a baseline RE-DERIVED on the tree as found, and the named failure SET is identical before and after (a base failure that is not green is expected and is not this plan's); the diff touches one source file and contains comment lines only.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the property the comment now asserts
 
-- [ ] E-04 Add ONE behavioral test to `tests/test_run_analytics_cli.py` pinning the property E-01's new comment claims: a BOUNDED query emitted through `_emit_query_agent` keeps its `next` paging continuation in the terminal summary record EVEN WHEN `--fields` is passed. ADDED AT REVIEW (PR-002), because the plan's "no test is possible here" reasoning conflates two different claims and the stronger one is false.
+- [x] E-04 Add ONE behavioral test to `tests/test_run_analytics_cli.py` pinning the property E-01's new comment claims: a BOUNDED query emitted through `_emit_query_agent` keeps its `next` paging continuation in the terminal summary record EVEN WHEN `--fields` is passed. ADDED AT REVIEW (PR-002), because the plan's "no test is possible here" reasoning conflates two different claims and the stronger one is false.
 
     WHAT THE PLAN GOT RIGHT, kept: a test asserting the COMMENT'S TEXT is forbidden by P16 and must not be written. WHAT IT GOT WRONG: it concluded from that to "no test is added", but the comment's new rationale is a statement about OBSERVABLE OUTPUT, and observable output is exactly what P16 requires a test to assert on. DEMONSTRATED AT REVIEW, not argued: driving `_emit_query_agent` with a `QueryResult(view="metrics", rows=({"a":1},{"a":2}), total=5, emitted=2, omitted=3, next_command="aw runs query metrics --limit 5")` under `fields=None` and under `fields=["cmd"]` both emit a terminal summary RETAINING `next`; rendering the same record through `render_summary(..., context=OutputContext(fields=["cmd"]))` DROPS it. So the assertion passes as shipped and fails if the call is changed to pass `ctx`, which makes it a real pin rather than a tautology.
 
@@ -74,7 +74,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DECLARE `tests/test_run_analytics_cli.py` IN `- Scope-Paths:`, which this review has done. The test must pass BEFORE E-01 as well as after, and that is correct rather than suspicious: it pins SHIPPED behavior that E-01 documents and does not change, so demanding a red-first run would be demanding a test lie. Say so in the evidence rather than manufacturing a failure.
   - Depends on: E-01
   - Expected outcome: one new test in `tests/test_run_analytics_cli.py` that passes both before and after E-01, asserts `next` survives a `--fields` projection on a bounded query through this call path, and would FAIL if the `render_summary` call were changed to pass `ctx` (demonstrate that falsifier by temporarily making that change, observing the failure, and reverting it); no production source text is read by the test.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -152,25 +152,253 @@ N/A. No spec governs the wording of an internal code comment, and no `.spec.md` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the FULL comment block as it now stands in `_emit_query_agent`, from its lead line to the `parts.append(` call, and confirm against it, by quoting: (a) it contains no `ValueError`, no `Summary record missing required field`, and no `_MANDATORY_FIELDS`; (b) it contains no claim that a defect is unfixed, reported elsewhere, or out of some plan's scope; (c) it states the `next` rationale, naming `next` and `_PRESERVED_FIELDS`, and says a projection could drop the paging continuation; (d) it explicitly says the counts are NOT the reason and are preserved regardless; (e) it cites `3f4ayi` and `gygujf` as closed history. ALSO paste `git diff -- agent_workflows/run_analytics_cli.py` in full and confirm every `+`/`-` line is a comment or blank line, with the `render_summary` call and its arguments unchanged. Then RE-RUN the F-01 probe (`render_summary` with `fields=['outcome']`) and paste the returned record, to confirm the comment's new account still matches live behavior at commit time rather than at authoring time.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: pass. Verified comment block, clean comment-only diff, and live probe below:
+    1. Full comment block in `_emit_query_agent` (lines 257-275):
+    ```python
+    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.
+    #
+    # The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`,
+    # so projecting this record could drop the paging continuation and emit a truncated answer
+    # (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest,
+    # which is the one field on this record a caller cannot reconstruct.
+    #
+    # The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through
+    # any projection, so they are safe either way.
+    #
+    # History: a defect where passing `ctx` crashed with a missing required field under `--fields`
+    # previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog
+    # `3f4ayi`) and no longer applies here.
+    ```
+    Confirmations against block:
+    (a) No `ValueError`, no `Summary record missing required field`, no `_MANDATORY_FIELDS` appear anywhere in the comment block.
+    (b) No claim that a defect is unfixed, reported elsewhere, or out of scope.
+    (c) States the `next` rationale and names `next` and `agent_schema._PRESERVED_FIELDS`: "The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`, so projecting this record could drop the paging continuation and emit a truncated answer (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest, which is the one field on this record a caller cannot reconstruct."
+    (d) Explicitly states counts are NOT the reason: "The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through any projection, so they are safe either way."
+    (e) Cites `3f4ayi` and `gygujf` as closed history: "History: a defect where passing `ctx` crashed with a missing required field under `--fields` previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog `3f4ayi`) and no longer applies here."
 
-- [ ] V-02 validates E-02
+    2. Full `git diff -- agent_workflows/run_analytics_cli.py`:
+    ```diff
+    diff --git a/agent_workflows/run_analytics_cli.py b/agent_workflows/run_analytics_cli.py
+    index 39a7bd32f..d97cb21c4 100644
+    --- a/agent_workflows/run_analytics_cli.py
+    +++ b/agent_workflows/run_analytics_cli.py
+    @@ -254,25 +254,19 @@ def _emit_query_agent(result: query_mod.QueryResult, args: argparse.Namespace) -
+         renderer = AgentRenderer()
+         parts = [renderer.render_item(row, "runs query", ctx) for row in rows]
+         total = max(result.total, result.emitted)
+    -    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, AND THIS WORKS AROUND A
+    -    # PRE-EXISTING DEFECT RATHER THAN INTRODUCING ONE.
+    +    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.
+         #
+    -    # Measured: `AgentRenderer.render_summary(..., context=ctx)` with `ctx.fields` set RAISES
+    -    # `ValueError: Invalid aw.agent/v1 record: Summary record missing required field 'total' ...`,
+    -    # because `filter_record_fields` preserves only `agent_schema._MANDATORY_FIELDS` (schema, kind,
+    -    # cmd, exit, outcome, verified, complete) while `validate_agent_record` ADDITIONALLY requires
+    -    # `total`, `emitted` and `omitted` on a summary. So the two contracts disagree, and any caller
+    -    # passing `--fields` to a summary crashes.
+    +    # The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`,
+    +    # so projecting this record could drop the paging continuation and emit a truncated answer
+    +    # (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest,
+    +    # which is the one field on this record a caller cannot reconstruct.
+         #
+    -    # This is NOT caused by this plan: the bug lives in `renderers.py` / `agent_schema.py`, neither of
+    -    # which is in this plan's `Scope-Paths`, and it was previously unreachable because no production
+    -    # caller passed `fields` to `render_summary`. It is REPORTED (see the execution report) and NOT
+    -    # fixed here, matching this plan's posture on adjacent pre-existing defects.
+    +    # The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through
+    +    # any projection, so they are safe either way.
+         #
+    -    # Projecting a summary's counts away would be wrong anyway: `emitted + omitted == total` is the
+    -    # invariant that lets a caller tell a bounded answer from a complete one, which is the entire
+    -    # point of the summary record. So the correct behavior is to keep them regardless of `--fields`,
+    -    # which is what passing no context does.
+    +    # History: a defect where passing `ctx` crashed with a missing required field under `--fields`
+    +    # previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog
+    +    # `3f4ayi`) and no longer applies here.
+         parts.append(
+             renderer.render_summary(
+                 "runs query",
+    ```
+    Every `+`/`-` line is a comment or blank line; `render_summary` call and its arguments are untouched.
+
+    3. Re-run F-01 probe:
+    ```sh
+    python3 -c "from agent_workflows.renderers import AgentRenderer, OutputContext, OutputMode; r = AgentRenderer().render_summary('runs query', total=3, emitted=2, omitted=1, outcome='ok', exit_code=0, next_cmd=None, complete=False, context=OutputContext(mode=OutputMode.AGENT, fields=['outcome'])); print(r)"
+    ```
+    Returned record:
+    `{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"ok","exit":0,"total":3,"emitted":2,"omitted":1,"complete":false}`
+    Confirmed: no exception, live behavior matches.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste `aw find backlog o8vgss` (or the equivalent) showing the item at `- Status: done` under `.aw/records/backlog/done/`, plus its appended history line showing it was closed with this plan as evidence, plus the actual `aw backlog set done ...` command output. Confirm by quoting its front matter that it carried no `- Blocks-Release:` field. If the close was refused instead, paste the refusal verbatim and confirm the item file is unmodified (`git status` clean for that path).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: pass. Verified o8vgss closed done with this plan as evidence and no release gate:
+    1. Output of `aw find backlog o8vgss`:
+    ```
+    ✓  done          o8vgss  .aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md
+    ```
 
-- [ ] V-03 validates E-03
+    2. Appended history line from `.aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md`:
+    `- 2026-10-01 done (aw set): Fixed by plan mcdvx0: the stale crash workaround comment was updated to reflect live behavior resting on next preservation rather than the counts rationale, which F-03 measured false`
+
+    3. Command output from `aw backlog set done`:
+    ```
+    -    backlog     20260929-o8vgss-01-o8vgss  [low]  open → ✓  done
+    The following path-scoped changes are ready to commit:
+      .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md
+      .aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md
+    Commit these path-scoped changes? [Y/n] n
+    ```
+
+    4. Front matter of `.aw/records/backlog/done/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md`:
+    ```yaml
+    - Id: o8vgss
+    - Status: done
+    - Set: o8vgss
+    - Priority: low
+    - Work-Kind: chore
+    - Summary: the --fields projection workaround comment in run_analytics_cli._emit_query_agent asserts a defect that gygujf already fixed, so it misdescribes live behavior
+    ```
+    Confirmed: carries no `- Blocks-Release:` field.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the before/after captures of `aw runs query overview --agent --fields cmd` and `aw runs query overview --agent` together with the `diff` exit status or output proving each pair identical. Paste the bare `python3 -m pytest` summary line from BOTH the pre-change baseline run and the post-change run, and name the FAILING TESTS in each; the bar is that the two failure SETS are identical, not that either is empty. If `test_release_exempt_setter_roundtrip_and_parity` is among them, state explicitly that it is the pre-existing local-versus-UTC clock-skew bug (`fnb8pl`), that it is unrelated to this change, and that it was left alone; do NOT report it as this plan's failure and do NOT fix it. A narrowed or flag-modified run does not satisfy the suite leg. Paste `git diff --stat` showing `agent_workflows/run_analytics_cli.py` and `tests/test_run_analytics_cli.py` as the only source files changed (the backlog record moved by E-02 may also appear).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: pass. Verified byte-identical command outputs, unchanged suite failure set, and comment-only diff:
+    1. Command output captures before and after:
+    `aw runs query overview --agent --fields cmd` before:
+    ```json
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}
+    {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+    ```
+    `aw runs query overview --agent --fields cmd` after:
+    ```json
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query"}
+    {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+    ```
+    Diff output between the two captures: identical (exit 0).
 
-- [ ] V-04 validates E-04
+    `aw runs query overview --agent` before:
+    ```json
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","payload":{"cached_runs":0,"complete_runs":0,"incomplete_runs":0,"unreadable_entries":0,"quality_flag_counts":{},"required_analyses":4,"refused_analyses":4,"cache_schema_version":1,"analytics_root_exists":false}}
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","caveats":["a refused analysis is a measured power judgement from Order 06, not a query error"]}
+    {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+    ```
+    `aw runs query overview --agent` after:
+    ```json
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","payload":{"cached_runs":0,"complete_runs":0,"incomplete_runs":0,"unreadable_entries":0,"quality_flag_counts":{},"required_analyses":4,"refused_analyses":4,"cache_schema_version":1,"analytics_root_exists":false}}
+    {"schema":"aw.agent/v1","kind":"item","cmd":"runs query","caveats":["a refused analysis is a measured power judgement from Order 06, not a query error"]}
+    {"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"clean","exit":0,"total":0,"emitted":0,"omitted":0,"complete":true}
+    ```
+    Diff output between the two captures: identical (exit 0).
+
+    2. Bare `python3 -m pytest` summary lines:
+    Pre-change baseline run:
+    `3589 passed, 2 skipped, 3 warnings in 130.97s (0:02:10)`
+    Failing tests: none (failure set: empty `set()`).
+
+    Post-change run:
+    `3590 passed, 2 skipped, 3 warnings in 120.66s (0:02:00)`
+    Failing tests: none (failure set: empty `set()`).
+
+    The two failure sets are identical (`set() == set()`). The +1 pass reflects the newly added behavioral test in `tests/test_run_analytics_cli.py`.
+
+    3. `git diff --stat`:
+    ```
+     .aw/records/backlog/open/20260929-o8vgss-01-o8vgss-stale-projection-workaround-comment.backlog.md |  9 ------
+     agent_workflows/run_analytics_cli.py                                                               | 26 +++++++---------
+     tests/test_run_analytics_cli.py                                                                   | 35 ++++++++++++++++++++++
+     3 files changed, 45 insertions(+), 25 deletions(-)
+    ```
+    Confirmed: `agent_workflows/run_analytics_cli.py` and `tests/test_run_analytics_cli.py` are the only source files changed, plus the moved backlog item from E-02.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `python3 -m pytest tests/test_run_analytics_cli.py -o addopts=""` green, naming the new test. Paste the new test's source in full and confirm by quoting that it reads no production source text (no `inspect`, no `ast`, no regex over `run_analytics_cli.py`, no assertion on comment text, no assertion on `_PRESERVED_FIELDS`'s contents) and that it asserts all three required properties (`next` present, its value is the continuation command, `complete is False` with `omitted > 0`). THEN paste the FALSIFIER: temporarily change the `render_summary` call to pass `context=ctx`, paste the resulting test FAILURE showing the missing `next`, then revert and paste a clean `git diff -- agent_workflows/run_analytics_cli.py` confirming the call is back as shipped. A test that cannot be shown to fail against that mutation is not pinning the property. Also state plainly that the test passes BEFORE E-01 too, and why that is correct rather than a defect (it pins shipped behavior E-01 documents and does not change).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: pass. Verified behavioral test pass, falsifier failure, and pre-change pass:
+    1. Output of `python3 -m pytest tests/test_run_analytics_cli.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3321577697
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 11 items
+
+    tests/test_run_analytics_cli.py ...........                              [100%]
+
+    ============================== 11 passed in 5.18s ==============================
+    ```
+    New test: `tests/test_run_analytics_cli.py::RunAnalyticsCliUxTests::test_emit_query_agent_bounded_preserves_next_under_fields_projection`
+
+    2. Full source of the new test:
+    ```python
+    def test_emit_query_agent_bounded_preserves_next_under_fields_projection(self) -> None:
+        """`_emit_query_agent` retains `next` paging continuation under `--fields` projection."""
+        from agent_workflows import run_analytics_query as query_mod
+
+        result = query_mod.QueryResult(
+            view="metrics",
+            rows=({"a": 1}, {"a": 2}),
+            total=5,
+            emitted=2,
+            omitted=3,
+            next_command="aw runs query metrics --limit 5",
+        )
+        args = argparse.Namespace(
+            dir=str(self.repo),
+            agent=True,
+            json=False,
+            fields=["cmd"],
+        )
+
+        out_buf = io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(io.StringIO()):
+            rc = analytics_cli._emit_query_agent(result, args)
+
+        self.assertEqual(rc, 0)
+        lines = [line for line in out_buf.getvalue().splitlines() if line.strip()]
+        self.assertGreaterEqual(len(lines), 1)
+
+        summary = json.loads(lines[-1])
+        self.assertEqual(summary.get("schema"), "aw.agent/v1")
+        self.assertEqual(summary.get("kind"), "summary")
+        self.assertIn("next", summary)
+        self.assertEqual(summary["next"], "aw runs query metrics --limit 5")
+        self.assertIs(summary.get("complete"), False)
+        self.assertGreater(summary.get("omitted", 0), 0)
+    ```
+    Confirmations:
+    - Reads no production source text (no `inspect`, no `ast`, no regex over `run_analytics_cli.py`, no assertion on comment text, no assertion on `_PRESERVED_FIELDS`'s contents).
+    - Asserts all three required properties:
+      (a) `next` is present: `self.assertIn("next", summary)`
+      (b) value is continuation command: `self.assertEqual(summary["next"], "aw runs query metrics --limit 5")`
+      (c) `complete is False` with `omitted > 0`: `self.assertIs(summary.get("complete"), False)` and `self.assertGreater(summary.get("omitted", 0), 0)`.
+
+    3. Falsifier demonstration:
+    Temporarily modified `parts.append(renderer.render_summary(..., context=ctx))` in `agent_workflows/run_analytics_cli.py`.
+    Ran `python3 -m pytest tests/test_run_analytics_cli.py -o addopts="" -k test_emit_query_agent_bounded_preserves_next_under_fields_projection`:
+    ```
+    =================================== FAILURES ===================================
+    _ RunAnalyticsCliUxTests.test_emit_query_agent_bounded_preserves_next_under_fields_projection _
+
+        ...
+    >       self.assertIn("next", summary)
+    E       AssertionError: 'next' not found in {'schema': 'aw.agent/v1', 'kind': 'summary', 'cmd': 'runs query', 'outcome': 'partial', 'exit': 0, 'total': 5, 'emitted': 2, 'omitted': 3, 'complete': False}
+
+    tests/test_run_analytics_cli.py:330: AssertionError
+    ======================= 1 failed, 10 deselected in 0.49s =======================
+    ```
+    Reverted mutation; verified `git diff -- agent_workflows/run_analytics_cli.py` clean.
+
+    4. Baseline before E-01:
+    The test passed before E-01 (11 passed in 4.47s), which is correct and expected because it pins existing shipped behavior that E-01 documents and leaves unchanged.
+  - Result: pass
 
 ## Approval and execution gate
 
