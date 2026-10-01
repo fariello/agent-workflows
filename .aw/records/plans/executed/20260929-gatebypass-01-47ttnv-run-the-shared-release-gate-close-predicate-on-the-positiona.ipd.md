@@ -6,7 +6,7 @@
 - Scope: Call the SINGLE shared close-legitimacy predicate (`check_engine.evaluate_blocking_close`) on the positional `aw backlog set` dispatch path (`status_set.run_set_command`) so BOTH spellings refuse the same gated close, warn on the same gated `-> parked` and priority demote, and accept the same `--evidence` / `--blocks-release -` releases; make `--evidence` reach the predicate on that path, where it is currently parsed and discarded; and record the closed hole in `AGENTS.md` plus the `runner_shared.close_backlog_item` docstring that currently documents the asymmetry as load-bearing. EXCLUDES changing `evaluate_blocking_close` itself, its verdict shape, its three legitimacy paths, or any severity (the predicate is correct; only one caller was missing). EXCLUDES the `check` rule family, the opt-in pre-commit hook, and `set_records.close_on_answer`, all of which already call the predicate. EXCLUDES plans and specs: this gate is a BACKLOG close rule, and `run_set_command` is shared by plans/specs/prompts/research, so the new call must be keyed on `record_type == "backlog"` exactly as the neighbouring `decide_gate_default` block is. EXCLUDES retroactively re-gating any already-`done` item (`AGENTS.md`: the rule governs LIVE items only).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/runner_shared.py, agent_workflows/command_surface.py, AGENTS.md, tests/test_backlog_positional_close_gate.py, tests/test_backlog_production.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: aw oc run model=opencode
 - Id: 47ttnv
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 47ttnv verified (set gatebypass, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-101 (BLOCKER) through PR-107, all FIXED in place. Reviewed at HEAD `e807cf03` in an isolated lane; typed record at `.aw/records/reviews/20260929-gatebypass-01-47ttnv-run-the-shared-release-gate-close-predicate-on-the-positiona.review.md` with six recorded Decisions (D-1..D-6), all reversible. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
   THE DEFECT IS REAL AND EVERY ROW OF THE FINDINGS TABLE REPRODUCED INDEPENDENTLY at review HEAD in fresh temp repos driven through `cli.main`. `backlog set done <gated> --yes` exits 0, lands the item in `done/` still carrying `- Blocks-Release: next`, and writes EMPTY stderr (checked separately from stdout, so the plan's "(empty)" claim is precise); the `--status` spelling exits 1. `grep -c evidence agent_workflows/status_set.py` is 0, confirming the discard. E-01's insertion point, E-02's post-mutation premise, E-05's managed-block boundary and E-06's undeclared-flag claim all verified exactly.
