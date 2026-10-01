@@ -1163,6 +1163,7 @@ def find_artifact(
     stem: str = "",
     *,
     record_types: Sequence[str] = TYPE_PRECEDENCE,
+    artifact_index: Optional[ArtifactIndex] = None,
 ) -> ArtifactLookup:
     """Locate the artifact declaring ``id6`` (or named by ``stem``), through ``selectors``.
 
@@ -1181,7 +1182,11 @@ def find_artifact(
     if not id6 and not stem:
         return ArtifactLookup()
 
-    index = build_index(repo_root, record_types=record_types)
+    index = (
+        artifact_index
+        if artifact_index is not None
+        else build_index(repo_root, record_types=record_types)
+    )
 
     # TIER ONE: exact declared `- Id:`. Hits are accumulated ACROSS types, so a cross-type id6
     # collision is reported rather than masked by the type ordering.
@@ -1306,6 +1311,7 @@ def audit_artifact(
     artifact_type: Optional[str] = None,
     action: Optional[str] = None,
     initial_status: Optional[str] = None,
+    artifact_index: Optional[ArtifactIndex] = None,
 ) -> ArtifactAudit:
     """THE audit predicate: is the artifact for ``id6`` where ``status`` says it should be?
 
@@ -1351,7 +1357,13 @@ def audit_artifact(
     if configured_file and (Path(repo_root) / configured_file).is_file():
         actual_file = Path(repo_root) / configured_file
     else:
-        lookup = find_artifact(repo_root, id6, stem, record_types=search_types)
+        lookup = find_artifact(
+            repo_root,
+            id6,
+            stem,
+            record_types=search_types,
+            artifact_index=artifact_index,
+        )
         actual_file = lookup.path
         collisions = list(lookup.collisions)
 

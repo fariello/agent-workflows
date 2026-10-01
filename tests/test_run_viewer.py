@@ -3000,3 +3000,38 @@ class FilterExclusionReportingTests(TestCase):
                 root, ["probe", "--status", "executed", "--issues", "--no-color"]
             )
             self.assertEqual(code_i, 0, out_i + err_i)
+
+    def test_active_filter_omits_non_active_exclusions_noise(self) -> None:
+        """--active filter displays active runs without dumping inactive runs as exclusions."""
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            with patch(
+                "agent_workflows.run_viewer.driver_holder_state",
+                side_effect=lambda r: run_viewer.HOLDER_LIVE
+                if "delta" in str(r)
+                else run_viewer.HOLDER_NONE,
+            ):
+                out, err, code = _run_viewer(root, ["--active", "--no-color"])
+                self.assertEqual(code, 0, out + err)
+                # Active run delta is rendered
+                self.assertIn("run-20260901T030000Z-delta", out)
+                # Inactive runs are NOT rendered
+                self.assertNotIn("run-20260901T000000Z-alpha", out)
+                self.assertNotIn("run-20260901T010000Z-beta", out)
+                self.assertNotIn("run-20260901T020000Z-gamma", out)
+                # Crucial: no exclusion noise whatsoever
+                self.assertNotIn("filters excluded", out)
+                self.assertNotIn("active_only", out)
+
+    def test_active_filter_empty_state_prints_no_matching_runs_found(self) -> None:
+        """--active filter with zero active runs outputs 'no matching runs found' without noise."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self._build_multi_filter_fixture(Path(td))
+            # By default all fixtures have HOLDER_NONE, so running steps project to abandoned? and none are active
+            out, err, code = _run_viewer(root, ["--active", "--no-color"])
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(out.strip(), "no matching runs found")
+            self.assertNotIn("filters excluded", out)
+            self.assertNotIn("active_only", out)

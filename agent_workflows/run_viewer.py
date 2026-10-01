@@ -627,6 +627,7 @@ def audit_step_artifact(
     step: StepSummary,
     repo_root: Path = Path("."),
     evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> _audit.ArtifactAudit:
     """Audit a STEP's artifact location and status: the run-viewer-shaped adapter over the shared
     predicate.
@@ -655,6 +656,7 @@ def audit_step_artifact(
         artifact_type=step.artifact_type,
         action=step.action,
         initial_status=step.initial_status,
+        artifact_index=artifact_index,
     )
 
 
@@ -2126,10 +2128,14 @@ def render_steps_table(
     term: Term,
     short: bool = False,
     repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> str:
     """Render a list of steps in a rounded box table."""
     if not steps:
         return ""
+    if artifact_index is None:
+        artifact_index = _audit.build_index(repo_root)
     if short:
         headers = [
             "Status",
@@ -2176,7 +2182,9 @@ def render_steps_table(
         ]
     rows = []
     for step in steps:
-        audit = audit_step_artifact(step, repo_root)
+        audit = audit_step_artifact(
+            step, repo_root, evidence=evidence, artifact_index=artifact_index
+        )
         st_disp = canonical_terminal_status(step.status)
         st_resolved = _resolve_item_status(step.status, action=step.action)
         st_styled = term.style_lifecycle_text(st_disp, st_resolved)
@@ -2433,6 +2441,8 @@ def format_run_human(
     detail: bool = False,
     short: bool = False,
     repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> str:
     """Format a RunSummary as human terminal text."""
     lines = []
@@ -2567,7 +2577,14 @@ def format_run_human(
         lines.append(f"    - Verify:   {ver_line}")
 
     if run.steps:
-        tbl = render_steps_table(run.steps, term, short=short, repo_root=repo_root)
+        tbl = render_steps_table(
+            run.steps,
+            term,
+            short=short,
+            repo_root=repo_root,
+            evidence=evidence,
+            artifact_index=artifact_index,
+        )
         if tbl:
             lines.append(tbl)
         if detail:
@@ -2582,6 +2599,8 @@ def format_latest_only_human(
     detail: bool = False,
     short: bool = False,
     repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> str:
     """Format the deduplicated latest step records across matched runs."""
     latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
@@ -2601,11 +2620,24 @@ def format_latest_only_human(
             (r for r in summaries if r.run_id in contributing_runs), summaries[0]
         )
         return format_run_human(
-            single_run, term, detail=detail, short=short, repo_root=repo_root
+            single_run,
+            term,
+            detail=detail,
+            short=short,
+            repo_root=repo_root,
+            evidence=evidence,
+            artifact_index=artifact_index,
         )
 
     lines = [f"Data from {len(contributing_runs)} runs"]
-    tbl = render_steps_table(steps, term, short=short, repo_root=repo_root)
+    tbl = render_steps_table(
+        steps,
+        term,
+        short=short,
+        repo_root=repo_root,
+        evidence=evidence,
+        artifact_index=artifact_index,
+    )
     if tbl:
         lines.append(tbl)
     if detail:
@@ -3569,6 +3601,19 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     summaries: list[RunSummary] = []
     excluded: list[tuple[Path, str, RunSummary | None]] = []
     for r_dir in run_dirs:
+        if active_only:
+            # Quick pre-filter: if state.json exists and does not contain the status "running",
+            # no step in the queue can be running. Skipping full summary extraction saves
+            # disk reads and session log parsing across hundreds of inactive runs.
+            sf = r_dir / "state.json"
+            if sf.is_file():
+                try:
+                    if b'"running"' not in sf.read_bytes():
+                        excluded.append((r_dir, "active_only", None))
+                        continue
+                except OSError:
+                    pass
+
         summary = load_run_summary(r_dir, repo_root)
         if not summary:
             excluded.append((r_dir, "unreadable_state", None))
@@ -3627,19 +3672,24 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 excluded.append((s.run_dir, "last_n", s))
             summaries = []
 
+    reportable_excluded = [
+        (r, reason, s)
+        for r, reason, s in excluded
+        if reason != "active_only" and (raw_targets or reason == "unreadable_state")
+    ]
     excluded_data: list[dict[str, str]] = [
         {"run_id": s.run_id if s else r.name, "reason": reason}
-        for r, reason, s in excluded
+        for r, reason, s in reportable_excluded
     ]
 
     def _render_human_exclusions(*, leading_blank: bool = True) -> None:
-        if not excluded:
+        if not reportable_excluded:
             return
         if leading_blank:
             term.line("")
-        count_str = f"{len(excluded)} run{'s' if len(excluded) != 1 else ''}"
+        count_str = f"{len(reportable_excluded)} run{'s' if len(reportable_excluded) != 1 else ''}"
         term.line(f"filters excluded {count_str} that matched:")
-        for r, reason, s in excluded:
+        for r, reason, s in reportable_excluded:
             run_id = s.run_id if s else r.name
             setid = (
                 (s.setids[0] if s.setids else s.selectors[0])
@@ -3664,11 +3714,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     if not summaries and not issues_only:
         if is_agent or is_json:
             payload: dict[str, Any] = {"runs": []}
-            if excluded:
+            if excluded_data:
                 payload["excluded_runs"] = excluded_data
             print(json.dumps(payload, indent=2 if is_json else None))
             return 0
-        if not excluded:
+        if not reportable_excluded:
             term.line("no matching runs found")
             return 0
         _render_human_exclusions(leading_blank=False)
@@ -3687,6 +3737,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     # surfaces below could not see a refusal even though the ONE predicate can, which is the surface
     # DISAGREEMENT F-2 predicts (the table saying YES while `--json` omits the same item).
     evidence_index = _audit.build_finalize_evidence_index(repo_root)
+    artifact_index = _audit.build_index(repo_root)
     all_audits: list[StepArtifactAudit] = []
     all_steps: list[StepSummary] = []
     if latest_only:
@@ -3696,12 +3747,26 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 key = step.id6 or step.stem or step.item
                 latest_steps_dict[key] = (s, step)
         for _, st in latest_steps_dict.values():
-            all_audits.append(audit_step_artifact(st, repo_root, evidence_index))
+            all_audits.append(
+                audit_step_artifact(
+                    st,
+                    repo_root,
+                    evidence_index,
+                    artifact_index=artifact_index,
+                )
+            )
             all_steps.append(st)
     else:
         for s in summaries:
             for st in s.steps:
-                all_audits.append(audit_step_artifact(st, repo_root, evidence_index))
+                all_audits.append(
+                    audit_step_artifact(
+                        st,
+                        repo_root,
+                        evidence_index,
+                        artifact_index=artifact_index,
+                    )
+                )
                 all_steps.append(st)
 
     def _issue_records() -> list[dict[str, Any]]:
@@ -3749,11 +3814,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 "runs": contributing,
                 "steps": steps_list,
             }
-            if excluded:
+            if excluded_data:
                 payload["excluded_runs"] = excluded_data
         elif summary_only:
             payload = {"summary": build_multi_run_summary_dict(summaries)}
-            if excluded:
+            if excluded_data:
                 payload["excluded_runs"] = excluded_data
         else:
             payload = {"runs": [asdict(s) for s in summaries]}
@@ -3763,7 +3828,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 )
             if len(summaries) > 1:
                 payload["summary"] = build_multi_run_summary_dict(summaries)
-            if excluded:
+            if excluded_data:
                 payload["excluded_runs"] = excluded_data
 
         if disc:
@@ -3788,7 +3853,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                     latest_steps_dict[key] = (s, step)
             for _, st in latest_steps_dict.values():
                 print(json.dumps(asdict(st), separators=(",", ":"), ensure_ascii=False))
-            if excluded:
+            if excluded_data:
                 print(
                     json.dumps(
                         {"kind": "excluded_runs", "excluded_runs": excluded_data},
@@ -3800,7 +3865,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if summary_only:
             s_dict = build_multi_run_summary_dict(summaries)
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
-            if excluded:
+            if excluded_data:
                 print(
                     json.dumps(
                         {"kind": "excluded_runs", "excluded_runs": excluded_data},
@@ -3815,7 +3880,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 s_dict["run_dir"], repo_root
             )
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
-        if excluded:
+        if excluded_data:
             print(
                 json.dumps(
                     {"kind": "excluded_runs", "excluded_runs": excluded_data},
@@ -3850,7 +3915,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     if latest_only:
         term.line(
             format_latest_only_human(
-                summaries, term, detail=detail, short=short, repo_root=repo_root
+                summaries,
+                term,
+                detail=detail,
+                short=short,
+                repo_root=repo_root,
+                evidence=evidence_index,
+                artifact_index=artifact_index,
             )
         )
         audit_summary_txt = format_artifact_audit_summary(
@@ -3878,7 +3949,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             term.line("")
         term.line(
             format_run_human(
-                summary, term, detail=detail, short=short, repo_root=repo_root
+                summary,
+                term,
+                detail=detail,
+                short=short,
+                repo_root=repo_root,
+                evidence=evidence_index,
+                artifact_index=artifact_index,
             )
         )
 
