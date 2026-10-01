@@ -1,5 +1,5 @@
 - Id: axayfn
-- Status: graduated
+- Status: done
 - Graduated-To: idcapture
 - Blocks-Release: next
 - Set: idcapture
@@ -8,6 +8,7 @@
 - Summary: Three identity readers outside plan 76w6mq's fence are still unbounded to the metadata region
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD xvon5j executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-idcapture-02-xvon5j-bound-the-three-surviving-unbounded-identity-readers-to-the.ipd.md); evidence .aw/records/plans/executed/20260929-idcapture-02-xvon5j-bound-the-three-surviving-unbounded-identity-readers-to-the.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: xvon5j
 - 2026-09-21 created (aw backlog): Three identity readers outside plan 76w6mq's fence are still unbounded to the metadata region
 
