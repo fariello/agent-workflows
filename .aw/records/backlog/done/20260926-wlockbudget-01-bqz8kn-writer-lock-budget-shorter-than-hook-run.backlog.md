@@ -1,5 +1,5 @@
 - Id: bqz8kn
-- Status: graduated
+- Status: done
 - Graduated-To: wlockbudget
 - Blocks-Release: next
 - Set: wlockbudget
@@ -8,6 +8,7 @@
 - Summary: commit_lock.writer_lock waits only 5s and claims holders keep the lock 'well under a second', but holders keep it for a whole pre-commit run (10.6s measured), so a verb's wait can expire and commit unserialized
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD 7pxyam executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-wlockbudget-01-7pxyam-render-the-now-fail-closed-writer-lock-refusal-as-an-outcome.ipd.md); evidence .aw/records/plans/executed/20260929-wlockbudget-01-7pxyam-render-the-now-fail-closed-writer-lock-refusal-as-an-outcome.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 7pxyam
 - 2026-09-26 created (aw backlog): Split out of duac3v when it graduated to plan y2vzit (finlockwait-01), which deliberately does not change this shared budget.
 
