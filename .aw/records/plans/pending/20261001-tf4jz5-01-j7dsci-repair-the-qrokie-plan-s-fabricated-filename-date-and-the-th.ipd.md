@@ -126,6 +126,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier: xp6o3v
 - RE-KEYING THE BASELINE FIXTURE BY id6 rather than by path. That is `rlcq7g` (approved) and it would make E-06 unnecessary in future. It is not a dependency: a one-entry path edit is correct against today's fixture and remains correct whichever way `rlcq7g` goes.
   - Carrier: rlcq7g
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-p0a5kr-01-rlcq7g-key-the-derive-plan-status-baseline-by-plan-id6-so-a-termina.ipd.md
 - THE TWO STALE `STATUS.md` CITATIONS. It is a generated, gitignored view (`git check-ignore` confirms) that is already stale in other ways (it reports 194 plans where the tree holds over 900), and `aw index plans` regenerates it from the renamed corpus. There is nothing for a carrier to own: hand-editing a generated file would be overwritten, and the regeneration needs no tracking.
   - Carrier-Declined: a generated gitignored view, corrected by `aw index plans` from the renamed corpus; no durable work remains to hand off.
 - ANY OTHER RECORD'S NAME OR DATE. 98 plans in this corpus have names whose slot token is not a real id6 and others carry oldest-first histories; none of that is this plan's business, and each already has its own item where it matters (`jhrao5` for the history order). This plan touches the ONE record whose filename date is a fabricated constant, which is a closed set of one measured at authoring.
