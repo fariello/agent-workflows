@@ -155,7 +155,7 @@ Command logic and presentation are strictly decoupled. Domain handlers compute a
 - `NextAction`: `command`, `description`.
 
 Renderers (`HumanRenderer`, `AgentRenderer`, `JsonRenderer`) consume the same `CommandResult`.
-Both renderers expose identical facts (counts, paths, evidence, exit code) with zero domain drift.
+All three renderers expose identical domain facts (counts, paths, evidence, exit code) with zero domain drift; across both machine surfaces (`--agent` and `--json`), path-valued and free-text envelope fields share the same home-path redaction posture.
 
 ---
 
@@ -227,7 +227,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
   - If `complete=False` (and not a non-destructive preview), the outcome is `partial` or `skipped`.
   - If `exit=2`, kind is `error` and outcome is `cannot-run` or `error`.
 - **Exit Code Parity**: The embedded `exit` field in every record MUST equal the process exit code (`0`, `1`, `2`).
-- **Path Sanitization**: All path-valued fields (`target`, `location`, `path`, etc.) MUST be repo-relative, normalized (forward slashes, no leading `./`), and free of user home paths (`/home/<user>/`, `/Users/<user>/`), usernames, or hostnames. All records pass `aw sanitize --agent` with zero findings.
+- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths.
 - **ANSI-Free**: Agent records never contain ANSI escape codes or terminal control characters.
 
 ---
@@ -270,7 +270,7 @@ To minimize token usage during agent orchestration while preserving complete dec
 - **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
 - **`--verbose` / `--json`**:
   - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
-  - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for human debugging.
+  - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for machine ingestion and debugging. Its envelope fields (`summary`, `diagnostics`, `changes`, `evidence`, `next_actions`) are home-path redacted, while `data` is an unredacted passthrough (exempt per spec `kw5y2s` Section 2.4).
 
 ---
 

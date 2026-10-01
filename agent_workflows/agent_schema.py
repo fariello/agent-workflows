@@ -159,6 +159,33 @@ def normalize_repo_path(
     return path_str
 
 
+_REDACT_WINDOWS_HOME_RE = re.compile(r"([A-Za-z]:[\\/]+Users[\\/]+)[A-Za-z0-9._-]+")
+_REDACT_POSIX_HOME_RE = re.compile(r"/home/[A-Za-z0-9._-]+")
+_REDACT_USERS_HOME_RE = re.compile(r"(?<![A-Za-z]:)/Users/[A-Za-z0-9._-]+")
+
+
+def redact_home_paths(text: Any) -> Any:
+    """Redact home-style absolute path prefixes inside a string to '~'.
+
+    Performs a lossy, idempotent rewrite of embedded home directory paths across
+    all three classes detected by `_HOME_PATH_RE` (POSIX `/home/<user>`, macOS
+    `/Users/<user>`, and Windows `<drive>:\\Users\\<user>`).
+
+    This is the counterpart that `normalize_repo_path` cannot serve because it operates
+    on a whole path value rather than on paths embedded within free text (such as
+    suggested command lines, diagnostic details, or summaries). Non-string inputs
+    are returned unchanged.
+    """
+    if not isinstance(text, str):
+        return text
+
+    # Redact Windows paths first so drive prefixes remain intact
+    text = _REDACT_WINDOWS_HOME_RE.sub(r"\g<1>~", text)
+    text = _REDACT_POSIX_HOME_RE.sub("~", text)
+    text = _REDACT_USERS_HOME_RE.sub("~", text)
+    return text
+
+
 def sanitize_evidence_item(
     evidence_obj: Any, repo_root: Optional[Union[str, Path]] = None
 ) -> Any:

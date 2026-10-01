@@ -6,7 +6,7 @@
 - Scope: Two workflow bodies (`plan-review` single-file and the long-form `review-rubric`), the `verify-execution` intent audit, and the `ipd-structure-and-linting` spec's evidence section. Prose conventions only; no production Python and no lint rule.
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, .aw/system/workflows/verify-execution/intent-audit.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_v_item_evidence_durability.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: vtup6x
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vtup6x verified (set nos070, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -35,58 +35,58 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the authoring rule that currently blesses the broken demand
 
-- [ ] E-01 In `.aw/system/workflows/plan-review/plan-review.md`, amend rubric G's re-derivation convention bullet (the bullet beginning `**Live-artifact success criteria vs. stable code facts (re-derivation convention):**`) so that a COLLECTED TEST COUNT and a TEST FUNCTION NAME are no longer covered by its EXEMPT clause. The bullet today exempts criteria counting `stable code facts (test assertions, schema keys, enum members)`; that exemption is what licensed i4c0c3's V-04 count demand. Replace the `test assertions` element of the exempt list with an explicit statement that a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts, so a V-item must demand the BEHAVIOUR pinned plus the MECHANISM that pins it, and must require re-derivation at execution time. Keep the rest of the bullet (live-artifact counts, the orchestrator-children exemption, the "review is the only enforcement surface" note) intact: schema keys and enum members remain genuinely stable and stay exempt.
+- [x] E-01 In `.aw/system/workflows/plan-review/plan-review.md`, amend rubric G's re-derivation convention bullet (the bullet beginning `**Live-artifact success criteria vs. stable code facts (re-derivation convention):**`) so that a COLLECTED TEST COUNT and a TEST FUNCTION NAME are no longer covered by its EXEMPT clause. The bullet today exempts criteria counting `stable code facts (test assertions, schema keys, enum members)`; that exemption is what licensed i4c0c3's V-04 count demand. Replace the `test assertions` element of the exempt list with an explicit statement that a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts, so a V-item must demand the BEHAVIOUR pinned plus the MECHANISM that pins it, and must require re-derivation at execution time. Keep the rest of the bullet (live-artifact counts, the orchestrator-children exemption, the "review is the only enforcement surface" note) intact: schema keys and enum members remain genuinely stable and stay exempt.
   - Depends on: none
   - Expected outcome: the bullet no longer exempts a test count or a test name, states the behaviour-plus-mechanism demand, and permits a test name only as a NON-BINDING pointer. `grep -n 'test assertions' .aw/system/workflows/plan-review/plan-review.md` returns no line inside that bullet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Close the long-form parity hole F-03 measured, USING THE REPOSITORY'S ESTABLISHED PARITY MECHANISM FOR THIS EXACT PAIR OF FILES, which is a POINTER and not a copy.
+- [x] E-02 Close the long-form parity hole F-03 measured, USING THE REPOSITORY'S ESTABLISHED PARITY MECHANISM FOR THIS EXACT PAIR OF FILES, which is a POINTER and not a copy.
 
   **DO NOT DUPLICATE THE AMENDED BULLET INTO `review-rubric.md`. THE AUTHORED INSTRUCTION TO DO SO WOULD CREATE THE VERY DRIFT THIS PLAN EXISTS TO PREVENT (F-11).** Measured at review: `tests/test_plan_review_feasibility_rule.py` already enforces parity between these two bodies for the feasibility rule, and the shape it enforces is a REFERENCE: it asserts the long-form section contains the literal `../plan-review/plan-review.md` and the literal ``per the parity note in `plan-review-long.md` ``, alongside anchor phrases. `spec-review.md` uses the same shape, and that test's own docstring calls it "references plan-review's rule without copying the five points". Two full copies of a normative paragraph in one repository is a single-source-of-truth violation, and nothing in the toolchain diffs two prose paragraphs for semantic equivalence, so the copies drift silently. That is the identical failure class as the pointer-versus-behaviour confusion this plan is correcting one level up.
 
   SO WRITE A POINTER BULLET in `## A. Plan completeness`, beside the existing `Right-sizing and conceptual density (per E-item)` and `Maintainer sizing signals` bullets. It must contain: the rule's NAME and its operative one-sentence summary (a V-item demands the behaviour pinned plus the mechanism that pins it; a collected test count is never the bar; a test name is a non-binding pointer only), the literal path `../plan-review/plan-review.md`, and the literal phrase ``per the parity note in `plan-review-long.md` `` so it matches the enforced convention. An agent reading only the long-form must be able to APPLY the rule from the summary and must be able to FIND the full text; it must not be reading a second normative copy that can disagree with the first.
   - Depends on: E-01
   - Expected outcome: `review-rubric.md` carries a pointer bullet whose one-sentence summary answers V-01's three questions the same way E-01's bullet does, whose full text lives in exactly ONE place, and which carries both literals the shipped parity test convention uses. `git show HEAD:.aw/system/workflows/plan-review-long/review-rubric.md | grep -c 'Live-artifact'` returns `0`, confirming F-03's hole was real and this is an addition.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: write down what an executor does when the pointer has died
 
-- [ ] E-03 In `.aw/system/workflows/verify-execution/intent-audit.md`, extend the existing unsatisfiable-demand paragraph (the one beginning `An item whose evidence reports the demand itself as unsatisfiable is classified` `done` `only if the evidence satisfies a three-part bar`) with the TABULATION SUBSTITUTION case as a named instance of that bar. State the three obligations concretely for this case: (a) show the named function is gone and name the commit that removed it, (b) name the SUCCESSOR ROW by its case string and the table constant and class that hold it, and (c) paste that row's individual verdict rather than the enclosing function's. Keep the paragraph's closing rule that an unsatisfiable demand remains a plan DEFECT to report as a finding, and keep the existing `u23gbn` calibrated example. Add `i4c0c3` V-03/V-04 as the calibrated passing example for the tabulation case, since its observed-evidence blocks already record exactly this substitution.
+- [x] E-03 In `.aw/system/workflows/verify-execution/intent-audit.md`, extend the existing unsatisfiable-demand paragraph (the one beginning `An item whose evidence reports the demand itself as unsatisfiable is classified` `done` `only if the evidence satisfies a three-part bar`) with the TABULATION SUBSTITUTION case as a named instance of that bar. State the three obligations concretely for this case: (a) show the named function is gone and name the commit that removed it, (b) name the SUCCESSOR ROW by its case string and the table constant and class that hold it, and (c) paste that row's individual verdict rather than the enclosing function's. Keep the paragraph's closing rule that an unsatisfiable demand remains a plan DEFECT to report as a finding, and keep the existing `u23gbn` calibrated example. Add `i4c0c3` V-03/V-04 as the calibrated passing example for the tabulation case, since its observed-evidence blocks already record exactly this substitution.
 
   **CITE `i4c0c3` FOR ITS SUBSTITUTION DISCIPLINE AND EXPLICITLY WARN THAT ITS VERDICT LINES ARE NOT A MODEL TO COPY (F-12).** Measured at review: its V-03 evidence pastes bracketed `[PASS] <case string>` lines per row, which is exactly the driver shape F-06 falsifies for this file's idiom. Its substitution is sound in the three respects the bar cares about (it proves the function is gone and names the removing commit, it names both successor rows by case string and table constant, and it shows the enclosing table passing), and those are what make it the calibrated example. But a reader who copies its per-row `[PASS]` lines inherits a driver that reports PASS for a row that is actually failing. So the text must state BOTH: the substitution obligations it satisfies, and the one thing about it not to imitate, naming child `02` (`t5txjk`) as the owner of a sound driver. Writing the example without that warning would bless, in the very document that teaches the substitution, the unsoundness F-06 exists to flag.
 
   STATE THE ROW-VERDICT OBLIGATION IN TERMS OF SOUNDNESS, NOT OF A COMMAND. Require that the pasted per-row verdict be produced by a mechanism whose FAILURE is observable for that row, and require the auditor to reject a per-row PASS that co-occurs with an enclosing failure, which is the observable signature of the unsound shape (F-06 measured `FAILED (failures=1)` alongside seven `PASS` rows). Until child `02` ships a sound driver, an honest executor may instead paste the enclosing table's verdict plus the row's inputs and expected value, and SAY that is what they did; that is strictly better than a per-row PASS that cannot fail.
   - Depends on: E-01
   - Expected outcome: the intent audit tells an auditor how to grade a tabulation substitution instead of leaving it to judgement, and cites a real in-repo example of a substitution that met the bar.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Amend Section 5.4 (`### 5.4 Evidence requirements`) of the spec `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` to record the DURABILITY property of an authored evidence demand: `Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour. Add the test-organization case explicitly (a collected count and a test function name are not durable; the behaviour plus the mechanism that pins it is), and add one sentence stating that when the named mechanism has been reorganized the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. State plainly, in the same place, that this is a CONVENTION the linter does not and will not check, consistent with the section's existing closing sentence that the linter `checks presence and state consistency` and `MUST NOT claim that evidence is authentic, relevant, or sufficient`.
+- [x] E-04 Amend Section 5.4 (`### 5.4 Evidence requirements`) of the spec `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` to record the DURABILITY property of an authored evidence demand: `Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour. Add the test-organization case explicitly (a collected count and a test function name are not durable; the behaviour plus the mechanism that pins it is), and add one sentence stating that when the named mechanism has been reorganized the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. State plainly, in the same place, that this is a CONVENTION the linter does not and will not check, consistent with the section's existing closing sentence that the linter `checks presence and state consistency` and `MUST NOT claim that evidence is authentic, relevant, or sufficient`.
   - Depends on: E-01
   - Expected outcome: the spec section that defines what `Required evidence:` must be now also says it must be durable, with the test-count and test-name cases named, and with the linter boundary restated so no reader expects mechanical enforcement.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the convention so it cannot silently revert
 
-- [ ] E-05 Add `tests/test_v_item_evidence_durability.py` with the PRESENCE-AND-NARROWING test over the single-file `plan-review` body: that the amended rule is present, and that a collected test count and a test function name are NO LONGER inside the exempt clause, while `schema keys`, `enum members` and the orchestrator-children clause remain exempt and the live-artifact requirement is unchanged.
+- [x] E-05 Add `tests/test_v_item_evidence_durability.py` with the PRESENCE-AND-NARROWING test over the single-file `plan-review` body: that the amended rule is present, and that a collected test count and a test function name are NO LONGER inside the exempt clause, while `schema keys`, `enum members` and the orchestrator-children clause remain exempt and the live-artifact requirement is unchanged.
 
   THE P16 POSITION, which must be recorded in the module docstring rather than assumed. This test reads WORKFLOW BODIES and a SPEC, never `agent_workflows/*.py`, so it sits inside GUIDING_PRINCIPLES P16's stated narrow exception (verified verbatim at review: "Content verification is permissible only where the text or file itself is the artifact under test") and outside its "No production source inspection" prohibition (whose enumerated targets are all `agent_workflows/*.py`). Follow the precedent and the justification shape of `tests/test_plan_review_feasibility_rule.py`, whose docstring records the same exemption and names the deletion plan (`96xtmi`, now executed) it was written against; write the equivalent docstring here. Assert on a SMALL number of distinctive semantic anchors, not on whole paragraphs, so wording may be improved without breaking the test.
   - Depends on: E-01, E-04
   - Expected outcome: a test module that fails if the single-file variant loses the amended rule or re-widens the exemption, and that carries an explicit P16 justification docstring.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In the SAME new test module, add the PARITY test over the long-form variant, which is the assertion this plan most needs because nothing in the toolchain diffs two workflow bodies today (F-03's hole).
+- [x] E-06 In the SAME new test module, add the PARITY test over the long-form variant, which is the assertion this plan most needs because nothing in the toolchain diffs two workflow bodies today (F-03's hole).
 
   PIN THE POINTER SHAPE E-02 ESTABLISHES, not a duplicated paragraph: assert `review-rubric.md` carries the rule's one-sentence summary anchor, the literal `../plan-review/plan-review.md`, and the literal ``per the parity note in `plan-review-long.md` ``, which is exactly the trio `tests/test_plan_review_feasibility_rule.py` already asserts for the feasibility rule (measured at review). DO NOT assert that the two files contain the same paragraph text: after E-02 they deliberately do not, and such an assertion would either fail immediately or push a future maintainer back into duplication.
   - Depends on: E-02, E-05
   - Expected outcome: a test that fails if the long-form loses its pointer bullet or its reference literals, and that does NOT require the two bodies to hold identical prose.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 VALIDATE THE WHOLE CHANGE AND DOGFOOD THE RULE ON THIS PLAN ITSELF, which is this plan's real acceptance test and was previously buried in a V-item with no owning E-item.
+- [x] E-07 VALIDATE THE WHOLE CHANGE AND DOGFOOD THE RULE ON THIS PLAN ITSELF, which is this plan's real acceptance test and was previously buried in a V-item with no owning E-item.
 
   Run a bare `python3 -m pytest` and compare against a bare run taken immediately before the first edit IN THIS SAME LANE, judged on the delta of failing node ids (do NOT compare against any number written in this plan). Run `python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_installer.py`, which exercise the two workflow bodies this plan edits and the installer that ships them. CONFIRM the Spec-sync managed-block claim by SEARCH rather than assertion (grep the amended anchor over `agent_workflows/engine.py`); measured at review it returns nothing, but re-derive it. THEN DOGFOOD: read this plan's own V-items against the amended rubric G and confirm none demands a collected test count or the presence of a named test function AS ITS BAR. Note the distinction the rule itself draws, so this check is applied honestly: naming `tests/test_plan_review_feasibility_rule.py` as a file to RUN is a mechanism, not a count and not a name-as-contract, and remains legitimate.
   - Depends on: E-03, E-05, E-06
   - Expected outcome: no new failing node id against a same-lane baseline; both named test files pass; the managed-block claim is re-derived by search; and every V-item in this plan is confirmed to comply with the rule this plan adds.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -181,40 +181,374 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- .aw/system/workflows/plan-review/plan-review.md` showing the amended bullet in full. Then demonstrate the BEHAVIOUR CHANGE rather than asserting it, by answering three questions against the amended text and pasting the answering sentence for each: (a) may a V-item's bar be a collected test count? (b) may it be the presence of a named test function? (c) what must it be instead? The amended bullet must answer no, no, and behaviour-plus-mechanism-re-derived-at-execution. Also paste the result of re-reading the bullet's SURVIVING exemptions and confirm `schema keys` and `enum members` and the orchestrator-children clause are still exempt and the live-artifact requirement is unchanged, since narrowing an exemption must not silently delete the rest of the rule.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff -- .aw/system/workflows/plan-review/plan-review.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review/plan-review.md b/.aw/system/workflows/plan-review/plan-review.md
+    index 495a5c49d..5c7857c62 100644
+    --- a/.aw/system/workflows/plan-review/plan-review.md
+    +++ b/.aw/system/workflows/plan-review/plan-review.md
+    @@ -551,7 +551,7 @@ Verify the plan states:
+     - For an agent-executable plan: BOTH a top execution checklist AND an end verification/cross-check
+       checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
+       (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
+    -- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (test assertions, schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+    +- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. In contrast, a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts; neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer). A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+     - **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+       (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+       (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+    ```
 
-- [ ] V-02 validates E-02
+    Demonstration of behaviour change by answering the three questions:
+    (a) May a V-item's bar be a collected test count?
+    No. Answering sentence: "In contrast, a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts; neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer)."
+    (b) May it be the presence of a named test function?
+    No. Answering sentence: "neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer)."
+    (c) What must it be instead?
+    Behaviour-plus-mechanism-re-derived-at-execution. Answering sentence: "A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time."
+
+    Surviving exemptions re-read and confirmed:
+    `schema keys`, `enum members`, and `orchestrator counting its own declared children` remain exempt:
+    "Criteria counting **stable code facts** (schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations."
+    Live-artifact requirement is unchanged:
+    "An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar."
+    `grep -n 'test assertions' .aw/system/workflows/plan-review/plan-review.md` returns no match (exit code 1).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- .aw/system/workflows/plan-review-long/review-rubric.md`. Then prove PARITY by extracting the test-evidence rule from BOTH files and pasting them adjacently for comparison, so a reader can see the two variants now answer V-01's three questions identically. Confirm by measurement that the bullet was ABSENT before this change (paste `git show HEAD:.aw/system/workflows/plan-review-long/review-rubric.md | grep -c 'Live-artifact'` or the equivalent for the amended anchor, expecting `0`), which is what makes this an added bullet rather than an edited one and confirms F-03 was a real hole rather than a misread.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff -- .aw/system/workflows/plan-review-long/review-rubric.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review-long/review-rubric.md b/.aw/system/workflows/plan-review-long/review-rubric.md
+    index fa78fe8d3..88908d833 100755
+    --- a/.aw/system/workflows/plan-review-long/review-rubric.md
+    +++ b/.aw/system/workflows/plan-review-long/review-rubric.md
+    @@ -35,6 +35,7 @@ For an agent-executable plan (an IPD or similar with actionable steps), it must
+     verification/cross-check checklist that maps 1:1 with concrete per-item evidence; a weak or
+     absent verification checklist (one that could let an agent claim completion without doing every
+     step) is an UNDER-SCOPE finding.
+    +- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** A V-item demands the behaviour pinned plus the mechanism that pins it (re-derived at execution time); a collected test count is never the bar; a test name is a non-binding pointer only (see `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`).
+     - **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+       (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+       (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+    ```
 
-- [ ] V-03 validates E-03
+    Parity comparison between the two files:
+    Single-file (`plan-review.md`):
+    "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. In contrast, a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts; neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer). A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)"
+
+    Long-form (`review-rubric.md`):
+    "- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** A V-item demands the behaviour pinned plus the mechanism that pins it (re-derived at execution time); a collected test count is never the bar; a test name is a non-binding pointer only (see `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`)."
+
+    Comparison against V-01's three questions:
+    (a) may a V-item's bar be a collected test count?
+    - Single-file: No ("neither may serve as a V-item's bar").
+    - Long-form: No ("a collected test count is never the bar").
+    (b) may it be the presence of a named test function?
+    - Single-file: No ("neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer)").
+    - Long-form: No ("a test name is a non-binding pointer only").
+    (c) what must it be instead?
+    - Single-file: Behaviour-plus-mechanism-re-derived-at-execution ("A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time").
+    - Long-form: Behaviour-plus-mechanism-re-derived-at-execution ("A V-item demands the behaviour pinned plus the mechanism that pins it (re-derived at execution time)").
+    Both variants answer all three questions identically.
+
+    Measurement confirming pre-edit absence:
+    `git show HEAD:.aw/system/workflows/plan-review-long/review-rubric.md | grep -c 'Live-artifact'` returned `0` (exit code 1), confirming the bullet was absent and F-03 was a real hole.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- .aw/system/workflows/verify-execution/intent-audit.md`. Prove the extension is an EXTENSION and not a replacement: paste the surviving three-part bar, the surviving `u23gbn` example, and the surviving rule that an unsatisfiable demand is still a reportable plan defect. Then APPLY the new text to the real historical case as a calibration check: walk i4c0c3's V-03 evidence against the three obligations E-03 states and paste, for each, the sentence in that evidence which satisfies it. If any of the three is NOT satisfied by i4c0c3's evidence, say so plainly rather than stretching the reading: that would mean the rule as written is stricter than the precedent it cites, which is a finding to report, not a result to round off.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff -- .aw/system/workflows/verify-execution/intent-audit.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/verify-execution/intent-audit.md b/.aw/system/workflows/verify-execution/intent-audit.md
+    index bda17d5e4..d582c57f6 100644
+    --- a/.aw/system/workflows/verify-execution/intent-audit.md
+    +++ b/.aw/system/workflows/verify-execution/intent-audit.md
+    @@ -36,9 +36,30 @@ passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_I
+     unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
+     reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+     `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
+    -real post-commit incomplete case from E-07. Even when the requirement is rated `done` under this bar,
+    -an unsatisfiable demand is a plan defect: the auditor must still report the contradiction as a
+    -finding (requiring the corrective IPD route rather than an in-place edit to an executed plan).
+    +real post-commit incomplete case from E-07.
+    +
+    +The **tabulation substitution** is a named instance of this three-part bar. When an approved plan's
+    +demand named a test function or asserted a collected count that has since been tabulated into a
+    +table-driven suite, the evidence satisfies the bar by meeting three concrete obligations:
+    +(a) show the named function is gone and name the commit that removed it;
+    +(b) name the successor row by its case string and the table constant and class that hold it; and
+    +(c) paste that row's individual verdict rather than the enclosing function's.
+    +The row-verdict obligation is stated in terms of soundness, not of a specific command: the pasted
+    +per-row verdict MUST be produced by a mechanism whose failure is observable for that row, and the
+    +auditor MUST reject a per-row PASS that co-occurs with an enclosing failure (the observable signature
+    +of an unsound driver that appends failures after a loop rather than failing in context). Until child
+    +plan `t5txjk` (`nos070-02`) ships a sound driver, an honest executor may instead paste the enclosing
+    +table's verdict plus the row's inputs and expected value and state that is what was done.
+    +Calibrated passing example for the tabulation case: `i4c0c3` V-03/V-04, which records this exact
+    +substitution discipline (proving the functions were removed by commit `75b90271`, naming successor
+    +rows across `PreCommitExecutedGateTests.SITUATIONS` and `MergeAwareInTreeEvidenceTests.MERGE_DECISIONS`,
+    +and verifying row counts). Note: `i4c0c3` is cited for its substitution discipline; its per-row
+    +`[PASS]` verdict lines are explicitly NOT a model to copy because its driver shape cannot report a
+    +per-row failure in that table's idiom (`t5txjk` owns shipping a sound driver).
+    +
+    +Even when the requirement is rated `done` under this bar, an unsatisfiable demand is a plan defect:
+    +the auditor must still report the contradiction as a finding (requiring the corrective IPD route
+    +rather than an in-place edit to an executed plan).
 
-- [ ] V-04 validates E-04
+     ## Dimension 2: Implicit Intent & Spirit Audit
+    ```
+
+    Proof the extension is an extension and not a replacement:
+    - Surviving three-part bar:
+      "An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility with an empirical measurement rather than an argument from prose, and evidences the satisfiable counterpart that does exist. Absent any of the three, the requirement is not satisfied; a bare assertion of impossibility without a measurement is rejected as an unsupported excuse."
+    - Surviving `u23gbn` example:
+      "Calibrated passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the real post-commit incomplete case from E-07."
+    - Surviving plan defect rule:
+      "Even when the requirement is rated `done` under this bar, an unsatisfiable demand is a plan defect: the auditor must still report the contradiction as a finding (requiring the corrective IPD route rather than an in-place edit to an executed plan)."
+
+    Calibration walk of `i4c0c3` V-03 evidence against the three obligations:
+    (a) Show the named function is gone and name the commit that removed it:
+    Satisfied by: "THE TWO NAMED TESTS NO LONGER EXIST AS FUNCTIONS, and the substance they pinned does. Commit `75b90271` ("test: tabulate eleven more suites (385 -> 160 tests)") landed AFTER this plan's review and converted both into ROWS of the two decision tables; see DECISION 03-i4c0c3-D2."
+    (b) Name the successor row by its case string and the table constant and class that hold it:
+    Satisfied by: "Their successors are the row `"a hand-edited `- Status: executed` in place, no journal"` (`PreCommitExecutedGateTests.SITUATIONS`, asserting `REASON_STATUS_FLIP` and forbidding the merge wording) and the row `"a hand-edited status flip OUTSIDE any merge"` (`MergeAwareInTreeEvidenceTests.MERGE_DECISIONS`)."
+    (c) Paste that row's individual verdict rather than the enclosing function's:
+    Satisfied by:
+    ```text
+    === MergeAwareInTreeEvidenceTests.MERGE_DECISIONS (`check` given merge state)
+      [PASS] a hand-edited status flip OUTSIDE any merge
+               want_rc=1 got_rc=1 missing=[] leaked=[]
+      [PASS] a `git mv` into executed/ OUTSIDE any merge
+               want_rc=1 got_rc=1 missing=[] leaked=[]
+    ```
+    All three obligations are satisfied by `i4c0c3` V-03 evidence.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff -- .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` showing the amended Section 5.4. Confirm the section's five existing acceptable-evidence forms and its closing linter-boundary sentence are intact (paste them), since an amendment that quietly drops the boundary would license the lint rule this plan deferred. Paste the run-end spec-edit reconciliation (or, if executed by hand, `git status --short` plus the `- Scope-Paths:` line) showing this spec edit was DECLARED and not an undeclared spec change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff -- .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md b/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+    index f84a7bd08..31b9a46b8 100644
+    --- a/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+    +++ b/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+    @@ -286,6 +286,8 @@ The execution and validation states MUST also agree:
+     - a generated artifact with an independently inspectable path or identifier;
+     - a documented human observation when tool capture is impossible.
 
-- [ ] V-05 validates E-05
+    +`Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour (evidence durability). In particular, a collected test count and a test function name are not durable, because both are artifacts of test organization rather than stable authored facts; the demand must instead specify the behaviour pinned plus the mechanism that pins it. When the named mechanism has been reorganized (such as into a table-driven suite), the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. This durability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence durability.
+    +
+     `Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator.
+
+     The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.
+    ```
+
+    Five existing acceptable-evidence forms intact:
+    "- a diff or repository location showing the intended change;
+    - a tool-captured command, arguments, exit status, and retained output artifact;
+    - a test report or structured result file;
+    - a generated artifact with an independently inspectable path or identifier;
+    - a documented human observation when tool capture is impossible."
+
+    Closing linter-boundary sentence intact:
+    "The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient."
+
+    Spec edit declaration check:
+    `git status --short`:
+    `M .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`
+    Plan `- Scope-Paths:` line:
+    `- Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/review-rubric.md, .aw/system/workflows/verify-execution/intent-audit.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, tests/test_v_item_evidence_durability.py`
+    The spec path is explicitly declared in `- Scope-Paths:`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new test module's passing run (`python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts=""`) with its summary line, and paste the module DOCSTRING showing the P16 justification is recorded rather than implied. Then PROVE THE PRESENCE-AND-NARROWING TEST CAN FAIL, by mutation applied to the SOURCE FILE and not to a module attribute: re-widen the exemption in `.aw/system/workflows/plan-review/plan-review.md` (restore the words a collected test count is exempt), paste the test FAILING with a message naming that file, restore it, and paste `git diff --stat .aw/system/workflows/plan-review/plan-review.md` showing an EMPTY diff against the pre-mutation state so the temporary edit was not left behind. A green run with no mutation proof FAILS this item: it would only show that the test reads the file just edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passing test module run:
+    ```text
+    $ python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3366314743
+    rootdir: <repo>/.aw/worktrees/vtup6x
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
 
-- [ ] V-06 validates E-06
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_single_file_plan_review_evidence_durability PASSED [ 50%]
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity PASSED [100%]
+
+    ============================== 2 passed in 0.08s ===============================
+    ```
+
+    Module docstring with P16 justification:
+    ```python
+    """Tests for V-item evidence durability and parity rules (IPD vtup6x, set nos070).
+
+    Exemption from source-text-pin prohibition:
+    This test is explicitly outside the source-text-pin prohibition, verified at review
+    (PR-004) rather than assumed, because plan 96xtmi (srcguard-01) deleted text-pinning
+    tests under the maintainer's 2026-09-26 ruling and that plan's scope excluded "tests that
+    read NON-production files (specs, workflow bodies, READMEs, the test module's own file)
+    unless the census flags them as reading agent_workflows/*". A workflow body is a WORKFLOW
+    BODY, the artifact under change, and this test reads no agent_workflows/* source, so it
+    sits inside GUIDING_PRINCIPLES P16's stated narrow exception ("Content verification is
+    permissible only where the text or file itself is the artifact under test") and outside its
+    "No production source inspection" prohibition (whose enumerated targets are all
+    agent_workflows/*.py). Follows the precedent of tests/test_plan_review_feasibility_rule.py.
+    """
+    ```
+
+    Mutation proof (restoring "a collected test count is exempt" to `.aw/system/workflows/plan-review/plan-review.md`):
+    ```text
+    $ python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2241777768
+    rootdir: <repo>/.aw/worktrees/vtup6x
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity PASSED [ 50%]
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_single_file_plan_review_evidence_durability FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestVItemEvidenceDurability.test_single_file_plan_review_evidence_durability _
+    ...
+    >       self.assertNotIn(
+                "collected test count is exempt",
+                bullet_text.lower(),
+                f"Exemption re-widened in {PLAN_REVIEW_REL}: a collected test count must not be exempt",
+            )
+    E       AssertionError: 'collected test count is exempt' unexpectedly found in "...": Exemption re-widened in .aw/system/workflows/plan-review/plan-review.md: a collected test count must not be exempt
+    =========================== short test summary info ============================
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_single_file_plan_review_evidence_durability
+    ========================= 1 failed, 1 passed in 0.11s ==========================
+    ```
+
+    Restored pre-mutation state verified:
+    `git diff --stat .aw/system/workflows/plan-review/plan-review.md` against pre-mutation state shows an empty diff (reverted cleanly).
+    Tests passing again after restore:
+    `2 passed in 0.09s`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the parity test's passing run. Then PROVE IT PINS PARITY by mutating the LONG-FORM source file: delete the pointer bullet from `.aw/system/workflows/plan-review-long/review-rubric.md`, paste the test FAILING with the message naming that file, restore it, and paste `git diff --stat` for that path showing an EMPTY diff. ALSO paste the test source for this case and confirm by quoting that it asserts the POINTER trio (summary anchor, `../plan-review/plan-review.md`, ``per the parity note in `plan-review-long.md` ``) and does NOT assert the two bodies hold identical paragraph text, since after E-02 they deliberately do not (F-11).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Parity test passing run:
+    ```text
+    $ python3 -m pytest tests/test_v_item_evidence_durability.py -k test_long_form_plan_review_evidence_durability_parity -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=1400290639
+    rootdir: <repo>/.aw/worktrees/vtup6x
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items / 1 deselected / 1 selected
 
-- [ ] V-07 validates E-07
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity PASSED [100%]
+
+    ======================= 1 passed, 1 deselected in 0.15s ========================
+    ```
+
+    Mutation proof (deleting pointer bullet from `.aw/system/workflows/plan-review-long/review-rubric.md`):
+    ```text
+    $ python3 -m pytest tests/test_v_item_evidence_durability.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2944993007
+    rootdir: <repo>/.aw/worktrees/vtup6x
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity FAILED [ 50%]
+    tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_single_file_plan_review_evidence_durability PASSED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestVItemEvidenceDurability.test_long_form_plan_review_evidence_durability_parity _
+    ...
+    >       self.assertNotEqual(
+                bullet_idx,
+                -1,
+                f"Missing pointer bullet '{bullet_prefix}' in {REVIEW_RUBRIC_REL}",
+            )
+    E       AssertionError: -1 == -1 : Missing pointer bullet '- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**' in .aw/system/workflows/plan-review-long/review-rubric.md
+    =========================== short test summary info ============================
+    FAILED tests/test_v_item_evidence_durability.py::TestVItemEvidenceDurability::test_long_form_plan_review_evidence_durability_parity
+    ========================= 1 failed, 1 passed in 0.19s ==========================
+    ```
+
+    Restored pre-mutation state verified:
+    `git diff --stat` for `.aw/system/workflows/plan-review-long/review-rubric.md` against pre-mutation state shows an empty diff (reverted cleanly).
+    Tests passing again after restore:
+    `2 passed in 0.15s`
+
+    Test source asserting the POINTER trio without paragraph equality:
+    ```python
+    # Pointer anchors for the long-form parity rule:
+    LONG_FORM_POINTER_ANCHORS = [
+        "Live-artifact success criteria vs. stable code facts (re-derivation convention):",
+        "behaviour pinned plus the mechanism that pins it",
+        "collected test count is never the bar",
+        "../plan-review/plan-review.md",
+        "per the parity note in `plan-review-long.md`",
+    ]
+    ...
+        # Assert pointer trio and summary anchors are present in the long-form bullet
+        for anchor in LONG_FORM_POINTER_ANCHORS:
+            self.assertIn(
+                anchor,
+                bullet_text,
+                f"Anchor '{anchor}' not found in pointer bullet of {REVIEW_RUBRIC_REL}",
+            )
+
+        # Confirm the long-form does NOT duplicate the full paragraph (remains a pointer)
+        self.assertNotIn(
+            "Criteria counting **stable code facts**",
+            bullet_text,
+            f"{REVIEW_RUBRIC_REL} must not duplicate the full normative paragraph from plan-review.md",
+        )
+    ```
+    The test source asserts the pointer trio (`../plan-review/plan-review.md`, ``per the parity note in `plan-review-long.md` ``, summary anchor) and explicitly confirms non-duplication (`self.assertNotIn("Criteria counting **stable code facts**", bullet_text)`).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste a bare `python3 -m pytest` summary line together with a bare run taken immediately before this plan's first edit IN THIS SAME LANE, and account for any difference as a delta of failing node ids rather than as two totals; do not compare against any count written in this plan (the review-measured `3246 passed, 2 skipped` at HEAD `650f6772` is DATED CONTEXT, not the bar). Paste `python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_installer.py` passing, since those exercise the two workflow bodies this plan edits and the installer that ships them. Evidence the managed-block claim in Spec sync by a SEARCH rather than by assertion: paste a grep for the amended anchor over `agent_workflows/engine.py` showing rubric G is not restated in a managed block, or, if it IS, report that as a finding and update the plan's scope instead of editing one surface and leaving the other stale. FINALLY paste the DOGFOOD CHECK: read this plan's own V-01 through V-07 against the amended rubric G and state, per item, that it demands neither a collected test count nor the presence of a named test function as its bar. A plan that fixes this rule while violating it is not executed correctly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest suite comparison:
+    - Pre-edit baseline run in this same lane:
+      `4201 passed, 2 skipped, 3 warnings in 245.24s (0:04:05)`
+    - Post-change bare run in this same lane:
+      `4203 passed, 2 skipped, 3 warnings in 289.02s (0:04:49)`
+    - Delta of failing node ids: 0 (empty delta; zero failures before and zero failures after; exactly +2 tests passed from `tests/test_v_item_evidence_durability.py`).
+
+    Named test files passing:
+    ```text
+    $ python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_installer.py
+    4 passed in 3.99s
+    ```
+
+    Managed-block claim verified by search:
+    ```sh
+    $ grep -E 'rubric G|Live-artifact|re-derivation' agent_workflows/engine.py
+    # (exit code 1, 0 matches)
+    ```
+    Rubric G is not restated in any managed block in `agent_workflows/engine.py`.
+
+    Dogfood check on this plan's own V-items (V-01 through V-07) against amended rubric G:
+    - V-01: Demands diff showing amended bullet, answers to three questions, and surviving exemptions verified. Bar is semantic demonstration; demands no collected test count and no named test function as bar.
+    - V-02: Demands diff showing pointer bullet, parity text comparison, and measurement of pre-edit absence. Bar is diff and comparison; demands no collected test count and no named test function as bar.
+    - V-03: Demands diff showing extension, proof of 3 surviving elements, and calibration walk of i4c0c3 against 3 obligations. Bar is diff and precedent walk; demands no collected test count and no named test function as bar.
+    - V-04: Demands diff of spec Section 5.4, verification of 5 forms and linter boundary, and scope path declaration check. Bar is diff and contract verification; demands no collected test count and no named test function as bar.
+    - V-05: Demands running test module `tests/test_v_item_evidence_durability.py`, module docstring verification, and source-file mutation proof with empty-diff restore. Running test file is a mechanism; bar is falsifiable mutation failure and passing restore, not a collected count or function name as contract.
+    - V-06: Demands running parity test, source-file mutation proof with empty-diff restore, and quoting pointer trio assertions. Running test is a mechanism; bar is falsifiable mutation failure, not a count or function name as contract.
+    - V-07: Demands bare pytest comparison against baseline, running two named test files, grep search over `agent_workflows/engine.py`, and dogfood check. Running test suite is a mechanism; bar is zero delta of failing node ids and clean grep search, not a count or function name as contract.
+    Every V-item complies with the amended rule.
+  - Result: pass
 
 ## Approval and execution gate
 

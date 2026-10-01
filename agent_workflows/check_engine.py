@@ -831,6 +831,25 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "stale-state-to-promote": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD 7ohskw (backlog 9rl7cm) E-04: three backlog item validation rules.
+    # Registered `error` because each is a contract violation of the backlog item format published in
+    # .aw/records/backlog/README.md. `error` is not a free choice dressed as one:
+    # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the exit code identically
+    # while stating a weaker contract (rnkqrc E-05). All three are deterministic line-shape checks over
+    # the file's own bytes with no inference (ASSURANCE_REPOSITORY, DET_DETERMINISTIC).
+    # Invariant is `""`: the catalog in spec pqsx96 has no invariant for record-metadata well-formedness
+    # (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation),
+    # and inventing one is out of scope.
+    # Rule ids avoid the substrings `graduation` and `duplicate` (tests/test_check_engine_spec_criteria.py).
+    "backlog.metadata-bullet-repeated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "backlog.gate-summary-unexpected": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "backlog.gate-descriptive-unsafe": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,

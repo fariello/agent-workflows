@@ -35,6 +35,7 @@ For an agent-executable plan (an IPD or similar with actionable steps), it must 
 verification/cross-check checklist that maps 1:1 with concrete per-item evidence; a weak or
 absent verification checklist (one that could let an agent claim completion without doing every
 step) is an UNDER-SCOPE finding.
+- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** A V-item demands the behaviour pinned plus the mechanism that pins it (re-derived at execution time); a collected test count is never the bar; a test name is a non-binding pointer only (see `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`).
 - **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
   (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
   (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
