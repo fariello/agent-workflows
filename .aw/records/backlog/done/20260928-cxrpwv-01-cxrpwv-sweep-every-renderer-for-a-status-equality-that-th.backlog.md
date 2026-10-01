@@ -1,5 +1,5 @@
 - Id: cxrpwv
-- Status: graduated
+- Status: done
 - Graduated-To: cxrpwv
 - Set: cxrpwv
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Sweep every renderer for a status equality that the statusvocab rename left dead, the class that silenced render_stream's dependency diagnostics arm
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD qvfd4l executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-cxrpwv-01-qvfd4l-sweep-the-status-token-readers-for-a-dead-comparison-the-sta.ipd.md); evidence .aw/records/plans/executed/20260930-cxrpwv-01-qvfd4l-sweep-the-status-token-readers-for-a-dead-comparison-the-sta.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: qvfd4l
 - 2026-09-28 created (aw backlog): Sweep every renderer for a status equality that the statusvocab rename left dead, the class that silenced render_stream's dependency diagnostics arm
 
