@@ -11550,6 +11550,39 @@ def _find_prompt_lane_status(rel: str, artifact_type: str) -> Optional[str]:
     return disp or None
 
 
+def _find_prompt_id6(p: Path, text: str, artifact_type: str) -> Optional[str]:
+    """Return the resolved id6 for a prompt, used only for prompts in `aw find`.
+
+    Resolves comment-first (prompts.read_metadata_id6), then guarded filename slot second
+    (selectors.filename_slot_id6). Type-gated: returns None for non-prompts.
+    """
+    if artifact_type != "prompts":
+        return None
+    from agent_workflows import prompts, selectors
+
+    comment_id = prompts.read_metadata_id6(text)
+    if comment_id:
+        return comment_id
+    return selectors.filename_slot_id6(p)
+
+
+def _find_prompt_setid(p: Path, text: str, artifact_type: str) -> Optional[str]:
+    """Return the resolved setid for a prompt, used only for prompts in `aw find`.
+
+    Resolves comment-first (prompts_index._parse_metadata_comment), then guarded filename
+    setid second (check_engine._filename_setid). Type-gated: returns None for non-prompts.
+    """
+    if artifact_type != "prompts":
+        return None
+    from agent_workflows.prompts_index import _parse_metadata_comment
+    from agent_workflows.check_engine import _filename_setid
+
+    meta = _parse_metadata_comment(text)
+    if meta.get("Set"):
+        return meta["Set"]
+    return _filename_setid(p.name)
+
+
 def _find_type_records(
     repo_root: Path,
     artifact_type: str,
@@ -11743,7 +11776,7 @@ def _find_type_records(
             rel = str(p.resolve().relative_to(repo_root.resolve()))
         except Exception:
             rel = str(p)
-        raw_id = sel_mod._read_id(text)
+        raw_id = _find_prompt_id6(p, text, artifact_type) or sel_mod._read_id(text)
         if explicit_id and raw_id != explicit_id:
             continue
         raw_status = sel_mod._read_status(text)
@@ -11755,7 +11788,9 @@ def _find_type_records(
             ):
                 continue
         if explicit_set:
-            raw_set = sel_mod._read_setid(text)
+            raw_set = _find_prompt_setid(p, text, artifact_type) or sel_mod._read_setid(
+                text
+            )
             if raw_set != explicit_set:
                 continue
         id6 = raw_id or "-"

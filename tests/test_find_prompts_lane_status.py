@@ -231,3 +231,140 @@ def test_walkthroughs_generic_type_column_and_filter_non_leakage(
             len(flines) == 0
         ), f"Expected 0 walkthroughs for status '{lane}', got: {flines}"
         assert len(fpaths) == 0
+
+
+def test_prompt_id6_rendered_for_existing_fixture_prompts(tmp_repo: Path) -> None:
+    """Assert tokens[2] (id6 cell) for every prompt that tmp_repo writes.
+
+    The 5 lanes write prpend, prexec, prreus, prsupe, and prnot-.
+    prnot- is rejected by ID6_RE (contains a hyphen), so it resolves to '-' by design.
+    The divergent prompt writes prmdiv, and the no-lane prompt writes prmnol.
+    """
+    term = Term(color=False)
+    args = _make_args(tmp_repo)
+    lines, paths, _ = cli._find_type_records(tmp_repo, "prompts", [], args, term)
+    path_to_line = dict(zip(paths, lines))
+
+    lanes = ["pending", "executed", "reusable", "superseded", "not-executed"]
+    for lane in lanes:
+        id6 = f"pr{lane[:4]}"
+        expected_rel = f".aw/records/prompts/{lane}/20260927-{id6}-01-{id6}-{lane}-prompt.prompt.md"
+        assert expected_rel in path_to_line
+        tokens = path_to_line[expected_rel].split()
+        expected_id6 = "-" if id6 == "prnot-" else id6
+        assert (
+            tokens[2] == expected_id6
+        ), f"Expected id6 '{expected_id6}' for {lane}, got '{tokens[2]}' in: {path_to_line[expected_rel]}"
+
+    # Divergent prompt
+    div_rel = ".aw/records/prompts/pending/20260927-prmdiv-01-prmdiv-divergent-status.prompt.md"
+    assert div_rel in path_to_line
+    div_tokens = path_to_line[div_rel].split()
+    assert (
+        div_tokens[2] == "prmdiv"
+    ), f"Expected id6 'prmdiv', got '{div_tokens[2]}' in: {path_to_line[div_rel]}"
+
+    # No-lane prompt
+    no_lane_rel = (
+        ".aw/records/prompts/20260927-prmnol-01-prmnol-no-lane-prompt.prompt.md"
+    )
+    assert no_lane_rel in path_to_line
+    no_lane_tokens = path_to_line[no_lane_rel].split()
+    assert (
+        no_lane_tokens[2] == "prmnol"
+    ), f"Expected id6 'prmnol', got '{no_lane_tokens[2]}' in: {path_to_line[no_lane_rel]}"
+
+
+def test_prompt_id6_resolution_paths_and_filters(tmp_path: Path) -> None:
+    """Test the 4 resolution paths not covered by tmp_repo, plus --id and --set filters:
+    (a) comment Id AND matching filename slot (pr0001)
+    (b) comment Id (pr0002) and legacy YYYYMMDD-HHMM-NN-<slug> filename with no id6 slot
+    (c) no metadata comment, id6 in filename slot only (pr0003, digit-bearing)
+    (d) comment Id (pr0004) and Set (set004) whose body quotes - Id: bogus1 and - Set: bogus2
+    """
+    repo = tmp_path / "repo"
+    prompts_dir = repo / ".aw" / "records" / "prompts" / "executed"
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+
+    # (a) comment Id AND matching filename slot
+    pa = prompts_dir / "20260927-pr0001-01-pr0001-matching-slot.prompt.md"
+    pa.write_text(
+        "<!-- aw-prompt: Kind: research | Id: pr0001 | Status: executed | Created: 2026-09-27 -->\n"
+        "# Matching Prompt\n\nPrompt with matching comment and slot.\n",
+        encoding="utf-8",
+    )
+
+    # (b) comment Id and legacy YYYYMMDD-HHMM-NN-<slug> filename (no id6 slot)
+    pb = prompts_dir / "20260810-1958-01-legacy-format.prompt.md"
+    pb.write_text(
+        "<!-- aw-prompt: Kind: research | Id: pr0002 | Status: executed | Created: 2026-08-10 -->\n"
+        "# Legacy Prompt\n\nLegacy name without id6 slot.\n",
+        encoding="utf-8",
+    )
+
+    # (c) no metadata comment, id6 exists only in filename slot (digit-bearing id6)
+    pc = prompts_dir / "20260927-pr0003-01-pr0003-slot-only.prompt.md"
+    pc.write_text(
+        "# Slot Only Prompt\n\nPrompt with no leading comment, only filename slot.\n",
+        encoding="utf-8",
+    )
+
+    # (d) comment Id and Set, body quotes - Id: and - Set: bullets above first ## heading
+    pd = prompts_dir / "20260927-pr0004-01-pr0004-quoted-bullets.prompt.md"
+    pd.write_text(
+        "<!-- aw-prompt: Kind: research | Id: pr0004 | Status: executed | Set: set004 | Created: 2026-09-27 -->\n"
+        "# Quoted Bullets Prompt\n\n"
+        "- Id: bogus1\n"
+        "- Set: bogus2\n\n"
+        "## Real Section\n\n"
+        "Body content after heading.\n",
+        encoding="utf-8",
+    )
+
+    term = Term(color=False)
+    args_all = _make_args(repo)
+    lines, paths, _ = cli._find_type_records(repo, "prompts", [], args_all, term)
+    path_to_line = dict(zip(paths, lines))
+
+    # Assert id6 cell (tokens[2]) for each case
+    rel_a = (
+        ".aw/records/prompts/executed/20260927-pr0001-01-pr0001-matching-slot.prompt.md"
+    )
+    assert rel_a in path_to_line
+    assert (
+        path_to_line[rel_a].split()[2] == "pr0001"
+    ), f"Expected id6 'pr0001', got '{path_to_line[rel_a].split()[2]}'"
+
+    rel_b = ".aw/records/prompts/executed/20260810-1958-01-legacy-format.prompt.md"
+    assert rel_b in path_to_line
+    assert (
+        path_to_line[rel_b].split()[2] == "pr0002"
+    ), f"Expected id6 'pr0002', got '{path_to_line[rel_b].split()[2]}'"
+
+    rel_c = ".aw/records/prompts/executed/20260927-pr0003-01-pr0003-slot-only.prompt.md"
+    assert rel_c in path_to_line
+    assert (
+        path_to_line[rel_c].split()[2] == "pr0003"
+    ), f"Expected id6 'pr0003', got '{path_to_line[rel_c].split()[2]}'"
+
+    rel_d = ".aw/records/prompts/executed/20260927-pr0004-01-pr0004-quoted-bullets.prompt.md"
+    assert rel_d in path_to_line
+    assert (
+        path_to_line[rel_d].split()[2] == "pr0004"
+    ), f"Expected id6 'pr0004', got '{path_to_line[rel_d].split()[2]}'"
+
+    # Filter test: --id matches
+    args_id = _make_args(repo, id="pr0001")
+    lines_id, paths_id, _ = cli._find_type_records(repo, "prompts", [], args_id, term)
+    assert len(paths_id) == 1, f"Expected 1 match for --id pr0001, got {len(paths_id)}"
+    assert paths_id[0] == rel_a
+
+    # Filter test: --set matches
+    args_set = _make_args(repo, set="set004")
+    lines_set, paths_set, _ = cli._find_type_records(
+        repo, "prompts", [], args_set, term
+    )
+    assert (
+        len(paths_set) == 1
+    ), f"Expected 1 match for --set set004, got {len(paths_set)}"
+    assert paths_set[0] == rel_d
