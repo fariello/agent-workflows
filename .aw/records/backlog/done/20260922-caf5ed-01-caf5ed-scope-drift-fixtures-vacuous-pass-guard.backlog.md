@@ -1,5 +1,5 @@
 - Id: caf5ed
-- Status: graduated
+- Status: done
 - Graduated-To: caf5ed
 - Set: caf5ed
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Six scope-drift test arrangements dirty the MAIN checkout and would pass vacuously under lane-scoped measurement; the pattern has no guard
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD qqg41f executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-caf5ed-01-qqg41f-restore-check-scope-drift-behavioral-coverage-on-a-shared-la.ipd.md); evidence .aw/records/plans/executed/20260929-caf5ed-01-qqg41f-restore-check-scope-drift-behavioral-coverage-on-a-shared-la.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: qqg41f
 - 2026-09-22 created (aw backlog): Found while executing plan wmnmei (rcptstale-01): the fixtures were repaired in place, but nothing prevents the next one from being written the old way.
 
