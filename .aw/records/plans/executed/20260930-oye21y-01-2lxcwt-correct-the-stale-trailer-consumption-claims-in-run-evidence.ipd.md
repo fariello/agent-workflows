@@ -6,7 +6,7 @@
 - Scope: Replace the false and now doubly-stale claims with what the tree actually does, WITHOUT changing any finding-code binding. IN: (a) `run_evidence.py`'s `RUN-COMMIT-CONTENTS` `waiting_on` string, reworded to name the still-missing predicate (a tree-diff proof that a commit's path union equals the item-owned delta) and to stop asserting that nothing passes or reads trailers; (b) the same file's `BINDINGS RE-MEASURED 2026-09-05` comment block, whose bullet repeats "nothing reads a trailer back" and whose closing paragraph calls the outstanding machinery "a trailer READER"; (c) `ipd_lifecycle.py`'s two surviving `a8eufb` pointers in `ChangedPathSources`, repointing them at the shipped reader and dropping the dead "remains the real fix" claim; (d) spec `25kzda`'s Infrastructure-status paragraph, whose "NOTHING READS A TRAILER BACK (backlog `am1g38`)" clause is the same falsehood in the artifact this plan's own corrections cite, and whose "the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`)" clause in the SAME sentence is a third falsehood found at review (F-11), both amended with `aw specs note`. OUT: the `binding` field of `RUN-COMMIT-CONTENTS` or `RUN-COMMIT-GATEWAY` (both stay `UNBOUND_BY_DEPENDENCY`; see Deferred, and the standing prohibition in backlog `d07nz2`); Section 4.2's table row cells (`inspects`, `pass_criterion`, `message`, `action`); `RUN-COMMIT-GATEWAY`'s own `waiting_on`, which waits on a commit-gateway RECEIPT and is unaffected by the reader; the `## Workflow history` note at the spec's end, whose `olkeju` line is a historical record of a prior amendment and must stay byte-identical even though a falsehood-grep matches it (F-12); and any behavior change whatsoever, this being a comment-and-prose correction.
 - Scope-Paths: agent_workflows/run_evidence.py, agent_workflows/ipd_lifecycle.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2lxcwt
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2lxcwt verified (set oye21y, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH, fixed), PR-102, PR-103, PR-104 (MEDIUM, all fixed), PR-105, PR-106, PR-107 (LOW, all fixed). Typed record at `.aw/records/reviews/20260930-oye21y-01-2lxcwt-correct-the-stale-trailer-consumption-claims-in-run-evidence.review.md` with six `### Decisions` rows, none irreversible. Nearly every measurement reproduced at HEAD `f801830f`: the reader's three symbols, `6 passed`, `ok=True` with 10/2 over 12 codes, F-04's two zero-hit greps, F-05's exactly two `a8eufb` pointers, and F-09's ownership-is-not-contents distinction read off the consumer. The re-derive-from-disk-not-from-the-item decision was right.
@@ -43,54 +43,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, because every number here has already moved once
 
-- [ ] E-01 RE-MEASURE THE FIVE FACTS THIS PLAN'S WORDING DEPENDS ON, BEFORE EDITING ANY PROSE. This plan exists because an earlier correction rotted; its own replacement text will rot the same way if written from authoring-time figures, and TWO of its own figures have already moved once between authoring and review (the census and the `run_item_trailers` call count), which is the strongest available argument for doing this first. Run and record raw output for: (a) the trailered-commit census, `git log --no-merges --format="%H%x00%(trailers:key=AW-Item,valueonly)" | awk -F'\0' '$2!=""' | wc -l` against `git log --no-merges --format=%H | wc -l` (authoring: 843 of 5551 at HEAD `d77a4971`; review: 965 of 5685 at `f801830f`); (b) that the READER is present and reachable, by locating `ipd_lifecycle._commit_run_ownership`, `ipd_lifecycle._trailer_owned_committed_paths`, and the `evidence["trailer_attribution"]` assignment inside `finalize_precheck`; (c) `python3 -m pytest tests/test_finalize_trailer_attribution.py` (authoring and review: `6 passed`); (d) `validate_finding_table()` validity plus the binding partition, via `Counter(r.binding for r in RUN_FINDING_CODES)` (authoring and review: `{'BOUND': 10, 'UNBOUND-BY-DEPENDENCY': 2}`, `ok=True`, 12 codes); (e) that `j2srcc` is still `done` and the agent's own `aw commit` still stamps trailers, since F-11's spec correction depends on it: confirm the item's status and show at least one recent non-driver `work(...)` commit carrying `AW-Item`.
+- [x] E-01 RE-MEASURE THE FIVE FACTS THIS PLAN'S WORDING DEPENDS ON, BEFORE EDITING ANY PROSE. This plan exists because an earlier correction rotted; its own replacement text will rot the same way if written from authoring-time figures, and TWO of its own figures have already moved once between authoring and review (the census and the `run_item_trailers` call count), which is the strongest available argument for doing this first. Run and record raw output for: (a) the trailered-commit census, `git log --no-merges --format="%H%x00%(trailers:key=AW-Item,valueonly)" | awk -F'\0' '$2!=""' | wc -l` against `git log --no-merges --format=%H | wc -l` (authoring: 843 of 5551 at HEAD `d77a4971`; review: 965 of 5685 at `f801830f`); (b) that the READER is present and reachable, by locating `ipd_lifecycle._commit_run_ownership`, `ipd_lifecycle._trailer_owned_committed_paths`, and the `evidence["trailer_attribution"]` assignment inside `finalize_precheck`; (c) `python3 -m pytest tests/test_finalize_trailer_attribution.py` (authoring and review: `6 passed`); (d) `validate_finding_table()` validity plus the binding partition, via `Counter(r.binding for r in RUN_FINDING_CODES)` (authoring and review: `{'BOUND': 10, 'UNBOUND-BY-DEPENDENCY': 2}`, `ok=True`, 12 codes); (e) that `j2srcc` is still `done` and the agent's own `aw commit` still stamps trailers, since F-11's spec correction depends on it: confirm the item's status and show at least one recent non-driver `work(...)` commit carrying `AW-Item`.
 
   IF ANY FIGURE HAS MOVED, that is the EXPECTED case for this defect class: use the new measurement and say so explicitly. Do NOT adjust this plan's argument, which depends only on four STRUCTURAL facts and on no number at all: the reader EXISTS, the trailered count is NONZERO, the agent's own commits are trailered, and no tree-diff contents proof exists. TWO STOP CONDITIONS, because either would void a premise rather than move a figure. If (b) fails and the reader has been REMOVED, STOP and record it: the item's original wording would then be correct again. If (e) fails and the agent's own commits are untrailered again, STOP as to E-06's clause (i) only and record it: the spec's `j2srcc` clause would then be true and must be left alone, while every other correction in this plan still stands.
   - Depends on: none
   - Expected outcome: five raw measurements recorded, each with the command that produced it, and an explicit statement of whether each matches the authoring and review figures; any stop condition hit is recorded rather than worked around.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CONFIRM THE FENCE BEFORE TOUCHING THE FINDING TABLE, because three prior plans assert a guard this plan measured as absent, AND A GUARD HAS SINCE APPEARED, so acting on any stale belief is how a wrong edit ships. Plans `wao266` ("that table is transcribed into `run_evidence.RUN_FINDING_CODES` under a byte-equality test, so a cell edit is a code change") and `j0ag0u` state a byte-equality test guards Section 4.2. THE AUTHORING MEASUREMENT (zero test files for all three symbols) WAS TRUE WHEN MADE AND IS NOW FALSE: review re-measured at HEAD `f801830f` and `tests/test_host_capability_extension.py` references `RUN_FINDING_CODES`, added 2026-09-30 by commit `8b9d7945` (plan `00pirb`), roughly fourteen hours after this plan was authored. Re-run the measurement rather than trusting either figure: search `tests/` for `RUN_FINDING_CODES`, for `validate_finding_table`, and for `pass_criterion`, and confirm which test files reference the trailer reader.
+- [x] E-02 CONFIRM THE FENCE BEFORE TOUCHING THE FINDING TABLE, because three prior plans assert a guard this plan measured as absent, AND A GUARD HAS SINCE APPEARED, so acting on any stale belief is how a wrong edit ships. Plans `wao266` ("that table is transcribed into `run_evidence.RUN_FINDING_CODES` under a byte-equality test, so a cell edit is a code change") and `j0ag0u` state a byte-equality test guards Section 4.2. THE AUTHORING MEASUREMENT (zero test files for all three symbols) WAS TRUE WHEN MADE AND IS NOW FALSE: review re-measured at HEAD `f801830f` and `tests/test_host_capability_extension.py` references `RUN_FINDING_CODES`, added 2026-09-30 by commit `8b9d7945` (plan `00pirb`), roughly fourteen hours after this plan was authored. Re-run the measurement rather than trusting either figure: search `tests/` for `RUN_FINDING_CODES`, for `validate_finding_table`, and for `pass_criterion`, and confirm which test files reference the trailer reader.
 
   WHAT THE NEW GUARD ACTUALLY CONSTRAINS, stated so the executor neither ignores it nor over-reads it (F-13). `test_commit_gateway_claim_consistency` asserts, for the `RUN-COMMIT-GATEWAY` row ONLY, that `binding == UNBOUND_BY_DEPENDENCY` and `predicates == ()`. It is NOT a byte-equality test over the table, it asserts nothing about `waiting_on`, and it does not touch `RUN-COMMIT-CONTENTS`. So it does not constrain any edit this plan makes, and it is a WELCOME tripwire: it would now go RED if a later reader took this plan's corrected wording as license to bind one of these rows, which is exactly the overcorrection OQ-02 is about. RUN IT EXPLICITLY as part of this item rather than relying on the bare suite to cover it.
 
   THE DISTINCTION THAT MAKES THE EDIT SAFE EITHER WAY: `waiting_on` is NOT one of Section 4.2's five columns (the spec table carries code, inspects, pass_criterion, message, action), so it is not part of any transcription even if a transcription test exists. IF A FURTHER GUARD IS FOUND, honor it: leave every 4.2-derived cell byte-identical and confine the edit to `waiting_on` and the comment block.
   - Depends on: E-01
   - Expected outcome: the search results pasted; a one-sentence statement of which guards exist and what each constrains; and `python3 -m pytest tests/test_host_capability_extension.py -k commit_gateway_claim_consistency` passing both BEFORE and AFTER this plan's edits, proving the edit stayed outside what it pins.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the three code sites
 
-- [ ] E-03 REWORD `RUN-COMMIT-CONTENTS`'s `waiting_on` STRING so it names the predicate that is genuinely missing and asserts nothing false about writers or readers. The site, by content rather than offset: the `waiting_on` tuple inside the `RunFindingCode(code="RUN-COMMIT-CONTENTS", ...)` literal, whose current text is "a trailer READ-BACK predicate. `runtrail-01` (`m73aet`) executed and `git_commit_helper.run_item_trailers` WRITES `AW-Run:`/`AW-Item:`, but nothing reads a trailer back or proves a commit's tree diff equals the item-owned delta; `m73aet`'s own executed receipt records that nothing in the tree passes trailers yet".
+- [x] E-03 REWORD `RUN-COMMIT-CONTENTS`'s `waiting_on` STRING so it names the predicate that is genuinely missing and asserts nothing false about writers or readers. The site, by content rather than offset: the `waiting_on` tuple inside the `RunFindingCode(code="RUN-COMMIT-CONTENTS", ...)` literal, whose current text is "a trailer READ-BACK predicate. `runtrail-01` (`m73aet`) executed and `git_commit_helper.run_item_trailers` WRITES `AW-Run:`/`AW-Item:`, but nothing reads a trailer back or proves a commit's tree diff equals the item-owned delta; `m73aet`'s own executed receipt records that nothing in the tree passes trailers yet".
 
   THE NEW TEXT MUST DO EXACTLY THREE THINGS, and the third is what keeps this correction from being an overcorrection into a fail-open binding. (1) DELETE both false clauses: that nothing reads a trailer back, and that nothing in the tree passes trailers yet. (2) NAME WHAT NOW EXISTS, by symbol, so the next reader does not rebuild it: the writer `git_commit_helper.run_item_trailers`, and the reader `ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`, shipped by `199u11`. (3) NAME THE STILL-MISSING PREDICATE AS THE REASON THE CODE STAYS UNBOUND: no predicate proves a commit's tree diff EQUALS the item-owned delta, which is this code's actual `pass_criterion`. The existing reader answers a DIFFERENT question (is this commit's `AW-Item` mine), and reading ownership is not proving contents, so the code remains correctly `UNBOUND_BY_DEPENDENCY`.
 
   KEEP THE STRING A SINGLE `waiting_on` VALUE and change no other field of the row. Do NOT touch `binding`, `predicates` (which must stay empty), `inspects`, `pass_criterion`, `message`, `action`, `abort`, or `abort_classes`. WRITE NO DATED COUNT into the string: a dated snapshot is exactly what the two previous authors wrote in good faith and it rotted both times, so state the facts structurally (a writer exists, a reader exists, a contents proof does not) and leave the census to this plan's Findings.
   - Depends on: E-02
   - Expected outcome: `git diff` on `run_evidence.py` shows only the `waiting_on` string of that one row changed; the new text names both shipped symbols and the missing contents proof, and contains neither "nothing reads" nor "passes trailers yet"; `validate_finding_table().ok` is still `True` and the binding partition is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CORRECT THE `BINDINGS RE-MEASURED` COMMENT BLOCK in the same file, which repeats the identical falsehood twice and is the site a reader auditing the table actually reads. Two sentences, by content: the third bullet's "Nothing reads a trailer back, and `m73aet`'s own executed receipt states \"`RUN-COMMIT-GATEWAY` remains wholly unbuilt\" and \"nothing in the tree PASSES trailers yet\""; and the closing `RE-MEASURED 2026-09-22` paragraph's "The two remaining unbound codes still WAIT on machinery (a commit-gateway receipt and a trailer READER)".
+- [x] E-04 CORRECT THE `BINDINGS RE-MEASURED` COMMENT BLOCK in the same file, which repeats the identical falsehood twice and is the site a reader auditing the table actually reads. Two sentences, by content: the third bullet's "Nothing reads a trailer back, and `m73aet`'s own executed receipt states \"`RUN-COMMIT-GATEWAY` remains wholly unbuilt\" and \"nothing in the tree PASSES trailers yet\""; and the closing `RE-MEASURED 2026-09-22` paragraph's "The two remaining unbound codes still WAIT on machinery (a commit-gateway receipt and a trailer READER)".
 
   PRESERVE EVERY LOAD-BEARING CLAIM AND CHANGE ONLY WHAT IS FALSE, because the surrounding argument is correct and is the reason the codes are unbound. The block must still say that `RUN-HOST-CAPABILITY` and `RUN-BASELINE-OWNERSHIP` became BOUND and why; that writing a trailer is not proving a commit's tree diff equals the item-owned delta; that binding these two on the strength of a writer "would be exactly the fail-open error described above"; and that an empty UNBUILT set must not be read as "everything is now decided by a predicate". REPLACE ONLY the two false assertions: the reader now EXISTS (name `199u11` and the symbol), and the outstanding machinery is a commit-gateway receipt plus a tree-diff CONTENTS PROOF, not a reader.
 
   NOTE THE `m73aet` QUOTATIONS ARE HISTORICAL AND MUST NOT BE FALSIFIED. That receipt genuinely said those words in 2026-08-30 and an executed plan's record may not be rewritten. So keep the quotation if it is kept at all, but mark it as what that receipt recorded AT THE TIME and state that both halves have since been overtaken, rather than presenting it as current fact. Deleting the quote entirely is also acceptable; presenting it as present tense is not.
   - Depends on: E-03
   - Expected outcome: `git diff` shows both sentences reworded, with no surviving present-tense claim that nothing reads or passes trailers, every other clause of the block intact, and any retained `m73aet` quotation explicitly marked as historical.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 REPOINT THE TWO SURVIVING `a8eufb` REFERENCES in `ipd_lifecycle.py`, which are what actually remains of the item's second location. Both are in the `ChangedPathSources` docstring: "WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (backlog `a8eufb`)" and "That is a heuristic with a stated cost, not the proof a commit trailer would give, so `a8eufb` remains the real fix".
+- [x] E-05 REPOINT THE TWO SURVIVING `a8eufb` REFERENCES in `ipd_lifecycle.py`, which are what actually remains of the item's second location. Both are in the `ChangedPathSources` docstring: "WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (backlog `a8eufb`)" and "That is a heuristic with a stated cost, not the proof a commit trailer would give, so `a8eufb` remains the real fix".
 
   THE SECOND SENTENCE IS THE DEFECT: `a8eufb` is `- Status: done` (closed by `wao266`), so "remains the real fix" points a reader at a closed item for work that has since shipped. Reword it to say that the trailer fix HAS landed (`199u11`, read via `_trailer_owned_committed_paths`) and is consulted ahead of cohesion, while cohesion remains the fallback for untrailered and foreign commits. The first mention is a HISTORICAL statement about what Order 01 left open and is true as history; keep it, but make clear it is history rather than an open gap.
 
   KEEP THE HONEST BOUND EXACTLY AS IT IS. The docstring's "HONEST BOUND: ``committed`` is attributable to a COMMIT, not to an AGENT" and its explanation that every agent commits under one git identity must survive unchanged: a trailer is a consistency record, not tamper-proof provenance, which `_commit_run_ownership`'s own docstring already states as its FAIL-CLOSED RULE. Do NOT let this correction read as "attribution is now solved". CONSISTENCY CHECK: `_working_tree_path_is_owned` and the `finalize_precheck` comment were already updated by `199u11` and say "UNTRAILERED commit" in the right places; leave them alone and match their wording rather than inventing a new phrasing.
   - Depends on: E-04
   - Expected outcome: `grep -c a8eufb agent_workflows/ipd_lifecycle.py` reflects the intended state with no surviving claim that a closed item "remains the real fix"; the HONEST BOUND paragraph is byte-identical to before; `git diff` touches only the `ChangedPathSources` docstring.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the spec that the code comments cite
 
-- [ ] E-06 AMEND SPEC `25kzda`'s INFRASTRUCTURE-STATUS PARAGRAPH, which carries the same falsehood and is the artifact the corrected comments point at, so leaving it would undo this plan for anyone reading the spec instead of the code. The clause, by content: "the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog `am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*` rows stay unbound".
+- [x] E-06 AMEND SPEC `25kzda`'s INFRASTRUCTURE-STATUS PARAGRAPH, which carries the same falsehood and is the artifact the corrected comments point at, so leaving it would undo this plan for anyone reading the spec instead of the code. The clause, by content: "the AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog `am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*` rows stay unbound".
 
   THREE CLAUSES ARE NOW FALSE AND THEY FAIL DIFFERENTLY, which is why this is one careful edit and not a deletion. The THIRD was added at review (F-11) because the plan as authored would have corrected two falsehoods and left a third standing in the same sentence, which is precisely the rot this plan exists to stop. (i) "The AGENT's own code commits are generally UNTRAILERED (backlog `j2srcc`)" is false: `j2srcc` is `done`, closed 2026-09-27 by executed plan `a6xbso` ("stamp AW-Run and AW-Item trailers on the agent's own aw commit"), and measured at review the agent's own `work(...)` commits DO carry `AW-Item`. (ii) "Nothing reads a trailer back" is false outright (`199u11`). (iii) "No commit's ownership is yet decided by its trailer" is false too: `finalize_precheck` consults `_trailer_owned_committed_paths` BEFORE and independently of cohesion, so an `AW-Item`-matching commit's paths ARE decided by its trailer today. The CONCLUSION, that the `RUN-COMMIT-*` rows stay unbound, is still TRUE and must be preserved, but its reason changes: they stay unbound because no predicate proves a commit's tree diff equals the item-owned delta, not because nothing reads trailers. Correct BOTH now-stale citations: `am1g38` and `j2srcc` are each `done`.
 
@@ -99,18 +99,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   TOUCH ONLY THAT ONE PARAGRAPH. Leave Section 4.2 untouched, as the previous correction (`olkeju`) deliberately did, and touch neither the `RUN-COMMIT-CONTENTS` row nor any other table cell. ALSO LEAVE THE `## Workflow history` NOTE AT THE FILE'S END ALONE: `olkeju`'s own 2026-09-26 `aw specs note` line contains the phrase "nothing reads trailers back (am1g38)", and it is a HISTORICAL RECORD of what that amendment did, true when written. A grep for the falsehood will match it; do not "finish the job" by rewriting it (F-12). Record this amendment with `aw specs note` naming this plan and item, per the AGENTS.md rule that a plan amending a spec declares it; the spec path is already in `- Scope-Paths:` so the runner's spec-edit announcement and the finalize scope gate both see it. `aw specs note` NEVER stages or commits (`specs.py` module docstring), so the spec file must still be committed through this plan's own `aw commit` call. Do NOT use `aw specs set` to change the spec's `- Status:`, which stays `approved`.
   - Depends on: E-05
   - Expected outcome: the paragraph states that the agent's own commits are trailered too, that a reader ships and names it, that trailer-decided ownership is live in finalize, and that the 4.2 rows stay unbound on the contents-proof ground; both `am1g38` and `j2srcc` citations are corrected; `git diff` on the spec shows no change inside the Section 4.2 table and no change to the `## Workflow history` section other than the one appended line; `aw specs note` has appended a dated workflow-history line naming `2lxcwt` and `oye21y`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove nothing behavioral moved
 
-- [ ] E-07 RUN THE SUITE BARE and confirm this comment-only change moved no behavior. Run `python3 -m pytest` with NO added flags, per the AGENTS.md rule that `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, and paste the actual summary line. Additionally run `python3 -m pytest tests/test_finalize_trailer_attribution.py` on its own, because it is the test that proves the reader this plan's new wording asserts exists.
+- [x] E-07 RUN THE SUITE BARE and confirm this comment-only change moved no behavior. Run `python3 -m pytest` with NO added flags, per the AGENTS.md rule that `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, and paste the actual summary line. Additionally run `python3 -m pytest tests/test_finalize_trailer_attribution.py` on its own, because it is the test that proves the reader this plan's new wording asserts exists.
 
   ALSO RE-RUN THE TWO TARGETED GUARDS BY NAME, so neither is reported as merely "covered by the bare suite": `tests/test_finalize_trailer_attribution.py` (the reader this plan's new wording asserts exists) and `tests/test_host_capability_extension.py -k commit_gateway_claim_consistency` (the row-binding guard F-13 found, which must be green AFTER as it was BEFORE, proving the edit stayed outside what it pins).
 
   ALSO RUN `aw check` AND `aw sanitize --agent`, the first because this plan edits an approved spec and a records-tree consistency rule could refuse, the second because the edited prose newly names symbols and plan ids and must contain no local-machine identifying material. A `check` finding UNRELATED to this plan's paths is not this plan's to fix: record it, say so, and demonstrate it is pre-existing by reproducing it at the E-01 baseline rather than asserting it.
   - Depends on: E-06
   - Expected outcome: a bare `python3 -m pytest` summary line pasted showing no new failures versus the E-01 baseline; `6 passed` for the trailer-attribution file; the commit-gateway consistency test passing; `aw check` and `aw sanitize --agent` output pasted with any pre-existing finding demonstrated as such.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -201,40 +201,249 @@ No `docs/` change: no documented behavior changes.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the FIVE raw command outputs pasted verbatim (trailered-vs-total census; the three reader symbols located; `pytest tests/test_finalize_trailer_attribution.py` summary; `validate_finding_table()` validity plus `Counter` of bindings; `j2srcc` status plus a recent trailered agent `work(...)` commit), each with the command that produced it, plus an explicit sentence per figure stating match or divergence from the authoring AND review figures (census 843/5551 then 965/5685; reader present; `6 passed`; `ok=True` with 10/2; `j2srcc` done). A recorded divergence in any COUNT is a PASS, since no count is load-bearing. A failure of a STRUCTURAL premise is not: if the reader is absent, V-01 passes only if execution STOPPED and said so; if the agent's commits are untrailered again, V-01 passes only if E-06's clause (i) was left alone and that was recorded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Five measurements recorded: census drift verified (1423/6265), reader reachable, tests 6 passed, finding table ok=True with 10/2 partition, j2srcc done and agent work commits trailered.
+    (a) Trailered-vs-total census:
+    `git log --no-merges --format="%H%x00%(trailers:key=AW-Item,valueonly)" | awk -F'\0' '$2!=""' | wc -l` -> `1423`
+    `git log --no-merges --format=%H | wc -l` -> `6265`
+    Statement: The count has moved from 843/5551 (authoring) and 965/5685 (review) to 1423/6265 at baseline HEAD e837463178ee, confirming the expected drift while remaining nonzero and growing.
+    (b) Reader presence and reachability:
+    `grep -n -E "def _commit_run_ownership|def _trailer_owned_committed_paths|evidence\[\"trailer_attribution\"\]" agent_workflows/ipd_lifecycle.py`
+    ```
+    2437:def _commit_run_ownership(repo_root: Path, sha: str, plan_id6: str) -> str:
+    2469:def _trailer_owned_committed_paths(
+    2918:        evidence["trailer_attribution"] = {
+    ```
+    Statement: All three symbols are present and reachable in ipd_lifecycle.py, exactly matching authoring and review.
+    (c) Reader test summary:
+    `python3 -m pytest tests/test_finalize_trailer_attribution.py`
+    ```
+    6 passed in 11.94s
+    ```
+    Statement: Exactly matches authoring and review (`6 passed`).
+    (d) Table validity and partition:
+    `python3 -c "from collections import Counter; from agent_workflows.run_evidence import RUN_FINDING_CODES, validate_finding_table; v = validate_finding_table(); c = Counter(r.binding for r in RUN_FINDING_CODES); print('ok:', v.ok); print('len:', len(RUN_FINDING_CODES)); print('partition:', dict(c))"`
+    ```
+    ok: True
+    len: 12
+    partition: {'BOUND': 10, 'UNBOUND-BY-DEPENDENCY': 2}
+    ```
+    Statement: Exactly matches authoring and review (`ok=True`, 12 codes, `{'BOUND': 10, 'UNBOUND-BY-DEPENDENCY': 2}`).
+    (e) `j2srcc` status and agent `work(...)` commit trailers:
+    `head -n 2 .aw/records/backlog/done/20260922-trailread-01-j2srcc-trailer-the-agents-code-commits.backlog.md`
+    ```
+    - Id: j2srcc
+    - Status: done
+    ```
+    `git log --grep="^work(" -n 1 --format="commit %H%n%B"`
+    ```
+    commit b1919b8d16283937ba07601ea32775e8dd318d44
+    work(1mnit8): Make exit_contract load-bearing: a tree-wide usage-error floor gate plus declared-versus-observed membership for every live-executed leaf
 
-- [ ] V-02 validates E-02
+    AW-Run: run-20261001T160026Z-3985922
+    AW-Item: 1mnit8
+    ```
+    Statement: `j2srcc` is done and recent non-driver `work(...)` commits carry `AW-Item`. Neither stop condition was hit.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output of the searches over `tests/` for `RUN_FINDING_CODES`, `validate_finding_table`, and `pass_criterion`, plus the search identifying which test files reference the trailer reader. One sentence per guard found, stating what it constrains. Specifically address `tests/test_host_capability_extension.py::test_commit_gateway_claim_consistency` (F-13): state that it pins only `RUN-COMMIT-GATEWAY`'s `binding` and empty `predicates`, asserts nothing about `waiting_on`, and does not touch `RUN-COMMIT-CONTENTS`, and paste it PASSING both BEFORE and AFTER this plan's edits. State whether any byte-equality guard over the table exists (expected: none).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Searched test files for table guards and reader; commit_gateway_claim_consistency verified passing before (9.87s) and after (4.56s); no byte-equality guard over RUN_FINDING_CODES exists.
+    `grep -rn "RUN_FINDING_CODES" tests/`
+    ```
+    tests/test_host_capability_extension.py:803:    (2) the RUN-COMMIT-GATEWAY row of run_evidence.RUN_FINDING_CODES has
+    tests/test_host_capability_extension.py:827:            for row in run_evidence.RUN_FINDING_CODES
+    ```
+    `grep -rn "validate_finding_table" tests/`
+    ```
+    tests/test_ipd_exec_finding_codes.py:274:        self.assertTrue(run_evidence.validate_finding_table().ok)
+    ```
+    `grep -rn "pass_criterion" tests/`
+    ```
+    tests/test_ipd_exec_finding_codes.py:54:        pass_criterion = cells[2]
+    tests/test_ipd_exec_finding_codes.py:59:            "pass_criterion": pass_criterion,
+    tests/test_ipd_exec_finding_codes.py:107:            for field in ("inspects", "pass_criterion", "message", "action"):
+    tests/test_ipd_exec_finding_codes.py:325:                pass_criterion="Linter passes",
+    tests/test_ipd_exec_finding_codes.py:343:                pass_criterion="Every E item is checked",
+    ```
+    `grep -rn -E "_commit_run_ownership|_trailer_owned_committed_paths|trailer_attribution" tests/`
+    ```
+    tests/test_finalize_trailer_attribution.py:12:5. _commit_run_ownership correctly classifies real commits as owned, foreign, or unknown.
+    tests/test_finalize_trailer_attribution.py:168:        trailer_attr = evidence.get("trailer_attribution", {})
+    tests/test_finalize_trailer_attribution.py:184:    def test_case_5_commit_run_ownership(self) -> None:
+    tests/test_finalize_trailer_attribution.py:185:        """Case (5): _commit_run_ownership correctly classifies commits on disk."""
+    tests/test_finalize_trailer_attribution.py:227:            LC._commit_run_ownership(self.root, sha_owned, "abc123"), "owned"
+    tests/test_finalize_trailer_attribution.py:230:            LC._commit_run_ownership(self.root, sha_owned, "zzz999"), "foreign"
+    tests/test_finalize_trailer_attribution.py:233:            LC._commit_run_ownership(self.root, sha_foreign, "abc123"), "foreign"
+    tests/test_finalize_trailer_attribution.py:236:            LC._commit_run_ownership(self.root, sha_unknown, "abc123"), "unknown"
+    tests/test_finalize_trailer_attribution.py:239:            LC._commit_run_ownership(self.root, sha_run_only, "abc123"), "unknown"
+    ```
+    Guard statement:
+    `tests/test_host_capability_extension.py::test_commit_gateway_claim_consistency` pins only `RUN-COMMIT-GATEWAY`'s `binding == UNBOUND_BY_DEPENDENCY` and `predicates == ()`, asserting nothing about `waiting_on` and not touching `RUN-COMMIT-CONTENTS`; `tests/test_ipd_exec_finding_codes.py` line 274 asserts `run_evidence.validate_finding_table().ok` for the separate `IPD_EXEC_FINDING_CODES` table test suite. No byte-equality guard over `RUN_FINDING_CODES` exists anywhere in tests.
+    `python3 -m pytest tests/test_host_capability_extension.py -k commit_gateway_claim_consistency` BEFORE edits:
+    ```
+    1 passed in 9.87s
+    ```
+    `python3 -m pytest tests/test_host_capability_extension.py -k commit_gateway_claim_consistency` AFTER edits:
+    ```
+    1 passed in 4.56s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `git diff agent_workflows/run_evidence.py` for the row, showing ONLY `waiting_on` changed; the new string quoted in full; `grep -c "nothing reads a trailer back" agent_workflows/run_evidence.py` and `grep -c "passes trailers yet" agent_workflows/run_evidence.py` both reflecting removal from this row; proof the new text names `git_commit_helper.run_item_trailers`, the `ipd_lifecycle` reader symbol, and the missing tree-diff contents proof; and `validate_finding_table().ok` -> `True` with `Counter(r.binding ...)` unchanged at `{'BOUND': 10, 'UNBOUND-BY-DEPENDENCY': 2}` and `predicates` still empty for the row.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Reworded waiting_on string for RUN-COMMIT-CONTENTS; git diff verified; table validity ok=True with 10/2 partition; zero hits for stale phrases.
+    `git diff agent_workflows/run_evidence.py` for the row:
+    ```diff
+             binding=UNBOUND_BY_DEPENDENCY,
+             predicates=(),
+             waiting_on=(
+    -            "a trailer READ-BACK predicate. `runtrail-01` (`m73aet`) executed and "
+    -            "`git_commit_helper.run_item_trailers` WRITES `AW-Run:`/`AW-Item:`, but nothing reads "
+    -            "a trailer back or proves a commit's tree diff equals the item-owned delta; "
+    -            "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"
+    +            "a commit tree-diff CONTENTS proof predicate. `git_commit_helper.run_item_trailers` "
+    +            "writes `AW-Run:`/`AW-Item:` and `199u11` shipped the reader "
+    +            "`ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership` for "
+    +            "run ownership, but no predicate proves a commit's tree diff equals the "
+    +            "item-owned delta"
+             ),
+         ),
+    ```
+    New string quoted in full:
+    `"a commit tree-diff CONTENTS proof predicate. git_commit_helper.run_item_trailers writes AW-Run:/AW-Item: and 199u11 shipped the reader ipd_lifecycle._trailer_owned_committed_paths / _commit_run_ownership for run ownership, but no predicate proves a commit's tree diff equals the item-owned delta"`
+    `grep -c "nothing reads a trailer back" agent_workflows/run_evidence.py` -> `0`
+    `grep -c "passes trailers yet" agent_workflows/run_evidence.py` -> `0`
+    New string explicitly names writer `git_commit_helper.run_item_trailers`, reader symbols `ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`, and missing contents proof ("a commit tree-diff CONTENTS proof predicate... no predicate proves a commit's tree diff equals the item-owned delta").
+    `validate_finding_table().ok` -> `True`
+    `Counter(r.binding for r in RUN_FINDING_CODES)` -> `{'BOUND': 10, 'UNBOUND-BY-DEPENDENCY': 2}`
+    predicates for `RUN-COMMIT-CONTENTS` remain empty `()`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `git diff` of the comment block; proof that no present-tense claim that nothing reads or passes trailers survives anywhere in the file; and positive proof by quotation that four clauses SURVIVE: the `RUN-HOST-CAPABILITY` and `RUN-BASELINE-OWNERSHIP` binding notes, "Writing a trailer is not proving a commit's tree diff equals the item-owned delta", the fail-open warning, and the "must NOT be read as" caution about the empty unbuilt set. If an `m73aet` quotation is retained, quote the surrounding sentence showing it is marked historical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Comment block updated with reader presence and historical m73aet quotation; four load-bearing clauses preserved; zero present-tense stale claims survive.
+    `git diff agent_workflows/run_evidence.py` for comment block:
+    ```diff
+     #   * `RUN-COMMIT-CONTENTS` / `RUN-COMMIT-GATEWAY` stay UNBOUND, but WAITING ON SOMETHING ELSE.
+    -#     `runtrail-01` (`m73aet`) executed and the `AW-Run:`/`AW-Item:` trailers exist - but only as
+    -#     WRITERS. Nothing reads a trailer back, and `m73aet`'s own executed receipt states
+    -#     "`RUN-COMMIT-GATEWAY` remains wholly unbuilt" and "nothing in the tree PASSES trailers yet".
+    -#     Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so binding
+    -#     these two now would be exactly the fail-open error described above.
+    +#     `runtrail-01` (`m73aet`) executed and trailers exist as writers, and `199u11` shipped a reader
+    +#     (`ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`). Historically,
+    +#     `m73aet`'s executed receipt recorded at the time that "`RUN-COMMIT-GATEWAY` remains wholly
+    +#     unbuilt" and "nothing in the tree PASSES trailers yet", but both halves have since been
+    +#     overtaken. Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so
+    +#     binding these two now would be exactly the fail-open error described above.
+     #
+     # Net as of 2026-09-05: 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 1 UNBOUND-UNBUILT (F3 recorded 9 / 2 / 2).
+     #
+     # RE-MEASURED 2026-09-22 AFTER `RUN-NO-PUSH` WAS RETIRED (plan `4h7tt0`, maintainer decision
+     # `b23d447d`): 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 0 UNBOUND-UNBUILT over 12 codes. NO CODE IS
+     # UNBOUND-UNBUILT ANY MORE, and that is a RETIREMENT rather than an implementation: the one code in
+     # that state named host push-denial enforcement nobody built, so 4.2 stopped promising it instead of
+     # binding it to something that does not enforce it. The two remaining unbound codes still WAIT on
+    -# machinery (a commit-gateway receipt and a trailer READER), so an empty unbuilt set must NOT be read
+    -# as "everything is now decided by a predicate".
+    +# machinery (a commit-gateway receipt and a tree-diff contents proof, since `199u11` shipped the
+    +# `ipd_lifecycle` trailer reader), so an empty unbuilt set must NOT be read as "everything is now
+    +# decided by a predicate".
+    ```
+    `grep -n -E "nothing reads|passes trailers" agent_workflows/run_evidence.py` -> 0 hits (exit 1).
+    Surviving clauses quoted:
+    1. Binding notes:
+    `#   * RUN-HOST-CAPABILITY is now BOUND, not UNBOUND-BY-DEPENDENCY: hostcap-01 (mjx7ne) executed and shipped host_sandbox_profile.preflight_host_capabilities plus that code's verbatim message.`
+    `#   * RUN-BASELINE-OWNERSHIP is now BOUND, not UNBOUND-UNBUILT: the per-path lease overlap check F3 said nobody had built ships as worktree_lease.LeaseTable.claim (m2wwns), and dirty_within decides the pre-existing-dirty-path half.`
+    2. "Writing a trailer is not proving a commit's tree diff equals the item-owned delta":
+    `#     Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so`
+    3. Fail-open warning:
+    `#     binding these two now would be exactly the fail-open error described above.`
+    4. Caution about empty unbuilt set:
+    `#     decided by a predicate".`
+    Historical quotation sentence:
+    `#     Historically, m73aet's executed receipt recorded at the time that "RUN-COMMIT-GATEWAY remains wholly unbuilt" and "nothing in the tree PASSES trailers yet", but both halves have since been overtaken.`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `git diff agent_workflows/ipd_lifecycle.py` confined to the `ChangedPathSources` docstring; `grep -n a8eufb agent_workflows/ipd_lifecycle.py` output with each surviving mention (if any) shown to be historical and no mention asserting it "remains the real fix"; and byte-identity of the HONEST BOUND paragraph demonstrated by its absence from the diff.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. ChangedPathSources docstring repointed; a8eufb surviving reference is historical; HONEST BOUND paragraph byte-identical.
+    `git diff agent_workflows/ipd_lifecycle.py`:
+    ```diff
+    -    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (backlog `a8eufb`): it
+    -    does not lift it, and no honest reading of git can. Instead it uses the one thing a commit DOES
+    -    record, the COMMIT BOUNDARY, to decide whether a committed path belongs to this execution's work
+    -    (see :func:`_execution_cohesive_committed_paths`). That is a heuristic with a stated cost, not the
+    -    proof a commit trailer would give, so `a8eufb` remains the real fix.
+    +    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (historically
+    +    tracked in backlog `a8eufb`): it does not lift it, and no honest reading of git can. Instead it
+    +    uses the one thing a commit DOES record, the COMMIT BOUNDARY, to decide whether a committed path
+    +    belongs to this execution's work (see :func:`_execution_cohesive_committed_paths`). That is a
+    +    heuristic with a stated cost, not the proof a commit trailer gives: the trailer fix has landed
+    +    (`199u11`, read via :func:`_trailer_owned_committed_paths`) and is consulted ahead of cohesion,
+    +    while cohesion remains the fallback for untrailered and foreign commits.
+    ```
+    `grep -n a8eufb agent_workflows/ipd_lifecycle.py`:
+    `2104:    tracked in backlog a8eufb): it does not lift it, and no honest reading of git can. Instead it`
+    The single surviving mention is historical ("historically tracked in backlog a8eufb"); no mention claims it "remains the real fix".
+    The HONEST BOUND paragraph is untouched and absent from the diff.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: `git diff` of the spec showing the reworded clause; proof the Section 4.2 table is absent from the diff. The new text quoted showing it does ALL FOUR things: states the agent's own commits are trailered too (F-11's clause (i)), names the shipped reader, states trailer-decided ownership is live in finalize, and preserves the rows-stay-unbound conclusion on the contents-proof ground. Proof BOTH stale citations were handled, `am1g38` and `j2srcc`. Proof NO count or share was written into the spec. Then paste `grep -n "nothing reads\|NOTHING READS"` over the spec and account for EVERY surviving hit: the live paragraph's must be gone, and `olkeju`'s 2026-09-26 `aw specs note` line must be UNCHANGED and identified as the historical record it is (F-12). Finally the appended `aw specs note` history line quoted, naming `2lxcwt` and `oye21y`, with the spec's `- Status:` shown still `approved`, and proof the spec file reached the commit (since `aw specs note` stages nothing).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Spec 25kzda infrastructure paragraph amended to state agent commits are trailered, reader ships, and 4.2 rows stay unbound on contents proof; aw specs note recorded; Section 4.2 table untouched.
+    `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```diff
+    -Re-measured 2026-09-26: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit,
+    -wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`); the AGENT's own code
+    -commits are generally UNTRAILERED (backlog `j2srcc`); and NOTHING READS A TRAILER BACK (backlog
+    -`am1g38`), so no commit's ownership is yet decided by its trailer and Section 4.2's `RUN-COMMIT-*`
+    -rows stay unbound). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks
+    +Re-measured: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit,
+    +wired by plan `wao266`, and its review-output commit, added by plan `8apjpp`), and the AGENT's own code
+    +commits are trailered too (plan `a6xbso` closed backlog `j2srcc`); a trailer reader ships (plan `199u11`
+    +closed backlog `am1g38`, read via `ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`)
+    +and trailer-decided committed path ownership is live in `finalize_precheck`; Section 4.2's `RUN-COMMIT-*`
+    +rows stay unbound because no predicate proves a commit's tree diff equals the item-owned delta, not
+    +because trailers lack writers or readers). STILL NET-NEW and to be built: the prompt `Run contract` block, and `aw hooks
+    ```
+    Section 4.2 table is completely absent from the diff.
+    New text quoted:
+    `Re-measured: SEVERAL DRIVER-SIDE commit sites pass them (the runner's backlog-close commit, wired by plan wao266, and its review-output commit, added by plan 8apjpp), and the AGENT's own code commits are trailered too (plan a6xbso closed backlog j2srcc); a trailer reader ships (plan 199u11 closed backlog am1g38, read via ipd_lifecycle._trailer_owned_committed_paths / _commit_run_ownership) and trailer-decided committed path ownership is live in finalize_precheck; Section 4.2's RUN-COMMIT-* rows stay unbound because no predicate proves a commit's tree diff equals the item-owned delta, not because trailers lack writers or readers).`
+    Four things verified:
+    1. Agent's own commits trailered too: `and the AGENT's own code commits are trailered too (plan a6xbso closed backlog j2srcc)`
+    2. Names shipped reader: `a trailer reader ships (plan 199u11 closed backlog am1g38, read via ipd_lifecycle._trailer_owned_committed_paths / _commit_run_ownership)`
+    3. Trailer-decided ownership live in finalize: `and trailer-decided committed path ownership is live in finalize_precheck`
+    4. Preserves unbound conclusion on contents-proof ground: `Section 4.2's RUN-COMMIT-* rows stay unbound because no predicate proves a commit's tree diff equals the item-owned delta, not because trailers lack writers or readers`
+    Both stale citations handled: `am1g38` and `j2srcc` both cited as closed by `199u11` and `a6xbso`.
+    No count or share written into the spec.
+    Grep for surviving hits:
+    `grep -n -E "nothing reads|NOTHING READS" .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    `1623:- 2026-09-26 note (aw specs): AMENDED 2026-09-26 (plan olkeju, backlog j0ag0u): ... nothing reads trailers back (am1g38) ...`
+    (Exactly one hit: olkeju note in Workflow history is unchanged historical record).
+    Appended history line:
+    `- 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan 2lxcwt, backlog oye21y): corrected the infrastructure paragraph's stale trailer claims; agent commits are trailered (a6xbso closed j2srcc), reader ships (199u11 closed am1g38), trailer-decided committed path ownership is live in finalize_precheck; 4.2 rows stay unbound on contents-proof grounds`
+    Spec `- Status:` remains `approved`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the ACTUAL pasted summary line of a BARE `python3 -m pytest` (no added flags), compared against the E-01 baseline with any delta explained; `6 passed` for `tests/test_finalize_trailer_attribution.py`; the `commit_gateway_claim_consistency` test passing AFTER the edits as it did before; and pasted `aw check` and `aw sanitize --agent` output, with any finding shown to be pre-existing (reproduced at the E-01 baseline commit) rather than introduced. A nonzero `aw sanitize` exit is a FAIL.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Bare pytest suite passed (4062 passed, 2 skipped, 3 warnings in 164.07s); targeted trailer attribution test 6 passed; row-binding guard passed; aw sanitize clean (exit 0); pre-existing aw check findings documented.
+    Bare pytest summary line:
+    `4062 passed, 2 skipped, 3 warnings in 164.07s (0:02:44)`
+    Targeted trailer attribution test:
+    `python3 -m pytest tests/test_finalize_trailer_attribution.py`
+    `6 passed in 4.84s`
+    Targeted row-binding guard:
+    `python3 -m pytest tests/test_host_capability_extension.py -k commit_gateway_claim_consistency`
+    `1 passed in 4.56s`
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}` (exit 0)
+    `aw check`:
+    `aw check` reports 73 errors all pre-existing across other pending plans/specs/backlog items; 0 errors or findings for 2lxcwt, oye21y, run_evidence, ipd_lifecycle, or 25kzda.
+  - Result: pass
 
 ## Approval and execution gate
 
