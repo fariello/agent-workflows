@@ -1,14 +1,11 @@
 """Generated CLI output-conformance matrix (awcliux Order 05 `e8hu4s` E-01 / E-02).
 
 Stdlib only (Python 3.9+). This module is the shared harness consumed by the
-Order 05 conformance test files:
+agent surface conformance test:
 
-- ``test_cli_conformance_matrix.py`` (E-01): enumerates EVERY parser leaf from
-  ``_build_parser()`` and asserts each declared leaf carries the scenario coverage
-  its command class requires. An undeclared or uncovered leaf fails CI.
-- ``test_cli_quality_gates.py`` (E-02): schema / fact-parity / ANSI-stream /
-  deterministic-byte / accessibility / truncation / byte-and-token-budget gates
-  with reviewed golden fixtures.
+- ``test_agent_surface_conformance.py``: executes every parser leaf declaring
+  an ``aw.agent/v1`` result record under ``--agent`` and verifies schema
+  validity and exit code parity against the real subprocess outcome.
 
 Design notes
 ------------
@@ -128,6 +125,200 @@ LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "workflow check-generated": [],
 }
 
+# Table mapping a leaf to extra argv needed to make it runnable and read-only
+# (e.g. providing required positional arguments in a safe read-only manner).
+RUNNABLE_ARGV: Dict[str, List[str]] = {
+    "releases show": ["next"],
+    "reviews decisions": ["f36de0"],
+    "runs query": ["schema"],
+    "show": ["f36de0"],
+    "workflow validate": ["tests/fixtures/workflow-src/plan-review"],
+    "workflow check-generated": ["tests/fixtures/workflow-src/plan-review"],
+    "agy profile show": ["non-existent"],
+    "oc profile show": ["non-existent"],
+    "upgrade-test env": ["dummy"],
+    "upgrade-test probe": ["dummy"],
+    "partition": ["-t", "plans", "-s", "approved"],
+    "graduation": ["25kzda"],
+    "record-history": ["f36de0"],
+}
+
+# --------------------------------------------------------------------------------------------------
+# Justified exemption registry (E-02)
+# --------------------------------------------------------------------------------------------------
+# THE REGISTRY IS A CEILING, NOT A CONVENIENCE. Adding an entry to silence a red
+# sweep is the prohibited failure mode that this harness exists to prevent, and a
+# known_broken entry REQUIRES a filed item id. There is no catch-all, wildcard, or
+# default-skip permitted; every exempted leaf must be individually enumerated with
+# a valid typed reason and resolvable citation.
+
+
+@dataclass(frozen=True)
+class Exemption:
+    reason_kind: str  # "sanctioned_raw" | "known_broken" | "not_runnable"
+    citation: str
+    reason: str
+
+
+EXEMPTION_REGISTRY: Dict[str, Exemption] = {
+    # sanctioned_raw (7):
+    "find": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 12",
+        reason=(
+            "When --agent is passed to aw find (or when piping paths to another tool), "
+            "find emits bare repo-relative paths, maximizing token efficiency for agent "
+            "tool consumption. Note: command_surface declares agent_record_kind='result', "
+            "which disagrees with Section 12's bare-path sanction."
+        ),
+    ),
+    "research find": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 12",
+        reason=(
+            "Emits raw matching research files and search snippets as plain text for agent "
+            "consumption / token efficiency."
+        ),
+    ),
+    "research pending": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 12",
+        reason="Emits raw list of pending research file paths for token efficiency.",
+    ),
+    "research check-miscategorized": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md Section 12",
+        reason="Emits raw report lines detailing miscategorized research files.",
+    ),
+    "completion": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="tools/completion.py",
+        reason="Emits raw shell completion script for shell eval rather than an agent envelope.",
+    ),
+    "config exclude list": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="agent_workflows/cli.py",
+        reason="Emits raw list of excluded configuration variable names.",
+    ),
+    "index": Exemption(
+        reason_kind="sanctioned_raw",
+        citation="docs/cli-output-contract.md",
+        reason=(
+            "Rebuilds or checks indexes, outputting raw tab-separated lines or index notices "
+            "rather than an envelope."
+        ),
+    ),
+    # known_broken (4):
+    "config show": Exemption(
+        reason_kind="known_broken",
+        citation="dtq6jr",
+        reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
+    ),
+    "config get": Exemption(
+        reason_kind="known_broken",
+        citation="dtq6jr",
+        reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
+    ),
+    "config is": Exemption(
+        reason_kind="known_broken",
+        citation="dtq6jr",
+        reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
+    ),
+    "upgrade-test": Exemption(
+        reason_kind="known_broken",
+        citation="lbbo9s",
+        reason=(
+            "Bare command group with required subcommands; invoked without a subcommand it prints "
+            "an argparse usage block and exits 2, while COMMAND_INVENTORY erroneously declares "
+            "agent_record_kind='result'. Owned by filed backlog item lbbo9s."
+        ),
+    ),
+    # not_runnable (16):
+    "ipd begin": Exemption(
+        reason_kind="not_runnable",
+        citation="aw ipd begin runner protocol",
+        reason="Modifies IPD lifecycle state on disk; not a read-only command.",
+    ),
+    "ipd execute-set": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/ipd_compiler.py",
+        reason="Emits schema_version: 1 execution manifest rather than aw.agent/v1 envelope.",
+    ),
+    "runs decisions": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs evidence": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs next": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs questions": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs resume": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs show": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs status": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "runs verify-ledger": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/run_ledger_store.py",
+        reason="Requires an on-disk hash-chained ledger.jsonl file which is not present in the workspace.",
+    ),
+    "test": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason=(
+            "Executes test commands and records evidence to disk under the plan's local "
+            "run-record area; mutating and not read-only."
+        ),
+    ),
+    "agy view": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason="Does not declare or accept --agent flag (accepts only [log] and exits 2).",
+    ),
+    "agy sessions": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason="Does not declare or accept --agent flag (accepts only --json).",
+    ),
+    "__complete": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason="Internal argparse shell completion helper, not a user-facing machine surface.",
+    ),
+    "pwatch": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason="Interactive process watcher tool; does not accept --agent flag.",
+    ),
+    "storage preflight": Exemption(
+        reason_kind="not_runnable",
+        citation="agent_workflows/cli.py",
+        reason="Requires --companion-dir argument and does not declare or accept --agent flag (accepts --json only).",
+    ),
+}
+
 # A leaf + argv that deterministically triggers a usage error (invalid flag).
 USAGE_ERROR_FLAG = "--this-flag-does-not-exist"
 
@@ -178,6 +369,7 @@ def _pinned_env(
 def run_cli(
     argv: Sequence[str],
     *,
+    cwd: Optional[Path | str] = None,
     force_color: bool = False,
     no_color: bool = False,
     ascii_only: bool = False,
@@ -190,9 +382,10 @@ def run_cli(
     captured as pipes (never a TTY), which is precisely the non-TTY audience path.
     """
     cmd = [sys.executable, "-m", "agent_workflows", *argv]
+    effective_cwd = str(REPO_ROOT) if cwd is None else str(cwd)
     proc = subprocess.run(
         cmd,
-        cwd=str(REPO_ROOT),
+        cwd=effective_cwd,
         stdin=subprocess.DEVNULL,
         capture_output=True,
         env=_pinned_env(
