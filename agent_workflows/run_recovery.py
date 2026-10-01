@@ -51,9 +51,10 @@ from agent_workflows import run_ledger_schema as schema
 # Spec 25kzda 5.5: default is 2; "`N` must be an integer from 0 through 10 inclusive."
 # This was 3, which contradicted the approved spec. Aligned to 2 on the maintainer's decision
 # (2026-08-31), taken while the value is still DORMANT: `plan_retry` / `retry_budget_remaining` have
-# ZERO production callers today (only tests), so the change costs two test edits and no behavior
-# change. Doing it now is deliberate - once the runner wires this layer up, the same edit becomes a
-# real behavior change that alters how many paid model turns every failed step buys.
+# ZERO production callers today. Commit 19313eed deleted their only test coverage on 2026-09-24,
+# which IPD e834yk restored in tests/test_run_recovery_cli.py. Doing it now is deliberate - once the
+# runner wires this layer up, the same edit becomes a real behavior change that alters how many paid
+# model turns every failed step buys.
 #
 # WHY 2 IS THE RIGHT NUMBER, not merely the spec's: a retry here is a CORRECTION attempt, not a
 # network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into

@@ -12,8 +12,7 @@ aw runs resume <run-id-or-path>
 
 `resume` reconstructs the run state and reports the steps it can resume. It refuses to resume a
 step whose side effect was interrupted (it will not silently re-apply a half-done mutation).
-Under the hood `run_recovery.resume` and `plan_retry` decide what is safe to retry within the
-retry budget.
+Under the hood, `run_recovery.resume` inspects the ledger to determine which steps are safe to resume and reports any interrupted steps that require reconciliation; it does not evaluate or spend a retry budget on this path (`plan_retry` has no production callers today).
 
 ## Recover a corrupted ledger
 
