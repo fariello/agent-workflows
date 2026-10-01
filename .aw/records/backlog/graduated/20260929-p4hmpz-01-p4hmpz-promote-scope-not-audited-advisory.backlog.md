@@ -1,11 +1,13 @@
 - Id: p4hmpz
-- Status: open
+- Status: graduated
+- Graduated-To: p4hmpz
 - Set: p4hmpz
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether the scope-not-audited advisory from plan iqtt8d should be promoted from info to a gating severity, on a measured residual rate
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: t6ledu
 - 2026-09-29 created (aw backlog): Filed as the durable carrier for OQ-01 of plan iqtt8d (Set fkmjoy).
 
 CARRIER for OQ-01 of plan `iqtt8d` (Set `fkmjoy`, from backlog `fkmjoy`).
