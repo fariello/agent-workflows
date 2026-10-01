@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import re
 import subprocess
 import sys
 import unittest.mock
+from collections.abc import Sequence
 from pathlib import Path
 
 # Repo root = the directory containing install-workflows.py (two up from this file's dir).
@@ -413,6 +415,79 @@ def ready_plan_text(
             continue
         out.append(line)
     return "\n".join(out) + "\n"
+
+
+def scope_drift_repo(
+    path: Path,
+    *,
+    scope_paths: str | Sequence[str] = "src/demo.py",
+    plan_id: str = "abc123",
+    write_receipt: bool = True,
+    plan_dir: str | Path = "pending",
+) -> tuple[Path, Path]:
+    """Build a complete scope-drift test subject repository, returning ``(repo_root, lane_path)``.
+
+    Arranges a minimal git repo via :func:`init_repo`, writes a ``.gitignore`` containing
+    both ``.aw/state/`` and ``.aw/worktrees/`` (giving the fixture repo the shape a real
+    managed repo has, and keeping main-tree dirty assertions in tests like E-06 readable and
+    clean of ungitignored runtime scratch; note that ``check_scope_drift`` excludes both prefixes
+    unconditionally in its own comprehension, so the gitignore is for fixture shape and clean
+    main porcelain rather than keeping the lane out of the delta), writes an approved plan
+    carrying ``plan_id`` and ``scope_paths`` under ``plan_dir`` (relative to the plans root),
+    commits, captures HEAD as the frozen base, writes an atomic begin receipt at that base using
+    :func:`agent_workflows.ipd_lifecycle.receipt_path_for` (when ``write_receipt=True``),
+    and allocates a dedicated lane worktree cut at that base commit via
+    :func:`agent_workflows.worktree_lease.allocate_worktree`.
+
+    WHY CHANGES BELONG IN THE LANE (PRECONDITION OF THE RULE, NOT FIXTURE SCAFFOLDING):
+    ``check_scope_drift`` measures the plan's ISOLATED LANE and reports nothing at all
+    for a plan without one. A change placed in the main checkout is INVISIBLE to it, so any
+    assertion built in the main tree passes vacuously for a reason unrelated to its subject.
+
+    Authority recorded in the rule itself: ``check_scope_drift``'s docstring section
+    "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`,
+    maintainer ruling 2026-09-10), and the accepted cost it names: hand work in a shared
+    main checkout gets no advisory at all. Callers must place modifications in the returned
+    lane path rather than the main repo root, unless explicitly testing main-tree non-advisory
+    behavior.
+    """
+    from agent_workflows import ipd_lifecycle as _life
+    from agent_workflows import worktree_lease as _lease
+
+    root = init_repo(path)
+    (root / ".gitignore").write_text(".aw/state/\n.aw/worktrees/\n", encoding="utf-8")
+
+    plan_dir_path = root / ".aw" / "records" / "plans" / plan_dir
+    plan_dir_path.mkdir(parents=True, exist_ok=True)
+    plan_file = plan_dir_path / f"20260901-demo-01-{plan_id}-demo.ipd.md"
+
+    scope_paths_str = (
+        scope_paths if isinstance(scope_paths, str) else ", ".join(scope_paths)
+    )
+    plan_content = ready_plan_text(
+        plan_id=plan_id,
+        scope_paths=scope_paths_str,
+        status="approved",
+    )
+    plan_file.write_text(plan_content, encoding="utf-8")
+
+    git(root, "add", "-A")
+    git(root, "commit", "-m", "initial", "-q")
+    base = git(root, "rev-parse", "HEAD").stdout.strip()
+
+    if write_receipt:
+        rcpt_path = _life.receipt_path_for(root, plan_id)
+        rcpt_path.parent.mkdir(parents=True, exist_ok=True)
+        rcpt_data = {
+            "schema_version": 2,
+            "kind": "ipd_begin_receipt",
+            "plan_id": plan_id,
+            "base_head": base,
+        }
+        rcpt_path.write_text(json.dumps(rcpt_data), encoding="utf-8")
+
+    handle = _lease.allocate_worktree(root, plan_id, base_commit=base)
+    return root, handle.path
 
 
 def make_fake_executable(path: Path, source: str) -> Path:
