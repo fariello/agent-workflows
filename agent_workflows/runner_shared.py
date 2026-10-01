@@ -28868,6 +28868,22 @@ def assert_child_tool_identity(
 # ---- rununify: constants and shared models -------------------------------------------------------
 
 
+#: The canonical full-auto approval message written into a plan's permanent ## Workflow history
+#: when cleared via `aw oc run --full-auto` or `aw agy run --full-auto`.
+#:
+#: Plan gjni4c deleted a former `FULL_AUTO_APPROVAL_MESSAGE` from this module because it held a
+#: third, divergent value ("Auto-approved via --full-auto (review passed all gates)") that matched
+#: neither host runner. Reintroducing the shared constant here is safe because its value is
+#: byte-identical to what both hosts already hold ("auto-approved by --full-auto: review readiness
+#: cleared (not human approval)"), and that equality is strictly enforced by the by-value assertion
+#: in test_full_auto_approval_message_reintroduced_constant_value_pin (plan 90z361 E-04). We cite E-04,
+#: not E-03, because E-03 is the host-vs-host sweep that is blind to a drifting shared value (both
+#: hosts follow this shared constant in lockstep), whereas E-04 directly pins the value itself against drift.
+FULL_AUTO_APPROVAL_MESSAGE: str = (
+    "auto-approved by --full-auto: review readiness cleared (not human approval)"
+)
+
+
 def set_plan_approved(
     repo: Path,
     id6: str,
