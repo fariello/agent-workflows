@@ -43,40 +43,45 @@ with no runner involved, and deleting it causes exactly the partial execution it
 
 ### Task group 1: the children, in dependency order
 
-- [ ] E-01 Confirm child 01 (`c6f6sj`, deduplicate the two self-commit helpers and the two From-Backlog gate-inheritance blocks) is `executed`, with its own validation evidence present. This child is FIRST because it is the only one gated on nothing: it changes no dispatch route and no gate, so it can proceed while the spec's blocking question is open.
+- [ ] E-01 CONFIRM c6f6sj REACHED executed
   - Depends on: none
+  Confirm child 01 (`c6f6sj`, deduplicate the two self-commit helpers and the two From-Backlog gate-inheritance blocks) is `executed`, with its own validation evidence present. This child is FIRST because it is the only one gated on nothing: it changes no dispatch route and no gate, so it can proceed while the spec's blocking question is open.
   - Expected outcome: `c6f6sj` is in `.aw/records/plans/executed/` with `- Status: executed`, every `V-*` carrying pasted evidence, and the duplicated self-commit helper and inheritance block each reduced to one implementation.
   - Execution state: pending
 
-- [ ] E-02 Confirm child 02 (`afdmn6`, the cross-spelling differential harness) is `executed`. This child adds NO production code: it asserts the axes that currently AGREE and records the axes that currently DISAGREE, so that each later migration's effect is attributable to a specific flipped assertion rather than lost among forty candidate axes.
+- [ ] E-02 CONFIRM afdmn6 REACHED executed
   - Depends on: E-01
+  Confirm child 02 (`afdmn6`, the cross-spelling differential harness) is `executed`. This child adds NO production code: it asserts the axes that currently AGREE and records the axes that currently DISAGREE, so that each later migration's effect is attributable to a specific flipped assertion rather than lost among forty candidate axes.
   - Expected outcome: `afdmn6` is `executed`, `tests/test_set_dispatch_parity.py` exists and passes under both the machine's local timezone and `TZ=UTC`, and its evidence includes at least two throwaway-probe demonstrations proving the harness actually detects a regression.
   - Execution state: pending
 
-- [ ] E-03 Confirm child 03 (`m1jlwm`, close the two measured positional `specs set` gate bypasses) is `executed`. This child carries `- Blocks-Release: next` and is deliberately independent of the spec's blocking question: it UNIONS two refusals across the existing fork rather than removing the fork, so a release blocker is not held hostage to a design decision.
+- [ ] E-03 CONFIRM m1jlwm REACHED executed
   - Depends on: E-02
+  Confirm child 03 (`m1jlwm`, close the two measured positional `specs set` gate bypasses) is `executed`. This child carries `- Blocks-Release: next` and is deliberately independent of the spec's blocking question: it UNIONS two refusals across the existing fork rather than removing the fork, so a release blocker is not held hostage to a design decision.
   - Expected outcome: `m1jlwm` is `executed`; positional `aw specs set implemented` without resolvable `--evidence` refuses, and positional `aw specs set deferred --gate-kind <invalid>` refuses and writes nothing; carriers `h4fiwa` and `fv4b6s` closed through the evidence route with the gate satisfied rather than cleared.
   - Execution state: pending
 
-- [ ] E-04 Confirm child 04 (`m94eht`, make `aw specs set --status` a thin adapter) is `executed`. This child is GATED: it carries `- Item-Dependencies: state:spec:approved:wy9aru`, so it cannot dispatch until the spec is `approved`, which is the transition requiring the maintainer to have answered that spec's blocking OQ-1 about the sidecar. It also amends `implemented` spec `1525-02` R2, declared in its `Scope-Paths`.
+- [ ] E-04 CONFIRM m94eht REACHED executed
   - Depends on: E-03
+  Confirm child 04 (`m94eht`, make `aw specs set --status` a thin adapter) is `executed`. This child is GATED: it carries `- Item-Dependencies: state:spec:approved:wy9aru`, so it cannot dispatch until the spec is `approved`, which is the transition requiring the maintainer to have answered that spec's blocking OQ-1 about the sidecar. It also amends `implemented` spec `1525-02` R2, declared in its `Scope-Paths`.
   - Expected outcome: `m94eht` is `executed`; `specs.run_set` holds no status validation, write, relocation or history assembly of its own; every specs AGREEMENT assertion in the harness passes unchanged; the `1525-02` R2 amendment landed in the same change as the behavior it describes.
   - Execution state: pending
 
-- [ ] E-05 Confirm child 05 (`vhiqo6`, make `aw backlog set --status` a thin adapter) is `executed`. This is the terminal child and the one that closes the class for the verb `fcnz1r` names. It has the widest blast radius in the Set: it flips three separately-owned axes at once (clock, history label, same-status dedup) and changes the git shape of every backlog status transition from a delete-plus-untracked-file to a single staged rename.
+- [ ] E-05 CONFIRM vhiqo6 REACHED executed
   - Depends on: E-04
+  Confirm child 05 (`vhiqo6`, make `aw backlog set --status` a thin adapter) is `executed`. This is the terminal child and the one that closes the class for the verb `fcnz1r` names. It has the widest blast radius in the Set: it flips three separately-owned axes at once (clock, history label, same-status dedup) and changes the git shape of every backlog status transition from a delete-plus-untracked-file to a single staged rename.
   - Expected outcome: `vhiqo6` is `executed`; `backlog.run_set` holds no transition validation, metadata render, relocation or history assembly of its own; the three retrospective parity files (`tests/test_backlog_positional_close_gate.py`, `tests/test_backlog_gate_follows_status.py`, `tests/test_status_set.py::TestGateFieldClearingOnStatusChange`) all pass; `runner_shared.close_backlog_item` works end to end; and each of the six carriers it touches has a measured COMPLETE-or-PARTIAL verdict with closes performed only for the COMPLETE ones.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `20261001-setdisp-01-c6f6sj-deduplicate-the-two-self-commit-helpers-and-the-two-from-bac.ipd.md` | Collapses `specs._offer_specs_set_commit` into `status_set._offer_self_commit` and the duplicated `From-Backlog` gate-inheritance block into one, correcting the copy that prints `aw set:` while running as `aw specs set`. Ungated: no dispatch change, no gate change. | none |
-| 02 | `20261001-setdisp-02-afdmn6-build-the-cross-spelling-differential-harness-that-makes-eve.ipd.md` | Authors `tests/test_set_dispatch_parity.py`: asserts agreement on every axis that agrees today, records the eight that disagree as expected differences naming the child that flips each, and proves the harness can fail. No production code. | `executed:c6f6sj` |
-| 03 | `20261001-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.ipd.md` | Unions the `implemented`-needs-evidence refusal and the `deferred`-gate-kind validation across the fork, so neither is bypassable. `Blocks-Release: next`. Closes `h4fiwa` and `fv4b6s`. | `executed:afdmn6` |
-| 04 | `20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.ipd.md` | Reduces `specs.run_set` to an adapter delegating to the shared engine, carrying its three own behaviors in as type-scoped parameters. Amends spec `1525-02` R2. GATED on `wy9aru` reaching `approved`. | `executed:m1jlwm`, `state:spec:approved:wy9aru` |
-| 05 | `20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.ipd.md` | Reduces `backlog.run_set` to an adapter, adopts the `git mv` relocation and the ambiguous-selector refusal, keeps `--gate-dir` as an engine parameter, and gives each touched carrier a measured verdict. | `executed:m94eht` |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `c6f6sj` | `20261001-setdisp-01-c6f6sj-deduplicate-the-two-self-commit-helpers-and-the-two-from-bac.ipd.md` | Collapses `specs._offer_specs_set_commit` into `status_set._offer_self_commit` and the duplicated `From-Backlog` gate-inheritance block into one, correcting the copy that prints `aw set:` while running as `aw specs set`. Ungated: no dispatch change, no gate change. | none |
+| 02 | `afdmn6` | `20261001-setdisp-02-afdmn6-build-the-cross-spelling-differential-harness-that-makes-eve.ipd.md` | Authors `tests/test_set_dispatch_parity.py`: asserts agreement on every axis that agrees today, records the eight that disagree as expected differences naming the child that flips each, and proves the harness can fail. No production code. | `executed:c6f6sj` |
+| 03 | `m1jlwm` | `20261001-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.ipd.md` | Unions the `implemented`-needs-evidence refusal and the `deferred`-gate-kind validation across the fork, so neither is bypassable. `Blocks-Release: next`. Closes `h4fiwa` and `fv4b6s`. | `executed:afdmn6` |
+| 04 | `m94eht` | `20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.ipd.md` | Reduces `specs.run_set` to an adapter delegating to the shared engine, carrying its three own behaviors in as type-scoped parameters. Amends spec `1525-02` R2. GATED on `wy9aru` reaching `approved`. | `executed:m1jlwm`, `state:spec:approved:wy9aru` |
+| 05 | `vhiqo6` | `20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.ipd.md` | Reduces `backlog.run_set` to an adapter, adopts the `git mv` relocation and the ambiguous-selector refusal, keeps `--gate-dir` as an engine parameter, and gives each touched carrier a measured verdict. | `executed:m94eht` |
 
 THE ORDER IS NOT A PREFERENCE AND EACH EDGE HAS A REASON. 01 first because it is the only child gated
 on nothing, so the Set makes real progress while the maintainer decision is outstanding. 02 before any
