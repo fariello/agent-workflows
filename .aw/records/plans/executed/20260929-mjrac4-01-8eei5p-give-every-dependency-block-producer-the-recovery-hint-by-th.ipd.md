@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new `HostLabels` field carrying the dependency-block recovery hint, composed per host from the existing `command` so the two hosts' texts stop being two module-level constants; (b) an OPTIONAL `recovery_hint=` parameter on `runner_shared.cascade_dependency_blocked` and on `runner_shared.dispatch_orchestrator_item`, defaulting to `None` and preserving today's output byte-for-byte when unsupplied; (c) both hosts passing their descriptor's hint at the call sites they already own; (d) both drain arms reading the hint from the descriptor instead of the host-local constant, deleting the two divergent constants; (e) behavioral tests pinning that all three producers now write the key and that the report renders one `- Recovery:` line per blocked item naming the CORRECT host. OUT: deleting the `if d in why` conditionals in `derive_item_disposition` and `render_stream` (the backlog's suggested second half, measured in F-04 to be a REGRESSION against frozen records), changing the `dependency-blocked` event's key set, rewriting any frozen `state.json`, and the `not in this run` mislabel (`8mohre`/`zhqt51`) or the doubled-token verbosity (`csjq81`).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_dependency_block_reporting.py, tests/test_hostdedup_third_host.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8eei5p
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8eei5p verified (set mjrac4, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
