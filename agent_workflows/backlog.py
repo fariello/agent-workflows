@@ -413,6 +413,32 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
     drift: List[core.Drift] = []
     item = parse_item(text)
 
+    # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using parse_item's
+    # boundary and canonicalize the legacy Kind spelling.
+    gate_summary: Optional[str] = None
+    key_counts: Dict[str, int] = {}
+    for line in text.split("\n"):
+        if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
+            break
+        m = _TOP_KEY_RE.match(line)
+        if m:
+            k = m.group(1)
+            canon_k = "Work-Kind" if k == "Kind" else k
+            key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
+        ms = A.GATE_SUMMARY_RE.match(line)
+        if ms and gate_summary is None:
+            gate_summary = ms.group("value")
+
+    for k, count in key_counts.items():
+        if count > 1:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.metadata-bullet-repeated",
+                    f"metadata bullet - {k}: appears {count} times",
+                )
+            )
+
     if not item.id or not core.is_valid_id6(item.id):
         drift.append(
             core.Drift(rel, "backlog.id-invalid", f"missing/invalid id6: {item.id!r}")
@@ -467,7 +493,8 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
         )
 
     # Gate present-and-valid IFF blocked; absent otherwise.
-    has_gate = item.gate_kind is not None or item.gate_ref is not None
+    has_gate_fields = item.gate_kind is not None or item.gate_ref is not None
+    has_gate = has_gate_fields or gate_summary is not None
     if item.status == "blocked":
         if not item.gate_kind or not item.gate_ref:
             drift.append(
@@ -495,11 +522,29 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
                     )
                 )
     elif has_gate:
+        if has_gate_fields:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.gate-unexpected",
+                    "gate fields present on a non-blocked item",
+                )
+            )
+        if gate_summary is not None:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.gate-summary-unexpected",
+                    "Gate-Summary present on a non-blocked item",
+                )
+            )
+
+    if gate_summary is not None and not A.is_safe_descriptive(gate_summary):
         drift.append(
             core.Drift(
                 rel,
-                "backlog.gate-unexpected",
-                "gate fields present on a non-blocked item",
+                "backlog.gate-descriptive-unsafe",
+                "Gate-Summary not a single bounded control-char-free line",
             )
         )
 

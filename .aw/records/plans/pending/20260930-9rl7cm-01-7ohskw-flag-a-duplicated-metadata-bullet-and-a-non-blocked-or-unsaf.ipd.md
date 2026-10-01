@@ -39,36 +39,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then add the three rules
 
-- [ ] E-01 Re-measure at execution HEAD the three zero-drift states and the clean-corpus precondition this plan's landability rests on, and STOP with the divergence recorded if any has changed. Drive `backlog.validate_item(path, text)` with its REAL signature (a PATH plus the file TEXT; an item-shaped call raises `TypeError`, which plan `ghna7l` F-13 records as a review correction) over four fixtures, each carrying a `- Set:` bullet so the unrelated `backlog.set-missing` finding does not muddy the result: (a) a duplicated `- Work-Kind:`, a duplicated `- Status:`, and two DISAGREEING `- Blocks-Release:` bullets; (b) a `- Gate-Summary:` on a `done` item; (c) a `- Gate-Summary:` whose value contains an ANSI escape on a `blocked` item; (d) the corpus census showing zero live items, specs or plans carrying any duplicated leading-bullet key and zero backlog items carrying `Gate-Summary` at all. SCAN FRONT MATTER ONLY, NOT WHOLE FILES, which review measured as the difference between a true and a false answer (F-13): a naive whole-file grep for `- Gate-Summary:` finds a THIRD specs hit that is a documentation EXAMPLE in the BODY of `implemented/...attention-registry-and-cross-tree-status.spec.md`, reading `- Gate-Summary: <optional human context; never machine state>`. Restricted to front matter there are exactly two, both on `deferred` specs with safe values. A whole-file scan would therefore report a corpus problem that does not exist and stop a landable plan. Use the same boundary the duplicate rule uses (stop at the first `## ` or the first non-blank non-bullet line). EXPECT THE TOTALS TO HAVE MOVED AND DO NOT TREAT THAT AS A DIVERGENCE: authoring measured 759 items and 1054 plans, review measured 776 and 1095, with every ZERO unchanged. Only a NONZERO duplicated-key count or a NONZERO backlog `Gate-Summary` count is a divergence. If one appears, the affected files must be named and the remediation decided BEFORE any rule is added, because a new error-severity rule that reds a committed tree is a corpus question rather than a scoped fix (this is precisely why `2yqt0a` deferred the work: review D-5).
+- [x] E-01 Re-measure at execution HEAD the three zero-drift states and the clean-corpus precondition this plan's landability rests on, and STOP with the divergence recorded if any has changed. Drive `backlog.validate_item(path, text)` with its REAL signature (a PATH plus the file TEXT; an item-shaped call raises `TypeError`, which plan `ghna7l` F-13 records as a review correction) over four fixtures, each carrying a `- Set:` bullet so the unrelated `backlog.set-missing` finding does not muddy the result: (a) a duplicated `- Work-Kind:`, a duplicated `- Status:`, and two DISAGREEING `- Blocks-Release:` bullets; (b) a `- Gate-Summary:` on a `done` item; (c) a `- Gate-Summary:` whose value contains an ANSI escape on a `blocked` item; (d) the corpus census showing zero live items, specs or plans carrying any duplicated leading-bullet key and zero backlog items carrying `Gate-Summary` at all. SCAN FRONT MATTER ONLY, NOT WHOLE FILES, which review measured as the difference between a true and a false answer (F-13): a naive whole-file grep for `- Gate-Summary:` finds a THIRD specs hit that is a documentation EXAMPLE in the BODY of `implemented/...attention-registry-and-cross-tree-status.spec.md`, reading `- Gate-Summary: <optional human context; never machine state>`. Restricted to front matter there are exactly two, both on `deferred` specs with safe values. A whole-file scan would therefore report a corpus problem that does not exist and stop a landable plan. Use the same boundary the duplicate rule uses (stop at the first `## ` or the first non-blank non-bullet line). EXPECT THE TOTALS TO HAVE MOVED AND DO NOT TREAT THAT AS A DIVERGENCE: authoring measured 759 items and 1054 plans, review measured 776 and 1095, with every ZERO unchanged. Only a NONZERO duplicated-key count or a NONZERO backlog `Gate-Summary` count is a divergence. If one appears, the affected files must be named and the remediation decided BEFORE any rule is added, because a new error-severity rule that reds a committed tree is a corpus question rather than a scoped fix (this is precisely why `2yqt0a` deferred the work: review D-5).
   - Depends on: none
   - Expected outcome: each fixture's finding list pasted, showing `[]` for (a), (b) and (c) at HEAD; the census counts pasted for (d). Either the baseline is confirmed and E-02 proceeds, or a concrete divergence is recorded and the plan stops before editing the validator.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/backlog.py`, add the DUPLICATED-BULLET rule to `backlog.validate_item`. Walk the leading bullet block using the SAME boundary `parse_item` uses and the SAME `_TOP_KEY_RE` pattern the renderer's walk already uses - do NOT re-derive either, because plan `2yqt0a` F-10 measured that an indented sub-bullet ENDS the block and records that a second boundary implementation "becomes a second silent-drop path". Count each `- Key:` occurrence; emit one finding per key seen more than once, naming the key and the count. CANONICALIZE THE LEGACY SPELLING BEFORE COUNTING, exactly as `_render_item`'s walk does with its `"Work-Kind" if k == "Kind" else k` map: an item carrying both `- Kind: chore` and `- Work-Kind: bug` is the F-7 shape the rule exists to catch, and counting the two spellings as different keys would miss it. COUNT ANY key, not only template-owned ones: the measured live producer is `releases.set_blocks_release_line` duplicating `- Blocks-Release:`, which is deliberately NOT template-owned (`_TEMPLATE_OWNED_KEYS` omits it so the renderer passes it through), so a template-owned-only rule would miss the one shape a shipped writer actually produces (F-04).
+- [x] E-02 In `agent_workflows/backlog.py`, add the DUPLICATED-BULLET rule to `backlog.validate_item`. Walk the leading bullet block using the SAME boundary `parse_item` uses and the SAME `_TOP_KEY_RE` pattern the renderer's walk already uses - do NOT re-derive either, because plan `2yqt0a` F-10 measured that an indented sub-bullet ENDS the block and records that a second boundary implementation "becomes a second silent-drop path". Count each `- Key:` occurrence; emit one finding per key seen more than once, naming the key and the count. CANONICALIZE THE LEGACY SPELLING BEFORE COUNTING, exactly as `_render_item`'s walk does with its `"Work-Kind" if k == "Kind" else k` map: an item carrying both `- Kind: chore` and `- Work-Kind: bug` is the F-7 shape the rule exists to catch, and counting the two spellings as different keys would miss it. COUNT ANY key, not only template-owned ones: the measured live producer is `releases.set_blocks_release_line` duplicating `- Blocks-Release:`, which is deliberately NOT template-owned (`_TEMPLATE_OWNED_KEYS` omits it so the renderer passes it through), so a template-owned-only rule would miss the one shape a shipped writer actually produces (F-04).
 
   NAME THE RULE WITHOUT THE SUBSTRING `duplicate`, AND THE CONSTRAINT IS MECHANICAL RATHER THAN STYLISTIC. `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate` asserts that NO key in `check_engine.RULE_REGISTRY` contains `graduation` or `duplicate`, and E-03 registers this rule there. Measured: inserting `backlog.metadata-bullet-duplicate` into the registry makes that guard's `forbidden` list non-empty, so the test fails. `check.graduated-to-repeated` is the in-tree precedent and its own registry comment states the resolution verbatim: "NAMED `-repeated`, NOT `-duplicate`, AND THE NAME IS LOAD-BEARING ... Renaming here was the cheap correct fix: weakening another plan's shipped guard to admit an unrelated rule would have traded a real invariant for a word." Follow that precedent: use `backlog.metadata-bullet-repeated`. Do NOT weaken or amend that guard.
   - Depends on: E-01
   - Expected outcome: `validate_item` reports `backlog.metadata-bullet-repeated` naming the key and the count on each of: two `- Status:` bullets; two `- Work-Kind:` bullets; one `- Kind:` plus one `- Work-Kind:`; two `- Blocks-Release:` bullets (agreeing or not); two `- Id:` bullets. A conformant item reports nothing new. The rule's key-counting walk shares `parse_item`'s boundary, verifiable by the fact that a second `- Work-Kind:` sitting BELOW an indented sub-bullet is outside the block for both and so is not counted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In the same function, add the TWO `Gate-Summary` rules. (a) `backlog.gate-summary-unexpected` when a `- Gate-Summary:` line is present and `item.status != "blocked"`. Place it in the EXISTING gate branch beside `backlog.gate-unexpected` rather than in a new block, and widen that branch's `has_gate` computation to include the summary, so the "gate present IFF blocked" invariant is stated once. Emit the DISTINCT id rather than reusing `backlog.gate-unexpected`: the existing rule's detail says "gate fields present on a non-blocked item" and is driven by `gate_kind`/`gate_ref`, and a reader told that while their file carries only a summary would hunt for lines that are not there. (b) the unsafe-VALUE rule when the value fails `attention_contract.is_safe_descriptive`, which is the SHIPPED predicate (single logical line, at most `MAX_DESCRIPTIVE_LEN` = 300 characters, no C0/C1 control characters) - IMPORT it, never re-implement or re-list its bound, exactly as this same function already does for `item.summary` at `backlog.summary-unsafe` and as `ghna7l` E-02 required for the exemption pair.
+- [x] E-03 In the same function, add the TWO `Gate-Summary` rules. (a) `backlog.gate-summary-unexpected` when a `- Gate-Summary:` line is present and `item.status != "blocked"`. Place it in the EXISTING gate branch beside `backlog.gate-unexpected` rather than in a new block, and widen that branch's `has_gate` computation to include the summary, so the "gate present IFF blocked" invariant is stated once. Emit the DISTINCT id rather than reusing `backlog.gate-unexpected`: the existing rule's detail says "gate fields present on a non-blocked item" and is driven by `gate_kind`/`gate_ref`, and a reader told that while their file carries only a summary would hunt for lines that are not there. (b) the unsafe-VALUE rule when the value fails `attention_contract.is_safe_descriptive`, which is the SHIPPED predicate (single logical line, at most `MAX_DESCRIPTIVE_LEN` = 300 characters, no C0/C1 control characters) - IMPORT it, never re-implement or re-list its bound, exactly as this same function already does for `item.summary` at `backlog.summary-unsafe` and as `ghna7l` E-02 required for the exemption pair.
   DO NOT NAME IT `backlog.gate-summary-unsafe`, WHICH IS A MEASURED MISROUTING AND NOT A STYLE PREFERENCE (F-12). `doctor.build_remediation` dispatches on SUBSTRINGS, and its `if "summary-unsafe" in rule:` arm fires BEFORE anything more specific could, so `backlog.gate-descriptive-unsafe` CONTAINS `summary-unsafe` and is captured by it. Driven at review: `build_remediation(Drift(rule="backlog.gate-summary-unsafe", ...))` returns the title "Summary is not a single bounded control-char-free line" and the fix "edit frontmatter `- Summary:` ...", pointing a human at the WRONG FIELD. This is the same class of defect OQ-02 invokes substring dispatch to AVOID, so the plan's own reasoning applies against its own name. Use `backlog.gate-descriptive-unsafe`, which collides with no existing arm (verified: it matches none of `doctor.py`'s substring tests), or add a `gate-summary` arm to `doctor.build_remediation` BEFORE the `summary-unsafe` arm and declare `agent_workflows/doctor.py` in `- Scope-Paths:`. PREFER THE RENAME: it is one token, needs no new scope path, and keeps this plan a validator-plus-registry change. Whichever is chosen, V-03 must paste `build_remediation` driven on the new id showing the remediation names `Gate-Summary` and not `- Summary:`. READ THE FIELD WITH THE SHARED `attention_contract.GATE_SUMMARY_RE`, never a fresh pattern: `_render_item`'s rule (2) already uses it, `specs.py` uses it, and `status_set.py`'s private `_GATE_SUMMARY_RE` fork is the drift this instruction exists to avoid repeating. DO NOT add `gate_summary` to `BacklogItem.__slots__`: the field has no backlog-side reader (`_backlog_record` builds its gate dict from `gate_kind`/`gate_ref` alone), plan `2yqt0a` review D-4 rejected adding it as scope creep, and this rule needs only presence plus the raw value, both available from the text the validator is already handed.
   - Depends on: E-02
   - Expected outcome: `validate_item` reports `backlog.gate-summary-unexpected` on a `done` item carrying `- Gate-Summary:` and on an `open` one; reports NOTHING for a `blocked` item carrying a safe summary; reports `backlog.gate-descriptive-unsafe` for a `blocked` item whose summary carries an ANSI escape, a 301-character value, or an embedded control character; and reports both ids for a `done` item carrying an unsafe summary. `grep` over the diff shows `A.is_safe_descriptive` and `A.GATE_SUMMARY_RE` referenced and no new length constant or summary pattern defined.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: register, prove, and record
 
-- [ ] E-04 In `agent_workflows/check_engine.RULE_REGISTRY`, register all three new ids with an explicit `RuleSpec`. REGISTRATION IS NOT BOOKKEEPING HERE, and the registry's own comments say why twice: "an unregistered id falls back to `_DEFAULT_RULESPEC`" at `error` with an EMPTY invariant. Measured: `check_engine.rule_spec("backlog.gate-unexpected")` already returns that default today, and NO `backlog.*` id is registered (the registry holds zero keys with that prefix), so this plan's three ids would silently inherit an unclassified severity. Register each at `error`, `ASSURANCE_REPOSITORY`, `DET_DETERMINISTIC`: every one is a literal line-shape test over the file's own bytes with no inference, and all three are contract violations of the item format `.aw/records/backlog/README.md` publishes. Claim invariant `""` rather than an existing `I-*` row: the catalog in spec `pqsx96` has no invariant for record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation), and inventing a catalog row is out of scope. Note in the comment that `error` is not a free choice dressed as one: `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would fail the exit code identically while stating a weaker contract, which the registry records as a failure mode of its own (`rnkqrc` E-05).
+- [x] E-04 In `agent_workflows/check_engine.RULE_REGISTRY`, register all three new ids with an explicit `RuleSpec`. REGISTRATION IS NOT BOOKKEEPING HERE, and the registry's own comments say why twice: "an unregistered id falls back to `_DEFAULT_RULESPEC`" at `error` with an EMPTY invariant. Measured: `check_engine.rule_spec("backlog.gate-unexpected")` already returns that default today, and NO `backlog.*` id is registered (the registry holds zero keys with that prefix), so this plan's three ids would silently inherit an unclassified severity. Register each at `error`, `ASSURANCE_REPOSITORY`, `DET_DETERMINISTIC`: every one is a literal line-shape test over the file's own bytes with no inference, and all three are contract violations of the item format `.aw/records/backlog/README.md` publishes. Claim invariant `""` rather than an existing `I-*` row: the catalog in spec `pqsx96` has no invariant for record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation), and inventing a catalog row is out of scope. Note in the comment that `error` is not a free choice dressed as one: `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would fail the exit code identically while stating a weaker contract, which the registry records as a failure mode of its own (`rnkqrc` E-05).
   - Depends on: E-03
   DO NOT REGISTER THE SEVENTEEN PRE-EXISTING `backlog.*` IDS IN THE SAME PASS, and note that one of them is BLOCKED rather than merely out of scope: `backlog.id-duplicate` contains the forbidden substring, so registering it as-is fails the guard named in E-02 (measured: the guard's `forbidden` list becomes `['backlog.id-duplicate']`). Closing that needs a decision about renaming a shipped rule id, which is not this plan's.
   - Expected outcome: `check_engine.rule_spec("backlog.metadata-bullet-repeated")`, `...("backlog.gate-summary-unexpected")` and `...("backlog.gate-descriptive-unsafe")` each return a spec that is the REGISTERED one. ASSERT MEMBERSHIP, NOT FIELD VALUES, because with `invariant=""` the registered spec is field-identical to `_DEFAULT_RULESPEC` and no outcome can tell them apart (F-15, driven: `finding_dict` for an unregistered `backlog.*` id and for a registered row with `invariant=""` are indistinguishable). The checkable property is `id in check_engine.RULE_REGISTRY`, which is a VALUE read off the shipped mapping and not a source-text read, so it satisfies the outcome-testing rule while actually proving registration. Do NOT write a test that greps `check_engine.py`. `tests/test_check_engine_spec_criteria.py -k graduation_nor_duplicate` still passes, which is the guard E-02's naming constraint exists to protect.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_backlog_metadata_duplicate_and_gate_summary.py` covering the three rules by OUTCOME, and update the two prose surfaces. The tests must drive real code and assert on real findings, never read production source: (a) `backlog.validate_item` over the six duplicate shapes E-02 names, asserting the rule id and that the reported key and count appear in the detail; (b) the canonicalization case (`- Kind:` plus `- Work-Kind:`) as its own test, because it is the F-7 shape and a naive key count misses it; (c) the boundary case, a second `- Work-Kind:` below an indented sub-bullet, asserting NO finding, which pins that the rule shares `parse_item`'s boundary rather than scanning the whole file; (d) both `Gate-Summary` rules over the placement and value shapes E-03 names, including the exactly-300 versus 301 character boundary so the bound is pinned on the predicate rather than on a copied constant, plus a ROUTING case asserting that `doctor.build_remediation` on the unsafe-value id returns a remediation naming `Gate-Summary` rather than `- Summary:`, which is the regression guard for F-12 and the one assertion that would have failed against the originally proposed name; (e) a REGRESSION FLOOR asserting a conformant item reports none of the three, and that `aw backlog check` over the repository's own live tree gains no new finding - run it through `cli.main(["backlog","check",...])` with `--no-commit` where the verb accepts it, following the shipped `tests/test_backlog.py` pattern; and (f) the END-TO-END producer case: drive `aw backlog set --blocks-release next` on an item hand-seeded with an empty-valued `- Blocks-Release:` line, exactly as F-04 measured, and assert the new rule now catches the two-line result the checker previously passed. Then extend `.aw/records/backlog/README.md`'s "Verbs" list, whose `aw backlog check` line today enumerates what is validated ("valid enums, status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary") and would otherwise misstate the contract, and add one `CHANGELOG.md` line under the 2.0.0 (pending) entry in the "Added:" shape its neighbours use.
+- [x] E-05 Add `tests/test_backlog_metadata_duplicate_and_gate_summary.py` covering the three rules by OUTCOME, and update the two prose surfaces. The tests must drive real code and assert on real findings, never read production source: (a) `backlog.validate_item` over the six duplicate shapes E-02 names, asserting the rule id and that the reported key and count appear in the detail; (b) the canonicalization case (`- Kind:` plus `- Work-Kind:`) as its own test, because it is the F-7 shape and a naive key count misses it; (c) the boundary case, a second `- Work-Kind:` below an indented sub-bullet, asserting NO finding, which pins that the rule shares `parse_item`'s boundary rather than scanning the whole file; (d) both `Gate-Summary` rules over the placement and value shapes E-03 names, including the exactly-300 versus 301 character boundary so the bound is pinned on the predicate rather than on a copied constant, plus a ROUTING case asserting that `doctor.build_remediation` on the unsafe-value id returns a remediation naming `Gate-Summary` rather than `- Summary:`, which is the regression guard for F-12 and the one assertion that would have failed against the originally proposed name; (e) a REGRESSION FLOOR asserting a conformant item reports none of the three, and that `aw backlog check` over the repository's own live tree gains no new finding - run it through `cli.main(["backlog","check",...])` with `--no-commit` where the verb accepts it, following the shipped `tests/test_backlog.py` pattern; and (f) the END-TO-END producer case: drive `aw backlog set --blocks-release next` on an item hand-seeded with an empty-valued `- Blocks-Release:` line, exactly as F-04 measured, and assert the new rule now catches the two-line result the checker previously passed. Then extend `.aw/records/backlog/README.md`'s "Verbs" list, whose `aw backlog check` line today enumerates what is validated ("valid enums, status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary") and would otherwise misstate the contract, and add one `CHANGELOG.md` line under the 2.0.0 (pending) entry in the "Added:" shape its neighbours use.
   - Depends on: E-04
   - Expected outcome: the new test module passes; the bare `python3 -m pytest` suite passes with its `N passed` line pasted; `aw check backlog --agent` over this repository reports no NEW finding attributable to the three rules; the README sentence names all three; CHANGELOG carries one line.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -118,9 +118,11 @@ Each row below either names an existing carrier or is a decision rather than an 
 
 - **Guarding the `--gate-summary` write path (and every other unvalidated value on the shared positional setter).**
   - Carrier: nw9dmz
+  - Carrier-Evidence: .aw/records/backlog/done/20260929-nw9dmz-01-nw9dmz-positional-set-message-unguarded.backlog.md
   - Reason: ALREADY OWNED, and deliberately not duplicated here. The value reaches a backlog item through `status_set.apply_status_change`, the shared setter serving plans, specs, releases, prompts and backlog, and item `nw9dmz` states why it must be fixed there once rather than per tree. Adding a backlog-only refusal would be the third instance of the fork-duplication class item `fcnz1r` was filed to end.
 - **Fixing `releases.set_blocks_release_line`'s self-duplication (the measured producer in F-04).**
   - Carrier: 71wqol
+  - Carrier-Evidence: .aw/records/backlog/done/20260928-71wqol-01-71wqol-releases-metadata-writers-empty-value-duplication.backlog.md
   - Reason: ALREADY OWNED, with the fix shape already identified in that item (the `[^\n]*` value pattern its `set_priority_line` sibling uses). This plan makes the RESULT visible to the checker, which is complementary: even after the writer is fixed, a hand-edit can still produce the shape, and the checker is what catches it.
 - **Unifying the two `aw backlog set` dispatch paths.**
   - Carrier: fcnz1r
@@ -183,30 +185,187 @@ Each row below either names an existing carrier or is a decision rather than an 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted finding list for each of the four E-01 fixtures, showing `[]` for the duplicate shapes, `[]` for the non-blocked `Gate-Summary`, and `[]` for the unsafe value, each call made with the real `validate_item(path, text)` signature and each fixture carrying a `- Set:` bullet. PLUS the pasted census numbers for the live tree (item count, items with any duplicated leading-bullet key, items carrying `Gate-Summary`) and for the specs and plans trees. PLUS an explicit statement that the baseline is unchanged from F-01/F-02/F-03/F-09, or a named divergence and the decision taken.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Baseline confirmed clean; four E-01 fixtures returned [] and corpus census confirmed 0 duplicate keys across 839 items, 39 specs, 1166 plans.
+    At lane baseline before validator edits, the four E-01 fixtures (each carrying `- Set: 9rl7cm`) were driven through `backlog.validate_item(Path("test.item.md"), text)`:
+    (a) Fixture with duplicated `- Work-Kind:`, duplicated `- Status:`, and disagreeing `- Blocks-Release:` bullets: `[]`
+    (b) Fixture with `- Gate-Summary:` on a `done` item: `[]`
+    (c) Fixture with `- Gate-Summary:` containing ANSI escape on a `blocked` item: `[]`
+    Live corpus census (scanned across front matter):
+    - Backlog items: 839 total, 0 duplicate leading-bullet keys, 0 Gate-Summary
+    - Specs: 39 total, 0 duplicate leading-bullet keys, 2 Gate-Summary in front matter (both on deferred specs with safe single-line values)
+    - Plans: 1166 total, 0 duplicate leading-bullet keys, 0 Gate-Summary in front matter
+    Baseline is unchanged from F-01/F-02/F-03/F-09/F-13: item count moved from 776 to 839 and plans from 1095 to 1166, with every zero intact. Clean landing precondition confirmed.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the new branch pasted from `git diff agent_workflows/backlog.py`, showing it reuses `_TOP_KEY_RE` and `parse_item`'s boundary condition and canonicalizes `Kind` to `Work-Kind` before counting. PLUS a driven probe over six fixtures printing the findings for each: doubled `- Status:`; doubled `- Work-Kind:`; `- Kind:` plus `- Work-Kind:`; doubled `- Blocks-Release:`; doubled `- Id:`; and a CONFORMANT item showing the rule does not fire. PLUS the sub-bullet boundary fixture from F-07 showing NO finding, with a sentence stating that this is deliberate. PLUS confirmation that the rule id contains neither `duplicate` nor `graduation`, and the pasted result of `python3 -m pytest tests/test_check_engine_spec_criteria.py -k graduation` showing it still passes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: New branch added in agent_workflows/backlog.py; driven probe confirmed all 6 duplicate shapes and sub-bullet boundary non-finding; graduation naming guard passed.
+    New branch from `git diff agent_workflows/backlog.py`:
+    ```python
+    # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using parse_item's
+    # boundary and canonicalize the legacy Kind spelling.
+    gate_summary: Optional[str] = None
+    key_counts: Dict[str, int] = {}
+    for line in text.split("\n"):
+        if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
+            break
+        m = _TOP_KEY_RE.match(line)
+        if m:
+            k = m.group(1)
+            canon_k = "Work-Kind" if k == "Kind" else k
+            key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
+        ms = A.GATE_SUMMARY_RE.match(line)
+        if ms and gate_summary is None:
+            gate_summary = ms.group("value")
 
-- [ ] V-03 validates E-03
+    for k, count in key_counts.items():
+        if count > 1:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.metadata-bullet-repeated",
+                    f"metadata bullet - {k}: appears {count} times",
+                )
+            )
+    ```
+    Driven probe results:
+    - doubled_status: `[('backlog.metadata-bullet-repeated', 'metadata bullet - Status: appears 2 times')]`
+    - doubled_work_kind: `[('backlog.metadata-bullet-repeated', 'metadata bullet - Work-Kind: appears 2 times')]`
+    - kind_plus_work_kind: `[('backlog.metadata-bullet-repeated', 'metadata bullet - Work-Kind: appears 2 times')]`
+    - doubled_blocks_release: `[('backlog.metadata-bullet-repeated', 'metadata bullet - Blocks-Release: appears 2 times')]`
+    - doubled_id: `[('backlog.metadata-bullet-repeated', 'metadata bullet - Id: appears 2 times')]`
+    - conformant: `[]`
+    - sub_bullet_boundary: `[]` (deliberate: shares `parse_item`'s boundary, where an indented sub-bullet ends the block).
+    Confirmation: Rule id `backlog.metadata-bullet-repeated` contains neither "duplicate" nor "graduation".
+    Pytest criteria check output:
+    ```
+    bringing up nodes...
+    .                                                                        [100%]
+    NOTE: 14 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    1 passed in 3.48s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the two new branches pasted from `git diff agent_workflows/backlog.py`, showing the widened `has_gate` expression, the use of `A.GATE_SUMMARY_RE` to read the field, and the delegation to `A.is_safe_descriptive` with NO new length constant and NO new summary regex introduced anywhere in the diff. PLUS a driven probe printing findings for: a `done` item with a safe `Gate-Summary` (expect `gate-summary-unexpected` alone); an `open` item with one (same); a `blocked` item with a safe one (expect neither new id); a `blocked` item whose value carries an ANSI escape (expect `gate-descriptive-unsafe`); a `blocked` item with a value at exactly 300 characters (expect no finding) and at 301 (expect `gate-descriptive-unsafe`); and a `done` item with an unsafe value (expect BOTH ids). PLUS THE REMEDIATION-ROUTING PROOF REQUIRED BY F-12: paste `doctor.build_remediation` driven on a `Drift` carrying the chosen unsafe-value id, showing the returned title and fix name `Gate-Summary` and NOT `- Summary:`; and paste the same call on the REJECTED name `backlog.gate-summary-unsafe` showing it returns the `- Summary:` remediation, so the reason for the rename is on the record rather than asserted. If the executor chose instead to add a `doctor.py` arm, that file must appear in `- Scope-Paths:` and the new arm must be shown ordered BEFORE the `summary-unsafe` arm.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Widened has_gate expression and descriptive-unsafe rule added using A.GATE_SUMMARY_RE and A.is_safe_descriptive; driven probe confirmed placement and bounds; doctor.build_remediation routing proof confirmed.
+    Two new branches from `git diff agent_workflows/backlog.py`:
+    ```python
+    # Gate present-and-valid IFF blocked; absent otherwise.
+    has_gate_fields = item.gate_kind is not None or item.gate_ref is not None
+    has_gate = has_gate_fields or gate_summary is not None
+    ...
+    elif has_gate:
+        if has_gate_fields:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.gate-unexpected",
+                    "gate fields present on a non-blocked item",
+                )
+            )
+        if gate_summary is not None:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.gate-summary-unexpected",
+                    "Gate-Summary present on a non-blocked item",
+                )
+            )
 
-- [ ] V-04 validates E-04
+    if gate_summary is not None and not A.is_safe_descriptive(gate_summary):
+        drift.append(
+            core.Drift(
+                rel,
+                "backlog.gate-descriptive-unsafe",
+                "Gate-Summary not a single bounded control-char-free line",
+            )
+        )
+    ```
+    No new length constant and no new summary regex pattern introduced; uses `A.GATE_SUMMARY_RE` and `A.is_safe_descriptive`.
+    Driven probe findings:
+    - done_safe_summary: `[('backlog.gate-summary-unexpected', 'Gate-Summary present on a non-blocked item')]`
+    - open_safe_summary: `[('backlog.gate-summary-unexpected', 'Gate-Summary present on a non-blocked item')]`
+    - blocked_safe_summary: `[]`
+    - blocked_ansi_summary: `[('backlog.gate-descriptive-unsafe', 'Gate-Summary not a single bounded control-char-free line')]`
+    - blocked_exact_300: `[]`
+    - blocked_exact_301: `[('backlog.gate-descriptive-unsafe', 'Gate-Summary not a single bounded control-char-free line')]`
+    - done_unsafe_summary: `[('backlog.gate-summary-unexpected', 'Gate-Summary present on a non-blocked item'), ('backlog.gate-descriptive-unsafe', 'Gate-Summary not a single bounded control-char-free line')]`
+    Remediation routing proof (F-12):
+    - Chosen id (`backlog.gate-descriptive-unsafe`):
+      title: `gate summary is not safe`
+      summary_fix: `inspect artifact frontmatter and schema conformity.`
+    - Rejected id (`backlog.gate-summary-unsafe`):
+      title: `Summary is not a single bounded control-char-free line`
+      summary_fix: `edit frontmatter '- Summary:' to be a single-line string without control characters or line breaks.`
+    Confirms `backlog.gate-descriptive-unsafe` routes away from the misleading `- Summary:` remediation arm.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the three new `RULE_REGISTRY` entries pasted from `git diff agent_workflows/check_engine.py` with their comment. PLUS a driven probe printing, for each of the three ids and for one PRE-EXISTING `backlog.*` id as a control, BOTH `id in check_engine.RULE_REGISTRY` and `check_engine.rule_spec(id)`. The MEMBERSHIP booleans are the evidence (three `True`, the control `False`); the specs are printed for context only, and the evidence must state explicitly that the printed specs are field-identical because `invariant=""` matches the default, so a reader does not mistake identical output for a failed registration (F-15). PLUS the pasted result of `python3 -m pytest tests/test_check_engine_spec_criteria.py tests/test_doctor.py` showing both the rule-id naming guard and the remediation family guard still pass. NOTE WHAT THAT SECOND GUARD DOES NOT PROVE, so a green run is not over-read: `test_remediation_family_guard` asserts command SHAPE over a fixed representative list and never that a rule id reaches its OWN arm, so it would have passed with the misrouting F-12 measured. The routing proof is V-03's, not this item's; state that here rather than letting a green `test_doctor.py` stand in for it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Registered all three rules in agent_workflows/check_engine.RULE_REGISTRY; driven probe confirmed membership in RULE_REGISTRY; test_check_engine_spec_criteria and test_doctor passed.
+    Pasted `git diff agent_workflows/check_engine.py`:
+    ```python
+    # IPD 7ohskw (backlog 9rl7cm) E-04: three backlog item validation rules.
+    # Registered `error` because each is a contract violation of the backlog item format published in
+    # .aw/records/backlog/README.md. `error` is not a free choice dressed as one:
+    # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the exit code identically
+    # while stating a weaker contract (rnkqrc E-05). All three are deterministic line-shape checks over
+    # the file's own bytes with no inference (ASSURANCE_REPOSITORY, DET_DETERMINISTIC).
+    # Invariant is `""`: the catalog in spec pqsx96 has no invariant for record-metadata well-formedness
+    # (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation),
+    # and inventing one is out of scope.
+    # Rule ids avoid the substrings `graduation` and `duplicate` (tests/test_check_engine_spec_criteria.py).
+    "backlog.metadata-bullet-repeated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "backlog.gate-summary-unexpected": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "backlog.gate-descriptive-unsafe": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    ```
+    Driven probe results:
+    - `backlog.metadata-bullet-repeated`: in_registry=True, spec=RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+    - `backlog.gate-summary-unexpected`: in_registry=True, spec=RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+    - `backlog.gate-descriptive-unsafe`: in_registry=True, spec=RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+    - `backlog.gate-unexpected` (control): in_registry=False, spec=RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+    Membership booleans (3 True, control False) are the evidence; the printed RuleSpecs are field-identical because `invariant=""` matches `_DEFAULT_RULESPEC` defaults (F-15).
+    Guards run:
+    ```
+    python3 -m pytest tests/test_check_engine_spec_criteria.py tests/test_doctor.py
+    52 passed in 5.48s
+    ```
+    Note: `test_remediation_family_guard` verifies command shape over a fixed list, not own-arm routing; the routing proof is established in V-03.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the new test module's pasted `python3 -m pytest tests/test_backlog_metadata_duplicate_and_gate_summary.py -o addopts=""` run with its per-test counts, showing a test for each shape V-02 and V-03 enumerate plus the F-04 end-to-end producer case. PLUS the DELIBERATE-BREAK demonstration for all three rules against the real repository tree: `aw check backlog --agent` before (pasted, showing the two pre-existing `check.name-nonconformant` findings), with each shape planted in turn (pasted, showing the planted rule id added), and after removal (pasted, showing the finding set back to the pre-existing one). PLUS the bare `python3 -m pytest` summary line with its `N passed` count. PLUS the amended README sentence quoted verbatim naming all three rules, and the new CHANGELOG line quoted verbatim. PLUS `git status --short` showing nothing under `.aw/state/` and `git diff --cached --name-only` matching `Scope-Paths` exactly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added tests/test_backlog_metadata_duplicate_and_gate_summary.py (8 passed); deliberate-break demo proved each shape is detected and clean state restored; bare pytest full suite passed (4207 passed); README and CHANGELOG updated.
+    New test module run:
+    ```
+    python3 -m pytest tests/test_backlog_metadata_duplicate_and_gate_summary.py -o addopts=""
+    ============================== 8 passed in 2.08s ===============================
+    ```
+    Deliberate-break demonstration (`aw check backlog --agent`):
+    - Before: exit 1, 4 findings (`check.name-nonconformant` on 3 legacy items, `check.collisions-not-checked`).
+    - Planted Shape 1 (`metadata-bullet-repeated`): exit 1, 5 findings (gains exactly `backlog.metadata-bullet-repeated`).
+    - Planted Shape 2 (`gate-summary-unexpected`): exit 1, 5 findings (gains exactly `backlog.gate-summary-unexpected`).
+    - Planted Shape 3 (`gate-descriptive-unsafe`): exit 1, 5 findings (gains exactly `backlog.gate-descriptive-unsafe`).
+    - After restore: exit 1, 4 findings (exact byte match to before state confirmed).
+    Bare pytest full suite run:
+    ```
+    4207 passed, 2 skipped, 3 warnings in 96.10s (0:01:36)
+    ```
+    Amended README sentence verbatim:
+    "`aw backlog check [--agent]` validate the tree fail-closed (valid enums, status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary, no repeated metadata bullets [backlog.metadata-bullet-repeated], Gate-Summary present only when blocked [backlog.gate-summary-unexpected], safe bounded Gate-Summary [backlog.gate-descriptive-unsafe])."
+    Amended CHANGELOG line verbatim:
+    "- Added: `backlog.validate_item` checks for duplicated metadata bullets (`backlog.metadata-bullet-repeated`), unexpected `Gate-Summary` on non-blocked items (`backlog.gate-summary-unexpected`), and unsafe descriptive `Gate-Summary` values (`backlog.gate-descriptive-unsafe`)."
+    Clean workspace verified (`git status --short` shows no `.aw/state/` files). Staged paths verified against `Scope-Paths`.
+  - Result: pass
 
 ## Approval and execution gate
 
