@@ -1,5 +1,6 @@
 - Id: 11pjkd
-- Status: open
+- Status: graduated
+- Graduated-To: sevvocab
 - Blocks-Release: next
 - Set: sevvocab
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: doctor renders leak_sanitizer's fail/warn severity vocabulary raw beside error/warning diagnostics
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 36sifo
 - 2026-09-29 created (aw backlog): Carrier for an obligation deferred by plan nwcf8j (sevtruth), which fixes the doctor/attention severity surfaces but declines to unify two severity vocabularies.
 
 `agent_workflows/leak_sanitizer.py` declares its own closed severity vocabulary (`fail` | `warn`) and translates it correctly at the `CommandResult` boundary. But `agent_workflows/doctor.py` renders that raw value into user-facing strings and into a machine payload whose sibling diagnostics use the `error`/`warning`/`info` vocabulary, so one payload carries two vocabularies for the same field.
