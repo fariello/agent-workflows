@@ -6,7 +6,7 @@
 - Scope: IN: give `backlog._reattach_history` an explicit `label` parameter defaulting to today's `"set"` so no existing caller changes behavior silently; pass the TARGET STATUS from `backlog.run_set`, tagging a genuine transition with the status and a same-status write with `same-status` so the two spellings agree on BOTH cases; pass `"done"` from `set_records.close_on_answer`; update the two tests that pin the old label (`tests/test_backlog.py::BacklogPreservationTests::test_close_on_answer_preserves_prior_history_records` and `::test_release_exempt_setter_roundtrip_and_parity`), both of which this change measurably breaks; add parity tests over BOTH spellings covering a genuine transition, a same-status write, and the preservation property; one CHANGELOG entry. OUT, each with a reason recorded under "Deferred": the ACTOR asymmetry (`(aw backlog)` versus `(aw set)`), which is a truthful attribution of which code path ran and is not a defect; the DATE-CLOCK skew between the two writers (local versus UTC), which is a separate LIVE release-blocking bug already filed three times over (`fnb8pl`, `lq2w86`, `2wae2x`) and which this plan must NORMALIZE AROUND rather than fix or depend on; the 517 EXISTING records, which are committed history and must not be rewritten; `status_set.apply_status_change`, which already writes the correct label and is not touched; the dedup asymmetry between the two spellings, which is a real separate defect this plan MEASURED and FILED as backlog `r74211` rather than fixing.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/set_records.py, tests/test_backlog.py, tests/test_history_label_parity.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: jbipfa
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jbipfa verified (set histlabel, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-007 all FIXED; findings in .aw/records/reviews/20260930-histlabel-01-jbipfa-give-the-shared-backlog-history-writer-its-transition-label.review.md
 
