@@ -102,45 +102,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the deletion is safe before deleting anything
 
-- [ ] E-01 RE-DERIVE THE CALLER CENSUS AND THE RAISE CHECK IN YOUR OWN LANE, because the entire deletion rests on fact 1 and a deletion justified by a stale measurement is how a live guard gets lost. Walk the AST of every `.py` file in the tree except `wtiso_gate.py` itself and report every import of the module and every attribute access on it; do NOT substitute a text grep, for the reason fact 1 gives. Then call each of the nine predicates and record raise or return. Then confirm fact 3 by checking on disk for each cited test file and by `git log --diff-filter=D` for the commit that removed it.
+- [x] E-01 RE-DERIVE THE CALLER CENSUS AND THE RAISE CHECK IN YOUR OWN LANE, because the entire deletion rests on fact 1 and a deletion justified by a stale measurement is how a live guard gets lost. Walk the AST of every `.py` file in the tree except `wtiso_gate.py` itself and report every import of the module and every attribute access on it; do NOT substitute a text grep, for the reason fact 1 gives. Then call each of the nine predicates and record raise or return. Then confirm fact 3 by checking on disk for each cited test file and by `git log --diff-filter=D` for the commit that removed it.
   - Depends on: none
   - Expected outcome: the pasted AST census showing the sole import is `AW_MISSING_INPUT` into `lane_containment`, the pasted nine-predicate raise/return table, and the pasted existence check plus deletion commit for both cited test files. If ANY product caller of ANY predicate exists, STOP: say so explicitly and do not proceed, because the deletion's premise has failed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: re-home the one rule that is consumed
 
-- [ ] E-02 MOVE `AW_MISSING_INPUT` INTO `lane_containment` as the single definition, and remove the reverse import. The constant's value must not change: it is the leading token of the worker-facing report form and both the prompt and the parser derive from it, so a changed spelling would break the contract spec `7ckptx` R3.1 states. Define it in `lane_containment` beside `MISSING_INPUT_TOKEN_FORM`, which is its only consumer, and delete the `from agent_workflows.wtiso_gate import ...` line. Update the comments at that site that currently explain the import direction ("`wtiso_gate` declares the code vocabulary a hook prints and a driver matches on") so they describe the new arrangement rather than a module that no longer holds it; keep the still-true point that the prompt, the emitter and the parser all derive from ONE constant, since that is the property being preserved.
+- [x] E-02 MOVE `AW_MISSING_INPUT` INTO `lane_containment` as the single definition, and remove the reverse import. The constant's value must not change: it is the leading token of the worker-facing report form and both the prompt and the parser derive from it, so a changed spelling would break the contract spec `7ckptx` R3.1 states. Define it in `lane_containment` beside `MISSING_INPUT_TOKEN_FORM`, which is its only consumer, and delete the `from agent_workflows.wtiso_gate import ...` line. Update the comments at that site that currently explain the import direction ("`wtiso_gate` declares the code vocabulary a hook prints and a driver matches on") so they describe the new arrangement rather than a module that no longer holds it; keep the still-true point that the prompt, the emitter and the parser all derive from ONE constant, since that is the property being preserved.
   - Depends on: E-01
   - Expected outcome: `lane_containment` defines the constant, imports nothing from `wtiso_gate`, and `MISSING_INPUT_TOKEN_FORM` renders the identical string as before; show the before and after values.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DELETE THE FIVE UNOWNED RAISING PREDICATES (`check_lifecycle_role`, `check_hook_bypass`, `check_protected_refs`, `classify_retention`, `check_receipt`) and the `_unimplemented` helper that exists only to build their error. THEN RESOLVE THE ERROR-CODE SURFACE BY RULE RATHER THAN BY LIST, because the authored list was wrong twice (it said "four" while naming five, and it omitted two codes entirely). The module defines EIGHT codes: `AW_GATE_SCOPE`, `AW_LIFECYCLE_ROLE`, `AW_MISSING_INPUT`, `AW_GATE_HOOK_BYPASS`, `AW_GATE_PROTECTED_REF`, `AW_PERMISSION_DEADLINE`, `AW_RETENTION_UNKNOWN`, `AW_RECEIPT_INVALID`, plus the `ERROR_CODES` tuple enumerating all eight. Measured at review: `AW_MISSING_INPUT` is the ONLY one referenced anywhere outside the module (a repo-wide grep over `*.py` for the other seven returns nothing), and E-02 re-homes it. So THE RULE IS: `AW_MISSING_INPUT` moves (E-02), and every other code goes along with `ERROR_CODES`, unless the body that names it is kept, in which case keep that code too and say which body keeps it. Do not reproduce a hand-list; re-derive from the module and report the eight-way disposition.
+- [x] E-03 DELETE THE FIVE UNOWNED RAISING PREDICATES (`check_lifecycle_role`, `check_hook_bypass`, `check_protected_refs`, `classify_retention`, `check_receipt`) and the `_unimplemented` helper that exists only to build their error. THEN RESOLVE THE ERROR-CODE SURFACE BY RULE RATHER THAN BY LIST, because the authored list was wrong twice (it said "four" while naming five, and it omitted two codes entirely). The module defines EIGHT codes: `AW_GATE_SCOPE`, `AW_LIFECYCLE_ROLE`, `AW_MISSING_INPUT`, `AW_GATE_HOOK_BYPASS`, `AW_GATE_PROTECTED_REF`, `AW_PERMISSION_DEADLINE`, `AW_RETENTION_UNKNOWN`, `AW_RECEIPT_INVALID`, plus the `ERROR_CODES` tuple enumerating all eight. Measured at review: `AW_MISSING_INPUT` is the ONLY one referenced anywhere outside the module (a repo-wide grep over `*.py` for the other seven returns nothing), and E-02 re-homes it. So THE RULE IS: `AW_MISSING_INPUT` moves (E-02), and every other code goes along with `ERROR_CODES`, unless the body that names it is kept, in which case keep that code too and say which body keeps it. Do not reproduce a hand-list; re-derive from the module and report the eight-way disposition.
   DECIDE AND RECORD the disposition of the four remaining bodies (`check_scope`, `check_permission_deadline`, `format_missing_input`, `parse_missing_input`) on this test: a body with no caller whose rule is ALREADY single-defined elsewhere is indirection, and the two `missing_input` delegations plainly are (fact 4). If deleting all four leaves the module with nothing, DELETE THE FILE and say so; if you keep any, state which surface is expected to consume it and why that is not a hypothetical need (GUIDING_PRINCIPLES P6). Do NOT preserve a stub to keep an import surface alive: fact 1 shows there is no importer left after E-02. OQ-01 is RESOLVED TO DELETE THE FILE and its reasoning is recorded there; follow it unless E-01's own measurement contradicts the premise, in which case stop and report rather than quietly taking the other branch.
   - Depends on: E-02
   - Expected outcome: the five predicates and the helper are gone; an explicit eight-way disposition of the error codes re-derived from the module rather than copied from this item, with `ERROR_CODES` resolved; a recorded decision for each of the four remaining bodies with its reason; and an explicit statement of whether `wtiso_gate.py` survives at all.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 STRIKE ALL SIX DANGLING CITATIONS to `tests/test_containment_predicates.py` and `tests/test_wtiso_adversarial.py` from whatever prose survives E-03, and add NO replacement citation. THE COUNT IS SIX AND THE SPLIT IS THREE-AND-THREE, corrected at review from the authored "three" (fact 3). THREE VANISH WITH THEIR PREDICATES under E-03: both inside `check_hook_bypass` (its docstring's "THE PREMISE IS PROVEN EVEN THOUGH THE GUARD IS ABSENT" sentence AND the citation embedded in its runtime `_unimplemented` message string, which is easy to miss because it is code rather than a docstring) and the one in `check_protected_refs`'s docstring. THREE DO NOT, and these are this item's real subject: TWO in the MODULE DOCSTRING (one asserting the test "CALLS each one to prove it does", one asserting it "asserts the zero-caller state structurally") and ONE inside `check_scope`'s own docstring. Under the delete-the-file branch all six go with the file and this item reduces to proving it; under any keep branch those three must be struck by hand. Do NOT rely on the authored claim that "most will disappear with the deleted docstrings": measured, exactly half do.
+- [x] E-04 STRIKE ALL SIX DANGLING CITATIONS to `tests/test_containment_predicates.py` and `tests/test_wtiso_adversarial.py` from whatever prose survives E-03, and add NO replacement citation. THE COUNT IS SIX AND THE SPLIT IS THREE-AND-THREE, corrected at review from the authored "three" (fact 3). THREE VANISH WITH THEIR PREDICATES under E-03: both inside `check_hook_bypass` (its docstring's "THE PREMISE IS PROVEN EVEN THOUGH THE GUARD IS ABSENT" sentence AND the citation embedded in its runtime `_unimplemented` message string, which is easy to miss because it is code rather than a docstring) and the one in `check_protected_refs`'s docstring. THREE DO NOT, and these are this item's real subject: TWO in the MODULE DOCSTRING (one asserting the test "CALLS each one to prove it does", one asserting it "asserts the zero-caller state structurally") and ONE inside `check_scope`'s own docstring. Under the delete-the-file branch all six go with the file and this item reduces to proving it; under any keep branch those three must be struck by hand. Do NOT rely on the authored claim that "most will disappear with the deleted docstrings": measured, exactly half do.
   DO NOT restore either test file, and specifically do not restore the caller-census assertion the module describes: an AST walk over production source to count callers is exactly the code-structure pin AGENTS.md and GUIDING_PRINCIPLES P16 forbid, and the maintainer has ruled such pins will not be restored (recorded on backlog `gia5i7`, citing the 2026-09-28 ruling on `pn7rw3`). Where a struck citation carried a still-true DESIGN point, keep the point and remove only the false claim that a test enforces it. The clearest instance is `check_scope`'s zero-caller rationale: the RETIRED-phase explanation is true and worth keeping; only "`tests/test_containment_predicates.py` asserts it structurally" is false.
   - Depends on: E-03
   - Expected outcome: zero references to either deleted test file anywhere in `agent_workflows/`, with the count struck reported and reconciled against E-01's measured six; no new citation to a nonexistent file or class introduced; and the search result pasted proving it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the contract match the tree
 
-- [ ] E-05 AMEND SPEC `7ckptx` so it no longer requires what this plan removed. Three sites, each re-verified at review: the constraints bullet naming `wtiso_gate.py` as "the designated home for shared containment predicates ... a fail-loud skeleton by design"; R6.2, "A predicate that is declared but not yet implemented MUST fail loudly rather than return a permissive default, and MUST name its owner"; and acceptance A16.
+- [x] E-05 AMEND SPEC `7ckptx` so it no longer requires what this plan removed. Three sites, each re-verified at review: the constraints bullet naming `wtiso_gate.py` as "the designated home for shared containment predicates ... a fail-loud skeleton by design"; R6.2, "A predicate that is declared but not yet implemented MUST fail loudly rather than return a permissive default, and MUST name its owner"; and acceptance A16.
   A16 HAS THREE CLAUSES AND THE PLAN ORIGINALLY ADDRESSED ONLY ONE, which is the gap review found and the reason this item is longer than its first form. A16 reads in full: "Each implemented shared predicate has unit tests; each unimplemented one still raises naming its owner; and a predicate implemented but not chartered for wiring has no product caller. (R6.1, R6.2, R6.3)". Clause 2 is the one the authored plan named. CLAUSE 1 ("each implemented shared predicate has unit tests") is ALSO falsified by the delete-the-file branch, because the four implemented bodies cease to exist and their unit tests went with the 2026-09-24 trim; a reader after this plan would find a criterion asserting tests for predicates that are gone. CLAUSE 3 ("a predicate implemented but not chartered for wiring has no product caller") cites R6.3 and is the clause that MOTIVATED `check_scope`'s deliberate zero-caller state. Amend all three clauses, and say for each whether it is no-subject or still live.
   KEEP R6.1 UNTOUCHED (one predicate per rule, no forking): it is the requirement this plan HONORS by re-homing the constant rather than duplicating it, and it is independently correct. KEEP R6.3 UNTOUCHED TOO, and this is an addition from review: R6.3 ("Implementing a predicate body and wiring its callers are SEPARABLE deliverables") is the requirement whose only demonstration in the tree was `check_scope`, so deleting that body removes R6.3's example while leaving the rule correct. Say so in the amendment rather than editing R6.3, and do NOT let the loss of its example become an argument for weakening it.
   For R6.2 and A16's clauses 1 and 2, record that the requirement is NOT WITHDRAWN but has NO SUBJECT: a declared-not-implemented predicate no longer exists, and P15 (added 2026-09-26) rules out re-adding the class of predicate these stubs anticipated. State the P15 reasoning explicitly in the amendment, since a future author reading only R6.1 would otherwise re-create the skeleton. Append the amendment to the spec's `## Workflow history` naming this plan and the measurement it rests on.
   DO NOT TOUCH THE SPEC'S TRACEABILITY PROPERTY. Section 4's preamble states that "every requirement below is cited by at least one criterion, with TWO deliberate exceptions" and names them (R3.3a-1 and R4.1b). A16 is the ONLY criterion citing R6.2, so an amendment that deleted A16 outright would break that property and create a third, undocumented exception. Amend A16 in place and keep its `(R6.1, R6.2, R6.3)` citation list intact, so the traceability claim stays true by construction. Run `aw specs check` and paste it.
   - Depends on: E-04
   - Expected outcome: the `git diff` of the three spec sites plus the appended history line, with all three A16 clauses addressed, R6.1 and R6.3 and every other requirement unchanged, A16's requirement-citation list intact, and `aw specs check` conforming.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 ADD A BEHAVIORAL TEST FOR THE ONE PRESERVED PROPERTY, in `tests/test_lane_missing_input_token.py`. The property is the one that would silently break: the emitted report token, the token form published in the worker prompt, and the parser must all still agree after the constant moved. Drive the real functions (`lane_containment.format_missing_input_token`, `lane_containment.parse_missing_input_token`, and the prompt-building path that embeds `MISSING_INPUT_TOKEN_FORM`) and assert a round trip plus that the prompt's published form carries the same leading code the emitter produces. Assert on RETURNED VALUES and RENDERED TEXT ONLY; do not read module source, do not assert which module holds the definition, and do not census callers (AGENTS.md; GUIDING_PRINCIPLES P16). Give the file a docstring naming this plan and stating that it pins the round trip and not the constant's home.
+- [x] E-06 ADD A BEHAVIORAL TEST FOR THE ONE PRESERVED PROPERTY, in `tests/test_lane_missing_input_token.py`. The property is the one that would silently break: the emitted report token, the token form published in the worker prompt, and the parser must all still agree after the constant moved. Drive the real functions (`lane_containment.format_missing_input_token`, `lane_containment.parse_missing_input_token`, and the prompt-building path that embeds `MISSING_INPUT_TOKEN_FORM`) and assert a round trip plus that the prompt's published form carries the same leading code the emitter produces. Assert on RETURNED VALUES and RENDERED TEXT ONLY; do not read module source, do not assert which module holds the definition, and do not census callers (AGENTS.md; GUIDING_PRINCIPLES P16). Give the file a docstring naming this plan and stating that it pins the round trip and not the constant's home.
   - Depends on: E-05
   - Expected outcome: a passing new test file, plus the mutation demonstration V-06 requires proving each assertion is sensitive.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -190,7 +190,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - `agent_workflows/private_file.py`. It exists partly to protect the attestation token, so deleting the token might look like it orphans this module. It does NOT: its second consumer is `run_analytics_privacy.load_or_create_salt`, the analytics pseudonym salt, which protects the USER's privacy and is not an anti-malice mechanism at all. No change is owed here, and the token's own carrier will decide what remains.
   - Carrier-Declined: Nothing is owed because the module is not anti-malice machinery. Filing an item would assert a privacy mechanism is in P15's scope, which it is not.
 - THE DANGLING CITATIONS IN `docs/wtiso-state-taxonomy.md` (F-10). Filed and itemized by line already.
-  - Carrier: ikxtkj
+  - Carrier-Evidence: .aw/records/backlog/done/20260928-ikxtkj-01-ikxtkj-docs-cite-tests-deleted-by-suite-trim.backlog.md
 - THE NINE DANGLING `NoRunnerImportTests` CITATIONS in `runner_shared` and `oc_runipd`, same root commit and same fix shape.
   - Carrier: gia5i7
 - RESTORING ANY DELETED TEST FILE. Refused on a maintainer ruling rather than deferred: the 2026-09-28 ruling recorded on backlog `gia5i7` says code-pinning guards deleted in the trim "will not be restored" and stale comments should "simply remove references to them without seeking to restore code pins". F-4 shows the `wtiso_gate` pin was exactly such a guard.
@@ -243,37 +243,249 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted AST caller census, with the method shown to be AST-based (name the walk) and NOT a text grep, listing every import of and attribute access on `wtiso_gate` across the tree. The pasted nine-predicate raise/return table. The pasted existence check for `tests/test_containment_predicates.py` and `tests/test_wtiso_adversarial.py` plus the `git` evidence naming the deleting commit. Plus a `git status --short` showing the measurement modified no file. If any product caller was found, this item is satisfied ONLY by stating that plainly and stopping; proceeding would make every later item unsafe.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: AST walk over all repo Python files (excluding .git, .aw, venv, and wtiso_gate.py) parsed with `ast.parse` and inspected with `ast.walk`:
+    ```
+    === AST CALLER CENSUS ===
+    Imports found: 1
+      agent_workflows/lane_containment.py:62: from agent_workflows.wtiso_gate import AW_MISSING_INPUT as _AW_MISSING_INPUT
+    Attribute accesses found: 0
+    ```
+    Nine-predicate raise/return check:
+    ```
+    Predicate                    | Outcome                   | Detail
+    --------------------------------------------------------------------------------
+    check_scope                  | RETURN                    | []
+    check_lifecycle_role         | RAISE NotImplementedError | wtiso_gate.check_lifecycle_role has no rule body; ...
+    format_missing_input         | RETURN                    | 'AW_MISSING_INPUT:foo:bar'
+    parse_missing_input          | RETURN                    | ('foo', 'bar')
+    check_hook_bypass            | RAISE NotImplementedError | wtiso_gate.check_hook_bypass has no rule body; its...
+    check_protected_refs         | RAISE NotImplementedError | wtiso_gate.check_protected_refs has no rule body; ...
+    check_permission_deadline    | RETURN                    | []
+    classify_retention           | RAISE NotImplementedError | wtiso_gate.classify_retention has no rule body; it...
+    check_receipt                | RAISE NotImplementedError | wtiso_gate.check_receipt has no rule body; its own...
+    ```
+    Test file existence on disk:
+    ```
+    tests/test_containment_predicates.py: exists=False
+    tests/test_wtiso_adversarial.py: exists=False
+    ```
+    Git deleting commit:
+    ```
+    commit 19313eed7618494bd412bb666c0a34cf0ba7ffd6
+    Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+    Date:   Thu Sep 24 17:13:31 2026 -0400
 
-- [ ] V-02 validates E-02
+        test: trim test suite from 9,136 to under 2,000 tests
+
+     tests/test_containment_predicates.py | 731 -----------------------------------
+     tests/test_wtiso_adversarial.py      | 704 ---------------------------------
+     2 files changed, 1435 deletions(-)
+    ```
+    `git status --short`: clean (no files modified). Zero product callers of any predicate.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the `git diff` of both files for the constant's move, plus the BEFORE and AFTER rendered value of `MISSING_INPUT_TOKEN_FORM` shown to be byte-identical, obtained by importing and printing it rather than by reading the source. Plus proof that `lane_containment` imports nothing from `wtiso_gate` any more, and that the comment at the old import site was updated to describe the new arrangement rather than left describing a module that no longer holds the constant. A changed token value FAILS this item outright.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/lane_containment.py`:
+    ```diff
+    diff --git a/agent_workflows/lane_containment.py b/agent_workflows/lane_containment.py
+    index 6b12d87e9..3a087499e 100644
+    --- a/agent_workflows/lane_containment.py
+    +++ b/agent_workflows/lane_containment.py
+    @@ -54,12 +50,11 @@ from typing import Any, NamedTuple, Protocol
 
-- [ ] V-03 validates E-03
+     from agent_workflows import runner_shared
+
+    -# The STABLE ERROR CODE for a missing-input report, imported rather than retyped (`604wra`, spec
+    -# R6.1). `wtiso_gate` declares the code vocabulary a hook prints and a driver matches on; this module
+    -# composes the worker-facing token form around it (see `MISSING_INPUT_TOKEN_FORM`). Import-safe in
+    -# this direction: `wtiso_gate` has NO runtime module-level imports of its own, so there is no cycle,
+    -# and its own delegations to this module are deliberately function-local for the same reason.
+    -from agent_workflows.wtiso_gate import AW_MISSING_INPUT as _AW_MISSING_INPUT
+    +#: The STABLE ERROR CODE for a missing-input report (spec R3.1, R6.1; re-homed from wtiso_gate by
+    +#: IPD 38pxaz). Single definition: `MISSING_INPUT_TOKEN_FORM` composes around it, and both the worker
+    +#: prompt text and the report parser derive their shape from that constant so all three surfaces
+    +#: provably cannot disagree.
+    +AW_MISSING_INPUT = "AW_MISSING_INPUT"
+
+     # ---- where a worker's submissions live, inside the lane -------------------------------------------
+
+    @@ -76,15 +71,14 @@ LANE_SUBMISSION_SUBDIR = ".aw/state/lane-submissions"
+     #: R3.1). The PROMPT text and the parser both derive from this one constant, so the instruction a
+     #: worker reads and the code that reads its output cannot disagree about the shape.
+     #:
+    -#: THE LEADING CODE IS IMPORTED, NOT RETYPED (`604wra`, spec R6.1). `wtiso_gate.AW_MISSING_INPUT` is
+    -#: the STABLE ERROR CODE, declared there with the rest of the contract a hook prints and a driver
+    -#: matches on; this composes the human-facing form around it. It was previously spelled out here as a
+    -#: literal, which is the fork R6.1 forbids even while the copies agree: renaming the code would have
+    -#: left this prompt text publishing the old spelling, and a worker following the prompt would emit a
+    -#: token no parser recognized. `_token_prefix()` reads the prefix back OUT of this string, so all
+    -#: three surfaces - the code, the prompt, the parser - now trace to a single definition.
+    +#: THE LEADING CODE IS SINGLE-DEFINED (`604wra`, IPD 38pxaz, spec R6.1). `AW_MISSING_INPUT` above is
+    +#: the STABLE ERROR CODE, defined directly in this module as its sole consumer; this composes the
+    +#: human-facing form around it. It was previously imported from wtiso_gate, but with that unowned
+    +#: skeleton removed under P15, this module holds the single authoritative definition.
+    +#: `_token_prefix()` reads the prefix back OUT of this string, so all three surfaces - the code,
+    +#: the prompt, the parser - trace to a single definition.
+     MISSING_INPUT_TOKEN_FORM = (
+    -    _AW_MISSING_INPUT + ":<repo-relative-path>:<why it is required>"
+    +    AW_MISSING_INPUT + ":<repo-relative-path>:<why it is required>"
+     )
+    ```
+    Rendered value before: `'AW_MISSING_INPUT:<repo-relative-path>:<why it is required>'`
+    Rendered value after: `'AW_MISSING_INPUT:<repo-relative-path>:<why it is required>'`
+    Values are byte-identical.
+    `git grep "wtiso_gate" agent_workflows/lane_containment.py` confirms no imports remain. AST census across repo confirms zero imports of `wtiso_gate`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the `git diff` showing the five predicates and the `_unimplemented` helper removed, plus an EIGHT-WAY ERROR-CODE DISPOSITION TABLE re-derived from the module (not copied from E-03) naming each of `AW_GATE_SCOPE`, `AW_LIFECYCLE_ROLE`, `AW_MISSING_INPUT`, `AW_GATE_HOOK_BYPASS`, `AW_GATE_PROTECTED_REF`, `AW_PERMISSION_DEADLINE`, `AW_RETENTION_UNKNOWN`, `AW_RECEIPT_INVALID` and `ERROR_CODES` with its outcome. THE TABLE MUST ACCOUNT FOR ALL EIGHT: F-3c records that the authored list said "four" while naming five and omitted `AW_GATE_SCOPE` and `AW_PERMISSION_DEADLINE` entirely, so a disposition covering only the five named codes FAILS this item. Plus the recorded decision for each of the four remaining bodies with its reason, plus an explicit statement of whether the file survives. OQ-01 is resolved to DELETE THE FILE, so if the file survives this item is satisfied only by stating which measurement contradicted that resolution and why. If any body was KEPT, name the surface expected to consume it and why that is not a hypothetical need; if the file was deleted, show that no import of it remains anywhere. Do NOT satisfy this item with a test asserting the symbols are gone; the diff plus the full-suite result is the evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git rm agent_workflows/wtiso_gate.py` removed the module (444 lines) entirely.
+    Eight-way error code disposition table re-derived from module:
+    | Error Code | Outcome | Disposition & Rationale |
+    |---|---|---|
+    | `AW_GATE_SCOPE` | Deleted | Named by `check_scope`; 0 callers outside module; deleted with module |
+    | `AW_LIFECYCLE_ROLE` | Deleted | Named by `check_lifecycle_role`; live role check uses `AW-LIFECYCLE-ROLE-001` in `ipd_lifecycle`; 0 callers |
+    | `AW_MISSING_INPUT` | Re-homed | Re-homed to `agent_workflows.lane_containment` as single definition; value unchanged |
+    | `AW_GATE_HOOK_BYPASS` | Deleted | Named by `check_hook_bypass`; 0 callers outside module; anti-malice stub deleted |
+    | `AW_GATE_PROTECTED_REF` | Deleted | Named by `check_protected_refs`; 0 callers outside module; anti-malice stub deleted |
+    | `AW_PERMISSION_DEADLINE` | Deleted | Named by `check_permission_deadline`; 0 callers outside module; pure predicate deleted under OQ-01 |
+    | `AW_RETENTION_UNKNOWN` | Deleted | Named by `classify_retention`; 0 callers outside module; anti-malice stub deleted |
+    | `AW_RECEIPT_INVALID` | Deleted | Named by `check_receipt`; 0 callers outside module; anti-malice stub deleted |
+    | `ERROR_CODES` | Deleted | Enumeration tuple over all 8 codes; 0 callers outside module; deleted with module |
 
-- [ ] V-04 validates E-04
+    Four remaining bodies disposition:
+    - `format_missing_input`: Deleted. Indirection delegating to `lane_containment.format_missing_input_token`; 0 callers.
+    - `parse_missing_input`: Deleted. Indirection delegating to `lane_containment.parse_missing_input_token`; 0 callers.
+    - `check_scope`: Deleted under OQ-01. 0 product callers; docstring records callers retired unlanded; grammar owned by `ipd_lifecycle._scope_match` and enforced by `finalize_precheck`; keeping it violates P6.
+    - `check_permission_deadline`: Deleted under OQ-01. 0 product callers; docstring notes no callers and live bound is `MAX_TURN_TIMEOUT` alone; keeping it violates P6.
+    File disposition: `agent_workflows/wtiso_gate.py` does NOT survive; deleted in its entirety. Repo AST census confirms 0 imports remain.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: a pasted search across `agent_workflows/` proving ZERO references to either deleted test file remain, WITH THE COUNT STRUCK RECONCILED AGAINST THE SIX E-01 MEASURED. F-3b records the authored count of three as low by half, so evidence that accounts for only three citations FAILS this item; state where each of the six went (vanished with its predicate, or struck by hand). Confirm the RUNTIME-STRING instance inside `check_hook_bypass`'s `_unimplemented` message was handled, since it is code rather than a docstring and a docstring-only sweep would miss it. Plus a statement that NO replacement citation was added and NO test file was restored. Where a citation was struck from surviving prose, show the still-true design point was kept and only the enforcement claim removed. Confirm explicitly that the caller-census assertion described in F-4 was not recreated in any form.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Search command: `git grep -nE "test_containment_predicates|test_wtiso_adversarial" agent_workflows/` exited 1 with 0 matches.
+    Reconciliation against the 6 citations measured in E-01:
+    1. `tests/test_containment_predicates.py` in `wtiso_gate.py` module docstring line 26: vanished with deleted file.
+    2. `tests/test_containment_predicates.py` in `wtiso_gate.py` module docstring line 33: vanished with deleted file.
+    3. `tests/test_containment_predicates.py` in `check_scope` docstring line 138: vanished with deleted file.
+    4. `tests/test_wtiso_adversarial.py` in `check_hook_bypass` docstring line 260: vanished with deleted file.
+    5. `tests/test_wtiso_adversarial.py` in `check_hook_bypass` runtime `_unimplemented` string line 270: vanished with deleted file.
+    6. `tests/test_wtiso_adversarial.py` in `check_protected_refs` docstring line 289: vanished with deleted file.
+    All 6 citations vanished with the deletion of `wtiso_gate.py`. No replacement citation was added, neither test file was restored, and no caller-census assertion was recreated in any form.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the `git diff` of the three amended spec sites plus the appended `## Workflow history` line, pasted. The diff must show R6.1 UNCHANGED, R6.3 UNCHANGED (F-7c: deleting `check_scope` removes R6.3's only demonstration, and losing an example is not a licence to narrow the rule), the P15 reasoning present in the amendment, and no change to any requirement outside the three sites.
   A16 MUST BE AMENDED IN PLACE WITH ALL THREE CLAUSES ADDRESSED AND ITS CITATION LIST INTACT. Quote the amended A16 in full and state for each of its three clauses ("each implemented shared predicate has unit tests", "each unimplemented one still raises naming its owner", "a predicate implemented but not chartered for wiring has no product caller") whether it is now no-subject or still live. An amendment addressing only clause 2 FAILS this item (F-7b). The trailing `(R6.1, R6.2, R6.3)` citation list must survive, because A16 is the ONLY criterion citing R6.2 and deleting it would create a third undocumented exception to the spec's own traceability claim (F-7d); paste `aw specs check` showing it conforming.
   Plus the result of searching every `.spec.md` for `AW_MISSING_INPUT` and for the module name, with a statement of whether any other spec needed amending and the reconciliation against `- Scope-Paths:` (an undeclared spec edit is reported by both runners at run end). Plus `aw check` showing no `check.plan-spec-link-missing` finding on this plan, which `- From-Spec: 7ckptx` now satisfies (F-7e).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md b/.aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    index 96086090c..015b589ec 100644
+    --- a/.aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    +++ b/.aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    @@ -11,6 +11,7 @@
 
-- [ ] V-06 validates E-06
+     ## Workflow history
+
+    +- 2026-10-01 note (aw specs): AMENDED 2026-10-01 by malgate Order 02 (38pxaz): constraints 0.3, R6.2, and A16 amended following the deletion of wtiso_gate.py under GUIDING_PRINCIPLES P15 (measured zero product callers across all nine predicates; two cited test files were deleted in commit 19313eed; AW_MISSING_INPUT re-homed to lane_containment). R6.1 and R6.3 are preserved untouched; R6.2 and A16 clauses 1-3 have no live subject.
+     - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (specfin7ck-01 e9ekuj): A12b coverage sentence corrected to cite behavioral test coverage restored by 654a3adb (dmxc5h) in tests/test_lane_input_manifest.py
+     - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
+     - 2026-09-18 note (aw specs): AMENDED 2026-09-18 by maintainer ruling: R5.5's refusal on unknown ignored files is removed. Gitignored files (bytecode caches, toolchain dependencies, test residues) are disposable upon lane destruction and do not block teardown. Teardown refuses only on dirty tracked files, unknown untracked files, or uncollected submissions. A15 updated accordingly.
+    @@ -60,9 +61,12 @@ every requirement below inherits it.
+     - OS-level confinement is OUT OF SCOPE here and is owned elsewhere (`fjs11i` for the unreachable
+       hardened profile, research `q65sz3` for the cross-platform question). This spec must remain true
+       whether or not that lands.
+    -- `wtiso_gate.py` is the designated home for shared containment predicates. It exists as a fail-loud
+    -  skeleton by design: a stub raises `NotImplementedError` naming its owning phase so a premature caller
+    -  breaks visibly rather than silently allowing.
+    +- `wtiso_gate.py` formerly served as the designated home for shared containment predicates. Under
+    +  GUIDING_PRINCIPLES P15 ("we guard against honest mistakes, never against a malicious agent") and
+    +  malgate Order 02 (`38pxaz`), the unowned anti-malice predicate skeleton was deleted in its
+    +  entirety. Shared containment rules are single-defined directly in the modules that consume them
+    +  (such as `lane_containment.py` for `AW_MISSING_INPUT` and the token format functions), honoring
+    +  R6.1 without preserving an empty skeleton.
+
+     ## 1. Goals
+
+    @@ -493,6 +497,12 @@ calls. Forking the rule is non-conforming even when the copies agree at the time
+     R6.2 A predicate that is declared but not yet implemented MUST fail loudly rather than return a
+     permissive default, and MUST name its owner.
+
+    +AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT in the current tree. The five
+    +unowned raising stubs in `wtiso_gate.py` were deleted because they targeted malice (ruled out by
+    +GUIDING_PRINCIPLES P15) and had zero callers. The fail-loud discipline is NOT withdrawn--any future
+    +declared-not-implemented predicate must still fail loudly and name its owner--but P15 rules out
+    +re-adding the anti-malice stubs, so the requirement currently governs no code in the tree.
+    +
+     R6.3 Implementing a predicate body and wiring its callers are SEPARABLE deliverables and may be owned by
+     different plans. A plan that implements a body it is not chartered to wire MUST NOT wire it.
+
+    @@ -645,9 +655,15 @@ re-flag it as a traceability gap.
+       that preserved a lane, showing it names the lane and the reason. A test that only asserts the EVENT was
+       written does NOT satisfy this criterion, because that is exactly the state measured on
+       `run-20260901T042331Z-118022`: two lanes preserved, zero mentions in the summary. (R5.6a)
+    -- A16. Each implemented shared predicate has unit tests; each unimplemented one still raises naming its
+    -  owner; and a predicate implemented but not chartered for wiring has no product caller. (R6.1, R6.2,
+    -  R6.3)
+    +- A16. AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT for clauses 1, 2, and 3 in
+    +  the current tree following the deletion of `wtiso_gate.py`. Formerly: each implemented shared
+    +  predicate has unit tests; each unimplemented one still raises naming its owner; and a predicate
+    +  implemented but not chartered for wiring has no product caller. Under P15 the unowned raising
+    +  predicates were deleted (clause 2 has no subject); the uncalled implemented bodies were deleted
+    +  (clause 1 has no subject, with surviving token behavior tested in
+    +  `tests/test_lane_missing_input_token.py`); and `check_scope` was deleted so R6.3's demonstration is
+    +  removed while R6.3's rule remains live (clause 3 has no subject in the shared predicate library).
+    +  (R6.1, R6.2, R6.3)
+    ```
+    Amended A16 in full:
+    "- A16. AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT for clauses 1, 2, and 3 in the current tree following the deletion of `wtiso_gate.py`. Formerly: each implemented shared predicate has unit tests; each unimplemented one still raises naming its owner; and a predicate implemented but not chartered for wiring has no product caller. Under P15 the unowned raising predicates were deleted (clause 2 has no subject); the uncalled implemented bodies were deleted (clause 1 has no subject, with surviving token behavior tested in `tests/test_lane_missing_input_token.py`); and `check_scope` was deleted so R6.3's demonstration is removed while R6.3's rule remains live (clause 3 has no subject in the shared predicate library). (R6.1, R6.2, R6.3)"
+    Three clauses status:
+    - Clause 1 ("each implemented shared predicate has unit tests"): NO SUBJECT in shared library; surviving token behavior tested behaviorally in `tests/test_lane_missing_input_token.py`.
+    - Clause 2 ("each unimplemented one still raises naming its owner"): NO SUBJECT; unowned stubs deleted under P15.
+    - Clause 3 ("a predicate implemented but not chartered for wiring has no product caller"): NO SUBJECT in shared library; R6.3 remains live as a rule.
+    Citation list `(R6.1, R6.2, R6.3)` is intact.
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 39 specs checked.
+    ```
+    Spec search across `.aw/records/specs/`: only `7ckptx` and `6kwd2e` (which already cites `lane_containment.py:86-87`). No other spec required amending.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted PASS of the new test file, AND a mutation demonstration for EACH assertion showing it FAILING under a mutation that genuinely breaks the property and PASSING after restore. At minimum, a mutation changing the emitted prefix without changing the published form must fail the agreement assertion. Plus confirmation, by reading the test file, that it asserts only on returned values and rendered text, reads no module source, and asserts nothing about which module defines the constant.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Targeted run output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 4 items
+
+    tests/test_lane_missing_input_token.py ....                              [100%]
+
+    ============================== 4 passed in 0.40s ===============================
+    ```
+    Mutation demonstration 1: In `lane_containment.py`, mutated `format_missing_input_token` to emit `"{0}_MUTATED:{1}:{2}"` without changing published form:
+    ```
+    FAILED tests/test_lane_missing_input_token.py::test_prompt_published_form_agrees_with_emitter_prefix - AssertionError: assert '    AW_MISSING_INPUT_MUTATED:<repo-relative-path>:<why it is required>' in prompt
+    FAILED tests/test_lane_missing_input_token.py::test_token_round_trip_parse_and_format - AssertionError: assert None == ('path/to/required_input.txt', 'needed for compilation check')
+    FAILED tests/test_lane_missing_input_token.py::test_token_round_trip_with_colons_in_reason - AssertionError: assert None == ('config/settings.json', 'note: needed because key:value is missing in file:line')
+    ========================= 3 failed, 1 passed in 0.58s ==========================
+    ```
+    Restored and verified 4 passed.
+    Mutation demonstration 2: In `lane_containment.py`, mutated `parse_missing_input_token` reject branch to return `("mutated", "mutated")` instead of `None`:
+    ```
+    FAILED tests/test_lane_missing_input_token.py::test_parser_rejects_unrelated_or_mismatched_lines - AssertionError: assert ('mutated', 'mutated') is None
+    ========================= 1 failed, 3 passed in 1.01s ==========================
+    ```
+    Restored and verified 4 passed.
+    Confirmed: `tests/test_lane_missing_input_token.py` asserts strictly on returned values and rendered text, reads no source files, censuses no callers, and makes no assertion about which module defines the constant.
+  - Result: pass
 
 ## Approval and execution gate
 
