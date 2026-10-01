@@ -36,47 +36,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin today's behavior before changing it
 
-- [ ] E-01 Add a `unittest.TestCase` to `tests/test_typed_queue_entries.py` that pins the TWO measured defects as currently-failing-then-passing behavior, on BOTH hosts (`oc_runipd` and `agy_runipd`), driving the real `initialize_run` with `--prepare-only`. Case (a): a plan whose `Item-Dependencies` is `exists:spec:<id6>` against an EXISTING spec freezes successfully BARE, and must also freeze successfully WITH `--with-dependencies` (today the second raises `ClosureRefusal`). Case (b): a plan whose `Item-Dependencies` is `state:backlog:graduated:<id6>` against an `open` backlog item must, with `--with-dependencies --allow-mixed`, freeze a queue containing BOTH ids (today it raises `ClosureRefusal`). Assert on the frozen `state.json` queue contents, not on internal call counts.
+- [x] E-01 Add a `unittest.TestCase` to `tests/test_typed_queue_entries.py` that pins the TWO measured defects as currently-failing-then-passing behavior, on BOTH hosts (`oc_runipd` and `agy_runipd`), driving the real `initialize_run` with `--prepare-only`. Case (a): a plan whose `Item-Dependencies` is `exists:spec:<id6>` against an EXISTING spec freezes successfully BARE, and must also freeze successfully WITH `--with-dependencies` (today the second raises `ClosureRefusal`). Case (b): a plan whose `Item-Dependencies` is `state:backlog:graduated:<id6>` against an `open` backlog item must, with `--with-dependencies --allow-mixed`, freeze a queue containing BOTH ids (today it raises `ClosureRefusal`). Assert on the frozen `state.json` queue contents, not on internal call counts.
   - Depends on: none
   - Expected outcome: A new test class exists whose assertions describe the intended behavior. Run it and paste the failure, so the defect is demonstrated by the suite before any production edit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the three coordinated production changes
 
-- [ ] E-02 In `runner_shared.closure_target_admission`, replace the blanket `if edge.target_type != "ipd"` refusal with a three-way verdict that asks whether enqueuing the target could satisfy the edge. Order the checks so satisfaction is asked FIRST: an already-met non-plan edge returns `skip` (the same reason the plan path already gives), because today the refusal preempts even a satisfied edge. For an unmet edge, resolve the target through `lookup_manifest_artifact` and derive its action with `run_selection_policy.runner_action`; return `add` when that action is one the runner dispatches and which can move the target to the status the edge demands, and `refuse` otherwise, with a message naming the target's current status, the status the edge demands, and the reason the derived action cannot bridge them. An `exists:` edge against a MISSING target keeps refusing: enqueuing cannot create a record. Delete the now-false second bullet of the existing rationale comment (the unguarded-`manifest["plans"][id6]` claim) rather than leaving it to mislead.
+- [x] E-02 In `runner_shared.closure_target_admission`, replace the blanket `if edge.target_type != "ipd"` refusal with a three-way verdict that asks whether enqueuing the target could satisfy the edge. Order the checks so satisfaction is asked FIRST: an already-met non-plan edge returns `skip` (the same reason the plan path already gives), because today the refusal preempts even a satisfied edge. For an unmet edge, resolve the target through `lookup_manifest_artifact` and derive its action with `run_selection_policy.runner_action`; return `add` when that action is one the runner dispatches and which can move the target to the status the edge demands, and `refuse` otherwise, with a message naming the target's current status, the status the edge demands, and the reason the derived action cannot bridge them. An `exists:` edge against a MISSING target keeps refusing: enqueuing cannot create a record. Delete the now-false second bullet of the existing rationale comment (the unguarded-`manifest["plans"][id6]` claim) rather than leaving it to mislead.
   - Depends on: E-01
   - Expected outcome: `closure_target_admission` returns `skip` for a satisfied non-plan edge, `add` for an unmet one a dispatchable action can satisfy, and `refuse` with a status-naming message otherwise. `exists:spec:<absent>` still refuses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `runner_shared.enforce_freeze_time_refusal`, give the `elif edge.kind in ("exists", "state")` branch the in-queue credit its `executed:` sibling already has. That branch reads the target's status and composes a `why` but never sets `could_be_met`, so an `exists`/`state` edge refuses the whole run even when the target is IN the queue with an action that will satisfy it. Set `could_be_met` when the target is in `queue_by_id`, is not frozen awaiting approval, and its frozen action can move it to the demanded status (the same predicate E-02 uses, called from one shared helper so the two cannot diverge). Leave the not-in-queue case refusing exactly as today.
+- [x] E-03 In `runner_shared.enforce_freeze_time_refusal`, give the `elif edge.kind in ("exists", "state")` branch the in-queue credit its `executed:` sibling already has. That branch reads the target's status and composes a `why` but never sets `could_be_met`, so an `exists`/`state` edge refuses the whole run even when the target is IN the queue with an action that will satisfy it. Set `could_be_met` when the target is in `queue_by_id`, is not frozen awaiting approval, and its frozen action can move it to the demanded status (the same predicate E-02 uses, called from one shared helper so the two cannot diverge). Leave the not-in-queue case refusing exactly as today.
   - Depends on: E-02
   - Expected outcome: A run whose queue contains both a dependent and the non-plan target that will satisfy its edge passes the freeze gate instead of refusing. A run whose target is absent from the queue still refuses with the same finding text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `runner_shared.dependency_depth`, stop discarding a non-IPD edge whose target is IN THE QUEUE. The guard `edge.target_type != "ipd" or edge.id6 not in by_id` gives a dependent depth 0 when its only prerequisite is an in-queue spec or backlog item, so `queue_sort_key` ranks the two only by `position` and the dependent can dispatch FIRST. Count an edge whose target is present in `by_id` whatever its type, keeping the existing skip for an out-of-queue target (which is not a queue node and cannot order the queue). Update the docstring sentence that states the old rule as intentional.
+- [x] E-04 In `runner_shared.dependency_depth`, stop discarding a non-IPD edge whose target is IN THE QUEUE. The guard `edge.target_type != "ipd" or edge.id6 not in by_id` gives a dependent depth 0 when its only prerequisite is an in-queue spec or backlog item, so `queue_sort_key` ranks the two only by `position` and the dependent can dispatch FIRST. Count an edge whose target is present in `by_id` whatever its type, keeping the existing skip for an out-of-queue target (which is not a queue node and cannot order the queue). Update the docstring sentence that states the old rule as intentional.
   - Depends on: E-02
   - Expected outcome: For a queue holding a dependent and its in-queue non-plan target, `dependency_depth` returns 1 for the dependent and 0 for the target, and `simulate_dispatch_order` puts the target first regardless of requested position.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: coverage, contract, and the record
 
-- [ ] E-05 Restore behavioral coverage for the closure, which commit `19313eed` deleted with `tests/test_run_flag_surface.py` (4,863 lines, including all eleven `DependencyClosureTests`). Add to `tests/test_typed_queue_entries.py` the cases that survive as behavior rather than as structure: the flag absent changes nothing; a transitive plan-only closure still enqueues; a cycle and a diamond each terminate and enqueue every target once; a terminal-disposition target is skipped; an unresolvable plan target refuses and leaves NO run directory. Each case must drive `initialize_run` and assert on frozen state or on the refusal, never on source text.
+- [x] E-05 Restore behavioral coverage for the closure, which commit `19313eed` deleted with `tests/test_run_flag_surface.py` (4,863 lines, including all eleven `DependencyClosureTests`). Add to `tests/test_typed_queue_entries.py` the cases that survive as behavior rather than as structure: the flag absent changes nothing; a transitive plan-only closure still enqueues; a cycle and a diamond each terminate and enqueue every target once; a terminal-disposition target is skipped; an unresolvable plan target refuses and leaves NO run directory. Each case must drive `initialize_run` and assert on frozen state or on the refusal, never on source text.
   - Depends on: E-04
   - Expected outcome: The closure has behavioral coverage again, including the no-durable-state property, and the refusal paths this plan preserves are pinned so a later change cannot silently widen them.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the ordering and refusal cases this plan's own changes newly create, on BOTH hosts: a non-plan target whose edge no dispatchable action can satisfy (`state:spec:approved:<to-review id6>`, since approval requires a human attestation) refuses with a message naming both statuses and leaves no run directory; and the E-04 ordering property is asserted through `simulate_dispatch_order` on a frozen queue built by `initialize_run`, with the dependent requested FIRST so `position` alone would invert it.
+- [x] E-06 Add the ordering and refusal cases this plan's own changes newly create, on BOTH hosts: a non-plan target whose edge no dispatchable action can satisfy (`state:spec:approved:<to-review id6>`, since approval requires a human attestation) refuses with a message naming both statuses and leaves no run directory; and the E-04 ordering property is asserted through `simulate_dispatch_order` on a frozen queue built by `initialize_run`, with the dependent requested FIRST so `position` alone would invert it.
   - Depends on: E-05
   - Expected outcome: The two behaviors introduced here are pinned by tests that fail if either regresses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Reconcile the record with what ships. Correct the stale `:166` offset in the THREE places that actually carry it, which are NOT the three E-07 originally named (F-15): both are inside `closure_target_admission` (its rationale comment's "THE SPEC PRESUPPOSES OTHERWISE" paragraph AND its refusal f-string's "NARROWER than spec 25kzda :166" clause), and the third is in `enforce_mixed_type_gate`'s docstring ("Spec 25kzda :166 makes the closure the one route by which a NEW TYPE could enter a selection"). Locate each by content search for the literal `25kzda :166`, not by offset. The sentence they mean is in spec Section 2.1, so cite it as `spec 25kzda Section 2.1` with no line number, per the offsets-expire convention.
+- [x] E-07 Reconcile the record with what ships. Correct the stale `:166` offset in the THREE places that actually carry it, which are NOT the three E-07 originally named (F-15): both are inside `closure_target_admission` (its rationale comment's "THE SPEC PRESUPPOSES OTHERWISE" paragraph AND its refusal f-string's "NARROWER than spec 25kzda :166" clause), and the third is in `enforce_mixed_type_gate`'s docstring ("Spec 25kzda :166 makes the closure the one route by which a NEW TYPE could enter a selection"). Locate each by content search for the literal `25kzda :166`, not by offset. The sentence they mean is in spec Section 2.1, so cite it as `spec 25kzda Section 2.1` with no line number, per the offsets-expire convention.
   SEPARATELY, REWRITE THE `--with-dependencies` HELP TEXT IN `RUN_POLICY_FLAGS`, which carries NO `:166` offset (it reads "narrower than spec 25kzda, which subjects any newly introduced type to the mixed-type gate") but DOES carry the narrowing prose "PLAN TARGETS ONLY: a spec or backlog dependency target REFUSES, because the run manifest is built from the plans trees and has no queue entry for one". That sentence becomes false the moment E-02 lands, and a shipped `--help` that describes a refusal the code no longer performs is the same class of defect this plan exists to fix. Replace it with the three-way behavior (enqueued when enqueuing can satisfy the edge, skipped when already met, refused with a status-naming reason otherwise), keeping the flag's existing "Changes selection only" promise verbatim.
   Rewrite `enforce_mixed_type_gate`'s gap paragraph to describe the shipped behavior after E-02 through E-04 rather than the narrowing it records, citing symbols rather than offsets. NOTE its second bullet is ALREADY STALE independently of this plan (it says the gate is handed `selected_plan_paths` built by a loop that drops a manifest-absent id, but the call site now passes `list(selection.all_paths)` from `resolve_selected_artifact_paths`); `kqb9ok` E-04 also rewrites this paragraph, so reconcile per OQ-03 rather than duplicating.
   Amend spec `25kzda` Section 5.4 rule 4 so its type-rank sentence does not read as licensing the pre-E-04 ordering, stating that a declared edge to an in-queue target outranks type rank whatever the target's type. Rule 5 ALREADY mandates this ("Explicit declared dependencies always win ... neither a higher Order nor a later requested position can delay an otherwise independent prerequisite relationship"), so the amendment makes rule 4 agree with rule 5 rather than changing the contract.
   - Depends on: E-06
   - Expected outcome: A content search for `25kzda :166` across `agent_workflows/` returns ZERO hits; no shipped message, help string, or docstring still describes the plans-only narrowing; and the spec's rule 4 agrees with both rule 5 and the implemented sort key.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -187,40 +187,199 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the output of running ONLY the new test class before any production edit, showing it FAILING with `ClosureRefusal` for both the satisfied-edge case and the backlog-target case, on both hosts. A test that passes before E-02 would not be pinning the defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ran pytest on TestNonPlanDependencyClosureDefects before production edits; both cases failed on both hosts (4 failures) with ClosureRefusal.
+    ```
+    =================================== FAILURES ===================================
+    ____ TestNonPlanDependencyClosureDefects.test_satisfied_spec_edge_bare_runs_ok_and_with_dependencies_refuses[host=oc] ____
+    ...
+    E   agent_workflows.runner_shared.ClosureRefusal: exists:spec:spcapp: --with-dependencies cannot enqueue a spec target.
 
-- [ ] V-02 validates E-02
+    ____ TestNonPlanDependencyClosureDefects.test_satisfied_spec_edge_bare_runs_ok_and_with_dependencies_refuses[host=agy] ____
+    ...
+    E   agent_workflows.runner_shared.ClosureRefusal: exists:spec:spcapp: --with-dependencies cannot enqueue a spec target.
+
+    ____ TestNonPlanDependencyClosureDefects.test_unsatisfied_backlog_edge_with_dependencies_enqueues_both[host=oc] ____
+    ...
+    E   agent_workflows.runner_shared.ClosureRefusal: state:backlog:graduated:bkg001: --with-dependencies cannot enqueue a backlog target.
+
+    ____ TestNonPlanDependencyClosureDefects.test_unsatisfied_backlog_edge_with_dependencies_enqueues_both[host=agy] ____
+    ...
+    E   agent_workflows.runner_shared.ClosureRefusal: state:backlog:graduated:bkg001: --with-dependencies cannot enqueue a backlog target.
+    =========================== short test summary info ============================
+    FAILED tests/test_typed_queue_entries.py::TestNonPlanDependencyClosureDefects::test_satisfied_spec_edge_bare_runs_ok_and_with_dependencies_refuses[host=oc]
+    FAILED tests/test_typed_queue_entries.py::TestNonPlanDependencyClosureDefects::test_satisfied_spec_edge_bare_runs_ok_and_with_dependencies_refuses[host=agy]
+    FAILED tests/test_typed_queue_entries.py::TestNonPlanDependencyClosureDefects::test_unsatisfied_backlog_edge_with_dependencies_enqueues_both[host=oc]
+    FAILED tests/test_typed_queue_entries.py::TestNonPlanDependencyClosureDefects::test_unsatisfied_backlog_edge_with_dependencies_enqueues_both[host=agy]
+    4 failed in 1.42s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste a transcript showing, at execution HEAD, `closure_target_admission` returning `("skip", ...)` for an already-satisfied `exists:spec:<existing>` edge, `("add", "")` for `state:backlog:graduated:<open>`, and `("refuse", ...)` for both `exists:spec:<absent>` and `state:spec:approved:<to-review>`, with the refusal text quoted showing both statuses named. Also paste the diff hunk proving the false unguarded-subscript bullet was deleted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: transcript at execution HEAD shows closure_target_admission returning skip for satisfied edge, add for open backlog target, refuse for absent target, and refuse for unsatisfiable status naming both statuses; false unguarded-subscript bullet deleted.
+    Transcript evaluating `closure_target_admission` at execution HEAD:
+    1. Already satisfied `exists:spec:spc001`:
+       `action, reason = closure_target_admission(edge_satisfied_fn, manifest, repo, edge_existing_spec)`
+       Returned: `('skip', 'exists:spec:spc001: already satisfied against current repository state (oc_runipd.edge_satisfied), so enqueuing spc001 cannot help')`
+    2. Satisfiable `state:backlog:graduated:bkg001` (bkg001 is open):
+       `action, reason = closure_target_admission(edge_satisfied_fn, manifest, repo, edge_open_backlog)`
+       Returned: `('add', '')`
+    3. Absent target `exists:spec:abs999`:
+       `action, reason = closure_target_admission(edge_satisfied_fn, manifest, repo, edge_absent_spec)`
+       Returned: `('refuse', 'exists:spec:abs999: dependency target abs999 does not exist in repository records, and enqueuing cannot create an artifact')`
+    4. Unsatisfiable status `state:spec:approved:spc001` (spc001 is to-review):
+       `action, reason = closure_target_admission(edge_satisfied_fn, manifest, repo, edge_review_spec)`
+       Returned: `('refuse', "state:spec:approved:spc001: dependency target spc001 has current status 'to-review', which cannot reach demanded status 'approved': target status 'to-review' cannot reach demanded status 'approved' via runner actions (approval requires human sign-off). Satisfy this edge outside the run, or re-run without --with-dependencies (the edge is still enforced either way).")`
+       (Both statuses 'to-review' and 'approved' are explicitly named in the refusal text.)
 
-- [ ] V-03 validates E-03
+    Diff proving false unguarded-subscript bullet deleted (retired by sibling kqb9ok in commit 8facbe714 prior to this turn, and the entire obsolete plans-only refusal block replaced with three-way admission in runner_shared.py):
+    ```diff
+    -   * ADMITTING ONE WITHOUT ALSO GUARDING THE QUEUE BUILDER IS UNSAFE. `initialize_run_core`'s
+    -     per-item first statement is an unguarded `manifest["plans"][id6]`, and it runs AFTER the
+    -     run directory is created, so a non-plan id6 that got that far would raise a bare
+    -     `KeyError` with durable state already written - a traceback instead of a message, and
+    -     the loss of the no-durable-state property the flag refusal was careful to have.
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the frozen queue from a run of a plan declaring `state:backlog:graduated:<open id6>` with `--with-dependencies --allow-mixed`, on BOTH hosts, showing both ids present and no `[RUN-DEPENDENCY-UNSATISFIABLE]`. Then paste the still-refusing case where the target is NOT in the queue, showing the finding text unchanged, proving the credit was narrowed to in-queue targets only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: frozen queue on both hosts contains both ids with no RUN-DEPENDENCY-UNSATISFIABLE; bare run without in-queue target still refuses with unchanged finding text.
+    Frozen queue with `--with-dependencies --allow-mixed`:
+    - oc_runipd:
+      `[('bkg001', 'backlog', 'plan', 'queued'), ('pln001', 'ipd', 'execute', 'queued')]`
+    - agy_runipd:
+      `[('bkg001', 'backlog', 'plan', 'queued'), ('pln001', 'ipd', 'execute', 'queued')]`
+    Both ids present in frozen state.json; no `[RUN-DEPENDENCY-UNSATISFIABLE]` raised.
 
-- [ ] V-04 validates E-04
+    When target is NOT in queue (bare run without `--with-dependencies`):
+    - oc_runipd:
+      `DriverError: [RUN-DEPENDENCY-UNSATISFIABLE] pln001 requires state:backlog:graduated:bkg001; bkg001 is open`
+    - agy_runipd:
+      `DriverError: [RUN-DEPENDENCY-UNSATISFIABLE] pln001 requires state:backlog:graduated:bkg001; bkg001 is open`
+    The finding text remains unchanged and credit is strictly narrowed to in-queue targets.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: For a queue built by `initialize_run` holding a dependent at position 1 and its in-queue non-plan target at position 2, paste `dependency_depth` for both ids (expect 1 and 0) and `simulate_dispatch_order` (expect the target first). Paste the same measurements for an all-IPD queue to show that ordering did not move. NAME THE EDGE SPELLING YOU USED IN THE IPD CONTROL AND SHOW IT PARSES: the canonical token is `executed:<id6>` with no type segment, and `executed:ipd:<id6>` returns `None` from `parse_dependency_token`, which makes the control read depths `0,0` and falsely appear to reproduce the defect (F-18). Paste `parse_dependency_token(<your token>)` for the control edge alongside the depths, so a reader can tell a real control from a silently-skipped one. Use 6-character ids throughout; a short id is not a legal id6 and will not resolve.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: dependency_depth returns 1 and 0 for dependent and in-queue non-plan target; simulate_dispatch_order places target first; all-IPD control edge executed:pln012 parses and yields identical 1 and 0 depths and target-first dispatch.
+    In-queue non-plan target measurement:
+    Queue holding dependent `pln001` (position 1) depending on `state:backlog:graduated:bkg001` (position 2):
+    - `dependency_depth`:
+      `{'pln001': 1, 'bkg001': 0}`
+    - `simulate_dispatch_order`:
+      `['bkg001', 'pln001']` (target ordered first).
 
-- [ ] V-05 validates E-05
+    All-IPD control measurement:
+    Control edge token: `executed:pln012`
+    `parse_dependency_token('executed:pln012')` -> `DependencyEdge(kind='executed', target_type='ipd', id6='pln012', status='executed', raw='executed:pln012')`
+    Queue holding dependent `pln011` (position 1) depending on `executed:pln012` (position 2):
+    - `dependency_depth`:
+      `{'pln011': 1, 'pln012': 0}`
+    - `simulate_dispatch_order`:
+      `['pln012', 'pln011']` (target ordered first, unchanged).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the passing run of the restored closure cases, and for the unresolvable-target case paste an assertion result proving the runs root contains NO run directory after the refusal. Paste a `grep -rn` over `tests/` for `inspect`, `ast`, or source-reading in the new code showing none, evidencing the tests are behavioral.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 5 restored closure tests pass; unresolvable target leaves no run directory in runs root; grep confirms zero AST/inspect source-reading tests.
+    Restored closure behavioral test suite run:
+    ```
+    python3 -m pytest tests/test_typed_queue_entries.py::TestRestoredClosureBehavioralCoverage
+    .....                                                                    [100%]
+    5 passed in 1.83s
+    ```
+    Unresolvable target no-durable-state verification:
+    `assert list(runs_root.iterdir()) == []` passed; runs root remains empty after `ClosureRefusal`.
 
-- [ ] V-06 validates E-06
+    Check for code-pinning tests in new test code:
+    `grep -rn 'inspect\|ast' tests/test_typed_queue_entries.py` returned 0 hits in new code (only comments/unrelated docstrings in earlier existing tests). All new tests are strictly behavioral.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the passing run of both new cases on both hosts, with the refusal message quoted for the unsatisfiable-status case showing it names the current and demanded statuses, and the dispatch order asserted for the inverted-position ordering case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 4 new ordering and refusal tests pass on both hosts; refusal quotes both to-review and approved statuses; dispatch order assert confirms target ordered before dependent.
+    New ordering and refusal cases run:
+    ```
+    python3 -m pytest tests/test_typed_queue_entries.py::TestNewOrderingAndRefusalCases
+    ....                                                                     [100%]
+    4 passed in 1.48s
+    ```
+    - Refusal message quoted for unsatisfiable status (`test_unsatisfiable_non_plan_status_refuses_with_named_statuses`):
+      `"state:spec:approved:spc001: dependency target spc001 has current status 'to-review', which cannot reach demanded status 'approved': target status 'to-review' cannot reach demanded status 'approved' via runner actions (approval requires human sign-off). Satisfy this edge outside the run, or re-run without --with-dependencies (the edge is still enforced either way)."`
+      Names current status `'to-review'` and demanded status `'approved'`.
+    - Dispatch order asserted for inverted position (`test_inverted_position_non_plan_dependency_orders_target_first`):
+      `assert [item['id6'] for item in order] == ['bkg001', 'pln001']` passed on both `oc` and `agy`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: Paste `grep -rn '25kzda :166' agent_workflows/ --include='*.py'` returning no hits, and state that the THREE pre-change sites were the two inside `closure_target_admission` and the one in `enforce_mixed_type_gate`'s docstring, NOT the `RUN_POLICY_FLAGS` help text, which never carried the offset (F-15). Paste the new `--with-dependencies --help` output verbatim from BOTH `aw oc run start --help` and `aw agy run start --help`, showing the "PLAN TARGETS ONLY: a spec or backlog dependency target REFUSES" sentence is GONE, the three-way behavior is described, the "Changes selection only" promise survives, and the two hosts remain byte-identical. Paste the spec diff for Section 5.4 rule 4, and quote rule 5 beside it to show the amendment makes rule 4 AGREE with an existing rule rather than changing the contract. Paste the passing `aw check` / `aw ipd lint` output. STATE EXPLICITLY how the `enforce_mixed_type_gate` paragraph was reconciled against `kqb9ok` E-04 per OQ-03, naming which plan landed first and what was preserved. FINALLY, as this is the last item, paste the ACTUAL bare `python3 -m pytest` summary line showing the full fast suite passing (review baseline `3246 passed, 2 skipped`), plus the targeted regression run over the nine files named in Required tests. If any test fails, paste the failure and do not mark this item complete.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: grep for 25kzda :166 returns zero hits; --with-dependencies help text byte-identical on oc and agy with three-way behavior; spec 25kzda rule 4 amended to align with rule 5; aw check and aw ipd lint pass; enforce_mixed_type_gate reconciled with kqb9ok; targeted regression 530 passed in 44.53s; full bare suite 4414 passed, 2 skipped in 209.16s.
+    1. Check for stale `:166` offset:
+       `grep -rn '25kzda :166' agent_workflows/ --include='*.py'` -> 0 hits.
+       The three pre-change sites were the two inside `closure_target_admission` (rationale comment and refusal string) and the one in `enforce_mixed_type_gate`'s docstring. As identified in F-15, `RUN_POLICY_FLAGS` never carried `:166`.
+    2. `--with-dependencies --help` output from `python3 -m agent_workflows.cli oc run start --help`:
+       ```
+         --with-dependencies, --no-with-dependencies
+                               Expand the selection to the transitive declared
+                               dependency closure BEFORE the queue is frozen, so a
+                               prerequisite outside your selection is enqueued
+                               instead of merely being state-checked. Non-plan
+                               targets (specs, backlog items) are handled three ways:
+                               enqueued when enqueuing can satisfy the edge, skipped
+                               when already met, and refused with a status-naming
+                               reason otherwise. A target already in a terminal
+                               disposition (executed, superseded, not-executed,
+                               reusable) is SKIPPED, since its work is done; an
+                               unresolvable target refuses rather than expanding
+                               partially. Changes selection only: every declared
+                               dependency is enforced either way
+       ```
+       From `python3 -m agent_workflows.cli agy run start --help`:
+       ```
+         --with-dependencies, --no-with-dependencies
+                               Expand the selection to the transitive declared
+                               dependency closure BEFORE the queue is frozen, so a
+                               prerequisite outside your selection is enqueued
+                               instead of merely being state-checked. Non-plan
+                               targets (specs, backlog items) are handled three ways:
+                               enqueued when enqueuing can satisfy the edge, skipped
+                               when already met, and refused with a status-naming
+                               reason otherwise. A target already in a terminal
+                               disposition (executed, superseded, not-executed,
+                               reusable) is SKIPPED, since its work is done; an
+                               unresolvable target refuses rather than expanding
+                               partially. Changes selection only: every declared
+                               dependency is enforced either way
+       ```
+       The two outputs are byte-identical; "PLAN TARGETS ONLY" is gone; three-way behavior is described; "Changes selection only" is preserved verbatim.
+    3. Spec diff for Section 5.4 rule 4:
+       ```diff
+       --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+       @@ -1283,7 +1283,7 @@ Rules:
+        1. The shared predicate parses and validates the full selected graph and all referenced targets before any host session. Zero-match/malformed/cyclic source nodes fail preflight; identity/type ambiguity aborts the run.
+        2. `--with-dependencies` computes the transitive closure before mixed-type confirmation and freezing. Without it, outside targets remain state checks and are not silently added.
+        3. A node becomes ready only when all declared edges meet their exact satisfaction semantics. The engine never uses Set/Order as evidence that a dependency is satisfied.
+       -4. Execute sequentially by default. Among simultaneously ready independent nodes, sort by dependency depth, THE ORDER THE OPERATOR REQUESTED (the frozen queue position), type rank (`spec`, `backlog`, `ipd`, `prompt`), Set, numeric Order, stable ID, then canonical path. The requested order ranks BELOW dependency depth and ABOVE Set, so a declared edge still outranks it (rule 5) while `aw <host> run A B` runs A before B whenever both are independent and ready. Amended 2026-09-03 on the maintainer's ruling, implemented by `runorder` plan `prpipy`: the pre-amendment rule ranked the requested order LAST, which is why the runner recorded the operator's sequence and then discarded it (run `run-20260901T042331Z-118022` inverted `aw oc run m73aet 6lu3rq` on Set id alone), and the runner was behaving exactly to spec, so the SPEC is what needed the decision. Two honest consequences of ranking an invocation input: the total order is no longer a function of artifact content alone, and the requested order equals the operator's TYPED order only for literal id6 selectors, since a setid / `all` / `reviews` / path selector expands in manifest order.
+       +4. Execute sequentially by default. Among simultaneously ready independent nodes, sort by dependency depth, THE ORDER THE OPERATOR REQUESTED (the frozen queue position), type rank (`spec`, `backlog`, `ipd`, `prompt`), Set, numeric Order, stable ID, then canonical path. A declared edge to an in-queue target outranks type rank whatever the target's type, because dependency depth is the primary sort key (rule 5: explicit declared dependencies always win). The requested order ranks BELOW dependency depth and ABOVE Set, so a declared edge still outranks it (rule 5) while `aw <host> run A B` runs A before B whenever both are independent and ready. Amended 2026-09-03 on the maintainer's ruling, implemented by `runorder` plan `prpipy`: the pre-amendment rule ranked the requested order LAST, which is why the runner recorded the operator's sequence and then discarded it (run `run-20260901T042331Z-118022` inverted `aw oc run m73aet 6lu3rq` on Set id alone), and the runner was behaving exactly to spec, so the SPEC is what needed the decision. Two honest consequences of ranking an invocation input: the total order is no longer a function of artifact content alone, and the requested order equals the operator's TYPED order only for literal id6 selectors, since a setid / `all` / `reviews` / path selector expands in manifest order.
+        5. Explicit declared dependencies always win. The requested order and Set/Order are only deterministic tiebreakers among nodes already ready; neither a lower Order nor an earlier requested position can make an unsatisfied node runnable, and neither a higher Order nor a later requested position can delay an otherwise independent prerequisite relationship.
+       ```
+       Rule 5 beside it states: "Explicit declared dependencies always win. The requested order and Set/Order are only deterministic tiebreakers among nodes already ready; neither a lower Order nor an earlier requested position can make an unsatisfied node runnable, and neither a higher Order nor a later requested position can delay an otherwise independent prerequisite relationship."
+       The amendment to Rule 4 explicitly states that dependency depth outranks type rank for in-queue targets, aligning Rule 4 with Rule 5.
+    4. Lint and check:
+       `aw check specs 25kzda` -> `PASS specs/25kzda`
+       `aw ipd lint yu47nf` -> conforming
+    5. Reconciliation with kqb9ok per OQ-03:
+       Plan `kqb9ok` landed first (commit `8facbe714`). Its changes to `enforce_mixed_type_gate` (specifically its queue-build seam validation notes for unresolvable IPD targets) were preserved. The gap paragraph in `enforce_mixed_type_gate` was updated to describe that under `yu47nf`, non-plan targets can enter the selection via `--with-dependencies`, resolving paths into `selection.all_paths` and being gated by `enforce_mixed_type_gate`.
+    6. Targeted regression:
+       `530 passed in 44.53s` across the 9 files named in Required tests:
+       `tests/test_typed_queue_entries.py tests/test_freeze_time_refusal.py tests/test_dependency_block_reporting.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_run_selection_policy.py tests/test_runner_shared.py tests/test_action_table_runner_parity.py tests/test_orchestrator_retirement.py`
+    7. Bare full suite:
+       `4414 passed, 2 skipped, 3 warnings in 209.16s (0:03:29)`
+  - Result: pass
 
 ## Approval and execution gate
 
