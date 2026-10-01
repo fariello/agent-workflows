@@ -6,7 +6,7 @@
 - Scope: Teach `aw find`'s generic branch to resolve a prompt's id6 from the two sources the purity contract DOES sanction, in the precedence `prompts_index.scan_prompts` ships for its FIRST source (metadata comment) and with a GUARDED second source (`selectors.filename_slot_id6`, which refuses a legacy name's slug word where `prompts_index`'s raw `parse_clustered(...).group("id6")` would accept it), so the id6 column is populated and `--id` matches. Fix the `--set` filter in the same reader for the same root cause (a prompt's `Set:` is in the same comment, so `selectors._read_setid` misses it and `aw find prompts --set plainlang` returns zero rows against a prompt whose filename setid IS `plainlang`), using the comment then `check_engine._filename_setid`, whose HHMM guard is the setid twin of the slot guard. THE PROMPT-AWARE READER MUST BE CONSULTED BEFORE `selectors._read_id`/`_read_setid`, NOT AFTER, because for a prompt those readers are not merely silent but WRONG-CAPABLE: a prompt body legitimately quoting a `- Id:`/`- Set:` bullet before its first `##` heading is read as a declaration (measured), and a prompt has no sanctioned bullet at all. Does NOT widen `selectors._ID_RE`, does NOT route `selectors.resolve`'s id6 rule through a whole-file read, does NOT change which artifacts MATCH for any type, does NOT touch the status column, and does NOT change any non-prompt type's id6 or setid rendering.
 - Scope-Paths: agent_workflows/cli.py, tests/test_find_prompts_lane_status.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3b01h9
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3b01h9 verified (set y0t9u7, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-lq2w86-01-lq2w86-fix-date-timezone-parity-between-backlog-run-set-a.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
