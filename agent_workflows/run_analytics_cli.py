@@ -254,25 +254,19 @@ def _emit_query_agent(result: query_mod.QueryResult, args: argparse.Namespace) -
     renderer = AgentRenderer()
     parts = [renderer.render_item(row, "runs query", ctx) for row in rows]
     total = max(result.total, result.emitted)
-    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, AND THIS WORKS AROUND A
-    # PRE-EXISTING DEFECT RATHER THAN INTRODUCING ONE.
+    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.
     #
-    # Measured: `AgentRenderer.render_summary(..., context=ctx)` with `ctx.fields` set RAISES
-    # `ValueError: Invalid aw.agent/v1 record: Summary record missing required field 'total' ...`,
-    # because `filter_record_fields` preserves only `agent_schema._MANDATORY_FIELDS` (schema, kind,
-    # cmd, exit, outcome, verified, complete) while `validate_agent_record` ADDITIONALLY requires
-    # `total`, `emitted` and `omitted` on a summary. So the two contracts disagree, and any caller
-    # passing `--fields` to a summary crashes.
+    # The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`,
+    # so projecting this record could drop the paging continuation and emit a truncated answer
+    # (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest,
+    # which is the one field on this record a caller cannot reconstruct.
     #
-    # This is NOT caused by this plan: the bug lives in `renderers.py` / `agent_schema.py`, neither of
-    # which is in this plan's `Scope-Paths`, and it was previously unreachable because no production
-    # caller passed `fields` to `render_summary`. It is REPORTED (see the execution report) and NOT
-    # fixed here, matching this plan's posture on adjacent pre-existing defects.
+    # The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through
+    # any projection, so they are safe either way.
     #
-    # Projecting a summary's counts away would be wrong anyway: `emitted + omitted == total` is the
-    # invariant that lets a caller tell a bounded answer from a complete one, which is the entire
-    # point of the summary record. So the correct behavior is to keep them regardless of `--fields`,
-    # which is what passing no context does.
+    # History: a defect where passing `ctx` crashed with a missing required field under `--fields`
+    # previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog
+    # `3f4ayi`) and no longer applies here.
     parts.append(
         renderer.render_summary(
             "runs query",
