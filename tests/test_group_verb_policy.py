@@ -225,7 +225,7 @@ def test_group_research_bare_multi_preserves_order(temp_git_repo: Path):
     assert rc == 0
     rdir = temp_git_repo / ".aw" / "records" / "research"
     files = sorted(rdir.glob("*.md"))
-    names = [f.name for f in files]
+    names = [f.name for f in files if f.name != "INDEX.md"]
     orders = [R.parse_name(n)[0].order for n in names]
     assert orders == [
         "03",
@@ -243,7 +243,7 @@ def test_group_research_bare_single_preserves_order(temp_git_repo: Path):
     assert rc == 0
     rdir = temp_git_repo / ".aw" / "records" / "research"
     files = sorted(rdir.glob("*.md"))
-    names = [f.name for f in files]
+    names = [f.name for f in files if f.name != "INDEX.md"]
     orders = [R.parse_name(n)[0].order for n in names]
     assert orders == [
         "03"
@@ -265,7 +265,7 @@ def test_group_research_explicit_renumber(temp_git_repo: Path):
     assert rc == 0
     rdir = temp_git_repo / ".aw" / "records" / "research"
     files = sorted(rdir.glob("*.md"))
-    names = [f.name for f in files]
+    names = [f.name for f in files if f.name != "INDEX.md"]
     orders = [R.parse_name(n)[0].order for n in names]
     assert orders == [
         "01",
@@ -285,7 +285,7 @@ def test_group_research_explicit_order_zero(temp_git_repo: Path):
     assert rc == 0
     rdir = temp_git_repo / ".aw" / "records" / "research"
     files = sorted(rdir.glob("*.md"))
-    names = [f.name for f in files]
+    names = [f.name for f in files if f.name != "INDEX.md"]
     orders = [R.parse_name(n)[0].order for n in names]
     assert orders == [
         "00"
@@ -302,7 +302,7 @@ def test_group_research_tier_disagreement_follows_filename(temp_git_repo: Path):
     assert rc == 0
     rdir = temp_git_repo / ".aw" / "records" / "research"
     files = sorted(rdir.glob("*.md"))
-    names = [f.name for f in files]
+    names = [f.name for f in files if f.name != "INDEX.md"]
     orders = [R.parse_name(n)[0].order for n in names]
     assert orders == [
         "00"
@@ -319,7 +319,7 @@ def test_research_setassign_spelling_preserves_order(temp_git_repo: Path):
     assert rc == 0
     rdir = temp_git_repo / ".aw" / "records" / "research"
     files = sorted(rdir.glob("*.md"))
-    names = [f.name for f in files]
+    names = [f.name for f in files if f.name != "INDEX.md"]
     orders = [R.parse_name(n)[0].order for n in names]
     assert orders == [
         "03"
