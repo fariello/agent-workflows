@@ -31408,6 +31408,7 @@ def execute_item_core(
     process_backlog_close: Callable[..., Any],
     driver_module: Any = None,
     tracker: StreamTracker | None = None,
+    observe_host_model: Any = None,
 ) -> None:
     """Unified execution loop for one plan item, driving all 16 safety gates identically on both hosts."""
     from agent_workflows import lane_containment, runner_stop, worktree_lease
@@ -31427,6 +31428,8 @@ def execute_item_core(
 
     driver_begin = getattr(driver_module, "driver_begin", globals().get("driver_begin"))
     driver_finalize = getattr(driver_module, "driver_finalize", None)
+    if observe_host_model is None and driver_module is not None:
+        observe_host_model = getattr(driver_module, "observe_host_model", None)
     assert_child_tool_identity = getattr(
         driver_module,
         "assert_child_tool_identity",
@@ -32561,6 +32564,27 @@ def execute_item_core(
             attempt["cost"] = att_cost
         if att_toks:
             attempt["tokens"] = att_toks
+
+        # attmodel Order 02 (`ov2c9n`) E-03: record host model observation
+        # immediately after the turn ends, before subsequent turns launch.
+        if session_id and observe_host_model is not None:
+            try:
+                host_model_rec = observe_host_model(
+                    session_id,
+                    options=state.get("options", {}),
+                    repo_root=repo,
+                )
+            except Exception:
+                host_model_rec = None
+            if host_model_rec:
+                for k in (
+                    "host_model",
+                    "host_model_provider",
+                    "host_model_variant",
+                    "host_model_source",
+                ):
+                    if k in host_model_rec and host_model_rec[k] is not None:
+                        attempt[k] = host_model_rec[k]
 
         if work_dir and (
             not is_review or turn_runs_in_review_sweep_lane(state, work_dir)
