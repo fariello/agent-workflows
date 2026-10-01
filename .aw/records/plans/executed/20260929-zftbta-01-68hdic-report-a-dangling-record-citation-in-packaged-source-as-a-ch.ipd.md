@@ -6,7 +6,7 @@
 - Scope: Give the packaged source a DETECTOR rather than a rewriter. Add a `suffixes` parameter to `artifact_refs.dead_filename_citations` (which today cannot reach a `.py` file at all), add a `--source-citations` scan verb that reports a dangling record-filename citation under `agent_workflows/` and `tools/` with its file, line and cited name, and fix the 5 measured danglers the new detector finds. EXCLUDES extending `REFERENCE_SCAN_ROOTS` to rewrite the shipped package (rejected on measured evidence, see F-6 and F-7), EXCLUDES wiring the detector as an always-on `aw check` rule (the false-positive reason recorded at `plans_index.check_drift` is unretired, see F-8 and OQ-01), and EXCLUDES the two live-source spec-path citations already owned by pending plan `2wmwf7`.
 - Scope-Paths: agent_workflows/artifact_refs.py, agent_workflows/cli.py, agent_workflows/comms.py, agent_workflows/agy_run.py, agent_workflows/oc_runipd.py, tests/test_source_citation_scan.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 68hdic
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 68hdic verified (set zftbta, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-a2zpzq-01-a2zpzq-backlog-status-set-and-status-set-disagree-on-date.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
