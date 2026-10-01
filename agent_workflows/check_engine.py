@@ -381,6 +381,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.review-dangling": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # rulingcarrier jge900 E-03: a Gate-Kind: decision ref that names no heading in DECISIONS.md.
+    # Structural twin of `check.review-dangling` (an unresolvable cross-tree reference, swept whole-tree,
+    # registered `warning`), and follows its precedent: warning severity buys that NO LIFECYCLE GATE
+    # consumes the finding; info was rejected because artifact_core.drift_exit_code exempts only info
+    # and the corpus has no grandfathered population. Deterministic: literal heading id set membership.
+    # Suppressed entirely when DECISIONS.md is absent so it never false-positives in managed target repos.
+    "check.decision-ref-dangling": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     # revsweep 5slbpi E-04: a spec CURRENTLY at `- Status: reviewed` with no conforming review record
     # naming it. `error`, NOT the advisory severity its `check.review-dangling` neighbour directly
     # above carries, and the difference is deliberate rather than inherited: a stale review is untidy
@@ -4013,6 +4022,13 @@ def check_types(
             drift.extend(check_review_dangling(repo_root))
         except Exception:
             pass
+        # rulingcarrier jge900 E-03: a Gate-Kind: decision ref that names no heading in DECISIONS.md.
+        # ADVISORY (`warning`), matching check_review_dangling's tier and rationale. Suppressed when
+        # DECISIONS.md is absent so it never false-positives in managed target repos.
+        try:
+            drift.extend(check_decision_ref_dangling(repo_root))
+        except Exception:
+            pass
         # revsweep 5slbpi E-04: the OTHER half of the `->reviewed` attestation. The setter refuses the
         # transition; this rule catches a spec that reached `reviewed` some other way (a hand edit, a
         # pre-existing file). Same shared predicate, so the refusal and the finding cannot disagree.
@@ -6152,6 +6168,129 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
                 ),
             )
         )
+    return drift
+
+
+_DECISION_REF_DANGLING_RULE = "check.decision-ref-dangling"
+_DECISION_HEADING_RE = _re.compile(r"(?m)^###[ \t]+(D\d+[a-z]*)\.")
+
+
+def parse_decision_ids(path_or_root: Path | str) -> Set[str]:
+    r"""Parse the set of decision ids defined by headings in DECISIONS.md.
+
+    Parses ONLY headings matching `^### D\d+[a-z]*\.` (anchored multiline).
+    Do NOT scan the body for bare tokens: a bare token scan matches other namespaces
+    (e.g. `PR-D02`, `IPD-D701`, `D401`, `RR-...-D006`).
+
+    Fails open (returns empty set) on missing or unreadable file.
+    """
+    target = Path(path_or_root)
+    if target.is_dir():
+        target = target / "DECISIONS.md"
+    try:
+        text = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+    return set(_DECISION_HEADING_RE.findall(text))
+
+
+def check_decision_ref_dangling(repo_root: Path) -> List[_core.Drift]:
+    """Flag a Gate-Kind: decision ref that does not resolve to any heading in DECISIONS.md.
+
+    Structural twin of `check.review-dangling` (advisory `warning`, whole-tree sweep, referential
+    integrity invariant I-07). Consumed by no lifecycle gate, but will drive a nonzero check exit
+    if findings occur since `artifact_core.drift_exit_code` exempts only `info`.
+
+    Suppressed entirely when `DECISIONS.md` is absent: in a managed target repo `DECISIONS.md` does
+    not exist, so resolving against an empty heading set would report every `decision` gate as dangling.
+    An empty set of headings indicates that resolution is unavailable, so this sweep emits nothing.
+
+    A malformed or absent Gate-Ref is skipped: that is `backlog.gate-ref-invalid` / `attention.gate-malformed`,
+    and this rule deliberately avoids double-reporting the same defect.
+    """
+    drift: List[_core.Drift] = []
+    repo_root = Path(repo_root)
+
+    known_decision_ids = parse_decision_ids(repo_root)
+    if not known_decision_ids:
+        return drift
+
+    try:
+        from agent_workflows import attention_contract as _A
+    except Exception:
+        return drift
+
+    # 1. Backlog items
+    try:
+        from agent_workflows import backlog as _backlog
+
+        backlog_items = list(_backlog._iter_items(repo_root))
+    except Exception:
+        backlog_items = []
+
+    for path in backlog_items:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = _backlog.parse_item(text)
+        if item.gate_kind != "decision":
+            continue
+        ref = item.gate_ref
+        if not ref or not _A.validate_gate_ref("decision", ref):
+            continue
+        if ref not in known_decision_ids:
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _DECISION_REF_DANGLING_RULE,
+                        f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
+                    ),
+                    observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
+                    required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
+                    recovery=(
+                        f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
+                        "or remove/update the gate"
+                    ),
+                )
+            )
+
+    # 2. Specs
+    try:
+        from agent_workflows import specs as _specs
+
+        spec_files = list(_specs._spec_files(repo_root))
+    except Exception:
+        spec_files = []
+
+    for path in spec_files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        kind, ref, _summary = _specs._read_gate(_specs._lines(text))
+        if kind != "decision":
+            continue
+        if not ref or not _A.validate_gate_ref("decision", ref):
+            continue
+        if ref not in known_decision_ids:
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _DECISION_REF_DANGLING_RULE,
+                        f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
+                    ),
+                    observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
+                    required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
+                    recovery=(
+                        f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
+                        "or remove/update the gate"
+                    ),
+                )
+            )
+
     return drift
 
 

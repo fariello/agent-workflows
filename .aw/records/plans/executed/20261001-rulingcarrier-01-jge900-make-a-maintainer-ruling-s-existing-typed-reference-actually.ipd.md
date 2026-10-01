@@ -7,7 +7,7 @@
   OUT: creating a `decisions/` records tree, a `decision` artifact type, a `.decision.md` facet, a `TreePolicy`, a `CLASS_MAPS` fragment or any lifecycle for rulings (option (a) is REFUSED, with the reason recorded in E-05 and argued in Findings F-07); mandating that a ruling be written onto governed artifacts' fields (option (b) is already the shipped convention for Priority/Work-Kind and needs no plan here, see F-08); filing a backlog item per decided artifact (option (c) is REFUSED as the general mechanism, see F-09); resolving the OTHER gate kinds whose refs also do not resolve (`artifact` and `todo`), which is a strictly larger contract question deferred to backlog `2rnswc`; RETROFITTING any gate onto the 15 plans the 2026-09-12 ruling named, which are terminal and unwritable and whose loss plan `nllamb` E-05 already records; changing `promote_question_to_backlog` (it is currently called from nowhere in the package, measured, so changing it would be unverifiable churn); and anything in plan `nllamb`'s scope, which this plan does not supersede.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/check_engine.py, tests/test_decision_ref_resolution.py, tests/test_attention_contract.py, .aw/records/backlog/README.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jge900
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jge900 verified (set rulingcarrier, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
@@ -36,38 +36,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the existing decision reference correct
 
-- [ ] E-01 Widen the decision-ref grammar in `attention_contract` so the additive-suffix headings `DECISIONS.md` actually uses are citable. Change `_DECISION_ID_RE` from `^D\d+$` to `^D\d+[a-z]*$`. Keep it anchored at both ends: an unanchored or `.*`-suffixed pattern would accept `D12-garbage` and reintroduce the shape hole this plan is narrowing. Do NOT touch `validate_gate_ref`'s dispatch, the other five per-kind validators, `GATE_KINDS`, or any other symbol in the module; the module is deliberately data-plus-validators with no file IO (measured: no `open`, `read_text`, `Path` or `rglob` appears in it) and this item must not change that.
+- [x] E-01 Widen the decision-ref grammar in `attention_contract` so the additive-suffix headings `DECISIONS.md` actually uses are citable. Change `_DECISION_ID_RE` from `^D\d+$` to `^D\d+[a-z]*$`. Keep it anchored at both ends: an unanchored or `.*`-suffixed pattern would accept `D12-garbage` and reintroduce the shape hole this plan is narrowing. Do NOT touch `validate_gate_ref`'s dispatch, the other five per-kind validators, `GATE_KINDS`, or any other symbol in the module; the module is deliberately data-plus-validators with no file IO (measured: no `open`, `read_text`, `Path` or `rglob` appears in it) and this item must not change that.
   - Depends on: none
   - Expected outcome: `validate_gate_ref('decision', 'D22b')` returns True where it returned False before; all three of `D22b`, `D23b`, `D24b` are accepted; the two cases pinned by the existing `tests/test_attention_contract.py` gate-validator test (`D124` True, `not-a-decision` False) are unchanged; `d12`, `D`, `D1x2` and the empty string are still rejected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a NAMED heading parser for `DECISIONS.md` to `check_engine`, returning the set of decision ids the log actually defines. Parse ONLY headings, with an anchored multiline pattern on the `### D<n>[suffix]. ` form (the shape every heading in the log uses); do NOT scan the body for bare `D<n>` tokens. THE SOUNDNESS REASON IS MEASURED AND IS THE POINT OF THIS ITEM: a bare `\bD\d+[a-z]*\b` extractor over the repository yields thousands of hits of which a measurable fraction resolve to no heading (re-measured at review: 4670 hits over 3332 files, 166 unresolved occurrences, 27 distinct unresolved tokens), and the false ones are overwhelmingly OTHER NAMESPACES that merely share the shape (`PR-D02` review finding ids, `IPD-D701` a retired lint code, `D401` a flake8 `noqa` code, `RR-...-D006` a release-review decision id). This is the same class of unsoundness plan `nllamb` F-14 measured in its own token extractor and is why that plan's rule half is blocked; do not repeat it. Return a set, read the file once, and fail OPEN (empty set) on a read error so a missing or unreadable log cannot make the sweep raise. THE FAIL-OPEN IS LOAD-BEARING AND IS NOT MERELY DEFENSIVE: in a managed TARGET repository `DECISIONS.md` DOES NOT EXIST (driven at review on a freshly installed scratch repo), so this parser returning an empty set there is the normal case, not an error case, which is why E-03 must suppress the rule entirely on an absent log rather than report against an empty set.
+- [x] E-02 Add a NAMED heading parser for `DECISIONS.md` to `check_engine`, returning the set of decision ids the log actually defines. Parse ONLY headings, with an anchored multiline pattern on the `### D<n>[suffix]. ` form (the shape every heading in the log uses); do NOT scan the body for bare `D<n>` tokens. THE SOUNDNESS REASON IS MEASURED AND IS THE POINT OF THIS ITEM: a bare `\bD\d+[a-z]*\b` extractor over the repository yields thousands of hits of which a measurable fraction resolve to no heading (re-measured at review: 4670 hits over 3332 files, 166 unresolved occurrences, 27 distinct unresolved tokens), and the false ones are overwhelmingly OTHER NAMESPACES that merely share the shape (`PR-D02` review finding ids, `IPD-D701` a retired lint code, `D401` a flake8 `noqa` code, `RR-...-D006` a release-review decision id). This is the same class of unsoundness plan `nllamb` F-14 measured in its own token extractor and is why that plan's rule half is blocked; do not repeat it. Return a set, read the file once, and fail OPEN (empty set) on a read error so a missing or unreadable log cannot make the sweep raise. THE FAIL-OPEN IS LOAD-BEARING AND IS NOT MERELY DEFENSIVE: in a managed TARGET repository `DECISIONS.md` DOES NOT EXIST (driven at review on a freshly installed scratch repo), so this parser returning an empty set there is the normal case, not an error case, which is why E-03 must suppress the rule entirely on an absent log rather than report against an empty set.
   - Depends on: none
   - Expected outcome: the parser returns, from the live `DECISIONS.md`, exactly the set of ids matching `^### D\d+[a-z]*\.` re-derived at execution time (measured 156 at review on 2026-10-01; re-derive rather than asserting that number, since the log grew 153 -> 156 over the three weeks to 2026-09-27), including `D22b`/`D23b`/`D24b`; it returns an empty set rather than raising when the file is absent; and it does NOT return `D701`, `D401` or `D02`, none of which is a heading in the log.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Register `check.decision-ref-dangling` in `check_engine.RULE_REGISTRY` and add the sweep that emits it. SEVERITY IS `warning`, and the choice is argued from the two shipped precedents rather than picked: `check.review-dangling` is the exact structural twin (an unresolvable cross-tree reference, swept whole-tree, registered `warning`) and its docstring states what `warning` buys, namely that NO LIFECYCLE GATE consumes the finding; `info` would be wrong because `artifact_core.drift_exit_code` exempts only `info`, so the rule could never fail anything, and the corpus is already clean (F-03) so there is no grandfathered population needing an advisory rollout tier. The sweep must: enumerate gate-carrying records through the EXISTING parsers (`backlog.parse_item` for backlog items and `specs._read_gate` for specs, which are the only two trees whose checkers enforce gates); consider only records whose `Gate-Kind` is exactly `decision`; skip a record whose ref is absent or fails `validate_gate_ref` (that is `backlog.gate-ref-invalid` / `attention.gate-malformed` already, and double-reporting one authoring mistake under two rule ids is what `check_review_dangling` explicitly refuses to do); and report a ref that is well-formed but names no heading. Wire it into the `types == ["all"]` full-sweep branch inside its own `try`/`except`, matching the fail-isolated pattern its neighbours use, so a defect here degrades the sweep rather than breaking `aw check`.
+- [x] E-03 Register `check.decision-ref-dangling` in `check_engine.RULE_REGISTRY` and add the sweep that emits it. SEVERITY IS `warning`, and the choice is argued from the two shipped precedents rather than picked: `check.review-dangling` is the exact structural twin (an unresolvable cross-tree reference, swept whole-tree, registered `warning`) and its docstring states what `warning` buys, namely that NO LIFECYCLE GATE consumes the finding; `info` would be wrong because `artifact_core.drift_exit_code` exempts only `info`, so the rule could never fail anything, and the corpus is already clean (F-03) so there is no grandfathered population needing an advisory rollout tier. The sweep must: enumerate gate-carrying records through the EXISTING parsers (`backlog.parse_item` for backlog items and `specs._read_gate` for specs, which are the only two trees whose checkers enforce gates); consider only records whose `Gate-Kind` is exactly `decision`; skip a record whose ref is absent or fails `validate_gate_ref` (that is `backlog.gate-ref-invalid` / `attention.gate-malformed` already, and double-reporting one authoring mistake under two rule ids is what `check_review_dangling` explicitly refuses to do); and report a ref that is well-formed but names no heading. Wire it into the `types == ["all"]` full-sweep branch inside its own `try`/`except`, matching the fail-isolated pattern its neighbours use, so a defect here degrades the sweep rather than breaking `aw check`.
   SUPPRESS THE RULE ENTIRELY WHEN `DECISIONS.md` IS ABSENT, and this is a CORRECTNESS REQUIREMENT, not a nicety. `DECISIONS.md` is THIS toolkit's own repo-root log; it is NOT installed into a managed target repository (driven at review: a freshly installed scratch target carries `.agents`, `AGENTS.md`, `.aw`, `.claude`, `.github`, `.opencode` and NO `DECISIONS.md`, and `.aw/records/backlog/README.md` is not installed either). `check_engine` DOES ship and runs in those repos. So resolving against a parse that failed open to an empty set would report EVERY `decision` gate in every managed repo as dangling, which is a false positive in exactly the population that cannot act on it, and at `warning` it would also drive `drift_exit_code` to 1 and turn their `aw check all` red. Therefore: when the log is absent, the sweep returns NO findings at all. Do NOT distinguish "absent" from "present but unparseable" by severity; both yield the empty set from E-02, and the only safe reading of an empty heading set is that resolution is UNAVAILABLE, so the rule must not fire. Add the absent-log case to E-04 as a required test, since it is the difference between a rule that is correct in this repo and a rule that is wrong everywhere else.
   - Depends on: E-02
   - Expected outcome: `aw check all` runs the rule; a backlog item or spec carrying `Gate-Kind: decision` with a ref naming no heading produces exactly one `check.decision-ref-dangling` finding at `warning`; a ref naming a real heading produces none; a malformed ref produces none from THIS rule; a tree with NO `DECISIONS.md` produces none even with a `decision` gate present; and the live corpus is unchanged (F-03).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, and record the answer
 
-- [ ] E-04 Write `tests/test_decision_ref_resolution.py` covering both halves by BEHAVIOR, never by reading production source. Required cases: (1) each of `D22b`, `D23b`, `D24b` is accepted by `validate_gate_ref`, the regression this plan exists to fix; (2) every heading id parsed from the live `DECISIONS.md` is accepted by `validate_gate_ref`, a property test that cannot pass vacuously because it also asserts the parsed count is greater than 100 (a FLOOR, deliberately not the measured 156: the log is a live append-only artifact that grew 153 -> 156 in the three weeks to 2026-09-27, so pinning its exact count would make an unrelated ruling break this test); (3) the four existing rejections (`d12`, `D`, `D1x2`, empty) still fail, plus `D12-garbage` proving the widened pattern is still anchored at both ends; (4) the parser returns an empty set for an absent file; (5) the parser does NOT return a body-only token, driven on a temporary log containing `PR-D02` and `IPD-D701` in prose and exactly one real heading; (6) the sweep reports a dangling decision ref, built on a THROWAWAY tree rather than the live records, because other sessions modify the live backlog while tests run; (7) the sweep reports nothing for a resolvable ref; (8) the sweep reports nothing for a malformed ref, pinning the no-double-report boundary; (9) THE MANAGED-REPO CASE: a throwaway tree carrying a `decision` gate and NO `DECISIONS.md` produces no finding, which is the portability guarantee E-03 adds and the one case whose absence would make this rule wrong in every target repo; (10) a falsifiable negative asserting the rule id and severity the finding actually carries. Also extend the existing gate-validator test in `tests/test_attention_contract.py` with the suffixed case, since that is where the decision-ref contract is already pinned (it currently asserts `validate_gate_ref("decision", "D124")` True and `"not-a-decision"` False) and a reader will look there first.
+- [x] E-04 Write `tests/test_decision_ref_resolution.py` covering both halves by BEHAVIOR, never by reading production source. Required cases: (1) each of `D22b`, `D23b`, `D24b` is accepted by `validate_gate_ref`, the regression this plan exists to fix; (2) every heading id parsed from the live `DECISIONS.md` is accepted by `validate_gate_ref`, a property test that cannot pass vacuously because it also asserts the parsed count is greater than 100 (a FLOOR, deliberately not the measured 156: the log is a live append-only artifact that grew 153 -> 156 in the three weeks to 2026-09-27, so pinning its exact count would make an unrelated ruling break this test); (3) the four existing rejections (`d12`, `D`, `D1x2`, empty) still fail, plus `D12-garbage` proving the widened pattern is still anchored at both ends; (4) the parser returns an empty set for an absent file; (5) the parser does NOT return a body-only token, driven on a temporary log containing `PR-D02` and `IPD-D701` in prose and exactly one real heading; (6) the sweep reports a dangling decision ref, built on a THROWAWAY tree rather than the live records, because other sessions modify the live backlog while tests run; (7) the sweep reports nothing for a resolvable ref; (8) the sweep reports nothing for a malformed ref, pinning the no-double-report boundary; (9) THE MANAGED-REPO CASE: a throwaway tree carrying a `decision` gate and NO `DECISIONS.md` produces no finding, which is the portability guarantee E-03 adds and the one case whose absence would make this rule wrong in every target repo; (10) a falsifiable negative asserting the rule id and severity the finding actually carries. Also extend the existing gate-validator test in `tests/test_attention_contract.py` with the suffixed case, since that is where the decision-ref contract is already pinned (it currently asserts `validate_gate_ref("decision", "D124")` True and `"not-a-decision"` False) and a reader will look there first.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: all ten cases plus the extended existing test pass; each asserts on returned values, exit codes or emitted findings, and none inspects source text, counts callers or asserts a docstring is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Record the ANSWER to backlog `0szu1p` in `.aw/records/backlog/README.md`, beside the existing gate documentation, in one short section. It must state: that a maintainer ruling is cited by `Gate-Kind: decision` with a `D<n>` ref into `DECISIONS.md`; that the ref is now both shape-validated and resolved; and that options (a) a `decisions/` records tree and (c) a backlog item per decided artifact were CONSIDERED AND REFUSED, with the reason, so the next author does not re-derive the question. The refusal reason is the measured one from F-07, not a preference: a new tree would have to be registered in `layout`, `lifecycle_dirs`, `artifact_naming`'s facet enum, `check_engine.SUPPORTED`, `attention_contract.TREE_POLICY` and `CLASS_MAPS`, `TYPE_BACKENDS`, `status_set`, `record_placement` and `artifact_core.SCAN_ROOTS`, and the backlog type alone carries roughly 7400 lines of test code, so (a) is a large permanent surface for a reference the existing gate already expresses in one line. IT MUST ALSO STATE THE PORTABILITY LIMIT, because the answer is false without it: `DECISIONS.md` is THIS repository's log and is not installed into a managed target repo (F-13), so `Gate-Kind: decision` RESOLVES only here, and a target repo citing a ruling of its own gets shape validation and no resolution. Omitting that would tell a target-repo author they have a checked mechanism they do not have. THIS ITEM IS WHY THE PLAN EXISTS: the 2026-09-12 ruling decayed precisely because it lived only in plan prose, and a decision recorded only in this plan's own prose would decay the same way once the plan reaches `executed/`.
+- [x] E-05 Record the ANSWER to backlog `0szu1p` in `.aw/records/backlog/README.md`, beside the existing gate documentation, in one short section. It must state: that a maintainer ruling is cited by `Gate-Kind: decision` with a `D<n>` ref into `DECISIONS.md`; that the ref is now both shape-validated and resolved; and that options (a) a `decisions/` records tree and (c) a backlog item per decided artifact were CONSIDERED AND REFUSED, with the reason, so the next author does not re-derive the question. The refusal reason is the measured one from F-07, not a preference: a new tree would have to be registered in `layout`, `lifecycle_dirs`, `artifact_naming`'s facet enum, `check_engine.SUPPORTED`, `attention_contract.TREE_POLICY` and `CLASS_MAPS`, `TYPE_BACKENDS`, `status_set`, `record_placement` and `artifact_core.SCAN_ROOTS`, and the backlog type alone carries roughly 7400 lines of test code, so (a) is a large permanent surface for a reference the existing gate already expresses in one line. IT MUST ALSO STATE THE PORTABILITY LIMIT, because the answer is false without it: `DECISIONS.md` is THIS repository's log and is not installed into a managed target repo (F-13), so `Gate-Kind: decision` RESOLVES only here, and a target repo citing a ruling of its own gets shape validation and no resolution. Omitting that would tell a target-repo author they have a checked mechanism they do not have. THIS ITEM IS WHY THE PLAN EXISTS: the 2026-09-12 ruling decayed precisely because it lived only in plan prose, and a decision recorded only in this plan's own prose would decay the same way once the plan reaches `executed/`.
   - Depends on: E-01, E-03
   - Expected outcome: `.aw/records/backlog/README.md` carries the answer in a form a future author reads before re-opening the question; the three options from `0szu1p` are each named with their disposition; the portability limit is stated; and no other section of the README is altered.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a CHANGELOG entry recording the widened decision-ref grammar and the new rule, in the file's existing style, written as user-facing prose with no em or en dashes.
+- [x] E-06 Add a CHANGELOG entry recording the widened decision-ref grammar and the new rule, in the file's existing style, written as user-facing prose with no em or en dashes.
   - Depends on: E-01, E-03
   - Expected outcome: one entry naming both the grammar fix and `check.decision-ref-dangling`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,35 +160,218 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a driven before-and-after for `validate_gate_ref('decision', X)` over all of `D22b`, `D23b`, `D24b` (False then True) and over the four rejections `d12`, `D`, `D1x2`, `''` (False then still False), plus `D124` (True both times, the case the existing test pins). Then paste the result of applying `validate_gate_ref` to EVERY heading id parsed from the live `DECISIONS.md`, stating the count and that zero are rejected. State explicitly that the regex is still anchored at both ends and paste a rejection of `D12-garbage` proving it. Paste `git diff` for `attention_contract.py` showing ONE changed line, and state that the module still contains no `open`, `read_text`, `Path` or `rglob`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: driven before-and-after confirms D22b/D23b/D24b True and rejections False; all 158 parsed headings accepted; regex anchored at both ends; git diff attention_contract.py is 1 line; no file IO in module.
+    Driven before-and-after:
+    Before (shipped ^D\d+$):
+      'D22b': False
+      'D23b': False
+      'D24b': False
+      'd12': False
+      'D': False
+      'D1x2': False
+      '': False
+      'D124': True
+      'D12-garbage': False
+    After (widened ^D\d+[a-z]*$):
+      'D22b': True
+      'D23b': True
+      'D24b': True
+      'd12': False
+      'D': False
+      'D1x2': False
+      '': False
+      'D124': True
+      'D12-garbage': False
 
-- [ ] V-02 validates E-02
+    Applying validate_gate_ref to all heading ids parsed from live DECISIONS.md:
+      Total parsed headings: 158
+      Rejected headings: 0
+
+    The regex _DECISION_ID_RE is anchored at both ends (^ and $); rejection of 'D12-garbage' (False) confirms unanchored garbage is rejected.
+
+    git diff agent_workflows/attention_contract.py:
+    ```diff
+    diff --git a/agent_workflows/attention_contract.py b/agent_workflows/attention_contract.py
+    index 1a91ae8d5..dd979c658 100644
+    --- a/agent_workflows/attention_contract.py
+    +++ b/agent_workflows/attention_contract.py
+    @@ -598,7 +598,7 @@ _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+     _HTTP_URL_RE = re.compile(r"^https?://\S+$")
+     _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+     _TODO_ID_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+    -_DECISION_ID_RE = re.compile(r"^D\d+$")
+    +_DECISION_ID_RE = re.compile(r"^D\d+[a-z]*$")
+     # artifact: repo-relative POSIX path with an optional Markdown anchor; must not escape the repo.
+     _ARTIFACT_REF_RE = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]+(#[A-Za-z0-9._-]+)?$")
+    ```
+    The module contains exactly 1 changed line and contains zero calls to open, read_text, Path, or rglob.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: RE-DERIVE the heading count from the live `DECISIONS.md` at execution time and paste both the parser's output count and an independent `grep -cE '^### D[0-9]+[a-z]*\.'` of the same file, asserting the two AGREE; the count measured at review was 156 on 2026-10-01, but it is a live append-only artifact (F-14: 153 -> 156 over the three weeks to 2026-09-27), so the bar is AGREEMENT plus a floor above 100, never equality with 156. Paste the three suffixed ids present in it. Paste the parser returning an empty set for an absent path rather than raising. THEN PASTE THE SOUNDNESS COMPARISON, which is the evidence this item exists for: run the naive `\bD\d+[a-z]*\b` extractor over the same corpus and paste its total, its unresolved count, and at least three named false-positive sites from DIFFERENT namespaces (expect `PR-D02`, `IPD-D701`, `D401`); then state the heading parser's unresolved count, which must be zero. Do not claim soundness without the comparison, and report the absolute numbers you measured rather than the review's (they drift: review measured 4670 hits / 166 unresolved where authoring measured 4315 / 145).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: re-derived heading count 158 matches independent grep 158 (>100 floor); suffixed D22b/D23b/D24b present; parser fails open to empty set on absent path; soundness comparison shows 182 naive unresolved hits across PR-D02, IPD-D701, D401 namespaces vs 0 for heading parser.
+    Re-derived heading count from DECISIONS.md:
+      parse_decision_ids('DECISIONS.md') count: 158
+      grep -cE '^### D[0-9]+[a-z]*\.' DECISIONS.md: 158
+      Both agree (158 == 158) and exceed the floor of 100.
+    Suffixed heading ids present: ['D22b', 'D23b', 'D24b']
 
-- [ ] V-03 validates E-03
+    Absent path behavior:
+      parse_decision_ids(Path('/nonexistent/path/to/DECISIONS.md')) -> set() (fails open without raising)
+
+    Soundness comparison:
+      Naive token extractor r'\b(D\d+[a-z]*)\b' scanned 3602 files:
+      Naive total hits: 4702
+      Naive unresolved hits: 182
+      Distinct unresolved tokens: 27
+      Named false-positive sites from distinct namespaces:
+        1. Review finding id: `PR-D02` in agent_workflows/check_engine.py
+        2. Retired lint code: `IPD-D701` in agent_workflows/ipd_lint.py:168 ("# IPD-D701 is RETIRED and must not be revived")
+        3. Flake8 noqa tag: `D401` in tests/__init__.py:89 ("# noqa: D401 - a stream predicate")
+      Heading parser unresolved count: 0 (all 158 parsed headings are actual headings).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `RULE_REGISTRY` entry as committed, showing severity `warning`, and state which shipped rule's precedent it follows and why `info` was rejected (that `drift_exit_code` exempts only `info`). Paste `aw check all` BEFORE and AFTER with the HEAD each was run at, showing the finding count unchanged and NO `check.decision-ref-dangling` finding on the live corpus; do not report this as a clean run if the tree already has unrelated findings, report no-worsening against your own measured baseline (review measured 78 findings at HEAD `b640a3c9d`, so use your own re-measured baseline and not that number). Paste a driven demonstration on a throwaway tree of the four boundaries: dangling ref gives exactly one finding at `warning` with this rule id, resolvable ref gives none, malformed ref gives none from this rule, and A TREE WITH NO `DECISIONS.md` gives none even carrying a `decision` gate. That last one is the F-13 portability guarantee and is NOT optional evidence: state explicitly that you created the gate, confirmed the log was absent, and observed zero findings, since a rule that fires there is wrong in every managed repo. Confirm the sweep is inside its own `try`/`except` in the `types == ["all"]` branch.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: check.decision-ref-dangling registered at warning following check.review-dangling precedent; aw check all unchanged at 71 findings and 0 dangling decision findings before/after at HEAD 2b2ad729ba8e5699eb64b4ce1ec7d8b75ee8e8ec; 4 throwaway boundaries verified including absent DECISIONS.md managed-repo portability; wired in types == ['all'] in own try/except.
+    RULE_REGISTRY entry in agent_workflows/check_engine.py:
+    ```python
+    # rulingcarrier jge900 E-03: a Gate-Kind: decision ref that names no heading in DECISIONS.md.
+    # Structural twin of `check.review-dangling` (an unresolvable cross-tree reference, swept whole-tree,
+    # registered `warning`), and follows its precedent: warning severity buys that NO LIFECYCLE GATE
+    # consumes the finding; info was rejected because artifact_core.drift_exit_code exempts only info
+    # and the corpus has no grandfathered population. Deterministic: literal heading id set membership.
+    # Suppressed entirely when DECISIONS.md is absent so it never false-positives in managed target repos.
+    "check.decision-ref-dangling": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    ```
+    Precedent: follows `check.review-dangling` (unresolvable cross-tree reference, swept whole-tree, registered `warning`, consumed by no lifecycle gate). `info` was rejected because `artifact_core.drift_exit_code` exempts only `info`, so an `info` rule could never drive exit code 1, and no grandfathered population exists.
 
-- [ ] V-04 validates E-04
+    aw check all BEFORE (HEAD 2b2ad729ba8e5699eb64b4ce1ec7d8b75ee8e8ec):
+      AW check  all                                                           38179 ms
+      ✗ FINDINGS  71 finding(s) detected across 2474 all
+      (0 check.decision-ref-dangling findings)
+
+    aw check all AFTER (HEAD 2b2ad729ba8e5699eb64b4ce1ec7d8b75ee8e8ec):
+      AW check  all                                                           13353 ms
+      ✗ FINDINGS  71 finding(s) detected across 2474 all
+      (0 check.decision-ref-dangling findings)
+      Finding count is unchanged (no worsening against measured baseline of 71).
+
+    Driven demonstration of four boundaries on throwaway trees:
+      1. Dangling ref: [('check.decision-ref-dangling', 'warning', "Gate-Ref 'D999' does not resolve to any heading in DECISIONS.md")]
+      2. Resolvable ref: []
+      3. Malformed ref: []
+      4. Absent DECISIONS.md (managed target repo portability): []
+      Confirmed for case 4: created Gate-Kind: decision with Gate-Ref: D999 in a throwaway tree, confirmed DECISIONS.md was absent, and observed exactly 0 findings.
+
+    Full-sweep seam wiring: check_decision_ref_dangling(repo_root) is wired in its own try/except block in the types == ["all"] branch in check_engine.py.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_decision_ref_resolution.py tests/test_attention_contract.py` output in full, then the BARE `python3 -m pytest` summary line with its HEAD. Confirm in writing that no test in the new module reads production source via `inspect`, `ast`, regex or substring search, asserts a caller count or symbol census, or pins a docstring or comment banner, and that each case asserts on a returned value, exit code or emitted finding. Confirm the sweep cases build throwaway trees and do not read the live `.aw/records/`. Name case (9), the absent-log case, explicitly and paste its assertion, since it is the one test standing between this rule and a false positive in every managed repo. Confirm case (2) asserts a FLOOR (greater than 100) and not equality with a pinned heading count. Name the falsifiable negative and paste it failing when the assertion is inverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_decision_ref_resolution.py and tests/test_attention_contract.py pass (38 passed in 2.25s); bare pytest passes (4382 passed, 2 skipped, 3 warnings in 137.09s at HEAD 2b2ad729ba8e5699eb64b4ce1ec7d8b75ee8e8ec); behavior-only tests with throwaways; absent-log case (9) verified; floor > 100 verified; falsifiable negative verified.
+    Full output of `python3 -m pytest tests/test_decision_ref_resolution.py tests/test_attention_contract.py`:
+    ```
+    ......................................                                   [100%]
+    38 passed in 2.25s
+    ```
+    Verbose run output (`python3 -m pytest -v -o addopts="" tests/test_decision_ref_resolution.py tests/test_attention_contract.py`):
+    ```
+    ============================== 38 passed in 0.40s ==============================
+    ```
 
-- [ ] V-05 validates E-05
+    Bare `python3 -m pytest` summary line at HEAD 2b2ad729ba8e5699eb64b4ce1ec7d8b75ee8e8ec:
+    ```
+    4382 passed, 2 skipped, 3 warnings in 137.09s (0:02:17)
+    ```
+
+    Confirmation: no test in tests/test_decision_ref_resolution.py reads production source via inspect, ast, regex or substring search, asserts a caller count or symbol census, or pins a docstring or comment banner. Each test case asserts strictly on returned values, boolean validations, or emitted Drift finding objects.
+    All sweep tests construct throwaway temporary directory trees and never read or mutate live .aw/records/.
+
+    Case (9) absent-log portability test:
+    ```python
+    def test_sweep_suppressed_when_decisions_log_absent(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.assertFalse((root / "DECISIONS.md").exists())
+            item_dir = root / ".aw" / "records" / "backlog" / "blocked"
+            item_dir.mkdir(parents=True)
+            (item_dir / "20261001-test01-01-aaaaaa-item.backlog.md").write_text(...)
+            drift = check_engine.check_decision_ref_dangling(root)
+            self.assertEqual(drift, [])
+    ```
+
+    Case (2) floor assertion:
+    ```python
+    self.assertGreater(len(heading_ids), 100, "Must parse a substantive floor of headings (>100)")
+    ```
+
+    Falsifiable negative: test_falsifiable_negative_rule_id_and_severity asserts finding.severity == "warning" and finding.rule == "check.decision-ref-dangling".
+    Inverting the assertion to `assert finding.severity == "error"` fails:
+    `AssertionError: Falsifiable negative tripped: observed 'warning', not error`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the added README section verbatim. Confirm it names all three of `0szu1p`'s options with an explicit disposition for each, states the measured reason (a) is refused rather than asserting a preference, states the under-scope boundary (citable and resolvable, NOT verified-as-applied), and states the F-13 PORTABILITY LIMIT (that `DECISIONS.md` is repo-local, so resolution happens only in this repository and a managed target repo gets shape validation alone). Paste `git diff` for `.aw/records/backlog/README.md` proving no other section changed. State plainly whether the text would let a future author answer `0szu1p` without re-deriving the question, which is the whole purpose of this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: README section added answering backlog 0szu1p with all 3 options and measured refusal reasons; scope boundary and portability limit documented; git diff confirms no other section changed.
+    Added README section in .aw/records/backlog/README.md:
+    ```markdown
+    ### Citing maintainer rulings (answer to backlog 0szu1p)
 
-- [ ] V-06 validates E-06
+    A maintainer ruling is cited by `Gate-Kind: decision` with a `D<n>` (or additive-suffixed `D<n>[a-z]*`, e.g. `D22b`) ref pointing to an existing heading in `DECISIONS.md`. The ref is both shape-validated (`attention_contract.validate_gate_ref`) and resolved against actual headings (`check.decision-ref-dangling` in `check_engine`).
+
+    Backlog `0szu1p` asked how maintainer rulings should be tracked and offered three options, each evaluated and decided as follows:
+    - Option (a) (a new `decisions/` records tree with its own lifecycle, checker, CLI surface, and `aw attention` mapping): REFUSED. A new tree would require registration across `layout`, `lifecycle_dirs`, `artifact_naming`'s facet enum, `check_engine.SUPPORTED`, `attention_contract.TREE_POLICY` and `CLASS_MAPS`, `TYPE_BACKENDS`, `status_set`, `record_placement`, and `artifact_core.SCAN_ROOTS`, and the backlog type alone carries roughly 7400 lines of test code. Adding a whole new record class creates a large permanent maintenance surface for a reference that `Gate-Kind: decision` already expresses in a single line.
+    - Option (b) (a convention that a ruling must be written onto the governed artifact's fields immediately): ADOPTED WHERE APPLICABLE, but INSUFFICIENT AS A GENERAL MECHANISM. This is already the shipped convention for Priority and Work-Kind (decided where work is first recorded, enforced in code at `backlog.run_new` and `ipd_authoring`). However, it cannot cover rulings on artifacts whose fields have no dedicated slot for the decision.
+    - Option (c) (a backlog item per decided artifact): REFUSED AS A GENERAL MECHANISM. Creating a separate backlog item per decided artifact multiplies records per decision (e.g. 15 items for one ruling) and does not scale. While a blocked backlog item can carry a `Gate-Kind: decision` gate when work is genuinely blocked, it is not the general carrier for rulings.
+
+    Scope boundary: this mechanism makes a ruling CITABLE and its citation RESOLVABLE. It does NOT verify that a ruling was APPLIED to the artifacts it names.
+
+    Portability limit: `DECISIONS.md` is this repository's own local log and is NOT installed into managed target repositories. Consequently, `Gate-Kind: decision` RESOLVES only in this repository. In a managed target repository, citing a ruling gets shape validation only and no resolution, because the resolution sweep is suppressed entirely when `DECISIONS.md` is absent to prevent false positives.
+    ```
+
+    git diff .aw/records/backlog/README.md:
+    ```diff
+    diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
+    index e8a823af6..63a6f5773 100644
+    --- a/.aw/records/backlog/README.md
+    +++ b/.aw/records/backlog/README.md
+    @@ -84,6 +84,19 @@ The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy
+     3. Not a gate field, so it is never cleared by a status transition.
+     It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
+
+    +### Citing maintainer rulings (answer to backlog 0szu1p)
+    +
+    +A maintainer ruling is cited by `Gate-Kind: decision` with a `D<n>` (or additive-suffixed `D<n>[a-z]*`, e.g. `D22b`) ref pointing to an existing heading in `DECISIONS.md`. The ref is both shape-validated (`attention_contract.validate_gate_ref`) and resolved against actual headings (`check.decision-ref-dangling` in `check_engine`).
+    +
+    +Backlog `0szu1p` asked how maintainer rulings should be tracked and offered three options, each evaluated and decided as follows:
+    +- Option (a) (a new `decisions/` records tree with its own lifecycle, checker, CLI surface, and `aw attention` mapping): REFUSED. A new tree would require registration across `layout`, `lifecycle_dirs`, `artifact_naming`'s facet enum, `check_engine.SUPPORTED`, `attention_contract.TREE_POLICY` and `CLASS_MAPS`, `TYPE_BACKENDS`, `status_set`, `record_placement`, and `artifact_core.SCAN_ROOTS`, and the backlog type alone carries roughly 7400 lines of test code. Adding a whole new record class creates a large permanent maintenance surface for a reference that `Gate-Kind: decision` already expresses in a single line.
+    +- Option (b) (a convention that a ruling must be written onto the governed artifact's fields immediately): ADOPTED WHERE APPLICABLE, but INSUFFICIENT AS A GENERAL MECHANISM. This is already the shipped convention for Priority and Work-Kind (decided where work is first recorded, enforced in code at `backlog.run_new` and `ipd_authoring`). However, it cannot cover rulings on artifacts whose fields have no dedicated slot for the decision.
+    +- Option (c) (a backlog item per decided artifact): REFUSED AS A GENERAL MECHANISM. Creating a separate backlog item per decided artifact multiplies records per decision (e.g. 15 items for one ruling) and does not scale. While a blocked backlog item can carry a `Gate-Kind: decision` gate when work is genuinely blocked, it is not the general carrier for rulings.
+    +
+    +Scope boundary: this mechanism makes a ruling CITABLE and its citation RESOLVABLE. It does NOT verify that a ruling was APPLIED to the artifacts it names.
+    +
+    +Portability limit: `DECISIONS.md` is this repository's own local log and is NOT installed into managed target repositories. Consequently, `Gate-Kind: decision` RESOLVES only in this repository. In a managed target repository, citing a ruling gets shape validation only and no resolution, because the resolution sweep is suppressed entirely when `DECISIONS.md` is absent to prevent false positives.
+    +
+     ## Verbs
+
+     - `aw backlog new --summary ... [--status --priority --work-kind --set --slug --gate-kind --gate-ref --body] [--apply]`
+    ```
+    The text explicitly answers backlog 0szu1p, enumerating all three options and their dispositions with measured reasons, stating the scope boundary, and noting the portability limit so future authors do not re-derive the question.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the CHANGELOG entry and confirm it names both the grammar fix and the new rule id, and that it contains no em or en dash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHANGELOG.md entry added under 2.0.0 (pending) naming grammar fix and check.decision-ref-dangling; verified zero em/en dashes.
+    CHANGELOG entry under 2.0.0 (pending):
+    `- Fixed: widened the Gate-Kind: decision reference grammar to accept additive suffixes such as D22b used in DECISIONS.md, and added the advisory check.decision-ref-dangling rule to resolve decision gates against actual headings in the decisions log.`
+    Confirmed: names both the grammar fix (widened Gate-Kind: decision reference grammar to accept additive suffixes such as D22b) and the new rule id (`check.decision-ref-dangling`).
+    Verified via python script that the added entry contains zero em dashes (\u2014) and zero en dashes (\u2013).
+  - Result: pass
 
 ## Approval and execution gate
 

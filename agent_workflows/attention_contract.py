@@ -598,7 +598,7 @@ _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 _HTTP_URL_RE = re.compile(r"^https?://\S+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TODO_ID_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
-_DECISION_ID_RE = re.compile(r"^D\d+$")
+_DECISION_ID_RE = re.compile(r"^D\d+[a-z]*$")
 # artifact: repo-relative POSIX path with an optional Markdown anchor; must not escape the repo.
 _ARTIFACT_REF_RE = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9._/-]+(#[A-Za-z0-9._-]+)?$")
 

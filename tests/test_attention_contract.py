@@ -168,6 +168,7 @@ class GateTests(unittest.TestCase):
         )  # repo-escaping rejected
         self.assertFalse(A.validate_gate_ref("artifact", "/abs/path.md"))
         self.assertTrue(A.validate_gate_ref("decision", "D124"))
+        self.assertTrue(A.validate_gate_ref("decision", "D22b"))
         self.assertFalse(A.validate_gate_ref("decision", "not-a-decision"))
         self.assertTrue(A.validate_gate_ref("todo", "TODO-14"))
         self.assertTrue(A.validate_gate_ref("external", "vendor-ticket-9"))
