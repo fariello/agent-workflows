@@ -1,5 +1,6 @@
 - Id: qkl8fs
-- Status: open
+- Status: graduated
+- Graduated-To: qkl8fs
 - Set: qkl8fs
 - Priority: medium
 - Work-Kind: followup
@@ -20,4 +21,5 @@ Resolving this requires either:
 (c) moving the runner's backlog close to post-merge.
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 4nbvfr
 - 2026-09-28 created (aw backlog): Allow runner in-lane backlog close to gate against main via carrier override or resolution bridge
