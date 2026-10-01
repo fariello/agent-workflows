@@ -162,7 +162,7 @@ def _recover_commit_flags(raw: List[str]) -> Tuple[Optional[str], bool, List[str
     selector: Optional[str] = None
     saw_no_plan = False
     # Options that TAKE a value, so the token after them is never the selector.
-    valued = ("-m", "--message", "--dir")
+    valued = ("-m", "--message", "--dir", "--scope-reason")
     i = 0
     while i < len(pre):
         tok = pre[i]
@@ -596,7 +596,8 @@ def run_commit(args: argparse.Namespace) -> int:
     # REMAINDER where argparse never sees it.
     selector, saw_no_plan, pre = _recover_commit_flags(raw)
     no_plan = bool(getattr(args, "no_plan", False) or saw_no_plan)
-    # Recover -m/--message and --no-commit that argparse.REMAINDER swallowed from the pre-`--` part.
+    # Recover -m/--message, --no-commit, and --scope-reason that argparse.REMAINDER swallowed from the pre-`--` part.
+    raw_scope_reasons: List[str] = list(getattr(args, "scope_reason", None) or [])
     i = 0
     while i < len(pre):
         if pre[i] in ("-m", "--message") and i + 1 < len(pre):
@@ -611,8 +612,33 @@ def run_commit(args: argparse.Namespace) -> int:
             continue
         if pre[i] == "--no-commit":
             args.no_commit = True
+            i += 1
+            continue
+        if pre[i] == "--scope-reason" and i + 1 < len(pre):
+            raw_scope_reasons.append(pre[i + 1])
+            i += 2
+            continue
+        if pre[i].startswith("--scope-reason="):
+            raw_scope_reasons.append(pre[i][len("--scope-reason=") :])
+            i += 1
+            continue
+        if pre[i] == "--scope-reason" and i + 1 >= len(pre):
+            raw_scope_reasons.append("")
+            i += 1
+            continue
         i += 1
     repo_root = _resolve_repo_root(args)
+
+    from agent_workflows import ipd_lifecycle as _life
+
+    parsed_scope_reasons = _life._parse_scope_reason_flags(raw_scope_reasons)
+    if len(parsed_scope_reasons) < len(raw_scope_reasons):
+        for raw_tok in raw_scope_reasons:
+            if not _life._parse_scope_reason_flags([raw_tok]):
+                print(
+                    f"error: aw commit: malformed --scope-reason {raw_tok!r}; expected PATH=WHY"
+                )
+                return 2
 
     # AMBIGUITY IS A USAGE ERROR, NOT A PRECEDENCE RULE. A selector says "this plan governs the
     # commit" and `--no-plan` says "no plan governs it"; honoring either silently would make the
@@ -649,6 +675,7 @@ def run_commit(args: argparse.Namespace) -> int:
     scope_paths: List[str] = []
     is_grandfathered = False
     plan_rel = ""
+    plan_id = ""
     if plan_path is not None:
         try:
             text = plan_path.read_text(encoding="utf-8")
@@ -656,6 +683,7 @@ def run_commit(args: argparse.Namespace) -> int:
             print(f"error: cannot read plan: {exc}")
             return 2
         scope_paths, is_grandfathered = _plan_scope_paths(text)
+        plan_id = _plan_id6(text) or plan_path.stem
         try:
             plan_rel = str(plan_path.relative_to(repo_root)).replace("\\", "/")
         except ValueError:
@@ -684,14 +712,22 @@ def run_commit(args: argparse.Namespace) -> int:
             for p in paths
             if not _in_scope(str(Path(p)).replace("\\", "/"), scope_paths, plan_rel)
         ]
-        if out_of_scope or req_out:
+        unjustified_out = [p for p in out_of_scope if not parsed_scope_reasons.get(p)]
+        unjustified_req = [
+            p
+            for p in req_out
+            if not parsed_scope_reasons.get(str(Path(p)).replace("\\", "/"))
+            and not parsed_scope_reasons.get(p)
+        ]
+        if unjustified_out or unjustified_req:
             print("aw commit: refusing - out-of-scope change(s) present:")
-            for p in sorted(set(out_of_scope + req_out)):
+            for p in sorted(set(unjustified_out + unjustified_req)):
                 print(f"  {p}")
             print("  declared Scope-Paths: " + ", ".join(scope_paths))
             print(
                 "  remedy: commit the path in a separate 'aw commit --no-plan -m <msg> -- <paths>', "
-                "or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it."
+                "or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it, "
+                "or supply --scope-reason <path>=<why>."
             )
             return 1
     elif not scope_paths:
@@ -733,6 +769,15 @@ def run_commit(args: argparse.Namespace) -> int:
         trailers=_trailers_from_args(args),
     )
     if outcome.status == _gch.STATUS_COMMITTED:
+        if plan_id and parsed_scope_reasons:
+            ok, persist_msg = _life.record_scope_reasons(
+                repo_root, plan_id, parsed_scope_reasons
+            )
+            if not ok:
+                print(
+                    f"aw commit: warning - could not persist scope reason(s) to begin receipt: {persist_msg}; "
+                    "reason(s) will have to be supplied again at finalize"
+                )
         print(f"aw commit: committed {len(outcome.staged)} path(s): {outcome.commit}")
         return 0
     if outcome.status == _gch.STATUS_NOTHING_TO_COMMIT:
