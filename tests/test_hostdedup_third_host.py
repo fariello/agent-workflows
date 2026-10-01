@@ -46,6 +46,11 @@ SCRIPTED_HOST_LABELS = runner_shared.HostLabels(
     shell_tool="run_command",
     emits_launch_identity=False,
     full_auto_actor="aw scripted run --full-auto",
+    dependency_block_recovery=(
+        "resolve the named cause, then re-queue with "
+        "`aw scripted runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+        "a bare `resume` does NOT re-queue a dependency-blocked item"
+    ),
 )
 
 

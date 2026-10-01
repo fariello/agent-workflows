@@ -20307,6 +20307,7 @@ def dispatch_orchestrator_item(
     terminal_states: Container[str],
     success_states: Container[str],
     terminal_status: str = "fail-depend",
+    recovery_hint: str | None = None,
 ) -> OrchestratorDispatch:
     """PERFORM the retire/reconsider/terminate outcome for one `orchestrate` item. BOTH HOSTS.
 
@@ -20474,6 +20475,8 @@ def dispatch_orchestrator_item(
         f"executed:{child}": f"child {child} is {st or 'unfinished'}"
         for child, st in decision.unfinished
     }
+    if recovery_hint:
+        item["dependency_block_recovery"] = recovery_hint
     # The typed cause, additive, so a consumer need not parse prose to learn WHICH refusal happened.
     #
     # KEPT, NOT REPLACED, by the `Refusal` record below (runghostid `zyw4n3` E-03). These two fields
@@ -25978,6 +25981,38 @@ class HostLabels(NamedTuple):
     #: constant can reappear.
     full_auto_actor: str
 
+    #: The operator-facing recovery command hint for a `dependency-blocked` item,
+    #: e.g. "resolve the named cause, then re-queue with `aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; a bare `resume` does NOT re-queue a dependency-blocked item".
+    #:
+    #: revgate Order 03 (7nkcgp) E-08. Stated as a field on HostLabels because recovery here is NOT
+    #: automatic and NOT free: re-queueing a `dependency-blocked` item happens ONLY under the
+    #: `if retry_incomplete:` branch of `run_queue`, and `retry_incomplete` is False for a plain `start`
+    #: and comes exclusively from the explicit `--retry-incomplete` flag on `resume`. A bare `resume`
+    #: therefore leaves the item blocked. A block whose exit is undocumented is a usability failure, so
+    #: the command is carried in the payload rather than left for the operator to discover.
+    #:
+    #: NARROWED BY depblock 01 (`akzy45`) E-01/E-02. The drain arm now CLASSIFIES each remaining item
+    #: through the shared `runner_shared.classify_drain_block` and writes this terminal label only on one
+    #: that is PERMANENTLY blocked (a terminal-non-success prerequisite, a cycle, a dangling or
+    #: unsatisfiable external edge, or any cause it cannot prove transient). An item whose every unmet
+    #: prerequisite is still NON-TERMINAL is left `queued` and reported through
+    #: `render_transient_dependency_waits` instead. The loop still BREAKS - nothing in a run re-queues
+    #: such a prerequisite, so waiting inside this invocation cannot pay off - but the item keeps the
+    #: cheaper recovery route below.
+    #:
+    #: THE THREE WRITE SITES FOR THIS STATUS, classified by E-01 so the next reader need not re-derive them:
+    #:   1. `cascade_dependency_blocked` - PERMANENT by construction. It fires only on a prerequisite that
+    #:      is `in TERMINAL_STATES and st not in required` (action-aware), which is exactly the
+    #:      can-never-be-ready case. Updated by `8eei5p` to accept `recovery_hint` via HostLabels.
+    #:   2. The drain-time `if runnable is None:` arm in `run_queue` (both hosts). This was the site
+    #:      that conflated the two facts, and it is the ONE site `akzy45` changed. Now reads the hint from HostLabels.
+    #:   3. `runner_shared.dispatch_orchestrator_item`'s `terminal_status` DEFAULT PARAMETER, reached by its
+    #:      TERMINATE outcome. ALREADY CORRECT and the worked example this fix generalizes: `pgq326` split
+    #:      that path three ways, where RECONSIDER writes NO status (leaving the item `queued`, which is
+    #:      precisely the transient handling) and TERMINATE writes the terminal status with specific
+    #:      reason and recovery hint (`8eei5p`).
+    dependency_block_recovery: str
+
 
 #: The OpenCode host's labels. Bound by `oc_runipd`'s wrappers.
 OC_HOST_LABELS = HostLabels(
@@ -25991,6 +26026,11 @@ OC_HOST_LABELS = HostLabels(
     shell_tool=None,
     emits_launch_identity=True,
     full_auto_actor="aw oc run --full-auto",
+    dependency_block_recovery=(
+        "resolve the named cause, then re-queue with "
+        "`aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+        "a bare `resume` does NOT re-queue a dependency-blocked item"
+    ),
 )
 
 #: The Antigravity host's labels. Bound by `agy_runipd`'s wrappers.
@@ -26005,6 +26045,11 @@ AGY_HOST_LABELS = HostLabels(
     shell_tool="run_command",
     emits_launch_identity=False,
     full_auto_actor="aw agy run --full-auto",
+    dependency_block_recovery=(
+        "resolve the named cause, then re-queue with "
+        "`aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+        "a bare `resume` does NOT re-queue a dependency-blocked item"
+    ),
 )
 
 CARRIER_VERIFICATION_REFUSAL_CODE: str = "carrier-verification-unresolved"
@@ -36536,7 +36581,10 @@ def dependency_status_detailed(
 
 
 def cascade_dependency_blocked(
-    state: dict[str, Any], run_dir: Path | None = None
+    state: dict[str, Any],
+    run_dir: Path | None = None,
+    *,
+    recovery_hint: str | None = None,
 ) -> list[dict[str, Any]]:
     """Propagate `dependency-blocked` over reverse edges to a fixed point (spec 25kzda 5.4 rule 7).
 
@@ -36598,6 +36646,8 @@ def cascade_dependency_blocked(
             item["status"] = "fail-depend"
             item["unsatisfied_dependencies"] = dead
             item["unsatisfied_dependency_reasons"] = reasons
+            if recovery_hint:
+                item["dependency_block_recovery"] = recovery_hint
             blocked.append(item)
             progressed = True
             if run_dir is not None:

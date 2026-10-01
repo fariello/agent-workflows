@@ -13,6 +13,7 @@ Pins:
 from __future__ import annotations
 
 import json
+import unittest.mock as mock
 from pathlib import Path
 from typing import Any
 
@@ -24,9 +25,18 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
 )
 from agent_workflows.runner_shared import (
+    AGY_HOST_LABELS,
+    EXECUTION_SUCCESS_STATES,
     OC_HOST_LABELS,
+    ORCH_DISPATCH_RECONSIDER,
+    ORCH_DISPATCH_TERMINATE,
+    ORCH_REASON_DEAD_CHILDREN,
+    ORCH_REASON_UNFINISHED_CHILDREN,
+    TERMINAL_STATES,
+    OrchestratorDispatch,
     cascade_dependency_blocked,
     dependency_status_detailed,
+    dispatch_orchestrator_item,
     write_report,
 )
 
@@ -62,6 +72,48 @@ def test_cascade_producer_output_shape(tmp_path: Path) -> None:
         "executed:aaa111": "target aaa111 is reviewed"
     }
     assert dependent.get("dependency_block_recovery") is None
+
+    events = [
+        json.loads(line)
+        for line in (tmp_path / "events.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["event"] == "dependency-blocked"
+    assert ev["id6"] == "bbb222"
+    assert ev["dependencies"] == ["executed:aaa111"]
+    assert ev["reason"] == "prerequisite reached a non-success terminal state"
+    assert set(ev.keys()) == {"at", "event", "id6", "dependencies", "reason"}
+
+
+def test_cascade_producer_output_shape_with_hint(tmp_path: Path) -> None:
+    """Case (a2): cascade_dependency_blocked with hint writes dependency_block_recovery without altering events."""
+    prereq = {
+        "position": 1,
+        "id6": "aaa111",
+        "status": "reviewed",
+        "action": "execute",
+    }
+    dependent = {
+        "position": 2,
+        "id6": "bbb222",
+        "status": "queued",
+        "action": "execute",
+        "dependencies": ["executed:aaa111"],
+    }
+    state: dict[str, Any] = {"queue": [prereq, dependent]}
+    hint = OC_HOST_LABELS.dependency_block_recovery
+
+    blocked = cascade_dependency_blocked(state, run_dir=tmp_path, recovery_hint=hint)
+
+    assert [b["id6"] for b in blocked] == ["bbb222"]
+    assert dependent["status"] == "fail-depend"
+    assert dependent["unsatisfied_dependencies"] == ["executed:aaa111"]
+    assert dependent["unsatisfied_dependency_reasons"] == {
+        "executed:aaa111": "target aaa111 is reviewed"
+    }
+    assert dependent.get("dependency_block_recovery") == hint
 
     events = [
         json.loads(line)
@@ -255,3 +307,177 @@ def test_orchestrator_item_surfaces_child_in_report_not_summary_table(
     report_text = (tmp_path / "execution-report.md").read_text()
     assert "## Dependency blocks (why)" in report_text
     assert "- `executed:chi001`: child chi001 is queued" in report_text
+
+
+def test_orchestrator_terminate_carries_recovery_hint_and_reconsider_does_not(
+    tmp_path: Path,
+) -> None:
+    """Orchestrator TERMINATE carries recovery_hint; RECONSIDER leaves it absent and status queued."""
+    repo = Path.cwd()
+    hint = OC_HOST_LABELS.dependency_block_recovery
+
+    # TERMINATE path
+    item_term = {
+        "position": 1,
+        "id6": "orc001",
+        "setid": "test",
+        "action": "orchestrate",
+        "status": "queued",
+    }
+    state_term: dict[str, Any] = {
+        "queue": [item_term],
+        "repo": str(repo),
+        "run_id": "run-term",
+    }
+    dispatch_term = OrchestratorDispatch(
+        outcome=ORCH_DISPATCH_TERMINATE,
+        reason=ORCH_REASON_DEAD_CHILDREN,
+        detail="child chi001 (failed)",
+        unfinished=(("chi001", "failed"),),
+        unauthored_rows=(),
+        eligibility=None,
+    )
+    with mock.patch(
+        "agent_workflows.runner_shared.decide_orchestrator_dispatch",
+        return_value=dispatch_term,
+    ):
+        dispatch_orchestrator_item(
+            repo,
+            tmp_path,
+            state_term,
+            item_term,
+            actor="test-actor",
+            terminal_states=TERMINAL_STATES,
+            success_states=EXECUTION_SUCCESS_STATES,
+            recovery_hint=hint,
+        )
+
+    assert item_term["status"] == "fail-depend"
+    assert item_term.get("dependency_block_recovery") == hint
+    assert item_term["unsatisfied_dependencies"] == ["executed:chi001"]
+
+    # RECONSIDER path
+    item_rec = {
+        "position": 2,
+        "id6": "orc002",
+        "setid": "test",
+        "action": "orchestrate",
+        "status": "queued",
+    }
+    state_rec: dict[str, Any] = {
+        "queue": [item_rec],
+        "repo": str(repo),
+        "run_id": "run-rec",
+    }
+    dispatch_rec = OrchestratorDispatch(
+        outcome=ORCH_DISPATCH_RECONSIDER,
+        reason=ORCH_REASON_UNFINISHED_CHILDREN,
+        detail="child chi002 (queued)",
+        unfinished=(("chi002", "queued"),),
+        unauthored_rows=(),
+        eligibility=None,
+    )
+    with mock.patch(
+        "agent_workflows.runner_shared.decide_orchestrator_dispatch",
+        return_value=dispatch_rec,
+    ):
+        dispatch_orchestrator_item(
+            repo,
+            tmp_path,
+            state_rec,
+            item_rec,
+            actor="test-actor",
+            terminal_states=TERMINAL_STATES,
+            success_states=EXECUTION_SUCCESS_STATES,
+            recovery_hint=hint,
+        )
+
+    assert item_rec["status"] == "queued"
+    assert item_rec.get("dependency_block_recovery") is None
+
+
+def test_write_report_renders_one_recovery_line_for_each_producer(
+    tmp_path: Path,
+) -> None:
+    """write_report renders exactly one - Recovery: line per blocked item across all three producers."""
+    hint = OC_HOST_LABELS.dependency_block_recovery
+    cascade_item = {
+        "position": 1,
+        "id6": "cas001",
+        "setid": "test",
+        "action": "execute",
+        "status": "fail-depend",
+        "unsatisfied_dependencies": ["executed:prereq1"],
+        "unsatisfied_dependency_reasons": {
+            "executed:prereq1": "target prereq1 is failed"
+        },
+        "dependency_block_recovery": hint,
+    }
+    drain_item = {
+        "position": 2,
+        "id6": "drn001",
+        "setid": "test",
+        "action": "execute",
+        "status": "fail-depend",
+        "unsatisfied_dependencies": ["executed:prereq2"],
+        "unsatisfied_dependency_reasons": {
+            "executed:prereq2": "target prereq2 is missing"
+        },
+        "dependency_block_recovery": hint,
+    }
+    orch_item = {
+        "position": 3,
+        "id6": "orc001",
+        "setid": "test",
+        "action": "orchestrate",
+        "status": "fail-depend",
+        "unsatisfied_dependencies": ["executed:chi001"],
+        "unsatisfied_dependency_reasons": {"executed:chi001": "child chi001 is failed"},
+        "dependency_block_recovery": hint,
+    }
+    state: dict[str, Any] = {
+        "queue": [cascade_item, drain_item, orch_item],
+        "run_id": "run-three-producers",
+    }
+    write_report(tmp_path, state, labels=OC_HOST_LABELS)
+    report_text = (tmp_path / "execution-report.md").read_text()
+
+    assert "## Dependency blocks (why)" in report_text
+    recovery_lines = [
+        line.strip()
+        for line in report_text.splitlines()
+        if line.strip().startswith("- Recovery:")
+    ]
+    assert len(recovery_lines) == 3
+    for line in recovery_lines:
+        assert line == f"- Recovery: {hint}"
+
+
+def test_drain_and_cascade_report_renders_correct_host_attribution(
+    tmp_path: Path,
+) -> None:
+    """Report renders host-specific recovery hints without cross-host misattribution."""
+    for host_name, labels in [("oc", OC_HOST_LABELS), ("agy", AGY_HOST_LABELS)]:
+        h_dir = tmp_path / host_name
+        h_dir.mkdir()
+        item = {
+            "position": 1,
+            "id6": f"{host_name}001",
+            "setid": "test",
+            "action": "execute",
+            "status": "fail-depend",
+            "unsatisfied_dependencies": ["executed:dep1"],
+            "unsatisfied_dependency_reasons": {
+                "executed:dep1": "target dep1 is failed"
+            },
+            "dependency_block_recovery": labels.dependency_block_recovery,
+        }
+        state: dict[str, Any] = {"queue": [item], "run_id": f"run-{host_name}"}
+        write_report(h_dir, state, labels=labels)
+        report_text = (h_dir / "execution-report.md").read_text()
+
+        assert f"- Recovery: {labels.dependency_block_recovery}" in report_text
+        other_cmd = (
+            "aw agy runipd resume" if host_name == "oc" else "aw oc runipd resume"
+        )
+        assert other_cmd not in report_text
