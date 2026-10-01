@@ -10,7 +10,7 @@
 - Scope: IN: (1) replace both `except DriverError: current_plan_for_finalize = plan_path` arms in `runner_shared.execute_item_core` with a RECORDED REFUSAL that leaves the plan unmoved, spends no finalize, and does not integrate, reusing the `record_refusal` + reason/remedy shape `fzxfph` established on the verify side but with its OWN code rather than a verify-specific one; (2) close the two ways a wrong path becomes a FALSE SUCCESS or a RUN-FATAL crash even when re-resolution succeeded, by making `finalize_already_done` require the plan file to be BOTH present on disk AND CONTAINED IN THE TREE BEING FINALIZED before it may convert a refusal into a no-op (F-10 measures that an existence check ALONE misses the dominant case, where the substituted path exists in the OTHER tree), and by making `finalize_precheck` refuse an unreadable plan file with its own exit-2 cannot-run instead of raising `FileNotFoundError`; (3) behavioral tests for all three, including the false-success direction in BOTH its wrong-tree and its ghost-path shapes, driven through the shipped predicates rather than asserted on source text. OUT: the verify-side site, which `fzxfph` already fixed and which this plan must leave byte-identical; the THREE OTHER `except DriverError: <x> = plan_path` prompt-building fallbacks in the same function (F-7 measures them as a different class with an advisory consumer); `plan_bucket` itself, which must stay IO-free (F-5); `ipd_lifecycle.plan_already_finalized`, whose `executed/`-bucket-without-reachable-commit tolerance is the measured `finidem` incident's own shape (F-5); the finalize retry classification and its budget; and any change to WHICH refusals are retryable.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_lifecycle.py, tests/test_finalize_stale_plan_path.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,10 +20,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1fzist
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1fzist verified (set rfhiu2, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002, PR-003, PR-004 (MEDIUM, all fixed), PR-005, PR-006, PR-007 (LOW, all fixed). Typed record at `.aw/records/reviews/20260930-rfhiu2-01-1fzist-refuse-a-finalize-against-a-plan-path-the-runner-knows-may-b.review.md` with six `### Decisions` rows, none irreversible. Every finding the plan authored was RE-MEASURED at HEAD `62b18f47` rather than read, including a real `git worktree` pair, and all of them reproduce.
@@ -51,40 +51,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: refuse the unresolvable plan instead of substituting a stale one
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, add a module-level refusal CODE constant for this fact plus a reason/remedy text function, sited beside the existing `FINALIZE_REFUSAL_CODE` rather than beside the `VERIFY_ABSENCE_*` block. Two reasons the placement matters: the `VERIFY_ABSENCE_CODES` tuple is documented as a CLOSED set over "every reason a VERDICT can be absent" and `verify_absence_text` RAISES on a code outside it, so adding a finalize fact there would either break that closure or require widening a set whose four members each describe a verifier turn; and `fzxfph`'s own in-tree comment instructs a follow-up to "reuse `VERIFY_ABSENCE_*`'s shape, not its verify-specific codes". Name the code for the fact (the plan could not be re-resolved before finalize), give the reason the same three properties the verify twin's has (say what did NOT happen, say that the runner deliberately did not fall back, say that nothing was merged), and give the remedy a concrete first command (`aw find plans <id6>`) plus the statement that the lane is PRESERVED, since the destructive wrong move here is re-running a plan whose lane already holds the work.
+- [x] E-01 In `agent_workflows/runner_shared.py`, add a module-level refusal CODE constant for this fact plus a reason/remedy text function, sited beside the existing `FINALIZE_REFUSAL_CODE` rather than beside the `VERIFY_ABSENCE_*` block. Two reasons the placement matters: the `VERIFY_ABSENCE_CODES` tuple is documented as a CLOSED set over "every reason a VERDICT can be absent" and `verify_absence_text` RAISES on a code outside it, so adding a finalize fact there would either break that closure or require widening a set whose four members each describe a verifier turn; and `fzxfph`'s own in-tree comment instructs a follow-up to "reuse `VERIFY_ABSENCE_*`'s shape, not its verify-specific codes". Name the code for the fact (the plan could not be re-resolved before finalize), give the reason the same three properties the verify twin's has (say what did NOT happen, say that the runner deliberately did not fall back, say that nothing was merged), and give the remedy a concrete first command (`aw find plans <id6>`) plus the statement that the lane is PRESERVED, since the destructive wrong move here is re-running a plan whose lane already holds the work.
   - Depends on: none
   - Expected outcome: importing `runner_shared` exposes the new code and the text function; the text function returns a non-empty reason and a non-empty remedy for it (the `Refusal` contract requires both); `VERIFY_ABSENCE_CODES` is UNCHANGED and still has exactly four members; and `verify_absence_text` still raises `ValueError` when handed the new code, proving the two vocabularies stayed separate.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `runner_shared.execute_item_core`, replace BOTH `except DriverError: current_plan_for_finalize = plan_path` arms (the lane arm, whose `try` calls `resolve_plan_path(finalize_repo, ...)`, and the non-lane arm, whose `try` calls `resolve_plan_path(repo, ...)`) with a refusal that performs the same five acts the verify-side twin performs: `record_refusal` with E-01's code, reason and remedy; set the disposition to a non-success terminal value; print the reason and remedy to stderr; save state; and SKIP the entire finalize body so no `driver_finalize`, no `record_item_spec_edits`, no `refreeze_stale_receipt_for_correction`, no `perform_carrier_verification` and no integration runs for that item. Use the `current_plan_for_finalize = None` / `if current_plan_for_finalize is not None:` guard shape the verify site already uses, so the two sites read the same way and a reader comparing them sees one pattern. Do NOT raise: a raise from here is run-fatal (F-2), and the correct behavior is one item refused with the run continuing, which is the forward-progress rule both hosts' queues already implement. Choose the disposition from the EXISTING vocabulary and state which and why in the code comment; do not mint a new status token (`TERMINAL_STATES` already carries the aliases, and a novel token renders as a bare dash in `aw runs`, which `fzxfph` measured).
+- [x] E-02 In `runner_shared.execute_item_core`, replace BOTH `except DriverError: current_plan_for_finalize = plan_path` arms (the lane arm, whose `try` calls `resolve_plan_path(finalize_repo, ...)`, and the non-lane arm, whose `try` calls `resolve_plan_path(repo, ...)`) with a refusal that performs the same five acts the verify-side twin performs: `record_refusal` with E-01's code, reason and remedy; set the disposition to a non-success terminal value; print the reason and remedy to stderr; save state; and SKIP the entire finalize body so no `driver_finalize`, no `record_item_spec_edits`, no `refreeze_stale_receipt_for_correction`, no `perform_carrier_verification` and no integration runs for that item. Use the `current_plan_for_finalize = None` / `if current_plan_for_finalize is not None:` guard shape the verify site already uses, so the two sites read the same way and a reader comparing them sees one pattern. Do NOT raise: a raise from here is run-fatal (F-2), and the correct behavior is one item refused with the run continuing, which is the forward-progress rule both hosts' queues already implement. Choose the disposition from the EXISTING vocabulary and state which and why in the code comment; do not mint a new status token (`TERMINAL_STATES` already carries the aliases, and a novel token renders as a bare dash in `aw runs`, which `fzxfph` measured).
   Two mechanical constraints the executor must honor, both measured at review rather than assumed. FIRST, THE DISPOSITION IS `fail-gate`, NOT `partial`. The verify-side twin writes `partial`, but copying that token here would be wrong for this site: `turn_failure_is_retryable` is consulted downstream by `handle_turn_failure_retry`, and while BOTH tokens are currently non-retryable, `fail-gate`'s recorded reason is "lifecycle gate or clean-base gate refused; not a host failure to retry without human action", which describes this fact exactly, whereas `partial`'s reason is about a turn that RAN and fell short and explicitly names another plan (`dy9ymn`) as its future owner, so a later widening of `partial` would silently start re-dispatching an item whose plan the runner cannot locate. `fail-gate` is also in `TERMINAL_STATES` and renders correctly in `aw runs`. State this reasoning in the code comment. SECOND, RECORD THE REFUSAL AND THEN LET NOTHING OVERWRITE IT: `render_stream.record_refusal` writes a SINGLE `REFUSAL_KEY` slot, measured at review to be overwritten wholesale by a later `record_refusal` call, and `handle_turn_failure_retry` runs unconditionally for every execute turn AFTER this arm. Verify by assertion (not by reading code) that the refusal a reader gets back through `refusal_of_item` at end of turn still carries E-01's code; if `handle_turn_failure_retry` displaces it, the correct fix is inside this plan's fence (this arm sets `item["finalize_refusal"]`, which `turn_failure_is_retryable` already reads as a reason to return early with `turn_retry_skipped` rather than recording a second refusal), NOT a new key and NOT a change to `record_refusal`.
   - Depends on: E-01
   - Expected outcome: with `resolve_plan_path` made to raise for a self-finalizing item in each arm, the item ends with the new refusal recorded and STILL readable through `render_stream.refusal_of_item` at END OF TURN (asserted after the whole call returns, not immediately after the arm), `driver_finalize` is never called (assert on a spy's recorded call list, not on prose), the plan is not moved, nothing is integrated, the disposition is `fail-gate`, and the surrounding run continues rather than aborting. With `resolve_plan_path` succeeding, every call the finalize body makes receives the RE-RESOLVED path exactly as today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Leave the VERIFY-side fallback and the THREE prompt-building fallbacks untouched, and record that decision in the code where a later reader will look. Specifically: the `except DriverError:` arm that `fzxfph` replaced with `VERIFY_ABSENCE_PLAN_UNRESOLVABLE` stays byte-identical, and its in-tree comment block currently ends by saying the finalize twin "is NOT fixed here ... fixing it is a follow-up"; UPDATE that one paragraph to say the follow-up landed and name this plan's id6, so the comment stops describing a hole that no longer exists. Leave the three `lane_plan_path`/`lane_art_path` fallbacks (the execute-prompt, review-prompt and production-prompt arms) alone: F-7 measures their consumer as prompt TEXT plus a lane-input manifest rather than a lifecycle transition, so a stale path there degrades a prompt while a stale path at finalize forges a transition. Add a one-line comment at the first of those three pointing at F-7's distinction, so a future reader does not "finish the job" by converting them too.
+- [x] E-03 Leave the VERIFY-side fallback and the THREE prompt-building fallbacks untouched, and record that decision in the code where a later reader will look. Specifically: the `except DriverError:` arm that `fzxfph` replaced with `VERIFY_ABSENCE_PLAN_UNRESOLVABLE` stays byte-identical, and its in-tree comment block currently ends by saying the finalize twin "is NOT fixed here ... fixing it is a follow-up"; UPDATE that one paragraph to say the follow-up landed and name this plan's id6, so the comment stops describing a hole that no longer exists. Leave the three `lane_plan_path`/`lane_art_path` fallbacks (the execute-prompt, review-prompt and production-prompt arms) alone: F-7 measures their consumer as prompt TEXT plus a lane-input manifest rather than a lifecycle transition, so a stale path there degrades a prompt while a stale path at finalize forges a transition. Add a one-line comment at the first of those three pointing at F-7's distinction, so a future reader does not "finish the job" by converting them too.
   - Depends on: E-02
   - Expected outcome: `git diff` shows the verify site's CODE unchanged (only its comment paragraph edited), shows the three prompt fallbacks' code unchanged, and shows the new comment naming the distinction; `tests/test_oc_runipd.py -k verification_absence` and `tests/test_agy_runipd_cli.py -k verification_absence` both still pass untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the two gates a wrong path already slips past
 
-- [ ] E-04 In `agent_workflows/runner_shared.py`, make `finalize_already_done` require TWO facts about the plan file before it may answer True: that it EXISTS on disk, and that it is CONTAINED IN `repo`, the tree whose finalize is being judged. This is the false-success hole (F-4) in both its shapes, and the containment half is the one that matters most: F-10 measures that the DOMINANT case is a substituted path that exists in MAIN while `repo` is the LANE, so an existence-only guard would leave the default lane geometry wide open while appearing to fix the defect. Implement containment by asking whether `plan_path.resolve()` is relative to `repo.resolve()` (the same `relative_to`-in-a-`try` shape `ipd_lifecycle._repo_relative` already uses), and treat a non-containment as "not already finalized" rather than raising. THE CONTROL THAT KEEPS THIS HONEST: the legitimate `finidem` case is a plan the LANE ITSELF moved into its OWN `executed/`, which IS contained in `repo` and MUST still answer True, because refusing it would re-open the very double-finalize defect `ld8lb3` closed. The guard belongs HERE, in the runner's own wrapper, because `plan_bucket` is documented as doing no IO and "must not learn to" (F-5), and because `plan_already_finalized` receives no notion of which tree the caller is finalizing. Add both checks as explicit early `return False` branches with a comment recording F-10's measurement, keeping the function's documented FAIL-CLOSED direction (a False costs the pre-fix behavior of a preserved lane a human can merge; a false True integrates work that never earned a transition). Do NOT change `plan_bucket`, and do NOT change `plan_already_finalized`, whose `executed/`-bucket-without-reachable-commit case is deliberate and is the measured `finidem` incident's own shape.
+- [x] E-04 In `agent_workflows/runner_shared.py`, make `finalize_already_done` require TWO facts about the plan file before it may answer True: that it EXISTS on disk, and that it is CONTAINED IN `repo`, the tree whose finalize is being judged. This is the false-success hole (F-4) in both its shapes, and the containment half is the one that matters most: F-10 measures that the DOMINANT case is a substituted path that exists in MAIN while `repo` is the LANE, so an existence-only guard would leave the default lane geometry wide open while appearing to fix the defect. Implement containment by asking whether `plan_path.resolve()` is relative to `repo.resolve()` (the same `relative_to`-in-a-`try` shape `ipd_lifecycle._repo_relative` already uses), and treat a non-containment as "not already finalized" rather than raising. THE CONTROL THAT KEEPS THIS HONEST: the legitimate `finidem` case is a plan the LANE ITSELF moved into its OWN `executed/`, which IS contained in `repo` and MUST still answer True, because refusing it would re-open the very double-finalize defect `ld8lb3` closed. The guard belongs HERE, in the runner's own wrapper, because `plan_bucket` is documented as doing no IO and "must not learn to" (F-5), and because `plan_already_finalized` receives no notion of which tree the caller is finalizing. Add both checks as explicit early `return False` branches with a comment recording F-10's measurement, keeping the function's documented FAIL-CLOSED direction (a False costs the pre-fix behavior of a preserved lane a human can merge; a false True integrates work that never earned a transition). Do NOT change `plan_bucket`, and do NOT change `plan_already_finalized`, whose `executed/`-bucket-without-reachable-commit case is deliberate and is the measured `finidem` incident's own shape.
   - Depends on: none
   - Expected outcome: FOUR cases, each asserted. (a) An `executed/`-shaped path that does NOT exist: `finalize_already_done` returns False and `finalize_outcome(rc=1, ...)` returns the ORIGINAL nonzero code with the gate's own message, so the refusal reaches `handle_finalize_refusal` intact. (b) An `executed/` path that EXISTS but lies OUTSIDE `repo` (the real-worktree lane case): same, False and the original nonzero code. (c) An `executed/` path that exists INSIDE `repo`: True and rc 0, exactly as today, so `finidem`'s idempotence is not regressed. (d) A `pending/` path: unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `agent_workflows/ipd_lifecycle.py`, make `finalize_precheck` refuse a plan file it cannot read instead of raising. Today its first statement is an unguarded `plan_path.read_text(encoding="utf-8")`, and the resulting `FileNotFoundError` is not a `DriverError`, so it escapes every handler between there and the driver's outermost one and kills the run (F-2). Return the function's OWN documented cannot-run shape (`EXIT_CANNOT_RUN` with a message naming the path, empty evidence, empty findings), which is the same shape the function already returns for a plan with no `- Id:` handle and for a lint that could not run, so no caller learns a new contract. MATCH THE WORDING THE SIBLING TRANSACTION ALREADY USES rather than inventing a second phrasing for one fact: `ipd_lifecycle.finalize` itself already answers this condition with `EXIT_CANNOT_RUN` and the message `f"plan file not found: {plan_path}"`, and `begin` uses `f"cannot read plan file {plan_path}: {exc}"` for the unreadable case, so reuse those two rather than a third string. Guard `OSError` rather than `FileNotFoundError` alone, so an unreadable or permission-denied plan takes the same route. This is a strict improvement independent of E-02: it protects EVERY caller of the precheck, which are exactly `runner_shared.compute_scope_reconciliation`, `record_item_spec_edits`' second-opinion call, and `ipd_lifecycle.finalize` itself.
+- [x] E-05 In `agent_workflows/ipd_lifecycle.py`, make `finalize_precheck` refuse a plan file it cannot read instead of raising. Today its first statement is an unguarded `plan_path.read_text(encoding="utf-8")`, and the resulting `FileNotFoundError` is not a `DriverError`, so it escapes every handler between there and the driver's outermost one and kills the run (F-2). Return the function's OWN documented cannot-run shape (`EXIT_CANNOT_RUN` with a message naming the path, empty evidence, empty findings), which is the same shape the function already returns for a plan with no `- Id:` handle and for a lint that could not run, so no caller learns a new contract. MATCH THE WORDING THE SIBLING TRANSACTION ALREADY USES rather than inventing a second phrasing for one fact: `ipd_lifecycle.finalize` itself already answers this condition with `EXIT_CANNOT_RUN` and the message `f"plan file not found: {plan_path}"`, and `begin` uses `f"cannot read plan file {plan_path}: {exc}"` for the unreadable case, so reuse those two rather than a third string. Guard `OSError` rather than `FileNotFoundError` alone, so an unreadable or permission-denied plan takes the same route. This is a strict improvement independent of E-02: it protects EVERY caller of the precheck, which are exactly `runner_shared.compute_scope_reconciliation`, `record_item_spec_edits`' second-opinion call, and `ipd_lifecycle.finalize` itself.
   - Depends on: none
   - Expected outcome: `finalize_precheck(repo, <nonexistent>.ipd.md)` returns exit code 2 with a message naming the path instead of raising; `runner_shared.compute_scope_reconciliation` on the same input returns `({}, {})` (its documented refused-case value) instead of propagating; `record_item_spec_edits` records `state: refused` as it already does; and every existing precheck test passes unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it behaviorally
 
-- [ ] E-06 Add `tests/test_finalize_stale_plan_path.py` covering all five changes as OUTCOMES, with no test reading production source text (the repository bans code-pinning tests). Cover: (a) each of E-02's two arms, driven through `execute_item_core` with `resolve_plan_path` patched to raise for the finalize re-resolution, asserting the refusal record's code READ BACK AFTER THE CALL RETURNS (F-11: a later `record_refusal` overwrites the single slot, so asserting mid-arm would prove nothing about what a human sees), that a `driver_finalize` spy recorded ZERO calls, that the disposition is `fail-gate`, and that the plan file is still where it was; (b) BOTH shapes of E-04's false success, each red-then-green: (b1) a nonexistent `executed/`-shaped path, and (b2) the WRONG-TREE case built on a REAL `git worktree` pair per F-10, where the substituted path exists in main while `repo` is the lane - plus TWO controls that must return 0 both before and after, namely an `executed/` path contained in `repo` (the `finidem` idempotence `ld8lb3` shipped) and a `pending/` path returning its original nonzero; (c) E-05's refusal, asserting exit code 2 from `finalize_precheck` and no exception, plus that `runner_shared.compute_scope_reconciliation` returns `({}, {})` and `record_item_spec_edits` records `state: refused`; and (d) a CONTROL proving the verify-side vocabulary did not absorb the new code, asserting `VERIFY_ABSENCE_CODES` still has its four members and that `verify_absence_text` raises `ValueError` for E-01's code. Build every fixture in a temporary git repository; the (b2) case needs a real `git worktree add`, not a second `mkdir`, because containment is the property under test. Do NOT read `.aw/records/runs/`, which is gitignored and absent from CI, from a fresh clone and from every lane this runner creates.
+- [x] E-06 Add `tests/test_finalize_stale_plan_path.py` covering all five changes as OUTCOMES, with no test reading production source text (the repository bans code-pinning tests). Cover: (a) each of E-02's two arms, driven through `execute_item_core` with `resolve_plan_path` patched to raise for the finalize re-resolution, asserting the refusal record's code READ BACK AFTER THE CALL RETURNS (F-11: a later `record_refusal` overwrites the single slot, so asserting mid-arm would prove nothing about what a human sees), that a `driver_finalize` spy recorded ZERO calls, that the disposition is `fail-gate`, and that the plan file is still where it was; (b) BOTH shapes of E-04's false success, each red-then-green: (b1) a nonexistent `executed/`-shaped path, and (b2) the WRONG-TREE case built on a REAL `git worktree` pair per F-10, where the substituted path exists in main while `repo` is the lane - plus TWO controls that must return 0 both before and after, namely an `executed/` path contained in `repo` (the `finidem` idempotence `ld8lb3` shipped) and a `pending/` path returning its original nonzero; (c) E-05's refusal, asserting exit code 2 from `finalize_precheck` and no exception, plus that `runner_shared.compute_scope_reconciliation` returns `({}, {})` and `record_item_spec_edits` records `state: refused`; and (d) a CONTROL proving the verify-side vocabulary did not absorb the new code, asserting `VERIFY_ABSENCE_CODES` still has its four members and that `verify_absence_text` raises `ValueError` for E-01's code. Build every fixture in a temporary git repository; the (b2) case needs a real `git worktree add`, not a second `mkdir`, because containment is the property under test. Do NOT read `.aw/records/runs/`, which is gitignored and absent from CI, from a fresh clone and from every lane this runner creates.
   - Depends on: E-02, E-04, E-05
   - Expected outcome: (a), (b1), (b2) and (c) fail at HEAD and pass after their E-items; (d) and both (b) controls pass at BOTH points; the whole file passes under the bare suite configuration.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -173,35 +173,431 @@ N/A, WITH THE REASON STATED RATHER THAN ASSERTED. No `.spec.md` file is declared
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff` over `agent_workflows/runner_shared.py` showing the new refusal code constant and its reason/remedy function sited beside `FINALIZE_REFUSAL_CODE` (not beside the `VERIFY_ABSENCE_*` block), with the comment recording F-6's reason for the separation. Then paste a Python invocation importing `agent_workflows.runner_shared` that prints the new code's reason and remedy (showing both non-empty, the reason naming that nothing was merged, the remedy naming `aw find plans` and the preserved lane), prints `len(VERIFY_ABSENCE_CODES)` as `4` with its members, and shows `verify_absence_text(<new code>)` raising `ValueError`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Sited beside FINALIZE_REFUSAL_CODE, separation comment present, text non-empty with all required properties, vocabulary separation verified.
+    `git diff agent_workflows/runner_shared.py` hunk:
+    ```diff
+    @@ -7584,6 +7584,29 @@ RETRYABLE_STALE_RECEIPT_SUMMARY: str = "is STALE: the plan content changed since
+     #: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
+     FINALIZE_REFUSAL_CODE: str = "finalize-refused"
 
-- [ ] V-02 validates E-02
+    +#: IPD 1fzist (rfhiu2): Stable refusal code recorded when resolve_plan_path fails before finalize.
+    +#: Sited beside FINALIZE_REFUSAL_CODE, NOT in VERIFY_ABSENCE_CODES: the verification-absence vocabulary
+    +#: is a closed 4-tuple guarding the post-execution verification pass, and expanding it for a lifecycle
+    +#: finalize refusal would conflate two distinct failure domains and break verification-absence consumers (F-6).
+    +FINALIZE_PLAN_UNRESOLVABLE_CODE: str = "finalize-plan-unresolvable"
+    +
+    +
+    +def finalize_unresolvable_text(plan_path: Path, exc: DriverError) -> tuple[str, str]:
+    +    """The human REASON and REMEDY for a plan whose re-resolution failed before finalize (1fzist).
+    +
+    +    Follows the three-property reason and concrete-remedy shape required by the Refusal contract.
+    +    """
+    +    reason = (
+    +        f"the runner could not re-resolve plan {plan_path.name} before finalize: {exc}. "
+    +        "Deliberately did not fall back to a known-stale path; no lifecycle finalize ran and nothing was merged"
+    +    )
+    +    remedy = (
+    +        f"locate the plan by its id6 with `aw find plans {plan_path.name}` (or by id6) and check it exists. "
+    +        "The lane worktree and its committed work are PRESERVED; do not re-run or discard the lane"
+    +    )
+    +    return reason, remedy
+    +
+    +
+     #: The per-item key counting how many times THIS item has been re-dispatched by the send-back. Counted
+     #: separately from `attempts`, because an item accrues attempts for reasons that have nothing to do
+     #: with a refusal (an interrupt, a `--retry-incomplete` requeue), and spending correction budget on
+    ```
+
+    Python invocation:
+    ```
+    $ python3 -c "
+    from pathlib import Path
+    from agent_workflows import runner_shared
+
+    code = runner_shared.FINALIZE_PLAN_UNRESOLVABLE_CODE
+    reason, remedy = runner_shared.finalize_unresolvable_text(Path('20260930-rfhiu2-01-1fzist-test.ipd.md'), runner_shared.DriverError('plan not found'))
+
+    print(f'CODE: {code}')
+    print(f'REASON: {reason}')
+    print(f'REMEDY: {remedy}')
+    print(f'len(VERIFY_ABSENCE_CODES): {len(runner_shared.VERIFY_ABSENCE_CODES)}')
+    print(f'VERIFY_ABSENCE_CODES: {runner_shared.VERIFY_ABSENCE_CODES}')
+
+    try:
+        runner_shared.verify_absence_text(code)
+    except ValueError as exc:
+        print(f'verify_absence_text({code!r}) raised ValueError: {exc}')
+    "
+    CODE: finalize-plan-unresolvable
+    REASON: the runner could not re-resolve plan 20260930-rfhiu2-01-1fzist-test.ipd.md before finalize: plan not found. Deliberately did not fall back to a known-stale path; no lifecycle finalize ran and nothing was merged
+    REMEDY: locate the plan by its id6 with `aw find plans 20260930-rfhiu2-01-1fzist-test.ipd.md` (or by id6) and check it exists. The lane worktree and its committed work are PRESERVED; do not re-run or discard the lane
+    len(VERIFY_ABSENCE_CODES): 4
+    VERIFY_ABSENCE_CODES: ('verifier-verdict-unreadable', 'verification-never-recorded', 'verification-interrupted', 'verification-not-attempted')
+    verify_absence_text('finalize-plan-unresolvable') raised ValueError: unknown verify-absence code 'finalize-plan-unresolvable'; the closed set is ('verifier-verdict-unreadable', 'verification-never-recorded', 'verification-interrupted', 'verification-not-attempted'). A new reason a verdict can be absent must be ADDED to that set rather than reported as one of the existing four
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the two replaced arms as written. Then paste the ACTUAL output of a test that drives `execute_item_core` for each arm with the finalize re-resolution forced to raise, showing: the refusal read back through `render_stream.refusal_of_item` AFTER `execute_item_core` RETURNED, carrying E-01's code (F-11: assert at end of turn, since a later `record_refusal` overwrites the one slot, and if it does overwrite, say so and fix it inside the fence rather than asserting mid-arm); PROOF that `driver_finalize` was not called, asserted on a spy's recorded call list (never on prose or on stderr text); proof the plan file did not move; and proof the call RETURNED rather than propagating, so the run continues. Also paste the CONTROL where re-resolution SUCCEEDS, showing the finalize body receiving the re-resolved path exactly as at HEAD. Confirm the disposition is `fail-gate`, quote the code comment justifying it against `partial`, and paste `turn_failure_is_retryable`'s answer for that token showing the item is not re-dispatched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Both arms refuse with fail-gate disposition, refusal preserved at end of turn, driver_finalize not called, plan unmoved, control succeeds.
+    Lane arm as written in `runner_shared.execute_item_core`:
+    ```python
+            if (
+                self_finalize
+                and work_dir
+                and wt_handle is not None
+                and integration.earned
+            ):
+                finalize_repo = Path(work_dir)
+                current_plan_for_finalize = None
+                try:
+                    current_plan_for_finalize = resolve_plan_path(
+                        finalize_repo, item.get("configured_file", ""), item["id6"]
+                    )
+                except DriverError as exc:
+                    fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)
+                    record_refusal(
+                        item,
+                        code=FINALIZE_PLAN_UNRESOLVABLE_CODE,
+                        reason=fin_reason,
+                        remedy=fin_remedy,
+                    )
+                    attempt["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    item["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    # IPD 1fzist: fail-gate disposition chosen from existing vocabulary because
+                    # its recorded non-retryable reason ("lifecycle gate or clean-base gate refused;
+                    # not a host failure to retry without human action") fits a plan path that
+                    # cannot be located, unlike partial which names another plan as future owner.
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {fin_reason}", "yellow"),
+                        file=sys.stderr,
+                    )
+                    print(pal(f"    -> {fin_remedy}", "yellow"), file=sys.stderr)
+                    save_state(run_dir, state)
 
-- [ ] V-03 validates E-03
+                if current_plan_for_finalize is not None:
+                    actor = driver_actor(state, labels=host_labels)
+                    ...
+    ```
+
+    Non-lane arm as written in `runner_shared.execute_item_core`:
+    ```python
+            elif self_finalize and not work_dir and integration.earned:
+                current_plan_for_finalize = None
+                try:
+                    current_plan_for_finalize = resolve_plan_path(
+                        repo, item.get("configured_file", ""), item["id6"]
+                    )
+                except DriverError as exc:
+                    fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)
+                    record_refusal(
+                        item,
+                        code=FINALIZE_PLAN_UNRESOLVABLE_CODE,
+                        reason=fin_reason,
+                        remedy=fin_remedy,
+                    )
+                    attempt["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    item["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    # IPD 1fzist: fail-gate disposition chosen from existing vocabulary because
+                    # its recorded non-retryable reason ("lifecycle gate or clean-base gate refused;
+                    # not a host failure to retry without human action") fits a plan path that
+                    # cannot be located, unlike partial which names another plan as future owner.
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {fin_reason}", "yellow"),
+                        file=sys.stderr,
+                    )
+                    print(pal(f"    -> {fin_remedy}", "yellow"), file=sys.stderr)
+                    save_state(run_dir, state)
+
+                if current_plan_for_finalize is not None:
+                    actor = driver_actor(state, labels=host_labels)
+                    ...
+    ```
+
+    Actual output driving `execute_item_core` with forced raise (`test_a1` and `test_a2`):
+    ```
+    $ python3 -m pytest tests/test_finalize_stale_plan_path.py -k "test_a" -v -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- <venv>/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3511116932
+    rootdir: <lane-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 7 items                                                             collected 7 items / 5 deselected / 2 selected
+
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_a1_lane_arm_refuses_when_finalize_re_resolution_fails PASSED [ 50%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails PASSED [100%]
+
+    ======================= 2 passed, 5 deselected in 1.77s ========================
+    ```
+    Asserted after `execute_item_core` returns:
+    - `refusal_of_item(item).code == "finalize-plan-unresolvable"`
+    - `driver_finalize_spy.assert_not_called()`
+    - `plan_path.exists() == True`
+    - `item.get("status") == "fail-gate"`
+    - `attempt.get("disposition") == "fail-gate"`
+
+    Control where re-resolution succeeds:
+    ```
+    driver_finalize call count: 1
+    driver_finalize called with plan_path: /tmp/tmpk5j9mtal/repo/.aw/records/plans/pending/20260930-rfhiu2-01-ctl001-ctrl-plan.ipd.md
+    item status: executed
+    disposition: executed
+    ```
+
+    Code comment justifying `fail-gate`:
+    `# IPD 1fzist: fail-gate disposition chosen from existing vocabulary because its recorded non-retryable reason ("lifecycle gate or clean-base gate refused; not a host failure to retry without human action") fits a plan path that cannot be located, unlike partial which names another plan as future owner.`
+
+    `turn_failure_is_retryable` verdict:
+    ```
+    turn_failure_is_retryable(item_with_refusal, "fail-gate"): False, "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already classifies and already spends correction budget on (see `finalize_retry_decision`)"
+    turn_failure_is_retryable(item_without, "fail-gate"): False, "disposition 'fail-gate' is not retryable: lifecycle gate or clean-base gate refused; not a host failure to retry without human action"
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff` over `agent_workflows/runner_shared.py` restricted to the verify block, showing that only COMMENT lines changed and that the paragraph now names this plan's id6 instead of describing an unfixed twin. Paste the same for the three prompt-building fallbacks, showing zero code lines changed and the new comment naming F-7's distinction. Then paste the ACTUAL output of `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k verification_absence -o addopts=""` with its counts.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Verify-side twin comment updated to name 1fzist, prompt fallback annotated with F-7 distinction, zero code lines changed, verification-absence tests pass.
+    `git diff` over prompt-building fallback:
+    ```diff
+    @@ def execute_item_core(
 
-- [ ] V-04 validates E-04
+         if work_dir and not is_review and not is_production:
+             lane_root = Path(work_dir)
+    +        # Prompt-building fallback is advisory (context degradation vs. finalize lifecycle transition; 1fzist F-7).
+             try:
+                 lane_plan_path = resolve_plan_path(
+                     lane_root, item.get("configured_file", ""), item["id6"]
+    ```
+
+    `git diff` over verify block:
+    ```diff
+    @@ def execute_item_core(
+                     # PERFORMED, so the honest act is to record that fact and report it rather than launch a
+                     # child against a path that may not exist.
+                     #
+    -                # THE TWIN FALLBACK AT THE FINALIZE SITE IS DELIBERATELY LEFT ALONE. An identical
+    -                # `except DriverError: current_plan_for_finalize = plan_path` guards the FINALIZE
+    -                # re-resolution further down this same function (search `current_plan_for_finalize`). It is
+    -                # byte-identical in shape, and it is NOT fixed here: it feeds `aw ipd finalize` rather than
+    -                # a verifier launch, so it has a different consumer and a different failure model (the
+    -                # finalize path has its own receipt and scope-reconciliation gates). Identified, reported,
+    -                # and out of this plan's fence on purpose; fixing it is a follow-up, not a silent widening.
+    +                # THE TWIN FALLBACK AT THE FINALIZE SITE WAS FIXED IN 1fzist. An identical
+    +                # `except DriverError: current_plan_for_finalize = plan_path` guarded the FINALIZE
+    +                # re-resolution further down this same function (search `current_plan_for_finalize`). It was
+    +                # byte-identical in shape and was left for follow-up plan 1fzist: it feeds `aw ipd finalize`
+    +                # rather than a verifier launch, so it has a different consumer and failure model (refusing
+    +                # with fail-gate disposition rather than partial, and closing downstream false-success gates).
+                     current_plan_path = None
+                     try:
+                         current_plan_path = resolve_plan_path(
+    ```
+
+    Actual output of verification absence tests:
+    ```
+    $ python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py -k verification_absence -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3485792220
+    rootdir: <lane-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 3 items                                                             collected 241 items / 239 deselected / 2 selected
+
+    tests/test_oc_runipd.py .                                                [ 50%]
+    tests/test_agy_runipd_cli.py .                                           [100%]
+
+    NOTE: 239 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    ====================== 2 passed, 239 deselected in 0.86s =======================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff` over `finalize_already_done` showing BOTH guards (existence and containment) and their measurement comment, and showing `plan_bucket` and `ipd_lifecycle.plan_already_finalized` UNCHANGED. Then paste a Python invocation on a temporary git repository printing, for a nonexistent `executed/`-shaped path, `plan_bucket`, `plan_already_finalized`, `finalize_already_done` and `finalize_outcome(..., 1, "<a real refusal message>")` - showing the exit code is now NONZERO and the original message survives - together with the SAME four values captured at HEAD before the edit, so the before/after pair is on the record. THEN PASTE THE WRONG-TREE CASE SEPARATELY, built with a real `git worktree add` per F-10: show that the substituted path EXISTS, that it is NOT contained in the lane, that `finalize_already_done(lane, mainpath)` was `True` at HEAD and is `False` after, and that `finalize_outcome` went from `0` to nonzero. Paste the three controls, each unchanged before and after: an `executed/` path CONTAINED in `repo` still yields 0 (the `finidem` idempotence fix is not regressed), the same path resolved through a symlinked or non-normalized spelling still yields 0 (so the containment check is not defeated by path form), and a `pending/` path is unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Existence and containment guards active in finalize_already_done, ghost path returns rc 1, wrong-tree worktree returns rc 1, controls unchanged.
+    `git diff` over `finalize_already_done`:
+    ```diff
+    @@ def finalize_already_done(repo: Path, plan_path: Path, id6: str) -> bool:
+         try:
+             from agent_workflows import ipd_lifecycle
 
-- [ ] V-05 validates E-05
+    +        # IPD 1fzist (F-4, F-10): require that the plan file exists on disk and is contained in
+    +        # the repository tree being finalized (`repo`). Without existence, a nonexistent
+    +        # executed/-shaped ghost path converts real refusals to exit 0 (F-4). Without containment,
+    +        # a substituted path that exists in main while repo is the lane converts real refusals to
+    +        # exit 0 in the runner's default geometry (F-10).
+    +        plan_path = Path(plan_path)
+    +        repo = Path(repo)
+    +        if not plan_path.is_file():
+    +            return False
+    +        try:
+    +            plan_path.resolve().relative_to(repo.resolve())
+    +        except ValueError:
+    +            return False
+    +
+             return bool(ipd_lifecycle.plan_already_finalized(repo, plan_path, id6).already)
+         except Exception:
+             return False
+    ```
+    `plan_bucket` and `ipd_lifecycle.plan_already_finalized` remain untouched (zero diff).
+
+    Ghost case:
+    HEAD before edit:
+    ```
+    ghost exists: False
+    plan_bucket: executed
+    plan_already_finalized: already=True, bucket=executed, commit=None
+    finalize_already_done: True
+    finalize_outcome: rc=0, msg='finalize is a NO-OP for ghost1: the terminal transition already succeeded (the plan is in executed/ and the success consumed the begin receipt), so this run treats it as finalized and proceeds to integration. The gate's own words were: refused: no begin receipt for ghost1'
+    ```
+    Post-edit (fixed):
+    ```
+    ghost exists: False
+    plan_bucket: executed
+    plan_already_finalized: already=True, bucket=executed, commit=None
+    finalize_already_done: False
+    finalize_outcome: rc=1, msg='refused: no begin receipt for ghost1'
+    ```
+
+    Wrong-tree case (real git worktree):
+    HEAD before edit:
+    ```
+    main_plan exists: True
+    main_plan contained in lane_repo: False
+    finalize_already_done(lane_repo, main_plan): True
+    finalize_outcome(lane_repo, main_plan): rc=0, msg='finalize is a NO-OP for wt001: the terminal transition already succeeded (the plan is in executed/ and the success consumed the begin receipt), so this run treats it as finalized and proceeds to integration. The gate's own words were: refused: no begin receipt on lane'
+    ```
+    Post-edit (fixed):
+    ```
+    main_plan exists: True
+    main_plan contained in lane_repo: False
+    finalize_already_done(lane_repo, main_plan): False
+    finalize_outcome(lane_repo, main_plan): rc=1, msg='refused: no begin receipt on lane'
+    ```
+
+    Controls (identical before and after):
+    ```
+    Control 1 (contained executed): finalize_already_done=True, rc=0, msg="finalize is a NO-OP for ctrl01: the terminal transition already succeeded (the plan is in executed/ and the success consumed the begin receipt), so this run treats it as finalized and proceeds to integration. The gate's own words were: refused: test"
+    Control 2 (non-normalized): finalize_already_done=True, rc=0, msg="finalize is a NO-OP for ctrl01: the terminal transition already succeeded (the plan is in executed/ and the success consumed the begin receipt), so this run treats it as finalized and proceeds to integration. The gate's own words were: refused: test"
+    Control 3 (pending): finalize_already_done=False, rc=1, msg='refused: not executed'
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff` over `ipd_lifecycle.finalize_precheck` showing the guarded read returning the function's own `EXIT_CANNOT_RUN` shape, catching `OSError` rather than `FileNotFoundError` alone, and using the SAME message wording `finalize` already uses for this fact (F-13). Then paste a Python invocation showing, on a temporary repository, `finalize_precheck(repo, <nonexistent>)` returning exit code 2 with a message naming the path and raising nothing, and `runner_shared.compute_scope_reconciliation(repo, <nonexistent>, labels=...)` returning `({}, {})`; and paste the HEAD behavior for the same two calls (the traceback) so the change is demonstrated rather than described. Paste ALSO the end-to-end route F-2 measured, before and after: `finalize_with_contention_retry` with a nonexistent path, which propagated `FileNotFoundError` at HEAD and must now return a refusal, since that is the route by which the raise became run-fatal and `finalize`'s own `is_file` guard (F-13) does not cover it. Paste `python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_finalize_trailer_attribution.py -o addopts=""` with counts, proving no existing precheck caller regressed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. finalize_precheck guards against missing/unreadable plan with exit code 2, compute_scope_reconciliation returns ({}, {}), contention retry refuses.
+    `git diff` over `ipd_lifecycle.finalize_precheck`:
+    ```diff
+    diff --git a/agent_workflows/ipd_lifecycle.py b/agent_workflows/ipd_lifecycle.py
+    index 6e9b65104..2dbb19efe 100644
+    --- a/agent_workflows/ipd_lifecycle.py
+    +++ b/agent_workflows/ipd_lifecycle.py
+    @@ -2670,7 +2670,17 @@ def finalize_precheck(
 
-- [ ] V-06 validates E-06
+         evidence: Dict[str, Any] = {}
+
+    -    plan_text = plan_path.read_text(encoding="utf-8")
+    +    if not plan_path.is_file():
+    +        return EXIT_CANNOT_RUN, f"plan file not found: {plan_path}", evidence, ()
+    +    try:
+    +        plan_text = plan_path.read_text(encoding="utf-8")
+    +    except OSError as exc:
+    +        return (
+    +            EXIT_CANNOT_RUN,
+    +            f"cannot read plan file {plan_path}: {exc}",
+    +            evidence,
+    +            (),
+    +        )
+         doc = _lint.parse(plan_text)
+         plan_id = (doc.meta_fields.get("Id") or "").strip()
+         if not plan_id:
+    ```
+
+    HEAD before edit:
+    `finalize_precheck` and `compute_scope_reconciliation` raised:
+    `FileNotFoundError: [Errno 2] No such file or directory: '/tmp/.../.aw/records/plans/pending/20260930-rfhiu2-01-ghost1-nonexistent.ipd.md'`
+    `finalize_with_contention_retry` raised `FileNotFoundError` unhandled out to caller.
+
+    Post-edit (fixed):
+    ```
+    === finalize_precheck on nonexistent path ===
+    exit_code: 2
+    msg: 'plan file not found: /tmp/tmpabfw3rc8/.aw/records/plans/pending/20260930-rfhiu2-01-ghost1-nonexistent.ipd.md'
+    evidence: {}
+    findings: ()
+
+    === compute_scope_reconciliation on nonexistent path ===
+    reasons: {}
+    acks: {}
+
+    === finalize_with_contention_retry on nonexistent path ===
+    finalize_with_contention_retry rc (no worker role): 2
+    finalize_with_contention_retry msg: "error: no plan matched selector 'ghost1'."
+    ```
+
+    Precheck regression suite:
+    ```
+    $ python3 -m pytest tests/test_ipd_lifecycle_cli.py tests/test_finalize_trailer_attribution.py -o addopts=""
+    ============================= 67 passed in 29.06s ==============================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the RED-then-GREEN proof for rows (a), (b) and (c), each as actual pytest output with exit codes, at HEAD and after the corresponding E-item. Paste row (d) passing at BOTH points, since it is a no-regression control rather than a red-then-green guard. Paste the whole file's run under the bare suite configuration. Then paste the BASELINE bare-suite summary captured in this lane BEFORE any edit and the post-change bare-suite summary, and account for any difference line by line. Confirm by inspection that no test in the new file reads production source text with `inspect`, `ast`, regex or substring search, and that no test reads `.aw/records/runs/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Red-then-green proof demonstrated for all changes, bare suite 3981 passed (+7 newly added behavioral tests, 0 regressions), no source-inspect tests.
+    RED at HEAD (commit `4528f26b`):
+    ```
+    $ python3 -m pytest tests/test_finalize_stale_plan_path.py -v -o addopts=""
+    FAILED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_a1_lane_arm_refuses_when_finalize_re_resolution_fails
+    FAILED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails
+    FAILED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_b1_ghost_path_refuses_false_success
+    FAILED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_b2_wrong_tree_lane_worktree_refuses_false_success
+    FAILED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_c_finalize_precheck_refuses_missing_plan_file
+    PASSED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_b_controls_same_tree_and_pending_cases
+    PASSED tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_d_verify_absence_vocabulary_remains_disjoint
+    ========================= 5 failed, 2 passed in 1.47s ==========================
+    ```
+
+    GREEN post-edit:
+    ```
+    $ python3 -m pytest tests/test_finalize_stale_plan_path.py -v -o addopts=""
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_a1_lane_arm_refuses_when_finalize_re_resolution_fails PASSED [ 14%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_b_controls_same_tree_and_pending_cases PASSED [ 28%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_b2_wrong_tree_lane_worktree_refuses_false_success PASSED [ 42%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_c_finalize_precheck_refuses_missing_plan_file PASSED [ 57%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_b1_ghost_path_refuses_false_success PASSED [ 71%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_d_verify_absence_vocabulary_remains_disjoint PASSED [ 85%]
+    tests/test_finalize_stale_plan_path.py::TestFinalizeStalePlanPath::test_a2_non_lane_arm_refuses_when_finalize_re_resolution_fails PASSED [100%]
+    ============================== 7 passed in 2.11s ===============================
+    ```
+    Row (d) control passed at both points (`test_d_verify_absence_vocabulary_remains_disjoint`).
+    Row (b) control passed at both points (`test_b_controls_same_tree_and_pending_cases`).
+
+    Bare suite configuration run:
+    ```
+    $ python3 -m pytest tests/test_finalize_stale_plan_path.py
+    .......                                                                  [100%]
+    7 passed in 4.86s
+    ```
+
+    Full regression bare suite:
+    - Pre-edit baseline in lane: `3974 passed, 2 skipped, 3 warnings in 216.51s (0:03:36)`
+    - Post-change bare suite: `3981 passed, 2 skipped, 3 warnings in 78.93s (0:01:18)`
+    - Accounting of difference: exactly +7 passed, corresponding to the 7 newly added behavioral tests in `tests/test_finalize_stale_plan_path.py`; zero failures, zero regressions.
+
+    Inspection confirmation:
+    Confirmed by inspection that `tests/test_finalize_stale_plan_path.py` contains zero imports or calls using `inspect`, `ast`, or `re`, tests observable outcomes (exit codes, status strings, return values, file presence), and does not touch `.aw/records/runs/`.
+  - Result: pass
 
 ## Approval and execution gate
 
