@@ -1,5 +1,5 @@
 - Id: 3wofej
-- Status: graduated
+- Status: done
 - Graduated-To: 3wofej
 - Set: 3wofej
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Managed AGENTS.md instruction text says addopts supplies -m 'not slow' but the actual value is -m 'not slow and not livecorpus'
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD zb81ah executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-3wofej-01-zb81ah-correct-the-managed-suite-instruction-s-stale-marker-filter.ipd.md); evidence .aw/records/plans/executed/20260930-3wofej-01-zb81ah-correct-the-managed-suite-instruction-s-stale-marker-filter.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: zb81ah
 - 2026-09-28 created (aw backlog): Managed AGENTS.md instruction text says addopts supplies -m 'not slow' but the actual value is -m 'not slow and not livecorpus'
 
