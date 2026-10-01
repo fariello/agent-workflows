@@ -1,5 +1,6 @@
 - Id: 7w6zsl
-- Status: open
+- Status: graduated
+- Graduated-To: 7w6zsl
 - Blocks-Release: next
 - Set: 7w6zsl
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw research new writes an unvalidated --summary into YAML front matter, so a newline in it injects a sibling key; measured 2026-09-29 while fixing the same class in specs and releases under qbz8i1
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: deftzy
 - 2026-09-29 created (aw backlog): aw research new writes an unvalidated --summary into YAML front matter, so a newline in it injects a sibling key; measured 2026-09-29 while fixing the same class in specs and releases under qbz8i1
 
 FILED AS THE CARRIER for the "other trees' creating verbs" row in plan `uz05bl` (Set `qbz8i1`), which closes the same defect class in the `specs` and `releases` trees only.
