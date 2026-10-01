@@ -3,7 +3,7 @@
 - Date: 2026-07-30
 - Status: implemented
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
-- Scope: a GENERAL principle for organizing the durable, growing artifact trees under `.agents/` (research, plans, prompts, comms, walkthroughs) so a human and an agent can answer "what did we find / decide about X?" and "what still needs attention?" cheaply and at scale. IMPLEMENTATION is scoped to `.agents/docs/research/` first; the other areas are named future adopters.
+- Scope: A GENERAL principle for organizing durable artifact trees under `.agents/` (research, plans, prompts, comms, walkthroughs) to answer topic and attention queries cheaply at scale. IMPLEMENTATION is scoped to `.agents/docs/research/` first; the other areas are named future adopters.
 
 This spec is the load-bearing rationale document. It captures the problem, the measured evidence, the full criteria, the chosen design and WHY, the trade-offs considered, and the migration outline, so the follow-on IPD Set can be authored and reviewed against a single source of truth. It deliberately records reasoning, not just conclusions.
 

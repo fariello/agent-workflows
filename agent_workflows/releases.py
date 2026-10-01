@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
@@ -125,6 +126,31 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
         )
     if _VERSION_RE.search(text) is None:
         drift.append(_core.Drift(loc, "release.version-missing", "no `- Version:`"))
+
+    msum = _SUMMARY_RE.search(text)
+    bullet_summary = msum.group(1).strip() if msum else None
+    if bullet_summary:
+        if not A.is_safe_descriptive(bullet_summary):
+            drift.append(
+                _core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    A.escape_detail(
+                        "Summary bullet is over-length or has control chars/newlines"
+                    ),
+                )
+            )
+    else:
+        prose_summary = _summary_section(text)
+        if prose_summary and A._CONTROL_CHAR_RE.search(prose_summary):
+            drift.append(
+                _core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    A.escape_detail("Summary prose contains control characters"),
+                )
+            )
+
     return drift
 
 

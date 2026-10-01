@@ -211,6 +211,8 @@ _PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")
 # use `feature` or `chore`; that is an accepted cost of ONE shared vocabulary (OQ-01), because forked
 # per-type vocabularies are the drift this Set exists to remove.
 _WORK_KIND_RE = re.compile(r"^- Work-Kind:\s*(\S+)\s*$")
+_SCOPE_RE = re.compile(r"^- Scope:[ \t]*(.*?)[ \t]*$")
+_SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(.*?)[ \t]*$")
 
 
 def _repo_root_of(spec_path: Path) -> Path:
@@ -279,6 +281,26 @@ def _read_work_kind(lines: List[str]) -> Optional[str]:
     end = _metadata_end(lines)
     for line in lines[:end]:
         m = _WORK_KIND_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_scope(lines: List[str]) -> Optional[str]:
+    """Read a spec's optional `- Scope:` value from the metadata block, or None."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _SCOPE_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_summary(lines: List[str]) -> Optional[str]:
+    """Read a spec's optional `- Summary:` value from the metadata block, or None."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _SUMMARY_RE.match(line)
         if m:
             return m.group(1)
     return None
@@ -414,6 +436,26 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                 loc,
                 "attention.gate-forbidden",
                 "gate fields present on a non-deferred spec",
+            )
+        )
+
+    scope = _read_scope(lines)
+    if scope is not None and not A.is_safe_descriptive(scope):
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.unsafe-field",
+                A.escape_detail("Scope is over-length or has control chars/newlines"),
+            )
+        )
+
+    spec_summary = _read_summary(lines)
+    if spec_summary is not None and not A.is_safe_descriptive(spec_summary):
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.unsafe-field",
+                A.escape_detail("Summary is over-length or has control chars/newlines"),
             )
         )
 
