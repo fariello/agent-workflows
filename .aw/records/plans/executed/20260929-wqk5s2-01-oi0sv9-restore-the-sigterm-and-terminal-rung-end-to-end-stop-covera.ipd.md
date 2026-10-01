@@ -6,7 +6,7 @@
 - Scope: Restore the SIGTERM (spec `c4gd2h` R13/A3) and terminal-rung (`install_stop_signal_handlers`) end-to-end assertions as behavioral tests driven by real signals to a real spawned driver, on a fixture plan that clears today's run preflight. No production change.
 - Scope-Paths: tests/test_runner_stop_triggers_e2e.py, .aw/records/plans/pending/20260929-wqk5s2-01-oi0sv9-restore-the-sigterm-and-terminal-rung-end-to-end-stop-covera.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: c4gd2h
 - Work-Kind: bug
@@ -18,9 +18,9 @@
 - Highest E allocated: 04
 - Author: OpenCode Claude Opus
 - Id: oi0sv9
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: oi0sv9 verified (set wqk5s2, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 same-status (aw set): status unchanged (to-review)
 
@@ -37,26 +37,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the two behaviors as end-to-end tests
 
-- [ ] E-01 Create `tests/test_runner_stop_triggers_e2e.py` holding the signal-driven harness the restored tests need: a `_make_repo` that writes its fixture plans from the ALREADY-SHARED `tests.test_oc_runipd._CONFORMING_PLAN`, a `_write_fake_child` fake agent that announces readiness through a marker file rather than a sleep, and a run handle that spawns the real driver with `start_new_session=True` and reads only DURABLE artifacts (`state.json`, `events.jsonl`, the stop request). Recover the harness from `git show 19313eed^:tests/test_runner_stop_triggers.py` rather than rewriting it, and carry over ONLY the plumbing the two restored tests use.
+- [x] E-01 Create `tests/test_runner_stop_triggers_e2e.py` holding the signal-driven harness the restored tests need: a `_make_repo` that writes its fixture plans from the ALREADY-SHARED `tests.test_oc_runipd._CONFORMING_PLAN`, a `_write_fake_child` fake agent that announces readiness through a marker file rather than a sleep, and a run handle that spawns the real driver with `start_new_session=True` and reads only DURABLE artifacts (`state.json`, `events.jsonl`, the stop request). Recover the harness from `git show 19313eed^:tests/test_runner_stop_triggers.py` rather than rewriting it, and carry over ONLY the plumbing the two restored tests use.
   THE FIXTURE REPAIR IS THREE CHANGES, NOT ONE, AND SUBSTITUTING `_CONFORMING_PLAN` ALONE LEAVES THE TESTS RED (review PR-001; the authored F-03 named only the substitution). Review built the file exactly as specified and measured `AssertionError: driver exited (rc=2) before the child was ready` still firing. Driving the spawn by hand to capture the driver's own stderr showed the real cause is NOT the run preflight: it is `runipd: Ambiguous filename selector: taa matches multiple plans: ['ta0001', 'ta0002']`. THE REASON is that `_CONFORMING_PLAN` is parameterised by `id6` ONLY and HARDCODES `- Set: demo` and `- Order: 1`, so both fixture plans claim the same Set and Order while their filenames say `taa` / `01`,`02`. SO DO ALL THREE: (a) write the plans from `_CONFORMING_PLAN`; (b) rewrite `- Set:` and `- Order:` in the produced text to match the FILENAME the fixture generates, which is what makes the setid selector resolve to a Set rather than to an ambiguous filename match; (c) add the `.gitignore` carrying `.aw/state/`, `.aw/worktrees/` and `.aw/records/runs/` that `tests/test_liftaudit_stop_halts_run.py` already uses, and stage it (`_git(repo, "add", "-A")` rather than `add README .aw`), or the run directory dirties the tree and the driver exits 1. With all three applied review measured BOTH restored tests PASSING, deterministically in 3 of 3 runs, 2 passed in about 1.9s.
   - Depends on: none
   - Expected outcome: the new file imports and collects, and `python3 -m pytest tests/test_runner_stop_triggers_e2e.py -o addopts="" --collect-only -q` lists the restored tests with no collection error. Review's own collect reported exactly the two node ids in 0.26s.
-  - Execution state: pending
-- [ ] E-02 Restore the SIGTERM behavior (spec `c4gd2h` R13 and acceptance A3) as a test that sends a REAL `SIGTERM` to the spawned driver and then asserts on what the driver durably recorded: the stop request reached `runner_stop.LEVEL_NOW`, exactly one `deliberate-stop-at-checkpoint` event was appended, the in-flight item carries a `stopped` record whose `certainty` is `runner_stop.CERTAINTY_KNOWN` and whose `level` is `LEVEL_NOW`, that record contains no `unknown_outcome`, and the NEXT queued item was never started. This is the assertion whose `KeyError: 'stopped'` the backlog item reported.
+  - Execution state: performed
+- [x] E-02 Restore the SIGTERM behavior (spec `c4gd2h` R13 and acceptance A3) as a test that sends a REAL `SIGTERM` to the spawned driver and then asserts on what the driver durably recorded: the stop request reached `runner_stop.LEVEL_NOW`, exactly one `deliberate-stop-at-checkpoint` event was appended, the in-flight item carries a `stopped` record whose `certainty` is `runner_stop.CERTAINTY_KNOWN` and whose `level` is `LEVEL_NOW`, that record contains no `unknown_outcome`, and the NEXT queued item was never started. This is the assertion whose `KeyError: 'stopped'` the backlog item reported.
   - Depends on: E-01
   - Expected outcome: the test passes at HEAD and drives the real code path; the `stopped` record it reads is the one written by `runner_shared._record_checkpoint_stop`.
-  - Execution state: pending
-- [ ] E-03 Restore the terminal-rung behavior as a test that escalates real `SIGINT`s rung by rung (never a burst, because standard POSIX signals coalesce, which is why the recovered harness waits for each rung to be RECORDED before pressing again) until the terminal level, then asserts the in-flight item is recorded `interrupted`, is not in `oc_runipd.SUCCESS_STATES`, and that the driver exited nonzero. This is the `AssertionError: 'running' != 'interrupted'` half of the backlog report.
+  - Execution state: performed
+- [x] E-03 Restore the terminal-rung behavior as a test that escalates real `SIGINT`s rung by rung (never a burst, because standard POSIX signals coalesce, which is why the recovered harness waits for each rung to be RECORDED before pressing again) until the terminal level, then asserts the in-flight item is recorded `interrupted`, is not in `oc_runipd.SUCCESS_STATES`, and that the driver exited nonzero. This is the `AssertionError: 'running' != 'interrupted'` half of the backlog report.
   - Depends on: E-01
   - Expected outcome: the test passes at HEAD, and the `interrupted` status it reads is produced by `runner_shared.reconcile_item_on_interrupt` reached from `execute_item_core`'s `except KeyboardInterrupt` arm.
-  - Execution state: pending
-- [ ] E-04 Prove each restored test can still FAIL. THE TWO TESTS ARE GUARDED BY TWO DIFFERENT PRODUCTION CHANGES, and the authored single-mutation recipe falsifies only ONE of them (review PR-002). Perform BOTH mutations, separately, each in a throwaway copy outside the repository worktree, and do not commit either.
+  - Execution state: performed
+- [x] E-04 Prove each restored test can still FAIL. THE TWO TESTS ARE GUARDED BY TWO DIFFERENT PRODUCTION CHANGES, and the authored single-mutation recipe falsifies only ONE of them (review PR-002). Perform BOTH mutations, separately, each in a throwaway copy outside the repository worktree, and do not commit either.
   MUTATION A, which falsifies the SIGTERM test (E-02): revert `5efc78d2`'s two lines in `runner_shared.execute_item_core`'s `StopAtCheckpoint` arm, putting `item["status"] = runner_stop.STOPPED_DISPOSITION` in place of the `item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)` call and `return` in place of the `raise`. Measured at review: the SIGTERM test goes RED with `AssertionError: 2 != 1 : SIGTERM must stop the turn at a safe checkpoint` (the `return` lets the run continue to the next item, so a SECOND `deliberate-stop-at-checkpoint` event is appended), while the terminal-rung test still PASSES.
   MUTATION B, which falsifies the TERMINAL-RUNG test (E-03): remove the `FORCED_INTERRUPT_SENTINEL` from the `KeyboardInterrupt` message raised by `_terminal` inside `runner_shared.install_stop_triggers`. That sentinel was added by `891afabb` (`work(gvf2sq)`, 2026-09-28), NOT by `5efc78d2`, which is why Mutation A cannot falsify this half. Measured at review: the terminal-rung test goes RED and the SIGTERM test still passes.
   WHY TWO MUTATIONS RATHER THAN ONE IS THE HONEST DESIGN: F-01's bisection found the FIRST commit at which the filing-time file passed, which is `5efc78d2`, but the terminal-rung half was fixed three days later by `891afabb` under sibling item `pe7g6r` (F-05 already records that a sibling closed that half through a different route; what it did not say is that this makes the mutation check two-part). A single-mutation E-04 would report "the guard bites" while leaving E-03 unfalsified, which is the vacuous-guard outcome this item exists to prevent.
   - Depends on: E-02, E-03
   - Expected outcome: Mutation A reddens the SIGTERM test only; Mutation B reddens the terminal-rung test only; with production intact both pass. Each test is therefore individually falsifiable, and neither guard is vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -135,23 +135,123 @@ THE LINK TO THAT SPEC IS NOW DECLARED, added at review (F-07). The plan cites `c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `--collect-only -q` output for `tests/test_runner_stop_triggers_e2e.py` under `-o addopts=""`, showing the restored test node ids collected with no error, AND paste the `git show 5efc78d2 -- agent_workflows/runner_shared.py` hunk containing `item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)` to confirm F-01's fix is the one Mutation A must be able to falsify. Confirm in one line that the fixture plans are written from `tests.test_oc_runipd._CONFORMING_PLAN` and not from a hand-rolled stub.
   ALSO EVIDENCE ALL THREE FIXTURE REPAIRS, because the substitution alone leaves the tests red (F-03, as corrected): quote the lines that (a) format `_CONFORMING_PLAN`, (b) rewrite `- Set:` and `- Order:` to match the generated filename, and (c) write and stage the `.gitignore` covering `.aw/records/runs/`. If the executor's own first run reports `driver exited (rc=2) before the child was ready`, capture the DRIVER's stderr (not just the harness assertion) before concluding anything about the preflight: review measured the real cause there to be an ambiguous filename selector, not an IPD conformance refusal.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. Details:
+    `python3 -m pytest tests/test_runner_stop_triggers_e2e.py -o addopts="" --collect-only -q` output:
+    ```
+    tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted
+    tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint
+
+    2 tests collected in 0.41s
+    ```
+    `git show 5efc78d2 -- agent_workflows/runner_shared.py` hunk:
+    ```diff
+    @@ -26686,7 +26684,7 @@ def execute_item_core(
+                 attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+                 attempt["stopped"] = record
+                 attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+    -            item["status"] = runner_stop.STOPPED_DISPOSITION
+    +            item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+                 save_state(run_dir, state)
+                 print(
+                     pal(
+    @@ -26696,7 +26694,7 @@ def execute_item_core(
+                     ),
+                     file=sys.stderr,
+                 )
+    -            return
+    +            raise
+    ```
+    Confirmed: fixture plans in `tests/test_runner_stop_triggers_e2e.py` are written from `tests.test_oc_runipd._CONFORMING_PLAN` rather than any hand-rolled stub.
+    Quoted fixture repairs in `_make_repo`:
+    (a) Format `_CONFORMING_PLAN`:
+    `plan_text = _CONFORMING_PLAN.format(id6=id6)`
+    (b) Rewrite `- Set:` and `- Order:` to match generated filename:
+    `plan_text = re.sub(r"^- Set:\s*.*$", f"- Set: {setid}", plan_text, flags=re.MULTILINE)`
+    `plan_text = re.sub(r"^- Order:\s*.*$", f"- Order: {order}", plan_text, flags=re.MULTILINE)`
+    (c) Write and stage `.gitignore` covering `.aw/records/runs/`:
+    `(repo / ".gitignore").write_text(".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8")`
+    `_git(repo, "add", "-A")`
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: paste the actual passing run of the SIGTERM test node id under `-o addopts=""` with `-s`, including the test's own printed line reporting the recorded level, level name, certainty and the event index it stopped after (the harness prints it), so the evidence shows the record was READ from `state.json` rather than assumed. The pasted line must show level 3, `now`, and certainty `known`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. Details:
+    `python3 -m pytest tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint -o addopts="" -s -v`:
+    ```
+    tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint SIGTERM -> level 3 (now), certainty known, stopped after event 4 (tool_use:t4); driver exit 1
+    PASSED
+
+    ============================== 1 passed in 1.11s ===============================
+    ```
+    The test printed: `SIGTERM -> level 3 (now), certainty known, stopped after event 4 (tool_use:t4); driver exit 1`.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: paste the actual passing run of the terminal-rung test node id under `-o addopts=""` with `-s`, including the harness's printed `in-flight item after 3x SIGINT: status=...` line showing `'interrupted'` and the printed nonzero driver exit code. Review's own run printed `status='interrupted'` and `driver exit code after the terminal rung: 130`, so that is the expected shape. Also paste `--durations` for both restored tests, which is the measurement OQ-01's decision rests on, and the three-consecutive-run evidence item 4 of Required tests asks for.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Details:
+    `python3 -m pytest tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted -o addopts="" -s -v`:
+    ```
+    tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted in-flight item after 3x SIGINT: status='interrupted'
+    driver exit code after the terminal rung: 130
+    PASSED
+
+    ============================== 1 passed in 1.16s ===============================
+    ```
+    `--durations=0` for both restored tests (`python3 -m pytest tests/test_runner_stop_triggers_e2e.py -o addopts="" --durations=0`):
+    ```
+    ============================== slowest durations ===============================
+    0.97s call     tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted
+    0.87s call     tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint
+
+    (4 durations < 0.005s hidden.  Use -vv to show these durations.)
+    ============================== 2 passed in 2.09s ===============================
+    ```
+    Three consecutive runs of the restored file (`python3 -m pytest tests/test_runner_stop_triggers_e2e.py -o addopts="" -q`):
+    Run 1: `.. [100%] / 2 passed in 2.07s`
+    Run 2: `.. [100%] / 2 passed in 1.98s`
+    Run 3: `.. [100%] / 2 passed in 2.00s`
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: paste FOUR results, because there are TWO mutations and each must redden its OWN test (review PR-002). (a) Mutation A (`5efc78d2`'s `StopAtCheckpoint` arm reverted to `item["status"] = runner_stop.STOPPED_DISPOSITION` plus `return`): the SIGTERM test FAILING, with its failure text. Review measured `AssertionError: 2 != 1 : SIGTERM must stop the turn at a safe checkpoint`, because the `return` lets the run proceed to the next item and append a second stop event. (b) Under Mutation A, the terminal-rung test still PASSING, which is what proves the two are independently guarded. (c) Mutation B (`891afabb`'s `FORCED_INTERRUPT_SENTINEL` removed from `_terminal`'s `KeyboardInterrupt` message): the terminal-rung test FAILING. (d) Both tests PASSING against the unmodified worktree. Then paste `git status --short` for the repository worktree, which must show no `agent_workflows/` modification, proving each revert happened only in the throwaway copy. NAMING ONE MUTATION AND CALLING THE GUARD PROVEN IS A FAILED V-04: review measured that reverting `5efc78d2` alone leaves the terminal-rung test green, so a single-mutation run demonstrates nothing about E-03.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Details:
+    (a) Mutation A: SIGTERM test FAILING in throwaway copy:
+    ```
+    FAILED tests/test_runner_stop_triggers_e2e.py::SigtermTests::test_a_real_sigterm_records_level_3_and_stops_at_a_checkpoint
+    E   AssertionError: 2 != 1 : SIGTERM must stop the turn at a safe checkpoint, not kill the driver; events: [...]
+    1 failed in 2.72s
+    ```
+    (b) Under Mutation A, terminal-rung test PASSING:
+    ```
+    .                                                                        [100%]
+    1 passed in 1.88s
+    ```
+    (c) Mutation B: terminal-rung test FAILING in throwaway copy:
+    ```
+    FAILED tests/test_runner_stop_triggers_e2e.py::PreExistingInterruptContractTests::test_the_terminal_rung_still_records_the_item_interrupted
+    E   AssertionError: 'queued' != 'interrupted'
+    E   - queued
+    E   + interrupted
+    E    : the interrupted item must be recorded `interrupted`, got {'action': 'execute', ... 'status': 'queued'}
+    1 failed in 3.48s
+    ```
+    Under Mutation B, SIGTERM test PASSING:
+    ```
+    .                                                                        [100%]
+    1 passed in 2.27s
+    ```
+    (d) Both tests PASSING against unmodified worktree:
+    ```
+    ..                                                                       [100%]
+    2 passed in 3.35s
+    ```
+    (e) `git status --short` in repository worktree:
+    ```
+    $ git status --short
+    ?? tests/test_runner_stop_triggers_e2e.py
+    ```
+    Zero modification to `agent_workflows/`; both reverts executed strictly in throwaway copies.
+  - Result: pass
 
 ## Approval and execution gate
 

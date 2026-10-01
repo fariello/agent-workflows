@@ -1,5 +1,5 @@
 - Id: wqk5s2
-- Status: graduated
+- Status: done
 - Graduated-To: wqk5s2
 - Blocks-Release: next
 - Set: wqk5s2
@@ -8,6 +8,7 @@
 - Summary: Two slow-marked end-to-end stop-trigger tests fail at HEAD: SIGTERM and terminal-rung runs record no 'stopped'/'interrupted' item state
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD oi0sv9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-wqk5s2-01-oi0sv9-restore-the-sigterm-and-terminal-rung-end-to-end-stop-covera.ipd.md); evidence .aw/records/plans/executed/20260929-wqk5s2-01-oi0sv9-restore-the-sigterm-and-terminal-rung-end-to-end-stop-covera.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: oi0sv9
 - 2026-09-21 created (aw backlog): Two slow-marked end-to-end stop-trigger tests fail at HEAD: SIGTERM and terminal-rung runs record no 'stopped'/'interrupted' item state
 
