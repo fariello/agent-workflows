@@ -157,7 +157,7 @@ on all of them, since it records what was and was not done.
 - THE 9 NON-SECTION `split(SEP)` SITES are out of scope, per F-09: their separators are field delimiters, so there is no section extent to establish.
   - Carrier-Declined: NO DEFECT EXISTS. `line.split(":", 1)[1]` is a field parse whose failure mode is an `IndexError` a test would see immediately, not a silently widened assertion. Filing an item would promise a conversion with no property to gain.
 - BOUNDING THE PRODUCTION READERS is already owned elsewhere: `attention._history_section_lines` and `selectors.metadata_region` are the shipped authorities, and plan `xvon5j` (Set `idcapture`) is finishing the remaining unbounded identity readers with those exact modules in its `Scope-Paths`.
-  - Carrier: xvon5j
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-idcapture-02-xvon5j-bound-the-three-surviving-unbounded-identity-readers-to-the.ipd.md
 
 ## Scope check
 

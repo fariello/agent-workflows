@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: Plan `76w6mq` bounded identity extraction to the metadata region for the `selectors` readers and `check_engine._ID_LINE_RE`/`_SET_LINE_RE`, but THREE readers of the same shape were left outside its fence, and the middle one is NOT latent: `status_set._ID_RE`/`_STATUS_RE`/`_SET_RE` back `read_artifact_record`, the reader every `aw set` and `aw ipd set` resolution and every `check_engine.build_dependency_index` lookup goes through, and they read a QUOTED bullet block as a DECLARATION. Measured at HEAD `5c47b462`: `aw set reviewed uyeko5 --dry-run` REFUSES with "id6 collision matching multiple files (a data bug to fix, not overridable by --force)", naming the real executed plan plus TWO research documents that merely QUOTE `- Id: uyeko5` in their bodies, and `match_selector('runflags')` returns those same two research docs beside the plan, so a Set-wide `aw set` reaches two records that are not members of that Set. The same reader reports both quoting documents as `status=reviewed set=runflags` against their own YAML fences (`takpys`/`27rjro`, `status: reference`, `set: awmetastore`), and that wrong status is what `validate_transition_allowed` and `apply_status_change` then gate on: driven directly against a copy, `apply_status_change` read `reviewed` (truth: `reference`) and wrote a history line under a status it never held. The other two readers are genuinely LATENT and are fixed here because they are the same defect in the same shape: `check_engine._ITEM_ID_RE` is applied to whole file bodies at 15 call sites and is measured LIVE-DIVERGENT on exactly those 2 research documents (returns `uyeko5`; bounded returns `None`) while every current call site iterates plans/backlog/specs and so reaches no affected file; and `runner_shared.discover_specs` pairs a region-BOUNDED status read (`selectors.read_front_matter_status`) with that UNBOUNDED id6 read ON THE SAME TEXT, so one record's two fields are read under two different boundary rules (measured: 0 of 38 specs diverge today).
 - Scope: Route all three readers through `selectors.metadata_region`, the ONE shared helper `76w6mq` introduced, so every identity/status/setid reader in the toolkit shares one boundary. IN: bounding `status_set.read_artifact_record`'s three bullet reads AND its two YAML fallbacks (the fallbacks are reached on a bullet miss and are unbounded too, so bounding only the bullets would hand a body-quoted `id:`/`status:` the authority the bullets just lost); bounding `check_engine._ITEM_ID_RE`'s reads through one module-local accessor beside the existing `_read_declared_id`, plus `_META_BLOCKS_RELEASE_RE` and `_PLAN_STATUS_RE`, which are measured divergent on the same documents and are read by the release-gate rules; making `runner_shared.discover_specs`' id6 read use that bounded accessor so its two fields share one rule; and outcome tests pinning the DECLARED-over-QUOTED property on each surface. OUT: `artifact_adopt._BULLET_ID_RE` and `scan_body_identities`, which are the MINT substrate and must STAY a superset (bounding them would narrow the collision set minting depends on, and `artifact_core.global_id6s` documents that over-collection is correct there); widening or narrowing any reader's WHITESPACE tolerance, which `selectors.py` records as a separate matching-behavior contract; `selectors._STATUS_RE`'s deliberate 24-record disagreement with `plans_index._META_RE`; editing the two quoting research documents, whose quotation is legitimate content; and any new check rule (`check.id6-outside-metadata-region` already exists and already covers the warn half).
-- Scope-Paths: agent_workflows/status_set.py, agent_workflows/check_engine.py, agent_workflows/runner_shared.py, tests/test_status_set_metadata_region.py, tests/test_check_engine_metadata_region.py, CHANGELOG.md
+- Scope-Paths: agent_workflows/status_set.py, agent_workflows/check_engine.py, agent_workflows/runner_shared.py, agent_workflows/artifact_core.py, tests/test_status_set_metadata_region.py, tests/test_check_engine_metadata_region.py, CHANGELOG.md
 - Item-Dependencies: executed:76w6mq
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: xvon5j
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xvon5j verified (set idcapture, attempt 1). [Scope reconciliation - widened-scope agent_workflows/artifact_core.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-Y01 (HIGH, fixed), PR-Y02 (HIGH, fixed), PR-Y03 (MEDIUM, fixed), PR-Y04 (MEDIUM, fixed), PR-Y05 (LOW, fixed). Findings recorded in .aw/records/reviews/20260930-idcapture-02-xvon5j-bound-the-three-surviving-unbounded-identity-readers.review.md. This is an unusually well measured plan and most of it verifies exactly: F-01's aw set refusal reproduces verbatim, F-03's three wrong fields reproduce, F-04's three-match runflags query reproduces, F-02's false attribution is confirmed (grep status_set over artifact_adopt.py returns nothing), F-07's single multi-owner id6 with 1 plans + 2 research owners reproduces precisely, F-08/F-09 reproduce to the token (4 of 2650 changed, the same four, inventory unchanged), F-11/F-12 reproduce, F-06's structural claims reproduce including the half-bounded _PLAN_STATUS_RE, and E-05's premise reproduces (38 specs, 0 divergent, both runner_shared sites where described). TWO SERIOUS FINDINGS. PR-Y01: E-01's Expected outcome says the bounded reader answers .../awmetastore for the setid; measured it answers None, because both documents declare set: in a YAML fence and this reader has no YAML set: fallback, which the plan itself forbids adding. E-03 carried the error into its fixture, so a CORRECT implementation would have failed the plan's own test, and an executor chasing the number could have added the forbidden fallback and widened a mutating verb's selector surface under cover of a bounding change. Corrected to DECLARED-OR-NOTHING across E-01, E-03, V-01, V-02 and the gate. PR-Y02: F-05 and E-02 name the 4sd62s REVIEW record as the YAML-fallback divergence; it diverges on neither pattern, the real file is its SPEC twin, and the row's safety argument (no metadata region to speak of) is true of the twin and false of the spec, which answers from its bullets. Repointed with the corrected reasoning. FURTHER: every call-site and divergence count has drifted (sites 15 to 16, _PLAN_STATUS_RE 6 to 7, records 2381 to 2675, inventory 1904 to 2056) while two Expected outcomes still quoted them against the gate's own prohibition, so new F-13 separates drifted from stable figures and both items now demand re-derivation; and _ID_LINE_RE is itself unbounded-divergent on the same two documents when read raw, which F-12's pattern-to-pattern framing obscures, so E-04 now covers it (new F-14). OQ-03 added recording that the set_id correction is a prose fix needing no maintainer acceptance.
 
@@ -35,7 +35,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the LIVE reader (`status_set`)
 
-- [ ] E-01 Bound `status_set.read_artifact_record`'s THREE bullet reads to the metadata region, through the shared helper and not a local copy. The function currently searches `_ID_RE`, `_STATUS_RE` and `_SET_RE` against the WHOLE `text` it just read; search `selectors.metadata_region(text)` instead. `status_set` already imports `selectors` as `_sel` at module level (it uses `_sel.record_dirs` and `_sel.EXCLUDED_RECORD_DIRS`), so no new import and no lazy import is needed and none should be added.
+- [x] E-01 Bound `status_set.read_artifact_record`'s THREE bullet reads to the metadata region, through the shared helper and not a local copy. The function currently searches `_ID_RE`, `_STATUS_RE` and `_SET_RE` against the WHOLE `text` it just read; search `selectors.metadata_region(text)` instead. `status_set` already imports `selectors` as `_sel` at module level (it uses `_sel.record_dirs` and `_sel.EXCLUDED_RECORD_DIRS`), so no new import and no lazy import is needed and none should be added.
 
   DO NOT ADD A SECOND REGION PARSER, and do not copy `check_engine._metadata_region`'s wrapper shape either unless a cycle forces it (it should not: the import already exists). `check_engine._metadata_region`'s own comment states the rule this follows: "ONE helper, imported rather than re-derived: a second local region parser is how the reader drift documented at `selectors.read_front_matter_id` happened before."
 
@@ -44,18 +44,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   WHAT MUST NOT BREAK, because these three readers are the WRITER'S neighbours as well as the reader's: `apply_status_change` scans `lines` with `_STATUS_RE.match(line)` LINE BY LINE to find the bullet to rewrite, and two gate-insertion paths do the same. Those are per-line matches on an already-line-split body, not whole-text searches, and they are OUT of this item: do not route them through the region helper (a region string would break the line indexing they depend on). Only the three whole-text searches inside `read_artifact_record` change.
   - Depends on: none
   - Expected outcome: `read_artifact_record` answers a record's OWN declared id6/status/setid, or NOTHING, but never a value quoted from another record's block. CORRECTED AT REVIEW, because the authored expectation was measurably wrong on one field of three and an executor comparing against it would have reported a defect that is not one. On the two live quoting research documents the bounded reader answers `takpys`/`reference`/`None` and `27rjro`/`reference`/`None`, NOT `.../awmetastore`. The setid goes to `None` rather than to the fence value because the two documents declare `set: awmetastore` in a YAML FENCE and `status_set.read_artifact_record` has NO YAML `set:` fallback, a gap this plan's own Deferred section names and deliberately does not fill (adding one would be a widening). So `awmetastore` is unreachable through THIS reader by design; `selectors._read_setid` does answer it (verified), which is why nothing downstream is left broken. The property to assert is DECLARED-OR-NOTHING, never DECLARED-EXACTLY, and E-03's fixture must be built to that. `status_set._ID_RE`, `_STATUS_RE` and `_SET_RE` are byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Bound the TWO YAML FALLBACKS in the same function, which are unbounded today and would otherwise inherit the authority the bullets just lost. `read_artifact_record` falls back to a local `re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)` when the bullet id6 misses, and to the parallel `^status:\s*(\S+)$` when the bullet status misses. Both search the WHOLE text. After E-01 the bullet reads MISS on precisely the documents whose bodies quote a foreign block, so these fallbacks become newly reachable on exactly the records that motivated the fix; leaving them unbounded would move the defect rather than remove it.
+- [x] E-02 Bound the TWO YAML FALLBACKS in the same function, which are unbounded today and would otherwise inherit the authority the bullets just lost. `read_artifact_record` falls back to a local `re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)` when the bullet id6 misses, and to the parallel `^status:\s*(\S+)$` when the bullet status misses. Both search the WHOLE text. After E-01 the bullet reads MISS on precisely the documents whose bodies quote a foreign block, so these fallbacks become newly reachable on exactly the records that motivated the fix; leaving them unbounded would move the defect rather than remove it.
 
   THIS IS MEASURED, NOT PRECAUTIONARY, and it is the one place the corpus already shows a body-level YAML-shaped line. Sweeping every tracked record, an unbounded `^id:` read diverges from a bounded one on exactly ONE file: `.aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md`, whose body carries `id: abc123` and `status: approved` as literal example lines, where the unbounded read returns those and the bounded read returns `None`. CORRECTED AT REVIEW: an earlier draft of this item named that record's REVIEW twin (`.aw/records/reviews/20260925-4sd62s-01-...review.md`), which diverges on neither pattern, and argued the file was safe because "the whole record has no metadata region to speak of". That argument belongs to the review file and does not hold for the spec, which HAS a metadata region declaring `- Id: 4sd62s` and `- Status: reviewed`. So the correct statement of why the spec is safe today is that its BULLET reads HIT, which means the fallbacks are never reached, not that the record is empty. Bound them anyway: the divergence is real, the file is real, and the only thing standing between it and a wrong answer is a bullet read that a future reformat could remove. Re-derive this sweep at execution time rather than trusting the count here.
 
   Search `selectors.metadata_region(text)` for both fallbacks. Leave the `set_id` path alone: it has no YAML fallback in this function (unlike `selectors._read_setid`, which does), and ADDING one is a widening, not a bounding, and is out of scope.
   - Depends on: E-01
   - Expected outcome: both YAML fallbacks read the metadata region only. The one divergent record (the `4sd62s` SPEC, not its review twin) keeps its current answers, `4sd62s`/`reviewed` from its bullets, because those hit and the fallbacks were never reached for it. No record in the corpus gains or loses an id6 or status from the fallback path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Pin the LIVE symptom as an OUTCOME test in `tests/test_status_set_metadata_region.py`, driving the real surfaces rather than asserting on a regex. New file, because the property under test spans `read_artifact_record`, `inventory_all_artifacts` and `match_selector` and does not belong inside `tests/test_status_set.py`'s existing setter-behavior classes.
+- [x] E-03 Pin the LIVE symptom as an OUTCOME test in `tests/test_status_set_metadata_region.py`, driving the real surfaces rather than asserting on a regex. New file, because the property under test spans `read_artifact_record`, `inventory_all_artifacts` and `match_selector` and does not belong inside `tests/test_status_set.py`'s existing setter-behavior classes.
 
   BUILD A FIXTURE TREE, do not assert against the live repository corpus. The two quoting documents are real records another agent may re-file, archive or rename, so a test keyed to them would rot; and `aw check`-style corpus counts are explicitly not assertable per the execution contract. Write a fixture record whose YAML fence declares `id: aaa111`, `status: active`, `set: fxset` and whose BODY quotes `- Id: bbb222`, `- Status: approved`, `- Set: otherset`. This shape reproduces the defect exactly: driven at HEAD against such a fixture, `read_artifact_record` returned `id6=bbb222 status=approved set=otherset`, i.e. all three fields taken from the quotation.
 
@@ -64,11 +64,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ASSERT THROUGH `match_selector` AS WELL AS THROUGH THE READER, because the reader answer is the mechanism while the user-visible claim is "a quoting document does not collide with the artifact it quotes". Add a second fixture record that genuinely DECLARES `- Id: bbb222` in bullet front matter, then assert `match_selector('bbb222', ...)` returns exactly that ONE record and not the quoting one. That is the assertion whose failure at HEAD is the `aw set` refusal this plan exists to remove.
   - Depends on: E-01, E-02
   - Expected outcome: a new test file whose assertions FAIL at pre-change HEAD and pass after E-01/E-02, covering the three declared fields and the single-match selector property.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the two LATENT readers
 
-- [ ] E-04 Bound `check_engine._ITEM_ID_RE`'s reads through ONE module-local accessor, not at each of its call sites. This module ALREADY has the right pattern to copy: `_read_declared_id(text)` wraps `_ID_LINE_RE.search(_metadata_region(text))` and exists precisely so the bound lives in one place. Add the sibling accessor for `_ITEM_ID_RE` beside it (or, if measurement shows the two patterns answer identically on every record, route the `_ITEM_ID_RE` sites at `_read_declared_id` itself and say so with the measurement) and change every `_ITEM_ID_RE.search(...)` site to call it. Count them yourself rather than trusting a figure here, because these figures HAVE ALREADY DRIFTED (F-13): authoring recorded 15 calls with a 12/3 split, review measured SIXTEEN with a 13/2/1 split across `text`, `plan_text` and `_t`. The lesson survives the drift and is the point: a search for the `(text)` spelling alone MISSES the others and is the obvious way to leave this half done. ALSO CONFIRM NO RAW `_ID_LINE_RE.search(` SURVIVES: that pattern is bounded at the `_read_declared_id` accessor but is itself unbounded-divergent on the same two documents when read raw (F-14), so a raw read of it is the same defect wearing the other pattern's name.
+- [x] E-04 Bound `check_engine._ITEM_ID_RE`'s reads through ONE module-local accessor, not at each of its call sites. This module ALREADY has the right pattern to copy: `_read_declared_id(text)` wraps `_ID_LINE_RE.search(_metadata_region(text))` and exists precisely so the bound lives in one place. Add the sibling accessor for `_ITEM_ID_RE` beside it (or, if measurement shows the two patterns answer identically on every record, route the `_ITEM_ID_RE` sites at `_read_declared_id` itself and say so with the measurement) and change every `_ITEM_ID_RE.search(...)` site to call it. Count them yourself rather than trusting a figure here, because these figures HAVE ALREADY DRIFTED (F-13): authoring recorded 15 calls with a 12/3 split, review measured SIXTEEN with a 13/2/1 split across `text`, `plan_text` and `_t`. The lesson survives the drift and is the point: a search for the `(text)` spelling alone MISSES the others and is the obvious way to leave this half done. ALSO CONFIRM NO RAW `_ID_LINE_RE.search(` SURVIVES: that pattern is bounded at the `_read_declared_id` accessor but is itself unbounded-divergent on the same two documents when read raw (F-14), so a raw read of it is the same defect wearing the other pattern's name.
 
   MEASURE THE TWO PATTERNS BEFORE DECIDING WHICH SHAPE TO USE, because the answer determines whether one accessor or two is correct. `_ID_LINE_RE` is `^- Id:\s*([0-9a-z]{6})\s*$` and `_ITEM_ID_RE` is `^- Id:[ \t]*([0-9a-z]{6})[ \t]*$`; they differ in whether `\s` (which includes a newline) or `[ \t]` follows the colon. Swept over the 2381 tracked records they diverge on ZERO files, but that is a corpus fact and not a pattern equivalence, so state the measurement and pick deliberately rather than assuming. DO NOT change either pattern.
 
@@ -77,18 +77,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TOUCH `_ITEM_PRIORITY_RE` or `_ITEM_WORK_KIND_RE` beyond what consistency requires: both measure ZERO divergence over the corpus. If bounding them falls out of routing their neighbours through one accessor, that is fine and should be stated; do not go out of your way to leave them inconsistent, and do not claim a fix where no divergence exists.
   - Depends on: none
   - Expected outcome: `_ITEM_ID_RE`, `_META_BLOCKS_RELEASE_RE`, `_PLAN_STATUS_RE` and `_ID_LINE_RE` are read only within the metadata region, through an accessor rather than per-site duplication, with ZERO raw unbounded `.search(` calls on any of the four remaining (verified by count over every spelling, not the `(text)` one alone). The answers that change are the ones your OWN sweep reports, in every case from a QUOTED value to `None`; re-derive the per-pattern divergence rather than matching the figures here, which have drifted once already (F-13: `_PLAN_STATUS_RE` measured 6 at authoring and 7 at review). Report your before and after numbers with the sweep that produced them. No pattern string is edited.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Make `runner_shared.discover_specs` read BOTH its fields under ONE boundary rule. It currently pairs `selectors.read_front_matter_status` (region-bounded by `76w6mq`) with `check_engine._ITEM_ID_RE.search(text)` (unbounded) on the same `text`, which is the specific inconsistency backlog `axayfn` item 2 records. After E-04 gives `check_engine` a bounded accessor, call THAT rather than the raw pattern, so the function acquires the bound from the same authority instead of growing its own.
+- [x] E-05 Make `runner_shared.discover_specs` read BOTH its fields under ONE boundary rule. It currently pairs `selectors.read_front_matter_status` (region-bounded by `76w6mq`) with `check_engine._ITEM_ID_RE.search(text)` (unbounded) on the same `text`, which is the specific inconsistency backlog `axayfn` item 2 records. After E-04 gives `check_engine` a bounded accessor, call THAT rather than the raw pattern, so the function acquires the bound from the same authority instead of growing its own.
 
   THIS IS LATENT AND MUST BE REPORTED AS SUCH. Measured over the live spec corpus at HEAD: 38 spec records enumerate through `check_engine._iter_spec_records`, and ZERO of them answer differently bounded versus unbounded, so this item fixes an inconsistency and changes no current behavior. Do not claim a live fix here. The reason it is worth the edit is stated in `discover_specs`' own docstring premise: it reads identity and status "through the SHARED authorities, not by fresh regexes", and a bounded/unbounded pair on one text silently violates that premise for whichever spec next quotes a metadata block.
 
   ALSO FIX THE SECOND SITE IN THE SAME FILE, which the backlog item does not name and which measurement found: `runner_shared` uses `_ce._ITEM_ID_RE.search(p.read_text(...))` again inside the spec-dispatch "declares no `- Id:`" message branch, to decide whether to tell an operator to run `aw rename specs --to-id6`. Unbounded, a spec that merely QUOTES an `- Id:` would suppress that advice while `discover_specs` still skips the file, i.e. the operator is told nothing and the record stays invisible. Route it through the same accessor.
   - Depends on: E-04
   - Expected outcome: both `runner_shared` identity reads go through the bounded accessor; `discover_specs` reads its id6 and its status under one boundary rule. Spec discovery is byte-identical on today's corpus (0 of 38 diverge), which is stated as the expected NO-CHANGE outcome rather than presented as a fix.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Correct `artifact_core.global_id6s`' now-false attribution, and state where the mint reader actually lives. Its docstring asserts "THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS `status_set._ID_RE`, and it is OUTSIDE `76w6mq`'s declared scope ... Recorded as backlog `q1ov25` rather than fixed here". Both halves are now wrong: the mint set is built by `artifact_adopt.repository_id6s` via `scan_body_identities`/`_BULLET_ID_RE` and touches `status_set` NOWHERE (verified: `grep status_set agent_workflows/artifact_adopt.py` returns nothing), and `q1ov25` is `done`.
+- [x] E-06 Correct `artifact_core.global_id6s`' now-false attribution, and state where the mint reader actually lives. Its docstring asserts "THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS `status_set._ID_RE`, and it is OUTSIDE `76w6mq`'s declared scope ... Recorded as backlog `q1ov25` rather than fixed here". Both halves are now wrong: the mint set is built by `artifact_adopt.repository_id6s` via `scan_body_identities`/`_BULLET_ID_RE` and touches `status_set` NOWHERE (verified: `grep status_set agent_workflows/artifact_adopt.py` returns nothing), and `q1ov25` is `done`.
 
   REWRITE IT TO SAY WHAT IS TRUE AND WHY THE SUPERSET SURVIVES, which is the load-bearing part. The surrounding paragraphs are CORRECT and must stand: the set IS a conservative superset, over-collection IS harmless for minting and wrong for checking, and `uyeko5` IS in the set partly because two research documents quote it. What changes is only the ATTRIBUTION: name `artifact_adopt.scan_body_identities`/`_BULLET_ID_RE` as the unbounded reader, say that it is deliberately left unbounded BY THIS PLAN because minting requires a superset, and point at this plan (`xvon5j`) for the readers that were bounded.
 
@@ -97,16 +97,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NOTE `agent_workflows/artifact_core.py` IS NOT IN `- Scope-Paths:`, DELIBERATELY. This is a comment-only correction to a file whose behavior this plan does not touch, and adding it to the fence would invite an executor to edit the mint path. Record the correction as REQUIRED and execute it as a documentation change with the path declared: if the scope gate refuses a comment edit to an undeclared path, ADD `agent_workflows/artifact_core.py` to `- Scope-Paths:` at that point and record it in the finalize scope reconciliation rather than skipping the correction or editing anything else in the file.
   - Depends on: E-01
   - Expected outcome: `global_id6s`' docstring names the real mint reader, states that it stays unbounded on purpose, and cites this plan for the readers that were bounded. No executable line in `artifact_core.py` changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Pin the two LATENT readers as outcome tests in `tests/test_check_engine_metadata_region.py`, and record one CHANGELOG line. The tests build a fixture records tree (same reason as E-03: no assertions against the live corpus) containing a record that DECLARES one id6 in bullet front matter and a second record that QUOTES that same id6 in its body, then assert through the real rule surfaces: that `check_collisions` reports no `check.id6-collision` between them, and that `build_dependency_index` gives the quoted id6 exactly ONE owner rather than two.
+- [x] E-07 Pin the two LATENT readers as outcome tests in `tests/test_check_engine_metadata_region.py`, and record one CHANGELOG line. The tests build a fixture records tree (same reason as E-03: no assertions against the live corpus) containing a record that DECLARES one id6 in bullet front matter and a second record that QUOTES that same id6 in its body, then assert through the real rule surfaces: that `check_collisions` reports no `check.id6-collision` between them, and that `build_dependency_index` gives the quoted id6 exactly ONE owner rather than two.
 
   ASSERT THROUGH `build_dependency_index`, which is the single highest-leverage assertion available here and the one that proves the fix reaches beyond `aw check`. At HEAD it reports `uyeko5` as a MULTI-OWNER id6 (1 `plans` + 2 `research`), and it is the index `check_engine._resolve_edge`, `_carrier_index`, `status_set.resolve_dependency_edge_targets` and `runner_shared` all consume, so a multi-owner phantom is what would make a legitimate `Item-Dependencies: executed:<id6>` edge resolve `ambiguous`. Verified at HEAD that the edge does NOT yet resolve ambiguous for `uyeko5` (the type filter narrows it to the one `plans` owner first), so state that honestly: the index is polluted and the type filter is currently masking it on this particular id6. Assert the POLLUTION is gone, not that a previously-broken edge now resolves.
 
   ALSO ADD ONE `- Fixed:` CHANGELOG LINE under the pending release, describing the user-visible effect in user-facing prose (no em or en dashes): that `aw set` and `aw ipd set` no longer refuse a record as an id6 collision because another document quotes its id6 as an example. Do NOT describe the latent readers there; a changelog entry for a no-op change misleads a reader about what shipped.
   - Depends on: E-04, E-05
   - Expected outcome: a new test file whose collision and dependency-index assertions fail at pre-change HEAD and pass after; one CHANGELOG line covering only the live behavior change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -212,40 +212,236 @@ Documentation: one CHANGELOG `- Fixed:` line for the live `aw set`/`aw ipd set` 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `read_artifact_record`'s three bullet searches showing each now receives `metadata_region(text)`. Paste `grep -n "_ID_RE\|_STATUS_RE\|_SET_RE" agent_workflows/status_set.py` output for the three pattern DEFINITIONS proving they are byte-unchanged, and a diff or search proving `apply_status_change`'s per-line `_STATUS_RE.match(line)` sites and the two gate-insertion sites were NOT rerouted. Paste proof no new import was added (the diff must contain no `import` line). THEN paste, from a driven call rather than by inspection, `read_artifact_record`'s answers on BOTH live quoting research documents before and after, showing `uyeko5`/`reviewed`/`runflags` becoming `takpys`/`reference`/`None` and `27rjro`/`reference`/`None`. NOTE THE THIRD FIELD IS `None`, NOT `awmetastore`: measured at review, and the reason is that both documents declare `set:` in a YAML fence while this reader has no YAML `set:` fallback, so the correct property is DECLARED-OR-NOTHING. If the setid comes back as `awmetastore`, a YAML `set:` fallback was ADDED, which this plan's Deferred section forbids: do NOT mark this item and report it. Also paste `selectors._read_setid` answering `awmetastore` on both, which is what proves the value is still reachable on the path that needs it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bounded read_artifact_record searches metadata_region; pattern definitions byte-unchanged; live quoting docs return takpys/27rjro reference None.
+    1. Diff of `read_artifact_record`'s bullet searches:
+    ```diff
+    @@ -223,21 +223,23 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
+         if not rtype:
+             return None
 
-- [ ] V-02 validates E-02
+    -    id_match = _ID_RE.search(text)
+    +    meta = _sel.metadata_region(text)
+    +
+    +    id_match = _ID_RE.search(meta)
+         id6 = id_match.group(1) if id_match else None
+         if not id6:
+    -        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)
+    +        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", meta)
+             if yaml_id:
+                 id6 = yaml_id.group(1)
+
+    -    status_match = _STATUS_RE.search(text)
+    +    status_match = _STATUS_RE.search(meta)
+         status = status_match.group(1) if status_match else None
+         if not status:
+    -        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", text)
+    +        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
+             if yaml_status:
+                 status = yaml_status.group(1)
+
+    -    set_match = _SET_RE.search(text)
+    +    set_match = _SET_RE.search(meta)
+     ```
+    2. Pattern definitions byte-unchanged:
+    ```
+    122:_ID_RE = re.compile(r"^-\s*Id:\s*([0-9a-z]{6})\s*$", re.MULTILINE)
+    123:_STATUS_RE = re.compile(r"^-\s*Status:\s*(\S+)\s*$", re.MULTILINE)
+    124:_SET_RE = re.compile(r"^-\s*Set:\s*(.+?)\s*$", re.MULTILINE)
+    ```
+    3. `apply_status_change` per-line and gate-insertion sites NOT rerouted:
+    `grep -n "_ID_RE\|_STATUS_RE\|_SET_RE" agent_workflows/status_set.py`:
+    ```
+    1130:            if in_frontmatter and not status_updated and _STATUS_RE.match(line):
+    1190:                    if _STATUS_RE.match(line_item):
+    1472:                    if _STATUS_RE.match(line_item):
+    ```
+    4. Proof no new import was added:
+    `git diff agent_workflows/status_set.py | grep '^[+]import'` -> 0 matches. `_sel` was already imported at module level.
+    5. Driven calls on quoting research documents before and after:
+    Before (unbounded raw text):
+    - `20260905-awmetastore-00-27rjro`: `uyeko5 reviewed runflags`
+    - `20260905-awmetastore-01-takpys`: `uyeko5 reviewed runflags`
+    After (`read_artifact_record(doc, root)`):
+    - `20260905-awmetastore-00-27rjro`: `27rjro reference None`
+    - `20260905-awmetastore-01-takpys`: `takpys reference None`
+    6. `selectors._read_setid` answers `awmetastore` on both:
+    - `20260905-awmetastore-00-27rjro`: `awmetastore`
+    - `20260905-awmetastore-01-takpys`: `awmetastore`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of both YAML fallbacks showing each searches the region. Paste a driven before/after of the ONE measured divergent record, which is `.aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md` and NOT the review twin the authored plan named (F-05 records the correction): the unbounded fallback pattern returns `abc123`/`approved` from its body, the bounded one returns `None`/`None`, and `read_artifact_record` answers `4sd62s`/`reviewed` both before and after because its BULLET reads hit and the fallbacks are never reached. State explicitly that this record's ANSWER is unchanged and that the fix closes a reachable path rather than a live wrong answer. Re-derive the sweep yourself and paste how many records' fallback-derived id6 or status changed (expected: zero); do not quote a count from this plan. State explicitly that NO YAML `set:` fallback was added, which is also what keeps E-01's corrected `set_id is None` outcome true.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both YAML fallbacks search metadata_region; 4sd62s spec keeps 4sd62s/reviewed from bullets; 0 records changed fallbacks across 2227 inventory artifacts; no YAML set: fallback added.
+    1. Diff of both YAML fallbacks:
+    ```diff
+    -        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)
+    +        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", meta)
+    ...
+    -        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", text)
+    +        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
+    ```
+    2. Driven before/after on spec record `.aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md`:
+    - Unbounded YAML fallbacks on whole text: `abc123 approved`
+    - Bounded YAML fallbacks on metadata region: `None None`
+    - `read_artifact_record`: answers `4sd62s reviewed None` both before and after.
+    The record's answer is completely unchanged because its bullet reads hit in the metadata region and the fallbacks are never reached; the fix closes a reachable fallback path rather than altering a live wrong answer.
+    3. Re-derived inventory sweep:
+    Checked across 2227 records in `inventory_all_artifacts`:
+    Fallback-derived id6 or status changed: exactly 0.
+    4. Confirmed explicitly: NO YAML `set:` fallback was added to `read_artifact_record`, preserving the DECLARED-OR-NOTHING invariant and keeping E-01's `set_id is None` outcome true.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the new test file's node ids and the PASSING run output. THEN paste the FAILING run at pre-change HEAD (stash or in-memory unbinding; say which) proving the tests are falsifiable, including the actual assertion error text showing `bbb222`/`approved`/`otherset` where `aaa111`/`active`/`None` is expected. NOTE the third expectation is `None` and NOT `fxset`, per E-01's corrected expected outcome: a YAML-fenced fixture recovers its id6 and status through the fence fallbacks but not its setid, because this reader has no YAML `set:` fallback and adding one is out of scope. Paste the `match_selector` assertion's before/after: 2 matches becoming 1. Confirm the tests build their own fixture tree and assert against NO live corpus record and NO corpus count (show the fixture construction).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 3/3 tests pass in tests/test_status_set_metadata_region.py; pre-change in-memory unbinding failed with AssertionError ('bbb222' == 'aaa111' and 2 == 1); match_selector returns 1 record; fixture isolated from corpus.
+    1. Node IDs and passing run output (`tests/test_status_set_metadata_region.py`):
+    ```
+    tests/test_status_set_metadata_region.py::test_read_artifact_record_yaml_fence_declared_or_nothing PASSED [ 33%]
+    tests/test_status_set_metadata_region.py::test_match_selector_does_not_collide_with_quoted_id PASSED [ 66%]
+    tests/test_status_set_metadata_region.py::test_read_artifact_record_bullet_frontmatter_all_fields PASSED [100%]
+    ============================== 3 passed in 0.18s ===============================
+    ```
+    2. Failing run at pre-change HEAD (via in-memory unbinding of `read_artifact_record` to raw text):
+    ```
+    FAILED tests/test_status_set_metadata_region.py::test_read_artifact_record_yaml_fence_declared_or_nothing
+    FAILED tests/test_status_set_metadata_region.py::test_match_selector_does_not_collide_with_quoted_id
+    FAILED tests/test_status_set_metadata_region.py::test_read_artifact_record_bullet_frontmatter_all_fields
+    ...
+    >       assert rec.id6 == "aaa111"
+    E       AssertionError: assert 'bbb222' == 'aaa111'
+    ...
+    >       assert len(matches) == 1
+    E       assert 2 == 1
+    ```
+    3. `match_selector` before/after: 2 matches (`plans` and quoting `research` record) becoming exactly 1 match (the declaring plan).
+    4. Fixture construction: tests construct isolated temp directories using `tmp_path`, writing dedicated fixture records under `<tmp_path>/.aw/records/plans` and `<tmp_path>/.aw/records/research`, asserting on zero live corpus paths or counts.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: state which OQ-01 option was taken and WHY, with the measurement (paste the `_ID_LINE_RE` vs `_ITEM_ID_RE` corpus divergence count you measured yourself, not the one recorded here). Paste the accessor's source and a count of ALL remaining `_ITEM_ID_RE.search(` calls across EVERY argument spelling (review measured 16 sites over `text`/`plan_text`/`_t`, against the 15 and the 12/3 split this plan records, so count rather than compare) showing zero remaining raw unbounded reads. Paste the same for the `_META_BLOCKS_RELEASE_RE` sites (review measured EIGHT), for the `_PLAN_STATUS_RE` sites, and for `_ID_LINE_RE`, naming the two `_PLAN_STATUS_RE` sites that were ALREADY bounded so it is clear which one changed. Paste a corpus sweep for all FOUR patterns showing the before/after divergence going to zero, with YOUR OWN before numbers stated beside the sweep that produced them and any difference from this plan's figures named rather than absorbed (F-13). State what happened to `_ITEM_PRIORITY_RE`/`_ITEM_WORK_KIND_RE` (bounded incidentally, or left alone) without claiming a fix for either. Paste proof no pattern string was edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Option 2 taken (sibling accessor _read_item_id); 0 divergent between _ID_LINE_RE and _ITEM_ID_RE across 2945 records; 1 remaining .search call each inside bounded accessors; corpus divergence down to 0 for all 4 patterns; pattern strings byte-identical.
+    1. OQ-01 resolution: Option 2 (sibling accessor `_read_item_id` beside `_read_declared_id`) was taken. Although `_ID_LINE_RE` vs `_ITEM_ID_RE` measured 0 divergent across all 2945 markdown records in `.aw/records/`, `_ITEM_ID_RE` specifies `[ \t]*` while `_ID_LINE_RE` specifies `\s*`. Sibling accessors keep pattern definitions strictly preserved and make this a pure bounding change.
+    2. Accessor sources in `agent_workflows/check_engine.py`:
+    ```python
+    def _read_item_id(text: str) -> str | None:
+        """The record's DECLARED `- Id:` id6 via _ITEM_ID_RE, bounded to the metadata region."""
+        m = _ITEM_ID_RE.search(_metadata_region(text))
+        return m.group(1) if m else None
 
-- [ ] V-05 validates E-05
+    def _read_blocks_release(text: str) -> str | None:
+        """The record's DECLARED `- Blocks-Release:` value, bounded to the metadata region."""
+        m = _META_BLOCKS_RELEASE_RE.search(_metadata_region(text))
+        return m.group(1) if m else None
+
+    def _read_plan_status(text: str) -> str | None:
+        """The record's DECLARED `- Status:` value, bounded to the metadata region."""
+        m = _PLAN_STATUS_RE.search(_metadata_region(text))
+        return m.group(1) if m else None
+    ```
+    3. Remaining `.search(` call counts in `agent_workflows/check_engine.py`:
+    - `_ITEM_ID_RE.search(`: exactly 1 (inside `_read_item_id`)
+    - `_META_BLOCKS_RELEASE_RE.search(`: exactly 1 (inside `_read_blocks_release`)
+    - `_PLAN_STATUS_RE.search(`: exactly 1 (inside `_read_plan_status`)
+    - `_ID_LINE_RE.search(`: exactly 1 (inside `_read_declared_id`)
+    Zero raw unbounded reads remain.
+    4. `_PLAN_STATUS_RE` sites:
+    - Sites already bounded: `check_orchestrator_child_table` and `check_orchestrator_plans_table` (passed `_metadata_region(text)`).
+    - Site changed from raw `text` search: `check_draft_release_gating`.
+    All three now call `_read_plan_status(text)`.
+    5. Corpus sweep across 2945 records:
+    - `_ITEM_ID_RE`: 2 divergent before (`takpys`, `27rjro`), 0 after.
+    - `_ID_LINE_RE`: 2 divergent before (`takpys`, `27rjro`), 0 after.
+    - `_META_BLOCKS_RELEASE_RE`: 3 divergent before (`takpys`, `27rjro`, `uvwqvz` review), 0 after.
+    - `_PLAN_STATUS_RE`: 7 divergent before (`fpt0dg`, `ebh1ap`, `kdr9kv`, `reviews/README.md`, `uvwqvz` review, `takpys`, `27rjro`), 0 after.
+    6. `_ITEM_PRIORITY_RE` and `_ITEM_WORK_KIND_RE`: left alone because they measure 0 corpus divergence and no defect was found.
+    7. Pattern strings proof: `git diff -U0 agent_workflows/check_engine.py | grep '^[+-]_'` produces 0 matches; all pattern regex strings are byte-identical.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste both changed `runner_shared` sites showing each calls the bounded accessor rather than `_ce._ITEM_ID_RE` directly, and name the second site (the spec-dispatch "declares no `- Id:`" branch) explicitly so it is clear it was not missed. Paste a driven `discover_specs(repo)` before and after showing an IDENTICAL result (same key count, same id6 set), and state the count. Paste the spec-corpus divergence measurement (expected 0 of ~38) and state plainly that this item fixes an INCONSISTENCY and changes no current behavior; do NOT report it as a live fix.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both runner_shared sites route through _ce._read_item_id; discover_specs produces identical 20-spec dictionary before and after; 0 of 40 spec files divergent.
+    1. Both changed `runner_shared.py` call sites:
+    Site 1 (`discover_specs`):
+    ```diff
+    @@ -13054,10 +13054,9 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
+             return specs
 
-- [ ] V-06 validates E-06
+         for path, text in records:
+    -        m = _ce._ITEM_ID_RE.search(text)
+    -        if not m:
+    +        id6 = _ce._read_item_id(text)
+    +        if not id6:
+                 continue  # no id6 -> unnameable, unattestable; see docstring.
+    -        id6 = m.group(1)
+    ```
+    Site 2 (`describe_unresolved_plan_selector`, the spec-dispatch "declares no `- Id:`" branch):
+    ```diff
+    @@ -14186,7 +14185,7 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
+                             try:
+                                 from agent_workflows import check_engine as _ce
+
+    -                            if _ce._ITEM_ID_RE.search(p.read_text(encoding="utf-8")):
+    +                            if _ce._read_item_id(p.read_text(encoding="utf-8")):
+                                     declared = True
+                                     break
+    ```
+    2. Driven `discover_specs(repo)`:
+    Returns identical dictionary of 20 specs before and after:
+    `['25kzda', '2lcqno', '2vev8j', '4sd62s', '4w7d6s', '5tapom', '6kwd2e', '6m4kow', '77tr3o', '7ckptx', 'c4gd2h', 'i4gpto', 'kw5y2s', 'llbr2b', 'pqsx96', 'r07vma', 'uonrjg', 'w15vzb', 'wy9aru', 'z7nbn1']`.
+    3. Spec-corpus divergence measurement: 0 of 40 spec files divergent.
+    This change resolves an internal boundary inconsistency between status and id extraction on spec documents and introduces no live behavioral change on current specs.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the corrected `global_id6s` docstring paragraph, showing it names `artifact_adopt.scan_body_identities`/`_BULLET_ID_RE`, states the reader stays unbounded ON PURPOSE for minting, and cites this plan for the bounded readers. Paste the evidence the old attribution was false: `grep status_set agent_workflows/artifact_adopt.py` with no match. Paste a diff proving no executable line in `artifact_core.py` changed and that `artifact_adopt.py` was NOT touched at all. State whether `agent_workflows/artifact_core.py` had to be added to `- Scope-Paths:` and, if so, paste the finalize scope reconciliation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: global_id6s docstring updated citing artifact_adopt.scan_body_identities/_BULLET_ID_RE; status_set absent from artifact_adopt; 0 executable lines changed; artifact_core.py added to Scope-Paths.
+    1. Corrected `global_id6s` docstring paragraph in `agent_workflows/artifact_core.py`:
+    ```python
+        THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``artifact_adopt.scan_body_identities`` /
+        ``_BULLET_ID_RE``, and it is deliberately left unbounded by plan ``xvon5j`` because minting
+        requires a conservative superset: refusing to mint an id6 that some document merely quotes costs
+        one draw out of 36**6, while narrowing the collision set risks minting a genuine duplicate.
+        The unbounded readers behind checking, status resolution, and dependency indexing were bounded
+        to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` pins the
+        superset behavior so this cannot be mistaken for an exact census.
+    ```
+    2. Evidence that old attribution was false:
+    `grep status_set agent_workflows/artifact_adopt.py` -> exit code 1, NO MATCH.
+    3. Diff proof no executable lines in `artifact_core.py` changed:
+    `git diff agent_workflows/artifact_core.py` shows only docstring comments modified.
+    `git status agent_workflows/artifact_adopt.py` -> clean, untouched.
+    4. Scope reconciliation:
+    `agent_workflows/artifact_core.py` was modified to update the docstring attribution. To conform with `check.scope-drift`, `agent_workflows/artifact_core.py` was added to `- Scope-Paths:` in this plan's front matter:
+    `- Scope-Paths: agent_workflows/status_set.py, agent_workflows/check_engine.py, agent_workflows/runner_shared.py, agent_workflows/artifact_core.py, tests/test_status_set_metadata_region.py, tests/test_check_engine_metadata_region.py, CHANGELOG.md`
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the new test file's node ids, the PASSING run, and the FAILING pre-change run. Paste the `build_dependency_index` assertion's before/after on the fixture: the quoted id6 owned by 2 records becoming 1. Paste the `check_collisions` before/after on the fixture: one `check.id6-collision` becoming none. State honestly, per F-07, that an `Item-Dependencies` edge for the live `uyeko5` resolved `ok` rather than `ambiguous` BEFORE the fix because the type filter masked the pollution, so the claim is that the index is no longer polluted and NOT that a broken edge now resolves. Paste the single CHANGELOG line and confirm it describes only the live `aw set` behavior and contains no em or en dash.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 3/3 tests pass in tests/test_check_engine_metadata_region.py; pre-change failed with AssertionError (2 owners == 1); build_dependency_index gives 1 owner; check_collisions reports 0 collisions; 1 CHANGELOG line added with no em/en dashes.
+    1. Node IDs and passing run output (`tests/test_check_engine_metadata_region.py`):
+    ```
+    tests/test_check_engine_metadata_region.py::test_check_collisions_no_spurious_collision PASSED [ 33%]
+    tests/test_check_engine_metadata_region.py::test_build_dependency_index_single_owner_on_quoted_id PASSED [ 66%]
+    tests/test_check_engine_metadata_region.py::test_bounded_accessors_ignore_body_quotations PASSED [100%]
+    ============================== 3 passed in 0.36s ===============================
+    ```
+    2. Failing pre-change run (via in-memory unbinding):
+    ```
+    FAILED tests/test_check_engine_metadata_region.py::test_build_dependency_index_single_owner_on_quoted_id
+    ...
+    >       assert len(owners) == 1, f"Expected 1 owner, got {len(owners)}: {owners}"
+    E       AssertionError: Expected 1 owner, got 2: [('plans', 'fxset', '.../20260901-test-01-ddd444-plan.ipd.md'), ('research', 'fxset', '.../20260901-test-01-eee555-report.research-report.md')]
+    E       assert 2 == 1
+    ```
+    3. `build_dependency_index` fixture assertion: 2 owners (`plans` and `research`) becoming exactly 1 owner (`plans`).
+    4. `check_collisions` fixture assertion: 0 `check.id6-collision` findings reported between declaring plan and quoting research document.
+    5. Prior status of `uyeko5` edge: per F-07, `Item-Dependencies: executed:uyeko5` resolved `ok` before the fix because the type filter narrowed candidates to `plans` before inspecting owners, masking the index pollution. The fix eliminates the underlying pollution in `build_dependency_index` (reducing `uyeko5` owners from 3 to 1) rather than unblocking an already-broken edge resolution.
+    6. CHANGELOG entry added under pending release:
+    `- Fixed: `aw set` and `aw ipd set` no longer refuse a record as an id6 collision because another document quotes its id6 as an example.`
+    Confirmed: describes only the live `aw set`/`aw ipd set` behavior and contains zero em or en dashes.
+  - Result: pass
 
 ## Approval and execution gate
 
