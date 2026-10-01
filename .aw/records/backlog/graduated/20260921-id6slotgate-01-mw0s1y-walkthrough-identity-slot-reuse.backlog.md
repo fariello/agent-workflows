@@ -8,6 +8,7 @@
 - Summary: Three walkthroughs reuse their source plan's id6 in their own filename identity slot, violating D140 and the walkthroughs README
 
 ## Workflow history
+- 2026-10-01 note (aw backlog): Remediation confirmed shipped in IPD nrqo90 (commit e83cb542): the three walkthroughs were renamed with their own minted id6 and typed - Target-Id: pointers, and aw find y5od1h no longer returns a duplicate walkthrough record. The residual defect is the frozen census guard in test_walkthrough_id6.py, fixed by IPD aisk5z.
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: aisk5z
 - 2026-09-21 created (aw backlog): Three walkthroughs reuse their source plan's id6 in their own filename identity slot, violating D140 and the walkthroughs README
 

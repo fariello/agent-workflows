@@ -8,6 +8,7 @@
 - Summary: aw check misses check.id6-identity-slot on a live D140 violation because check_collisions gates the slot pass on the caller's liveness filter
 
 ## Workflow history
+- 2026-10-01 note (aw backlog): Remediation confirmed shipped in IPD t0jyb2: check_collisions now enumerates the terminal-inclusive corpus unconditionally for the identity-slot pass (matching the suggested fix), and both collision checks (with include_retired True and False) return zero findings.
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: dta75n
 - 2026-09-21 created (aw backlog): aw check misses check.id6-identity-slot on a live D140 violation because check_collisions gates the slot pass on the caller's liveness filter
 
