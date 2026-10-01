@@ -6,7 +6,7 @@
 - Scope: Re-key the baseline fixture and its only reader from path to plan `id6`, the repo's stable cross-tree handle, and replace the single frozen intersection floor with two self-diagnosing assertions (a coverage fraction of the baseline, plus a retained absolute floor on the FIXTURE's own size so the fraction cannot go vacuous). Pure re-key of already-frozen values; the `derive_plan_status` algorithm and every other test are untouched.
 - Scope-Paths: tests/fixtures/derive_plan_status_baseline.json, tests/test_history_order.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: agent aw oc run
 - Id: rlcq7g
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rlcq7g verified (set p0a5kr, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 all FIXED. Premise re-measured at HEAD `f5c6114b` (291 commits after the plan's `afb948ce`): 777 baseline keys, 882 live terminal plans, 732 intersection, and the re-key prototyped lossless (732 -> 732, value multiset equal, 0 mismatches). PR-001 (HIGH): OQ-01's fraction-only floor is vacuous against a shrinking fixture and contradicts its own stated rationale (a 10-entry fixture with all 10 found scores 100 percent and passes), so E-03 now carries a retained `len(baseline) >= 700` non-vacuity floor beside the coverage fraction. PR-003 (HIGH): 33 of the 732 carried values are JSON `null` and E-01 never said so, so a natural falsy-filter transform would have dropped 33 entries while satisfying every stated check but the count. PR-004: id6 keying opens a duplicate/absent-id silent-coverage-loss mode that path keying could not have; E-02 now asserts against it. PR-005: E-04's shared helper could not have served both callers as specified. PR-006: F-3 understated itself; one argument-free `aw archive plans --apply` takes the intersection from 732 to 118 today (614 sweep candidates at the 14-day default). PR-008: gate gained a scope fence and the runner/executor lifecycle conditional. Two V-items demanded evidence that measurably proves nothing (V-03's "a few extra ids" passes at 3, 10 and even 38; V-02's sanctioned history note does not change any derived status) and were corrected. Findings and decisions D-1..D-5 in `.aw/records/reviews/20260929-p0a5kr-01-rlcq7g-key-the-derive-plan-status-baseline-by-plan-id6-so-a-termina.review.md`.
@@ -38,32 +38,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-key the fixture
 
-- [ ] E-01 Rewrite `tests/fixtures/derive_plan_status_baseline.json` as a mapping of plan `id6` -> frozen derived status, by PURE RE-KEY of the existing file rather than by fresh capture. For each of the current 777 path keys that (a) resolves to a live file under `executed/`, `superseded/`, or `not-executed/` and (b) is in the intersection the test compares today, read that file's text, take its declared id6 via `selectors.read_front_matter_id`, and carry the EXISTING frozen value across unchanged. Emit sorted-by-id6 JSON with a trailing newline. Do NOT call `derive_plan_status` to produce the values: re-deriving would silently re-baseline a real regression as the new truth, destroying the only evidence the guard holds. Drop the 45 `pending/` keys (all 45 are already uncomparable dead weight, see F-4) and do NOT resurrect them by id6 (see F-5, which is the trap in this task).
+- [x] E-01 Rewrite `tests/fixtures/derive_plan_status_baseline.json` as a mapping of plan `id6` -> frozen derived status, by PURE RE-KEY of the existing file rather than by fresh capture. For each of the current 777 path keys that (a) resolves to a live file under `executed/`, `superseded/`, or `not-executed/` and (b) is in the intersection the test compares today, read that file's text, take its declared id6 via `selectors.read_front_matter_id`, and carry the EXISTING frozen value across unchanged. Emit sorted-by-id6 JSON with a trailing newline. Do NOT call `derive_plan_status` to produce the values: re-deriving would silently re-baseline a real regression as the new truth, destroying the only evidence the guard holds. Drop the 45 `pending/` keys (all 45 are already uncomparable dead weight, see F-4) and do NOT resurrect them by id6 (see F-5, which is the trap in this task).
   PRESERVE JSON `null` AS A FIRST-CLASS VALUE (F-13). 33 of the 732 carried entries have the value `null`, not a status string, recorded by plan `63h054` E-01's "`null` for None" convention because `derive_plan_status` returns `None` for a plan whose history declares no status event. A transform that filters falsy values, coerces `null` to `""`, or skips an entry whose value is `None` silently drops 33 entries and, worse, converts 33 real comparisons into no comparison at all. Carry `null` through unchanged and keep comparing it: `assertEqual`-style comparison of `None == None` is exactly the check those 33 entries need.
   USE `selectors.read_front_matter_id` (or its whole-file twin `selectors.declared_id6`) AND NOTHING ELSE. Do NOT reach for `selectors.filename_slot_id6`, which is the WRONG resolver and fails on 95 of the 732 keys you must carry (measured; F-6).
   - Depends on: none
   - Expected outcome: The fixture is a JSON object of exactly 732 entries; every key matches `^[0-9a-z]{6}$`; the multiset of VALUES is identical to the multiset of the 732 values carried over, INCLUDING all 33 `null` values (so no status was invented, changed, re-derived, or dropped); no key is a path; no `pending/`-era entry survives.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: re-key the reader and fix the diagnosis
 
-- [ ] E-02 In `tests/test_history_order.py::DerivationIsUnchangedTests.test_whole_tree_derivation_is_unchanged`, build the live side as an `id6 -> (repo-relative path, derived status)` map over the same three terminal buckets it globs today, reading each plan's text ONCE and taking both `selectors.read_front_matter_id(text)` and `il.derive_plan_status(text)` from that one string. Intersect on id6 instead of on path. Keep the existing terminal-bucket restriction (it is load-bearing, see F-4) and keep the `mismatches` comparison and its first-20 truncation. Report each mismatch as `<id6> (<current path>): expected <frozen>, got <derived>` so a failure still names a file a human can open even though the key no longer is one.
+- [x] E-02 In `tests/test_history_order.py::DerivationIsUnchangedTests.test_whole_tree_derivation_is_unchanged`, build the live side as an `id6 -> (repo-relative path, derived status)` map over the same three terminal buckets it globs today, reading each plan's text ONCE and taking both `selectors.read_front_matter_id(text)` and `il.derive_plan_status(text)` from that one string. Intersect on id6 instead of on path. Keep the existing terminal-bucket restriction (it is load-bearing, see F-4) and keep the `mismatches` comparison and its first-20 truncation. Report each mismatch as `<id6> (<current path>): expected <frozen>, got <derived>` so a failure still names a file a human can open even though the key no longer is one.
   DO NOT LET A KEY COLLISION OR A MISSING `- Id:` PASS SILENTLY (F-14). Keying by id6 introduces a failure mode path-keying could not have: two live terminal plans declaring the SAME `- Id:`, where a dict build silently keeps whichever the glob visited last and drops the other from comparison, or a terminal plan declaring NO `- Id:`, where `read_front_matter_id` returns `None` and every such plan collapses onto a single `None` key. Neither is true today (measured: 882 terminal plans, 882 declared ids, 0 collisions, 0 missing) and this guard exists so a future violation fails LOUDLY instead of quietly shrinking coverage. While building the map, collect any id6 seen twice and any file whose declared id is `None`, and assert BOTH collections are empty with a message naming the offending paths. `check.id6-collision` polices this repo-wide, but this test must not depend on that check having been run.
   - Depends on: E-01
   - Expected outcome: The test intersects on id6, performs exactly one read per terminal plan, and its mismatch lines carry id6, the plan's CURRENT path, the expected status, and the derived status. A duplicate declared id6 or a terminal plan with no `- Id:` fails the test by name rather than silently reducing the compared set.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Replace the frozen `assertGreaterEqual(len(intersection), 700)` with TWO assertions, because one alone is measurably insufficient (F-11, F-12). FIRST, a COVERAGE assertion on the found FRACTION: require that at least 95 percent of the fixture's entries resolve to a plan in the live terminal tree, computed as `found >= 0.95 * len(baseline)`. SECOND, a NON-VACUITY assertion on the fixture's own SIZE: require `len(baseline) >= 700`, retaining the frozen absolute for THAT purpose alone. The two assertions guard different failures and neither substitutes for the other: the fraction catches baseline ids that have gone missing from the live tree, while the size floor catches a fixture that was truncated, emptied, or regenerated too small, which a pure fraction CANNOT catch because a 10-entry fixture with all 10 found scores 100 percent and passes (measured, F-11). Write BOTH failure messages to name their own real cause and remedy: the coverage message says that baseline ids are missing from the live terminal tree (a plan was deleted, or moved OUT of a terminal directory, or had its `- Id:` changed), NOT that `derive_plan_status` regressed, and that a legitimate mass change requires re-keying the fixture; the size message says the fixture itself shrank and must be re-keyed from the committed file rather than re-captured. State in a comment that the SIZE floor is deliberately absolute and is NOT the rotting kind the plan removes: it bounds the fixture, a frozen authored artifact whose entry count changes only when someone edits it, whereas the old 700 bounded the live-tree INTERSECTION and so rotted with every file move. A rename or an archive shard must not be able to trip either assertion, because neither changes a plan's `- Id:` and neither changes the fixture.
+- [x] E-03 Replace the frozen `assertGreaterEqual(len(intersection), 700)` with TWO assertions, because one alone is measurably insufficient (F-11, F-12). FIRST, a COVERAGE assertion on the found FRACTION: require that at least 95 percent of the fixture's entries resolve to a plan in the live terminal tree, computed as `found >= 0.95 * len(baseline)`. SECOND, a NON-VACUITY assertion on the fixture's own SIZE: require `len(baseline) >= 700`, retaining the frozen absolute for THAT purpose alone. The two assertions guard different failures and neither substitutes for the other: the fraction catches baseline ids that have gone missing from the live tree, while the size floor catches a fixture that was truncated, emptied, or regenerated too small, which a pure fraction CANNOT catch because a 10-entry fixture with all 10 found scores 100 percent and passes (measured, F-11). Write BOTH failure messages to name their own real cause and remedy: the coverage message says that baseline ids are missing from the live terminal tree (a plan was deleted, or moved OUT of a terminal directory, or had its `- Id:` changed), NOT that `derive_plan_status` regressed, and that a legitimate mass change requires re-keying the fixture; the size message says the fixture itself shrank and must be re-keyed from the committed file rather than re-captured. State in a comment that the SIZE floor is deliberately absolute and is NOT the rotting kind the plan removes: it bounds the fixture, a frozen authored artifact whose entry count changes only when someone edits it, whereas the old 700 bounded the live-tree INTERSECTION and so rotted with every file move. A rename or an archive shard must not be able to trip either assertion, because neither changes a plan's `- Id:` and neither changes the fixture.
   - Depends on: E-02
   - Expected outcome: Two assertions replace the one: a coverage floor relative to `len(baseline)` and a non-vacuity floor `len(baseline) >= 700`. Each carries its own message naming its own cause. Neither is reachable by any number of renames or archive shards. A truncated fixture fails the second even when every surviving entry is found.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a behavioral regression test in `tests/test_history_order.py` that proves the decoupling by CONSTRUCTION rather than by assertion about the live tree: build a temporary repo containing a handful of terminal plans plus an id6-keyed baseline, run the same intersect-and-compare logic, then physically rename every plan file (and additionally move one into a `YYYYMM/` shard subdirectory, the shape `aw archive plans` produces) WITHOUT touching any `- Id:`, and assert the comparison still finds every entry and still reports zero mismatches. Then, as the discriminating negative, mutate one plan's history so its derived status genuinely changes and assert the test's comparison DOES report that one plan as a mismatch. Use the existing module-level `_fixture_plan_text(id6, history_text, status=...)` helper to author the temporary plans rather than writing a second plan-text builder; it already emits a conforming plan with a settable `- Id:` and `## Workflow history`, which is exactly what this test needs.
+- [x] E-04 Add a behavioral regression test in `tests/test_history_order.py` that proves the decoupling by CONSTRUCTION rather than by assertion about the live tree: build a temporary repo containing a handful of terminal plans plus an id6-keyed baseline, run the same intersect-and-compare logic, then physically rename every plan file (and additionally move one into a `YYYYMM/` shard subdirectory, the shape `aw archive plans` produces) WITHOUT touching any `- Id:`, and assert the comparison still finds every entry and still reports zero mismatches. Then, as the discriminating negative, mutate one plan's history so its derived status genuinely changes and assert the test's comparison DOES report that one plan as a mismatch. Use the existing module-level `_fixture_plan_text(id6, history_text, status=...)` helper to author the temporary plans rather than writing a second plan-text builder; it already emits a conforming plan with a settable `- Id:` and `## Workflow history`, which is exactly what this test needs.
   THE SHARED HELPER TAKES A ROOT AND RETURNS DATA; IT DOES NOT ASSERT (F-15). Extract exactly one module-level function that takes a repository root plus a baseline mapping and RETURNS the comparison result (the live id6 map, the found-id set, and the mismatch list), leaving every `assert*` call in the two test methods. This is what lets the new test drive the helper against a TEMPORARY root while the whole-tree guard drives it against `_repo_root()`, so the two genuinely share the logic under test; a helper that asserts internally, or that hard-codes `_repo_root()`, cannot be pointed at a temp repo and the "cannot drift apart" claim would be false.
   A DERIVED-STATUS CHANGE MUST BE PRODUCED BY A HISTORY EDIT, NOT BY EDITING THE BASELINE (F-15). The discriminating negative must perturb the PLAN so `derive_plan_status` genuinely returns something else; changing the fixture value instead would prove only that two unequal strings compare unequal. Two perturbations are measured to work on a real executed plan: appending a later-dated `draft` history record flips the derived status to `draft`, and deleting the `executed` history record flips it to `approved`. Note for contrast that appending the dated cross-reference note `AGENTS.md` sanctions on an executed plan does NOT change the derived status (measured over all 262 non-`executed`-valued and `null`-valued compared entries: zero flips), which is why that sanctioned append is safe and is not what this negative should use.
   - Depends on: E-03
   - Expected outcome: A new test that fails if the path-coupling is ever reintroduced and that still catches a real derivation change; both the whole-tree guard and the new test call one shared root-parameterized helper that performs no assertions; the negative is produced by editing plan history, not the baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -156,24 +156,393 @@ N/A. No `.spec.md` governs this fixture's key choice, no user-facing doc or READ
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the output of a command run against the REWRITTEN fixture that prints: total entry count; the count of keys matching `^[0-9a-z]{6}$`; whether any key contains `/`; the count of `null` values; and whether the sorted list of values equals the sorted list of the 732 values carried from the old file (compare against `git show HEAD:tests/fixtures/derive_plan_status_baseline.json`, do not trust a remembered number). Expected: 732 entries, 732 id-shaped keys, no key containing `/`, exactly 33 `null` values, value multisets EQUAL. SORT WITH A `None`-SAFE KEY (F-13): a bare `sorted(values)` raises `TypeError: '<' not supported between instances of 'NoneType' and 'str'` because of those 33 nulls, so use a key such as `lambda v: (v is None, v or "")` and paste the command you actually ran. Also paste proof that NO pending-era id from F-5 gained an entry at all: print the intersection of the 45 pending-era ids with the rewritten fixture's key set and show it is EMPTY (measured empty at review for the correct transform, which is a stronger and simpler check than comparing their values).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS. 732 entries, 732 id-shaped keys, 0 with '/', exactly 33 nulls, sorted values equal old values, 0 pending-era keys.
+    Ran validation script against rewritten fixture and HEAD:
+    ```
+    $ python3 -c '
+    import json
+    import re
+    import subprocess
+    from pathlib import Path
+
+    root = Path(".")
+    fixture_path = root / "tests/fixtures/derive_plan_status_baseline.json"
+    with open(fixture_path, "r", encoding="utf-8") as f:
+        new_data = json.load(f)
+
+    # 1. Total entry count
+    print("Total entry count:", len(new_data))
+
+    # 2. Count of keys matching ^[0-9a-z]{6}$
+    id_pattern = re.compile(r"^[0-9a-z]{6}$")
+    matching_keys_count = sum(1 for k in new_data if id_pattern.match(k))
+    print("Count of keys matching ^[0-9a-z]{6}$:", matching_keys_count)
+
+    # 3. Whether any key contains /
+    keys_with_slash = [k for k in new_data if "/" in k]
+    print("Any key contains /:", bool(keys_with_slash))
+
+    # 4. Count of null values
+    null_count = sum(1 for v in new_data.values() if v is None)
+    print("Count of null values:", null_count)
+
+    # 5. Value multiset comparison against git show HEAD
+    head_raw = subprocess.check_output(
+        ["git", "show", "HEAD:tests/fixtures/derive_plan_status_baseline.json"],
+        text=True,
+    )
+    head_data = json.loads(head_raw)
+
+    _TERMINAL_DIRS = ("/executed/", "/superseded/", "/not-executed/")
+    terminal_plan_paths = [
+        p.relative_to(root).as_posix()
+        for bucket in ("executed", "superseded", "not-executed")
+        for p in sorted(root.glob(f".aw/records/plans/{bucket}/**/*.ipd.md"))
+    ]
+    old_intersection = sorted(
+        p for p in set(terminal_plan_paths) & set(head_data.keys())
+        if any(d in p for d in _TERMINAL_DIRS)
+    )
+    old_carried_values = [head_data[p] for p in old_intersection]
+    new_values = list(new_data.values())
+
+    none_safe_key = lambda v: (v is None, v or "")
+    sorted_old = sorted(old_carried_values, key=none_safe_key)
+    sorted_new = sorted(new_values, key=none_safe_key)
+    print("Sorted old values == sorted new values:", sorted_old == sorted_new)
+
+    # 6. Intersection of 45 pending-era ids with rewritten fixture key set
+    pending_keys = set(head_data.keys()) - set(old_intersection)
+    pending_ids = set()
+    for p in pending_keys:
+        m = re.search(r"-([0-9a-z]{6})-[^/]+\.ipd\.md$", p)
+        if m:
+            pending_ids.add(m.group(1))
+
+    intersection_with_pending = pending_ids & set(new_data.keys())
+    print("Count of pending-era ids in head fixture:", len(pending_ids))
+    print("Intersection of 45 pending-era ids with new fixture:", sorted(intersection_with_pending))
+    print("Is intersection with pending-era ids empty:", len(intersection_with_pending) == 0)
+    '
+    Total entry count: 732
+    Count of keys matching ^[0-9a-z]{6}$: 732
+    Any key contains /: False
+    Count of null values: 33
+    Sorted old values == sorted new values: True
+    Count of pending-era ids in head fixture: 45
+    Intersection of 45 pending-era ids with new fixture: []
+    Is intersection with pending-era ids empty: True
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Paste the full output of `python3 -m pytest tests/test_history_order.py -o addopts=""` showing the suite green with the id6-keyed reader. Then paste evidence that the intersection is computed on ids and is 732 (the same number the path-keyed test compared at `afb948ce` and re-measured at review on `f5c6114b`, proving coverage was preserved and not silently reduced). Then TEMPORARILY perturb one terminal plan's `## Workflow history` so its derived status changes, re-run, and paste the failure line to prove the mismatch report actually names the id6, the current path, the expected status, and the derived status; restore the file and paste `git status --short` showing the perturbation reverted. USE A PERTURBATION MEASURED TO WORK (F-15): appending a later-dated `- YYYY-MM-DD draft (agent): ...` record flips the derived status to `draft`; deleting the `executed` record flips it to `approved`. Do NOT use the dated cross-reference note `AGENTS.md` sanctions, which was measured at review NOT to change the derived status on any of the 262 non-`executed` compared entries and would produce a green run mistaken for a broken guard. Finally, paste evidence for the F-14 guards: the count of distinct declared ids over the live terminal tree beside the file count (expected equal, 882 and 882 at review), and a demonstration that the new duplicate/absent-id assertion FAILS when fed a temporary tree containing two plans declaring the same `- Id:`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS. test_history_order.py 7 passed; intersection count is 732 on ids; p7dqwz perturbation produced expected failure naming id, path, expected status, and derived status; F-14 guards verified (equal file and id count 995, duplicate id assertion caught).
+    1. Full output of pytest with `-o addopts=""`:
+    ```
+    $ python3 -m pytest tests/test_history_order.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1239507195
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 7 items
+
+    tests/test_history_order.py .......                                      [100%]
+
+    ============================== 7 passed in 1.66s ===============================
+    ```
+    2. Intersection computed on ids and equals 732:
+    ```
+    $ python3 -c '
+    import json
+    from pathlib import Path
+    from tests.test_history_order import _compare_plan_derivations, _repo_root
+
+    root = _repo_root()
+    baseline_file = root / "tests/fixtures/derive_plan_status_baseline.json"
+    with open(baseline_file, "r", encoding="utf-8") as f:
+        baseline = json.load(f)
+
+    res = _compare_plan_derivations(root, baseline)
+    print("Intersection computed on ids count:", len(res.found_ids))
+    print("All found keys match ^[0-9a-z]{6}$:", all(len(k) == 6 for k in res.found_ids))
+    print("Mismatches count:", len(res.mismatches))
+    '
+    Intersection computed on ids count: 732
+    All found keys match ^[0-9a-z]{6}$: True
+    Mismatches count: 0
+    ```
+    3. Perturbed terminal plan `p7dqwz` (`.aw/records/plans/executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md`) deleting executed line, flipping derived status to approved:
+    ```
+    $ python3 -m pytest tests/test_history_order.py::DerivationIsUnchangedTests::test_whole_tree_derivation_is_unchanged -o addopts=""
+    =================================== FAILURES ===================================
+    ______ DerivationIsUnchangedTests.test_whole_tree_derivation_is_unchanged ______
+    ...
+    E       AssertionError: Lists differ: ["p7dqwz (.aw/records/plans/executed/20260[134 chars]ed'"] != []
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       "p7dqwz (.aw/records/plans/executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md): expected 'executed', got 'approved'"
+    E       : derive_plan_status changed on 1 plans:
+    E       p7dqwz (.aw/records/plans/executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md): expected 'executed', got 'approved'
+    ```
+    Reverted and verified:
+    ```
+    $ git checkout -- .aw/records/plans/executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md && git status --short
+     M tests/fixtures/derive_plan_status_baseline.json
+     M tests/test_history_order.py
+    ```
+    4. F-14 guards (distinct ids vs file count and duplicate id demonstration):
+    ```
+    $ python3 -c '
+    import tempfile, unittest
+    from pathlib import Path
+    from agent_workflows import selectors
+    from tests.test_history_order import _compare_plan_derivations, _fixture_plan_text, _repo_root
+
+    root = _repo_root()
+    terminal_files = [p for bucket in ("executed", "superseded", "not-executed") for p in (root / ".aw/records/plans" / bucket).glob("**/*.ipd.md")]
+    declared_ids = [selectors.read_front_matter_id(p.read_text(encoding="utf-8")) for p in terminal_files]
+    distinct_ids = set(declared_ids)
+    print("Terminal file count:", len(terminal_files))
+    print("Distinct declared ids count:", len(distinct_ids))
+    print("None declared ids count:", sum(1 for i in declared_ids if i is None))
+    print("Equal file count and distinct id count:", len(terminal_files) == len(distinct_ids))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmproot = Path(tmpdir)
+        exec_dir = tmproot / ".aw/records/plans/executed"
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        (exec_dir / "20260901-demo-01-dupl01-first.ipd.md").write_text(_fixture_plan_text("dupl01", "- 2026-09-01 draft (agent): ok", status="draft"), encoding="utf-8")
+        (exec_dir / "20260901-demo-02-dupl01-second.ipd.md").write_text(_fixture_plan_text("dupl01", "- 2026-09-01 draft (agent): ok", status="draft"), encoding="utf-8")
+        res = _compare_plan_derivations(tmproot, {"dupl01": "draft"})
+        tc = unittest.TestCase()
+        try:
+            tc.assertEqual(res.duplicate_ids, {}, f"Duplicate declared id6 found in live terminal plans: {res.duplicate_ids}")
+        except AssertionError as e:
+            print("AssertionError caught as expected:")
+            print(e)
+    '
+    Terminal file count: 995
+    Distinct declared ids count: 995
+    None declared ids count: 0
+    Equal file count and distinct id count: True
+    AssertionError caught as expected:
+    {'dupl01': ['.aw/records/plans/executed/20[100 chars]md']} != {}
+    + {}
+    - {'dupl01': ['.aw/records/plans/executed/20260901-demo-01-dupl01-first.ipd.md',
+    -             '.aw/records/plans/executed/20260901-demo-02-dupl01-second.ipd.md']} : Duplicate declared id6 found in live terminal plans: {'dupl01': ['.aw/records/plans/executed/20260901-demo-01-dupl01-first.ipd.md', '.aw/records/plans/executed/20260901-demo-02-dupl01-second.ipd.md']}
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste the source of BOTH new assertions (the fraction expression with its message, and the `len(baseline) >= 700` non-vacuity floor with its message). Then paste the output of a command that computes the coverage ratio over the live tree and shows it clears the 95-percent threshold, printing `found`, `len(baseline)`, and the computed threshold as numbers.
     THEN THE TWO DISCRIMINATING NEGATIVES, both of which must FIRE. (a) COVERAGE: with a temporary copy of the fixture carrying enough extra ids that exist in no live plan, show the failure text naming MISSING IDS and re-keying, and show it does NOT claim `derive_plan_status` regressed. ADD AT LEAST 39 PHANTOM IDS, not "a few": measured at review against the 732-entry re-keyed fixture, 3, 10 and even 38 phantom ids all leave the assertion PASSING (`732 >= 0.95 * 770` is true), and 39 is the smallest count that fires. A paste showing a green run after adding three phantom ids is evidence of nothing and must not be offered as a negative. (b) NON-VACUITY: truncate a temporary copy of the fixture to 10 entries that ALL resolve to live plans, so coverage is 100 percent, and show the run still FAILS on the size floor. This is the assertion F-11 exists for, and a fraction-only implementation passes it.
     Finally, state explicitly that no absolute `700` remains as a bound on the live-tree INTERSECTION (paste a search showing the only surviving `700` is the fixture-size floor, and quote its line so a reader can see which quantity it bounds).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS. Both new assertions in place; coverage ratio 100.0% (732/732 >= 695.4); both discriminating negatives fired (39 phantom ids failed coverage, 10 entries failed size floor); sole surviving 700 bounds fixture size.
+    1. Source of both new assertions in `tests/test_history_order.py`:
+    ```python
+        # The size floor is deliberately absolute and is NOT the rotting kind:
+        # it bounds the fixture itself, a frozen authored artifact whose entry
+        # count changes only when someone edits it, ensuring the coverage
+        # fraction cannot become vacuous if the fixture is truncated or emptied.
+        self.assertGreaterEqual(
+            len(baseline),
+            700,
+            f"Baseline fixture shrank to {len(baseline)} entries; expected at least 700. "
+            "The fixture itself shrank and must be re-keyed from the committed file rather than re-captured.",
+        )
+    ...
+        coverage_threshold = 0.95 * len(baseline)
+        missing_count = len(baseline) - len(result.found_ids)
+        self.assertGreaterEqual(
+            len(result.found_ids),
+            coverage_threshold,
+            f"Coverage below threshold: found {len(result.found_ids)} of {len(baseline)} "
+            f"baseline entries ({missing_count} missing, required >= {coverage_threshold:.1f}). "
+            "Baseline ids are missing from the live terminal tree (a plan was deleted, moved "
+            "out of a terminal directory, or had its - Id: changed), NOT that derive_plan_status "
+            "regressed. A legitimate mass change requires re-keying the fixture.",
+        )
+    ```
+    2. Coverage ratio over live tree:
+    ```
+    $ python3 -c '
+    import json
+    from tests.test_history_order import _compare_plan_derivations, _repo_root
+    root = _repo_root()
+    baseline = json.load(open(root / "tests/fixtures/derive_plan_status_baseline.json", encoding="utf-8"))
+    res = _compare_plan_derivations(root, baseline)
+    found = len(res.found_ids)
+    baseline_len = len(baseline)
+    threshold = 0.95 * baseline_len
+    ratio = found / baseline_len
+    print(f"found: {found}")
+    print(f"len(baseline): {baseline_len}")
+    print(f"threshold (0.95 * len(baseline)): {threshold:.1f}")
+    print(f"coverage ratio: {ratio:.4f} ({ratio * 100:.2f}%)")
+    print(f"clears 95% threshold: {found >= threshold}")
+    '
+    found: 732
+    len(baseline): 732
+    threshold (0.95 * len(baseline)): 695.4
+    coverage ratio: 1.0000 (100.00%)
+    clears 95% threshold: True
+    ```
+    3. The two discriminating negatives:
+    (a) COVERAGE: 39 phantom IDs added to fixture:
+    ```
+    AssertionError: 732 not greater than or equal to 732.4499999999999 : Coverage below threshold: found 732 of 771 baseline entries (39 missing, required >= 732.4). Baseline ids are missing from the live terminal tree (a plan was deleted, moved out of a terminal directory, or had its - Id: changed), NOT that derive_plan_status regressed. A legitimate mass change requires re-keying the fixture.
+    ```
+    (b) NON-VACUITY: Truncated fixture with 10 entries (all live plans):
+    ```
+    AssertionError: 10 not greater than or equal to 700 : Baseline fixture shrank to 10 entries; expected at least 700. The fixture itself shrank and must be re-keyed from the committed file rather than re-captured.
+    ```
+    4. Surviving `700` search:
+    ```
+    $ grep -n "700" tests/test_history_order.py
+    155:            700,
+    156:            f"Baseline fixture shrank to {len(baseline)} entries; expected at least 700. "
+    ```
+    The only surviving `700` in `test_history_order.py` bounds `len(baseline)` (the fixture size). No absolute 700 remains as a bound on the live-tree intersection.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Paste the output of `python3 -m pytest tests/test_history_order.py -o addopts="" -v` listing the new test by name and passing. Paste the new test's body showing it renames EVERY plan file and moves one into a `YYYYMM/` shard without touching any `- Id:`, and that it asserts both the unmoved-comparison case and the discriminating negative (a real derivation change, produced by a history edit, IS reported). Paste the shared helper's signature showing it takes a repository root and a baseline mapping, returns data, and contains no `assert` (F-15), together with the two call sites proving the whole-tree guard and the new test both use it. Then prove the test is not vacuous by reintroducing path-keying in the helper, re-running, and pasting the FAILURE; restore and paste the green run again. Finally paste the tail of a bare full `python3 -m pytest` (the `N passed` summary line) proving the whole suite is green; the bar is zero failures against the review-measured baseline of `3246 passed, 2 skipped`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. test_history_order.py 7 passed with new test; rename and sharding verified with discriminating negative; shared helper takes root and baseline with no asserts; path-keying reintroduction failed as expected; full suite 3994 passed.
+    1. Output of `python3 -m pytest tests/test_history_order.py -o addopts="" -v`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3236267261
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 7 items
+
+    tests/test_history_order.py::DerivationIsUnchangedTests::test_whole_tree_derivation_is_unchanged PASSED [ 14%]
+    tests/test_history_order.py::DerivationIsUnchangedTests::test_derivation_comparison_invariant_to_rename_and_sharding PASSED [ 28%]
+    tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_b_oldest_first PASSED [ 42%]
+    tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_c_mixed_blocks PASSED [ 57%]
+    tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_a_newest_first PASSED [ 71%]
+    tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_d_negative_cross_day_backwards PASSED [ 85%]
+    tests/test_history_order.py::HistoryOrderFixtureTests::test_fixture_e_discriminating_single_date_tie PASSED [100%]
+
+    ============================== 7 passed in 1.61s ===============================
+    ```
+    2. Body of new test `test_derivation_comparison_invariant_to_rename_and_sharding`:
+    ```python
+    def test_derivation_comparison_invariant_to_rename_and_sharding(self):
+        """Prove id6-keyed comparison is invariant to file renaming and archive sharding."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmproot = Path(tmpdir)
+            plans_dir = tmproot / ".aw" / "records" / "plans"
+            exec_dir = plans_dir / "executed"
+            super_dir = plans_dir / "superseded"
+            notexec_dir = plans_dir / "not-executed"
+            for d in (exec_dir, super_dir, notexec_dir):
+                d.mkdir(parents=True, exist_ok=True)
+
+            plan1_file = exec_dir / "20260901-demo-01-plan01-first-plan.ipd.md"
+            plan1_history = (
+                "- 2026-09-03 executed (agent): done\n"
+                "- 2026-09-02 approved (agent): ok\n"
+                "- 2026-09-01 draft (agent): ok"
+            )
+            plan1_file.write_text(
+                _fixture_plan_text("plan01", plan1_history, status="executed"),
+                encoding="utf-8",
+            )
+
+            plan2_file = super_dir / "20260901-demo-02-plan02-second-plan.ipd.md"
+            plan2_history = (
+                "- 2026-09-02 approved (agent): ok\n"
+                "- 2026-09-01 draft (agent): ok"
+            )
+            plan2_file.write_text(
+                _fixture_plan_text("plan02", plan2_history, status="approved"),
+                encoding="utf-8",
+            )
+
+            plan3_file = notexec_dir / "20260901-demo-03-plan03-third-plan.ipd.md"
+            plan3_history = "- 2026-09-01 draft (agent): ok"
+            plan3_file.write_text(
+                _fixture_plan_text("plan03", plan3_history, status="draft"),
+                encoding="utf-8",
+            )
+
+            baseline = {
+                "plan01": "executed",
+                "plan02": "approved",
+                "plan03": "draft",
+            }
+
+            # 1. Verify baseline matches before moves
+            res0 = _compare_plan_derivations(tmproot, baseline)
+            self.assertEqual(res0.found_ids, {"plan01", "plan02", "plan03"})
+            self.assertEqual(res0.mismatches, [])
+
+            # 2. Physically rename every plan file and move one into a YYYYMM/ shard
+            shard_dir = exec_dir / "202609"
+            shard_dir.mkdir(parents=True, exist_ok=True)
+            new_plan1_file = shard_dir / "20260901-renamed-01-plan01-sharded.ipd.md"
+            plan1_file.rename(new_plan1_file)
+
+            new_plan2_file = super_dir / "20260901-renamed-02-plan02-renamed.ipd.md"
+            plan2_file.rename(new_plan2_file)
+
+            new_plan3_file = notexec_dir / "20260901-renamed-03-plan03-renamed.ipd.md"
+            plan3_file.rename(new_plan3_file)
+
+            # Assert comparison still finds every entry and reports zero mismatches
+            res_after_moves = _compare_plan_derivations(tmproot, baseline)
+            self.assertEqual(res_after_moves.found_ids, {"plan01", "plan02", "plan03"})
+            self.assertEqual(res_after_moves.mismatches, [])
+            self.assertEqual(res_after_moves.duplicate_ids, {})
+            self.assertEqual(res_after_moves.missing_id_paths, [])
+
+            # 3. Discriminating negative: mutate plan history so derived status genuinely changes
+            mutated_history = (
+                "- 2026-09-04 draft (agent): reopened\n"
+                + plan1_history
+            )
+            new_plan1_file.write_text(
+                _fixture_plan_text("plan01", mutated_history, status="draft"),
+                encoding="utf-8",
+            )
+
+            res_negative = _compare_plan_derivations(tmproot, baseline)
+            self.assertEqual(len(res_negative.mismatches), 1)
+            self.assertIn("plan01", res_negative.mismatches[0])
+            self.assertIn(
+                "expected 'executed', got 'draft'", res_negative.mismatches[0]
+            )
+    ```
+    3. Shared helper signature and call sites:
+    Signature (contains no assertions and returns `DerivationComparisonResult` data):
+    ```python
+    def _compare_plan_derivations(
+        root: Path, baseline: dict[str, str | None]
+    ) -> DerivationComparisonResult:
+    ```
+    Call sites in `tests/test_history_order.py`:
+    - Line 161 in `test_whole_tree_derivation_is_unchanged`: `result = _compare_plan_derivations(root, baseline)`
+    - Lines 239, 258, 273 in `test_derivation_comparison_invariant_to_rename_and_sharding`: `res = _compare_plan_derivations(tmproot, baseline)`
+    4. Non-vacuity proof by reintroducing path-keying in helper:
+    ```
+    AssertionError: Items in the second set but not the first:
+    'plan01'
+    'plan02'
+    'plan03'
+    FAILED tests/test_history_order.py::DerivationIsUnchangedTests::test_derivation_comparison_invariant_to_rename_and_sharding
+    ```
+    Restored and verified clean: 7 passed in 1.11s.
+    5. Bare full `python3 -m pytest` tail:
+    ```
+    3994 passed, 2 skipped, 3 warnings in 305.61s (0:05:05)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
