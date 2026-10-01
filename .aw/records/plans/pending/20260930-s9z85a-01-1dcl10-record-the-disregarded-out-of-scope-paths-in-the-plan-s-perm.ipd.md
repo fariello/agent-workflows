@@ -194,7 +194,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: (a) paste `inspect.signature`/field list of `TrailerAttribution` showing the new `foreign_paths` AND `unknown_paths` fields WITH defaults, plus the `paths` field unchanged in name and position; (b) paste, for F-05's mixed arrangement, `trailer_attribution` showing `foreign_paths` containing the foreign commit's path, `unknown_paths` containing the untrailered commit's path, and `owned_paths` unchanged; (c) paste, for F-13's OVERLAP arrangement, the one shared path present in BOTH new sets, proving overlap is represented rather than normalized away; (d) THE INVARIANCE ARM: paste `out_of_scope_paths` and `disregarded_unowned_paths` for both arrangements BEFORE and AFTER this item and show them identical, proving evidence collection changed no verdict.
-  - Observed evidence:
+  - Observed evidence: Verified signature, fields, foreign/unknown sets, overlap, and invariance.
     (a) TrailerAttribution signature and fields:
     fields: ('paths', 'owned', 'foreign', 'unknown', 'foreign_paths', 'unknown_paths')
     field_defaults: {'foreign_paths': frozenset(), 'unknown_paths': frozenset()}
@@ -216,7 +216,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-02 validates E-02
   - Required evidence: (a) paste `evidence["scope_audit"]` keys showing `disregarded_foreign_owned_paths` and `disregarded_no_evidence_paths` both present and `disregarded_unowned_paths` still present; (b) paste, for F-05's mixed arrangement, the foreign path in the foreign key, the untrailered path in the no-evidence key, and BOTH paths still in `disregarded_unowned_paths`, proving the old key was not narrowed; (c) THE SUBTRACTION-REGRESSION ARM: paste, for F-13's overlap arrangement, the shared path present in BOTH new keys, and state explicitly that a subtraction-derived class would have yielded the empty set here; (d) paste the UNCOMMITTED case (a disregarded working-tree-only path, which appears in no commit and so in neither E-01 set) showing it present in `disregarded_no_evidence_paths`; (e) paste the passing result of the five shipped assertions that name `disregarded_unowned_paths` (four in `tests/test_finalize_trailer_attribution.py`, one in `tests/test_ipd_lifecycle_cli.py`) with `git diff --stat` showing both files UNCHANGED.
-  - Observed evidence:
+  - Observed evidence: Verified scope_audit keys, positive computation, uncommitted path, and unchanged diff.
     (a) evidence["scope_audit"] keys:
     ['grandfathered', 'in_scope', 'out_of_scope_paths', 'in_scope_unmodified', 'intervening_in_scope_commits', 'disregarded_unowned_paths', 'disregarded_foreign_owned_paths', 'disregarded_no_evidence_paths', 'committed_paths', 'working_tree_paths', 'widened_paths']
     (b) F-05 mixed arrangement:
@@ -239,7 +239,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-03 validates E-03
   - Required evidence: (a) paste the executed plan's `## Workflow history` line and `git log -1 --format=%B` for F-02's escaping shape BEFORE and AFTER, per validation step 4, before omitting the path and after naming it with its `attribution_source`; (b) paste a clean-delta finalize's moved plan text containing NEITHER `Scope reconciliation` NOR the new note, per validation step 7; (c) paste a finalize whose only disregarded path is FOREIGN-trailered, showing the new note absent; (d) THE VOLUME-CAP ARM (review PR-301): paste the rendered history line for F-06's TWELVE-untrailered-co-worker arrangement, showing at most 5 paths named, the total 12 stated, and the full twelve still present in `disregarded_no_evidence_paths`; state the line's character length; (e) paste the `finalize` exit code for all four, each equal to the shipped value.
-  - Observed evidence:
+  - Observed evidence: Verified history line and commit message before/after, clean-delta silence, foreign silence, volume cap, and exit codes.
     (a) F-02 escaping shape:
     BEFORE:
     History line: - 2026-09-30 executed (probe): execute demo
@@ -271,8 +271,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-04 validates E-04
   - Required evidence: paste the added comment, and confirm by quotation that it names (i) the measured asymmetry with F-07's fabricated-claim text, (ii) that the verdict is unchanged, (iii) that the path is still excused and no reason is demanded, and (iv) `s9z85a` and OQ-01 as the residue's carriers. A comment missing (iii) fails this item, because that omission is what would let a later reader believe the justify-or-refuse loop is closed.
-  - Observed evidence:
-    Added comment at ipd_lifecycle.py:3485:
+  - Observed evidence: Verified added comment in ipd_lifecycle._disregarded_history_note quotes all required properties and carriers.
+    Added comment in ipd_lifecycle._disregarded_history_note:
     # --------------------------------------------------------------------------------------
     # RECORDING ONLY, VERDICT UNCHANGED (IPD 1dcl10, backlog s9z85a, OQ-01, OQ-02).
     #
@@ -299,7 +299,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-05 validates E-05
   - Required evidence: (a) paste the bare full-suite result per validation step 2, with the count delta stated against your own re-derived baseline and attributed to this module; (b) paste the targeted run per validation step 1 naming each of the seven new tests; (c) THE MUTATION PROOFS per validation step 5, all three, each pasted RED under its mutation and GREEN unmutated: widen the note to the whole disregarded set and show E-05(d) (foreign) FAILING; derive the no-evidence class by SUBTRACTION instead of positively and show E-05(f) (overlap) FAILING; remove the cap and show E-05(g) (volume) FAILING. A test that does not go red under its mutation has not closed the finding it cites.
-  - Observed evidence:
+  - Observed evidence: Verified bare suite pass (+7 delta), targeted test runs, and 3 red-then-green mutation proofs.
     (a) Full bare suite:
     python3 -m pytest
     4052 passed, 2 skipped, 3 warnings in 105.21s (0:01:45)
