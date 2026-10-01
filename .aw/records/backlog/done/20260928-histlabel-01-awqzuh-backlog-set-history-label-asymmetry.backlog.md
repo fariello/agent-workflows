@@ -1,5 +1,5 @@
 - Id: awqzuh
-- Status: graduated
+- Status: done
 - Graduated-To: histlabel
 - Set: histlabel
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw backlog set writes a different history label depending on spelling: done (aw set) positionally versus set (aw backlog) with --status
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD jbipfa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-histlabel-01-jbipfa-give-the-shared-backlog-history-writer-its-transition-label.ipd.md); evidence .aw/records/plans/executed/20260930-histlabel-01-jbipfa-give-the-shared-backlog-history-writer-its-transition-label.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: jbipfa
 - 2026-09-28 created (aw backlog): aw backlog set writes a different history label depending on spelling: done (aw set) positionally versus set (aw backlog) with --status
 

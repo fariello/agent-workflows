@@ -1539,8 +1539,14 @@ def run_set(args) -> int:
     rendered = _render_item(item, body, source_text=text)
     # append a transition history record (in addition to the created line _render_item emits,
     # preserve prior history by re-emitting it):
+    prior_status = parse_item(text).status
+    label = new_status if prior_status != new_status else "same-status"
     rendered = _reattach_history(
-        text, rendered, f"{new_status}", getattr(args, "message", "") or ""
+        text,
+        rendered,
+        f"{new_status}",
+        getattr(args, "message", "") or "",
+        label=label,
     )
 
     # awrelease Order 02 / rendrop 2yqt0a E-02: set/clear the Blocks-Release gate field when requested
@@ -1858,7 +1864,11 @@ def _prior_history_records(text: str) -> List[str]:
 
 
 def _reattach_history(
-    old_text: str, rendered: str, new_status: str, message: str
+    old_text: str,
+    rendered: str,
+    new_status: str,
+    message: str,
+    label: str = "set",
 ) -> str:
     """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
 
@@ -1880,13 +1890,18 @@ def _reattach_history(
     `created` line dated today). `old_text` is the file as it was on disk, so it is the only honest
     source. The re-minted `created` line is dropped for the same reason.
 
+    THE LABEL PARAMETER (plan `jbipfa`, backlog `awqzuh`) allows the caller to specify the transition
+    token (e.g. "graduated", "done", or "same-status"), aligning with `status_set.apply_status_change`
+    which names the transition rather than writing an uninformative "set". The default "set" preserves
+    the legacy record token for an unaware caller.
+
     THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
     store, so it can never gate this write (see `record_history.append_advisory`).
     """
 
     today = datetime.date.today().isoformat()
     msg = message.strip() or f"status -> {new_status}"
-    new_record = f"- {today} set (aw backlog): {msg}"
+    new_record = f"- {today} {label} (aw backlog): {msg}"
     # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by
     # every prior record from the FILE AS IT WAS (newest-first, matching status_set's plan writer),
     # then the prose body.

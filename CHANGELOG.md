@@ -27,6 +27,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 - Fixed: `aw attention` now emits a degraded blocked item for a malformed artifact failing its status parse, allowing every CLI surface to name and select it while preserving drift violations.
 - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
 - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
+- Fixed: a backlog item's history record now names the transition (such as graduated, done, or same-status) whichever spelling of `aw backlog set` was used, replacing the uninformative set label on the flag-based path.
 - Fixed: a backlog item closed on cited evidence now records that citation, so the release-gate check can tell a legitimate evidence-satisfied close from a hand close.
 - Fixed: the installer's --diff preview now reports the only-when-absent scaffolding files an install would create.
 - Fixed: `aw uninstall` now removes the install-emitted `.aw/system/layout.json` and `.aw/system/layout.schema.json` so no `.aw/` directory is left behind.
