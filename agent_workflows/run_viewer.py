@@ -21,6 +21,7 @@ from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
 from agent_workflows import lifecycle_style as _LS
+from agent_workflows import run_selection_policy
 from agent_workflows import term as _T
 from agent_workflows.project_context import resolve_verb_repo_root
 
@@ -3569,9 +3570,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         )
 
     summaries: list[RunSummary] = []
+    excluded: list[tuple[Path, str, RunSummary | None]] = []
     for r_dir in run_dirs:
         summary = load_run_summary(r_dir, repo_root)
         if not summary:
+            excluded.append((r_dir, "unreadable_state", None))
             continue
 
         if (
@@ -3579,9 +3582,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             and set_filter not in summary.setids
             and set_filter not in summary.selectors
         ):
+            excluded.append((r_dir, "set_filter", summary))
             continue
 
         if ipd_filter and not any(s.id6 == ipd_filter for s in summary.steps):
+            excluded.append((r_dir, "ipd_filter", summary))
             continue
 
         if status_filter and not any(
@@ -3589,6 +3594,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             == canonical_terminal_status(status_filter)
             for s in summary.steps
         ):
+            excluded.append((r_dir, "status_filter", summary))
             continue
 
         if failed_only and not any(
@@ -3598,33 +3604,77 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             )
             for s in summary.steps
         ):
+            excluded.append((r_dir, "failed_only", summary))
             continue
 
         if active_only and not any(s.status == "running" for s in summary.steps):
+            excluded.append((r_dir, "active_only", summary))
             continue
 
         if since_dt:
             run_dt = summary.timestamp_dt
             if run_dt and run_dt < since_dt:
+                excluded.append((r_dir, "since_dt", summary))
                 continue
 
         summaries.append(summary)
 
     if last_n is not None and summaries:
         if last_n > 0:
+            truncated = summaries[:-last_n]
             summaries = summaries[-last_n:]
+            for s in truncated:
+                excluded.append((s.run_dir, "last_n", s))
         else:
+            for s in summaries:
+                excluded.append((s.run_dir, "last_n", s))
             summaries = []
+
+    excluded_data: list[dict[str, str]] = [
+        {"run_id": s.run_id if s else r.name, "reason": reason}
+        for r, reason, s in excluded
+    ]
+
+    def _render_human_exclusions(*, leading_blank: bool = True) -> None:
+        if not excluded:
+            return
+        if leading_blank:
+            term.line("")
+        count_str = f"{len(excluded)} run{'s' if len(excluded) != 1 else ''}"
+        term.line(f"filters excluded {count_str} that matched:")
+        for r, reason, s in excluded:
+            run_id = s.run_id if s else r.name
+            setid = (
+                (s.setids[0] if s.setids else s.selectors[0])
+                if (s and (s.setids or s.selectors))
+                else None
+            )
+            term.line(
+                run_selection_policy.render_item_disposition(
+                    run_id, "run", "excluded", reason, setid=setid
+                )
+            )
 
     # The genuine EMPTY STATE, which stays a SUCCESS. Every token the caller named resolved to a run
     # (an unresolvable one was refused above), so reaching here means a FILTER excluded what matched,
     # or the repository simply has no runs. Neither is a failed request, so both keep exit 0
     # (runsverify 7wei1o, OQ-01).
+    #
+    # IPD 9jkek2 E-02: Write exclusion report to STDOUT (not stderr), because this is not a refusal
+    # (exit stays 0). 7wei1o's stderr choice was for an unresolvable-target REFUSAL whose stated
+    # reason is that a refusal must never land in a stream a caller parses on stdout. A filter
+    # exclusion is a successful narrowing and stdout is the report stream.
     if not summaries and not issues_only:
         if is_agent or is_json:
-            print(json.dumps({"runs": []}, indent=2 if is_json else None))
+            payload: dict[str, Any] = {"runs": []}
+            if excluded:
+                payload["excluded_runs"] = excluded_data
+            print(json.dumps(payload, indent=2 if is_json else None))
             return 0
-        term.line("no matching runs found")
+        if not excluded:
+            term.line("no matching runs found")
+            return 0
+        _render_human_exclusions(leading_blank=False)
         return 0
 
     # Collect artifact audits across displayed steps.
@@ -3702,8 +3752,12 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 "runs": contributing,
                 "steps": steps_list,
             }
+            if excluded:
+                payload["excluded_runs"] = excluded_data
         elif summary_only:
             payload = {"summary": build_multi_run_summary_dict(summaries)}
+            if excluded:
+                payload["excluded_runs"] = excluded_data
         else:
             payload = {"runs": [asdict(s) for s in summaries]}
             for r_dict in payload["runs"]:
@@ -3712,6 +3766,8 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 )
             if len(summaries) > 1:
                 payload["summary"] = build_multi_run_summary_dict(summaries)
+            if excluded:
+                payload["excluded_runs"] = excluded_data
 
         if disc:
             payload["artifact_discrepancies"] = disc
@@ -3735,10 +3791,26 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                     latest_steps_dict[key] = (s, step)
             for _, st in latest_steps_dict.values():
                 print(json.dumps(asdict(st), separators=(",", ":"), ensure_ascii=False))
+            if excluded:
+                print(
+                    json.dumps(
+                        {"kind": "excluded_runs", "excluded_runs": excluded_data},
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    )
+                )
             return 0
         if summary_only:
             s_dict = build_multi_run_summary_dict(summaries)
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
+            if excluded:
+                print(
+                    json.dumps(
+                        {"kind": "excluded_runs", "excluded_runs": excluded_data},
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    )
+                )
             return 0
         for s in summaries:
             s_dict = asdict(s)
@@ -3746,6 +3818,14 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 s_dict["run_dir"], repo_root
             )
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
+        if excluded:
+            print(
+                json.dumps(
+                    {"kind": "excluded_runs", "excluded_runs": excluded_data},
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                )
+            )
         return 0
 
     # Human display
@@ -3782,6 +3862,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
+        _render_human_exclusions()
         return 0
 
     if summary_only:
@@ -3792,6 +3873,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
+        _render_human_exclusions()
         return 0
 
     for idx, summary in enumerate(summaries):
@@ -3814,4 +3896,5 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line("")
         term.line(audit_summary_txt)
 
+    _render_human_exclusions()
     return 0
