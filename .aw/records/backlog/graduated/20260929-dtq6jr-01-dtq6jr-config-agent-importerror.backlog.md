@@ -1,5 +1,6 @@
 - Id: dtq6jr
-- Status: open
+- Status: graduated
+- Graduated-To: dtq6jr
 - Blocks-Release: next
 - Set: dtq6jr
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: every aw config verb except the exclude subgroup (seven of them) crashes with an unhandled ImportError when passed --agent, so the whole config family has no machine-readable surface
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: kfbom1
 - 2026-09-29 note (author): corrected the count from five to SEVEN before first commit. The initial summary and body named five verbs, derived from the first batch driven; enumerating every `format_agent_json` import in `cli.py` by enclosing function and then driving each verb showed `config remove` and `config is` crash too, and that `_run_config_show` holds two such imports. Only `config exclude` is unaffected.
 - 2026-09-29 created (aw backlog): aw config show/get/set/add/unset crash with an unhandled ImportError when passed --agent, so the whole config family has no machine-readable surface
 
