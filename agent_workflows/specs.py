@@ -28,6 +28,59 @@ SPECS_ROOT = ".aw/records/specs"
 
 
 # --------------------------------------------------------------------------------------
+# Output-safety refusal helper (IPD uz05bl E-01; ported from backlog dtg7dz)
+# --------------------------------------------------------------------------------------
+
+
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: Optional[str],
+    *,
+    bound_length: bool = True,
+) -> Optional[str]:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
+    When bound_length is False (line-integrity mode), validates newlines/carriage returns
+    and control characters without applying the length bound.
+    Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
+    """
+    if value is None:
+        return None
+    prefix = f"{verb}: " if verb else ""
+    if bound_length:
+        if A.is_safe_descriptive(value):
+            return None
+        if "\n" in value or "\r" in value:
+            return f"{prefix}{flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{prefix}{flag} must not contain control characters"
+        if len(value) > A.MAX_DESCRIPTIVE_LEN:
+            return (
+                f"{prefix}{flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+            )
+        return f"{prefix}{flag} is not a valid descriptive field"
+    else:
+        has_newline = "\n" in value or "\r" in value
+        is_safe_line = (
+            not has_newline
+            and A.is_safe_descriptive(
+                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+            )
+            and not A._CONTROL_CHAR_RE.search(value)
+        )
+        if is_safe_line:
+            return None
+        if has_newline:
+            return f"{prefix}{flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{prefix}{flag} must not contain control characters"
+        return f"{prefix}{flag} is not a valid descriptive field"
+
+
+# --------------------------------------------------------------------------------------
 # Parsing helpers (front-matter bullets in the metadata block)
 # --------------------------------------------------------------------------------------
 
@@ -740,6 +793,14 @@ def run_set(args) -> int:
     out = _set_status(out, new)
     date = getattr(args, "date", None) or _today()
     msg = args.message
+    if msg is not None:
+        # E-03 (IPD uz05bl): Line-integrity guard for --message
+        _msg_err = _refuse_unsafe_descriptive(
+            "aw specs set", "--message", msg, bound_length=False
+        )
+        if _msg_err:
+            sys.stderr.write(f"{_msg_err}\n")
+            return 1
     from agent_workflows.status_set import same_status_message_is_duplicate
 
     sidecar_msg = None
@@ -765,6 +826,13 @@ def run_set(args) -> int:
     # awrelease Order 02: set/clear the Blocks-Release gate field when requested.
     br = getattr(args, "blocks_release", None)
     if br is not None:
+        # E-07 (IPD uz05bl): Refuse unsafe descriptive value for --blocks-release
+        _br_err = _refuse_unsafe_descriptive(
+            "aw specs set", "--blocks-release", br, bound_length=True
+        )
+        if _br_err:
+            sys.stderr.write(f"{_br_err}\n")
+            return 1
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_blocks_release_line(new_text, br)
@@ -809,6 +877,13 @@ def run_set(args) -> int:
     # matching the bare spelling handled by `status_set.py`.
     from_backlog_arg = getattr(args, "from_backlog", None)
     if from_backlog_arg is not None:
+        # E-07 (IPD uz05bl): Refuse unsafe descriptive value for --from-backlog
+        _fb_err = _refuse_unsafe_descriptive(
+            "aw specs set", "--from-backlog", from_backlog_arg, bound_length=True
+        )
+        if _fb_err:
+            sys.stderr.write(f"{_fb_err}\n")
+            return 1
         if from_backlog_arg != "-":
             # IPD izh17y E-04: refuse unresolvable --from-backlog on the forked `aw specs set --status`
             # path before mutating new_text. Resolves via `backlog.existing_backlog_ids` using
@@ -1108,6 +1183,17 @@ def run_note(args) -> int:
     except OSError as exc:
         sys.stderr.write(f"aw specs note: cannot read {path}: {exc}\n")
         return 2
+
+    # E-03 (IPD uz05bl): Line-integrity guard for --message
+    msg = getattr(args, "message", None)
+    if msg is not None:
+        _msg_err = _refuse_unsafe_descriptive(
+            "aw specs note", "--message", msg, bound_length=False
+        )
+        if _msg_err:
+            sys.stderr.write(f"{_msg_err}\n")
+            return 2
+
     lines = _lines(text)
     date = getattr(args, "date", None) or _today()
     from agent_workflows.status_set import same_status_message_is_duplicate
@@ -1198,6 +1284,22 @@ def run_new(args) -> int:
     if not title:
         sys.stderr.write("aw specs new: --title is required\n")
         return 2
+
+    # E-02 (IPD uz05bl): Refuse unsafe descriptive values for --title and --summary before minting an id6.
+    _raw_title = getattr(args, "title", None)
+    _title_err = _refuse_unsafe_descriptive("aw specs new", "--title", _raw_title)
+    if _title_err:
+        sys.stderr.write(f"{_title_err}\n")
+        return 2
+
+    _raw_summary = getattr(args, "summary", None)
+    if _raw_summary is not None:
+        _summary_err = _refuse_unsafe_descriptive(
+            "aw specs new", "--summary", _raw_summary
+        )
+        if _summary_err:
+            sys.stderr.write(f"{_summary_err}\n")
+            return 2
     slug = core.kebab(slug_arg or title)[:60] or "spec"
 
     # E-01 (IPD ribg85): Validate --date format and calendar validity before minting an id6.

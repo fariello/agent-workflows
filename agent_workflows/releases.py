@@ -1210,8 +1210,21 @@ def run_new(args) -> int:
 
     if not version:
         return _usage("--version is required")
+    from agent_workflows.specs import _refuse_unsafe_descriptive
+
+    # E-04 (IPD uz05bl): Refuse unsafe descriptive values for --version and --summary
+    raw_version = getattr(args, "version", None)
+    _ver_err = _refuse_unsafe_descriptive("", "--version", raw_version)
+    if _ver_err:
+        return _usage(_ver_err)
+
     if not summary:
         return _usage("--summary is required")
+    raw_summary = getattr(args, "summary", None)
+    _sum_err = _refuse_unsafe_descriptive("", "--summary", raw_summary)
+    if _sum_err:
+        return _usage(_sum_err)
+
     if status not in RELEASE_STATUSES:
         return _usage(
             f"--status must be one of {list(RELEASE_STATUSES)}, got {status!r}"

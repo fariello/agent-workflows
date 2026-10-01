@@ -6,7 +6,7 @@
 - Scope: Apply the shared `attention_contract.is_safe_descriptive` predicate to every value `aw specs new`, `aw specs set`, `aw specs note` and `aw releases new` write into a record AND does not already validate, refusing BEFORE any file is written, through the refusal shape `specs.run_set` already uses for `--gate-summary`. Bounded descriptive fields (`--title`, `--summary`, `--version`) and the two identifier-shaped front-matter fields review found unguarded (`--blocks-release`, `--from-backlog`, E-07) get the full predicate; history-record messages (`--message`) get LINE INTEGRITY ONLY, unbounded in length, because 60 of 148 committed spec history messages already exceed the 300-character bound (F-09). THE COVERAGE CLAIM IS ENUMERATED, NOT ASSERTED: `--priority` and `--work-kind` are argparse enums that already refuse, `--graduated-to` already has a setid-shape refusal, and `--gate-summary`/`--gate-ref`/`--evidence` already call the predicate at three existing sites, so the guarded set plus the already-validated set is the complete front-matter writer set for these four verbs (F-13). DELIBERATELY NOT COVERED: `--date`, whose defect is a path traversal rather than a descriptive-field violation and which Order 02 owns; and the CHECKER half, which Order 03 owns.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/releases.py, tests/test_specs_releases_descriptive_safety.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: uz05bl
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: uz05bl verified (set qbz8i1, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -37,63 +37,63 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared refusal helper
 
-- [ ] E-01 Add a module-private refusal helper to `agent_workflows/specs.py` that judges ONE value against the shared predicate and returns the refusal MESSAGE (or `None`), so every call site in both modules refuses with identical wording. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes, else a message naming the verb, the flag, WHICH property was violated (embedded newline, control character, or over `A.MAX_DESCRIPTIVE_LEN`) and the actual length when length is the cause.
+- [x] E-01 Add a module-private refusal helper to `agent_workflows/specs.py` that judges ONE value against the shared predicate and returns the refusal MESSAGE (or `None`), so every call site in both modules refuses with identical wording. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes, else a message naming the verb, the flag, WHICH property was violated (embedded newline, control character, or over `A.MAX_DESCRIPTIVE_LEN`) and the actual length when length is the cause.
   DO NOT REIMPLEMENT THE PREDICATE'S CONDITIONS: with `bound_length=True` call `A.is_safe_descriptive` for the VERDICT and inspect the value only to pick the explanatory clause, so the verdict has exactly one owner. Do NOT copy `A._CONTROL_CHAR_RE`'s character class into `specs.py`; consult the attribute for the explanatory clause only.
 
   `bound_length=False` IS THE LINE-INTEGRITY MODE, AND THE AUTHORED CONSTRUCTION FOR IT WAS MEASURED WRONG. This item originally prescribed "an explicit `"\n" in value or "\r" in value` test plus `A.is_safe_descriptive(value[: A.MAX_DESCRIPTIVE_LEN])`". That form SILENTLY ACCEPTS A CONTROL CHARACTER PAST CHARACTER 300, because the slice hides it: measured at review, `"a"*500 + "\x07" + "b"` returns `None` (accepted) under the authored form and `"must not contain control characters"` under the sibling's (F-15). Since F-09's whole point is that a history message may legitimately be 2594 characters long, the region the slice discards is exactly the region a real message occupies, so the hole is reachable by construction rather than theoretical. PORT THE SIBLING'S FORM VERBATIM instead: test `has_newline` first, then require BOTH `A.is_safe_descriptive` on the newline-stripped 300-character slice AND a `not A._CONTROL_CHAR_RE.search(value)` over the WHOLE value. The second conjunct is what closes the hole and is not redundant.
   THE BACKLOG TREE ALREADY SHIPS THIS EXACT HELPER as `backlog._refuse_unsafe_descriptive` (executed plan `dtg7dz`), and its `bound_length` asymmetry exists for the same measured reason F-09 records here. PORT IT rather than inventing a second shape, and keep the message wording byte-compatible with the sibling so a user meets one vocabulary across trees. Deliberately a SECOND module-private copy rather than a hoist to `attention_contract`: OQ-02 records why, and Order 03 does not need it either.
   - Depends on: none
   - Expected outcome: a helper importable as `specs._refuse_unsafe_descriptive` that, with the default `bound_length=True`, returns `None` for `"ok"` and for `None`, a message mentioning `newline` for `"a\nb"`, `control` for `"a\x07b"`, and both `300` and `340` for a 340-character value; and with `bound_length=False` returns `None` for that same 340-character value and for a 1200-character one, while still returning the `newline` and `control` messages, INCLUDING the `control` message for `"a"*500 + "\x07" + "b"`, which is the late-control-character case the authored construction accepted and the ported one refuses. Verified against the real sibling at review: `backlog._refuse_unsafe_descriptive("v", "--message", "a"*500 + "\x07" + "b", bound_length=False)` returns `'v: --message must not contain control characters'`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply it at the four write paths
 
-- [ ] E-02 Apply the helper to `--title` and `--summary` in `specs.run_new`, immediately after the existing `--title is required` guard and BEFORE `core.mint_id6`, so a refusal consumes no id6 and touches no filesystem. Write the message to `sys.stderr` and `return 2`.
+- [x] E-02 Apply the helper to `--title` and `--summary` in `specs.run_new`, immediately after the existing `--title is required` guard and BEFORE `core.mint_id6`, so a refusal consumes no id6 and touches no filesystem. Write the message to `sys.stderr` and `return 2`.
   `--title` IS THE SEVERE ONE AND MUST NOT BE TREATED AS COSMETIC. `_render_new_spec` emits the title into the H1 (`f"# Spec: {title}"`) which sits ABOVE the metadata block, so an injected bullet there PRECEDES the legitimate `- Status: draft`; `specs._find_status_index` keeps the FIRST match, so the injected value WINS. That is the difference between this flag and `--summary`, whose injection lands below and loses the race (F-02 versus F-03).
   BOTH FLAGS GET THE FULL PREDICATE (`bound_length=True`). `--summary` is written as the `- Scope:` bullet, which `attention._extract_detail` surfaces as `detail_text` into `aw attention`'s JSON and human output, so it is a descriptive field in the Section 8.8 sense and is bounded. `--title` is written into the H1 and into the `## Workflow history` fallback, and is bounded for the same reason.
   REFUSE ON THE PREVIEW PATH TOO, not only under `--apply`: `run_new` reaches the `--apply` branch only after rendering, and a preview that prints the injected bytes to a terminal is itself the trust-boundary violation Section 8.8 names. Placing the guard before `mint_id6` gets this for free; do not place it after the `apply` check.
   - Depends on: E-01
   - Expected outcome: `aw specs new --title $'Legit\n- Status: approved' --slug x --summary ok --apply` exits 2, prints the refusal on stderr, and writes NO file, where before it exited 0 and wrote a spec whose `specs._read_status` returned `approved`. The same command without `--apply` also exits 2 and prints no rendered body.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Apply the helper to `--message` in `specs.run_set` and `specs.run_note`, in LINE-INTEGRITY mode (`bound_length=False`), placed before the `core.atomic_write` in each so a refused call leaves the spec BYTE-IDENTICAL. Return 1 in `run_set` and 2 in `run_note`; OQ-01 records why those two differ and why neither may be changed to match the other.
+- [x] E-03 Apply the helper to `--message` in `specs.run_set` and `specs.run_note`, in LINE-INTEGRITY mode (`bound_length=False`), placed before the `core.atomic_write` in each so a refused call leaves the spec BYTE-IDENTICAL. Return 1 in `run_set` and 2 in `run_note`; OQ-01 records why those two differ and why neither may be changed to match the other.
   THE MODE IS NOT A STYLE CHOICE. F-09 measured roughly two fifths of committed spec history messages over the 300-character bound (59 of 146 at authoring, re-derived at review as 60 of 148, median 239, max 2594), so applying the length half would refuse the verb's own normal output. Zero of them contain a control character, so the line-integrity half refuses nothing legitimate while closing the injection vector, which is the newline.
   THE HARM IS PROVENANCE FORGERY, MEASURED AT REVIEW RATHER THAN DESCRIBED (F-14): `aw specs note <spec> --message $'ok\n- 2026-09-29 approved (aw specs, --by-human): looks good'` exits 0 and the spec's `## Workflow history` then contains that forged record verbatim, sitting between the real note record and the real created record, with `specs.validate_spec` returning `[]` and `aw specs check --agent` reporting clean. That is exactly the attestation `AGENTS.md` forbids ("never hand-write an `- Approval:` attestation"), and the auto-approve predicate reads workflow history as its FALLBACK when `- Readiness:` is absent. Note what it does NOT do, so the claim stays exact: the `- Status:` bullet is untouched (measured `draft`), so this vector forges the attestation TRAIL and not the status field.
   - Depends on: E-02
   - Expected outcome: `aw specs set <spec> --status to-review --message $'ok\n- Blocks-Release: next'` and `aw specs note <spec> --message $'ok\n- Blocks-Release: next'` each refuse nonzero leaving the file byte-identical by sha256, where before each exited 0 and appended the smuggled bullet as a history line at zero `validate_spec` drift. A 1200-character single-line `--message` is ACCEPTED by both, proving the length bound was deliberately not applied.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Apply the guard to `--version` and `--summary` in `releases.run_new`, routed through its EXISTING `_usage(msg)` closure rather than a bare `sys.stderr.write`, so the refusal honors the `--agent`/`--json` envelope that closure already builds (`status="cannot-run"`, `exit_code=2`). Import the helper from `specs` rather than copying it, keeping one verdict owner across the two modules.
+- [x] E-04 Apply the guard to `--version` and `--summary` in `releases.run_new`, routed through its EXISTING `_usage(msg)` closure rather than a bare `sys.stderr.write`, so the refusal honors the `--agent`/`--json` envelope that closure already builds (`status="cannot-run"`, `exit_code=2`). Import the helper from `specs` rather than copying it, keeping one verdict owner across the two modules.
   Place both guards beside the existing `--version is required` / `--summary is required` checks and BEFORE `plan_release`, so no id6 is minted and nothing is rendered. `--version` NEEDS ITS OWN GUARD and is not covered by the status enum check that already refuses a newline-bearing `--status`: measured, a newline in `--version` writes a smuggled bullet into the metadata block at exit 0 (F-04).
   DO NOT GUARD `releases.plan_release` OR `create_release` THEMSELVES. They are library functions with existing test callers (`tests/test_releases.py` calls `create_release` directly), and `plan_release` raising instead of returning would change a documented contract ("Compute (path, text) ... WITHOUT touching the filesystem"). The verb is the boundary where a user-supplied value enters, which is where `dtg7dz` put it too.
   - Depends on: E-03
   - Expected outcome: `aw releases new --version 9.9.9 --summary $'legit\n- Blocks-Release: next' --apply` exits 2 writing nothing, and the same with the newline in `--version` also exits 2, where before each exited 0 and wrote a record carrying the smuggled bullet at zero `validate_release` drift. Under `--agent` the refusal emits the well-formed `aw.agent/v1` cannot-run envelope, not a bare stderr line.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Apply the guard to `--blocks-release` and `--from-backlog` in `specs.run_set`, which review MEASURED to be TWO MORE LIVE INJECTION VECTORS the authoring pass missed, in the same function E-03 already edits. Use `bound_length=True` (both are short identifier-shaped fields, not prose) and place both guards beside the existing `--graduated-to` malformed-setid refusal, returning **1** per `run_set`'s own convention (OQ-01).
+- [x] E-07 Apply the guard to `--blocks-release` and `--from-backlog` in `specs.run_set`, which review MEASURED to be TWO MORE LIVE INJECTION VECTORS the authoring pass missed, in the same function E-03 already edits. Use `bound_length=True` (both are short identifier-shaped fields, not prose) and place both guards beside the existing `--graduated-to` malformed-setid refusal, returning **1** per `run_set`'s own convention (OQ-01).
   THESE ARE NOT HYPOTHETICAL AND THEY ARE WHY THE PLAN'S SCOPE SENTENCE WAS FALSE. Measured at review (F-13): `aw specs set <spec> --status to-review --blocks-release $'next\n- Status: approved'` exits **0** and writes a front matter reading `- Status: to-review`, `- Blocks-Release: next`, `- Status: approved`, with `specs.validate_spec` returning `[]` and both `aw specs check --agent` (`"outcome":"clean"`) and `aw check specs --agent` (`"outcome":"conforms"`) blind to it; the smuggled gate ALSO functions, with `aw releases show next` listing the spec under `release-blockers (1)`. `--from-backlog` behaves identically, writing `- From-Backlog: x` followed by `- Status: approved`.
   WHY THESE TWO AND NOT THE OTHER `run_set` FLAGS, checked rather than assumed: `--priority` and `--work-kind` are argparse `choices` enums and refuse a newline at parse time (exit 2, usage error); `--graduated-to` already has a setid-shape refusal that catches it (exit 2, `--graduated-to takes lowercase-kebab setids`); and `--gate-summary`, `--gate-ref` and `--evidence` ALREADY call `A.is_safe_descriptive` at three existing sites in `specs.py`. So `--blocks-release` and `--from-backlog` are the complete unguarded remainder of this function's front-matter writers, which is what makes the coverage claim checkable instead of a guess.
   THE INJECTED STATUS LANDS BELOW THE LEGITIMATE ONE, so `specs._read_status` still returns the real value (measured `'to-review'`) and no approval is forged through these two. That is why this is E-07 rather than a correction to E-02's severity: the harm here is a smuggled RELEASE GATE plus arbitrary front matter, matching F-01/F-02, not the attestation forgery F-03 measures for `--title`. Do not overstate it in the refusal message or the test name.
   - Depends on: E-03
   - Expected outcome: `aw specs set <spec> --status to-review --blocks-release $'next\n- Status: approved'` exits 1 leaving the spec byte-identical by sha256, and the same for `--from-backlog`, where before each exited 0 and wrote the smuggled bullets at zero `validate_spec` drift. A conforming `--blocks-release next` and a conforming `--from-backlog <id6>` still succeed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the injection, the asymmetry, and the non-regressions
 
-- [ ] E-05 Add `tests/test_specs_releases_descriptive_safety.py` pinning the INJECTION property as the primary one, for each guarded flag on each of the four verbs. For `--title`, `--summary`, `--version`: assert the verb refuses nonzero, that NO record file exists afterwards, and that the message names the flag. For `--message`, `--blocks-release` and `--from-backlog` on `run_set`/`run_note`: assert the refusal AND a sha256 byte-identity check on the target.
+- [x] E-05 Add `tests/test_specs_releases_descriptive_safety.py` pinning the INJECTION property as the primary one, for each guarded flag on each of the four verbs. For `--title`, `--summary`, `--version`: assert the verb refuses nonzero, that NO record file exists afterwards, and that the message names the flag. For `--message`, `--blocks-release` and `--from-backlog` on `run_set`/`run_note`: assert the refusal AND a sha256 byte-identity check on the target.
   RE-GLOB THE TARGET AFTER ANY `specs set` CALL, because a successful transition MOVES the file between status directories (review lost a cycle to a `FileNotFoundError` from holding the pre-call path). A byte-identity assertion on a REFUSED call is unaffected, which is exactly why the refused and accepted cases must not share one helper that caches the path.
   THE TEST MUST ALSO RECORD WHAT THE PRE-FIX BEHAVIOR WAS, because F-06 proves no checker can see it afterwards: for the `--title` case assert explicitly that a spec rendered with that injection has `specs._read_status(...) == "approved"` while its legitimate bullet says `draft`, and for the `--summary` case that the smuggled `- Blocks-Release:` parses as `next` with `specs.validate_spec` returning `[]`. Build those two assertions from a rendered STRING (via `specs._render_new_spec`), not by calling the now-guarded verb, so they keep documenting the vector after the guard closes it.
   Follow the established template `test_new_requires_title` in `tests/test_spec_id6_filenames.py`, which asserts `rc == 2` through a real `cli.main` invocation, and drive at least the `--title` and `--version` cases through `cli.main` rather than the runner function alone, so the argparse layer is covered too.
   - Depends on: E-04, E-07
   - Expected outcome: a new module whose injection cases FAIL on pre-guard code (each verb returns 0 and writes a record, or in the `run_set` cases mutates one) and PASS after, including the two rendered-string assertions which pass in BOTH states because they assert on the renderer rather than the guard. `specs._render_new_spec` is verified callable for that purpose with signature `(*, title, id6, date_iso, summary)`, and review confirmed a direct call with an injected title yields `_read_status(...) == "approved"`, `_find_status_index(...) == 1`, and `validate_spec(...) == []`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In the same module, pin the length ASYMMETRY, the boundary, and the non-regressions. Asymmetry: a 1200-character single-line `--message` is ACCEPTED by `run_set` and `run_note` while a 301-character `--summary` is REFUSED by `run_new`, in one test whose name says why, so a later reader cannot "tidy" the two into one mode and silently regress 40.4 percent of the spec tree's own historical output (F-09). Boundary: a `--summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is accepted and one at `+1` refused, pinning the predicate's `>` rather than a copied constant.
+- [x] E-06 In the same module, pin the length ASYMMETRY, the boundary, and the non-regressions. Asymmetry: a 1200-character single-line `--message` is ACCEPTED by `run_set` and `run_note` while a 301-character `--summary` is REFUSED by `run_new`, in one test whose name says why, so a later reader cannot "tidy" the two into one mode and silently regress 40.4 percent of the spec tree's own historical output (F-09). Boundary: a `--summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is accepted and one at `+1` refused, pinning the predicate's `>` rather than a copied constant.
   Non-regressions: (a) the existing `--title is required`, `--version is required` and `--summary is required` refusals keep their exit codes and messages unchanged; (b) a conforming `aw specs new ... --apply` still writes a record that `aw specs check` passes, and a conforming `aw releases new` one that `aw check releases` passes; (c) `releases.run_new --agent` emits a well-formed envelope on a refusal; (d) `releases.create_release` and `plan_release` are UNCHANGED as library entry points, asserted by calling `create_release` with an unsafe summary and observing it still writes, which is the deliberate under-scope E-04 names; (e) THE ALREADY-VALIDATED `run_set` FLAGS KEEP THEIR EXISTING REFUSALS AND CODES, namely `--gate-summary`, `--gate-ref` and `--evidence` (which already call the predicate) plus `--priority`/`--work-kind` (argparse enums, exit 2) and `--graduated-to` (setid-shape refusal, exit 2), so the E-07 additions are proven additive rather than a re-implementation of guards that already work.
   ALSO PIN THE LATE-CONTROL-CHARACTER VECTOR F-15 MEASURED: a `--message` of `"a"*500 + "\x07" + "b"` must be REFUSED by `run_set` and `run_note`, in the same test as the accepted 1200-character clean message, so the two halves of `bound_length=False` are pinned together. A test module that accepts the 1200-character message but does not refuse the late control character has not pinned the ported construction and would pass against the unsound slice-only form.
   - Depends on: E-05
   - Expected outcome: the asymmetry test passes (1200-char clean `--message` accepted, 301-char `--summary` refused), the late-control-character `--message` is refused in that same test, the boundary test proves 300 accepted and 301 refused, and all five non-regression groups pass, with (d) documenting the library path deliberately left open and (e) proving the E-07 guards are additive.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -206,41 +206,451 @@ N/A with reason. This plan makes existing code obey an ALREADY-WRITTEN contract;
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste an actual Python session calling `specs._refuse_unsafe_descriptive` on these inputs and showing the returned values. With the default `bound_length=True`: `None` -> `None`; `"ok"` -> `None`; `"a\nb"` -> a message containing `newline`; `"a\x07b"` -> a message containing `control`; a 340-character value -> a message containing both `300` and `340`. With `bound_length=False`: that same 340-character value -> `None`; a 1200-character value -> `None`; `"a\nb"` -> the `newline` message; `"a\x07b"` -> the `control` message; AND `"a"*500 + "\x07" + "b"` -> the `control` message. THAT LAST VECTOR IS MANDATORY AND ITS ABSENCE FAILS THIS ITEM: F-15 measured that the construction originally prescribed here returns `None` for it, so a session omitting it cannot tell the ported helper from the unsound one. Also paste the helper's source showing it calls `A.is_safe_descriptive` for the verdict, that its `bound_length=False` branch carries the whole-value `not A._CONTROL_CHAR_RE.search(value)` conjunct in ADDITION to the sliced predicate call, and that it does NOT copy `A._CONTROL_CHAR_RE`'s character class, proving the predicate's conditions were not reimplemented. Finally paste a diff or side-by-side of the message strings against `backlog._refuse_unsafe_descriptive`'s, showing the wording is byte-compatible modulo the verb and flag names, which is what OQ-02 requires so a later hoist is mechanical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Interactive session demonstrating specs._refuse_unsafe_descriptive conformance:
+    ```python
+    >>> from agent_workflows import specs
+    >>> fn = specs._refuse_unsafe_descriptive
+    >>> # bound_length=True (default)
+    >>> fn("aw specs new", "--title", None)
+    None
+    >>> fn("aw specs new", "--title", "ok")
+    None
+    >>> fn("aw specs new", "--title", "a\nb")
+    'aw specs new: --title must not contain embedded newlines'
+    >>> fn("aw specs new", "--title", "a\x07b")
+    'aw specs new: --title must not contain control characters'
+    >>> fn("aw specs new", "--title", "x" * 340)
+    'aw specs new: --title exceeds maximum length of 300 characters (340 > 300)'
+    >>> # bound_length=False (line-integrity mode)
+    >>> fn("aw specs note", "--message", "x" * 340, bound_length=False)
+    None
+    >>> fn("aw specs note", "--message", "x" * 1200, bound_length=False)
+    None
+    >>> fn("aw specs note", "--message", "a\nb", bound_length=False)
+    'aw specs note: --message must not contain embedded newlines'
+    >>> fn("aw specs note", "--message", "a\x07b", bound_length=False)
+    'aw specs note: --message must not contain control characters'
+    >>> fn("aw specs note", "--message", "a" * 500 + "\x07" + "b", bound_length=False)
+    'aw specs note: --message must not contain control characters'
+    ```
 
-- [ ] V-02 validates E-02
+    Source of `specs._refuse_unsafe_descriptive`:
+    ```python
+    def _refuse_unsafe_descriptive(
+        verb: str,
+        flag: str,
+        value: Optional[str],
+        *,
+        bound_length: bool = True,
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        prefix = f"{verb}: " if verb else ""
+        if bound_length:
+            if A.is_safe_descriptive(value):
+                return None
+            if "\n" in value or "\r" in value:
+                return f"{prefix}{flag} must not contain embedded newlines"
+            if A._CONTROL_CHAR_RE.search(value):
+                return f"{prefix}{flag} must not contain control characters"
+            if len(value) > A.MAX_DESCRIPTIVE_LEN:
+                return (
+                    f"{prefix}{flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+                    f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+                )
+            return f"{prefix}{flag} is not a valid descriptive field"
+        else:
+            has_newline = "\n" in value or "\r" in value
+            is_safe_line = (
+                not has_newline
+                and A.is_safe_descriptive(
+                    value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+                )
+                and not A._CONTROL_CHAR_RE.search(value)
+            )
+            if is_safe_line:
+                return None
+            if has_newline:
+                return f"{prefix}{flag} must not contain embedded newlines"
+            if A._CONTROL_CHAR_RE.search(value):
+                return f"{prefix}{flag} must not contain control characters"
+            return f"{prefix}{flag} is not a valid descriptive field"
+    ```
+
+    Side-by-side comparison against `backlog._refuse_unsafe_descriptive` across 10 test vectors:
+    ```
+    MATCH: new, --field, bound=True -> None
+    MATCH: new, --field, bound=True -> None
+    MATCH: new, --field, bound=True -> 'new: --field must not contain embedded newlines'
+    MATCH: new, --field, bound=True -> 'new: --field must not contain control characters'
+    MATCH: new, --field, bound=True -> 'new: --field exceeds maximum length of 300 characters (340 > 300)'
+    MATCH: note, --field, bound=False -> None
+    MATCH: note, --field, bound=False -> None
+    MATCH: note, --field, bound=False -> 'note: --field must not contain embedded newlines'
+    MATCH: note, --field, bound=False -> 'note: --field must not contain control characters'
+    MATCH: note, --field, bound=False -> 'note: --field must not contain control characters'
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual terminal output of these runs against temp fixtures. (a) `aw specs new --title $'Legit\n- Status: approved' --slug x --summary ok --apply` showing exit 2, the refusal on stderr, and an `ls` of the specs tree proving NO file was written. (b) THE PRE-FIX COUNTERPART, which is the finding that makes this severe: the same command against HEAD code showing exit 0, and a Python session on the resulting file showing `specs._read_status(...)` returning `approved` while the legitimate bullet reads `draft`, plus `aw specs check --agent` reporting `"outcome":"clean"` and `aw attention --format json` reporting `"native_status":"approved"`. (c) the same refusal for `--summary`. (d) THE PREVIEW PATH: the `--title` injection WITHOUT `--apply` showing exit 2 and no rendered body on stdout, since F-12 measured that it currently prints the injected bytes. (e) the conforming converse: a clean `aw specs new ... --apply` at exit 0, the written filename, and `aw specs check --agent` reporting clean on that fixture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Interactive session demonstrating aw specs new refusal on unsafe title and summary:
+    (a) Post-fix title injection refusal with `--apply`:
+    ```
+    $ aw specs new --title $'Legit\n- Status: approved' --slug x --summary ok --apply
+    aw specs new: --title must not contain embedded newlines
+    exit code: 2
+    $ ls -A .aw/records/specs/draft
+    (empty - no file written)
+    ```
 
-- [ ] V-03 validates E-03
+    (b) Pre-fix counterpart driven at starting HEAD:
+    ```
+    $ aw specs new --title $'Legit\n- Status: approved' --slug x --summary ok --apply
+    EXIT_CODE: 0
+    STDOUT: aw specs new: wrote /tmp/tmpmpt913mk/.aw/records/specs/draft/20261001-yqby0c-01-yqby0c-x.spec.md
+    STDERR:
+    FILE_CONTENT:
+    # Spec: Legit
+    - Status: approved
+
+    - Date: 2026-10-01
+    - Status: draft
+    - Id: yqby0c
+    - Author: aw specs new
+    - Scope: ok
+
+    ## Workflow history
+
+    - 2026-10-01 created (aw specs): ok
+
+    READ_STATUS: approved
+    FIND_STATUS_INDEX: 1
+    VALIDATE_SPEC: []
+    SPECS_CHECK_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}
+    ATTENTION_JSON: {"native_status":"approved","attention_class":"ready", ...}
+    ```
+
+    (c) Post-fix summary injection refusal with `--apply`:
+    ```
+    $ aw specs new --title "Legit" --slug x --summary $'legit\n- Blocks-Release: next' --apply
+    aw specs new: --summary must not contain embedded newlines
+    exit code: 2
+    $ ls -A .aw/records/specs/draft
+    (empty - no file written)
+    ```
+
+    (d) Post-fix preview path without `--apply`:
+    ```
+    $ aw specs new --title $'Legit\n- Status: approved' --slug x --summary ok
+    aw specs new: --title must not contain embedded newlines
+    exit code: 2
+    (no rendered body printed to stdout)
+    ```
+
+    (e) Post-fix conforming converse:
+    ```
+    $ aw specs new --title "Conforming Spec" --slug "conforming-spec" --summary "a safe summary" --apply
+    aw specs new: wrote /tmp/tmp.lX5f8jrzLJ/.aw/records/specs/draft/20261001-paflia-01-paflia-conforming-spec.spec.md
+    exit code: 0
+    $ aw specs check --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":1,"findings":0,"evidence":["specs"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste these runs against temp fixtures. (a) `aw specs note <spec> --message $'ok\n- Blocks-Release: next'` showing a nonzero exit AND a sha256 of the spec before and after proving byte-identity. (b) the same for `aw specs set <spec> --status to-review --message $'ok\n- Blocks-Release: next'`, with its own sha256 pair, and state the exit code observed for each so OQ-01's per-function convention is visible rather than assumed. (c) THE PRE-FIX COUNTERPART for at least `run_note`: exit 0 and the resulting `## Workflow history` containing the smuggled `- Blocks-Release: next` line, with `specs.validate_spec` returning `[]`. OVER-REFUSAL MUST BE DISPROVED EXPLICITLY: also paste (d) a legitimate multi-word `--message` still succeeding on both verbs, and (e) a **1200-character single-line** `--message` ACCEPTED at exit 0 on both, since F-09 measured 59 real spec messages over the 300 bound and this is the evidence the narrowing took effect. A run showing (a) through (d) but not (e) has not validated E-03.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Interactive session demonstrating aw specs set and note refusal on unsafe message:
+    (a) `aw specs note` refusal with sha256 byte-identity:
+    ```
+    $ aw specs note "$SPEC_A" --message $'ok\n- Blocks-Release: next'
+    aw specs note: --message must not contain embedded newlines
+    EXIT_CODE: 2
+    HASH_BEFORE: 9e0cc44b10af22a7f57d5263c5d084fd7d7db228867007fb4b5bba49c7f8f53f
+    HASH_AFTER:  9e0cc44b10af22a7f57d5263c5d084fd7d7db228867007fb4b5bba49c7f8f53f
+    ```
 
-- [ ] V-04 validates E-04
+    (b) `aw specs set` refusal with sha256 byte-identity:
+    ```
+    $ aw specs set "$SPEC_B" --status to-review --no-commit --message $'ok\n- Blocks-Release: next'
+    aw specs set: --message must not contain embedded newlines
+    EXIT_CODE: 1
+    HASH_BEFORE: 3ac9f78d52cb3352f59331b61bb94a6516ea1548b9fd38fca54cb4e6276a481f
+    HASH_AFTER:  3ac9f78d52cb3352f59331b61bb94a6516ea1548b9fd38fca54cb4e6276a481f
+    ```
+    Observed per-function convention (OQ-01): `specs set` returns exit 1; `specs note` returns exit 2.
+
+    (c) Pre-fix counterpart on `run_note` at starting HEAD:
+    ```
+    $ aw specs note <spec> --message $'ok\n- Blocks-Release: next'
+    EXIT_CODE: 0
+    STDOUT: aw specs note: appended a history record to .aw/records/specs/draft/20261001-3qkxo6-01-3qkxo6-x.spec.md
+    FILE_CONTENT:
+    ## Workflow history
+
+    - 2026-10-01 note (aw specs): ok
+    - Blocks-Release: next
+    - 2026-10-01 created (aw specs): ok
+
+    VALIDATE_SPEC: []
+    ```
+
+    (d) Legitimate multi-word message on both verbs:
+    ```
+    $ aw specs note "$SPEC_A" --message "a legitimate multi word progress note"
+    aw specs note: appended a history record to .aw/records/specs/draft/20261001-3aydop-01-3aydop-spec-a.spec.md
+    exit code: 0
+    $ aw specs set "$SPEC_B" --status to-review --no-commit --message "transitioning to review with multi word message"
+    aw specs set: /tmp/tmp.hPbj7cgBCn/.aw/records/specs/to-review/20261001-omv3lf-01-omv3lf-spec-b.spec.md -> to-review
+    exit code: 0
+    ```
+
+    (e) 1200-character single-line message accepted at exit 0 on both:
+    ```
+    $ aw specs note "$SPEC_A" --message "<1200 chars>"
+    aw specs note: appended a history record to .aw/records/specs/draft/20261001-3aydop-01-3aydop-spec-a.spec.md
+    exit code: 0
+    $ aw specs set "$SPEC_C" --status to-review --no-commit --message "<1200 chars>"
+    aw specs set: /tmp/tmp.hPbj7cgBCn/.aw/records/specs/to-review/20261001-cm48tq-01-cm48tq-spec-c.spec.md -> to-review
+    exit code: 0
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste these runs against temp fixtures. (a) `aw releases new --version 9.9.9 --summary $'legit\n- Blocks-Release: next' --apply` showing exit 2 and no `.release.md` written. (b) the same with the newline in `--version`, showing exit 2, since F-04 measured that flag separately and the existing `--status` enum check does not cover it. (c) THE PRE-FIX COUNTERPART for both, showing exit 0, the written record containing `- Blocks-Release: next`, `releases.validate_release` returning `[]`, and `aw check releases --agent` reporting `"outcome":"conforms"`. (d) THE AGENT ENVELOPE: the `--summary` refusal under `--agent`, pasting the full JSONL line and confirming it is a well-formed `aw.agent/v1` record with `"outcome"` reflecting cannot-run and `"exit":2`, not a bare stderr string, which is what routing through `_usage` buys. (e) the conforming converse at exit 0 with `aw check releases --agent` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Interactive session demonstrating aw releases new refusal on unsafe version and summary:
+    (a) `releases new` refusal on summary injection with `--apply`:
+    ```
+    $ aw releases new --version 9.9.9 --summary $'legit\n- Blocks-Release: next' --apply
+    aw releases new: --summary must not contain embedded newlines
+    exit code: 2
+    $ ls -A .aw/records/releases/
+    (empty - no .release.md written)
+    ```
 
-- [ ] V-05 validates E-05
+    (b) `releases new` refusal on version injection with `--apply`:
+    ```
+    $ aw releases new --version $'9.9.9\n- Blocks-Release: next' --summary legit --apply
+    aw releases new: --version must not contain embedded newlines
+    exit code: 2
+    $ ls -A .aw/records/releases/
+    (empty - no .release.md written)
+    ```
+
+    (c) Pre-fix counterpart driven at starting HEAD:
+    ```
+    Summary case:
+    $ aw releases new --version 9.9.9 --summary $'legit\n- Blocks-Release: next' --apply
+    EXIT_CODE: 0
+    STDOUT: aw releases new: wrote /tmp/tmpy6g_ovo5/.aw/records/releases/20261001-7tk9uq-01-7tk9uq-9-9-9.release.md
+    VALIDATE_RELEASE: []
+    CHECK_RELEASES_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,...}
+
+    Version case:
+    $ aw releases new --version $'9.9.9\n- Blocks-Release: next' --summary legit --apply
+    EXIT_CODE: 0
+    STDOUT: aw releases new: wrote /tmp/tmpwne8tyqq/.aw/records/releases/20261001-nufqde-01-nufqde-9-9-9-blocks-release-next.release.md
+    VALIDATE_RELEASE: []
+    CHECK_RELEASES_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,...}
+    ```
+
+    (d) Agent envelope on refusal under `--agent`:
+    ```
+    $ aw releases new --version 9.9.9 --summary $'legit\n- Blocks-Release: next' --apply --agent
+    {"schema":"aw.agent/v1","kind":"error","cmd":"releases new","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}
+    exit code: 2
+    ```
+
+    (e) Conforming converse:
+    ```
+    $ aw releases new --version 1.0.0 --summary "conforming release" --apply
+    aw releases new: wrote /tmp/tmp.h0AgbAwCJY/.aw/records/releases/20261001-7scpqv-01-7scpqv-1-0-0.release.md
+    exit code: 0
+    $ aw check releases --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"releases","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the full `python3 -m pytest tests/test_specs_releases_descriptive_safety.py` output including the `N passed` summary line. Then paste the PRE-FIX run of the same module showing the injection cases FAILING with assertion text visible, and confirm which cases passed in BOTH states: the two rendered-string assertions (the `--title`-shaped `_read_status == "approved"` one and the `--summary`-shaped `blocks_release == 'next'` with `validate_spec == []` one) MUST pass before and after, because they assert on the renderer rather than the guard, and a run where they fail after the fix means they were written against the verb instead. State explicitly which of the four verbs each failing case covered, so the E/V bijection is checkable rather than asserted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Pre-fix falsification (13 failed, 6 passed) and post-fix validation (19 passed):
+    Full post-fix test run:
+    ```
+    $ python3 -m pytest tests/test_specs_releases_descriptive_safety.py
+    bringing up nodes...
+    ...................                                                      [100%]
+    19 passed in 9.04s
+    ```
 
-- [ ] V-06 validates E-06
+    Pre-fix test run against starting HEAD (13 failed, 6 passed):
+    ```
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_helper_refuse_unsafe_descriptive_contract
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_releases_new_summary_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_new_title_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_new_summary_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_non_regression_releases_new_agent_envelope
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_set_message_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_set_from_backlog_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_note_message_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_releases_new_version_injection_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_summary_length_exact_boundary
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_new_preview_refused_on_title_injection
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_message_summary_length_asymmetry_and_late_control_refused
+    FAILED tests/test_specs_releases_descriptive_safety.py::SpecsReleasesDescriptiveSafetyTests::test_specs_set_blocks_release_injection_refused
+    13 failed, 6 passed in 2.63s
+
+    Failing injection assertion examples from pre-fix run:
+    - specs.run_new (--title): AssertionError: 0 != 2
+    - specs.run_new (--summary): AssertionError: 0 != 2
+    - specs.run_set (--message): AssertionError: 0 != 1
+    - specs.run_set (--blocks-release): AssertionError: 0 != 1
+    - specs.run_set (--from-backlog): AssertionError: 0 != 1
+    - specs.run_note (--message): AssertionError: 0 != 2
+    - releases.run_new (--version): AssertionError: 0 != 2
+    - releases.run_new (--summary): AssertionError: 0 != 2
+    ```
+
+    Cases that passed in BOTH pre-fix and post-fix states:
+    - `test_pre_fix_title_injection_forges_approval_and_checker_blind`: validates `specs._render_new_spec` produces `_read_status == "approved"`, `_find_status_index == 1`, `validate_spec == []`
+    - `test_pre_fix_summary_injection_smuggles_gate_and_checker_blind`: validates `specs._render_new_spec` produces smuggled `Blocks-Release: next` with `validate_spec == []`
+    - `test_non_regression_required_flags_unchanged`
+    - `test_non_regression_conforming_creations_pass_validation`
+    - `test_non_regression_releases_library_functions_unchanged`
+    - `test_non_regression_already_validated_run_set_flags_preserved`
+
+    Verb coverage across failing injection cases:
+    - `specs.run_new`: covered by `test_specs_new_title_injection_refused`, `test_specs_new_summary_injection_refused`, `test_specs_new_preview_refused_on_title_injection`
+    - `specs.run_set`: covered by `test_specs_set_message_injection_refused`, `test_specs_set_blocks_release_injection_refused`, `test_specs_set_from_backlog_injection_refused`
+    - `specs.run_note`: covered by `test_specs_note_message_injection_refused`
+    - `releases.run_new`: covered by `test_releases_new_version_injection_refused`, `test_releases_new_summary_injection_refused`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the test output for the asymmetry, boundary and non-regression groups, naming each test. The asymmetry test must show a 1200-character single-line `--message` ACCEPTED, a `--message` of `"a"*500 + "\x07" + "b"` REFUSED, and a 301-character `--summary` REFUSED, all in the same run; the late-control-character case is REQUIRED because F-15 measured that the authored slice-only construction accepts it, so a run without it does not distinguish the ported helper from the unsound one. The boundary test must show exactly 300 accepted and 301 refused. For the non-regressions paste: (a) the three `is required` refusals with their exit codes and messages unchanged from HEAD (quote the HEAD message you compared against); (b) a conforming `specs new` record passing `aw specs check` and a conforming `releases new` record passing `aw check releases`; (c) the `--agent` envelope assertion; (d) the deliberate under-scope, namely `releases.create_release(repo, "1.0.0", "legit\n- Blocks-Release: next")` STILL WRITING at the library level, proving E-04 guarded the verb and not the library as designed (review confirmed it writes today and that `plan_release`'s docstring reads "Compute (path, text) for a NEW conformant release record WITHOUT touching the filesystem"); (e) the already-validated `run_set` flags keeping their existing refusals, quoting at least `aw specs set: --gate-summary must be a bounded single control-char-free line` at exit **1** and `aw specs set: --graduated-to takes lowercase-kebab setids` at exit **2**.
   Then paste the full-suite run (`python3 -m pytest`, bare) with its `N passed` line, and the repository-tree `aw specs check --agent` and `aw check specs --agent` outputs showing the existing population is unaffected (F-08), RE-DERIVING the counts rather than asserting them. NOTE WHAT `aw check specs --agent` ACTUALLY EMITS, measured at review so the executor does not chase it: `"outcome":"conforms","findings":1`, the one finding being a PRE-EXISTING `check.collisions-not-checked` advisory at location `<collisions>` that has nothing to do with this plan. The required property is that this plan ADDS no finding, not that the count is zero.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Targeted test suite and full bare pytest test suite passed:
+    Test outputs for asymmetry, boundary, and non-regressions:
+    - `test_message_summary_length_asymmetry_and_late_control_refused`: PASSED (1200-char clean message accepted on set/note, 301-char summary refused on new, late control char "a"*500 + "\x07" + "b" refused on set at exit 1 and note at exit 2)
+    - `test_summary_length_exact_boundary`: PASSED (300 chars accepted at exit 0, 301 chars refused at exit 2)
+    - `test_non_regression_required_flags_unchanged`: PASSED
+      * specs new --title "": exit 2, message `aw specs new: --title is required\n` (matches HEAD)
+      * releases new --version "": exit 2, message `aw releases new: --version is required\n` (matches HEAD)
+      * releases new --summary "": exit 2, message `aw releases new: --summary is required\n` (matches HEAD)
+    - `test_non_regression_conforming_creations_pass_validation`: PASSED (conforming spec and release pass validate_spec and validate_release)
+    - `test_non_regression_releases_new_agent_envelope`: PASSED (well-formed `aw.agent/v1` envelope with `"outcome":"cannot-run"` and `"exit":2`)
+    - `test_non_regression_releases_library_functions_unchanged`: PASSED (`releases.create_release` still writes unsafe summary at library level)
+    - `test_non_regression_already_validated_run_set_flags_preserved`: PASSED
+      * `--gate-summary` invalid: exit 1, `aw specs set: --gate-summary must be a bounded single control-char-free line`
+      * `--graduated-to` invalid: exit 2, `aw specs set: --graduated-to takes lowercase-kebab setids...`
+      * `--priority` invalid choice: exit 2
+      * `--work-kind` invalid choice: exit 2
 
-- [ ] V-07 validates E-07
+    Full suite bare run (`python3 -m pytest`):
+    ```
+    4172 passed, 2 skipped, 3 warnings in 197.40s (0:03:17)
+    ```
+
+    Repository tree checks:
+    ```
+    $ aw specs check --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,"verified":true,"complete":true,"checked":39,"findings":0,"evidence":["specs"],"next":null}
+
+    $ aw check specs --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"specs","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw specs check"}
+    ```
+    (Re-derived count: 39 specs checked, 0 findings on specs check; check specs reports conforms with 1 pre-existing check.collisions-not-checked advisory at <collisions>, confirming zero new findings).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste these runs against temp fixtures. (a) `aw specs set <spec> --status to-review --blocks-release $'next\n- Status: approved'` showing exit 1 with a sha256 of the spec before and after proving byte-identity, and the same for `--from-backlog`. (b) THE PRE-FIX COUNTERPART for both, which is what makes this a real finding rather than a precaution: exit 0, the resulting front matter quoted in full showing `- Status: to-review` then the injected `- Blocks-Release: next` (or `- From-Backlog: x`) then `- Status: approved`, with `specs.validate_spec` returning `[]`, `aw specs check --agent` reporting `"outcome":"clean"` and `aw check specs --agent` `"outcome":"conforms"`, plus `aw releases show next` listing the spec under `release-blockers (1)` for the `--blocks-release` case. (c) THE ENUMERATION THAT MAKES THE COVERAGE CLAIM CHECKABLE: for each of `--priority`, `--work-kind` and `--graduated-to`, paste the newline-bearing invocation showing it ALREADY refuses and with what code and message, so a reader can confirm E-07 closed the complete remainder rather than an arbitrary two. (d) the conforming converse: `--blocks-release next` and `--from-backlog <a real id6>` both still succeeding at exit 0 and writing the expected single bullet. (e) state explicitly that `specs._read_status` returns the LEGITIMATE status in the pre-fix case (measured `to-review`), so the plan does not claim an approval forgery it did not measure for these two flags.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed. Interactive session demonstrating aw specs set refusal on unsafe --blocks-release and --from-backlog:
+    (a) Post-fix `--blocks-release` and `--from-backlog` refusals with sha256 byte-identity:
+    ```
+    $ aw specs set "$SPEC_BR" --status to-review --no-commit --blocks-release $'next\n- Status: approved'
+    aw specs set: --blocks-release must not contain embedded newlines
+    EXIT_CODE: 1
+    HASH_BEFORE: a70adb2d4b14d6160540d0232f7e3eefd8d21face9b37aa3ea07eeb57c0e6e0a
+    HASH_AFTER:  a70adb2d4b14d6160540d0232f7e3eefd8d21face9b37aa3ea07eeb57c0e6e0a
+
+    $ aw specs set "$SPEC_FB" --status to-review --no-commit --from-backlog $'x\n- Status: approved'
+    aw specs set: --from-backlog must not contain embedded newlines
+    EXIT_CODE: 1
+    HASH_BEFORE: 646e99ac30ad234070532cf2d971a4f20a246350ab566b3dd4112b150abcae85
+    HASH_AFTER:  646e99ac30ad234070532cf2d971a4f20a246350ab566b3dd4112b150abcae85
+    ```
+
+    (b) Pre-fix counterpart driven at starting HEAD:
+    `--blocks-release` case:
+    ```
+    EXIT_CODE: 0
+    CONTENT:
+    # Spec: Legit
+
+    - Date: 2026-10-01
+    - Status: to-review
+    - Blocks-Release: next
+    - Status: approved
+    - Id: 6u2o5m
+    - Author: aw specs new
+    - Scope: ok
+
+    ## Workflow history
+
+    - 2026-10-01 to-review (aw specs):
+    - 2026-10-01 created (aw specs): ok
+
+    READ_STATUS: to-review
+    VALIDATE_SPEC: []
+    SPECS_CHECK_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,...}
+    CHECK_SPECS_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,...}
+    RELEASES_SHOW:
+    release-blockers (1)
+    ID      TREE   STATUS     PRIORITY  PATH
+    6u2o5m  specs  to-review  -         .aw/records/specs/to-review/20261001-6u2o5m-01-6u2o5m-x.spec.md
+    ```
+    `--from-backlog` case:
+    ```
+    EXIT_CODE: 0
+    CONTENT:
+    # Spec: Legit
+
+    - Date: 2026-10-01
+    - Status: to-review
+    - From-Backlog: x
+    - Status: approved
+    - Id: u4cy3y
+    - Author: aw specs new
+    - Scope: ok
+
+    READ_STATUS: to-review
+    VALIDATE_SPEC: []
+    SPECS_CHECK_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"specs check","outcome":"clean","exit":0,...}
+    CHECK_SPECS_AGENT: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,...}
+    ```
+
+    (c) Enumeration proving complete coverage of `specs.run_set` front-matter writers:
+    - `--priority`: argparse choices enum rejects newline with exit 2 (`invalid choice: 'high\n- Status: approved'`)
+    - `--work-kind`: argparse choices enum rejects newline with exit 2 (`invalid choice: 'bug\n- Status: approved'`)
+    - `--graduated-to`: setid-shape validator rejects newline with exit 2 (`aw specs set: --graduated-to takes lowercase-kebab setids...`)
+    - `--gate-summary`: existing predicate check rejects newline with exit 1 (`aw specs set: --gate-summary must be a bounded single control-char-free line`)
+    - `--gate-ref`: existing `validate_gate_ref` rejects newline with exit 1
+    - `--evidence`: existing `_evidence_resolvable` rejects newline with exit 1
+
+    (d) Conforming converse:
+    ```
+    $ aw specs set "$SPEC_BR" --status to-review --no-commit --blocks-release next
+    exit code: 0
+    (writes single "- Blocks-Release: next" bullet)
+
+    $ aw specs set "$SPEC_FB" --status to-review --no-commit --from-backlog s2km6r
+    exit code: 0
+    (writes single "- From-Backlog: s2km6r" bullet)
+    ```
+
+    (e) In the pre-fix case, `specs._read_status` returned the legitimate status `to-review` (because the injected bullet lands below the real one), confirming the defect was a smuggled release gate and arbitrary front matter rather than an approval forgery.
+  - Result: pass
 
 ## Approval and execution gate
 
