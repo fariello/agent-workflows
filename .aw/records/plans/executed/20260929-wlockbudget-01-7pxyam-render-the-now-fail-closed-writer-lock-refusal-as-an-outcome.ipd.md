@@ -6,7 +6,7 @@
 - Scope: IN: convert the expired-wait refusal at the ONE production `writer_lock` call site into the existing `CommitOutcome(STATUS_ERROR, ...)` contract so every caller's existing refusal branch runs; restore the path-identity test `commit_lock` promises and that died with `tests/test_commit_lock.py`; correct the three false claims in `ipd_lifecycle`'s `FINALIZE_LOCK_WAIT_SECONDS` comment; one CHANGELOG line. OUT: changing the 1800s budget or the `required=True` default (`9bq5o4` set both deliberately and a test pins the 1800s figure), the `ISO_RACED` retry cap, the finalize-side wait and its runner re-attempt ladder (`y2vzit` owns those), the integration lock, and `run_ledger_store.writer_lock` (a different lock on a different file).
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/ipd_lifecycle.py, tests/test_contention_wait.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 7pxyam
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7pxyam verified (set wlockbudget, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
