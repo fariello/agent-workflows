@@ -6,7 +6,7 @@
 - Scope: Writer-side redaction inside `render_stream.record_refusal`, a REQUIRED widening of `_ABSOLUTE_PATH_IN_TEXT` so a slash command such as `/spec-review` is not mangled into `<path>`, one existing assertion in `tests/test_cross_tree_session_refusal.py` retargeted from the raw absolute path to the redacted form, and new tests pinning the redaction and the slash-command non-mangling. NOT the reader-side redaction in the two sibling readers (left in place, measured idempotent), NOT `Refusal.from_obj` (a reader over frozen state), NOT the 37 producer call sites, and NOT the `events.jsonl` payloads or the stderr lines the producers print.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_cross_tree_session_refusal.py, tests/test_refusal_record_redaction.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: 7sc8fk
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7sc8fk verified (set refusalleak, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
