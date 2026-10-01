@@ -6,7 +6,7 @@
 - Scope: TWO fail-closed `isinstance` guards in `agent_workflows/run_selection_policy.py` (one in `derive_item_disposition`, one in `render_queue_dispositions`' own per-entry read), a new open disposition code with its label and remedy, and new tests pinning all four public surfaces plus the fourth consumer in `render_stream`. NOT the two upstream exit-tail crashes (`fcodik`, `s438xd`), NOT any well-formed entry's disposition, NOT the `unsatisfied_dependencies` shape divergence (`mjrac4`).
 - Scope-Paths: agent_workflows/run_selection_policy.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: cup9r7
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cup9r7 verified (set 3z91mq, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
