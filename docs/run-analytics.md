@@ -120,6 +120,21 @@ Costs the provider RECORDED are used as recorded. Costs the tool computed from a
 the prices in force when it ran rather than with today's. Where a model has no price entry, no cost is
 invented; the value is absent with a reason.
 
+## Model attribution and per-attempt resolution
+
+Model identity is resolved per attempt rather than once per run. This ensures that verifier turns and executor turns with different model configurations are accurately reported across dashboard rows and analytics facts.
+
+Resolution follows a strict fallback precedence:
+
+1. Observed host model from the execution host (when present).
+2. Frozen launch model requested for the turn.
+3. For verifier roles, the attempt's verifier twin fields before executor fields.
+4. Run-level options model or explicit model.
+5. Run-level cost attribution model (or verify cost attribution).
+6. Unrecorded, labeled per host when absent.
+
+Historical runs recorded before per-attempt model capture are not back-filled. For those runs, model attribution falls back cleanly to the run-level options tiers so no existing run loses attribution.
+
 ## Telemetry
 
 | Setting | Default | Why |
