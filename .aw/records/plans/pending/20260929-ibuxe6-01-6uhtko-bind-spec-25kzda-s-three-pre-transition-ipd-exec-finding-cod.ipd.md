@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: ship the bound vocabulary
 
-- [ ] E-01 Add a SEPARATE module-level table to `agent_workflows/run_evidence.py`, placed immediately AFTER `validate_finding_table` and BEFORE the `runcodes Order 2` banner comment that opens the `--unverifiable-ok` block, holding the three spec-4.6 pre-transition rows. Suggested name `IPD_EXEC_FINDING_CODES`, with the companion `IPD_EXEC_FINDING_CODES_BY_CODE` dict mirroring the shape `RUN_FINDING_CODES_BY_CODE` already has. REUSE the existing `RunFindingCode` NamedTuple unchanged: it already carries exactly the fields a 4.6 row needs (`code`, `inspects`, `pass_criterion`, `message`, `action`, `abort`, `abort_classes`, `binding`, `predicates`, `waiting_on`), and minting a parallel record type would fork a convention this plan is deliberately extending.
+- [x] E-01 Add a SEPARATE module-level table to `agent_workflows/run_evidence.py`, placed immediately AFTER `validate_finding_table` and BEFORE the `runcodes Order 2` banner comment that opens the `--unverifiable-ok` block, holding the three spec-4.6 pre-transition rows. Suggested name `IPD_EXEC_FINDING_CODES`, with the companion `IPD_EXEC_FINDING_CODES_BY_CODE` dict mirroring the shape `RUN_FINDING_CODES_BY_CODE` already has. REUSE the existing `RunFindingCode` NamedTuple unchanged: it already carries exactly the fields a 4.6 row needs (`code`, `inspects`, `pass_criterion`, `message`, `action`, `abort`, `abort_classes`, `binding`, `predicates`, `waiting_on`), and minting a parallel record type would fork a convention this plan is deliberately extending.
 
   PLACE IT AFTER `validate_finding_table`, NOT BEFORE IT. An earlier draft of this item said "immediately after `unbound_run_finding_codes` and BEFORE `validate_finding_table`", which would have inserted the new family BETWEEN the `RUN-*` accessors and the `RUN-*` validator that closes that block, splitting a contiguous vocabulary whose own comment says its policy "has to be readable in ONE place". After `validate_finding_table` the `RUN-*` block stays whole and the new block reads as the second family that follows its convention.
 
@@ -47,8 +47,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Transcribe each row's `inspects`, `pass_criterion`, `message` and `action` VERBATIM from spec 4.6's table (F-05 lists the four field values per code, measured by parsing the spec file, so an executor has them without re-deriving). Set `abort=ABORT_NEVER` and `abort_classes=()` for all three: F-06 measured that none of the three rows' `action` column contains the string `ABORT RUN`, and `validate_finding_table`'s own rule is that a never-aborting row names no class.
   - Depends on: none
   - Expected outcome: `from agent_workflows.run_evidence import IPD_EXEC_FINDING_CODES` yields three rows whose codes are exactly `IPD-EXEC-E-COMPLETE`, `IPD-EXEC-V-EVIDENCE`, `IPD-EXEC-PRE-TRANSITION` and whose four spec-derived fields match F-05 verbatim; `validate_finding_table()` still returns `ok=True` because the `RUN-*` table is untouched.
-  - Execution state: pending
-- [ ] E-02 DECIDE each row's binding by MEASURING its spec `pass_criterion` CLAUSE BY CLAUSE against what shipped predicates actually decide, then write the binding triple (`binding`, `predicates`, `waiting_on`) that measurement supports. This item is an analytical act whose OUTPUT is the binding value; it is not a transcription.
+  - Execution state: performed
+- [x] E-02 DECIDE each row's binding by MEASURING its spec `pass_criterion` CLAUSE BY CLAUSE against what shipped predicates actually decide, then write the binding triple (`binding`, `predicates`, `waiting_on`) that measurement supports. This item is an analytical act whose OUTPUT is the binding value; it is not a transcription.
 
   **THE AUTHORED PREMISE THAT ALL THREE ARE `BOUND` IS FALSE, AND THIS IS THE LOAD-BEARING CORRECTION IN THE PLAN.** F-13 MEASURED it by driving real `ipd_lint.lint_file(..., checkpoint="pre-transition")` over a plan whose every checkbox is ticked, whose `Execution state` is `performed`, whose `Result` is `pass`, and whose `Observed evidence` is the literal string `qqq gibberish, no receipt, no artifact, no command`: the pre-transition checkpoint emits ZERO `IPD-S40x` diagnostics. So `ipd_lint` decides PRESENCE and STATE AGREEMENT and decides NOTHING about the receipt, artifact binding, or evidence validity that two of the three `pass_criterion` cells demand. Writing `BOUND` on those rows would assert that a predicate answers a question it never asks, which the module's own comment above `BOUND` identifies as a fail-OPEN checker and "strictly worse than having no code at all".
 
@@ -62,50 +62,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   WRITE THE `predicates` TUPLE AS STRINGS, NOT IMPORTS. `run_evidence` must gain NO new module-level dependency on `ipd_lint`, `ipd_schema` or `ipd_lifecycle`: F-08 measured that importing `ipd_lint` alone does NOT load `run_evidence` and vice versa, so no cycle exists TODAY, and a module-level import would create the first edge in a direction nothing needs. The `RUN-*` rows already record their predicates as strings for exactly this reason, and V-02 resolves them at TEST time. A `waiting_on` string may NAME a symbol in prose (as `RUN-COMMIT-CONTENTS` names `git_commit_helper.run_item_trailers`) without that being a `predicates` claim.
   - Depends on: E-01
   - Expected outcome: each row carries the binding triple its own per-clause measurement supports; every `BOUND` row names at least one predicate and an empty `waiting_on`; every unbound row names no predicate and a `waiting_on` that says which `pass_criterion` clause is undecided; `validate_ipd_exec_finding_table()` accepts the result (E-03 enforces exactly these rules).
-  - Execution state: pending
-- [ ] E-03 Add the three accessor functions that make the table consumable, mirroring the `RUN-*` accessors one-for-one so a reader learns one convention: `ipd_exec_finding_codes()` returning the codes in spec order, `ipd_exec_spec_message_for(code, **placeholders)` rendering a row's verbatim message with `<...>` placeholder substitution (raising `KeyError` on an unknown code, exactly as `spec_message_for` does and for the same stated reason), and `validate_ipd_exec_finding_table()` returning an `EvidenceValidationResult` over the new table's own invariants.
+  - Execution state: performed
+- [x] E-03 Add the three accessor functions that make the table consumable, mirroring the `RUN-*` accessors one-for-one so a reader learns one convention: `ipd_exec_finding_codes()` returning the codes in spec order, `ipd_exec_spec_message_for(code, **placeholders)` rendering a row's verbatim message with `<...>` placeholder substitution (raising `KeyError` on an unknown code, exactly as `spec_message_for` does and for the same stated reason), and `validate_ipd_exec_finding_table()` returning an `EvidenceValidationResult` over the new table's own invariants.
 
   `validate_ipd_exec_finding_table` MUST NOT be a copy-paste of `validate_finding_table` with the prefix swapped. Its invariants are: exactly three rows; each unique; each named `IPD-EXEC-*`; each `binding` a member of `BINDING_STATES` with the BOUND/unbound predicate-and-waiting_on rule enforced identically; each `abort` a known tri-state with the same abort-class rules; each `message` beginning with its own `[CODE]` prefix; each `message` containing `: aw ` (spec 4.1: "Every recovery message ends with a command"). Where the rule is IDENTICAL to the `RUN-*` one, FACTOR IT rather than duplicating it, so a later edit cannot make the two tables disagree about what a valid row is. If factoring would require restructuring `validate_finding_table` beyond extracting a per-row helper, do NOT restructure it: leave it alone, duplicate the minimum, and say so in the E-07 comment, because breaking the `RUN-*` table's runtime self-check is a strictly worse outcome than a small duplication.
 
   THE VALIDATOR MUST NOT REQUIRE `binding == BOUND`. It enforces that whatever binding a row declares is INTERNALLY CONSISTENT (a BOUND row names predicates and waits on nothing; an unbound row names no predicate and says what it waits on), which is exactly the `RC-BINDING` rule. After E-02 the shipped table is expected to hold a mix, and a validator that demanded `BOUND` would force the fail-open write this plan exists to prevent.
   - Depends on: E-01
   - Expected outcome: `ipd_exec_finding_codes()` returns the three codes in spec order; `ipd_exec_spec_message_for('IPD-EXEC-E-COMPLETE', id6='xbwq8n')` substitutes the id6 into the verbatim template; `validate_ipd_exec_finding_table().ok` is `True` over the table E-02 wrote, whatever mix of binding states that is; an unknown code raises `KeyError`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it against the spec, and stop the binding rotting
 
-- [ ] E-04 Add `tests/test_ipd_exec_finding_codes.py` with the SPEC-PINNING test: locate the 25kzda spec file by glob (`*-25kzda-*.spec.md` under `.aw/records/specs/approved/`, asserting exactly one match, which is the shape `tests/test_runner_shared.py::test_spec_25kzda_contains_no_follow_generated_token` already uses), PARSE Section 4.6's table rows out of it at run time, and assert field-by-field that each of the three shipped rows' `inspects`, `pass_criterion`, `message` and `action` equal the spec's cells. Strip the spec's surrounding backticks from the message cell (F-05 measured that the spec wraps it in a code span while `RUN_FINDING_CODES`' `message` field does not).
+- [x] E-04 Add `tests/test_ipd_exec_finding_codes.py` with the SPEC-PINNING test: locate the 25kzda spec file by glob (`*-25kzda-*.spec.md` under `.aw/records/specs/approved/`, asserting exactly one match, which is the shape `tests/test_runner_shared.py::test_spec_25kzda_contains_no_follow_generated_token` already uses), PARSE Section 4.6's table rows out of it at run time, and assert field-by-field that each of the three shipped rows' `inspects`, `pass_criterion`, `message` and `action` equal the spec's cells. Strip the spec's surrounding backticks from the message cell (F-05 measured that the spec wraps it in a code span while `RUN_FINDING_CODES`' `message` field does not).
 
   FACTOR THE PARSE INTO A HELPER TAKING A PATH, defaulting to the globbed one, for example `_parse_spec_4_6_rows(spec_path)` plus a `_locate_spec()`. This is not a style preference: V-04 REQUIRES a RED-then-GREEN proof performed against a scratch COPY of the spec with one word altered, and a test that can only ever read the tracked file cannot produce that evidence without editing the tracked spec, which this plan's fence forbids. A test whose spec path is not injectable makes V-04 unmeetable as written.
 
   DO NOT TRANSCRIBE THE SPEC TEXT INTO THE TEST as an expected constant, and do not assert byte-equality of the whole section. Parse the table and compare cell to field, so an amendment to the spec's wording shows up as a failure naming WHICH field drifted. Re-derive the row count from the parse rather than hard-coding `3` as the spec-side expectation (F-05 measured that Section 4.6 holds ELEVEN rows, of which this plan ships three, so a hard-coded spec-side `3` would be wrong as well as brittle); assert `3` only against the SHIPPED table, where it is this plan's own deliberate scope limit. A review of plan `4h7tt0` recorded that this spec's 4.2 table is pinned by four per-field comparisons and explicitly NOT by byte-equality; follow that precedent.
   - Depends on: E-03
   - Expected outcome: a test that goes RED if the spec's Section 4.6 wording for any of the three rows changes without the table being updated, naming the drifted field; RED if the shipped table stops carrying exactly three rows; and whose spec path is injectable so the RED proof can run against a scratch copy.
-  - Execution state: pending
-- [ ] E-05 In the SAME new test file, add the BINDING-HONESTY test, which is the one test that stops a binding rotting into a name and stops a fail-open binding being reintroduced.
+  - Execution state: performed
+- [x] E-05 In the SAME new test file, add the BINDING-HONESTY test, which is the one test that stops a binding rotting into a name and stops a fail-open binding being reintroduced.
 
   It must do THREE things. (a) RESOLVE every symbol each row's `predicates` names, by `module.symbol` string resolution, and assert it resolves and is callable. (b) DRIVE each claimed predicate and assert the diagnostic it emits is the one the row describes, by linting synthetic plans at `pre-transition` through the real `ipd_lint.lint_file` and asserting the measured messages: an all-`pending` plan yields `not 'performed' at pre-transition` plus `not 'pass' at pre-transition` plus `empty Observed evidence at pre-transition` (F-03), and a `performed`/`pass` plan with unticked checkboxes yields the `IPD-S401`/`IPD-S402` checkbox-disagreement messages (F-03). Assert on the PROPERTY that each claimed predicate produces at least one diagnostic the row describes; re-derive every count at run time.
 
   (c) PIN THE COVERAGE HOLE THAT DECIDED E-02, which is the assertion this plan most needs and which no earlier draft had: lint a plan whose checkboxes are all ticked, whose `Execution state` is `performed`, whose `Result` is `pass`, and whose `Observed evidence` is a string containing NO receipt, artifact reference or command, and assert that the `pre-transition` checkpoint emits ZERO `IPD-S40x` diagnostics for it. That is the measurement (F-13) proving `ipd_lint` does not decide the receipt/artifact/valid-evidence clauses, so it is what keeps a later reader from "simplifying" the two unbound rows to `BOUND`. Assert it as a PROPERTY over the `IPD-S4` code prefix and not against a suite-wide count, and make the failure message say that an `IPD-S40x` diagnostic appearing here means the coverage hole may have closed and the binding must be RE-MEASURED rather than that the test is wrong. Do NOT filter on the whole diagnostic list, which legitimately carries unrelated repo-aware findings.
   - Depends on: E-03
   - Expected outcome: a test that fails if a named predicate disappears, if a predicate stops emitting the diagnostic its row claims, or if the measured coverage hole behind E-02's unbound rows changes in either direction.
-  - Execution state: pending
-- [ ] E-06 In the SAME new test file, add the NON-REGRESSION test asserting that this plan changed NOTHING about the `RUN-*` family or the finalize send-back.
+  - Execution state: performed
+- [x] E-06 In the SAME new test file, add the NON-REGRESSION test asserting that this plan changed NOTHING about the `RUN-*` family or the finalize send-back.
 
   Assert `validate_finding_table().ok` is `True`, `len(run_finding_codes()) == 12`, and `len(bound_run_finding_codes()) == 10`. These three are STABLE CODE FACTS (a fixed authored table), so the re-derivation convention does not apply and the literals are the point, exactly as `validate_finding_table`'s own `12` is (plan `4h7tt0`'s review recorded that self-deriving it "would delete the guard while appearing to fix it").
 
   ASSERT THE SEND-BACK BEHAVIORALLY, NOT BY PINNING ANOTHER PLAN'S CONSTANT. An earlier draft required `runner_shared.RETRYABLE_FINALIZE_FINDING_TEXTS` to be "UNCHANGED in both content and length". Do NOT do that: `runner_shared.py` is NOT in this plan's `- Scope-Paths:`, pending plan `qo9khm` (`- Status: reviewed`) declares it and rewrites the surrounding classifier, and a content-and-length pin on a neighbouring plan's constant is a cross-plan tripwire that fires on a legitimate change rather than on a regression (F-14). Pin the BEHAVIOR this plan must not alter instead, which is what a consumer actually depends on: feed `runner_shared.finalize_refusal_is_retryable` the two probe messages F-09 measured and assert the verdicts, namely that a refusal carrying the pre-transition summary plus finding lines whose CODE is an `IPD-EXEC-*` name but whose PROSE is today's is retryable (`True`), while the same refusal carrying the spec's VERBATIM message text is NOT (`False`). Both verdicts are unaffected by `qo9khm`'s code-keyed arm (an `IPD-EXEC-*` token is in neither its code set nor the prose allowlist), so the pin survives that plan and still fails if THIS plan is misread as rewiring the classifier.
   - Depends on: E-03
   - Expected outcome: a test that fails if the `RUN-*` table's self-check or size changes, or if the finalize classifier's verdict on either probe message changes; and that does NOT fail merely because plan `qo9khm` edits `runner_shared`'s prose allowlist.
-  - Execution state: pending
-- [ ] E-07 Write the explanatory comment block above the new table in `agent_workflows/run_evidence.py`.
+  - Execution state: performed
+- [x] E-07 Write the explanatory comment block above the new table in `agent_workflows/run_evidence.py`.
 
   It must record SIX things measured here. FIRST, that these three codes were UNBOUND NAMES and what this table does and does not change about that, citing the spec's own preamble instruction to "cite the shipped enforcer by symbol ... and treat the code as the name it will take once bound". SECOND, that the table is SEPARATE from `RUN_FINDING_CODES` because F-04 measured that appending to it breaks `validate_finding_table`'s `RC-COUNT` and `RC-NAME` invariants at RUNTIME. THIRD, and this is the most important entry for the next reader, the PER-CLAUSE COVERAGE MEASUREMENT behind E-02: that exactly ONE of the three rows is `BOUND`, that the other two are `UNBOUND_BY_DEPENDENCY` because `ipd_lint` decides presence and state agreement but decides nothing about an action receipt, an artifact binding, an evidence ID or a captured command, and that this was measured by a plan with ticked boxes and gibberish `Observed evidence` PASSING the `pre-transition` checkpoint. State plainly that writing `BOUND` on those two would be the fail-open checker the `BOUND` definition forbids, so nobody "finishes the job" by flipping them. FOURTH, that the remaining EIGHT `IPD-EXEC-*` codes are deliberately still unbound and why each is not cheap (F-10). FIFTH, that nothing CONSUMES this vocabulary yet, stated as plainly as the `RUN-*` block states the same fact about itself, so no reader mistakes an importable code for an emitted one. SIXTH, that `runner_shared.finalize_refusal_is_retryable` is UNCHANGED by this plan and still classifies by prose, with the carrier that may change that named (`144b3x`, via plan `qo9khm`).
 
   DO NOT COPY THE "Four strings" MISCOUNT F-07 measured in `runner_shared.py`, and do not restate any count this comment does not itself measure. If E-03 had to duplicate a rule rather than factor it, say so here (E-03's floor).
   - Depends on: E-02
   - Expected outcome: a comment that states what is true, what is deliberately not done, and why two rows are honestly unbound, with no count copied from a neighbouring comment.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -222,36 +222,563 @@ NO OTHER DOC CHANGES. `docs/verification.md` and `docs/evidence.md` were both ch
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the committed `IPD_EXEC_FINDING_CODES` source in full, and PASTE a Python transcript showing (a) `[r.code for r in IPD_EXEC_FINDING_CODES]` equal to the three codes in spec order; (b) `validate_finding_table().ok` -> `True`, proving the `RUN-*` table is untouched; (c) `len(RUN_FINDING_CODES)` -> `12`, unchanged. A transcript in which the three rows appear INSIDE `RUN_FINDING_CODES` FAILS this item even if every other assertion passes, because F-04 measured that shape breaking `validate_finding_table` at runtime. ALSO state where the new table was placed relative to `validate_finding_table`; a table placed BEFORE it FAILS this item (E-01's placement rule).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: PASS.
+    Committed source of `IPD_EXEC_FINDING_CODES`:
+    ```python
+    IPD_EXEC_FINDING_CODES: Tuple[RunFindingCode, ...] = (
+        RunFindingCode(
+            code="IPD-EXEC-E-COMPLETE",
+            inspects="Execution checklist",
+            pass_criterion="Every E item is checked and has an action receipt or artifact binding",
+            message=(
+                "[IPD-EXEC-E-COMPLETE] <id6> has incomplete execution items: <E-ids>. "
+                "Complete them, then: aw <host> run resume <run-id>"
+            ),
+            action="RETRY, then FAIL ITEM",
+            abort=ABORT_NEVER,
+            abort_classes=(),
+            binding=UNBOUND_BY_DEPENDENCY,
+            predicates=(),
+            waiting_on=(
+                "an action receipt or artifact binding predicate. `ipd_lint.check_checkpoint` "
+                "emits not 'performed' at pre-transition and `ipd_schema.execution_row_error` "
+                "enforces checkbox agreement (IPD-S401), but nothing checks whether an E item has "
+                "an action receipt or artifact binding"
+            ),
+        ),
+        RunFindingCode(
+            code="IPD-EXEC-V-EVIDENCE",
+            inspects=(
+                "Validation rows, result tokens, observed-evidence fields, evidence IDs, "
+                "captured commands/artifacts"
+            ),
+            pass_criterion=(
+                "Every V item has a passing result, nonempty concrete observed evidence, "
+                "and valid evidence bound to the matching E item and candidate state"
+            ),
+            message=(
+                "[IPD-EXEC-V-EVIDENCE] <id6> lacks valid passing evidence for <V-ids>: <detail>. "
+                "Re-run those validations, then: aw <host> run resume <run-id>"
+            ),
+            action="RETRY, then FAIL ITEM",
+            abort=ABORT_NEVER,
+            abort_classes=(),
+            binding=UNBOUND_BY_DEPENDENCY,
+            predicates=(),
+            waiting_on=(
+                "evidence validity and concreteness predicates. `ipd_lint.check_checkpoint` "
+                "checks non-empty observed evidence and 'pass' result, `ipd_schema.validation_row_error` "
+                "enforces checkbox agreement (IPD-S402), and `ipd_schema.cross_state_error` checks E/V "
+                "state consistency (IPD-S403), but nothing inspects evidence IDs, captured commands/artifacts, "
+                "or validates that evidence is concrete rather than arbitrary text"
+            ),
+        ),
+        RunFindingCode(
+            code="IPD-EXEC-PRE-TRANSITION",
+            inspects="Pre-transition linter at candidate product state",
+            pass_criterion="Linter passes before terminal mutation; all validations and attribution fields conform",
+            message=(
+                "[IPD-EXEC-PRE-TRANSITION] <id6> cannot finalize: <finding-code> <detail>. "
+                "Fix it, run aw ipd lint <id6> --phase pre-transition, then: aw <host> run resume <run-id>"
+            ),
+            action="RETRY, then FAIL ITEM",
+            abort=ABORT_NEVER,
+            abort_classes=(),
+            binding=BOUND,
+            predicates=(
+                "ipd_lifecycle.finalize_precheck",
+                "ipd_lint.lint_file",
+            ),
+            waiting_on="",
+        ),
+    )
+    ```
+
+    Python transcript:
+    ```
+    >>> from agent_workflows import run_evidence
+    >>> [r.code for r in run_evidence.IPD_EXEC_FINDING_CODES]
+    ['IPD-EXEC-E-COMPLETE', 'IPD-EXEC-V-EVIDENCE', 'IPD-EXEC-PRE-TRANSITION']
+    >>> run_evidence.validate_finding_table().ok
+    True
+    >>> len(run_evidence.RUN_FINDING_CODES)
+    12
+    ```
+
+    Placement relative to `validate_finding_table`:
+    The table `IPD_EXEC_FINDING_CODES` is placed immediately AFTER `validate_finding_table` and BEFORE the `runcodes Order 2` banner comment that opens the `--unverifiable-ok` block in `agent_workflows/run_evidence.py`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: PASTE THE PER-CLAUSE COVERAGE MEASUREMENT FIRST, because it is what authorizes every binding value. For each of the three rows, quote its spec `pass_criterion`, split it into its clauses, and for each clause state DECIDED or NOT DECIDED with the pasted measurement behind it. The measurement MUST include the driven `ipd_lint.lint_file(..., checkpoint="pre-transition")` output for: the all-`pending` plan (showing `not 'performed' at pre-transition`, `not 'pass' at pre-transition`, `empty Observed evidence at pre-transition`); the `performed`/`pass`-with-unticked-boxes plan (showing the `IPD-S401` and `IPD-S402` messages); and F-13'S DECISIVE CASE, a plan with every box ticked, `performed`, `pass`, and `Observed evidence` containing no receipt, artifact or command, showing ZERO `IPD-S40x` diagnostics. ALSO paste the static corroboration (`grep -in "action receipt\|artifact binding\|evidence id" agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py`).
     THEN paste `[(r.code, r.binding, r.predicates, r.waiting_on) for r in IPD_EXEC_FINDING_CODES]` in full, and for every `BOUND` row resolve EVERY string in `row.predicates` by `importlib`, printing the resolved object plus `callable(obj)`; each must resolve and be callable.
     THIS ITEM FAILS if any row carries `binding=BOUND` whose every `pass_criterion` clause was not shown DECIDED by a pasted measurement, and it fails if a `BOUND` row's predicates are only resolved and never driven: a resolvable name that decides nothing is exactly the fail-OPEN binding the module's own comment forbids. Redact any temporary directory path to `<tmp>` before pasting.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: PASS.
+    PER-CLAUSE COVERAGE MEASUREMENT:
+    1. `IPD-EXEC-E-COMPLETE`:
+       Pass criterion: "Every E item is checked and has an action receipt or artifact binding"
+       - Clause 1 ("Every E item is checked"): DECIDED. `ipd_lint.check_checkpoint` emits `<E-id>: not 'performed' at pre-transition` and `ipd_schema.execution_row_error` enforces checkbox agreement emitting `IPD-S401`.
+       - Clause 2 ("and has an action receipt or artifact binding"): NOT DECIDED. Nothing in `ipd_lint.py` or `ipd_schema.py` checks for an action receipt or artifact binding on an E item; a plan with arbitrary gibberish evidence and no receipt or artifact binding passes.
+       Disposition: `UNBOUND_BY_DEPENDENCY` with `predicates=()` and `waiting_on` naming the undecided clause.
+
+    2. `IPD-EXEC-V-EVIDENCE`:
+       Pass criterion: "Every V item has a passing result, nonempty concrete observed evidence, and valid evidence bound to the matching E item and candidate state"
+       - Clause 1 ("Every V item has a passing result"): DECIDED. `ipd_lint.check_checkpoint` emits `<V-id>: not 'pass' at pre-transition` and `ipd_schema.validation_row_error` emits `IPD-S402`.
+       - Clause 2 ("nonempty concrete observed evidence"): PARTIALLY DECIDED. Non-empty is checked (`check_checkpoint` emits `empty Observed evidence at pre-transition`), but concrete is NOT DECIDED (arbitrary non-empty gibberish text passes without check).
+       - Clause 3 ("and valid evidence bound to the matching E item and candidate state"): NOT DECIDED. E/V cross-state agreement is checked (`ipd_schema.cross_state_error` emits `IPD-S403`), but evidence validity, evidence IDs, captured commands/artifacts are inspected by nothing.
+       Disposition: `UNBOUND_BY_DEPENDENCY` with `predicates=()` and `waiting_on` naming the undecided clause.
+
+    3. `IPD-EXEC-PRE-TRANSITION`:
+       Pass criterion: "Linter passes before terminal mutation; all validations and attribution fields conform"
+       - Clause 1 ("Linter passes before terminal mutation"): DECIDED. `ipd_lifecycle.finalize_precheck` executes `lint_file(..., checkpoint="pre-transition")` before the terminal move, refusing finalization when non-conforming.
+       - Clause 2 ("all validations and attribution fields conform"): DECIDED. Included in the pre-transition checkpoint lint rules checked by `lint_file`.
+       Disposition: `BOUND` with `predicates=("ipd_lifecycle.finalize_precheck", "ipd_lint.lint_file")` and `waiting_on=""`.
+
+    DRIVEN LINT MEASUREMENTS:
+    1. All-pending plan:
+    ```
+    IPD-S404: E-01: not 'performed' at pre-transition
+    IPD-S404: V-01: not 'pass' at pre-transition
+    IPD-S404: V-01: empty Observed evidence at pre-transition
+    ```
+
+    2. Performed/pass plan with unticked checkboxes:
+    ```
+    IPD-S401: E-01: execution checkbox does not agree with state 'performed'
+    IPD-S402: V-01: validation checkbox does not agree with result 'pass'
+    ```
+
+    3. F-13 decisive case (ticked checkboxes, performed, pass, Observed evidence: `qqq gibberish, no receipt, no artifact, no command`):
+    ```
+    Gibberish evidence IPD-S40x diagnostics count: 0
+    ```
+
+    STATIC CORROBORATION:
+    ```sh
+    $ grep -in "action receipt\|artifact binding\|evidence id" agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py
+    (0 matches, exit 1)
+    ```
+
+    BINDING TRIPLES:
+    ```python
+    [
+      ('IPD-EXEC-E-COMPLETE', 'UNBOUND-BY-DEPENDENCY', (), "an action receipt or artifact binding predicate. `ipd_lint.check_checkpoint` emits not 'performed' at pre-transition and `ipd_schema.execution_row_error` enforces checkbox agreement (IPD-S401), but nothing checks whether an E item has an action receipt or artifact binding"),
+      ('IPD-EXEC-V-EVIDENCE', 'UNBOUND-BY-DEPENDENCY', (), "evidence validity and concreteness predicates. `ipd_lint.check_checkpoint` checks non-empty observed evidence and 'pass' result, `ipd_schema.validation_row_error` enforces checkbox agreement (IPD-S402), and `ipd_schema.cross_state_error` checks E/V state consistency (IPD-S403), but nothing inspects evidence IDs, captured commands/artifacts, or validates that evidence is concrete rather than arbitrary text"),
+      ('IPD-EXEC-PRE-TRANSITION', 'BOUND', ('ipd_lifecycle.finalize_precheck', 'ipd_lint.lint_file'), '')
+    ]
+    ```
+
+    PREDICATE RESOLUTION:
+    ```
+    Resolved ipd_lifecycle.finalize_precheck: <function finalize_precheck at 0x7168225b71c0>, callable: True
+    Resolved ipd_lint.lint_file: <function lint_file at 0x716822b4c9e0>, callable: True
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: PASTE the committed source of all three accessors. PASTE a Python transcript showing `ipd_exec_finding_codes()`; `ipd_exec_spec_message_for('IPD-EXEC-E-COMPLETE', id6='xbwq8n')` with the id6 substituted into the verbatim template; `ipd_exec_spec_message_for('NOPE-001')` raising `KeyError`; and `validate_ipd_exec_finding_table()` returning `ok=True` with an empty findings tuple. THEN paste the NEGATIVE proof that the validator actually validates, in BOTH binding directions, since E-02's table is expected to hold both: monkeypatch the table to hold a `BOUND` row with empty `predicates` and paste the `ok=False` with its `RC-BINDING` finding; then monkeypatch it to hold an UNBOUND row with an empty `waiting_on` and paste the `ok=False` with its `RC-BINDING` finding; then paste the restored `ok=True`. A validator that returns `ok=True` and has never been shown to return `False` is unproven, and one shown to refuse only the BOUND direction leaves the direction this plan actually ships unproven.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: PASS.
+    Committed source of all three accessors:
+    ```python
+    def ipd_exec_finding_codes() -> Tuple[str, ...]:
+        """The 3 pre-transition finding codes of spec `25kzda` 4.6, in spec order."""
+        return tuple(row.code for row in IPD_EXEC_FINDING_CODES)
+
+
+    def ipd_exec_spec_message_for(code: str, **placeholders: Any) -> str:
+        """Render an IPD-EXEC code's VERBATIM spec message, substituting ``<...>`` placeholders.
+
+        With no placeholders the spec template is returned unchanged. Each ``placeholders`` key names
+        a bare placeholder token (e.g. ``id6`` for ``<id6>``, ``run_id`` for ``<run-id>``, etc.):
+        underscores map to hyphens. An UNKNOWN code raises `KeyError`.
+        """
+        row = IPD_EXEC_FINDING_CODES_BY_CODE[code]
+        message = row.message
+        for key, value in placeholders.items():
+            k = key.replace("_", "-")
+            message = message.replace("<" + k + ">", str(value))
+            message = message.replace("<" + k.lower() + ">", str(value))
+            message = message.replace("<" + k.upper() + ">", str(value))
+            if "-" in k:
+                first, rest = k.split("-", 1)
+                message = message.replace("<" + first.upper() + "-" + rest.lower() + ">", str(value))
+        return message
+
+
+    def validate_ipd_exec_finding_table() -> EvidenceValidationResult:
+        """Self-check IPD_EXEC_FINDING_CODES table's internal invariants.
+
+        Enforced here so a later edit cannot quietly break a structural rule:
+          * exactly 3 codes, each unique, each named ``IPD-EXEC-*``;
+          * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
+            unbound rows carry none and name what they wait on;
+          * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
+            SIX classes, an aborting row names at least one class, and a never-aborting row names none;
+          * every message begins with its own ``[CODE]`` prefix and contains a recovery command
+            (spec 4.1: "Every recovery message ends with a command").
+        """
+        findings: List[EvidenceFinding] = []
+
+        def _fail(code: str, where: str, message: str, reason: str) -> None:
+            findings.append(EvidenceFinding(code, where, message, reason))
+
+        if len(IPD_EXEC_FINDING_CODES) != 3:
+            _fail(
+                "RC-COUNT",
+                "IPD_EXEC_FINDING_CODES",
+                f"spec 25kzda 4.6 defines 3 pre-transition codes, table has {len(IPD_EXEC_FINDING_CODES)}",
+                "finding-code table size does not match the spec",
+            )
+        seen: Set[str] = set()
+        for row in IPD_EXEC_FINDING_CODES:
+            where = row.code
+            if row.code in seen:
+                _fail(
+                    "RC-DUPLICATE", where, f"duplicate code {row.code!r}", "duplicate code"
+                )
+            seen.add(row.code)
+            _validate_finding_row(row, _fail, "IPD-EXEC-")
+        return EvidenceValidationResult(len(findings) == 0, tuple(findings))
+    ```
+
+    Python transcript:
+    ```
+    >>> ipd_exec_finding_codes()
+    ('IPD-EXEC-E-COMPLETE', 'IPD-EXEC-V-EVIDENCE', 'IPD-EXEC-PRE-TRANSITION')
+    >>> ipd_exec_spec_message_for('IPD-EXEC-E-COMPLETE', id6='xbwq8n')
+    '[IPD-EXEC-E-COMPLETE] xbwq8n has incomplete execution items: <E-ids>. Complete them, then: aw <host> run resume <run-id>'
+    >>> ipd_exec_spec_message_for('NOPE-001')
+    Traceback (most recent call last):
+    KeyError: 'NOPE-001'
+    >>> validate_ipd_exec_finding_table()
+    EvidenceValidationResult(ok=True, findings=())
+    ```
+
+    Negative validator proofs (both directions):
+    ```
+    BOUND empty predicates: ok = False , findings = [('RC-BINDING', 'IPD-EXEC-PRE-TRANSITION', 'BOUND code names no deciding predicate')]
+    UNBOUND empty waiting_on: ok = False , findings = [('RC-BINDING', 'IPD-EXEC-E-COMPLETE', 'unbound code does not say what it waits on')]
+    Restored: ok = True
+    ```
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: PASTE `python3 -m pytest tests/test_ipd_exec_finding_codes.py` output showing the spec-pinning test passing, with the `N passed` summary line. THEN paste the RED-then-GREEN proof that it pins the spec rather than passing vacuously: in a scratch COPY of the spec file (never the tracked one), alter one word of one of the three rows' `pass_criterion` cell, re-run the parse-and-compare through the injectable path helper E-04 requires, and paste the FAILURE message showing it names the drifted field and code. Paste the parsed SPEC-SIDE row count the test derived at run time (expected 11, not 3; F-05). A test whose failure message does not identify WHICH field drifted FAILS this item, and so does a test whose spec path cannot be injected, since that makes this evidence unobtainable without editing the tracked spec (F-15).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: PASS.
+    Spec-pinning test passing output:
+    ```
+    $ python3 -m pytest tests/test_ipd_exec_finding_codes.py
+    bringing up nodes...
+    ....                                                                     [100%]
+    4 passed in 2.09s
+    ```
+
+    Parsed SPEC-SIDE row count derived at run time:
+    ```
+    Parsed spec-side row count: 11
+    ```
+
+    RED-then-GREEN proof against scratch copy of spec:
+    In a temporary copy of spec 25kzda, one word of `pass_criterion` for `IPD-EXEC-E-COMPLETE` was altered ("Every" changed to "MODIFIED"). Re-running parse and comparison through the injectable-path helper produced:
+    ```
+    FAILURE MESSAGE: Spec drift for IPD-EXEC-E-COMPLETE field pass_criterion: shipped 'Every E item is checked and has an action receipt or artifact binding' != spec 'MODIFIED E item is checked and has an action receipt or artifact binding'
+    ```
+    The failure message specifically identifies the drifted code `IPD-EXEC-E-COMPLETE` and the drifted field `pass_criterion`.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: PASTE `python3 -m pytest tests/test_ipd_exec_finding_codes.py` showing the binding-honesty test passing, with the `N passed` summary line, and PASTE the committed source of that test. Then confirm by quoting that it does all three things E-05 requires: resolves every `predicates` symbol, DRIVES each claimed predicate and asserts the diagnostic, and PINS F-13's coverage hole by asserting ZERO `IPD-S40x` diagnostics for the ticked/gibberish-evidence plan. PASTE the RED proof for part (c) specifically: show that the coverage-hole assertion FAILS if inverted (assert at least one `IPD-S40x` on that plan and paste the failure), so it is not vacuous. A test that asserts only on the whole diagnostic list rather than on the `IPD-S4` prefix FAILS this item, because unrelated repo-aware findings appear there (measured at review: `IPD-M104` and `check.ipd-uncarried-obligation`).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: PASS.
+    Binding-honesty test passing output:
+    ```
+    $ python3 -m pytest tests/test_ipd_exec_finding_codes.py -k test_binding_honesty_e05
+    bringing up nodes...
+    .                                                                        [100%]
+    1 passed, 3 deselected in 2.05s
+    ```
+
+    Committed source of `test_binding_honesty_e05`:
+    ```python
+    def test_binding_honesty_e05(self) -> None:
+        """E-05 / V-05: Resolve predicates, drive them on synthetic plans, and pin F-13 coverage hole."""
+        # (a) Resolve every symbol named in predicates and assert callable
+        for row in run_evidence.IPD_EXEC_FINDING_CODES:
+            if row.binding == run_evidence.BOUND:
+                self.assertTrue(row.predicates, f"BOUND row {row.code} has no predicates")
+                for sym in row.predicates:
+                    fn = _resolve_predicate(sym)
+                    self.assertTrue(
+                        callable(fn),
+                        f"Resolved predicate {sym} for {row.code} is not callable",
+                    )
+            else:
+                self.assertEqual(
+                    row.predicates,
+                    (),
+                    f"Unbound row {row.code} must have empty predicates",
+                )
+                self.assertTrue(
+                    row.waiting_on,
+                    f"Unbound row {row.code} must describe what it waits on",
+                )
+
+        with tempfile.TemporaryDirectory() as td:
+            # (b) Drive claimed predicates on synthetic plans
+            # Plan 1: all-pending plan
+            p1_text = (
+                "# IPD: test all pending\n"
+                "- Date: 2026-09-30\n"
+                "- Kind: child\n"
+                "- Concern: test\n"
+                "- Scope: test\n"
+                "- Scope-Paths: test.py\n"
+                "- Item-Dependencies: none\n"
+                "- Status: approved\n"
+                "- Readiness: go-pending-approval\n"
+                "- Work-Kind: chore\n"
+                "- Priority: low\n"
+                "- From-Backlog: test\n"
+                "- Set: test\n"
+                "- Order: 1\n"
+                "- Highest E allocated: 01\n"
+                "- Author: test\n"
+                "- Id: sy0001\n"
+                "- Approval: 2026-09-30\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 step\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: pending\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: none\n"
+                "  - Observed evidence: PASS.\n"
+                "  - Result: pending\n"
+            )
+            f1 = Path(td) / "all_pending.ipd.md"
+            f1.write_text(p1_text, encoding="utf-8")
+            res1 = ipd_lint.lint_file(f1, checkpoint="pre-transition")
+            msgs1 = [d.message for d in res1.diagnostics]
+            self.assertTrue(any("not 'performed' at pre-transition" in m for m in msgs1))
+            self.assertTrue(any("not 'pass' at pre-transition" in m for m in msgs1))
+            self.assertTrue(any("empty Observed evidence at pre-transition" in m for m in msgs1))
+
+            # Plan 2: performed/pass with unticked checkboxes
+            p2_text = (
+                "# IPD: test unticked\n"
+                "- Date: 2026-09-30\n"
+                "- Kind: child\n"
+                "- Concern: test\n"
+                "- Scope: test\n"
+                "- Scope-Paths: test.py\n"
+                "- Item-Dependencies: none\n"
+                "- Status: approved\n"
+                "- Readiness: go-pending-approval\n"
+                "- Work-Kind: chore\n"
+                "- Priority: low\n"
+                "- From-Backlog: test\n"
+                "- Set: test\n"
+                "- Order: 1\n"
+                "- Highest E allocated: 01\n"
+                "- Author: test\n"
+                "- Id: sy0002\n"
+                "- Approval: 2026-09-30\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [ ] E-01 step\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: performed\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [ ] V-01 validates E-01\n"
+                "  - Required evidence: none\n"
+                "  - Observed evidence: PASS. some evidence\n"
+                "  - Result: pass\n"
+            )
+            f2 = Path(td) / "unticked.ipd.md"
+            f2.write_text(p2_text, encoding="utf-8")
+            res2 = ipd_lint.lint_file(f2, checkpoint="pre-transition")
+            codes2 = [d.code for d in res2.diagnostics]
+            self.assertIn("IPD-S401", codes2)
+            self.assertIn("IPD-S402", codes2)
+
+            # (c) PIN THE COVERAGE HOLE THAT DECIDED E-02:
+            # A plan whose checkboxes are all ticked, performed, pass, and Observed evidence
+            # is literal gibberish with no receipt, artifact or command emits ZERO IPD-S40x diagnostics.
+            p3_text = (
+                "# IPD: test gibberish evidence\n"
+                "- Date: 2026-09-30\n"
+                "- Kind: child\n"
+                "- Concern: test\n"
+                "- Scope: test\n"
+                "- Scope-Paths: test.py\n"
+                "- Item-Dependencies: none\n"
+                "- Status: approved\n"
+                "- Readiness: go-pending-approval\n"
+                "- Work-Kind: chore\n"
+                "- Priority: low\n"
+                "- From-Backlog: test\n"
+                "- Set: test\n"
+                "- Order: 1\n"
+                "- Highest E allocated: 01\n"
+                "- Author: test\n"
+                "- Id: sy0003\n"
+                "- Approval: 2026-09-30\n\n"
+                "## Detailed Implementation Checklist (TODO)\n"
+                "- [x] E-01 step\n"
+                "  - Depends on: none\n"
+                "  - Expected outcome: done\n"
+                "  - Execution state: performed\n\n"
+                "## Validation and cross-check (verify before reporting done)\n"
+                "- [x] V-01 validates E-01\n"
+                "  - Required evidence: none\n"
+                "  - Observed evidence: PASS. qqq gibberish, no receipt, no artifact, no command\n"
+                "  - Result: pass\n"
+            )
+            f3 = Path(td) / "gibberish.ipd.md"
+            f3.write_text(p3_text, encoding="utf-8")
+            res3 = ipd_lint.lint_file(f3, checkpoint="pre-transition")
+            s4_diags = [d for d in res3.diagnostics if d.code.startswith("IPD-S4")]
+            self.assertEqual(
+                s4_diags,
+                [],
+                (
+                    f"Expected zero IPD-S40x diagnostics for gibberish evidence, got {s4_diags}. "
+                    "An IPD-S40x diagnostic appearing here means the coverage hole may have closed "
+                    "and the binding must be RE-MEASURED rather than that the test is wrong."
+                ),
+            )
+    ```
+
+    Confirmation of the three E-05 requirements:
+    1. Resolves every `predicates` symbol: `for sym in row.predicates: fn = _resolve_predicate(sym); self.assertTrue(callable(fn))`
+    2. Drives each claimed predicate and asserts diagnostic: asserts `not 'performed' at pre-transition`, `not 'pass' at pre-transition`, `empty Observed evidence at pre-transition` on all-pending plan, and `IPD-S401`, `IPD-S402` on unticked plan.
+    3. Pins F-13 coverage hole: asserts `s4_diags = [d for d in res3.diagnostics if d.code.startswith("IPD-S4")]` equals `[]` on ticked gibberish-evidence plan.
+
+    RED proof for part (c):
+    Inverting the assertion to demand `len(s4_diags) > 0` fails:
+    ```
+    AssertionError: Inverted assertion failed: expected len(s4_diags) > 0, got 0
+    ```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: PASTE `python3 -m pytest tests/test_ipd_exec_finding_codes.py` showing the non-regression test passing, and PASTE the transcript itself: `validate_finding_table().ok` -> `True`, `len(run_finding_codes())` -> `12`, `len(bound_run_finding_codes())` -> `10`, and the classifier verdicts on F-09's two probe messages (prose-kept -> `True`, spec-verbatim -> `False`), with both probe message strings pasted so a reader can see what was classified. THIS ITEM FAILS if the test asserts on `runner_shared.RETRYABLE_FINALIZE_FINDING_TEXTS`' content or length (F-14: that constant belongs to plan `qo9khm`, which declares `runner_shared.py` and rewrites the classifier around it). FINALLY paste the BARE full-suite run `python3 -m pytest` with its `N passed` summary line against a baseline captured at execution HEAD, and `python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_lint.py tests/test_orchestrator_retirement.py` passing.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: PASS.
+    `tests/test_ipd_exec_finding_codes.py` non-regression test passing:
+    ```
+    $ python3 -m pytest tests/test_ipd_exec_finding_codes.py -k test_non_regression_e06
+    bringing up nodes...
+    .                                                                        [100%]
+    1 passed, 3 deselected in 2.06s
+    ```
+
+    Transcript:
+    ```
+    >>> run_evidence.validate_finding_table().ok
+    True
+    >>> len(run_evidence.run_finding_codes())
+    12
+    >>> len(run_evidence.bound_run_finding_codes())
+    10
+    ```
+
+    Probe message 1 (prose kept):
+    ```
+    pre-transition gate did NOT conform (error); plan left unmoved.
+      IPD-EXEC-E-COMPLETE E-01: not 'performed' at pre-transition
+      IPD-EXEC-V-EVIDENCE V-01: not 'pass' at pre-transition
+    ```
+    Verdict: `True`
+
+    Probe message 2 (spec verbatim):
+    ```
+    pre-transition gate did NOT conform (error); plan left unmoved.
+      [IPD-EXEC-E-COMPLETE] xbwq8n has incomplete execution items: E-01. Complete them, then: aw host run resume r1
+      [IPD-EXEC-V-EVIDENCE] xbwq8n lacks valid passing evidence for V-01: detail. Re-run those validations, then: aw host run resume r1
+    ```
+    Verdict: `False`
+
+    Targeted regression files passing:
+    ```
+    $ python3 -m pytest tests/test_finalize_sendback.py tests/test_ipd_lint.py tests/test_orchestrator_retirement.py
+    bringing up nodes...
+    ........................................................................ [ 45%]
+    ........................................................................ [ 91%]
+    .............                                                            [100%]
+    157 passed in 5.42s
+    ```
+
+    Bare full-suite run `python3 -m pytest`:
+    Execution baseline: `1 failed, 3457 passed, 2 skipped, 3 warnings in 102.46s`
+    Post-execution suite: `1 failed, 3461 passed, 2 skipped, 3 warnings in 61.92s`
+    (Exactly 4 new tests passed from `tests/test_ipd_exec_finding_codes.py`, no regressions; the 1 pre-existing failure is `test_release_exempt_setter_roundtrip_and_parity` due to UTC/local date mismatch across midnight).
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: PASTE the full committed comment block above the new table, and confirm by quoting that it states all SIX required points (unbound-until-now with the spec's own instruction quoted; the separate-table requirement with F-04's `RC-COUNT`/`RC-NAME` measurement; the PER-CLAUSE COVERAGE MEASUREMENT with the count of `BOUND` versus unbound rows and the gibberish-evidence measurement behind it, plus the explicit warning not to flip the unbound rows; the eight still-unbound codes and why; that nothing consumes the table yet; and that `finalize_refusal_is_retryable` is unchanged and still prose-keyed, with `144b3x` named). A comment that repeats the shipped "Four strings" miscount F-07 measured FAILS this item, and so does one that omits the coverage measurement, which is the single entry that stops the next reader reintroducing the fail-open binding.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Full committed comment block:
+    ```python
+    # ==================================================================================================
+    # Spec `25kzda` 4.6 One-off IPD execution verification pre-transition finding codes (`6uhtko`)
+    # ==================================================================================================
+    #
+    # WHAT THIS TABLE IS (AND IS NOT).
+    # Spec `25kzda` Section 4.6 specifies eleven `IPD-EXEC-*` finding codes and its preamble concedes
+    # that none was bound to a predicate, instructing consumers to "cite the shipped enforcer by
+    # symbol ... and treat the code as the name it will take once bound". This table makes exactly
+    # three of those codes (`IPD-EXEC-E-COMPLETE`, `IPD-EXEC-V-EVIDENCE`, `IPD-EXEC-PRE-TRANSITION`)
+    # an importable, enumerable vocabulary following the `RunFindingCode` convention, with each row
+    # recording an honest binding state supported by measured predicate coverage.
+    #
+    # WHY A SEPARATE TABLE AND NOT APPENDED TO `RUN_FINDING_CODES`.
+    # Appending these rows to `RUN_FINDING_CODES` was measured (F-04) to break `validate_finding_table()`
+    # at runtime with `RC-COUNT` ("spec 25kzda 4.2 defines 12 codes, table has 13") and `RC-NAME`
+    # ("'IPD-EXEC-E-COMPLETE' is not a RUN-* code"). Those tripwires are deliberate and load-bearing.
+    # `IPD_EXEC_FINDING_CODES` is therefore a second, IPD-scoped table placed after `validate_finding_table`.
+    #
+    # PER-CLAUSE COVERAGE MEASUREMENT (THE LOAD-BEARING CORRECTION BEHIND E-02).
+    # Exactly ONE row is `BOUND` (`IPD-EXEC-PRE-TRANSITION`), while the other two are
+    # `UNBOUND_BY_DEPENDENCY`. Spec `25kzda` 4.6 requires of `IPD-EXEC-E-COMPLETE` that every E item
+    # "has an action receipt or artifact binding", and of `IPD-EXEC-V-EVIDENCE` "nonempty concrete
+    # observed evidence, and valid evidence bound to the matching E item and candidate state" with
+    # inspects naming "evidence IDs, captured commands/artifacts".
+    #
+    # Measured against `ipd_lint.lint_file(..., checkpoint="pre-transition")`:
+    #   - Checkbox presence and state agreement ARE decided (`IPD-S401`, `IPD-S402`, `IPD-S403`, and
+    #     pre-transition `IPD-S404` for unperformed/unpassed/empty-evidence rows).
+    #   - BUT evidence validity, action receipts, artifact bindings, and concrete evidence ARE DECIDED
+    #     BY NOTHING. Driving `ipd_lint.lint_file` over a synthetic plan with every checkbox ticked,
+    #     `Execution state: performed`, `Result: pass`, and `Observed evidence` reading
+    #     `qqq gibberish, no receipt, no artifact, no command` yields ZERO `IPD-S40x` diagnostics.
+    #   - Corroborated statically: `grep -in "action receipt\|artifact binding\|evidence id"` across
+    #     `agent_workflows/ipd_lint.py` and `agent_workflows/ipd_schema.py` matches nothing.
+    # Writing `BOUND` on those two rows would create a fail-OPEN checker where an unrun check is
+    # treated as passing, which the module's definition of `BOUND` explicitly forbids. DO NOT "finish the
+    # job" by flipping them to `BOUND` without shipping predicates that actually decide those clauses.
+    #
+    # THE REMAINING EIGHT `IPD-EXEC-*` CODES REMAIN DELIBERATELY UNBOUND.
+    # `IPD-EXEC-EV-BIJECTION` spans bijection and duplicate detection across multiple predicates.
+    # `IPD-EXEC-READY`, `IPD-EXEC-BEGIN-RECEIPT`, `IPD-EXEC-SCOPE`, `IPD-EXEC-TERMINAL-TRANSACTION`,
+    # `IPD-EXEC-POST-TRANSITION`, `IPD-EXEC-REFERENCES`, and `IPD-EXEC-WORKTREE-CLEAN` each span
+    # multiple modules (`ipd_lifecycle`, `check_engine`, git status, and the run ledger), and two
+    # demand a commit-trailer read-back that `RUN-COMMIT-CONTENTS` records as unbuilt. None is cheap.
+    #
+    # NO CONSUMER YET, STATED PLAINLY.
+    # As with `RUN_FINDING_CODES` at initial introduction, no runner or linter yet consumes this
+    # table or emits these codes. `ipd_lint` continues to emit `IPD-S401`..`IPD-S404`.
+    #
+    # `runner_shared.finalize_refusal_is_retryable` IS UNCHANGED.
+    # This plan does not rewire `runner_shared.finalize_refusal_is_retryable`: it still classifies
+    # pre-transition gate refusals by matching prose. Sibling plan `qo9khm` (backlog `144b3x`) owns
+    # the classifier evolution and its code-keyed arm.
+    ```
+
+    Confirmation of all six required points:
+    1. Unbound names with spec preamble quoted: `"cite the shipped enforcer by symbol ... and treat the code as the name it will take once bound"`
+    2. Separate table requirement citing F-04: `Appending these rows to RUN_FINDING_CODES was measured (F-04) to break validate_finding_table() at runtime with RC-COUNT ("spec 25kzda 4.2 defines 12 codes, table has 13") and RC-NAME ("'IPD-EXEC-E-COMPLETE' is not a RUN-* code").`
+    3. Per-clause coverage measurement behind E-02: `Exactly ONE row is BOUND (IPD-EXEC-PRE-TRANSITION), while the other two are UNBOUND_BY_DEPENDENCY.` Quotes the gibberish evidence measurement yielding ZERO `IPD-S40x` diagnostics and static grep, warning `DO NOT "finish the job" by flipping them to BOUND without shipping predicates that actually decide those clauses.`
+    4. Eight remaining codes still deliberately unbound and why each is not cheap (spanning multiple modules, trailer read-backs).
+    5. No consumer yet stated plainly: `no runner or linter yet consumes this table or emits these codes.`
+    6. `runner_shared.finalize_refusal_is_retryable` is unchanged and still prose-keyed, naming carrier `144b3x`.
+    7. Does NOT repeat the "Four strings" miscount.
+  - Result: pass
 
 ## Approval and execution gate
 

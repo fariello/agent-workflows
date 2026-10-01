@@ -1662,6 +1662,101 @@ def unbound_run_finding_codes() -> Tuple[str, ...]:
     return tuple(row.code for row in RUN_FINDING_CODES if row.binding != BOUND)
 
 
+def _validate_finding_row(
+    row: RunFindingCode,
+    _fail: Callable[[str, str, str, str], None],
+    expected_prefix: str,
+) -> None:
+    where = row.code
+    if not row.code.startswith(expected_prefix):
+        _fail(
+            "RC-NAME",
+            where,
+            f"{row.code!r} is not a {expected_prefix}* code",
+            "bad code name",
+        )
+    if row.binding not in BINDING_STATES:
+        _fail(
+            "RC-BINDING",
+            where,
+            f"unknown binding state {row.binding!r}",
+            "unknown binding state",
+        )
+    if row.binding == BOUND:
+        if not row.predicates:
+            _fail(
+                "RC-BINDING",
+                where,
+                "BOUND code names no deciding predicate",
+                "a BOUND code must name the shipped predicate that decides it",
+            )
+        if row.waiting_on:
+            _fail(
+                "RC-BINDING",
+                where,
+                "BOUND code also declares waiting_on",
+                "a BOUND code waits on nothing",
+            )
+    else:
+        if row.predicates:
+            _fail(
+                "RC-BINDING",
+                where,
+                "unbound code names predicates",
+                "an unbound code must not claim a deciding predicate",
+            )
+        if not row.waiting_on:
+            _fail(
+                "RC-BINDING",
+                where,
+                "unbound code does not say what it waits on",
+                "an unbound code must name the missing machinery",
+            )
+    if row.abort not in (ABORT_ALWAYS, ABORT_CONDITIONAL, ABORT_NEVER):
+        _fail(
+            "RC-ABORT",
+            where,
+            f"unknown abort state {row.abort!r}",
+            "bad abort state",
+        )
+    for cls in row.abort_classes:
+        if cls not in ABORT_CLASSES:
+            _fail(
+                "RC-ABORT-CLASS",
+                where,
+                f"{cls!r} is not one of spec 4.1's six abort classes",
+                "spec 4.1's abort-class set is exhaustive",
+            )
+    if row.abort == ABORT_NEVER and row.abort_classes:
+        _fail(
+            "RC-ABORT-CLASS",
+            where,
+            "a never-aborting code names abort classes",
+            "only an aborting code may name an abort class",
+        )
+    if row.abort != ABORT_NEVER and not row.abort_classes:
+        _fail(
+            "RC-ABORT-CLASS",
+            where,
+            "an aborting code names no spec 4.1 abort class",
+            "an abort must cite one of the six enumerated classes",
+        )
+    if not row.message.startswith("[" + row.code + "]"):
+        _fail(
+            "RC-MESSAGE",
+            where,
+            "message does not begin with its own [CODE] prefix",
+            "operator-facing message must carry its code",
+        )
+    if ": aw " not in row.message:
+        _fail(
+            "RC-RECOVERY",
+            where,
+            "message does not end in a recovery command",
+            "spec 4.1: every recovery message ends with a command",
+        )
+
+
 def validate_finding_table() -> EvidenceValidationResult:
     """Self-check the table's internal invariants (not the spec text; a test asserts that).
 
@@ -1695,90 +1790,197 @@ def validate_finding_table() -> EvidenceValidationResult:
                 "RC-DUPLICATE", where, f"duplicate code {row.code!r}", "duplicate code"
             )
         seen.add(row.code)
-        if not row.code.startswith("RUN-"):
-            _fail(
-                "RC-NAME", where, f"{row.code!r} is not a RUN-* code", "bad code name"
+        _validate_finding_row(row, _fail, "RUN-")
+    return EvidenceValidationResult(len(findings) == 0, tuple(findings))
+
+
+# ==================================================================================================
+# Spec `25kzda` 4.6 One-off IPD execution verification pre-transition finding codes (`6uhtko`)
+# ==================================================================================================
+#
+# WHAT THIS TABLE IS (AND IS NOT).
+# Spec `25kzda` Section 4.6 specifies eleven `IPD-EXEC-*` finding codes and its preamble concedes
+# that none was bound to a predicate, instructing consumers to "cite the shipped enforcer by
+# symbol ... and treat the code as the name it will take once bound". This table makes exactly
+# three of those codes (`IPD-EXEC-E-COMPLETE`, `IPD-EXEC-V-EVIDENCE`, `IPD-EXEC-PRE-TRANSITION`)
+# an importable, enumerable vocabulary following the `RunFindingCode` convention, with each row
+# recording an honest binding state supported by measured predicate coverage.
+#
+# WHY A SEPARATE TABLE AND NOT APPENDED TO `RUN_FINDING_CODES`.
+# Appending these rows to `RUN_FINDING_CODES` was measured (F-04) to break `validate_finding_table()`
+# at runtime with `RC-COUNT` ("spec 25kzda 4.2 defines 12 codes, table has 13") and `RC-NAME`
+# ("'IPD-EXEC-E-COMPLETE' is not a RUN-* code"). Those tripwires are deliberate and load-bearing.
+# `IPD_EXEC_FINDING_CODES` is therefore a second, IPD-scoped table placed after `validate_finding_table`.
+#
+# PER-CLAUSE COVERAGE MEASUREMENT (THE LOAD-BEARING CORRECTION BEHIND E-02).
+# Exactly ONE row is `BOUND` (`IPD-EXEC-PRE-TRANSITION`), while the other two are
+# `UNBOUND_BY_DEPENDENCY`. Spec `25kzda` 4.6 requires of `IPD-EXEC-E-COMPLETE` that every E item
+# "has an action receipt or artifact binding", and of `IPD-EXEC-V-EVIDENCE` "nonempty concrete
+# observed evidence, and valid evidence bound to the matching E item and candidate state" with
+# inspects naming "evidence IDs, captured commands/artifacts".
+#
+# Measured against `ipd_lint.lint_file(..., checkpoint="pre-transition")`:
+#   - Checkbox presence and state agreement ARE decided (`IPD-S401`, `IPD-S402`, `IPD-S403`, and
+#     pre-transition `IPD-S404` for unperformed/unpassed/empty-evidence rows).
+#   - BUT evidence validity, action receipts, artifact bindings, and concrete evidence ARE DECIDED
+#     BY NOTHING. Driving `ipd_lint.lint_file` over a synthetic plan with every checkbox ticked,
+#     `Execution state: performed`, `Result: pass`, and `Observed evidence` reading
+#     `qqq gibberish, no receipt, no artifact, no command` yields ZERO `IPD-S40x` diagnostics.
+#   - Corroborated statically: `grep -in "action receipt\|artifact binding\|evidence id"` across
+#     `agent_workflows/ipd_lint.py` and `agent_workflows/ipd_schema.py` matches nothing.
+# Writing `BOUND` on those two rows would create a fail-OPEN checker where an unrun check is
+# treated as passing, which the module's definition of `BOUND` explicitly forbids. DO NOT "finish the
+# job" by flipping them to `BOUND` without shipping predicates that actually decide those clauses.
+#
+# THE REMAINING EIGHT `IPD-EXEC-*` CODES REMAIN DELIBERATELY UNBOUND.
+# `IPD-EXEC-EV-BIJECTION` spans bijection and duplicate detection across multiple predicates.
+# `IPD-EXEC-READY`, `IPD-EXEC-BEGIN-RECEIPT`, `IPD-EXEC-SCOPE`, `IPD-EXEC-TERMINAL-TRANSACTION`,
+# `IPD-EXEC-POST-TRANSITION`, `IPD-EXEC-REFERENCES`, and `IPD-EXEC-WORKTREE-CLEAN` each span
+# multiple modules (`ipd_lifecycle`, `check_engine`, git status, and the run ledger), and two
+# demand a commit-trailer read-back that `RUN-COMMIT-CONTENTS` records as unbuilt. None is cheap.
+#
+# NO CONSUMER YET, STATED PLAINLY.
+# As with `RUN_FINDING_CODES` at initial introduction, no runner or linter yet consumes this
+# table or emits these codes. `ipd_lint` continues to emit `IPD-S401`..`IPD-S404`.
+#
+# `runner_shared.finalize_refusal_is_retryable` IS UNCHANGED.
+# This plan does not rewire `runner_shared.finalize_refusal_is_retryable`: it still classifies
+# pre-transition gate refusals by matching prose. Sibling plan `qo9khm` (backlog `144b3x`) owns
+# the classifier evolution and its code-keyed arm.
+IPD_EXEC_FINDING_CODES: Tuple[RunFindingCode, ...] = (
+    RunFindingCode(
+        code="IPD-EXEC-E-COMPLETE",
+        inspects="Execution checklist",
+        pass_criterion="Every E item is checked and has an action receipt or artifact binding",
+        message=(
+            "[IPD-EXEC-E-COMPLETE] <id6> has incomplete execution items: <E-ids>. "
+            "Complete them, then: aw <host> run resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=UNBOUND_BY_DEPENDENCY,
+        predicates=(),
+        waiting_on=(
+            "an action receipt or artifact binding predicate. `ipd_lint.check_checkpoint` "
+            "emits not 'performed' at pre-transition and `ipd_schema.execution_row_error` "
+            "enforces checkbox agreement (IPD-S401), but nothing checks whether an E item has "
+            "an action receipt or artifact binding"
+        ),
+    ),
+    RunFindingCode(
+        code="IPD-EXEC-V-EVIDENCE",
+        inspects=(
+            "Validation rows, result tokens, observed-evidence fields, evidence IDs, "
+            "captured commands/artifacts"
+        ),
+        pass_criterion=(
+            "Every V item has a passing result, nonempty concrete observed evidence, "
+            "and valid evidence bound to the matching E item and candidate state"
+        ),
+        message=(
+            "[IPD-EXEC-V-EVIDENCE] <id6> lacks valid passing evidence for <V-ids>: <detail>. "
+            "Re-run those validations, then: aw <host> run resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=UNBOUND_BY_DEPENDENCY,
+        predicates=(),
+        waiting_on=(
+            "evidence validity and concreteness predicates. `ipd_lint.check_checkpoint` "
+            "checks non-empty observed evidence and 'pass' result, `ipd_schema.validation_row_error` "
+            "enforces checkbox agreement (IPD-S402), and `ipd_schema.cross_state_error` checks E/V "
+            "state consistency (IPD-S403), but nothing inspects evidence IDs, captured commands/artifacts, "
+            "or validates that evidence is concrete rather than arbitrary text"
+        ),
+    ),
+    RunFindingCode(
+        code="IPD-EXEC-PRE-TRANSITION",
+        inspects="Pre-transition linter at candidate product state",
+        pass_criterion="Linter passes before terminal mutation; all validations and attribution fields conform",
+        message=(
+            "[IPD-EXEC-PRE-TRANSITION] <id6> cannot finalize: <finding-code> <detail>. "
+            "Fix it, run aw ipd lint <id6> --phase pre-transition, then: aw <host> run resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "ipd_lifecycle.finalize_precheck",
+            "ipd_lint.lint_file",
+        ),
+        waiting_on="",
+    ),
+)
+
+#: Code -> row, for O(1) lookup by callers that hold only a code string.
+IPD_EXEC_FINDING_CODES_BY_CODE: Dict[str, RunFindingCode] = {
+    row.code: row for row in IPD_EXEC_FINDING_CODES
+}
+
+
+def ipd_exec_finding_codes() -> Tuple[str, ...]:
+    """The 3 pre-transition finding codes of spec `25kzda` 4.6, in spec order."""
+    return tuple(row.code for row in IPD_EXEC_FINDING_CODES)
+
+
+def ipd_exec_spec_message_for(code: str, **placeholders: Any) -> str:
+    """Render an IPD-EXEC code's VERBATIM spec message, substituting ``<...>`` placeholders.
+
+    With no placeholders the spec template is returned unchanged. Each ``placeholders`` key names
+    a bare placeholder token (e.g. ``id6`` for ``<id6>``, ``run_id`` for ``<run-id>``, etc.):
+    underscores map to hyphens. An UNKNOWN code raises `KeyError`.
+    """
+    row = IPD_EXEC_FINDING_CODES_BY_CODE[code]
+    message = row.message
+    for key, value in placeholders.items():
+        k = key.replace("_", "-")
+        message = message.replace("<" + k + ">", str(value))
+        message = message.replace("<" + k.lower() + ">", str(value))
+        message = message.replace("<" + k.upper() + ">", str(value))
+        if "-" in k:
+            first, rest = k.split("-", 1)
+            message = message.replace(
+                "<" + first.upper() + "-" + rest.lower() + ">", str(value)
             )
-        if row.binding not in BINDING_STATES:
+    return message
+
+
+def validate_ipd_exec_finding_table() -> EvidenceValidationResult:
+    """Self-check IPD_EXEC_FINDING_CODES table's internal invariants.
+
+    Enforced here so a later edit cannot quietly break a structural rule:
+      * exactly 3 codes, each unique, each named ``IPD-EXEC-*``;
+      * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
+        unbound rows carry none and name what they wait on;
+      * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
+        SIX classes, an aborting row names at least one class, and a never-aborting row names none;
+      * every message begins with its own ``[CODE]`` prefix and contains a recovery command
+        (spec 4.1: "Every recovery message ends with a command").
+    """
+    findings: List[EvidenceFinding] = []
+
+    def _fail(code: str, where: str, message: str, reason: str) -> None:
+        findings.append(EvidenceFinding(code, where, message, reason))
+
+    if len(IPD_EXEC_FINDING_CODES) != 3:
+        _fail(
+            "RC-COUNT",
+            "IPD_EXEC_FINDING_CODES",
+            f"spec 25kzda 4.6 defines 3 pre-transition codes, table has {len(IPD_EXEC_FINDING_CODES)}",
+            "finding-code table size does not match the spec",
+        )
+    seen: Set[str] = set()
+    for row in IPD_EXEC_FINDING_CODES:
+        where = row.code
+        if row.code in seen:
             _fail(
-                "RC-BINDING",
-                where,
-                f"unknown binding state {row.binding!r}",
-                "unknown binding state",
+                "RC-DUPLICATE", where, f"duplicate code {row.code!r}", "duplicate code"
             )
-        if row.binding == BOUND:
-            if not row.predicates:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "BOUND code names no deciding predicate",
-                    "a BOUND code must name the shipped predicate that decides it",
-                )
-            if row.waiting_on:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "BOUND code also declares waiting_on",
-                    "a BOUND code waits on nothing",
-                )
-        else:
-            if row.predicates:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "unbound code names predicates",
-                    "an unbound code must not claim a deciding predicate",
-                )
-            if not row.waiting_on:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "unbound code does not say what it waits on",
-                    "an unbound code must name the missing machinery",
-                )
-        if row.abort not in (ABORT_ALWAYS, ABORT_CONDITIONAL, ABORT_NEVER):
-            _fail(
-                "RC-ABORT",
-                where,
-                f"unknown abort state {row.abort!r}",
-                "bad abort state",
-            )
-        for cls in row.abort_classes:
-            if cls not in ABORT_CLASSES:
-                _fail(
-                    "RC-ABORT-CLASS",
-                    where,
-                    f"{cls!r} is not one of spec 4.1's six abort classes",
-                    "spec 4.1's abort-class set is exhaustive",
-                )
-        if row.abort == ABORT_NEVER and row.abort_classes:
-            _fail(
-                "RC-ABORT-CLASS",
-                where,
-                "a never-aborting code names abort classes",
-                "only an aborting code may name an abort class",
-            )
-        if row.abort != ABORT_NEVER and not row.abort_classes:
-            _fail(
-                "RC-ABORT-CLASS",
-                where,
-                "an aborting code names no spec 4.1 abort class",
-                "an abort must cite one of the six enumerated classes",
-            )
-        if not row.message.startswith("[" + row.code + "]"):
-            _fail(
-                "RC-MESSAGE",
-                where,
-                "message does not begin with its own [CODE] prefix",
-                "operator-facing message must carry its code",
-            )
-        if ": aw " not in row.message:
-            _fail(
-                "RC-RECOVERY",
-                where,
-                "message does not end in a recovery command",
-                "spec 4.1: every recovery message ends with a command",
-            )
+        seen.add(row.code)
+        _validate_finding_row(row, _fail, "IPD-EXEC-")
     return EvidenceValidationResult(len(findings) == 0, tuple(findings))
 
 
