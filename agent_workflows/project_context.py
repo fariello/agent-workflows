@@ -348,12 +348,19 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
     return root if root is not None else Path.cwd().resolve()
 
 
-def no_project_message(verb: str, start_dir: Optional[str | Path] = None) -> str:
+def no_project_message(
+    verb: str, start_dir: Optional[str | Path] = None, explicit: bool = False
+) -> str:
     """The verbose 'no AW project found' message a repo-scoped verb prints instead of empty output.
 
     Emitted when the operator did not pass ``--dir`` and no ``.aw/``/``.agents/`` marker exists at
     ``start_dir`` (default cwd) or any ancestor (IPD awretrofit Order 06). Names the verb, what was
     checked, and the fixes.
+
+    WHEN ``explicit=True`` (IPD ci9kx2-01 `bjgqez` E-01), the operator passed an explicit ``--dir``
+    naming a directory that is not an AW project. The message states that the directory named on the
+    command line was checked and is not an AW project, that only that directory was checked with no
+    upward climb (honored verbatim), and does not suggest passing ``--dir``.
 
     WHEN ``start_dir`` IS INSIDE A GIT REPOSITORY the message gains a FOURTH fact and an offer: it
     names the git root and prints the literal ``aw install <root>`` that would fix the condition
@@ -377,12 +384,19 @@ def no_project_message(verb: str, start_dir: Optional[str | Path] = None) -> str
     """
 
     where = Path(start_dir) if start_dir is not None else Path.cwd()
-    msg = (
-        f"aw {verb}: no AW project found here.\n"
-        f"Checked {where} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
-        f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
-        f"or pass --dir <repo>."
-    )
+    if explicit:
+        msg = (
+            f"aw {verb}: no AW project found at {where}.\n"
+            f"Checked only {where} (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.\n"
+            f"Specify your repository root, or run without --dir to search upward from cwd."
+        )
+    else:
+        msg = (
+            f"aw {verb}: no AW project found here.\n"
+            f"Checked {where} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
+            f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
+            f"or pass --dir <repo>."
+        )
     git_root = _find_git_root(str(where))
     if git_root is not None:
         msg += (

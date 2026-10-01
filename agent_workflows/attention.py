@@ -3841,19 +3841,16 @@ def run(args) -> int:
     check = getattr(args, "check", False)
     ctx = select_output(args)
 
-    # No AW project at cwd or any ancestor (and none named via --dir): emit the verbose guidance
-    # instead of a silent empty board. --check stays fail-closed-valid (nothing to violate).
-    #
-    # lanestrand-01 (`pr5b0t`) E-06: THE LANE CHECK DELIBERATELY DOES NOT APPLY ON THIS EARLY-RETURN
-    # PATH, and the decision is recorded rather than left implicit. A directory that is not an AW
-    # project has no `.aw/records/runs`, so there is no run record to read and therefore no lane a
-    # driver of THIS toolkit could have stranded; running the probe would answer "no lanes" after doing
-    # filesystem work, which is a slower way to reach the same 0. The honesty requirement is satisfied
-    # because the branch's own precondition ("there is no project here") is what makes the empty answer
-    # true, not an unexamined assumption: this is not the "prints a clean view without having looked"
-    # case, since there is nothing in scope to look at.
-    if not explicit_dir and not is_project_dir(repo_root):
-        if check:
+    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
+    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
+    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
+    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
+    # cli-output-contract.md Section 3 / 11.4.
+    if not is_project_dir(repo_root):
+        # ci9kx2-01 (`bjgqez`) E-03: --check is valid only for a climb that found no project (nothing
+        # to violate); an explicitly named non-project directory fails closed with cannot-run
+        # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
+        if check and not explicit_dir:
             if ctx.is_agent or ctx.is_json:
                 res = CommandResult(
                     command="attention",
@@ -3915,14 +3912,20 @@ def run(args) -> int:
             # runnable. In a NON-git directory no action is attached and `next` stays null, because an
             # unconditional install suggestion would be wrong there.
             git_root = git_root_for_message(repo_root)
+            summary = (
+                "no AW project found at the specified directory; "
+                "--dir is honored verbatim with no upward climb"
+                if explicit_dir
+                else (
+                    "no AW project found at the working directory or any ancestor; "
+                    "cd into the repository or pass --dir <repo>"
+                )
+            )
             res = CommandResult(
                 command="attention",
                 status="cannot-run",
                 exit_code=2,
-                summary=(
-                    "no AW project found at the working directory or any ancestor; "
-                    "cd into the repository or pass --dir <repo>"
-                ),
+                summary=summary,
                 next_actions=(
                     [
                         NextAction(
@@ -3935,7 +3938,10 @@ def run(args) -> int:
                 ),
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(no_project_message("attention", repo_root) + "\n")
+        sys.stderr.write(
+            no_project_message("attention", repo_root, explicit=bool(explicit_dir))
+            + "\n"
+        )
         return 3
 
     type_filters = parse_type_filters(getattr(args, "types", None))

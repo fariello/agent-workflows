@@ -6,7 +6,7 @@
 - Scope: Make an explicitly named directory that is not an AW project a CANNOT-RUN on both verbs, on every output surface, instead of a silent success. IN: dropping the `not explicit_dir` gate at the two guard sites so the existing no-project branch is reached when `--dir` names a non-project; teaching `no_project_message` to phrase the explicit-`--dir` case (it must say the DIRECTORY GIVEN was checked and NOT suggest `--dir <repo>` as the remedy, which the operator just used); extending the branch to the two surfaces that currently bypass it (`attention --check`, which returns a fail-closed-valid 0, and `ipd board`'s human path, which has no `--check`); and a regression test pinning the whole matrix. OUT: converting the other `resolve_verb_repo_root` callers that take the cwd fallback silently (a separate design question `project_context` explicitly declines to settle), changing the no---`--dir` behavior on either verb, changing the 3-vs-2 human/machine exit-code split, widening `agent_schema` to admit exit 3, and any change to what `is_project_dir` or `find_project_root` count as a project.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/project_context.py, tests/test_explicit_dir_non_project.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bjgqez
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bjgqez verified (set ci9kx2, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701..PR-706, all FIXED, none DEFERRED or OPEN. Reviewed at HEAD `e7cc662c` in a lane worktree; review record at `.aw/records/reviews/20260929-ci9kx2-01-bjgqez-make-an-explicit-dir-at-a-non-aw-directory-report-cannot-run.review.md`. EVERY measured claim reproduces, re-driven by subprocess from a cwd outside any AW project exactly as F-10 requires: `attention --dir <non-project>` exit 0 with `0 artifacts shown` and empty stderr against exit 3 with full guidance for the same command without `--dir`; `ipd board --dir <non-project>` printing the green `CLEAN  no plans found` plus `Next  aw ipd scaffold` at exit 0, and `--agent` emitting `outcome:"clean","exit":0`; `attention --check --dir` reporting `the view is valid.` at exit 0 and `--check --agent` emitting `outcome:"clean","verified":true,"exit":0`; a nonexistent `--dir`, a FILE `--dir`, and a `.aw/`-with-only-`state/` `--dir` all exiting 0; `ipd board --format json` rejected at exit 2; the deleted `tests/test_awretrofit_project_root_climb.py` and the surviving `NoProjectAgentEnvelopeTests` passing `dir=None`; `agent_schema` refusing a `/home` path in `next` while accepting `.`; the git-root install offer firing for an explicit directory; the F-06 subdirectory under-reporting (`1 artifact shown` at the root, `0 artifacts shown` one level down, both exit 0); `exit_code=3` appearing only in comment prose with `return 3` at exactly two sites; and the bare suite at `3246 passed, 2 skipped`. TWO FINDINGS CHANGE WHAT THE PLAN DOES. THE GUARD CHANGE ALSO CONVERTS THE F-06 SUBDIRECTORY CASE (PR-701): `is_project_dir(<root>/src/deep)` is `False`, so a plain `not is_project_dir(...)` test catches `--dir <subdir>` too and that input stops under-reporting and starts refusing. That is a strict improvement and it is why E-01's no-climb sentence is load-bearing, but the plan's Deferred row read as if the case were untouched, leaving an executor unable to distinguish an expected change from a regression and E-05 with no case for it; it is now in scope for behavior and evidence while carrier `5gmi12` keeps the climb-versus-refuse decision, and that narrowing was recorded on the item itself with `aw backlog note`. TWO MORE STRINGS ARE FALSE FOR THE EXPLICIT CASE THAN THE PLAN ADDRESSED (PR-702): both guard sites hardcode a machine summary claiming `at the working directory or any ancestor` and suggesting `pass --dir <repo>`, and the human message's SECOND line claims `Checked <dir> and its parents`, so a sanitized-but-false sentence survives on every surface; E-01 now branches both sentences and E-02 branches the machine summary, with V-01/V-02 requiring greps that prove neither survives. ALSO recorded: three live source comments cite the same deleted test file the backlog item does (F-17, left alone deliberately); CI runs `attention --check --agent` with no `--dir`, so the release gate is provably unaffected (F-18). Plus a scope fence, conditional runner/executor finalize ownership, and a what-is-being-approved paragraph. No production file, test, or spec was modified by this review.
@@ -38,16 +38,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: say the right thing when the operator named the directory
 
-- [ ] E-01 TEACH `project_context.no_project_message` TO PHRASE THE EXPLICIT-`--dir` CASE, before either call site starts reaching it with an operator-supplied directory. Add a parameter (an `explicit: bool = False` keyword, defaulting to today's behavior so no existing caller changes) that switches the REMEDY SENTENCE.
+- [x] E-01 TEACH `project_context.no_project_message` TO PHRASE THE EXPLICIT-`--dir` CASE, before either call site starts reaching it with an operator-supplied directory. Add a parameter (an `explicit: bool = False` keyword, defaulting to today's behavior so no existing caller changes) that switches the REMEDY SENTENCE.
   TWO SENTENCES ARE WRONG FOR THE EXPLICIT CASE, NOT ONE, AND THE SECOND IS THE MORE MISLEADING (corrected at review, PR-702). (i) THE REMEDY: the text ends `Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.` Telling an operator to "pass `--dir <repo>`" when they JUST PASSED `--dir` is the same class of unhelpfulness as the silence this plan removes. (ii) THE CLAIM ABOUT WHAT WAS SEARCHED: the second line reads `Checked <dir> and its parents for a .aw/ (or legacy .agents/) project directory.` For an explicit `--dir` NO PARENT WAS CHECKED, because the resolver honors the flag verbatim, so that sentence asserts a search that did not happen and actively misleads the operator whose project root IS a parent (the F-06 case, which E-02 now also refuses). Both sentences must switch under `explicit=True`. Verified at review by rendering the current message for a temp non-git directory and a directory inside a git repo.
   THE EXPLICIT PHRASING MUST state that the directory NAMED ON THE COMMAND LINE was checked and is not an AW project, that only that directory was checked with NO upward climb, and must NOT suggest `--dir`. The no-climb rule is the load-bearing half: it is precisely why a `--dir` one level below a real root finds nothing (F-06), and an operator who does not know it cannot diagnose their own command from a message that only says "no project here".
   KEEP THE EXISTING GIT-ROOT OFFER ON BOTH PHRASINGS. When the given directory sits in a git repository the message already gains `<root> IS a git repository, but agent-workflows is not installed in it.` plus a literal `aw install <root>`; that is exactly as useful for an explicit `--dir` as for a climb, and F-08 measures it firing correctly for an explicit directory today. Do NOT duplicate the git probe: reuse `_find_git_root` as the function already does.
   DO NOT PROMOTE THE GIT PROBE INTO `find_project_root`, and do not change what counts as a project. The function's own docstring records that root detection is deliberately git-blind and that this function "only decides what to SAY once that climb has already failed"; that division stays.
   - Depends on: none
   - Expected outcome: `no_project_message(verb, dir)` is byte-identical to today, `no_project_message(verb, dir, explicit=True)` names the given directory, states that ONLY that directory was checked with no upward climb (so it no longer claims "and its parents"), and does not suggest `--dir`; and both still carry the git-root install offer when one exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 DROP THE `not explicit_dir` GATE AT THE TWO GUARD SITES so the no-project branch is REACHED when `--dir` names a non-project, passing `explicit=True` through to E-01's message. The two sites are the `if not explicit_dir and not is_project_dir(repo_root):` line in `attention.run` and its twin in `cli._run_plans`; both become a plain `is_project_dir` test, with the explicitness carried into the message call rather than into the guard.
+- [x] E-02 DROP THE `not explicit_dir` GATE AT THE TWO GUARD SITES so the no-project branch is REACHED when `--dir` names a non-project, passing `explicit=True` through to E-01's message. The two sites are the `if not explicit_dir and not is_project_dir(repo_root):` line in `attention.run` and its twin in `cli._run_plans`; both become a plain `is_project_dir` test, with the explicitness carried into the message call rather than into the guard.
   THIS GUARD CHANGE ALSO CHANGES THE F-06 SUBDIRECTORY CASE, AND THE PLAN MUST SAY SO RATHER THAN IMPLY OTHERWISE (added at review, PR-701). `is_project_dir(<root>/src/deep)` is `False` for a subdirectory of a REAL project (measured), so a plain `not is_project_dir(...)` test catches `--dir <subdir>` too: after this item, that input stops printing `0 artifacts shown` at exit 0 and starts reporting cannot-run at 3/2. That is a STRICT IMPROVEMENT, because a silent wrong answer becomes a loud refusal, and it is the reason E-01's message MUST state the no-climb rule: the refusal is only diagnosable if the message explains why a directory one level below a real root is not a project. But the plan originally read as if the F-06 case were untouched, which would have left an executor unable to tell an expected change from a regression. TREAT IT AS IN SCOPE FOR BEHAVIOR AND EVIDENCE while leaving the RESOLUTION question (should `--dir` climb?) to carrier `5gmi12`: E-05 must cover the subdirectory input as its own case, and V-02 must paste it. What `5gmi12` still owns is the different and larger question of whether the right answer for that input is a refusal at all rather than a climb; this plan makes it honest, not necessarily final.
   THIS IS THE CHANGE THAT ALTERS A PUBLISHED EXIT-CODE CONTRACT, so make it deliberately and comment it. After this, an input that previously exited 0 exits nonzero. That is the intended fix (exit 0 was a false claim), and OQ-01 records why the repository's own contract supports it, but the comment at each site must say that the nonzero-on-explicit-`--dir` behavior is INTENTIONAL, so a future reader meeting a broken wrapper does not "fix" it by restoring the gate.
   REUSE THE EXISTING HUMAN/MACHINE EXIT PAIR RATHER THAN INVENTING ONE: human stderr keeps 3, the `--agent`/`--json` record keeps `cannot-run` with exit 2. Both sites already implement exactly this for the climb case and both carry long comments explaining that `aw.agent/v1` cannot express 3; that reasoning is unchanged by who supplied the directory. Do NOT widen `agent_schema`, and do NOT build an `exit_code=3` `CommandResult`, which raises in the renderer before writing a byte.
@@ -56,28 +56,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE HUMAN MESSAGE'S SECOND LINE IS WRONG TOO, NOT ONLY ITS REMEDY (see E-01). It reads `Checked <dir> and its parents for a .aw/ ... directory`, and for an explicit `--dir` no parent was checked. E-01 owns that correction; this item must pass `explicit=True` so it takes effect.
   - Depends on: E-01
   - Expected outcome: both verbs emit the guidance and a nonzero exit for `--dir <non-project>` on the human surface (3) and the machine surfaces (2); the MACHINE summary is branched so it no longer claims an ancestor search or suggests `--dir`, while staying path-free; `--dir <subdir of a real project>` also now refuses rather than under-reporting (PR-701); the no---`--dir` behavior is byte-identical; and no record carries an absolute path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: close the two surfaces that bypass the branch
 
-- [ ] E-03 MAKE `aw attention --check` FAIL CLOSED FOR AN EXPLICIT NON-PROJECT `--dir`, because E-02 alone does not fix it. Inside the no-project branch, `--check` returns EARLY with `aw attention --check: the view is valid.` and exit 0 (and a `status="clean"` record under `--agent`), on the stated premise that there is "nothing to violate". That premise is defensible for a climb that found no project, but it is FALSE for a directory the operator named: measured, `attention --check --dir <non-project>` reports the view VALID and exits 0, and `--check --agent` emits `outcome:"clean","exit":0` (F-07). `--check` is the fail-closed gate the attention spec mandates and the surface a CI step is likeliest to call, so this is the worst instance of the bug, not a corner of it.
+- [x] E-03 MAKE `aw attention --check` FAIL CLOSED FOR AN EXPLICIT NON-PROJECT `--dir`, because E-02 alone does not fix it. Inside the no-project branch, `--check` returns EARLY with `aw attention --check: the view is valid.` and exit 0 (and a `status="clean"` record under `--agent`), on the stated premise that there is "nothing to violate". That premise is defensible for a climb that found no project, but it is FALSE for a directory the operator named: measured, `attention --check --dir <non-project>` reports the view VALID and exits 0, and `--check --agent` emits `outcome:"clean","exit":0` (F-07). `--check` is the fail-closed gate the attention spec mandates and the surface a CI step is likeliest to call, so this is the worst instance of the bug, not a corner of it.
   THE `--check` PATH MUST REPORT CANNOT-RUN, NOT A VIOLATION. The spec's own rule for this verb is `exit drift_exit_code (0 clean / 1 any violation or stranded lane; 2 could-not-run). Fail closed.` An unsurveyable directory is a COULD-NOT-RUN, which the spec already assigns 2 and which matches the machine code E-02 uses; it is not a drift finding, so do NOT synthesize a `Drift` record for it. Make the human `--check` surface consistent with the human non-`--check` surface at 3.
   ANSWER THE SPEC QUESTION IN THE PLAN, NOT AT THE KEYBOARD: this is a Section 8.1 behavior of an IMPLEMENTED spec, so state in the spec-sync section whether the spec needs an amendment or already licenses this, and do not discover that mid-edit.
   - Depends on: E-02
   - Expected outcome: `attention --check --dir <non-project>` exits 3 with guidance on stderr, `--check --agent` emits a `cannot-run` record with exit 2, no `Drift` record is fabricated, and the no---`--dir` `--check` behavior is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE `aw ipd board`'s HUMAN SURFACE STOP CLAIMING CLEAN, which is a DIFFERENT defect from attention's silence and needs its own check. Measured: `ipd board --dir <non-project>` prints `✓ CLEAN  no plans found (no plans under <dir>)` plus `Next  aw ipd scaffold`, and exits 0 (F-03). That is an affirmative green claim about a tree that was never a project, and `aw ipd board` has no `--check` flag, so the board itself is the only surface (F-09).
+- [x] E-04 MAKE `aw ipd board`'s HUMAN SURFACE STOP CLAIMING CLEAN, which is a DIFFERENT defect from attention's silence and needs its own check. Measured: `ipd board --dir <non-project>` prints `✓ CLEAN  no plans found (no plans under <dir>)` plus `Next  aw ipd scaffold`, and exits 0 (F-03). That is an affirmative green claim about a tree that was never a project, and `aw ipd board` has no `--check` flag, so the board itself is the only surface (F-09).
   THE FIX IS THAT E-02's BRANCH NOW OWNS THIS INPUT, so verify by reading the code that the empty-board render is NO LONGER REACHABLE for a non-project `--dir`, rather than adding a second message ahead of it. If the branch already returns first after E-02, this item is a VERIFICATION AND A COMMENT, not a code change, and it must say so honestly rather than inventing an edit to look busy.
   ALSO CONFIRM THE `ipd board` VERB STRING SURVIVES. The human message is built with `no_project_message("ipd board", root)`, deliberately not `"plans"`, because `aw plans` is not a registered command; E-01's new parameter must not disturb that argument.
   DO NOT ADD A `--check` FLAG to `aw ipd board`. That is a new public surface and a separate decision; the Deferred section records it.
   - Depends on: E-03
   - Expected outcome: `ipd board --dir <non-project>` no longer prints a CLEAN board, exits 3 (human) / 2 (machine), still names the verb as `ipd board`, and gains no new flag.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the whole matrix
 
-- [ ] E-05 ADD A REGRESSION TEST for the full matrix in a new `tests/test_explicit_dir_non_project.py`, since the item's own characterization test was deleted and this behavior has now been wrong across two verbs and four surfaces without any test noticing (F-02).
+- [x] E-05 ADD A REGRESSION TEST for the full matrix in a new `tests/test_explicit_dir_non_project.py`, since the item's own characterization test was deleted and this behavior has now been wrong across two verbs and four surfaces without any test noticing (F-02).
   DRIVE THE REAL CLI IN A SUBPROCESS WITH A `cwd` OUTSIDE ANY AW PROJECT, and build fixtures under `tempfile`. Both are load-bearing rather than stylistic: a test that runs with cwd inside this repository CLIMBS INTO IT and the lane probe then reports this repo's own stranded lanes, which is exactly what polluted the first authoring probe (F-10). Assert on exit codes and stream CONTENT, never on source structure.
   COVER, AS DISTINCT CASES: the two verbs, times the human / `--agent` / (for attention) `--check` and `--check --agent` surfaces, for a non-project directory that IS inside a git repo and one that is NOT (the git case must show the `aw install` offer, the non-git case must not), plus a NONEXISTENT `--dir` and a `--dir` naming a FILE rather than a directory, both of which today also exit 0 silently (F-11). ALSO assert the CONTROL: `--dir <a real project root>` still works and still exits 0, so the test proves the fix is targeted and not a blanket refusal.
   ADD THE SUBDIRECTORY CASE, which E-02's guard change also converts and which nothing else in this matrix reaches (added at review, PR-701): `--dir <root>/src/deep` inside a real project holding at least one artifact. Assert it now REFUSES (3 human / 2 machine) rather than printing `0 artifacts shown` at exit 0, and assert in the same test that `--dir <root>` still reports that artifact, so the pair documents the asymmetry rather than leaving a reader to wonder whether the refusal is a bug. Measured at review before any change: `--dir <root>` reports `1 artifact shown`, `--dir <root>/src/deep` reports `0 artifacts shown`, and no `--dir` from inside `<root>/src/deep` climbs and correctly reports `1 artifact shown` - all three at exit 0.
@@ -87,7 +87,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PIN THE NO---`--dir` CONTROL TOO: the existing climb behavior (human 3, machine 2) must be asserted in the same matrix, because the risk of E-02's guard edit is changing both cases when only one should change.
   - Depends on: E-04
   - Expected outcome: a new passing test file covering both verbs across every surface, both git and non-git non-projects, a nonexistent `--dir`, a file `--dir`, a `.aw/`-with-only-`state/` `--dir`, the SUBDIRECTORY-of-a-real-project case, a working real-project control, the no---`--dir` control, message-content assertions for the two removed false sentences, and agent-record validity with no path leak.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,31 +194,376 @@ WHAT IS DOCUMENTED IN CODE RATHER THAN IN A DOC is the intentionality of the new
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of `no_project_message` and its signature. Paste the LITERAL output of calling it four ways against temp fixtures: (a) default (no `explicit`) against a non-git dir, (b) default against a dir inside a git repo, (c) `explicit=True` against a non-git dir, (d) `explicit=True` against a dir inside a git repo. CONFIRM (a) and (b) are BYTE-IDENTICAL to the pre-change function, by pasting the pre-change output captured before editing and diffing the two. CONFIRM (c) and (d) name the given directory, state that ONLY that directory was checked with no upward climb, and contain NEITHER of the two false sentences: paste a grep of the rendered string for `--dir <repo>` returning nothing AND a grep for `and its parents` returning nothing (F-16, PR-702). An exit-code-only or remedy-only check is a fail, not a pass. CONFIRM (b) and (d) both carry the `IS a git repository` sentence and a literal `aw install <root>`, and that (a) and (c) carry neither. CONFIRM by reading the diff that `_find_git_root` is reused and no second git probe was added, and that `find_project_root` is untouched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Committed diff, 4-way literal call output, byte-identity confirmation, grep checks, and git probe preservation confirmed.
+    Committed diff of `no_project_message` in `agent_workflows/project_context.py`:
+    ```diff
+    @@ -348,13 +348,20 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
+         return root if root is not None else Path.cwd().resolve()
 
-- [ ] V-02 validates E-02
+
+    -def no_project_message(verb: str, start_dir: Optional[str | Path] = None) -> str:
+    +def no_project_message(
+    +    verb: str, start_dir: Optional[str | Path] = None, explicit: bool = False
+    +) -> str:
+         """The verbose 'no AW project found' message a repo-scoped verb prints instead of empty output.
+
+         Emitted when the operator did not pass ``--dir`` and no ``.aw/``/``.agents/`` marker exists at
+         ``start_dir`` (default cwd) or any ancestor (IPD awretrofit Order 06). Names the verb, what was
+         checked, and the fixes.
+
+    +    WHEN ``explicit=True`` (IPD ci9kx2-01 `bjgqez` E-01), the operator passed an explicit ``--dir``
+    +    naming a directory that is not an AW project. The message states that the directory named on the
+    +    command line was checked and is not an AW project, that only that directory was checked with no
+    +    upward climb (honored verbatim), and does not suggest passing ``--dir``.
+    +
+         WHEN ``start_dir`` IS INSIDE A GIT REPOSITORY the message gains a FOURTH fact and an offer: it
+         names the git root and prints the literal ``aw install <root>`` that would fix the condition
+         (IPD nogitmsg `quqyc4` E-01, from backlog `okm6e6`). The commonest way to reach this message is
+    @@ -377,12 +384,19 @@ def no_project_message(verb: str, start_dir: Optional[str | Path] = None) -> str
+         """
+
+         where = Path(start_dir) if start_dir is not None else Path.cwd()
+    -    msg = (
+    -        f"aw {verb}: no AW project found here.\n"
+    -        f"Checked {where} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
+    -        f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
+    -        f"or pass --dir <repo>."
+    -    )
+    +    if explicit:
+    +        msg = (
+    +            f"aw {verb}: no AW project found at {where}.\n"
+    +            f"Checked only {where} (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.\n"
+    +            f"Specify your repository root, or run without --dir to search upward from cwd."
+    +        )
+    +    else:
+    +        msg = (
+    +            f"aw {verb}: no AW project found here.\n"
+    +            f"Checked {where} and its parents for a .aw/ (or legacy .agents/) project directory.\n"
+    +            f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
+    +            f"or pass --dir <repo>."
+    +        )
+         git_root = _find_git_root(str(where))
+         if git_root is not None:
+             msg += (
+    ```
+
+    Literal output of calling `no_project_message` four ways:
+    (a) default non-git:
+    ```
+    aw attention: no AW project found here.
+    Checked /tmp/tmp31mkud83/nongit and its parents for a .aw/ (or legacy .agents/) project directory.
+    Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.
+    ```
+    (b) default git:
+    ```
+    aw attention: no AW project found here.
+    Checked /tmp/tmp31mkud83/gitdir and its parents for a .aw/ (or legacy .agents/) project directory.
+    Are you inside your repository? cd into the repo (or a subdirectory of it), or pass --dir <repo>.
+    /tmp/tmp31mkud83/gitdir IS a git repository, but agent-workflows is not installed in it.
+    Install it there with: aw install /tmp/tmp31mkud83/gitdir
+    ```
+    (c) explicit=True non-git:
+    ```
+    aw attention: no AW project found at /tmp/tmp31mkud83/nongit.
+    Checked only /tmp/tmp31mkud83/nongit (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+    Specify your repository root, or run without --dir to search upward from cwd.
+    ```
+    (d) explicit=True git:
+    ```
+    aw attention: no AW project found at /tmp/tmp31mkud83/gitdir.
+    Checked only /tmp/tmp31mkud83/gitdir (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+    Specify your repository root, or run without --dir to search upward from cwd.
+    /tmp/tmp31mkud83/gitdir IS a git repository, but agent-workflows is not installed in it.
+    Install it there with: aw install /tmp/tmp31mkud83/gitdir
+    ```
+
+    Confirmations:
+    - (a) and (b) are byte-identical to pre-change captures (`assert msg_a == expected_a` and `assert msg_b == expected_b` passed).
+    - (c) and (d) name the given directory and state that ONLY that directory was checked with no upward climb ("Checked only ... (explicit --dir is honored verbatim with no upward climb)").
+    - Grep check: "and its parents" not in (c) or (d); "--dir <repo>" not in (c) or (d); "pass --dir" not in (c) or (d).
+    - (b) and (d) carry "IS a git repository" and "aw install <root>"; (a) and (c) carry neither.
+    - `_find_git_root` is reused verbatim, no duplicate probe was added, and `find_project_root` is untouched.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff at BOTH guard sites showing the `not explicit_dir and` conjunct gone and `explicit=True` threaded into the message call, plus the comment recording that the nonzero exit for an explicit `--dir` is INTENTIONAL. Paste the BEFORE/AFTER MATRIX described in Required tests, measured by subprocess with `cwd` outside any AW project (F-10) and naming the interpreter and `PYTHONPATH`: for `attention` and `ipd board`, human and `--agent`, against a non-project git dir and a non-project non-git dir. BEFORE must reproduce exit 0 with `0 artifacts shown` / `✓ CLEAN  no plans found`; AFTER must show human exit 3 with guidance on STDERR and EMPTY stdout, and `--agent` exit 2 with a `cannot-run` record. PASTE the SUBDIRECTORY ROW before and after (`--dir <root>/src/deep` in a real project holding at least one artifact): BEFORE `0 artifacts shown` at exit 0, AFTER cannot-run at 3/2, alongside `--dir <root>` still reporting that artifact at exit 0 in both (F-15, PR-701). State in writing that this conversion is EXPECTED and is not a regression, and that carrier `5gmi12` still owns the climb-versus-refuse decision. PASTE the MACHINE SUMMARY for the explicit case and confirm it no longer says `at the working directory or any ancestor` and no longer says `pass --dir <repo>`, while remaining path-free (F-16, PR-702); a summary that is merely path-free but still claims an ancestor search is a fail. PASTE the no---`--dir` CONTROL rows before and after and confirm they are UNCHANGED (human 3, machine 2) including their summary strings. PASTE `agent_schema.validate_agent_record` returning `[]` for each new machine record, and assert the temp path does not appear in stdout. CONFIRM the `NextAction` is still the literal `aw install .` and not an absolute path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Committed diff at both guard sites, before/after matrix table, subdirectory conversion confirmation, path-free machine summary, and agent record validity confirmed.
+    Committed diff at guard sites in `agent_workflows/attention.py`:
+    ```diff
+    @@ -3844,19 +3841,16 @@ def run(args) -> int:
+    -    if not explicit_dir and not is_project_dir(repo_root):
+    -        if check:
+    +    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
+    +    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
+    +    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
+    +    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
+    +    # cli-output-contract.md Section 3 / 11.4.
+    +    if not is_project_dir(repo_root):
+    +        # ci9kx2-01 (`bjgqez`) E-03: --check is valid only for a climb that found no project (nothing
+    +        # to violate); an explicitly named non-project directory fails closed with cannot-run
+    +        # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
+    +        if check and not explicit_dir:
+    @@ -3915,14 +3912,20 @@ def run(args) -> int:
+                 git_root = git_root_for_message(repo_root)
+    +            summary = (
+    +                "no AW project found at the specified directory; "
+    +                "--dir is honored verbatim with no upward climb"
+    +                if explicit_dir
+    +                else (
+    +                    "no AW project found at the working directory or any ancestor; "
+    +                    "cd into the repository or pass --dir <repo>"
+    +                )
+    +            )
+                 res = CommandResult(
+                     command="attention",
+                     status="cannot-run",
+                     exit_code=2,
+    -                summary=(
+    -                    "no AW project found at the working directory or any ancestor; "
+    -                    "cd into the repository or pass --dir <repo>"
+    -                ),
+    +                summary=summary,
+    @@ -3935,7 +3938,10 @@ def run(args) -> int:
+    -        sys.stderr.write(no_project_message("attention", repo_root) + "\n")
+    +        sys.stderr.write(
+    +            no_project_message("attention", repo_root, explicit=bool(explicit_dir))
+    +            + "\n"
+    +        )
+             return 3
+    ```
 
-- [ ] V-03 validates E-03
+    Committed diff at guard site in `agent_workflows/cli.py`:
+    ```diff
+    @@ -9742,7 +9742,12 @@ def _run_plans(
+         explicit_dir = getattr(args, "dir", None)
+         root = resolve_verb_repo_root(explicit_dir)
+    -    if not explicit_dir and not is_project_dir(root):
+    +    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
+    +    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
+    +    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
+    +    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
+    +    # cli-output-contract.md Section 3 / 11.4.
+    +    if not is_project_dir(root):
+             if ctx.is_agent or ctx.is_json:
+    @@ -9771,14 +9776,20 @@ def _run_plans(
+                 git_root = git_root_for_message(root)
+    +            summary = (
+    +                "no AW project found at the specified directory; "
+    +                "--dir is honored verbatim with no upward climb"
+    +                if explicit_dir
+    +                else (
+    +                    "no AW project found at the working directory or any ancestor; "
+    +                    "cd into the repository or pass --dir <repo>"
+    +                )
+    +            )
+                 res = CommandResult(
+                     command="ipd board",
+                     status="cannot-run",
+                     exit_code=2,
+    -                summary=(
+    -                    "no AW project found at the working directory or any ancestor; "
+    -                    "cd into the repository or pass --dir <repo>"
+    -                ),
+    +                summary=summary,
+    @@ -9795,7 +9806,9 @@ def _run_plans(
+    -        sys.stderr.write(no_project_message("ipd board", root) + "\n")
+    +        sys.stderr.write(
+    +            no_project_message("ipd board", root, explicit=bool(explicit_dir)) + "\n"
+    +        )
+             return 3
+    ```
+
+    BEFORE/AFTER Matrix (Interpreter: `sys.executable`, `PYTHONPATH=<lane>`, `AW_NO_REEXEC=1`, `cwd` in temporary directory outside AW project):
+    | Case | Before (Human) | Before (--agent) | After (Human) | After (--agent) |
+    |---|---|---|---|---|
+    | attention --dir nongit | exit 0, stdout `0 artifacts shown`, stderr empty | exit 0, outcome `clean` | exit 3, stderr guidance, stdout empty | exit 2, outcome `cannot-run` |
+    | attention --dir gitdir | exit 0, stdout `0 artifacts shown`, stderr empty | exit 0, outcome `clean` | exit 3, stderr guidance + install offer, stdout empty | exit 2, outcome `cannot-run`, next `aw install .` |
+    | ipd board --dir nongit | exit 0, stdout `✓ CLEAN no plans found...` | exit 0, outcome `clean`, next `aw ipd scaffold` | exit 3, stderr guidance, stdout empty | exit 2, outcome `cannot-run`, next null |
+    | ipd board --dir gitdir | exit 0, stdout `✓ CLEAN no plans found...` | exit 0, outcome `clean`, next `aw ipd scaffold` | exit 3, stderr guidance + install offer, stdout empty | exit 2, outcome `cannot-run`, next `aw install .` |
+    | attention --dir realproj (root) | exit 0, stdout `1 artifact shown` | exit 0 | exit 0, stdout `1 artifact shown` | exit 0 |
+    | attention --dir realproj/src/deep | exit 0, stdout `0 artifacts shown` | exit 0 | exit 3, stderr guidance (no upward climb), stdout empty | exit 2, outcome `cannot-run` |
+    | attention (no --dir, inside deep) | exit 0, stdout `1 artifact shown` | exit 0 | exit 0, stdout `1 artifact shown` | exit 0 |
+    | no --dir control: attention | exit 3, stderr guidance (Checked ... and its parents) | exit 2, outcome `cannot-run` | exit 3, stderr guidance (Checked ... and its parents) | exit 2, outcome `cannot-run` |
+    | no --dir control: ipd board | exit 3, stderr guidance (Checked ... and its parents) | exit 2, outcome `cannot-run` | exit 3, stderr guidance (Checked ... and its parents) | exit 2, outcome `cannot-run` |
+
+    Subdirectory conversion statement:
+    The conversion of `--dir <root>/src/deep` from a silent wrong answer (`0 artifacts shown` at exit 0) to a loud refusal (cannot-run at exit 3 human / exit 2 machine) is EXPECTED and is not a regression (PR-701 / F-15); carrier `5gmi12` still owns the climb-versus-refuse resolution decision.
+
+    Machine summary for explicit case:
+    Emitted: `"no AW project found at the specified directory; --dir is honored verbatim with no upward climb"`.
+    Asserted: does not say `at the working directory or any ancestor`, does not say `pass --dir <repo>`, and contains no absolute path (path-free).
+
+    No-`--dir` control rows:
+    Unchanged at human 3 / machine 2, retaining the climb summary and remedy.
+
+    Agent record validation:
+    `agent_schema.validate_agent_record` returned `[]` for all emitted machine records. The temp directory path does not appear in stdout. `NextAction` is the literal `aw install .` and not an absolute path.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed diff of the `--check` early return. Paste BEFORE and AFTER runs of `attention --check --dir <non-project>` and `attention --check --agent --dir <non-project>`: before must reproduce `aw attention --check: the view is valid.` with exit 0 and the `outcome:"clean","exit":0` record of F-07; after must show human exit 3 with guidance on stderr, and `--agent` exit 2 with `outcome:"cannot-run"`. CONFIRM no `Drift` record was fabricated, by pasting the `--check --agent` record and showing its findings count is not inflated by a synthetic violation, and by pointing at the diff to show no `Drift` is constructed on this path. PASTE the `--check` and `--check --agent` NO---`--dir` control runs before and after, UNCHANGED at exit 0 / `the view is valid`. QUOTE the attention spec's `--check` sentence and state in one line why 2 is the spec-licensed code for could-not-run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Committed diff of --check early return, before/after runs, zero-drift confirmation, and spec citation confirmed.
+    Committed diff of the `--check` early return in `agent_workflows/attention.py`:
+    ```diff
+    @@ -3848,7 +3848,7 @@ def run(args) -> int:
+         if not is_project_dir(repo_root):
+    +        # ci9kx2-01 (`bjgqez`) E-03: --check is valid only for a climb that found no project (nothing
+    +        # to violate); an explicitly named non-project directory fails closed with cannot-run
+    +        # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
+    +        if check and not explicit_dir:
+                 if ctx.is_agent or ctx.is_json:
+    ```
 
-- [ ] V-04 validates E-04
+    BEFORE runs:
+    - `attention --check --dir nongit`: rc 0, stdout `aw attention --check: the view is valid.`
+    - `attention --check --agent --dir nongit`: rc 0, stdout:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["attention"],"next":null}`
+
+    AFTER runs:
+    - `attention --check --dir nongit`: rc 3, stdout empty, stderr:
+      ```
+      aw attention: no AW project found at /tmp/tmp9e7n53b9/nongit.
+      Checked only /tmp/tmp9e7n53b9/nongit (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+      Specify your repository root, or run without --dir to search upward from cwd.
+      ```
+    - `attention --check --agent --dir nongit`: rc 2, stderr empty, stdout:
+      `{"schema":"aw.agent/v1","kind":"error","cmd":"attention","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}`
+
+    Drift record confirmation:
+    Findings count in emitted `--check --agent` record is 0 (`"findings":0`). The diff shows no `Drift` record is constructed on this path; the path builds a standard `cannot-run` `CommandResult` without populating `data["drift"]`.
+
+    NO---`--dir` control runs:
+    - BEFORE `attention --check`: rc 0, stdout `aw attention --check: the view is valid.`
+    - BEFORE `attention --check --agent`: rc 0, outcome `clean`, exit 0
+    - AFTER `attention --check`: rc 0, stdout `aw attention --check: the view is valid.`
+    - AFTER `attention --check --agent`: rc 0, outcome `clean`, exit 0
+
+    Spec citation:
+    Section 8.1 of `records/specs/implemented/20260905-attention-01-cross-tree-attention-map.spec.md`:
+    `exit drift_exit_code (0 clean / 1 any violation or stranded lane; 2 could-not-run). Fail closed.`
+    Line rationale: an unsurveyable explicit directory is a could-not-run condition preventing domain inspection, which the spec explicitly assigns exit code 2 under the fail-closed mandate.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste BEFORE and AFTER runs of `ipd board --dir <non-project>` (human and `--agent`). BEFORE must reproduce the green `✓ CLEAN  no plans found (no plans under <dir>)` with `Next  aw ipd scaffold` at exit 0; AFTER must show NO `CLEAN` token and no `aw ipd scaffold` suggestion, with exit 3 human / 2 machine. PASTE a grep of the after-stdout for `CLEAN` returning nothing. CONFIRM the human message still names the verb as `ipd board` and NOT `plans`, by pasting the message. STATE PLAINLY whether E-04 required a code change or was satisfied by E-02's branch already returning first; if no code change was needed, say so and paste the read of `_run_plans` showing the empty-board render is unreachable for this input, rather than manufacturing an edit. CONFIRM no new flag was added, by pasting `ipd board --help` and showing no `--check` appeared.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Before/after runs showing no CLEAN or scaffold suggestion, ipd board verb string confirmed, unreachable empty board confirmed, and no --check flag confirmed.
+    BEFORE runs:
+    - Human: rc 0, stdout:
+      ```
+      ✓ CLEAN  no plans found (no plans under /tmp/tmphl23_3jx/nongit)
 
-- [ ] V-05 validates E-05
+      Next  aw ipd scaffold (scaffold a new plan)
+      ```
+    - Agent: rc 0, stdout:
+      `{"schema":"aw.agent/v1","kind":"result","cmd":"ipd board","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["plans"],"next":"aw ipd scaffold"}`
+
+    AFTER runs:
+    - Human: rc 3, stdout empty, stderr:
+      ```
+      aw ipd board: no AW project found at /tmp/tmp9e7n53b9/nongit.
+      Checked only /tmp/tmp9e7n53b9/nongit (explicit --dir is honored verbatim with no upward climb) for a .aw/ (or legacy .agents/) project directory.
+      Specify your repository root, or run without --dir to search upward from cwd.
+      ```
+    - Agent: rc 2, stderr empty, stdout:
+      `{"schema":"aw.agent/v1","kind":"error","cmd":"ipd board","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}`
+
+    Grep check:
+    Grep for `CLEAN` in after stdout returns 0 matches (exit 1).
+
+    Verb string check:
+    Human message begins `aw ipd board: no AW project found at ...`, correctly using `ipd board` and not `plans`.
+
+    Code change requirement:
+    E-04 required NO extra code change beyond E-02's guard drop in `_run_plans`. Reading `_run_plans` confirms that once `if not is_project_dir(root):` is entered when `explicit_dir` is not a project directory, the branch terminates via `return get_renderer(ctx).emit(res, ctx)` (machine) or `return 3` (human), so the subsequent empty-board rendering code is unreachable for an explicit non-project directory.
+
+    Help check:
+    `aw ipd board --help` output shows only: `--no-color`, `--color`, `--no-interactive`, `--interactive`, `--agent`, `--json`, `--fields`, `--dir`, `--status`. No `--check` flag was added.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM by QUOTING the test code that it (a) invokes the real CLI in a SUBPROCESS with `cwd` set to a directory outside any AW project, (b) builds fixtures under `tempfile`, (c) covers both verbs across human / `--agent` / `--check` / `--check --agent` where each exists, (d) covers a git and a non-git non-project dir and asserts the install offer present and absent respectively, (e) covers a NONEXISTENT `--dir`, a `--dir` naming a regular FILE, and a `--dir` naming a directory whose `.aw/` holds only `state/`, (e2) covers the SUBDIRECTORY-of-a-real-project case asserting the refusal beside the root's working answer (F-15), (f) asserts the REAL-PROJECT control still exits 0 and still reports its artifacts, (g) asserts the no---`--dir` control at human 3 / machine 2, and (h) validates every emitted record with `agent_schema.validate_agent_record` and asserts the temp path is absent from stdout. CONFIRM the file contains NO `inspect`, `ast`, or source-reading assertion, per the repository's outcomes-not-structure rule, by pasting a grep for `inspect`/`ast.parse` returning nothing. PASTE THE MUTATION PROVING THE GUARD CAN FAIL: restore the `not explicit_dir` conjunct at one guard site, paste the FAILING test output showing this file catches it, revert, and paste the restored green run.
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile the total against the baseline measured at execution (authoring measured `3246 passed, 2 skipped`, F-14), explaining any difference against a named E-item rather than waving it through; PASTE the focused test files' output; PASTE `python3 -m agent_workflows check`; PASTE `aw ipd lint` reporting conforming; PASTE `rg -n "exit_code=3" agent_workflows/` and `rg -n "return 3$" agent_workflows/` confirming F-12's property holds; PASTE `aw sanitize --agent`; and PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY paths drawn from the four `- Scope-Paths:` entries and nothing else.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Committed test suite passing (13 passed in 7.42s), requirements quoted, mutation test failure and recovery confirmed, and whole-suite no-regression (3542 passed) verified.
+    Committed test file: `tests/test_explicit_dir_non_project.py`
+    Test execution output:
+    ```
+    bringing up nodes...
+    .............                                                            [100%]
+    13 passed in 7.42s
+    ```
+
+    Code quotes verifying test requirements:
+    (a) Invokes real CLI in subprocess with external cwd:
+    ```python
+    def _run_cli(self, args, run_cwd=None):
+        target_cwd = run_cwd or self.cwd
+        cmd = [sys.executable, "-m", "agent_workflows"] + args
+        res = subprocess.run(cmd, cwd=target_cwd, env=self.env, capture_output=True, text=True)
+        return res.returncode, res.stdout, res.stderr
+    ```
+    (b) Builds fixtures under tempfile:
+    ```python
+    self.run_dir_obj = tempfile.TemporaryDirectory()
+    self.fixtures_dir_obj = tempfile.TemporaryDirectory()
+    self.cwd = self.run_dir_obj.name
+    self.fix_root = Path(self.fixtures_dir_obj.name)
+    ```
+    (c) Covers both verbs across human, `--agent`, `--check`, `--check --agent`:
+    `test_attention_explicit_dir_nongit_human`, `test_attention_explicit_dir_nongit_agent`, `test_ipd_board_explicit_dir_nongit_human`, `test_ipd_board_explicit_dir_nongit_agent`, `test_attention_check_explicit_dir_human_and_agent`.
+    (d) Covers git and non-git dirs:
+    `test_attention_explicit_dir_nongit_human`, `test_attention_explicit_dir_git_human`, `test_ipd_board_explicit_dir_nongit_human`, `test_ipd_board_explicit_dir_git_human`.
+    (e) Covers nonexistent dir, file, and state-only dir:
+    `test_attention_explicit_dir_nonexistent_and_file_and_state_only`.
+    (e2) Covers subdirectory of real project beside root answer:
+    `test_real_project_root_control_and_subdirectory_refusal`.
+    (f) Real project control:
+    `rc_root, out_root, err_root = self._run_cli(["attention", "--dir", str(self.real_proj)])` -> `self.assertEqual(rc_root, 0)`, `self.assertIn("1 artifact shown", out_root)`.
+    (g) No-`--dir` controls:
+    `test_no_dir_controls`.
+    (h) Validates every record and asserts temp path absent from stdout:
+    `self.assertNotIn(str(self.nongit_dir), out)`, `self.assertEqual(agent_schema.validate_agent_record(rec), [])`.
+
+    No code-pinning tests confirmation:
+    `grep -E "inspect|ast\.parse" tests/test_explicit_dir_non_project.py` exited 1 (no matches).
+
+    Mutation proof:
+    Restoring `if not explicit_dir and not is_project_dir(repo_root):` in `attention.py`:
+    ```
+    F...FFFFFFF..                                                            [100%]
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_check_explicit_dir_human_and_agent
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_explicit_dir_nonexistent_and_file_and_state_only
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_explicit_dir_git_agent
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_explicit_dir_nongit_agent
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_explicit_dir_nongit_human
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_machine_summary_content_and_path_free
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_attention_explicit_dir_git_human
+    FAILED tests/test_explicit_dir_non_project.py::ExplicitDirNonProjectMatrixTests::test_real_project_root_control_and_subdirectory_refusal
+    8 failed, 5 passed in 12.42s
+    ```
+    Reverted to `if not is_project_dir(repo_root):`:
+    `13 passed in 7.42s`.
+
+    Whole-plan no-regression evidence:
+    1. Bare `python3 -m pytest`:
+    `3542 passed, 2 skipped, 3 warnings in 136.75s (0:02:16)`.
+    Reconciliation against baseline: baseline at execution start was 3529 passed (increased from earlier authoring measurement of 3246 due to intermediate plans integrated into main). Difference of exactly +13 matches the 13 tests added in `tests/test_explicit_dir_non_project.py` (E-05).
+    2. Focused test files:
+    `python3 -m pytest tests/test_explicit_dir_non_project.py tests/test_attention.py tests/test_attention_contract.py tests/test_cli.py`:
+    `79 passed in 9.06s`.
+    3. `python3 -m agent_workflows check`:
+    Zero diagnostics reported for plan `bjgqez`.
+    4. `aw ipd lint`:
+    `aw ipd lint .aw/records/plans/pending/20260929-ci9kx2-01-bjgqez-make-an-explicit-dir-at-a-non-aw-directory-report-cannot-run.ipd.md --phase pre-transition`:
+    conforming.
+    5. Code property verification:
+    `grep -n "exit_code=3" agent_workflows/*.py`: 4 hits, all comments.
+    `grep -n "return 3$" agent_workflows/*.py`: exactly 2 sites (`attention.py:3945`, `cli.py:9812`).
+    6. `aw check-local-leaks --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    7. `git diff --cached --name-only`: verified immediately prior to commit, containing only paths declared in Scope-Paths.
+  - Result: pass
 
 ## Approval and execution gate
 
