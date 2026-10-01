@@ -132,6 +132,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: Both wedged phases already HAVE a working remedy (the `--apply` resume, and the manual clear the existing refusal names), so this is a declined enhancement rather than a gap this plan leaves behind.
 - TEACHING `finalize_precheck` ABOUT THE JOURNAL. That is `bn58ha`/`hlv737`, already authored and approved (F-12). Doing it here would duplicate an approved plan's deliverable.
   - Carrier: hlv737
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-bn58ha-01-hlv737-make-finalize-precheck-report-the-wedged-finalize-journal-it.ipd.md
 - ADDING A CONSUMER of the new finding id (a runner retry branch, a disposition rule). Minting and surfacing it is this plan's deliverable; deciding what a driver should DO on seeing it is a policy question with its own risk.
   - Carrier-Declined: No consumer is REQUIRED for this fix to be complete: the defect is that a preview mutates, and E-04 closes that. An id with no consumer is the deliberate end state (the same shape the `FINDING_RECEIPT_*` family shipped in), not an unfinished half.
 - THE `run_begin` / receipt-minting side. Nothing here changes when a receipt is created, only which invocations may spend one.
