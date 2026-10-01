@@ -1,5 +1,5 @@
 - Id: oye21y
-- Status: graduated
+- Status: done
 - Graduated-To: oye21y
 - Set: oye21y
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Correct two code comments claiming nothing passes AW-Run/AW-Item trailers
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 2lxcwt executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-oye21y-01-2lxcwt-correct-the-stale-trailer-consumption-claims-in-run-evidence.ipd.md); evidence .aw/records/plans/executed/20260930-oye21y-01-2lxcwt-correct-the-stale-trailer-consumption-claims-in-run-evidence.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 2lxcwt
 - 2026-09-26 created (aw backlog): Correct two code comments claiming nothing passes AW-Run/AW-Item trailers
 
