@@ -6,7 +6,7 @@
 - Scope: Make `runner_shared.write_report` render a complete report for a queue containing a non-mapping entry, by guarding all seven measured per-entry read sites across the three functions that own them: the four sites in `write_report`'s own body (counting loop, table row loop, dependency-block comprehension, and a new placeholder row), plus `runner_shared.render_transient_dependency_waits`, `runner_shared.format_verifier_evidence_section`, `runner_shared.format_generated_next_actions_section`, and `lane_containment.format_preserved_lanes`. Decide and document the REPORTING CONTRACT the backlog item leaves open: a malformed entry gets its OWN counted status bucket and its OWN table row (never a silent omission), while every OPTIONAL section skips it as `render_zero_work_notes` already does. NOT the other two exit-tail crash sites (`s438xd`, `3z91mq`), NOT `run_viewer.load_run_summary` (F-09, filed nowhere; this plan reports it rather than reaching across), NOT any well-formed entry's report bytes.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_write_report_malformed_entry.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0kh97v
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0kh97v verified (set fcodik, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): status set to reviewed
 
