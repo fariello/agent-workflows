@@ -286,6 +286,8 @@ The execution and validation states MUST also agree:
 - a generated artifact with an independently inspectable path or identifier;
 - a documented human observation when tool capture is impossible.
 
+`Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour (evidence durability). In particular, a collected test count and a test function name are not durable, because both are artifacts of test organization rather than stable authored facts; the demand must instead specify the behaviour pinned plus the mechanism that pins it. When the named mechanism has been reorganized (such as into a table-driven suite), the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. This durability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence durability.
+
 `Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator.
 
 The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.
