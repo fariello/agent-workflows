@@ -1,0 +1,6 @@
+{"event":"init","init":{"session_id":"ses_<redacted>","tools":[]}}
+{"event":"step_update","step_update":{"step_index":0,"state":"DONE","step_type":"user_input"}}
+{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"run_command","duration_seconds":1.5,"tool_info":{"parameters":{"CommandLine":"python3 -m pytest tests/"}}}}
+{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"tool","tool_name":"browser_subagent","duration_seconds":5.0,"tool_info":{"parameters":{"query":"Run subagent check"}}}}
+{"event":"step_update","step_update":{"step_index":3,"state":"DONE","step_type":"tool","tool_name":"run_command","duration_seconds":0.1,"tool_info":{"parameters":{}}}}
+{"event":"step_update","step_update":{"step_index":4,"state":"DONE","step_type":"agent_response","duration_seconds":2.0,"usage":{"input_tokens":100,"output_tokens":10,"thinking_tokens":0,"cache_read_tokens":50}}}

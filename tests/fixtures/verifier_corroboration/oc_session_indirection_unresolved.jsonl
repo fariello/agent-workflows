@@ -1,0 +1,3 @@
+{"type":"step_start","timestamp":1787949977000,"part":{}}
+{"type":"tool_use","timestamp":1787949977100,"part":{"tool":"bash","state":{"status":"completed","input":{"command":"make check"},"time":{"start":1787949977000,"end":1787949977800}}}}
+{"type":"step_finish","timestamp":1787949977900,"part":{"tokens":{"total":110,"input":100,"output":10,"reasoning":0,"cache":{"write":0,"read":1000}},"cost":0.001}}
