@@ -6,7 +6,7 @@
 - Scope: IN: make `specs.run_check`'s human branch report the examined count, matching the count wording the same function already computes for the agent/JSON branch and the `Evidence` receipt convention `aw check <type>` demonstrates; a behavioral test asserting the count is visible in human output at zero AND at nonzero; one CHANGELOG line. OUT: the `--agent` branch and `result_types.to_agent_record` (already fixed by `kifrou`, F-1); the identical missing-count gap in `backlog check`, `attention --check`, `research check-refs` and `sanitize` (filed separately, see Deferred); `_spec_files`'s retired-filter scope (the 38-vs-20 difference from `check_engine._iter_type_files` is that filter working as designed, F-6); and any change to which specs are examined, to exit codes, or to the drift rules.
 - Scope-Paths: agent_workflows/specs.py, tests/test_agent_checked_count.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 121j2r
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 121j2r verified (set uwerb5, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-2wae2x-01-2wae2x-backlog-status-set-tz-parity.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20260930-rolswj-01-rolswj-human-check-examined-counts.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval; OQ-01 and OQ-02 resolved by the reviewer
 
