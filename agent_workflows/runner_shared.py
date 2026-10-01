@@ -8079,9 +8079,10 @@ def finalize_retry_remedy(
 #     implement exactly these semantics, are tested, and are NOT reimplemented for fun.
 #   * They are UNREACHABLE from a driver run. Both take a `run_engine.RunEngine` first positional
 #     argument and immediately call `engine.reconstruct_state()`; `RunEngine` requires a
-#     `RunLedgerStore` over a hash-chained `ledger.jsonl`; and NO driver run writes one (neither
-#     driver imports `run_engine` at all). Spec `25kzda`'s own preamble concedes it: "the ledger is
-#     built but UNWIRED".
+#     `RunLedgerStore` over a hash-chained `ledger.jsonl`; and NO driver run writes one (no
+#     `ledger.jsonl` exists in the repository, and neither driver imports `run_engine`). Spec
+#     `25kzda` Section 6.2 still lists "the durable storage location for run ledgers" as an open
+#     repository-level choice.
 #   * The state VOCABULARIES are disjoint too: `plan_retry` raises `NoRetryableStateError` for any
 #     step not in `run_state.STATE_FAILED`/`STATE_BLOCKED`, and a driver queue item never holds
 #     either value (it holds `failed-safely`/`partial`/`interrupted` and friends).
@@ -15396,7 +15397,7 @@ def closure_target_admission(
         return "refuse", (
             f"{tok}: --with-dependencies cannot enqueue a {edge.target_type} target. The run "
             f"manifest is built from the plans trees only, so a {record_type or edge.target_type} "
-            f"record has no queue entry to build. This is NARROWER than spec 25kzda :166, which "
+            f"record has no queue entry to build. This is NARROWER than spec 25kzda Section 2.1, which "
             f"subjects any newly introduced type to the mixed-type gate; the gap is recorded in "
             f"`closure_target_admission` and stated in --with-dependencies's own --help. Satisfy "
             f"this edge outside the run, or re-run without --with-dependencies (the edge is still "
