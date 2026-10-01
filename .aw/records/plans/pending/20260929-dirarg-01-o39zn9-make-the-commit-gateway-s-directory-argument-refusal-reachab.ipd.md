@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the refusal reachable from the preview
 
-- [ ] E-01 REPRODUCE ALL FIVE SHAPES AT YOUR HEAD BEFORE CHANGING ANYTHING, and confirm which of the item's claims are still live. This plan asserts the item's headline defect is already fixed and that several sub-defects are not; an executor who trusts that blindly could either re-fix something `hv9gar` shipped or miss what survives.
+- [x] E-01 REPRODUCE ALL FIVE SHAPES AT YOUR HEAD BEFORE CHANGING ANYTHING, and confirm which of the item's claims are still live. This plan asserts the item's headline defect is already fixed and that several sub-defects are not; an executor who trusts that blindly could either re-fix something `hv9gar` shipped or miss what survives.
 
   Drive the REAL functions against a scratch git repo (init, one commit, then a subdirectory holding two modified tracked files, plus one modified tracked file OUTSIDE it). Record, verbatim:
   - `offer_commit(repo, ['sub'], message=..., assume_yes=True)` -> expect `status == error` and a message naming the directory AND the contained files, and expect `git status --porcelain` to be BYTE-IDENTICAL before and after. If instead you see `nothing-to-commit` with the files staged, then `hv9gar` is not in your history: STOP and report, because this plan's whole shape assumes it is.
@@ -49,9 +49,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - ALSO RECORD THE CONTROL that keeps the widened predicate honest: `offer_commit(repo, ['sub/a.md', 'file.md'], ...)` on a fixture where `sub/a.md` was DELETED as a plain file -> expect `status == committed` committing BOTH, with a clean tree afterwards. A deleted plain file must keep working; only a deleted DIRECTORY is the defect.
   - Depends on: none
   - Expected outcome: all five behaviors above are reproduced and pasted; the reproduction confirms the live-directory refusal exists and mutates nothing, the preview disagrees with it, `commit_isolated` raises on both a live and a deleted directory at two different call sites, the mixed deleted-directory call leaves staged deletions behind, and the deleted-plain-file control commits cleanly. Any divergence from this is reported BEFORE any edit is made.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MOVE THE DIRECTORY CHECK AHEAD OF THE `no_commit` SHORT-CIRCUIT in `git_commit_helper.offer_commit`, so the preview and the real run agree.
+- [x] E-02 MOVE THE DIRECTORY CHECK AHEAD OF THE `no_commit` SHORT-CIRCUIT in `git_commit_helper.offer_commit`, so the preview and the real run agree.
 
   THE EDIT IS AN ORDERING CHANGE, NOT A BEHAVIOR CHANGE, and keeping it that way is what makes it safe. Today `offer_commit` returns on `no_commit` (the `skipped: --no-commit requested` outcome) and only afterwards computes `dir_paths = [p for p in rel_paths if (repo_root / p).is_dir()]` and refuses. Relocate the directory block so it runs BEFORE that short-circuit. Do NOT alter the refusal's status (`STATUS_ERROR`), its message text, or its use of `_contained_files`; a reviewer and the existing tests should both see the refusal itself as untouched.
 
@@ -64,11 +64,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CLAIM THE PREVIEW NOW AGREES WITH THE REAL RUN IN GENERAL, because review measured that it does not and a docstring saying so would be false. THREE OTHER OUTCOME CLASSES STILL DIVERGE UNDER `no_commit`, each measured (F-12): an all-gitignored path-set previews `skipped` and really returns `nothing-to-commit`; an unrelated-staged path-set under `on_unrelated_staged="refuse"` previews `skipped` and really returns `refused-dirty`; and a non-interactive call without `assume_yes` previews `skipped: --no-commit requested` where the real run returns `skipped: non-interactive; pass --commit ...` (the same status, a different reason). Those are OUT OF SCOPE here and are NOT defects this plan may quietly absorb, because each would move a DIFFERENT check ahead of the short-circuit and two of them read the index. Confine the docstring claim to the directory class, and say in one sentence that the short-circuit still precedes the other checks so a preview is not a general oracle.
   - Depends on: E-01
   - Expected outcome: `offer_commit(repo, ['sub'], ..., no_commit=True)` returns the SAME `error` refusal, with the same message, that the real run returns; the index and working tree are untouched by it; a `no_commit` preview of a pure file list still returns `skipped`; `aw commit --no-plan -m msg --no-commit -- <dir>` prints the refusal naming the contained files instead of `skipped`; and the docstring's claim is scoped to the directory class rather than asserting general preview/run agreement.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the other public entry point a typed refusal
 
-- [ ] E-03 REFUSE A DIRECTORY IN `commit_lock.commit_isolated` WITH A TYPED OUTCOME instead of letting `shutil.copy2` raise.
+- [x] E-03 REFUSE A DIRECTORY IN `commit_lock.commit_isolated` WITH A TYPED OUTCOME instead of letting `shutil.copy2` raise.
 
   THE DEFECT IS THE SAME ROOT CAUSE THE ITEM NAMES. `commit_isolated` mirrors the caller's `rel` paths into the throwaway worktree with `if src.exists(): shutil.copy2(src, dst)`. `Path.exists()` is TRUE for a directory and `shutil.copy2` on a directory raises `IsADirectoryError`, so a directory in `paths` escapes as an exception while every other bad input returns an `IsolatedCommitResult`. F-03 measures it.
 
@@ -81,11 +81,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS ARM IS UNREACHABLE FROM `offer_commit` ONLY FOR A LIVE DIRECTORY; do NOT write the flat "unreachable" claim the plan originally asked for, because review measured it false for a DELETED one (F-10). Once E-04 widens the gateway's predicate the flat claim becomes true again, so the honest docstring sentence is that `offer_commit` refuses a directory first and this guard is defense for a DIRECT caller. Tests call `commit_isolated` directly today (`tests/test_merge_conflict_sendback.py`, `tests/test_contention_wait.py`), and a guard whose reachability is undocumented is the kind a later reader deletes as dead code.
   - Depends on: E-01
   - Expected outcome: `commit_isolated(repo, ['sub'], message=...)` RETURNS `IsolatedCommitResult` with `status == ISO_ERROR` and a `detail` naming `sub`, instead of raising `IsADirectoryError`; no throwaway worktree is created on that arm; no `git worktree list` residue and no `.aw-isocommit-*` directory is left behind; `offer_commit`'s behavior is unchanged because its own refusal still fires first; and the docstring's reachability sentence matches what E-04 makes true rather than asserting a flat unreachability review measured false.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the refusal see a directory whose contents are gone
 
-- [ ] E-04 WIDEN `offer_commit`'s DIRECTORY PREDICATE so it also catches a path that WAS a directory, and prove the staged-deletion residue is gone.
+- [x] E-04 WIDEN `offer_commit`'s DIRECTORY PREDICATE so it also catches a path that WAS a directory, and prove the staged-deletion residue is gone.
 
   THE PREDICATE IS THE BUG, NOT THE SITE. `dir_paths = [p for p in rel_paths if (repo_root / p).is_dir()]` asks the FILESYSTEM, so a directory whose every file was deleted or moved away does not exist on disk and answers `False`. MEASURED (F-11): with `sub/` removed and `file.md` modified, `offer_commit(repo, ['sub', 'file.md'], ...)` returns `committed`, commits `file.md` alone, reports `(1 path(s) had nothing to commit: sub)`, and LEAVES `D sub/a.md` and `D sub/b.md` STAGED in the shared index. The `residue` rollback that F-01 relies on does not fire, because that arm runs only when `our_staged` is EMPTY and here `file.md` made it non-empty.
 
@@ -98,9 +98,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REUSE THE EXISTING REFUSAL, do not add a second one. The widened predicate feeds the SAME `dir_paths` block E-02 relocated, so the status stays `STATUS_ERROR`, the message keeps its wording, and `_contained_files` still supplies the copy-pasteable file list, which for the deleted-directory case is exactly the deletions the caller should have named.
   - Depends on: E-02
   - Expected outcome: `offer_commit(repo, ['sub', 'file.md'], ...)` on the deleted-directory fixture returns `STATUS_ERROR` naming `sub` and its contained files, creates NO commit, and leaves `git status --porcelain` and `git diff --cached` byte-identical to before the call, with no staged deletion residue; the same call under `no_commit=True` returns the same refusal (E-02's property, now over the widened predicate); a deleted plain FILE still commits normally in a mixed call; and the four pre-existing directory/deletion tests in `tests/test_git_commit_helper.py` stay green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 GUARD BOTH MIRROR-LOOP ARMS IN `commit_isolated`, so a deleted directory cannot raise from the deletion branch either.
+- [x] E-05 GUARD BOTH MIRROR-LOOP ARMS IN `commit_isolated`, so a deleted directory cannot raise from the deletion branch either.
 
   E-03'S GUARD DOES NOT COVER THIS, and review measured it: with E-03's `is_dir()`-keyed refusal prototyped, `commit_isolated(repo, ['sub'])` on a deleted-directory fixture STILL raises, now `IsADirectoryError` from `dst.unlink()` at the `elif dst.exists(): dst.unlink()` arm. The reason is the same as E-04's: `repo_root / 'sub'` is gone so the guard does not fire, but the throwaway worktree is checked out at HEAD, where `sub/` still EXISTS as a directory, so `dst.exists()` is true and `unlink()` on a directory raises. A fix that only inspects the SHARED tree is therefore incomplete by construction.
 
@@ -109,7 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP THE DELETION ARM WORKING, which is the constraint that makes this delicate. `commit_isolated` deliberately supports a deleted path and `_content_hash`'s `None` sentinel exists for it, with the finalize caller really passing a path that no longer exists. The guard must refuse a deleted DIRECTORY and pass a deleted FILE through to `dst.unlink()` unchanged. Pin both in the test, not just the refusal.
   - Depends on: E-03, E-04
   - Expected outcome: `commit_isolated(repo, ['sub'], ...)` on a DELETED-directory fixture RETURNS `ISO_ERROR` naming `sub` instead of raising from `dst.unlink()`; the live-directory case from E-03 still returns `ISO_ERROR`; a DELETED plain FILE still reaches the deletion arm and commits (status `committed`, the deletion in the commit); no `.aw-isocommit-*` residue and no extra `git worktree list` entry on either refused arm; and no import of `git_commit_helper` is added to `commit_lock`.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -210,30 +210,305 @@ THE DOCUMENTATION THAT DOES NEED UPDATING IS IN-FILE and belongs to E-02, E-03, 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the verbatim output of all five reproductions plus the control: the `offer_commit` live-directory call (showing `error` plus the message naming the contained files), the same call with `no_commit=True` (showing `skipped`), the `commit_isolated` live-directory call (showing the `IsADirectoryError` traceback through `shutil.copy2`), the `commit_isolated` DELETED-directory call (showing the traceback's final frame is `dst.unlink()`, NOT `shutil.copy2`), and the mixed DELETED-directory `offer_commit` call (showing `committed`, the `(1 path(s) had nothing to commit: ...)` note, a commit containing only the file, and `git diff --cached --name-status` listing the leftover staged deletions). PASTE the deleted-plain-FILE control showing `committed` with both paths and a clean tree. PASTE `git status --porcelain` from before AND after each refused or residue-leaving call, and state for each whether they are byte-identical. PASTE `git worktree list` after each crash and the result of globbing `.aw-isocommit-*`. State explicitly whether each of F-01, F-02, F-03, F-10 and F-11 reproduced as described, and if any did not, what you saw instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 5 reproductions and the control reproduced exactly as described: F-01, F-02, F-03, F-10, and F-11 were all reproduced verbatim at HEAD `19b749e1f3e7`.
+    ```
+    === REPRODUCTION 1: offer_commit on live directory ===
+    STATUS: error
+    MSG: refusing directory argument(s): sub; name explicit file path(s) instead: sub/a.md, sub/b.md
+    STAGED: ()
+    COMMIT: None
+    Porcelain before:
+     M file.md
+     M sub/a.md
+     M sub/b.md
 
-- [ ] V-02 validates E-02
+    Porcelain after:
+     M file.md
+     M sub/a.md
+     M sub/b.md
+
+    Byte-identical: True
+
+    === REPRODUCTION 2: offer_commit on live directory with no_commit=True ===
+    STATUS: skipped
+    MSG: skipped: --no-commit requested
+    STAGED: ()
+    COMMIT: None
+    Porcelain before:
+     M file.md
+     M sub/a.md
+     M sub/b.md
+
+    Porcelain after:
+     M file.md
+     M sub/a.md
+     M sub/b.md
+
+    Byte-identical: True
+
+    === REPRODUCTION 3: commit_isolated on live directory ===
+    RAISED: IsADirectoryError: [Errno 21] Is a directory: '/tmp/aw-e01-it7u4jpt/fix3/r1/sub'
+    Traceback (most recent call last):
+      File ".../scratch/reproduce_e01.py", line 58, in run_e01
+        res3 = L.commit_isolated(r3, ["sub"], message="iso msg")
+      File ".../agent_workflows/commit_lock.py", line 325, in commit_isolated
+        shutil.copy2(src, dst)
+      File ".../shutil.py", line 529, in copy2
+        copyfile(src, dst, follow_symlinks=follow_symlinks)
+      File ".../shutil.py", line 313, in copyfile
+        with open(src, 'rb') as fsrc:
+    IsADirectoryError: [Errno 21] Is a directory: '/tmp/aw-e01-it7u4jpt/fix3/r1/sub'
+    Worktrees after crash:
+    /tmp/aw-e01-it7u4jpt/fix3/r1  08d34ec [master]
+
+    Leftover .aw-isocommit-* directories: []
+
+    === REPRODUCTION 4: offer_commit on deleted directory (mixed call) ===
+    (r4 / 'sub').is_dir() = False
+    STATUS: committed
+    MSG: committed 1 path(s) as 9ca434de0ff593c8f0c2489f9fff1ebc5ee39b5b (1 path(s) had nothing to commit: sub)
+    STAGED: ('file.md',)
+    COMMIT: 9ca434de0ff593c8f0c2489f9fff1ebc5ee39b5b
+    Porcelain before:
+     M file.md
+     D sub/a.md
+     D sub/b.md
+
+    Porcelain after:
+    D  sub/a.md
+    D  sub/b.md
+
+    Diff cached after:
+    D	sub/a.md
+    D	sub/b.md
+
+    Byte-identical: False (leftover staged deletions D sub/a.md, D sub/b.md left behind!)
+
+    === REPRODUCTION 5: commit_isolated on deleted directory ===
+    (r5 / 'sub').is_dir() = False
+    RAISED: IsADirectoryError: [Errno 21] Is a directory: '/tmp/aw-e01-it7u4jpt/.aw-isocommit-ammnsf60/sub'
+    Traceback (most recent call last):
+      File ".../scratch/reproduce_e01.py", line 104, in run_e01
+        res5 = L.commit_isolated(r5, ["sub"], message="iso del dir")
+      File ".../agent_workflows/commit_lock.py", line 328, in commit_isolated
+        dst.unlink()  # propagate a deletion
+      File ".../pathlib/__init__.py", line 1042, in unlink
+        os.unlink(self)
+    IsADirectoryError: [Errno 21] Is a directory: '/tmp/aw-e01-it7u4jpt/.aw-isocommit-ammnsf60/sub'
+    Worktrees after crash:
+    /tmp/aw-e01-it7u4jpt/fix5  606d862 [master]
+
+    Leftover .aw-isocommit-* directories: []
+
+    === CONTROL: offer_commit on deleted plain file in mixed call ===
+    STATUS: committed
+    MSG: committed 2 path(s) as fc0a194c7b390d808f228e0f1e8db0887a762e97
+    STAGED: ('file.md', 'sub/a.md')
+    COMMIT: fc0a194c7b390d808f228e0f1e8db0887a762e97
+    Porcelain after: (clean)
+    Diff cached after: (clean)
+    Commit name-status:
+    M	file.md
+    D	sub/a.md
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the new test's output failing BEFORE the change and passing after (the `pytest` node ids and the assertion text on the failing run). PASTE, from a real `cli.main` invocation, the stdout of `aw commit --no-plan --dir <fixture> -m msg --no-commit -- sub` showing the refusal naming contained files, next to the same command without `--no-commit`, and confirm the two now AGREE on status and message. PASTE the fixture's `git status --porcelain` and `git log --oneline` after the preview, proving nothing was staged and nothing was committed. PASTE the passing run of the companion test proving `no_commit=True` on a pure FILE list still returns `skipped`. PASTE the passing run of the two pre-existing refusal tests named in F-08. Quote the docstring and comment sentences added, showing the preview rationale is recorded in the file, AND quote the sentence that scopes the agreement claim to the directory class; a docstring asserting general preview/run agreement fails this item, because F-12 measures three classes that still diverge.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Preview agreement and refusal verified; tests fail first then pass; real cli.main matches real run.
+    1. Test output failing BEFORE the change:
+    ```
+    FAILED tests/test_git_commit_helper.py::test_directory_argument_is_refused_under_no_commit_preview
+    AssertionError: assert 'skipped' == 'error'
+    ```
+    Passing after the change:
+    `tests/test_git_commit_helper.py::test_directory_argument_is_refused_under_no_commit_preview PASSED`
+    `tests/test_git_commit_helper.py::test_file_argument_under_no_commit_preview_returns_skipped PASSED`
+    2. Real `cli.main` invocation comparing with and without `--no-commit`:
+    ```
+    --- 1. WITH --no-commit (PREVIEW) ---
+    rc: 1
+    output: aw commit: no plan governs this commit (--no-plan), so two plan-derived protections are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is unchanged: only the paths you named are staged, and the shared helper still snapshots the index first and commits only the intersection, so a co-worker's staged change cannot be swept in.
+    aw commit: error: refusing directory argument(s): sub; name explicit file path(s) instead: sub/a.md, sub/b.md
+    git status --porcelain:
+     M sub/a.md
+     M sub/b.md
 
-- [ ] V-03 validates E-03
+    git log --oneline:
+    1946ff9 init
+
+    --- 2. WITHOUT --no-commit (REAL RUN) ---
+    rc: 1
+    output: aw commit: no plan governs this commit (--no-plan), so two plan-derived protections are SKIPPED: Scope-Paths enforcement and plan validation. Every other protection is unchanged: only the paths you named are staged, and the shared helper still snapshots the index first and commits only the intersection, so a co-worker's staged change cannot be swept in.
+    aw commit: error: refusing directory argument(s): sub; name explicit file path(s) instead: sub/a.md, sub/b.md
+    git status --porcelain:
+     M sub/a.md
+     M sub/b.md
+
+    git log --oneline:
+    1946ff9 init
+
+    Agreement on status and message:
+    rc1 == rc2: True
+    out1 == out2: True
+    ```
+    Fixture `git status --porcelain` and `git log --oneline` after preview prove nothing was staged (` M sub/a.md`, ` M sub/b.md`) and nothing was committed (`init` only).
+    3. Passing run of companion test:
+    `tests/test_git_commit_helper.py::test_file_argument_under_no_commit_preview_returns_skipped PASSED`
+    4. Passing run of pre-existing refusal tests from F-08:
+    `tests/test_git_commit_helper.py::test_mixed_file_and_directory_argument_is_refused_before_staging PASSED`
+    `tests/test_git_commit_helper.py::test_all_directories_argument_is_refused_before_staging PASSED`
+    5. Quoted docstring and comment sentences added:
+    Docstring:
+    `no_commit:`
+    `    The --no-commit escape hatch. Short-circuits to skipped regardless of TTY, except for a directory argument which refuses with error even under preview.`
+    `Returns:`
+    `    skipped (gate declined it non-interactively or no_commit for non-directory paths), ... or error (e.g. a directory argument was passed, which refuses even under no_commit; the no_commit short-circuit still precedes other post-staging/dirty checks so a preview is not a general oracle).`
+    Comment in code:
+    `Sited before no_commit so a dry-run preview discovers the refusal instead of reporting a misleading skipped: --no-commit requested (a dry run that cannot see a refusal is worse than no dry run, because it is read as a clean result). Still sited before any staging so a refused call leaves the index untouched.`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the new `tests/test_commit_isolated_directory.py` output failing BEFORE the change (as an `IsADirectoryError`) and passing after, for the LIVE-directory case. PASTE the returned `IsolatedCommitResult` showing `status` equal to `ISO_ERROR` and a `detail` naming the directory, and confirm it is a RETURN and not a raise. PASTE `git worktree list` and the `.aw-isocommit-*` glob after the refused call, proving no residue, and `git log --oneline` proving no commit. PASTE a passing run of `tests/test_merge_conflict_sendback.py` and `tests/test_contention_wait.py` (F-09's direct callers). Quote the docstring sentence recording that the guard is defense for a direct caller, and CONFIRM it does not assert a flat unreachability (F-10 measured that false for a deleted directory).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: commit_isolated returns ISO_ERROR on live directory with detail naming directory, no worktree residue, direct caller tests green.
+    1. New test `tests/test_commit_isolated_directory.py::test_commit_isolated_refuses_live_directory` failing BEFORE change:
+    ```
+    FAILED tests/test_commit_isolated_directory.py::test_commit_isolated_refuses_live_directory
+    agent_workflows/commit_lock.py:325: in commit_isolated
+        shutil.copy2(src, dst)
+    E   IsADirectoryError: [Errno 21] Is a directory: '.../repo/sub'
+    ```
+    Passing after fix:
+    `tests/test_commit_isolated_directory.py::test_commit_isolated_refuses_live_directory PASSED`
+    2. Returned `IsolatedCommitResult` from direct call:
+    `res.status: error`
+    `res.commit: None`
+    `res.detail: refusing directory argument(s): sub; name explicit file path(s) instead`
+    `Is return, not raise: True`
+    `Head unchanged: True`
+    `Log after: dc07542 init`
+    `Worktrees after call: .../repo  dc07542 [master]`
+    `Leftover .aw-isocommit-* directories: []`
+    3. Passing runs of direct callers:
+    `tests/test_merge_conflict_sendback.py` (all 11 tests PASSED)
+    `tests/test_contention_wait.py` (all 12 tests PASSED)
+    Total: 23 passed in 19.52s.
+    4. Quoted docstring sentence:
+    `DIRECTORY ARGUMENTS ARE REFUSED WITH TYPED OUTCOME (ISO_ERROR), naming the offending directory without creating an isolated worktree. This guard is defense for a direct caller, since offer_commit refuses a directory first.`
+    Confirming no flat unreachability is claimed.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE the deleted-directory test failing BEFORE the change, and the failure must show the F-11 SHAPE, not a bare assertion error: the pre-fix run must evidence `STATUS_COMMITTED` and the staged deletions, so it is visible that the test reproduces the defect rather than merely disagreeing with the code. PASTE it passing after. PASTE, from a direct `offer_commit` call on the deleted-directory fixture, `git status --porcelain` AND `git diff --cached --name-status` from BEFORE and AFTER, and state whether each pair is byte-identical; a passing status with leftover staged deletions FAILS this item. PASTE `git log --oneline` proving no commit was created. PASTE the same call under `no_commit=True` showing the identical refusal. PASTE the NEGATIVE CONTROL: the mixed call naming a deleted plain FILE returning `committed` with both paths, the commit's `--name-status` showing the deletion, and a clean tree afterwards. PASTE passing runs of all FOUR pre-existing tests named in the required-tests list, since two of them pin the move and shortfall shapes this predicate could break. QUOTE the predicate as written and the comment explaining why it consults git rather than only the filesystem.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Deleted directory mixed call refused before staging with byte-identical porcelain/diff (no staged deletions residue); plain file deletion control commits cleanly; all pre-existing tests green.
+    1. Failing deleted-directory test before change showing F-11 shape:
+    ```
+    FAILED tests/test_git_commit_helper.py::test_deleted_directory_in_mixed_call_is_refused_before_staging
+    AssertionError: assert 'committed' == 'error'
+      - error
+      + committed
+    FAILED tests/test_git_commit_helper.py::test_deleted_directory_under_no_commit_preview_returns_error
+    AssertionError: assert 'skipped' == 'error'
+    ```
+    Passing after fix:
+    `tests/test_git_commit_helper.py::test_deleted_directory_in_mixed_call_is_refused_before_staging PASSED`
+    `tests/test_git_commit_helper.py::test_deleted_directory_under_no_commit_preview_returns_error PASSED`
+    2. Direct `offer_commit` on deleted-directory fixture before and after:
+    Porcelain before:
+     M file.md
+     D sub/a.md
+     D sub/b.md
+    Porcelain after:
+     M file.md
+     D sub/a.md
+     D sub/b.md
+    Diff cached before: (empty)
+    Diff cached after: (empty)
+    Log before: 56c2d1e init
+    Log after: 56c2d1e init
+    Porcelain byte-identical: True
+    Diff cached byte-identical: True
+    Log byte-identical (no commit created): True
+    Same call under `no_commit=True`:
+    `STATUS: error`
+    `MSG: refusing directory argument(s): sub; name explicit file path(s) instead: sub/a.md, sub/b.md`
+    `STAGED: ()`
+    `COMMIT: None`
+    `Identical refusal to real run: True`
+    3. Negative control:
+    `offer_commit(r2, ['sub/a.md', 'file.md'], message='mixed del plain file', assume_yes=True)`:
+    `STATUS: committed`
+    `MSG: committed 2 path(s) as 33be335c002ad7b5b7d754f3c1eab2a48de2ef77`
+    `STAGED: ('file.md', 'sub/a.md')`
+    Porcelain after: (clean)
+    Diff cached after: (clean)
+    Commit name-status:
+    M	file.md
+    D	sub/a.md
+    `tests/test_git_commit_helper.py::test_deleted_plain_file_in_mixed_call_commits_cleanly PASSED`
+    4. Four pre-existing tests all green:
+    `tests/test_git_commit_helper.py::test_mixed_file_and_directory_argument_is_refused_before_staging PASSED`
+    `tests/test_git_commit_helper.py::test_all_directories_argument_is_refused_before_staging PASSED`
+    `tests/test_git_commit_helper.py::test_untracked_destination_shape_commits_both_halves_when_naming_explicit_files PASSED`
+    `tests/test_git_commit_helper.py::test_committed_outcome_reports_shortfall_for_unchanged_paths PASSED`
+    5. Quoted predicate and comment:
+    ```python
+    # The predicate catches paths that ARE or WERE directories: `(repo_root / p).is_dir()` checks the
+    # filesystem (live or untracked directories), while `_contained_files` checks git status for paths
+    # whose contents were deleted or moved away (the emptied-directory records move shape). An emptied
+    # directory does not exist on disk, but git knows its deleted contents; without this git-derived
+    # branch, a mixed call naming an emptied directory commits the file half and leaves staged deletions
+    # behind in the shared index (F-11). Deleted plain files must NOT match, so we ensure the contained
+    # set is not exactly `[p]` itself.
+    dir_paths = []
+    for p in rel_paths:
+        target = repo_root / p
+        if target.is_dir():
+            dir_paths.append(p)
+        elif not target.exists():
+            contained = _contained_files(repo_root, [p])
+            if contained and contained != [p]:
+                dir_paths.append(p)
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: PASTE the DELETED-directory `commit_isolated` test failing BEFORE the change, showing the `IsADirectoryError` raised from `dst.unlink()` (quote that frame, since a failure at `shutil.copy2` would mean the fixture is not the deleted shape this item is about), and passing after. PASTE the returned `IsolatedCommitResult` showing `ISO_ERROR` and a `detail` naming the directory, and confirm it is a RETURN and not a raise. PASTE `git worktree list` and the `.aw-isocommit-*` glob proving no residue on the refused arm, and `git log --oneline` proving no commit. PASTE the DELETION-ARM CONTROL: `commit_isolated` on a deleted plain FILE still returns `committed` with the deletion present in the commit's `--name-status`. STATE that `commit_lock` gained no import of `git_commit_helper` and show the guard's git invocation. PASTE the BARE `python3 -m pytest` summary line from BEFORE your first edit and from after the last one, account for the difference by the tests added here, and confirm zero failures; do NOT compare against F-07's or F-14's recorded counts, which are history (F-14).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Deleted directory commit_isolated test fails first with dst.unlink() IsADirectoryError and passes after with ISO_ERROR; plain file deletion control commits; bare pytest suite +8 passed (3960 passed, 2 skipped, 0 failures).
+    1. Pre-fix deleted-directory `commit_isolated` test failure showing raise from `dst.unlink()`:
+    ```
+    FAILED tests/test_commit_isolated_directory.py::test_commit_isolated_refuses_deleted_directory
+    agent_workflows/commit_lock.py:328: in commit_isolated
+        dst.unlink()  # propagate a deletion
+    E   IsADirectoryError: [Errno 21] Is a directory: '.../.aw-isocommit-5w38o21f/sub'
+    ```
+    Passing after fix:
+    `tests/test_commit_isolated_directory.py::test_commit_isolated_refuses_deleted_directory PASSED`
+    2. Direct call returned `IsolatedCommitResult`:
+    `res.status: error`
+    `res.commit: None`
+    `res.detail: refusing directory argument(s): sub; name explicit file path(s) instead`
+    `Is return, not raise: True`
+    `Head unchanged: True`
+    `Log after: 1ff6402 init`
+    `Worktrees after call: .../repo  1ff6402 [master]`
+    `Leftover .aw-isocommit-* directories: []`
+    3. Deletion-arm control:
+    `res_ctl.status: committed`
+    `res_ctl.commit: 53ccc06a3f958ad92cf72740c594e70336ac83b3`
+    `Commit show name-status: D file.txt`
+    `tests/test_commit_isolated_directory.py::test_commit_isolated_commits_deleted_plain_file PASSED`
+    4. Imports:
+    `commit_lock.py` gained NO import of `git_commit_helper`. The guard delegates git calls to `_git(repo_root, ["ls-files", "-z", "--", p])` which already delegates to the shared runner inside `_git`.
+    5. Bare pytest suite baseline and after-change comparison:
+    Before first edit baseline:
+    `3952 passed, 2 skipped, 3 warnings in 141.36s (0:02:21)`
+    After last edit:
+    `3960 passed, 2 skipped, 3 warnings in 107.12s (0:01:47)`
+    Accounted for difference: exactly +8 tests (5 added in `tests/test_git_commit_helper.py`, 3 added in `tests/test_commit_isolated_directory.py`), 0 failures, 2 skipped.
+  - Result: pass
 
 ## Approval and execution gate
 
