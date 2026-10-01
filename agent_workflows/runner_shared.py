@@ -26125,6 +26125,45 @@ AGY_HOST_LABELS = HostLabels(
     ),
 )
 
+
+def host_labels_for_driver_id(driver_id: str | None) -> HostLabels | None:
+    """Return the HostLabels descriptor a recorded driver.id denotes, or None.
+
+    Discovers every HostLabels instance in this module and maps labels.id plus
+    every entry of labels.argv_tokens to that descriptor.
+    """
+    if driver_id is None:
+        return None
+    normalized = str(driver_id).strip()
+    if not normalized:
+        return None
+
+    # Discover every HostLabels instance in this module
+    mapping: dict[str, HostLabels] = {}
+    for val in list(globals().values()):
+        if isinstance(val, HostLabels):
+            keys = [val.id, *val.argv_tokens]
+            for key in keys:
+                if key in mapping and mapping[key] != val:
+                    raise ValueError(
+                        f"Collision in HostLabels driver key {key!r}: "
+                        f"{mapping[key].id} vs {val.id}"
+                    )
+                mapping[key] = val
+
+    # "runagy" is the one viewer spelling .id + .argv_tokens does not cover
+    # (it lives in AGY_HOST_LABELS.argv_subcommands), preserved to keep the
+    # resolver a strict superset of the literals it replaces (F-03).
+    if "agy_runipd" in mapping:
+        mapping["runagy"] = mapping["agy_runipd"]
+
+    return mapping.get(normalized)
+
+
+# Assert at import time that the built key map is collision-free.
+host_labels_for_driver_id("oc")
+
+
 CARRIER_VERIFICATION_REFUSAL_CODE: str = "carrier-verification-unresolved"
 
 

@@ -533,10 +533,19 @@ def _run_host(state: Mapping[str, Any], formats: Iterable[str]) -> str:
         state["driver"] if isinstance(state.get("driver"), Mapping) else {}
     )
     did = str(drv.get("id") or "")
-    if did.startswith("agy"):
-        return "agy"
-    if did.startswith("oc"):
-        return "oc"
+    if did:
+        # Lazy import: importing runner_shared costs ~0.17-0.35s and run_dashboard
+        # avoids module-level import weight (in-module precedent: _default_cache_path).
+        from agent_workflows.runner_shared import host_labels_for_driver_id
+
+        labels = host_labels_for_driver_id(did)
+        if labels is not None and labels.argv_tokens:
+            # argv_tokens[0] yields the short host token ("oc" / "agy") used by
+            # this dashboard for grouping and interpolation, without hand-mapping.
+            # The behavioral win is fall-through: an unregistered id falls through
+            # to options / cost_attribution / formats rather than being misrouted by
+            # prefix matching (e.g. octopus -> oc, agyx -> agy).
+            return labels.argv_tokens[0]
     opts: Mapping[str, Any] = (
         state["options"] if isinstance(state.get("options"), Mapping) else {}
     )

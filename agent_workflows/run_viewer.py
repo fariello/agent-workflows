@@ -43,6 +43,7 @@ from agent_workflows.runner_shared import (
     analytics_root,
     canonical_terminal_status,
     extract_verifier_test_commands,
+    host_labels_for_driver_id,
     landed_verdict,
     path_is_within_analytics,
     queue_entry_type,
@@ -967,12 +968,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
             )
             driver_id = driver_info.get("id") if isinstance(driver_info, dict) else None
             if driver_id:
-                if driver_id in ("oc_runipd", "opencode", "oc"):
-                    driver_name = "OpenCode"
-                elif driver_id in ("agy_runipd", "antigravity", "agy", "runagy"):
-                    driver_name = "Antigravity"
-                else:
-                    driver_name = driver_id
+                labels = host_labels_for_driver_id(driver_id)
+                driver_name = labels.product if labels is not None else driver_id
             elif driver_path:
                 if "oc_runipd" in driver_path:
                     driver_name = "OpenCode"
