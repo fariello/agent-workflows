@@ -1,5 +1,6 @@
 - Id: fqseay
-- Status: open
+- Status: graduated
+- Graduated-To: fqseay
 - Blocks-Release: next
 - Set: fqseay
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: run_worker_process silently ignores TaskPacket.max_output_bytes, so a worker's output bound is unenforced
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: egywai
 - 2026-09-29 created (aw backlog): run_worker_process silently ignores TaskPacket.max_output_bytes, so a worker's output bound is unenforced
 
 MEASURED 2026-09-29 while authoring the plan graduating backlog he9x6j, at lane HEAD a5b36500.
