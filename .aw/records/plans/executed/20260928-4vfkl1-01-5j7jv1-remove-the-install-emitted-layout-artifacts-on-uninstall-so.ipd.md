@@ -6,7 +6,7 @@
 - Scope: Make the framework remove the artifacts it emitted, at the same lifecycle stage that removes its other generated non-manifest files. IN: adding the two `AW_LAYOUT_JSON_PATH` / `AW_LAYOUT_SCHEMA_PATH` removals to `engine.uninstall_repo`'s step-4 generated-file block (the `.aw/config` / `.aw/state` / `.aw/.gitignore` group), so they are recorded in `changed_out` and pruning can then remove `.aw/system/`; adding default-visible regression coverage for the removal and for `changed_out`; correcting the now-stale `PRE-EXISTING FAILURE` docstring on `tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory` with its assertions untouched; and one CHANGELOG line. OUT: adding `.aw/system` to `_DEEP_CLEANUP_ROOTS` (MEASURED TO REGRESS TWO OTHER TESTS, see F-05 and OQ-01, and it is the fix the sibling item suggests); removing `.aw/system/VERSION` or `managed-sections.json` or `.aw/system/workflows` by any new route (all three are already handled, F-06); changing `emit_layout_artifacts`, `plan_deep_cleanup`, `run_deep_cleanup`, `_git_file_state`, or the at-risk classification; the CI `continue-on-error` flip (F-08); and the remaining slow failure, which belongs to sibling item `g0bdgg` (F-07).
 - Scope-Paths: agent_workflows/engine.py, tests/test_uninstall_layout_artifacts.py, tests/test_installer.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 5j7jv1
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5j7jv1 verified (set 4vfkl1, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-29, findings PR-801..PR-805. Recomputed at HEAD `1d8fc76e`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-29 reviewed (aw set): plan-review: REVIEWED - OPEN QUESTIONS; PR-801 BLOCKER open as blocking OQ-03 (duplicate plan g1w58u); PR-802..PR-805 fixed
