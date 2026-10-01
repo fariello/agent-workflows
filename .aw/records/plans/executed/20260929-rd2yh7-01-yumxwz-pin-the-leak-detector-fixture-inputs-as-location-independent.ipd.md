@@ -6,7 +6,7 @@
 - Scope: Answer the backlog's audit question with recorded evidence (so the obligation is discharged by measurement, not by assertion), and fix the one live coupling it found: make the three `tests/test_run_analytics` ruleset constructions derive from the repository root rather than from the ambient `cwd`, and add the regression that pins the location-independence as an OUTCOME. Does NOT change `leak_sanitizer`'s rules, its allowlist, or any production module; does NOT touch `tests/test_leak_sanitizer.py` or `tests/test_local_leaks.py`, which measurement shows already use `REPO_ROOT` correctly; does NOT restore the deleted SPA test file; and does NOT decide the skip-versus-synthesize convention, which is pending plan `kmzude`'s subject.
 - Scope-Paths: tests/test_run_analytics.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: yumxwz
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yumxwz verified (set rd2yh7, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
