@@ -1,11 +1,13 @@
 - Id: oev4h7
-- Status: open
+- Status: graduated
+- Graduated-To: oev4h7
 - Set: oev4h7
 - Priority: low
 - Work-Kind: followup
 - Summary: aw group/rename plans write an orchestrator to a nonzero Order, the IPD-M104 mirror of r30nnz
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: xvi55d
 - 2026-09-29 created (aw backlog): aw group/rename plans write an orchestrator to a nonzero Order, the IPD-M104 mirror of r30nnz
 
 MEASURED AT HEAD 62871f64 while authoring plan qhcojn (from backlog r30nnz), in a throwaway git repo driving the real CLI with PYTHONPATH pinned to the lane under test (ccbe60: a bare -m agent_workflows from a lane imports the MAIN checkout, so an unpinned measurement tests the wrong source).
