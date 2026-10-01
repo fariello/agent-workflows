@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: GUIDING_PRINCIPLES P15 was added 2026-09-26 ("we guard against honest mistakes, never against a malicious agent") and nothing has yet applied it to the gates that already ship. Backlog `ariaau` asks for a DURABLE RECORD listing every mechanism found with a keep / simplify / delete decision and the evidence behind it, and that record is the item's first named output. Without it the two remediation children in this Set are unexplained deletions: a future reader meeting a removed predicate or a reworded comment cannot tell whether P15 was applied deliberately or whether a guard was lost by accident. The audit is also the only artifact that records the mechanisms judged KEEP, which is the half no code change will ever show.
 - Scope: Write ONE research decision record under `.aw/records/research/` enumerating every anti-malice mechanism found in the tree, each with its keep / simplify / delete decision, the evidence measured for it, and the carrier that acts on it. Covers the four families backlog `ariaau` names (the `wtiso_gate.py` raising predicates, the `8zgybk` / `x03wgn` adversarial scaffolding, the 'determined same-user' and 'malicious' justifications, and any hook or verb that hides or verifies a secret from an agent) plus whatever the enumeration finds beyond them. EXCLUDES every code, comment, spec and test edit, which belong to Orders 02 and 03; this plan changes no behavior and touches no file under `agent_workflows/`. EXCLUDES re-deciding the four items the backlog item marks ALREADY DECIDED, which are recorded with their prior decision and cited, not reopened.
-- Scope-Paths: .aw/records/research/20260930-malgate-01-*.md
+- Scope-Paths: .aw/records/research/20260930-malgate-*.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ariaau
@@ -17,7 +18,9 @@
 - Id: bec7ee
 
 ## Workflow history
+- 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 6 findings all fixed; Scope-Paths glob corrected for the research ordinal and both reviewer-owned open questions resolved
 
+- 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (HIGH, fixed), PR-202 (MEDIUM, fixed), PR-203 (MEDIUM, fixed), PR-204 (MEDIUM, fixed), PR-205 (LOW, fixed), PR-206 (LOW, fixed). Reviewed at HEAD `3868cd45`; plan byte-identical to the lane input, so no pre-review snapshot. `aw ipd lint --phase author --agent` reported `clean`; this plan is `- Kind: child`, so the `IPD-S407` orchestrator row check does not apply. EVERY ONE OF F-1 THROUGH F-10 WAS RE-DRIVEN RATHER THAN READ, and the plan's central measurements are correct: both cited test files are absent and `git show --stat 19313eed` lists both as deleted (731 and 704 lines); an AST walk of every `.py` outside the module finds exactly ONE import of `wtiso_gate` anywhere in the tree, `AW_MISSING_INPUT` into `lane_containment`, against a 443-line module; nine public predicates split 5 raising / 4 implemented-and-uncalled exactly as claimed; `private_file`'s docstring does name both the attestation token AND the analytics salt, so F-7's warning against deleting it with the token is right and material. THE DOMINANT FINDING IS THAT THE PLAN WAS UNEXECUTABLE AS WRITTEN: `- Scope-Paths:` declared `20260930-malgate-01-*.md`, but the research ordinal belongs to the RESEARCH set rather than to this plan's Order, and Set `malgate` has no research members, so `aw research new` derives `-00-`. Dry-running the real invocation produced `20260930-malgate-00-1qufj5-p15-gate-audit.survey.md`, and `_scope_match` returns False against the declared glob and True against an ordinal-agnostic one; had it shipped, the single file the plan produces would have been an undeclared out-of-scope path while the declared path went unmodified, so finalize would have demanded both a `--scope-reason` and a `--scope-ack` for a plan that did exactly what it intended. Fixed by widening the glob and recording the ordinal rule in E-03 and in the conventions. BOTH OPEN QUESTIONS CARRIED `Owner: reviewer` AND ARE NOW RESOLVED: OQ-01 contained a category error (it treated `reference/`, a tool-owned `status:` shelf position that RELOCATES the file, as a `--kind`, which is a validated 17-value naming facet) and is resolved to `--kind assessment` with the record left at its born `todo` status, since a `reference` record moves into a monthly shard this plan's flat-root glob cannot match; OQ-02 is resolved NO with a stronger basis than the authored cost argument, namely that a staleness marker could only fire on elapsed time and would be the same warning-generator shape this plan already refuses for its own detector, with the residual risk named and accepted. Three further corrections: E-05 lacked a `Depends on:` edge; V-01's raise check needed the declared-type warning after my own first probe mismeasured two predicates by passing placeholder strings; and three F-4/F-5 quotes are paraphrased or line-wrapped though every anchor resolves and every classification is correct. Full findings and decisions: `.aw/records/reviews/20260930-malgate-01-bec7ee-record-the-p15-gate-audit-every-anti-malice-mechanism-with-i.review.md`.
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored while graduating backlog `ariaau`. Every START HERE item in the backlog item was re-measured in this lane rather than inherited, and TWO measurements change the Set's shape. FIRST, the item says the `wtiso_gate.py` predicates are "Pinned by tests/test_containment_predicates.py"; that file DOES NOT EXIST (deleted in `19313eed`, the 2026-09-24 suite trim), so the predicates are pinned by nothing and the module cites a deleted file three times. That converts Order 02 from "delete a pinned guard, which needs the pin retired first" into "delete an unpinned stub and strike its false citations", a materially smaller and safer change. SECOND, the enumeration found the `wtiso_gate` surface is nine predicates with ZERO product callers between them, not five: the four the module documents as REAL are equally uncalled, and the single symbol any other module imports is one string constant. That widens Order 02's subject from the five raising stubs to the module's disposition as a whole.
 - 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -99,7 +102,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: write the record
 
-- [ ] E-03 CREATE THE RECORD with `aw research new`, never by hand-naming a file: the research tree's naming and its manifest are tool-owned (AGENTS.md; `.aw/records/research/README.md`). Use `--kind` from the contract vocabulary appropriate to a decision record, `--set malgate`, and a slug naming the audit. Then write the enumeration and the classification table from E-01 and E-02 into it. The record MUST carry, for each item: the mechanism named by SYMBOL, its disposition, the evidence measured for it, and its carrier or its keep-reason. It MUST also carry the four ALREADY-DECIDED items from the backlog item (the driver attestation token, `--by-human`, the suite-baseline adjudication, and the opt-in hardened sandbox) with their prior decision and the citation, so a reader can see they were considered.
+- [ ] E-03 CREATE THE RECORD with `aw research new`, never by hand-naming a file: the research tree's naming and its manifest are tool-owned (AGENTS.md; `.aw/records/research/README.md`). Use `--kind` from the contract vocabulary (OQ-01 resolves the choice to `assessment`, with `findings` and `survey` the acceptable alternates; the vocabulary is validated, so an unknown kind exits 2), `--set malgate`, and a slug naming the audit.
+  THE RESEARCH ORDINAL IS NOT THIS PLAN'S PLAN-ORDER, and conflating them is what made this plan's original `- Scope-Paths:` unexecutable (corrected at review; see F-11). This plan is Order 01 of Set `malgate`, but `aw research new --set malgate` numbers within the RESEARCH tree, where Set `malgate` currently has NO members, so the derived name begins `20260930-malgate-00-<id6>-`. Measured at review by dry-running the real invocation: the tool reported it would create `.aw/records/research/20260930-malgate-00-1qufj5-p15-gate-audit.survey.md`, and two further dry runs both produced `-00-` with different id6 values, confirming the ordinal is the research set's and not this plan's. DO NOT hand-correct the ordinal and do not pass `--date` or any flag to force it: take whatever the tool derives, then confirm it matches the declared `- Scope-Paths:` glob. Then write the enumeration and the classification table from E-01 and E-02 into it. The record MUST carry, for each item: the mechanism named by SYMBOL, its disposition, the evidence measured for it, and its carrier or its keep-reason. It MUST also carry the four ALREADY-DECIDED items from the backlog item (the driver attestation token, `--by-human`, the suite-baseline adjudication, and the opt-in hardened sandbox) with their prior decision and the citation, so a reader can see they were considered.
   - Depends on: E-02
   - Expected outcome: the record file written at the tool-derived path, containing every row from E-02 plus the four already-decided items.
   - Execution state: pending
@@ -110,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-05 REFRESH THE RESEARCH MANIFEST with `aw research index` so the new record is discoverable by id6, and confirm with `aw research index --check` that the tree and the manifest agree. Do not hand-edit the index (AGENTS.md). DO NOT COMMIT THE MANIFEST and do not add it to `- Scope-Paths:`: it is a DERIVED artifact and `.aw/records/research/INDEX.json` and `INDEX.md` are both gitignored, so staging either would commit an ignored generated file. The committed deliverable is the record alone.
+  - Depends on: E-03
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -122,6 +127,8 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - RESEARCH IS CITED BY `<id6>`, NOT BY PATH (GUIDING_PRINCIPLES P5). That is what makes a research record the right home for this audit: Orders 02 and 03 can cite it durably even though the file may later move between states or into a weekly archive shard.
 - THE PHRASE CENSUS MUST BE CLASSIFIED, NOT COUNTED, and this convention is the one most likely to be violated by a fast executor. This repository's honest-limit style DELIBERATELY names the hostile agent in order to DISCLAIM protection against it (fact 4a), so the vocabulary appears most densely in exactly the comments P15 holds up as correct. An executor who treats every hit as a defect would reword the compliant majority and thereby delete the repository's record of what it does NOT defend against.
 - AN AUDIT RECORD IS NOT A WORK SURFACE (AGENTS.md). Any residue this audit finds that this Set does not fix must be filed with `aw backlog new` and cited from the record, not left as prose inside it, or the attention view cannot see it.
+- THE RESEARCH ORDINAL AND THE PLAN ORDER ARE DIFFERENT NUMBERS (added at review; F-11). `aw research new --set <id>` numbers within the RESEARCH tree's members of that set, independently of the authoring plan's `- Order:`. This plan is plan-Order 01 and its record derives as research-ordinal `-00-`, because Set `malgate` has no research members yet. Never declare a research path by assuming the two agree, and never "fix" the tool's ordinal to match the plan's.
+- `status:` AND `--kind` ARE ORTHOGONAL AXES IN THE RESEARCH TREE (added at review; OQ-01). `--kind` is a mandatory naming facet from a validated 17-value enumeration; `status:` (`todo`/`active`/`reference`/`archive`) is a tool-owned shelf position that MOVES the file (`reference`/`archive` into `YYYYMM` shards). "File it as a reference record" is therefore not a `--kind`, and asking for one as though it were produces either a wrong kind or a shelved file outside this plan's declared scope.
 
 ## Findings
 
@@ -137,6 +144,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | F-8 | `orchestrate_isolation`'s 'adversarial protections' are a misnomer for merge-safety checks | Its E-04 line reads "Seeded orchestration adversarial protections against role collisions, leaked prose, unauthorized mutations, shared-worktree conflicts, stale branches"; every named hazard is an honest-mistake hazard | Recorded as SIMPLIFY (the word, not the mechanism) with Order 03 as carrier |
 | F-9 | `run_ledger_store` is 'tamper-evident' by construction, and this is NOT an anti-malice gate to remove | Its hash chain detects DAMAGE (torn writes, truncation) and `NotALedgerError` exists precisely to avoid accusing healthy data; `is_ledger_shaped` "can never mask real tampering" | Recorded as KEEP: integrity checking against corruption is honest-mistake protection, and the vocabulary overlap with anti-malice work is coincidental |
 | F-10 | The repository has recorded this dangling-citation defect class twice already | Backlog `ikxtkj` (five doc citations to deleted tests) and backlog `gia5i7` (nine `runner_shared` citations to a deleted class), both citing `19313eed` | The audit cites both rather than re-filing a third, and Order 02 fixes only the `wtiso_gate` instances it deletes outright |
+| F-11 | ADDED AT REVIEW, AND IT MADE THIS PLAN UNEXECUTABLE AS WRITTEN. The original `- Scope-Paths:` declared `.aw/records/research/20260930-malgate-01-*.md`, which CANNOT match the file E-03 creates, because the research ordinal belongs to the RESEARCH set and not to this plan's Order. Set `malgate` has zero members in the research tree, so the tool derives `-00-`. Consequence had it shipped: the one file the plan produces would be an UNDECLARED out-of-scope path, and the declared path would be unmodified, so `aw ipd finalize`'s two-way scope reconciliation would demand both a `--scope-reason` and a `--scope-ack` for a plan that did exactly what it intended. | Dry-run of the real invocation (`aw research new --kind survey --set malgate --slug p15-gate-audit --agent`) reporting it would create `.aw/records/research/20260930-malgate-00-1qufj5-p15-gate-audit.survey.md`; two further dry runs also `-00-` (`7v1owl`, `tl3vrl`); `ls .aw/records/research/ \| grep malgate` empty; `ipd_lifecycle._scope_match(derived, '...malgate-01-*.md')` -> False, `('...malgate-*.md')` -> True. | FIXED at review: `- Scope-Paths:` widened to `.aw/records/research/20260930-malgate-*.md`, and E-03 now states the ordinal rule with the measurement so an executor does not "correct" it back. |
+| F-12 | THE SCOPE GLOB IS FLAT-ROOT ONLY, which is correct today and is a latent trap worth naming. `_scope_match` is segment-aware: a single `*` stays within ONE path segment, so the declared pattern matches a record at the research ROOT and NOT one inside a state shard. A `todo`/`active` record lands at the hot root, so the declaration is right; but `reference` and `archive` statuses relocate a record into `reference/YYYYMM/` or `archive/YYYYMM/` monthly shards, which the glob would not match. | `.aw/records/research/README.md` "States and layout" table (`todo`/`active` -> "hot root"; `reference`/`archive` -> monthly shard); `_scope_match('.aw/records/research/active/20260930-malgate-01-abc123-x.survey.md', '.aw/records/research/20260930-malgate-01-*.md')` -> False. | E-03 must leave the record at its born status (`todo`) and must NOT shelve it; shelving is a later, separate act under `aw research set-assign`/`aw archive`. Recorded so a future reader does not read the glob as covering the whole tree. |
+| F-13 | THREE F-4/F-5 ANCHORS RESOLVE BUT NOT AS QUOTED, which is citation drift rather than a false claim, batched here as one LOW row. `host_sandbox_profile`'s disclaimer is line-wrapped ("...NOT a boundary against a MALICIOUS same-user" / "worker"), so the single-line quoted string does not match; `attention_contract`'s note reads "NOT anti-malicious crypto", not "NOT anti-malice crypto"; `orchestrate_isolation`'s line reads "Seeded orchestration adversarial protections against role collisions, leaked prose, unauthorized..." with the word order the plan transposes. Every one was LOCATED by symbol and every classification is correct. | `rg -i "malicious same-user" agent_workflows/host_sandbox_profile.py` -> line 31; `rg -i "anti-malice" agent_workflows/attention_contract.py` -> no hit, `rg -i "by-human" ...` -> line 507 carrying "NOT anti-malicious crypto"; `rg "Seeded orchestration" agent_workflows/orchestrate_isolation.py` -> the E-04 line. | No change to any disposition. E-01(c) must quote the DECIDING WORDS AS THEY APPEAR rather than re-quoting this plan's paraphrase, since the census is the audit's evidence and a paraphrased quote is not a measurement. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -162,7 +172,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none. The plan writes one research record and refreshes the research manifest, which is exactly the backlog item's first named output ("A research or decision record listing every item found with its keep/simplify/delete decision and evidence"). No file under `agent_workflows/`, `tests/` or `.aw/records/specs/` is touched.
-- Under-scope: `agent_workflows/wtiso_gate.py` and the phrase sites are READ but not modified, deliberately: reading is how the audit is produced, and every edit belongs to a sibling. The second half of the item's output ("plus one reviewed plan per non-trivial removal or simplification") is delivered by Orders 02 and 03 existing, not by this plan. `- Scope-Paths:` carries a GLOB for the record because `aw research new` derives the filename and this plan cannot know it in advance; the executor must confirm at finalize that the path it wrote matches the declared pattern and nothing else changed.
+- Under-scope: `agent_workflows/wtiso_gate.py` and the phrase sites are READ but not modified, deliberately: reading is how the audit is produced, and every edit belongs to a sibling. The second half of the item's output ("plus one reviewed plan per non-trivial removal or simplification") is delivered by Orders 02 and 03 existing, not by this plan. `- Scope-Paths:` carries a GLOB for the record because `aw research new` derives the filename and this plan cannot know it in advance; the executor must confirm at finalize that the path it wrote matches the declared pattern and nothing else changed. THE GLOB IS DELIBERATELY ORDINAL-AGNOSTIC (`20260930-malgate-*.md`) rather than naming `-01-`: the research ordinal is the RESEARCH set's, not this plan's Order, and it derives to `-00-` here (F-11). It is also deliberately FLAT-ROOT, which is correct for a record born at `status: todo`; do not shelve the record to `reference` in this plan, since that relocates it into a monthly shard the glob cannot match (F-12).
 
 ## Required tests / validation
 
@@ -184,25 +194,67 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Should the audit record be filed as a decision record under `reference/`, or as a plain research report?
 
 - Blocking: no
-- Status: open
-- Owner: reviewer
-- Resolution or deferral rationale: E-03 lets the executor choose from the contract vocabulary `aw research new --kind` offers, and RECORD which it chose and why. The argument for a reference-tier record: this is durable, it will be cited by id6 by both siblings and by any future review that touches a gate, and P15's closing sentence makes it a standing reference rather than a one-off investigation. The argument against: it is an audit performed once at a point in time, and filing it as reference asserts a currency it will lose as gates change. NOT BLOCKING because the record's CONTENT, its path derivation, and its manifest entry are identical either way, and `aw research set-assign` can regroup it later without breaking an id6 citation (GUIDING_PRINCIPLES P5).
-- Carrier-Declined: No carrier is owed under either answer. Both are fully implemented inside E-03 and neither leaves anything unbuilt; V-03's required evidence is the same in both cases.
+- Status: resolved
+- Owner: plan-review reviewer (opencode/its_direct/pt3-claude-opus-5-1m-us), 2026-10-01
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, and the question as posed contains a
+  category error worth correcting because acting on it would have produced a non-conforming record. The
+  question asks whether to file "as a decision record under `reference/`, or as a plain research report",
+  treating those as two values of ONE axis. They are two DIFFERENT axes. `--kind` is a mandatory naming
+  facet drawn from a validated enumeration, measured at review as exactly 17 values
+  (`advisory`, `assessment`, `concept`, `executive-summary`, `findings`, `howto`, `notes`,
+  `patch-proposal`, `reconciliation-report`, `reference-research`, `requirements`, `research-prompt`,
+  `research-report`, `roadmap`, `source-draft`, `survey`, `test-evidence`); an unknown value exits 2 with
+  `error: unknown kind`. `reference/` is NOT a kind at all: it is where the tool RELOCATES a record whose
+  `status:` becomes `reference`, per the README's "States and layout" table, and status is tool-owned. So
+  "file it under `reference/`" is not a choice available at creation time.
+  THE ANSWER: use `--kind assessment`. It is the vocabulary's term for a judgement rendered over an
+  existing surface, which is exactly what a keep/simplify/delete audit is. `findings` or `survey` are
+  acceptable alternates and an executor choosing one of those satisfies this question by RECORDING the
+  choice; `reference-research` is NOT acceptable here, because it would collide in a reader's mind with
+  the `reference` status axis the record must not be on yet.
+  AND LEAVE THE STATUS AT ITS BORN VALUE. The record must stay at the hot root (`status: todo`, which
+  `aw research new` writes) rather than being shelved to `reference`, for a mechanical reason the original
+  question could not see: a `reference` record moves into `reference/YYYYMM/`, and `_scope_match`'s single
+  `*` does not cross a path segment, so a shelved record would fall outside this plan's declared
+  `- Scope-Paths:` (F-12). Shelving later is a separate, legitimate act under `aw research set-assign` /
+  `aw archive` and breaks no id6 citation (GUIDING_PRINCIPLES P5), which is the half of the original
+  rationale that was right.
+- Carrier-Declined: No carrier is owed. The answer is fully implemented inside E-03 (the `--kind` choice and
+  the leave-status-alone rule) and leaves nothing unbuilt; V-03's required evidence is unchanged in shape.
 
 ### OQ-02: Should an item classified KEEP be re-examined when its neighbourhood changes, and if so how is that recorded?
 
 - Blocking: no
-- Status: open
-- Owner: reviewer
-- Resolution or deferral rationale: The record states the deciding test for every KEEP (E-02), which is what lets a future reader re-apply it rather than re-derive it, and P15 already obliges any review that touches a gate to apply the principle. The plan does NOT add a re-examination schedule or a staleness marker. Against that: a KEEP decided today against a mechanism that later grows a token or a location guess would be stale and nothing flags it. NOT BLOCKING because the remedy under either answer is the same (P15 applies at the next touch), and building a staleness mechanism for an audit record is a larger design than this plan's deliverable justifies.
-- Carrier-Declined: Nothing is owed because no latent work is identified, only a residual risk that P15's standing obligation already addresses. Filing an item would imply a tracking mechanism is intended when none has been designed or requested.
+- Status: resolved
+- Owner: plan-review reviewer (opencode/its_direct/pt3-claude-opus-5-1m-us), 2026-10-01
+- Resolution or deferral rationale: RESOLVED AS NO, add no staleness mechanism, and the reasoning is
+  stronger than the authored "larger design than this plan justifies", which is a cost argument and
+  therefore not by itself a valid basis. The real basis is that the mechanism would be the wrong SHAPE for
+  this repository and measurably so. A staleness marker on an audit record would have to assert that a
+  decision has expired without reading the code it judged, so it could only ever fire on elapsed time,
+  which is the warning-generator shape this very plan already refuses for a different mechanism in its own
+  "Deferred" section (the anti-malice-justification detector, refused because it "would be a warning
+  generator, not a gate"). Accepting one while refusing the other would be inconsistent.
+  WHAT ACTUALLY CARRIES THE OBLIGATION, which makes the mechanism unnecessary rather than merely
+  expensive: P15's closing sentence binds the next review that TOUCHES a gate, which is the moment the
+  information needed to re-decide actually exists. E-02's recorded deciding test is what makes that
+  re-application cheap, and E-04's limits section states in the record itself that the classification is a
+  disputable judgement, so a future reader is told the record is a judgement at a point in time rather than
+  a standing guarantee. Those two together are the honest mechanism.
+  THE RESIDUAL RISK IS ACCEPTED AND NAMED: a KEEP decided today against a mechanism that later grows a
+  token or a location guess goes stale and nothing flags it. That is a real gap, it is not closed here, and
+  it is recorded as accepted rather than solved.
+- Carrier-Declined: Nothing is owed because no latent work is identified, only the accepted residual risk
+  named above, which P15's standing obligation addresses at the next touch. Filing an item would imply a
+  tracking mechanism is intended when none has been designed or requested, and this plan's own refusal of a
+  pattern detector is the precedent for not filing a mechanism whose false-positive shape is already known.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: all FOUR pasted lists from the executor's own lane: (a) the AST-derived caller census for `wtiso_gate` showing every import and attribute access found, with the method shown to be AST-based and not a text grep; (b) the per-predicate raise/return result for all nine; (c) the phrase census with EACH hit classified as disclaimer or justification and the deciding words quoted; (d) the existence check for every cited test file and doc. Plus one explicit sentence per fact F-1 through F-5 stating whether it reproduced. Plus a pasted `git status --short` showing the measurement modified no file. Numbers differing from this plan's are EXPECTED and satisfy this item; reusing this plan's numbers without running does NOT. If fact 2 failed to reproduce, this item is satisfied only by saying so explicitly and stopping the Set.
+  - Required evidence: all FOUR pasted lists from the executor's own lane: (a) the AST-derived caller census for `wtiso_gate` showing every import and attribute access found, with the method shown to be AST-based and not a text grep; (b) the per-predicate raise/return result for all nine, each driven with ARGUMENTS OF THE DECLARED TYPES (a probe that passes placeholder strings to a `Path`/`Mapping` parameter raises `TypeError` BEFORE reaching the body and mismeasures an implemented predicate as raising and a raising one as neither, which happened at review and had to be redone: `check_hook_bypass` needs `(Path, str, Sequence[str])`); (c) the phrase census with EACH hit classified as disclaimer or justification and the deciding words quoted AS THEY APPEAR IN THE SOURCE, not re-quoted from this plan, since three of this plan's own quotes are paraphrases or line-wrapped (F-13); (d) the existence check for every cited test file and doc. Plus one explicit sentence per fact F-1 through F-5 stating whether it reproduced. Plus a pasted `git status --short` showing the measurement modified no file. Numbers differing from this plan's are EXPECTED and satisfy this item; reusing this plan's numbers without running does NOT. If fact 2 failed to reproduce, this item is satisfied only by saying so explicitly and stopping the Set.
   - Observed evidence:
   - Result: pending
 
@@ -212,7 +264,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: the `aw research new` invocation and its output showing the TOOL derived the path, plus the written record's front matter and its classification table. State which `--kind` was chosen and why (OQ-01). Confirm the four ALREADY-DECIDED items from the backlog item are present with citations. A hand-named file does NOT satisfy this item.
+  - Required evidence: the `aw research new` invocation and its output showing the TOOL derived the path, plus the written record's front matter and its classification table. State which `--kind` was chosen and why (OQ-01 resolves this to `assessment`, with `findings`/`survey` acceptable if recorded). Confirm the four ALREADY-DECIDED items from the backlog item are present with citations. A hand-named file does NOT satisfy this item. ALSO paste the derived path beside the declared `- Scope-Paths:` glob and state that it matches, which is the check that would have caught the defect F-11 records; and confirm the record's `status:` is the born `todo` and it sits at the research ROOT rather than in a `reference/` or `archive/` shard (F-12).
   - Observed evidence:
   - Result: pending
 
@@ -231,8 +283,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `to-review` and carries NO `- Readiness:` field, whose absence is deliberate: that field is
-an output of `/plan-review` and writing it at authoring time would forge the attestation a gate reads.
+`- Readiness:` was correctly ABSENT at authoring, because that field is an output of `/plan-review` and
+writing it at authoring time would forge the attestation the auto-approve predicate reads. It is now
+written by the 2026-10-01 review recorded above, and explicit human approval through `aw ipd set approved`
+is still a separate step: a reviewed plan is not an approved one.
 
 The executor must: perform E-01 through E-05 in order, respecting the declared `Depends on` edges; treat
 E-01 as a HARD GATE, because if a real product caller for any `wtiso_gate` predicate exists then Order 02's
