@@ -22,6 +22,7 @@ from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import term as _T
+from agent_workflows.project_context import resolve_verb_repo_root
 
 # `_TREE_COLOR_256` IS DELIBERATELY NO LONGER IMPORTED (plan `9zvl2w` E-04). Its only use here was
 # painting the artifact TYPE word in `format_step_line`, which criterion A10 forbids; see the note at
@@ -3412,7 +3413,7 @@ def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
 
 def run_viewer_cli(args: argparse.Namespace) -> int:
     """CLI entry point for `aw runs` / run viewer."""
-    repo_root = Path(getattr(args, "dir", None) or ".")
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     # ssk6nf E-04: `aw runs repair <run-id>` is an opt-in MUTATING verb on an otherwise read-only
     # surface, routed from the first target token so every read path stays side-effect free.
     raw_targets = getattr(args, "target", None) or getattr(args, "targets", None) or []
@@ -3683,7 +3684,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         else:
             payload = {"runs": [asdict(s) for s in summaries]}
             for r_dict in payload["runs"]:
-                r_dict["run_dir"] = str(r_dict["run_dir"])
+                r_dict["run_dir"] = _agent_schema.normalize_repo_path(
+                    r_dict["run_dir"], repo_root
+                )
             if len(summaries) > 1:
                 payload["summary"] = build_multi_run_summary_dict(summaries)
 
@@ -3716,7 +3719,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             return 0
         for s in summaries:
             s_dict = asdict(s)
-            s_dict["run_dir"] = str(s_dict["run_dir"])
+            s_dict["run_dir"] = _agent_schema.normalize_repo_path(
+                s_dict["run_dir"], repo_root
+            )
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
         return 0
 

@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from agent_workflows import run_analytics_query as query_mod
+from agent_workflows.project_context import resolve_verb_repo_root
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
     CommandResult,
@@ -173,7 +174,7 @@ def open_report(path: Path) -> LaunchOutcome:
 
 
 def _repo_root(args: argparse.Namespace) -> Path:
-    return Path(getattr(args, "dir", None) or ".")
+    return resolve_verb_repo_root(getattr(args, "dir", None))
 
 
 def _repo_rel(path: Path | str, repo: Path | str, *, _pathmod: Any = os.path) -> str:

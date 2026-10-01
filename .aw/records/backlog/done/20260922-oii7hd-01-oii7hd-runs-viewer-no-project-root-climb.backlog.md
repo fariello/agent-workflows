@@ -1,5 +1,5 @@
 - Id: oii7hd
-- Status: graduated
+- Status: done
 - Graduated-To: oii7hd
 - Blocks-Release: next
 - Set: oii7hd
@@ -8,6 +8,7 @@
 - Summary: run_viewer_cli reads args.dir directly instead of resolve_verb_repo_root, so aw runs cannot see a run from a subdirectory
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD e6f0jx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-oii7hd-01-e6f0jx-resolve-aw-runs-repo-root-by-climbing-to-the-project-root-on.ipd.md); evidence .aw/records/plans/executed/20260928-oii7hd-01-e6f0jx-resolve-aw-runs-repo-root-by-climbing-to-the-project-root-on.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260929T021205Z-3914774: e6f0jx
 - 2026-09-22 created (aw backlog): run_viewer_cli reads args.dir directly instead of resolve_verb_repo_root, so aw runs cannot see a run from a subdirectory
 
