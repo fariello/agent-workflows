@@ -1,5 +1,5 @@
 - Id: nbu56f
-- Status: graduated
+- Status: done
 - Graduated-To: nbu56f
 - Set: nbu56f
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: run_suite_check's docstring still cites a stale 36-vs-15-failed worktree divergence measurement whose cause (dh0uno) is fixed and whose acceptance claim was retracted
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD cvs2b7 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-nbu56f-01-cvs2b7-re-justify-run-suite-check-s-primary-checkout-contract-on-th.ipd.md); evidence .aw/records/plans/executed/20260929-nbu56f-01-cvs2b7-re-justify-run-suite-check-s-primary-checkout-contract-on-th.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: cvs2b7
 - 2026-09-21 created (aw backlog): run_suite_check's docstring still cites a stale 36-vs-15-failed worktree divergence measurement whose cause (dh0uno) is fixed and whose acceptance claim was retracted
 
