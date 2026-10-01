@@ -721,7 +721,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--agent", "--json"),
-        exit_contract=(0, 1),
+        # Exit 2 added by IPD 1mnit8: argparse usage-error floor (not a domain outcome).
+        exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
         # proclint 79li67: local pre-commit gate on raw (untooled) INTERMEDIATE plan status changes.
@@ -734,7 +735,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--agent", "--json"),
-        exit_contract=(0, 1),
+        # Exit 2 added by IPD 1mnit8: argparse usage-error floor (not a domain outcome).
+        exit_contract=(0, 1, 2),
     ),
     # --- IPD / Plans Family ---
     CommandDeclaration(
@@ -1179,7 +1181,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--actor", "--reason", "--agent", "--json"),
-        exit_contract=(0, 5, 6),
+        # Exit 2 added by IPD 1mnit8: argparse usage-error floor, not a run-execution vocabulary outcome.
+        exit_contract=(0, 2, 5, 6),
     ),
     # `command_class="read"`: `runs status` reconstructs state and displays run progress without
     # writing to the ledger or disk, matching `RUNS_VIEWER_LEAF_NAMES`.
@@ -1248,7 +1251,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="auth_floor",
         empty_error_renderer="renderer_boundary",
         legacy_flags=("--workflow", "--actor", "--agent", "--json"),
-        exit_contract=(0, 1, 4, 6),
+        # Exit 2 added by IPD 1mnit8: argparse usage-error floor, not a run-execution vocabulary outcome.
+        exit_contract=(0, 1, 2, 4, 6),
     ),
     CommandDeclaration(
         # execset Order 05 (2h7777): read-only inspection of a Set run's durable decisions
