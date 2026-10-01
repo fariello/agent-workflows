@@ -1,11 +1,13 @@
 - Id: rcp8c4
-- Status: open
+- Status: graduated
+- Graduated-To: rcp8c4
 - Set: rcp8c4
 - Priority: low
 - Work-Kind: chore
 - Summary: runner_shared.py cites the deleted tests/test_run_flag_surface.py as its guard in seven comments
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 8wpjeq
 - 2026-09-29 created (aw backlog): runner_shared.py cites the deleted tests/test_run_flag_surface.py as its guard in seven comments
 
 Seven comments in `agent_workflows/runner_shared.py` name `tests/test_run_flag_surface.py` as the mechanism that guards spec `25kzda` 2.1's flag surface, and that file does not exist. Measured at HEAD `09f68a5b`: `:117` ("What replaces the fingerprint as its guard is tests/test_run_flag_surface.py"), `:1079`, `:14374` ("because tests/test_run_flag_surface.py reads the spec FILE in BOTH directions and a row here that 2.1 does not declare fails the suite"), `:14574`, `:14595`, `:14620`, and `:27858`. `ls tests/test_run_flag_surface.py` fails and `git log --diff-filter=D` attributes the deletion to `19313eed` ("trim test suite from 9,136 to under 2,000 tests"). The spec's own 2026-09-21 history note at `:1618` repeats the same claim.
