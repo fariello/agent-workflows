@@ -6,7 +6,7 @@
 - Scope: Correct and complete the setter documentation on the four surfaces the item names plus the two `aw specs set` invocations in the `spec-review` workflow body, by stating the confirmation-and-commit contract ONCE per surface rather than by editing each example: a flagless human call writes and then OFFERS to commit on a TTY (a no-op when non-interactive), `--yes` writes and auto-commits, `--no-commit` writes without committing, `--dry-run` previews, and an `--agent`/`--json` caller refuses at exit 2 until passed `--yes`. Keep every example canonical. Touch no code and change no behavior.
 - Scope-Paths: README.md, .aw/records/plans/README.md, .aw/records/backlog/README.md, .aw/records/specs/README.md, .aw/system/workflows/spec-review/spec-review.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: xt7n53
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: xt7n53 verified (set 7q9ycn, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-801..PR-806 all fixed
 
