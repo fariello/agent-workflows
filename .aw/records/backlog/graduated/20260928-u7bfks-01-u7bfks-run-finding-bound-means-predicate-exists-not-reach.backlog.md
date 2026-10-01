@@ -1,11 +1,13 @@
 - Id: u7bfks
-- Status: open
+- Status: graduated
+- Graduated-To: u7bfks
 - Set: u7bfks
 - Priority: low
 - Work-Kind: chore
 - Summary: run_evidence RUN_FINDING_CODES marks a code BOUND when its predicates merely exist, so an unreachable gate reports as bound
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: f7z10q
 - 2026-09-28 created (aw backlog): Filed by plan iot7hc (Set 7bj5sa, F-08) as the durable carrier for an obligation that plan deliberately does not absorb.
 
 MEASURED 2026-09-28 at HEAD a11c0580 while authoring plan iot7hc. run_evidence.RUN_FINDING_CODES records RUN-HOST-CAPABILITY with binding=BOUND and names three predicates (host_sandbox_profile.preflight_host_capabilities, format_host_capability_finding, check_action_capabilities). All three exist. NONE IS REACHABLE FROM A RUN: rg -c preflight_host_capabilities over oc_runipd.py, agy_runipd.py and runner_shared.py returns zero. The table's own 2026-09-05 re-measurement comment states the code 'is now BOUND, not UNBOUND-BY-DEPENDENCY' because plan mjx7ne 'executed and shipped' the function, which is exactly the inference at issue: BOUND is computed from a symbol EXISTING, not from a run being able to reach it. So the findings table cannot distinguish a live deterministic check from a shipped-but-uncalled one, and it reported this gate as bound for the whole period during which no run could emit it. Plan iot7hc wires the call site and so fixes the REACHABILITY of this particular code, but deliberately does not touch the binding model: that is a change to a 13-code table with four hardcoded-13 test assertions plus a runtime RC-COUNT self-validation (measured by plan 4h7tt0's review, which found that removing one row without owning the count made the shipped table report itself INVALID at runtime). THE QUESTION THIS ITEM CARRIES: should BOUND require a reachable call site rather than an existing predicate, and if so, does the table need a third state (say REACHABLE vs BOUND) so the distinction is visible instead of collapsed? Note the sibling rows RUN-COMMIT-CONTENTS and RUN-COMMIT-GATEWAY are already held UNBOUND on precisely this reasoning ('Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so binding these two now would be exactly the fail-open error'), so the table already applies the stricter standard by hand in some rows and not others. Priority low: nothing is unsafe, the defect is that an audit surface overstates coverage.
