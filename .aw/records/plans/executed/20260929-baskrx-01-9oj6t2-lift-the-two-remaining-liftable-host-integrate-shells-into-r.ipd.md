@@ -6,7 +6,7 @@
 - Scope: Give each of the two symbols ONE definition in `runner_shared.py`, reached from both hosts by the sanctioned thin-wrapper form this repository already uses for `integrate_lane_branch`, `save_state`, `write_report` and 40-odd others. The host-varying inputs (`integrate_lane_branch`, `run_suite_check`, `save_state`, `append_jsonl`, `process_backlog_close`) are INJECTED exactly as `runner_shared.integrate_stranded_lanes` and `runner_shared.reintegrate_lane` already inject them one layer down, so this adds no new mechanism. Also re-derive and record whether the backlog item's note about `handle_integrate_command` being classified `still-defined-twice` still describes anything that exists. EXCLUDES the other two byte-identical symbols (both already decided; see Deferred), EXCLUDES all six divergent forks, and changes NO behavior: not the exit codes, not the stream routing, not the narration text, not the refusal wording.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9oj6t2
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9oj6t2 verified (set baskrx, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_runner_shared.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
