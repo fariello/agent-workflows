@@ -48,11 +48,16 @@ The final release-readiness review aggregates the gates into a GO or NO-GO verdi
 (`agent_workflows/release_readiness.py`). It NEVER tags, publishes, deploys, or pushes; those are
 separately authorized actions (see `RELEASING.md` and the release-review workflow). The review
 runs the canonical leak scan and all IPD lint phases for real, checks the benchmark invariants,
-the changelog and versioning, and the residual-risk sign-off, then emits the verdict. Reproduce
-it:
+the changelog and versioning, and the residual-risk sign-off, then emits the verdict.
+
+The full release-readiness test suite was deleted in commit 19313eed, so the aggregate review
+verdict, changelog and versioning check, and residual-risk gate currently lack dedicated test
+coverage (tracked in backlog item 3rmvik). A partial behavioral guard survives in
+`tests/test_release_readiness_child_pin.py`, covering only subprocess child pinning and
+stdin denial for `gate_leak_scan` and `gate_ipd_lint`:
 
 ```
-python3 -m pytest tests/test_release_readiness.py -q
+python3 -m pytest tests/test_release_readiness_child_pin.py -q
 ```
 
 ## Responsibility boundary

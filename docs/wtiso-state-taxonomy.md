@@ -7,9 +7,10 @@ Section 2). Every later phase relocates or repairs the paths below; this table s
 phase owns each move, so no artifact can be relocated without a named owner.
 
 Freeze means: the class, namespace, canonical writer, retention class, and migration owner
-of each row are fixed as of 2026-08-29 and are checked mechanically by
-`tests/test_wtiso_taxonomy_freeze.py`. Changing a row is a deliberate act that must update
-that test in the same change.
+of each row are fixed as of 2026-08-29 as a documentary convention that contributors uphold
+by hand. The mechanical freeze test was removed on 2026-09-24 in commit 19313eed when the test
+suite was trimmed, so changing a row is a deliberate act that requires manual review of the
+taxonomy.
 
 Line numbers in the Evidence column were verified against the working tree on 2026-08-29.
 Treat the SYMBOL NAME as the durable anchor and the line number as a hint: Phases 1 through 6
@@ -17,7 +18,8 @@ edit these same modules, so re-verify with `grep -n '<symbol>'` before relying o
 
 ## Column vocabularies (closed enums)
 
-The freeze test rejects any value outside these sets.
+These enums form a documentary closed set upheld by hand; the former freeze test was removed in
+commit 19313eed.
 
 Class (x03wgn Section 2, five classes):
 
@@ -102,10 +104,11 @@ Migration owner is the wtiso child id6 that relocates or repairs the row:
 The table above records the TARGET classification; the code does not yet honor it.
 
 THESE DEFECTS ARE NO LONGER PINNED BY A TEST. Phase 0 pinned them in
-`tests/test_wtiso_characterization.py`, a suite whose assertions asserted the DEFECTS were still
-present, so that whichever phase fixed one had to come back and invert the assertion. That suite was
-retired on 2026-09-18: all three of its owning fix-plans (`qcqhj7`, `58ha43`, `2c122z`) were moved to
-`superseded`, so nothing was ever going to arrive to invert them, and a green test asserting known-bad
+`tests/test_wtiso_characterization.py` (a suite retired and deleted on 2026-09-18 in commit
+`d4dd6b88`), whose assertions asserted the DEFECTS were still present, so that whichever
+phase fixed one had to come back and invert the assertion. That suite was retired on 2026-09-18:
+all three of its owning fix-plans (`qcqhj7`, `58ha43`, `2c122z`) were moved to `superseded`,
+so nothing was ever going to arrive to invert them, and a green test asserting known-bad
 behavior persists is worse than no test (it reads as approval). The defects below are therefore
 recorded as OPEN NOTES, which is what they are. Re-pin any one of them at the moment a live plan
 actually takes it on, and invert it in the same change.
