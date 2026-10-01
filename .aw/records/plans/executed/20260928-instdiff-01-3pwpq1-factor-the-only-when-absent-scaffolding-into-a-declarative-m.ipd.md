@@ -6,7 +6,7 @@
 - Scope: Close the DECLARATIVE 42 by factoring the only-when-absent scaffolding into one shared, side-effect-free member-map producer that both the apply path and the preview consume, so the two cannot drift again the way they drifted for the skill members (backlog `bplplj`, plan `at61gc`). IN: a new `engine` function that returns the scaffolding `dict[str, bytes]` for a target repo (layout-resolved, template-read, no writes), derived by EXTRACTING the target lists the four README ensurers and `create_setup_artifacts` already build rather than by re-spelling them; rewiring those five producers to consume it so one definition backs both paths; an EXISTENCE FILTER at the preview boundary so an only-when-absent member whose destination already exists is never offered to the renderer, which is what stops the preview claiming it will overwrite a user's own README (F-11, the plan's most serious correction); calling it from the `if plan.diff:` branch in `engine.run`; teaching `show_install_diffs` to render a zero-byte member (a `.gitkeep`) as a creation rather than silently dropping it, which is the trap the current equal-content skip sets for 22 of the 42; retiring the hand-inlined `.aw/workflow-artifacts/README.md` special case in favor of the shared map WITHOUT losing the `is_file()` guard that block already carries; a default-visible preview/apply parity test that FAILS at HEAD; and one CHANGELOG line. OUT: `.aw/.gitignore`, which is a create-or-append back-fill and not a flat member (F-12); the 2 merge-writer paths, the 2 `emit_layout_artifacts` paths and the 3 bookkeeping paths (F-03, F-04, and the deferral section, each with a carrier or a declined rationale); adding a `--diff` flag to `aw install`, which does not have one (F-06); changing any WRITE semantics, so no file the installer creates, skips or overwrites changes; and changing `install_all`, `prune_stale`, the backup machinery or the ownership manifest.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer_scaffold_preview_parity.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3pwpq1
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 3pwpq1 verified (set instdiff, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-006 all fixed
 
