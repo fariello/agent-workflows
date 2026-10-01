@@ -41,25 +41,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the deletion is safe at execution time, then delete
 
-- [ ] E-01 RE-MEASURE THE READER CENSUS AT EXECUTION HEAD BEFORE DELETING ANYTHING, AND ABORT THE DELETION OF ANY NAME THAT HAS GAINED A READER. Do not trust the numbers in Findings: they were taken at authoring HEAD `c21ef727`, `b02ohu` is pending against the same file, and a restored test would make a deletion here a coverage loss rather than a cleanup. Run an AST census over `tests/test_runner_shared.py` that counts, per module-level assignment name, `ast.Name` nodes in `Load` context versus `Store` context (a bare text grep is NOT sufficient and is the trap this item exists to record: grepping `DOCUMENTED_SINCE_MOVE` matches inside `REDOCUMENTED_SINCE_MOVE` as a substring, which is exactly how a naive coverage check of the pending plan `b02ohu` wrongly reports `DOCUMENTED_SINCE_MOVE` as already covered, so match on word boundaries or on AST identifiers). Also run a package-wide search for each of the three target names across every `.py` file outside `__pycache__`. The three names this plan deletes are `DOCUMENTED_SINCE_MOVE`, `REDOCUMENTED_SINCE_MOVE` and `SUPERSEDED_SINCE_MOVE`. If any shows a `Load`, STOP on that name, delete only the others, and report the reader in the V-01 evidence rather than deleting anyway.
+- [x] E-01 RE-MEASURE THE READER CENSUS AT EXECUTION HEAD BEFORE DELETING ANYTHING, AND ABORT THE DELETION OF ANY NAME THAT HAS GAINED A READER. Do not trust the numbers in Findings: they were taken at authoring HEAD `c21ef727`, `b02ohu` is pending against the same file, and a restored test would make a deletion here a coverage loss rather than a cleanup. Run an AST census over `tests/test_runner_shared.py` that counts, per module-level assignment name, `ast.Name` nodes in `Load` context versus `Store` context (a bare text grep is NOT sufficient and is the trap this item exists to record: grepping `DOCUMENTED_SINCE_MOVE` matches inside `REDOCUMENTED_SINCE_MOVE` as a substring, which is exactly how a naive coverage check of the pending plan `b02ohu` wrongly reports `DOCUMENTED_SINCE_MOVE` as already covered, so match on word boundaries or on AST identifiers). Also run a package-wide search for each of the three target names across every `.py` file outside `__pycache__`. The three names this plan deletes are `DOCUMENTED_SINCE_MOVE`, `REDOCUMENTED_SINCE_MOVE` and `SUPERSEDED_SINCE_MOVE`. If any shows a `Load`, STOP on that name, delete only the others, and report the reader in the V-01 evidence rather than deleting anyway.
   - Depends on: none
   - Expected outcome: a pasted per-name census showing `Store=1, Load=0` for each of the three target names at execution HEAD, plus a pasted package-wide search showing no `.py` reference outside the defining assignment; any name with a reader is named and excluded from E-02.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 DELETE THE THREE ORPHANED EXEMPTION TUPLES AND THE COMMENT BLOCKS WHOSE ONLY SUBJECT IS THE EXEMPTION MECHANISM. The three assignments are `DOCUMENTED_SINCE_MOVE = ("plan_bucket",)`, `REDOCUMENTED_SINCE_MOVE = ("describe_lane",)` and the five-element `SUPERSEDED_SINCE_MOVE` tuple (`state_root`, `_run_git`, `should_color`, `describe_unresolved_plan_selector`, `resolve_plan_path`), each preceded by a long comment block that argues why its exemption is legitimate and narrow. DELETE EACH ASSIGNMENT WITH ITS OWN PRECEDING BLOCK, because a block left behind would describe a tuple that is not there, which is strictly worse than today's state. ALSO RECONCILE THE ONE SURVIVING REFERENCE OUTSIDE THOSE BLOCKS, which a block-scoped deletion misses (F-10, added at review): the LIVE `SharedColorDecisionTests` docstring says "This symbol is enumerated in `SUPERSEDED_SINCE_MOVE` above, which exempts it from the byte-identical pre-move capture", and after this item there is no `SUPERSEDED_SINCE_MOVE` above it, so the sentence would point at a name the file no longer contains. Rewrite that clause to state the property WITHOUT the dead name (the delegation cannot fingerprint as the body it replaces, so behavioral assertions are what cover it), keeping the class's own reason for existing intact; do NOT delete the docstring or the class. `SUPERSEDED_SINCE_MOVE` has exactly TWO word-boundary occurrences in the file, its assignment and this one, so both must go for V-02's zero-occurrence bar to be reachable at all. BE IDEMPOTENT ON `REDOCUMENTED_SINCE_MOVE`: pending plan `b02ohu` E-06 also names it (F-05), so if that plan landed first the name is already gone; treat its absence as satisfied rather than as an error, and say so in the evidence. PRESERVE A REPLACEMENT-COVERAGE POINTER ONLY AFTER RESOLVING IT BY SYMBOL, NEVER BY FILE EXISTENCE, AND DELETE THE ONES THAT DO NOT RESOLVE (F-09, added at review). The block embeds SIX pointers and they do not share a fate, so "preserve the pointers" cannot be executed as a single act. Resolve each by `def`/`class` definition, not by `pathlib.Path(...).exists()`, then: PRESERVE, relocated verbatim, the FOUR that resolve, because each names coverage a reader benefits from reaching - `resolve_plan_path`'s "Replacement behavioral coverage lives in `tests/test_resolve_plan_path_typed.py`" (`class ResolvePlanPathTypedTests` resolves, 13 tests pass), `state_root`'s `CanonicalRunsRootTests` (resolves IN THIS FILE), `should_color`'s `tests/test_term.py` `ShouldColorGridTests` (resolves) and `SharedColorDecisionTests` (resolves in this file). DELETE, rather than preserve, the TWO that do not resolve, and say in the evidence that they were deleted as unresolvable: the `_run_git` timeout note naming `tests/test_artifact_audit.py::EvidenceIndexTests` with `test_it_passes_an_explicit_timeout` and `test_a_timeout_is_unknown_not_a_pass` (the FILE exists but the CLASS does not, and neither test name has a single definition anywhere in the repository), and `describe_unresolved_plan_selector`'s `tests/test_graduation_dispatch.py::RefusalContentTests` (that file does not exist at all). Preserving either verbatim would MINT A NEW STALE CITATION of exactly the shape open item `pn7rw3` was filed for, inside a plan whose purpose is removing misleading prose, so this is a correctness requirement and not a tidiness preference. DO NOT TOUCH `INJECTED` (read by `WrapperTests.test_each_runner_keeps_a_wrapper_at_the_original_name`), `HOST_LABELS` (read twice by `LaneIntegrationBehaviorTests`), or `_MODULES`/`BOTH`.
+- [x] E-02 DELETE THE THREE ORPHANED EXEMPTION TUPLES AND THE COMMENT BLOCKS WHOSE ONLY SUBJECT IS THE EXEMPTION MECHANISM. The three assignments are `DOCUMENTED_SINCE_MOVE = ("plan_bucket",)`, `REDOCUMENTED_SINCE_MOVE = ("describe_lane",)` and the five-element `SUPERSEDED_SINCE_MOVE` tuple (`state_root`, `_run_git`, `should_color`, `describe_unresolved_plan_selector`, `resolve_plan_path`), each preceded by a long comment block that argues why its exemption is legitimate and narrow. DELETE EACH ASSIGNMENT WITH ITS OWN PRECEDING BLOCK, because a block left behind would describe a tuple that is not there, which is strictly worse than today's state. ALSO RECONCILE THE ONE SURVIVING REFERENCE OUTSIDE THOSE BLOCKS, which a block-scoped deletion misses (F-10, added at review): the LIVE `SharedColorDecisionTests` docstring says "This symbol is enumerated in `SUPERSEDED_SINCE_MOVE` above, which exempts it from the byte-identical pre-move capture", and after this item there is no `SUPERSEDED_SINCE_MOVE` above it, so the sentence would point at a name the file no longer contains. Rewrite that clause to state the property WITHOUT the dead name (the delegation cannot fingerprint as the body it replaces, so behavioral assertions are what cover it), keeping the class's own reason for existing intact; do NOT delete the docstring or the class. `SUPERSEDED_SINCE_MOVE` has exactly TWO word-boundary occurrences in the file, its assignment and this one, so both must go for V-02's zero-occurrence bar to be reachable at all. BE IDEMPOTENT ON `REDOCUMENTED_SINCE_MOVE`: pending plan `b02ohu` E-06 also names it (F-05), so if that plan landed first the name is already gone; treat its absence as satisfied rather than as an error, and say so in the evidence. PRESERVE A REPLACEMENT-COVERAGE POINTER ONLY AFTER RESOLVING IT BY SYMBOL, NEVER BY FILE EXISTENCE, AND DELETE THE ONES THAT DO NOT RESOLVE (F-09, added at review). The block embeds SIX pointers and they do not share a fate, so "preserve the pointers" cannot be executed as a single act. Resolve each by `def`/`class` definition, not by `pathlib.Path(...).exists()`, then: PRESERVE, relocated verbatim, the FOUR that resolve, because each names coverage a reader benefits from reaching - `resolve_plan_path`'s "Replacement behavioral coverage lives in `tests/test_resolve_plan_path_typed.py`" (`class ResolvePlanPathTypedTests` resolves, 13 tests pass), `state_root`'s `CanonicalRunsRootTests` (resolves IN THIS FILE), `should_color`'s `tests/test_term.py` `ShouldColorGridTests` (resolves) and `SharedColorDecisionTests` (resolves in this file). DELETE, rather than preserve, the TWO that do not resolve, and say in the evidence that they were deleted as unresolvable: the `_run_git` timeout note naming `tests/test_artifact_audit.py::EvidenceIndexTests` with `test_it_passes_an_explicit_timeout` and `test_a_timeout_is_unknown_not_a_pass` (the FILE exists but the CLASS does not, and neither test name has a single definition anywhere in the repository), and `describe_unresolved_plan_selector`'s `tests/test_graduation_dispatch.py::RefusalContentTests` (that file does not exist at all). Preserving either verbatim would MINT A NEW STALE CITATION of exactly the shape open item `pn7rw3` was filed for, inside a plan whose purpose is removing misleading prose, so this is a correctness requirement and not a tidiness preference. DO NOT TOUCH `INJECTED` (read by `WrapperTests.test_each_runner_keeps_a_wrapper_at_the_original_name`), `HOST_LABELS` (read twice by `LaneIntegrationBehaviorTests`), or `_MODULES`/`BOTH`.
   - Depends on: E-01
   - Expected outcome: the three names are absent from `tests/test_runner_shared.py`; no orphaned comment block remains describing a deleted tuple; the four RESOLVING replacement-coverage pointers are still present at a location that reads sensibly and the two UNRESOLVABLE ones are gone, each classified by a pasted symbol-resolution check rather than by file existence; `INJECTED`, `HOST_LABELS`, `BOTH` and `_MODULES` are unchanged; `python3 -m pytest tests/test_runner_shared.py` still reports 119 passed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REPLACE THE MODULE DOCSTRING'S FINGERPRINT-HARNESS NARRATIVE WITH A TRUE DESCRIPTION OF WHAT THE FILE NOW IS. F-07 enumerates the false claims in the present text together with the measurement refuting it. The replacement must describe a behavioral suite for shared runner machinery whose pre-move fingerprint fixture is a retained historical capture that no test reads. It must name `19313eed` as the commit where the harness reading that fixture was deleted. It must assert no symbol count the file cannot substantiate. It must not restore the deleted harness, which the 2026-09-28 maintainer ruling on item `qdro85` forbids and which `GUIDING_PRINCIPLES` P16 forbids. TREAT THE THREE NUMBERED ASSERTIONS INDIVIDUALLY RATHER THAN DROPPING THE FRAMING WHOLESALE, because they do not share a truth value and a rewrite that deletes all three loses a live property (F-11, added at review). Measured at review: assertion 1 (FINGERPRINT EQUALITY) is dead and the docstring already concedes it; assertion 2 (OBJECT IDENTITY) is LIVE, asserted by `CrossHostSuccessBarEqualityTests.test_cross_host_success_bar_constants_and_tokens` and `DriverErrorUnificationTests` through 54 `assertIs` call sites in this file, so the new text must still state it as a property this suite enforces; assertion 3 (NO RE-DEFINITION) is dead for the 34 moved symbols and survives only narrowly for two specific symbols (`test_no_divergent_codefined_constants_in_runner_shared` and `test_add_output_mode_flags_not_reforked_in_hosts`), so it must be restated with that reduced reach rather than as a whole-set guarantee or deleted outright. ALSO CORRECT THE TWO IN-FILE COUNT COMMENTS that the docstring's split mirrors, since fixing only the docstring leaves the same false claim one screen lower: "The 4 symbols that take an injected dependency" precedes a 7-entry `INJECTED` (the file's own next comment already concedes "THE COUNT IS 7, NOT THE PLAN'S 4"), and "The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`" precedes a 1-entry `UNMOVABLE` and names a class that does not exist. Both are in this plan's one declared path. If `b02ohu` has already deleted `UNMOVABLE`, its comment goes with it and only the `INJECTED` one remains; treat that as satisfied.
+- [x] E-03 REPLACE THE MODULE DOCSTRING'S FINGERPRINT-HARNESS NARRATIVE WITH A TRUE DESCRIPTION OF WHAT THE FILE NOW IS. F-07 enumerates the false claims in the present text together with the measurement refuting it. The replacement must describe a behavioral suite for shared runner machinery whose pre-move fingerprint fixture is a retained historical capture that no test reads. It must name `19313eed` as the commit where the harness reading that fixture was deleted. It must assert no symbol count the file cannot substantiate. It must not restore the deleted harness, which the 2026-09-28 maintainer ruling on item `qdro85` forbids and which `GUIDING_PRINCIPLES` P16 forbids. TREAT THE THREE NUMBERED ASSERTIONS INDIVIDUALLY RATHER THAN DROPPING THE FRAMING WHOLESALE, because they do not share a truth value and a rewrite that deletes all three loses a live property (F-11, added at review). Measured at review: assertion 1 (FINGERPRINT EQUALITY) is dead and the docstring already concedes it; assertion 2 (OBJECT IDENTITY) is LIVE, asserted by `CrossHostSuccessBarEqualityTests.test_cross_host_success_bar_constants_and_tokens` and `DriverErrorUnificationTests` through 54 `assertIs` call sites in this file, so the new text must still state it as a property this suite enforces; assertion 3 (NO RE-DEFINITION) is dead for the 34 moved symbols and survives only narrowly for two specific symbols (`test_no_divergent_codefined_constants_in_runner_shared` and `test_add_output_mode_flags_not_reforked_in_hosts`), so it must be restated with that reduced reach rather than as a whole-set guarantee or deleted outright. ALSO CORRECT THE TWO IN-FILE COUNT COMMENTS that the docstring's split mirrors, since fixing only the docstring leaves the same false claim one screen lower: "The 4 symbols that take an injected dependency" precedes a 7-entry `INJECTED` (the file's own next comment already concedes "THE COUNT IS 7, NOT THE PLAN'S 4"), and "The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`" precedes a 1-entry `UNMOVABLE` and names a class that does not exist. Both are in this plan's one declared path. If `b02ohu` has already deleted `UNMOVABLE`, its comment goes with it and only the `INJECTED` one remains; treat that as satisfied.
   - Depends on: E-02
   - Expected outcome: the module docstring makes no claim about a live fingerprint comparison, states no symbol count that the file cannot substantiate, still states the LIVE object-identity property and states assertion 3 at its true reduced reach, and names `19313eed` as where the reading harness went; the `INJECTED` and `UNMOVABLE` count comments no longer state a number contradicted by the tuple beneath them and no longer name `UnmovableSymbolTests`; a pasted diff of the docstring and of both comment corrections; `python3 -m pytest tests/test_runner_shared.py` green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RECORD THE REFUTATION IN THE BACKLOG ITEM'S OWN TERMS BY WRITING THE DISSOLVED-CONCERN NOTE INTO THIS PLAN'S EVIDENCE, AND CONFIRM NO OTHER TRACKED ARTIFACT IS LEFT POINTING AT A MECHANISM THIS PLAN DELETED. The item asks for a design review of a two-list mechanism; this plan deletes the mechanism instead, so a reader of the item must be able to find out why without re-deriving it. Search the tracked tree for references to the three deleted names and classify each hit: a RECORD of past work (an executed plan, a review record, this item) is correct as-is and MUST NOT be edited, since it records what was true when written; a LIVE instruction or convention document that tells a future author to use one of these lists would be stale and must be reported. Measured at authoring, every non-test reference is the first kind (executed plans `2iye0e`, `03ie04`, `96xtmi`, `iuxtjy`, `z8ddk0`, `zexed1`, `t0ovw6`, `mxzogk`; review records; the two backlog items `qdro85` and `pn7rw3`; and a lane-input copy under `.aw/state/`), and the ONE pending artifact is `b02ohu`, handled in F-05. Re-confirm that at execution and report any LIVE document the authoring pass did not see, rather than editing a record to match the new state.
+- [x] E-04 RECORD THE REFUTATION IN THE BACKLOG ITEM'S OWN TERMS BY WRITING THE DISSOLVED-CONCERN NOTE INTO THIS PLAN'S EVIDENCE, AND CONFIRM NO OTHER TRACKED ARTIFACT IS LEFT POINTING AT A MECHANISM THIS PLAN DELETED. The item asks for a design review of a two-list mechanism; this plan deletes the mechanism instead, so a reader of the item must be able to find out why without re-deriving it. Search the tracked tree for references to the three deleted names and classify each hit: a RECORD of past work (an executed plan, a review record, this item) is correct as-is and MUST NOT be edited, since it records what was true when written; a LIVE instruction or convention document that tells a future author to use one of these lists would be stale and must be reported. Measured at authoring, every non-test reference is the first kind (executed plans `2iye0e`, `03ie04`, `96xtmi`, `iuxtjy`, `z8ddk0`, `zexed1`, `t0ovw6`, `mxzogk`; review records; the two backlog items `qdro85` and `pn7rw3`; and a lane-input copy under `.aw/state/`), and the ONE pending artifact is `b02ohu`, handled in F-05. Re-confirm that at execution and report any LIVE document the authoring pass did not see, rather than editing a record to match the new state.
   - Depends on: E-02
   - Expected outcome: a pasted classified reference list for all three deleted names showing every hit is a historical record or the handled pending plan; zero edits to any file under `.aw/records/plans/executed/` or `.aw/records/reviews/`; any live convention document found is named in the evidence, not silently changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,25 +146,230 @@ N/A with reason: no spec governs the contents of this test file. `GUIDING_PRINCI
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the per-name census output taken at EXECUTION HEAD (not copied from Findings), showing for each of `DOCUMENTED_SINCE_MOVE`, `REDOCUMENTED_SINCE_MOVE` and `SUPERSEDED_SINCE_MOVE` a `Store` count of 1 and a `Load` count of 0, produced by an AST walk that distinguishes `ast.Load` from `ast.Store` context. PASTE the execution HEAD sha alongside it so the measurement is dated. PASTE the package-wide search for each of the three names across `*.py` outside `__pycache__`, showing the only hits are the defining assignment and comment text. PASTE evidence that the method is boundary-safe, for example by showing that a substring search for `DOCUMENTED_SINCE_MOVE` returns MORE hits than the boundary-safe one and naming `REDOCUMENTED_SINCE_MOVE` as the reason. If any name shows a `Load`, the evidence must name the reading test and state that the name was NOT deleted; that is a PASS for this item and a partial for E-02.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Per-name AST census at execution HEAD confirms Store=1, Load=0 for target names in tests/test_runner_shared.py (with REDOCUMENTED_SINCE_MOVE already removed by b02ohu), package-wide search confirms no executable Load references across *.py files, and boundary safety verified.
+    Execution HEAD sha: `97509d3ffd9914056a8eadb4cd81487f77353b52`.
 
-- [ ] V-02 validates E-02
+    Per-name census output at execution HEAD:
+    ```
+    DOCUMENTED_SINCE_MOVE: Store=1, Load=0
+    REDOCUMENTED_SINCE_MOVE: Store=0, Load=0
+    SUPERSEDED_SINCE_MOVE: Store=1, Load=0
+    ```
+    Note on `REDOCUMENTED_SINCE_MOVE`: Store=0, Load=0 because commit `61eca9ccdb434e0af3f5476411f0b9ad0ae50d5d` (`b02ohu`) landed before `ery0ia` and deleted `REDOCUMENTED_SINCE_MOVE = ("describe_lane",)`.
+
+    Package-wide search across `*.py` outside `__pycache__`:
+    ```
+    ./tests/test_runner_shared.py:132: [DOCUMENTED_SINCE_MOVE] DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
+    ./tests/test_runner_shared.py:136: [DOCUMENTED_SINCE_MOVE] # as `INJECTED` and `DOCUMENTED_SINCE_MOVE`.
+    ./tests/test_runner_shared.py:211: [SUPERSEDED_SINCE_MOVE] SUPERSEDED_SINCE_MOVE = (
+    ./tests/test_runner_shared.py:4815: [SUPERSEDED_SINCE_MOVE] `SUPERSEDED_SINCE_MOVE` above, which exempts it from the byte-identical pre-move capture
+    ```
+    All hits are defining assignments or comments; zero Load references package-wide.
+
+    Boundary-safe search evidence:
+    ```
+    Substring search for DOCUMENTED_SINCE_MOVE: 50 hits
+    Word-boundary search (-w) for DOCUMENTED_SINCE_MOVE: 40 hits
+    Difference (10 hits) is caused by substrings inside REDOCUMENTED_SINCE_MOVE
+    ```
+    None of the target names showed a Load, so proceeding with deletion under E-02 is safe.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE a boundary-safe search over `tests/test_runner_shared.py` showing zero occurrences of each deleted name, including in comments. STATE EXPLICITLY that `SUPERSEDED_SINCE_MOVE`'s SECOND occurrence, in the live `SharedColorDecisionTests` class docstring, was reconciled (F-10), and PASTE that docstring's new text showing it states the delegation property without naming the deleted tuple and that the class and its `test_should_color_behavior` are still present and passing. PASTE a search proving no orphaned comment block survives, for example by showing the phrases "Symbols that GAINED A DOCSTRING", "Symbols that ALREADY HAD a docstring" and "Symbols whose implementations have been SUPERSEDED" are all absent. PASTE THE PER-POINTER SYMBOL-RESOLUTION TABLE required by E-02 (F-09), one row per pointer, resolved by `def`/`class` definition and NOT by file existence, showing the four that resolve (`ResolvePlanPathTypedTests`, `CanonicalRunsRootTests`, `ShouldColorGridTests`, `SharedColorDecisionTests`) still named in the file, and showing the two unresolvable ones GONE: `EvidenceIndexTests` with `test_it_passes_an_explicit_timeout` and `test_a_timeout_is_unknown_not_a_pass` must have zero occurrences in the file after this item, and so must `tests/test_graduation_dispatch.py`. A pasted `pathlib.Path(...).exists()` check is NOT acceptable evidence for any pointer, because that is the exact check F-09 records as having produced the defect. PASTE proof the live names were untouched: `INJECTED`, `HOST_LABELS`, `BOTH` and `_MODULES` still present, with `git diff tests/test_runner_shared.py` showing no change to their assignments. PASTE `python3 -m pytest tests/test_runner_shared.py` showing `119 passed`; a different number must be explained, and a lower one is a FAILED validation rather than a new baseline. If `REDOCUMENTED_SINCE_MOVE` was already absent because `b02ohu` landed first, say so explicitly and show the `git log` evidence for that, rather than silently reporting zero occurrences.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Boundary-safe search confirms 0 occurrences of deleted names, SharedColorDecisionTests docstring reconciled, orphaned comment blocks absent, symbol-resolution table verified, live names untouched, and test suite green.
 
-- [ ] V-03 validates E-03
+    Boundary-safe search over `tests/test_runner_shared.py`:
+    ```
+    git grep -n -E "\b(DOCUMENTED_SINCE_MOVE|REDOCUMENTED_SINCE_MOVE|SUPERSEDED_SINCE_MOVE)\b" tests/test_runner_shared.py -> exit code 1 (0 matches)
+    ```
+
+    `SUPERSEDED_SINCE_MOVE` second occurrence in `SharedColorDecisionTests` was explicitly reconciled (F-10). New docstring text:
+    ```python
+    class SharedColorDecisionTests(unittest.TestCase):
+        """`should_color` is a sanctioned DELEGATION to `term.should_color` (IPD `z8ddk0` E-02).
+
+        WHY THESE ASSERTIONS AND NOT A FINGERPRINT. A delegation cannot fingerprint as the
+        body it replaces, so behavioral assertions are what cover it. This class is that
+        coverage: it pins the SHAPE (one delegating statement, so the `def` is a binding and
+        not a second body) and the BEHAVIOR CHANGE that motivated the supersession.
+        """
+    ```
+    `SharedColorDecisionTests.test_should_color_behavior` is present and passes (`1 passed`).
+
+    Proof no orphaned comment block survives:
+    ```
+    grep -n -E "Symbols that GAINED A DOCSTRING|Symbols that ALREADY HAD a docstring|Symbols whose implementations have been SUPERSEDED" tests/test_runner_shared.py -> exit code 1 (0 matches)
+    ```
+
+    Per-pointer symbol-resolution table (resolved by `def`/`class` definition across `*.py`, NOT file existence):
+    | Pointer Symbol | Target File / Scope | def/class Match | Resolves? | Action & State in `tests/test_runner_shared.py` |
+    |---|---|---|---|---|
+    | `ResolvePlanPathTypedTests` | `tests/test_resolve_plan_path_typed.py` | `tests/test_resolve_plan_path_typed.py:class ResolvePlanPathTypedTests(unittest.TestCase):` | YES (RESOLVES) | PRESERVED (relocated comment pointer; 13 passed) |
+    | `CanonicalRunsRootTests` | `tests/test_runner_shared.py` | `tests/test_runner_shared.py:class CanonicalRunsRootTests(unittest.TestCase):` | YES (RESOLVES) | PRESERVED (relocated comment pointer; live class in file) |
+    | `ShouldColorGridTests` | `tests/test_term.py` | `tests/test_term.py:class ShouldColorGridTests(unittest.TestCase):` | YES (RESOLVES) | PRESERVED (relocated comment pointer; 28 passed) |
+    | `SharedColorDecisionTests` | `tests/test_runner_shared.py` | `tests/test_runner_shared.py:class SharedColorDecisionTests(unittest.TestCase):` | YES (RESOLVES) | PRESERVED (relocated comment pointer; live class in file) |
+    | `EvidenceIndexTests` | `tests/test_artifact_audit.py` | `defs=0` | NO (UNRESOLVABLE) | DELETED (zero occurrences in file) |
+    | `RefusalContentTests` | `tests/test_graduation_dispatch.py` | `defs=0` | NO (UNRESOLVABLE) | DELETED (zero occurrences in file) |
+    | `test_it_passes_an_explicit_timeout` | `tests/test_artifact_audit.py` | `defs=0` | NO (UNRESOLVABLE) | DELETED (zero occurrences in file) |
+    | `test_a_timeout_is_unknown_not_a_pass` | `tests/test_artifact_audit.py` | `defs=0` | NO (UNRESOLVABLE) | DELETED (zero occurrences in file) |
+
+    Unresolvable citations check:
+    ```
+    grep -n -E "EvidenceIndexTests|test_it_passes_an_explicit_timeout|test_a_timeout_is_unknown_not_a_pass|test_graduation_dispatch" tests/test_runner_shared.py -> exit code 1 (0 matches)
+    ```
+
+    Proof live names untouched:
+    Assignments `INJECTED: dict[str, str] = ...`, `HOST_LABELS = ...`, `BOTH = ...`, `_MODULES = ...` unchanged.
+    Import verification:
+    ```
+    python3 -c "from tests.test_runner_shared import INJECTED, HOST_LABELS, BOTH, _MODULES; print('All imported successfully')" -> All imported successfully
+    ```
+
+    Git log evidence for `REDOCUMENTED_SINCE_MOVE` prior absence:
+    Commit `61eca9ccdb434e0af3f5476411f0b9ad0ae50d5d` (`b02ohu`):
+    ```
+    git show 61eca9ccd -- tests/test_runner_shared.py | grep REDOCUMENTED_SINCE_MOVE
+    -REDOCUMENTED_SINCE_MOVE = ("describe_lane",)
+    ```
+
+    Test run:
+    ```
+    python3 -m pytest tests/test_runner_shared.py
+    127 passed in 5.53s
+    ```
+    Explanation of 127 vs 119 baseline: Prior plan `b02ohu` (`61eca9ccd`) landed before `ery0ia`, adding behavioral invariant tests (`test_all_shared_run_checked_callers_are_behaviorally_checked`, etc.), bringing the baseline from 119 to 127. Zero tests were deleted by `ery0ia`, so 127 passed confirms 100% test preservation.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the full new module docstring. PASTE a search over it proving the false claims are gone: no live fingerprint-comparison claim, and no surviving "27 symbols"/"4 symbols"/"2 symbols" count. PASTE the measured table lengths that refute the old counts (`len(INJECTED)` and, if it still exists at that point, `len(UNMOVABLE)`) so the rewrite is shown to be a correction rather than a preference. PASTE proof that the classes the old docstring's assertions named are absent as definitions (`UnmovableSymbolTests`, `LaneIntegrationExtractionTests`). PASTE proof that `19313eed` is named in the new text. PER-ASSERTION DISPOSITION IS REQUIRED, NOT A BLANKET REMOVAL (F-11): state for each of the three numbered assertions whether the new text drops it, keeps it, or narrows it, and justify each with a measurement. Specifically, the object-identity property MUST still be stated, and the evidence must PASTE the count of `assertIs` call sites in the file plus a passing run of `CrossHostSuccessBarEqualityTests` and `DriverErrorUnificationTests` showing the property is genuinely enforced; a rewrite that silently deletes it is a FAILED validation even though the suite would stay green. PASTE the corrected `INJECTED` comment beside `len(INJECTED)`, and the corrected or removed `UNMOVABLE` comment, showing neither states a number the tuple beneath it contradicts and neither still names `UnmovableSymbolTests`. PASTE `python3 -m pytest tests/test_runner_shared.py` green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full new module docstring accurately reflects behavioral test suite; individual dispositions recorded for structural assertions; false counts removed; INJECTED comment corrected to 7; test suite green.
 
-- [ ] V-04 validates E-04
+    Full new module docstring:
+    ```python
+    """Behavioral test suite for shared runner machinery in `runner_shared`.
+
+    WHAT THIS FILE TESTS:
+    This suite validates behavioral contracts, cross-host parity, and shared invariants
+    for the shared runner machinery extracted across `agent_workflows`.
+
+    HISTORICAL HARNESS CONTEXT AND RETIRED FIXTURE:
+    Originally authored as the move harness for `runner_shared` (rununify Order 02, `818uru`),
+    earlier versions enforced an AST fingerprint equality harness against
+    `tests/fixtures/runner_shared_premove_fingerprints.json`. That reading harness was deleted
+    in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), leaving the
+    fixture as a retained historical capture that no test reads. In accordance with maintainer
+    ruling and GUIDING_PRINCIPLES P16, code-pinning AST freeze comparisons are not run.
+
+    STATUS OF THE ORIGINAL THREE STRUCTURAL ASSERTIONS:
+
+      1. FINGERPRINT EQUALITY: RETIRED. The pre-move fingerprint comparison harness was deleted in
+         `19313eed`. The fixture `tests/fixtures/runner_shared_premove_fingerprints.json` is a retained
+         historical capture that no test reads.
+      2. OBJECT IDENTITY: LIVE. Both host runners (`oc_runipd` and `agy_runipd`) must resolve shared
+         symbols and constants to the SAME object. This property is actively enforced across the suite
+         (e.g., in `CrossHostSuccessBarEqualityTests` and `DriverErrorUnificationTests` via object identity
+         `assertIs` checks).
+      3. NO RE-DEFINITION: NARROWED. Originally intended across all moved symbols, general AST-level
+         duplicate detection is no longer run; re-definition protection survives narrowly for specific
+         constants and flags (`test_no_divergent_codefined_constants_in_runner_shared` and
+         `test_add_output_mode_flags_not_reforked_in_hosts`).
+    """
+    ```
+
+    Search over new docstring proving false claims are absent:
+    - Live fingerprint comparison claim: absent
+    - "27 symbols": absent
+    - "4 symbols": absent
+    - "2 symbols": absent
+    - "34 symbols": absent
+    - "32 of 34": absent
+
+    Measured table lengths refuting old counts:
+    - `len(INJECTED) = 7` (keys: `run_checked`, `save_state`, `validate_manifest`, `print_status`, `git_head`, `git_status`, `git_common_dir`)
+    - `UNMOVABLE` is not defined (removed by `b02ohu`)
+
+    Proof old classes absent as definitions:
+    - `UnmovableSymbolTests`: 0 class definitions found across repository
+    - `LaneIntegrationExtractionTests`: 0 class definitions found across repository
+
+    Proof `19313eed` named in new text:
+    Appears twice in docstring (lines 11 and 18).
+
+    Per-assertion dispositions (F-11):
+    - Assertion 1 (FINGERPRINT EQUALITY): RETIRED. Harness deleted in `19313eed`, fixture unread.
+    - Assertion 2 (OBJECT IDENTITY): LIVE. Actively enforced across 58 `assertIs` sites in `tests/test_runner_shared.py`. Test run for `CrossHostSuccessBarEqualityTests` and `DriverErrorUnificationTests`:
+      `3 passed in 2.10s`.
+    - Assertion 3 (NO RE-DEFINITION): NARROWED. General AST-level check retired; survives narrowly for specific constants and flags (`test_no_divergent_codefined_constants_in_runner_shared` and `test_add_output_mode_flags_not_reforked_in_hosts`).
+
+    Corrected `INJECTED` comment beside `len(INJECTED)`:
+    ```python
+    # The 7 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
+    ```
+    Measured: `len(INJECTED) == 7`, comment states 7 (no contradiction).
+    `UNMOVABLE` comment was removed along with `UNMOVABLE` deletion by `b02ohu`, neither remains.
+
+    Test run:
+    ```
+    python3 -m pytest tests/test_runner_shared.py
+    127 passed in 5.53s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the classified reference list for all three deleted names across the tracked tree, with each hit labelled as a historical record (executed plan, review record, backlog item, lane-input copy) or as a live document. PASTE `git status --short` and `git diff --name-only` proving ZERO files under `.aw/records/plans/executed/` or `.aw/records/reviews/` were modified. PASTE a bare `python3 -m pytest` run (no added flags, per the execution contract) showing the suite is green, since this is the run that would catch a cross-module import of a deleted name. State explicitly whether any LIVE convention document instructing an author to use these lists was found; if one was, name it and report it WITHOUT editing it, since that would be a scope widening this plan did not declare.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All remaining references across the tracked tree classified as historical records or pending plans; zero executed/review files modified; bare full pytest run green; zero live convention documents found.
+
+    Classified reference list for deleted names across tracked tree:
+    - Graduated backlog items (historical records):
+      - `.aw/records/backlog/graduated/20260921-qdro85-01-qdro85-ast-freeze-redocumented-exemption.backlog.md`
+      - `.aw/records/backlog/graduated/20260928-pn7rw3-01-pn7rw3-stale-guard-citations-in-move-harness.backlog.md`
+    - Executed plans (historical records):
+      - `.aw/records/plans/executed/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md`
+      - `.aw/records/plans/executed/20260908-discclass-01-zexed1-classify-a-run-record-versus-artifact-difference-by-directio.ipd.md`
+      - `.aw/records/plans/executed/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md`
+      - `.aw/records/plans/executed/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.ipd.md`
+      - `.aw/records/plans/executed/20260919-lifeglyph-09-z8ddk0-unify-the-three-divergent-should-color-implementations-and-s.ipd.md`
+      - `.aw/records/plans/executed/20260926-planpathtype-01-mxzogk-make-resolve-plan-path-fail-closed-on-a-non-plan-path-a-ment.ipd.md`
+      - `.aw/records/plans/executed/20260926-srcguard-01-96xtmi-delete-the-tests-that-pin-production-source-text-or-structur.ipd.md`
+      - `.aw/records/plans/executed/20260928-structpin-01-b02ohu-restate-the-surviving-code-structure-pins-as-behavioral-inva.ipd.md`
+      - `.aw/records/plans/executed/20260928-xw4rb7-01-t0ovw6-guard-the-already-landed-output-mode-flags-lift-so-the-fork.ipd.md`
+    - Review records (historical records):
+      - `.aw/records/reviews/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.review.md`
+      - `.aw/records/reviews/20260919-lifeglyph-09-z8ddk0-unify-the-three-divergent-should-color-implementations-and-s.review.md`
+      - `.aw/records/reviews/20260926-planpathtype-01-mxzogk-make-resolve-plan-path-fail-closed-on-a-non-plan-path-a-ment.review.md`
+      - `.aw/records/reviews/20260928-xw4rb7-01-t0ovw6-guard-the-already-landed-output-mode-flags-lift-so-the-fork.review.md`
+      - `.aw/records/reviews/20260929-qdro85-01-ery0ia-delete-the-dead-ast-freeze-exemption-tables-so-the-two-docst.review.md`
+      - `.aw/records/reviews/20260930-pn7rw3-01-x3zno3-correct-the-should-color-guard-citation-block-so-every-guard.review.md`
+    - Pending plans (planned/peer artifacts):
+      - `.aw/records/plans/pending/20260929-qdro85-01-ery0ia-delete-the-dead-ast-freeze-exemption-tables-so-the-two-docst.ipd.md`
+      - `.aw/records/plans/pending/20260930-pn7rw3-01-x3zno3-correct-the-should-color-guard-citation-block-so-every-guard.ipd.md`
+      - `.aw/records/plans/pending/20261001-p7k57l-01-1o7i7g-restore-the-backlog-close-delegation-and-host-independence-g.ipd.md`
+    - Modified target test file:
+      - `tests/test_runner_shared.py` (all 3 names removed)
+
+    Unmodified executed/review records proof:
+    `git diff --name-only`:
+    ```
+    tests/test_runner_shared.py
+    ```
+    `git status --short`:
+    ```
+     M tests/test_runner_shared.py
+    ```
+    Zero files under `.aw/records/plans/executed/` or `.aw/records/reviews/` were modified.
+
+    Bare full test suite run:
+    ```
+    python3 -m pytest
+    3802 passed, 2 skipped, 3 warnings in 85.96s (0:01:25)
+    ```
+
+    Live convention document search:
+    Zero live convention or instruction documents instructing an author to use these lists were found across the repository.
+  - Result: pass
 
 ## Approval and execution gate
 

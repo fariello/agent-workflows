@@ -1,38 +1,31 @@
 #!/usr/bin/env python3
-"""The MOVE HARNESS for `runner_shared` (rununify Order 02, `818uru`).
+"""Behavioral test suite for shared runner machinery in `runner_shared`.
 
-WHAT THIS FILE PROVES, and why the claim needs a mechanical proof at all. Plan `818uru` moves 32 of
-34 symbols that were defined TWICE, once per host runner, with AST-identical bodies, into one shared
-module. Its central claim is that this is a PURE MOVE: no body changed, so no behavior changed. That
-claim cannot be discharged by reading 34 diffs, and it cannot be discharged by the driver suites
-either - the suites were fully green for months while `DriverError` was two DISTINCT classes needing
-a hand-written translation wrapper. So the proof is mechanical and lives here.
+WHAT THIS FILE TESTS:
+This suite validates behavioral contracts, cross-host parity, and shared invariants
+for the shared runner machinery extracted across `agent_workflows`.
 
-THE THREE INDEPENDENT ASSERTIONS, none of which implies another:
+HISTORICAL HARNESS CONTEXT AND RETIRED FIXTURE:
+Originally authored as the move harness for `runner_shared` (rununify Order 02, `818uru`),
+earlier versions enforced an AST fingerprint equality harness against
+`tests/fixtures/runner_shared_premove_fingerprints.json`. That reading harness was deleted
+in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), leaving the
+fixture as a retained historical capture that no test reads. In accordance with maintainer
+ruling and GUIDING_PRINCIPLES P16, code-pinning AST freeze comparisons are not run.
 
-  1. FINGERPRINT EQUALITY. `tests/fixtures/runner_shared_premove_fingerprints.json` is a RETAINED
-     HISTORICAL CAPTURE that no test reads, rather than a live pin (the test harness was deleted in
-     `19313eed`). Formerly held the PRE-MOVE `ast.dump(ast.parse(ast.unparse(node)))` of all 34
-     symbols from BOTH runners, captured at HEAD `1ecc5891`.
-  2. OBJECT IDENTITY. Both runners must resolve each moved name to the SAME object. Fingerprint
-     equality alone would pass while a runner kept its own copy that merely looks the same, which is
-     precisely the state this plan exists to end.
-  3. NO RE-DEFINITION. Neither runner may still contain a top-level `def`/`class` of a moved symbol.
-     Identity alone would pass while a stale duplicate sat in the file shadowed by a later import,
-     which is a trap rather than a fix.
+STATUS OF THE ORIGINAL THREE STRUCTURAL ASSERTIONS:
 
-THE FINGERPRINT RULE SPLITS, and the exemption is ENUMERATED rather than implicit, because quietly
-exempting the riskiest symbols is how a harness becomes decorative:
-
-  * 27 symbols have NO outside dependency and are held to STRICT fingerprint equality.
-  * 4 symbols gained ONE keyword-only parameter by design (`INJECTED`, below), so their post-move
-    fingerprint CANNOT equal the pre-move capture - a body that gained a parameter is not
-    byte-identical, and claiming otherwise about exactly the five highest-risk symbols would be a
-    false claim. They are held to fingerprint equality MODULO the injection (proven by re-deriving
-    the pre-move signature from the post-move one and THEN comparing bodies) plus a behavior test
-    through each runner's wrapper.
-  * 2 symbols did not move at all (`UNMOVABLE`, below) and this file pins WHY, so a later reader who
-    counts 32 and expects 34 finds the reason instead of "finishing the job" and reintroducing a bug.
+  1. FINGERPRINT EQUALITY: RETIRED. The pre-move fingerprint comparison harness was deleted in
+     `19313eed`. The fixture `tests/fixtures/runner_shared_premove_fingerprints.json` is a retained
+     historical capture that no test reads.
+  2. OBJECT IDENTITY: LIVE. Both host runners (`oc_runipd` and `agy_runipd`) must resolve shared
+     symbols and constants to the SAME object. This property is actively enforced across the suite
+     (e.g., in `CrossHostSuccessBarEqualityTests` and `DriverErrorUnificationTests` via object identity
+     `assertIs` checks).
+  3. NO RE-DEFINITION: NARROWED. Originally intended across all moved symbols, general AST-level
+     duplicate detection is no longer run; re-definition protection survives narrowly for specific
+     constants and flags (`test_no_divergent_codefined_constants_in_runner_shared` and
+     `test_add_output_mode_flags_not_reforked_in_hosts`).
 """
 
 from __future__ import annotations
@@ -59,7 +52,7 @@ _MODULES = {
     "runner_shared": runner_shared,
 }
 
-# The 4 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
+# The 7 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
 # THE MAINTAINER RULED THE THIN RUNNER-LOCAL WRAPPER over uniform parameter injection, for two
 # measured reasons: uniform injection would have rewritten ~86 call sites in the two
 # highest-contention files in the repo, and it would have broken assertion (1) above on exactly these
@@ -112,109 +105,12 @@ LANE_INTEGRATION_MOVED = (
 # no default precisely so a mis-binding cannot be silent.
 HOST_LABELS = {"oc_runipd": "aw oc run", "agy_runipd": "aw agy run"}
 
-# Symbols that GAINED A DOCSTRING since the pre-move capture, and nothing else. ENUMERATED, in the
-# same spirit as `INJECTED` above, because an unenumerated exemption is how this harness would become
-# decorative (depreview 03ie04 E-05).
-#
-# WHY THE EXEMPTION IS LEGITIMATE HERE. This file's claim is that a moved body still BEHAVES as it
-# did. A docstring is an unobservable string constant, so it cannot change behavior, but it DOES
-# change `ast.dump`. Holding a moved symbol to byte-identical AST forever would mean a moved symbol
-# can never be DOCUMENTED, which penalizes precisely the improvement the repository wants: measured,
-# `plan_bucket` had NO docstring at all, and the absence of its stated contract is what let
-# `oc_runipd.edge_satisfied` ask it a question it structurally cannot answer (readiness), producing
-# the defect 03ie04 fixes.
-#
-# THE EXEMPTION IS NARROW AND PROVEN BY SUBTRACTION, not asserted: `_without_docstring` removes ONLY
-# the leading string expression and the remaining tokens must match the pre-move capture EXACTLY, so
-# any edit to an executable statement in one of these bodies still FAILS. Every symbol NOT listed
-# here is still held to STRICT equality including its docstring. Keep this list SHORT, and add a name
-# only together with the reason the new documentation was needed.
-DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
-
-# Symbols whose implementations have been SUPERSEDED by design in subsequent approved IPDs, and whose
-# post-move bodies deliberately no longer match the pre-move capture. ENUMERATED, in the same spirit
-# as `INJECTED` and `DOCUMENTED_SINCE_MOVE`.
-#
-# WHY THE EXEMPTION IS LEGITIMATE HERE. `state_root` moved in rununify Order 02 (`818uru`) with the
-# hardcoded repo-backed literal `.aw/records/runs`. IPD `xbwq8n` (`runanalytics` Order 01) identified
-# this hardcoded literal as a defect because the runs root is relocatable via `records_backend`
-# (repository, companion, home). E-01 replaced the hardcoded literal with dynamic resolution through
-# `project_context.resolve_project_context`.
-#
-# Holding `state_root` to byte-identical AST of the pre-move literal would freeze the defect in place.
-# The superseded symbol is tested rigorously in its own dedicated test suite (`CanonicalRunsRootTests`)
-# covering relocated backends, pure side-effect-free guarantees, and AST checks.
-#
-# `_run_git` GAINED AN OPTIONAL `timeout` (IPD `zexed1` E-02), and the exemption is recorded here rather
-# than absorbed. WHY IT IS LEGITIMATE: the pre-move body passes NO timeout, so a `git` that wedges hangs
-# its caller forever. That was harmless while every caller was a driver running unattended, and is not
-# harmless now that `artifact_audit.build_finalize_evidence_index` reads history for `aw runs`, an
-# INTERACTIVE read-only view. THE DEFAULT IS `None`, which is byte-for-byte today's behavior, so no
-# existing caller changed; holding the symbol to its pre-move AST would instead mean the shared git
-# helper can never grow a timeout, i.e. it would freeze the defect exactly as it would have for
-# `state_root`. The added capability has its OWN dedicated coverage in
-# `tests/test_artifact_audit.py::EvidenceIndexTests` (`test_it_passes_an_explicit_timeout` asserts the
-# value actually reaches the subprocess, `test_a_timeout_is_unknown_not_a_pass` asserts a timeout
-# classifies as unprovable rather than as a pass).
-#
-# `should_color` BECAME A DELEGATION to `term.should_color` (IPD `z8ddk0` E-02), and the exemption is
-# recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body was one of THREE
-# independent implementations of the color capability decision that DISAGREED with each other,
-# measured by execution 2026-09-19. This one ignored `TERM` entirely, so `TERM=dumb aw oc run` emitted
-# color while `TERM=dumb aw attention` did not, and it read both variables by TRUTHINESS, so
-# `FORCE_COLOR=0` - the value that plainly means "do not force" - FORCED COLOR ON, even into a pipe.
-# Spec `uonrjg` R9.3a.2 requires the depth resolver above this decision have EXACTLY ONE definition,
-# which is unsatisfiable while the decision beneath it has three.
-#
-# So holding this symbol to its pre-move AST would freeze TWO defects in place and block the spec
-# requirement, exactly as it would have for `state_root`. THE `def` DELIBERATELY REMAINS, as a single
-# delegating statement, because three shipped guards assert `runner_shared` DEFINES this symbol
-# (`test_runner_refork_guard.py`'s `Owned("should_color", "runner_shared", BOTH)` row,
-# `test_rununify_run_queue.py`'s `RESOLVES_IN_RUNNER_SHARED`, and `test_exactly_one_definition_package_wide`
-# below); an import fails all three. A delegation cannot fingerprint as the body it replaces, which is
-# why no shape of this change can satisfy the STRICT match and why the exemption is the only honest
-# route. The unified decision has its OWN dedicated coverage in `tests/test_term.py`
-# (`ShouldColorGridTests` pins all 16 `NO_COLOR` x `FORCE_COLOR` cells against both a TTY and a pipe
-# plus the four `TERM` values; `OneOriginatingDefinitionTests` forbids a fourth implementation), and
-# the delegation itself is pinned by `SharedColorDecisionTests` in this file.
-# `describe_unresolved_plan_selector` GAINED THE ID-LESS-SPEC EXPLANATION (graduate-02 `iuxtjy` E-02),
-# and the exemption is recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body ends
-# every non-plan branch with the bare sentence "'<sel>' is a <type>, not an IPD plan.", which is exactly
-# right for eight of the nine types and MISLEADING for a spec that declares no `- Id:`. Measured at
-# execution time, 19 of 36 spec records carry no `- Id:`, so this is the MAJORITY case, and the two
-# surfaces disagree about it by design: the shared `selectors` layer RESOLVES such a file by stem (so
-# `aw find` shows it) while `runner_shared.discover_specs` deliberately SKIPS it (without an id6 it
-# cannot be named by a selector, cannot carry a review record, and cannot be attested). An operator
-# therefore sees a file one tool finds and the runner declines, told only "not a plan", which reads as a
-# bug in a deliberate skip. The added branch states the asymmetry and names the conversion verb
-# (`aw rename specs <path> --to-id6`); it mints NOTHING, because a durable records write belongs to the
-# `aw specs` verbs that own the tree and never to a dispatch path.
-#
-# Holding this symbol to its pre-move AST would mean the runner can never explain a refusal it is
-# uniquely placed to explain, which is the same freeze-the-defect trap recorded above for `state_root`
-# and `should_color`. Every OTHER branch of the function is byte-unchanged, and the new one has its own
-# dedicated coverage in `tests/test_graduation_dispatch.py::RefusalContentTests`
-# (`test_a_spec_with_no_Id_refuses_with_an_explanation_and_the_conversion_verb` asserts the message and
-# the verb; `test_a_spec_that_HAS_an_Id_reached_by_stem_does_not_get_the_id_less_note` is the
-# load-bearing negative proving the branch keys on the ACTUAL absence of `- Id:` rather than on the
-# selector spelling, so it cannot assert something false about a conformant spec).
-#
-# planpathtype-01 (`mxzogk`): `resolve_plan_path` previously failed open in three measured ways:
-# (1) its `configured` branch returned any existing file (such as a plans README or a spec); (2) its
-# `id6` branch matched via substring precedence, resolving a spec id6 to a plan that merely mentioned it;
-# and (3) its glob fallback searched `repo` root, walking lane worktrees and suite baselines while
-# matching mention-only slugs. The fix restricts the `id6` branch to an exact declaration
-# (`allow=frozenset({selectors.MATCH_ID6})`), type-checks the `configured` branch against discover_plans
-# membership rules and `detect_artifact_type == "plans"`, and limits the glob fallback to the plans trees
-# and claiming hits (`CLAIMING_OWNERSHIPS`). Replacement behavioral coverage lives in
-# `tests/test_resolve_plan_path_typed.py`.
-SUPERSEDED_SINCE_MOVE = (
-    "state_root",
-    "_run_git",
-    "should_color",
-    "describe_unresolved_plan_selector",
-    "resolve_plan_path",
-)
+# Replacement behavioral coverage for symbols whose post-move implementations were updated:
+# - `state_root`: tested in `CanonicalRunsRootTests` in this file.
+# - `should_color`: dedicated coverage in `tests/test_term.py` (`ShouldColorGridTests`)
+#   and pinned by `SharedColorDecisionTests` in this file.
+# - `resolve_plan_path`: Replacement behavioral coverage lives in
+#   `tests/test_resolve_plan_path_typed.py` (`ResolvePlanPathTypedTests`).
 
 
 class WrapperTests(unittest.TestCase):
@@ -4811,12 +4707,10 @@ class PathSelectorKindTests(unittest.TestCase):
 class SharedColorDecisionTests(unittest.TestCase):
     """`should_color` is a sanctioned DELEGATION to `term.should_color` (IPD `z8ddk0` E-02).
 
-    WHY THESE ASSERTIONS AND NOT A FINGERPRINT. This symbol is enumerated in
-    `SUPERSEDED_SINCE_MOVE` above, which exempts it from the byte-identical pre-move capture
-    (a delegation cannot fingerprint as the body it replaces). That exemption removes the
-    only coverage the harness gave it, so this class is the replacement: it pins the SHAPE
-    (one delegating statement, so the `def` is a binding and not a second body) and the
-    BEHAVIOR CHANGE that motivated the supersession.
+    WHY THESE ASSERTIONS AND NOT A FINGERPRINT. A delegation cannot fingerprint as the
+    body it replaces, so behavioral assertions are what cover it. This class is that
+    coverage: it pins the SHAPE (one delegating statement, so the `def` is a binding and
+    not a second body) and the BEHAVIOR CHANGE that motivated the supersession.
     """
 
     class _TTYStream:
