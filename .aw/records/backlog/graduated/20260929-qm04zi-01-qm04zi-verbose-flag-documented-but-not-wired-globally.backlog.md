@@ -1,5 +1,6 @@
 - Id: qm04zi
-- Status: open
+- Status: graduated
+- Graduated-To: qm04zi
 - Blocks-Release: next
 - Set: qm04zi
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: docs advertise --verbose as a general agent-mode token-control flag but only upgrade-test new accepts it, so the documented usage exits 2
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053024Z-3198670: c4btis
 - 2026-09-29 created (aw backlog): Carrier filed while authoring plan 75ic2f (backlog rcjorx): the same reach defect rcjorx records for --fields, on its documented sibling --verbose.
 
 MEASURED 2026-09-29 at HEAD `3f7997b2` while authoring plan `75ic2f` from backlog item `rcjorx`.
