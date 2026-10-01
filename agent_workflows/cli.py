@@ -12966,8 +12966,14 @@ def _run_check(
             title, dir_str, fname, extra, fix = _doctor._categorize_drift(d, repo_root)
         except Exception:
             fix = None
-        # Prefer any determinism/assurance/severity already stamped on the Drift, else the registry.
-        enriched = ce.enrich_drift(d, recovery=fix or "")
+        # Direction of travel: `recovery` is the rule's authored fix and travels to the
+        # machine record (policy_findings), while `Remediation.detailed_fix` (the local `fix`)
+        # is human prose travelling to `Diagnostic.fix` and `next_actions`; the two must not be
+        # crossed. `fix` is computed here because Diagnostic and seen_fixes need it.
+        # Note this does NOT make `next_actions` fully runnable: next_actions is still built
+        # from seen_fixes (human prose), carried separately by 2cnvh1.
+        # Prefer any determinism/assurance/severity already stamped on the Drift, else registry.
+        enriched = ce.enrich_drift(d)
         sev = enriched.severity or "error"
         # Tally findings by enriched severity (IPD tzjtg4). Unknown or out-of-enum
         # severities fall back to "errors" to remain conservative, matching
