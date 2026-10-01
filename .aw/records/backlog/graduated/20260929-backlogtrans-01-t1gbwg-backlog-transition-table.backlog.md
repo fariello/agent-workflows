@@ -1,11 +1,13 @@
 - Id: t1gbwg
-- Status: open
+- Status: graduated
+- Graduated-To: backlogtrans
 - Set: backlogtrans
 - Priority: medium
 - Work-Kind: chore
 - Summary: Give backlog items a transition table so an illegal backlog status move fails closed like a spec or plan move
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: cc2m29
 - 2026-09-29 created (aw backlog): Give backlog items a transition table so an illegal backlog status move fails closed like a spec or plan move
 
 Split out of plan nvsz19 (Set ipdsetback), which closes the same hole for PLANS. MEASURED 2026-09-29: neither backlog set code path validates a transition. status_set.validate_transition_allowed only vocabulary-checks a backlog target (plus requiring --gate-kind/--gate-ref for ->blocked), and the forked backlog.run_set only checks 'new_status not in STATUSES'. There is no BACKLOG_TRANSITIONS constant anywhere in the package, so any backlog status may move to any other, including done -> open or graduated -> open.
