@@ -2936,6 +2936,8 @@ def render_run_summary_table(
     tot_item_out = 0
     tot_item_cache = 0
 
+    from agent_workflows.runner_shared import canonical_terminal_status
+
     status_counts: dict[str, int] = {}
     completed_count = 0
 
@@ -2984,9 +2986,10 @@ def render_run_summary_table(
         # exclude the same entries or the bar is wrong twice: a pre-executed Set member used to be
         # counted here (its status is not `queued`) AND in the total, so a run that had performed
         # nothing opened at `10/62` rather than `0/50`.
-        if status not in ("queued", "not-attempted") and item_is_dispatchable_work(
-            item
-        ):
+        if canonical_terminal_status(status) not in (
+            "queued",
+            "not-run",
+        ) and item_is_dispatchable_work(item):
             completed_count += 1
 
         # Calculate item duration, cost, tokens
@@ -3548,6 +3551,7 @@ def render_run_summary_table(
         if not isinstance(it, Mapping):
             continue
         st = it.get("status")
+        st_canon = canonical_terminal_status(st)
         id6 = it.get("id6")
         refusal = refusal_of_item(it)
         if refusal is not None and refusal.code == GATE_ANSWER_NEEDS_HUMAN_CODE:
@@ -3587,23 +3591,31 @@ def render_run_summary_table(
                 else "unmet dependencies"
             )
             diag_lines.append(f"  • {id6}: {st} ({dep_msg})")
-        elif st in (
-            "failed-safely",
-            "integration-blocked",
-            "merge-conflict",
-            "merge-needs-human",
-            "merge-refused",
+        elif (
+            st_canon in ("fail-gate", "fail-merge")
+            or st
+            in (
+                "failed-safely",
+                "integration-blocked",
+                "merge-conflict",
+                "merge-needs-human",
+                "merge-refused",
+            )
         ) and it.get("driver_error"):
             diag_lines.append(f"  • {id6}: {st} ({it['driver_error']})")
-        elif st in (
-            "integration-blocked",
-            "merge-conflict",
-            # `l2mzxn`: the renamed spellings, INCLUDING the deferrable pair. A deferred item also
-            # carries `integration_deferral`, and its reason is exactly what a reader needs to see.
-            "merge-needs-human",
-            "merge-refused",
-            "merge-retry",
-            "merge-unchecked",
+        elif (
+            st_canon == "fail-merge"
+            or st
+            in (
+                "integration-blocked",
+                "merge-conflict",
+                # `l2mzxn`: the renamed spellings, INCLUDING the deferrable pair. A deferred item also
+                # carries `integration_deferral`, and its reason is exactly what a reader needs to see.
+                "merge-needs-human",
+                "merge-refused",
+                "merge-retry",
+                "merge-unchecked",
+            )
         ) and it.get("integration_deferral"):
             # F-4's repair, legacy-record arm: these two statuses render their reason instead of
             # nothing even when no `Refusal` was recorded (a pre-r2i1b1 run directory).

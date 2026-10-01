@@ -36,6 +36,8 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from agent_workflows.runner_shared import canonical_terminal_status
+
 __all__ = [
     "DASHBOARD_SCHEMA_VERSION",
     "ASSETS_DIRNAME",
@@ -460,6 +462,10 @@ _FAIL = {
     "merge-refused",
     "interrupted",
     "fail-depend",
+    "fail-begin",
+    "fail-lane",
+    "dependency-blocked",
+    "merge-needs-human",
 }
 
 
@@ -475,9 +481,12 @@ def _outcome(disposition: str | None, role: str, verification: str | None) -> st
     d = (disposition or "").strip()
     if d in ("executed", "reviewed", "approved"):
         return "success"
+    # Raw token must be checked before canonicalization: canonical_terminal_status("partial")
+    # is "fail-verify" and canonical_terminal_status("substantially-complete") is "fail-gate",
+    # which would fold both into "failed" (OQ-03, E-04).
     if d in ("substantially-complete", "partial"):
         return "partial"
-    if d in _FAIL:
+    if d in _FAIL or canonical_terminal_status(d) in _FAIL:
         return "failed"
     return "unknown"
 
