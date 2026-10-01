@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_zero_dispatch_outcome.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: aaa2xx
