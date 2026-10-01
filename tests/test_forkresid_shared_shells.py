@@ -179,3 +179,42 @@ class LanePromptSuppressionTests(unittest.TestCase):
 
     def test_agy_lane_prompt_suppression(self) -> None:
         self._run_lane_prompt_checks(agy_runipd)
+
+    def test_question_timeouts_are_180s(self) -> None:
+        """Question timeouts in both runners and gate prompts default to 180s."""
+        from agent_workflows import runner_shared
+
+        self.assertEqual(oc_runipd.LANE_PROMPT_TIMEOUT, 180.0)
+        self.assertEqual(agy_runipd.LANE_PROMPT_TIMEOUT, 180.0)
+        self.assertEqual(runner_shared.GATE_PROMPT_TIMEOUT, 180.0)
+
+        # Verify prompt_for_gate_phrase timeout message
+        stdin_tty = _TTYStub()
+        stderr_tty = _TTYStub()
+        with (
+            mock.patch("select.select", return_value=([], [], [])),
+            mock.patch("sys.stdin", stdin_tty),
+            mock.patch("sys.stderr", stderr_tty),
+        ):
+            res = runner_shared.prompt_for_gate_phrase(
+                "Confirm action? ", stdin=stdin_tty, stderr=stderr_tty
+            )
+            self.assertIsNone(res)
+            self.assertIn("no answer in 180.0s", stderr_tty.buffer)
+
+        # Verify lane_reclaim_prompt timeout message
+        stderr_tty = _TTYStub()
+        with (
+            mock.patch("select.select", return_value=([], [], [])),
+            mock.patch("sys.stdin", stdin_tty),
+            mock.patch("sys.stderr", stderr_tty),
+        ):
+            lane = {"holds_work": False, "lane_id": "test", "branch": "test"}
+            res = runner_shared.lane_reclaim_prompt(
+                lane,
+                "discard",
+                disabled=False,
+                timeout=runner_shared.GATE_PROMPT_TIMEOUT,
+            )
+            self.assertIsNone(res)
+            self.assertIn("no answer in 180.0s", stderr_tty.buffer)

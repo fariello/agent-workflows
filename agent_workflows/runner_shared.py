@@ -16817,8 +16817,8 @@ def format_slated_artifacts_table(
 
 
 #: The shipped lane prompt's timeout, reused so the two prompts in this package cannot disagree about
-#: how long a run may wait for a human. `_lane_reclaim_prompt` uses 10s in both runners.
-GATE_PROMPT_TIMEOUT: float = 10.0
+#: how long a run may wait for a human. `_lane_reclaim_prompt` uses 180s in both runners.
+GATE_PROMPT_TIMEOUT: float = 180.0
 
 
 def prompt_for_gate_phrase(

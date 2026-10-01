@@ -796,7 +796,7 @@ SUCCESS_STATES = runner_shared.SUCCESS_STATES
 EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
-LANE_PROMPT_TIMEOUT: float = 10.0
+LANE_PROMPT_TIMEOUT: float = 180.0
 
 # revgate Order 03 (7nkcgp) E-08. The EXACT recovery command for a `dependency-blocked` item, stated
 # host-appropriately for this driver. Recovery is NOT automatic: re-queueing happens ONLY under the
