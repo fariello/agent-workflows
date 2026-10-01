@@ -3936,6 +3936,97 @@ class WorktreeIsolationTests(unittest.TestCase):
             self.assertIn("preserved_branch", item)
             self.assertEqual(item["preserved_branch"], "aw/lane/wir001")
 
+    def test_integration_gate_suite_check_runs_in_primary_checkout(self):
+        """Re-justify and pin run_suite_check's primary-checkout contract (cvs2b7).
+
+        WHAT THIS DEFENDS: a green PRIMARY tree is what integration endangers, so the primary
+        checkout is the venue whose greenness the gate is about. Callers must pass the primary repo,
+        never work_dir.
+
+        WHAT THIS DOES NOT DEFEND: it does NOT re-assert the retracted dh0uno divergence (the historical
+        claim that a lane-run suite was permanently red due to .aw/state resolution, retracted after
+        the 6771e590 fix).
+
+        REACH LIMITS (OQ-02, F-10):
+        1. It exercises the runner_shared call site THROUGH THE OC HOST (driver.execute_item), so an
+           agy-side regression is not caught even though both hosts reach the same single definition.
+        2. It pins the INTEGRATION-GATE call site only (runner_shared.py: suite_result = run_suite_check(repo, ...)),
+           leaving the gate-answer rerun_suite lambda unpinned.
+        """
+        from agent_workflows import runner_shared
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            state["options"]["no_audit"] = True
+
+            suite_check_cwds: list[str] = []
+
+            def spy_suite_check(
+                repo_dir: Path, run_id: str, **kwargs
+            ) -> runner_shared.SuiteCheckResult:
+                suite_check_cwds.append(str(repo_dir))
+                return runner_shared.SuiteCheckResult(
+                    passing=True,
+                    exit_code=0,
+                    summary="1 passed in 0.01s",
+                    reason="",
+                    cwd=str(repo_dir),
+                    timeout_seconds=300.0,
+                    elapsed_seconds=0.1,
+                    failures=(),
+                )
+
+            def fake_agent(s, rd, it, plan_path, prompt_path, attempt_no, **kwargs):
+                work_dir = kwargs.get("work_dir")
+                wt = Path(work_dir)
+                (wt / "src").mkdir(parents=True, exist_ok=True)
+                (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "demo: create src/demo.txt"],
+                    cwd=wt,
+                    check=False,
+                )
+                (
+                    run_dir / "outcomes" / f"{it['position']:02d}-{it['id6']}.json"
+                ).write_text(
+                    json.dumps(
+                        {
+                            "disposition": "executed",
+                            "pushed": False,
+                            "defect_report": {
+                                "state": "none-found",
+                                "findings": [],
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+            with (
+                mock.patch.object(driver, "run_opencode", fake_agent),
+                mock.patch.object(driver, "run_suite_check", spy_suite_check),
+                mock.patch.object(runner_shared, "run_suite_check", spy_suite_check),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # Vacuity check (F-11): assert the recorded call list is non-empty.
+            self.assertTrue(
+                suite_check_cwds,
+                "run_suite_check must be called at least once during execution with no_audit=True",
+            )
+            # Assert on the FIRST recorded cwd only (F-5): any subsequent call is the merge-and-revalidate
+            # gate's own revalidation checkout, which is a different mechanism.
+            self.assertEqual(
+                suite_check_cwds[0],
+                str(repo),
+                "the integration-gate suite check must receive the primary checkout and not the lane worktree",
+            )
+
 
 class FailClosedIntegrationGuardTests(unittest.TestCase):
     """driverfin-03 (7kbtkw): fail-closed dirty-tree guard (E-01) + merge-back conflict handling

@@ -11072,11 +11072,12 @@ def ask_operator_about_integration(
 #      would be a way to land an UNVALIDATED lane on main while pasting a green gate result as proof
 #      of verification. So `reintegrate_lane` supplies a REAL validation runner, whose body runs the
 #      repository suite in the PRIMARY checkout, and refuses on a non-passing result.
-#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `oc_runipd`, and
-#      `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks THIS module and fails on any
-#      import naming `runipd`, at module level or lazily inside a function. Copying its body would
-#      fork its fail-closed reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked`
-#      and `host_label` already are on `integrate_lane_branch` (see this module's docstring).
+#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `runner_shared`
+#      (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks
+#      THIS module and fails on any import naming `runipd`, at module level or lazily inside a function.
+#      Copying its body would fork its fail-closed reading of exit 124/127. So it is a PARAMETER,
+#      exactly as `run_checked` and `host_label` already are on `integrate_lane_branch` (see this
+#      module's docstring).
 #
 # AND THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it.
 # `orchestrate_isolation.stale_base_check` compares the FIRST lane outcome's own `base_commit` to the
@@ -24800,13 +24801,13 @@ def make_integration_validation_runner(
     readings are both right for their own question; the code says which question it is asking.
 
     ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
-    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `oc_runipd`, and
-    `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this module and fails on ANY import
-    naming `runipd`, at module level or lazily inside a function, so this module cannot reach it and
-    copying its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The
-    None DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its
-    previous three-positional-argument call shape and gets the honest refusal described below rather than
-    a silent pass; it is NOT a way to opt out of revalidation.
+    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `runner_shared`
+    (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this
+    module and fails on ANY import naming `runipd`, at module level or lazily inside a function. Copying
+    its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The None
+    DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its previous
+    three-positional-argument call shape and gets the honest refusal described below rather than a silent
+    pass; it is NOT a way to opt out of revalidation.
 
     ONE RUN PER DISTINCT MERGE RESULT (E-04), cached on `state` under :data:`REVALIDATION_CACHE_KEY` and
     keyed on the merged TREE ID. Two lanes that merge to the same tree are one measurement; a second
@@ -33075,8 +33076,8 @@ def execute_item_core(
                         else None
                     ),
                     # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
-                    # exactly as the first run was (`run_suite_check`'s docstring: a lane-run suite is
-                    # permanently red for reasons unrelated to the plan).
+                    # exactly as the first run was (`run_suite_check`'s docstring: a green primary tree
+                    # is what integration endangers, so re-verification uses the primary checkout).
                     rerun_suite=lambda: run_suite_check(
                         repo, str(state.get("run_id") or "")
                     ),
@@ -36025,13 +36026,14 @@ def run_suite_check(
 
     novalnomerge-01 (evgi9n) E-01/E-02.
 
-    WHY THE PRIMARY CHECKOUT AND NOT THE LANE (PR-001, found at review as a BLOCKER): a linked
-    worktree resolves `.aw/state` relative to cwd (backlog `dh0uno`), so a lane sees a DIFFERENT state
-    tree. MEASURED: `tests/test_run_viewer.py` gives `36 passed` in the primary checkout and
-    `15 failed, 20 passed` in a lane, every failure being the `run_viewer`/state-resolution family. A
-    lane-run suite is therefore permanently red for reasons unrelated to the executing plan, which
-    would leave the integration gate closed forever -- the same symptom this change removes, with a new
-    cause. Callers MUST pass the primary repo, never `work_dir`.
+    WHY THE PRIMARY CHECKOUT AND NOT THE LANE: a green PRIMARY tree is what integration endangers,
+    so the primary checkout is the venue whose greenness the gate is about (independent of lane
+    state). Historically, a linked worktree divergence was cited as the original blocker (backlog
+    `dh0uno`, where `.aw/state` resolved relative to cwd); `dh0uno` is `- Status: done` (fixed in
+    `6771e590`) and its acceptance claim was retracted. A linked worktree is no longer known-noisy,
+    and the primary-checkout contract survives on the independent integration-safety ground. The
+    contract is pinned by `WorktreeIsolationTests.test_integration_gate_suite_check_runs_in_primary_checkout`
+    in `tests/test_oc_runipd.py` (plan `cvs2b7`). Callers MUST pass the primary repo, never `work_dir`.
 
     HONEST LIMIT: this proves THE TREE is green, not that the lane's uncommitted state is. That is the
     right trade (a green primary tree is what integration endangers) but it is not lane validation.
