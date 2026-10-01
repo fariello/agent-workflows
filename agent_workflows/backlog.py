@@ -390,10 +390,22 @@ def _dir_status(path: Path) -> Optional[str]:
     return parent if parent in STATUSES else None
 
 
+def drift_location(path: Path) -> str:
+    """The REPO-RELATIVE POSIX location to put in a Drift record for ``path``.
+
+    Delegates to ``specs.drift_location`` so truncation at records segments
+    (both canonical ``.aw/records/`` and legacy ``.agents/``) and fallback
+    behavior remain defined in one place.
+    """
+    from agent_workflows import specs
+
+    return specs.drift_location(path)
+
+
 def validate_item(path: Path, text: str) -> List[core.Drift]:
     """Validate one backlog item fail-closed. Returns Drift records (empty == conformant)."""
 
-    rel = path.name
+    rel = drift_location(path)
     drift: List[core.Drift] = []
     item = parse_item(text)
 
@@ -1869,16 +1881,17 @@ def run_check(args) -> int:
         drift.extend(item_drift)
         pid = parse_item(text).id
         if pid and core.is_valid_id6(pid):
+            loc = drift_location(f)
             if pid in seen_ids:
                 drift.append(
                     core.Drift(
-                        f.name,
+                        loc,
                         "backlog.id-duplicate",
                         f"id {pid} also in {seen_ids[pid]}",
                     )
                 )
             else:
-                seen_ids[pid] = f.name
+                seen_ids[pid] = loc
 
     ctx = select_output(args)
     if ctx.is_agent or ctx.is_json:

@@ -209,6 +209,74 @@ class BacklogVerbTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("id-duplicate", out.getvalue())
 
+    def test_check_duplicate_id_names_distinct_repo_relative_paths(self):
+        d1 = self.repo / ".aw/records/backlog/done"
+        d2 = self.repo / ".aw/records/backlog/graduated"
+        d1.mkdir(parents=True)
+        d2.mkdir(parents=True)
+        name = "20260101-s-01-dupdup-same-name.backlog.md"
+        (d1 / name).write_text(
+            "- Id: dupdup\n- Status: done\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: dup item in done\n",
+            encoding="utf-8",
+        )
+        (d2 / name).write_text(
+            "- Id: dupdup\n- Status: graduated\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: dup item in graduated\n",
+            encoding="utf-8",
+        )
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = B.run_check(_args(dir=str(self.repo), agent=False))
+        self.assertEqual(rc, 1)
+        stdout = out.getvalue()
+        self.assertIn("backlog.id-duplicate", stdout)
+        dup_lines = [
+            line for line in stdout.splitlines() if "backlog.id-duplicate" in line
+        ]
+        self.assertEqual(len(dup_lines), 1)
+        line = dup_lines[0]
+        loc = line.split(":", 1)[0].strip()
+        other = line.split("also in ", 1)[1].strip()
+        self.assertNotEqual(loc, other)
+        self.assertTrue(loc.startswith(".aw/records/backlog/"))
+        self.assertTrue(other.startswith(".aw/records/backlog/"))
+
+    def test_check_duplicate_id_cross_layout_names_distinct_paths(self):
+        d1 = self.repo / ".agents/backlog/open"
+        d2 = self.repo / ".aw/records/backlog/open"
+        d1.mkdir(parents=True)
+        d2.mkdir(parents=True)
+        name = "20260101-s-01-dupdup-same-name.backlog.md"
+        (d1 / name).write_text(
+            "- Id: dupdup\n- Status: open\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: legacy open\n",
+            encoding="utf-8",
+        )
+        (d2 / name).write_text(
+            "- Id: dupdup\n- Status: open\n- Set: s\n- Priority: low\n- Work-Kind: chore\n- Summary: canonical open\n",
+            encoding="utf-8",
+        )
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = B.run_check(_args(dir=str(self.repo), agent=False))
+        self.assertEqual(rc, 1)
+        stdout = out.getvalue()
+        self.assertIn("backlog.id-duplicate", stdout)
+        dup_lines = [
+            line for line in stdout.splitlines() if "backlog.id-duplicate" in line
+        ]
+        self.assertEqual(len(dup_lines), 1)
+        line = dup_lines[0]
+        loc = line.split(":", 1)[0].strip()
+        other = line.split("also in ", 1)[1].strip()
+        self.assertNotEqual(loc, other)
+        paths = {loc, other}
+        self.assertEqual(
+            paths,
+            {
+                f".aw/records/backlog/open/{name}",
+                f".agents/backlog/open/{name}",
+            },
+        )
+
     def test_check_rejects_gate_on_non_blocked(self):
         d = self.repo / ".agents/backlog/open"
         d.mkdir(parents=True)
