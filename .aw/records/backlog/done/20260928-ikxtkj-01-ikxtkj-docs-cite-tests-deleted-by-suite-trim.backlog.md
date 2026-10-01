@@ -1,5 +1,5 @@
 - Id: ikxtkj
-- Status: graduated
+- Status: done
 - Graduated-To: ikxtkj
 - Set: ikxtkj
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Four published docs cite five test files the 2026-09-24 suite trim deleted, so each names a guard that no longer exists and a reader cannot verify the claim
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 1jg2m2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-ikxtkj-01-1jg2m2-repoint-or-retire-the-dangling-test-file-citations-in-publis.ipd.md); evidence .aw/records/plans/executed/20260930-ikxtkj-01-1jg2m2-repoint-or-retire-the-dangling-test-file-citations-in-publis.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 1jg2m2
 - 2026-09-28 created (aw backlog): Found while graduating backlog bar5t8 (the FORCE_COLOR section 1.1 row 2 wording defect).
 
