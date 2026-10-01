@@ -1253,13 +1253,18 @@ class RunFindingCode(NamedTuple):
 # THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates SIX abort classes and closes
 # with "No other finding may abort the whole queue". So transcribing a message while inventing its
 # action would silently license aborting a whole queue on an item-local fault - and item-local
-# failure is exactly what lets independent items keep running. MEASURED 2026-09-22 over the table
-# below: two of the 12 codes abort UNCONDITIONALLY; five abort ONLY under a named 4.1 class; five
-# never abort. Collapsing that distinction into a single boolean is the error this tri-state exists to
+# failure is exactly what lets independent items keep running. Each row's abort tri-state is
+# mechanically derived from its verbatim action text via :func:`derive_abort_from_action`
+# (segments containing "ABORT RUN": unqualified "ABORT RUN" is always, qualified is conditional,
+# absent is never) and gated at runtime by :func:`validate_finding_table` (code RC-ABORT-DERIVATION),
+# with tests anchoring the action text to spec 25kzda Section 4.2 byte for byte.
+# Collapsing that distinction into a single boolean is the error this tri-state exists to
 # prevent. The counts moved twice and BOTH moves are recorded rather than silently overwritten: this
 # comment read "eight ... three" while the table actually held 6 conditional and 5 never even BEFORE
 # `RUN-NO-PUSH` was retired (it was already wrong, presumably from an earlier edit), and retiring that
-# code then took conditional from 6 to 5. Prefer recomputing over trusting this sentence.
+# code then took conditional from 6 to 5. A third drift occurred in commit 544ba188 when
+# `RUN-STRUCTURE-PREFLIGHT` moved to never alongside its action text, leaving the comment's tally stale
+# until plan xjmjq4 replaced the hand count with mechanical derivation.
 
 ABORT_ALWAYS = "always"
 ABORT_CONDITIONAL = "conditional"
@@ -1274,6 +1279,28 @@ ABORT_CLASSES: Tuple[str, ...] = (
     "Hook-bypass attempt",
     "Identity or type ambiguity",
 )
+
+
+def derive_abort_from_action(action: str) -> str:
+    """Derive the abort tri-state (:data:`ABORT_ALWAYS`, :data:`ABORT_CONDITIONAL`, :data:`ABORT_NEVER`)
+    from a finding code's verbatim ``action`` string alone.
+
+    The derivation splits ``action`` on ``;`` and inspects segments containing ``ABORT RUN``:
+      * absent -> :data:`ABORT_NEVER`
+      * exactly ``ABORT RUN`` (unqualified) -> :data:`ABORT_ALWAYS`
+      * qualified (e.g. ``ABORT RUN only for ...`` / ``ABORT RUN for ...``) -> :data:`ABORT_CONDITIONAL`
+
+    The stored ``abort`` field on :class:`RunFindingCode` remains the readable index for callers;
+    this helper serves as the runtime and test cross-check so the verbatim spec action text
+    remains the single authority.
+    """
+    segments = [s.strip() for s in action.split(";")]
+    abort_segments = [s for s in segments if "ABORT RUN" in s]
+    if not abort_segments:
+        return ABORT_NEVER
+    if any(s == "ABORT RUN" for s in abort_segments):
+        return ABORT_ALWAYS
+    return ABORT_CONDITIONAL
 
 
 # ---- binding states (E-02) -----------------------------------------------------------------------
@@ -1693,10 +1720,12 @@ def spec_message_for(code: str, **placeholders: Any) -> str:
 def may_abort_run(code: str) -> bool:
     """True when this finding may EVER abort the whole queue (always or conditionally).
 
-    Deliberately reports "may", not "does": spec 4.1 licenses five of the 12 codes to abort only
-    under a named abort class, so a caller deciding to abort must also establish that class. Use
-    :func:`abort_classes_for` for it. Reading a conditional row as an unconditional abort would let
-    an item-local fault stop a whole queue, which spec 4.1's closing rule forbids.
+    Deliberately reports "may", not "does": spec 4.1 licenses conditional codes to abort only
+    under a named abort class (derived from action text via :func:`derive_abort_from_action` and
+    enforced by :func:`validate_finding_table`), so a caller deciding to abort must also
+    establish that class. Use :func:`abort_classes_for` for it. Reading a conditional row as an
+    unconditional abort would let an item-local fault stop a whole queue, which spec 4.1's closing
+    rule forbids.
     """
     return RUN_FINDING_CODES_BY_CODE[code].abort in (ABORT_ALWAYS, ABORT_CONDITIONAL)
 
@@ -2008,6 +2037,14 @@ def _validate_finding_row(
             f"unknown abort state {row.abort!r}",
             "bad abort state",
         )
+    derived_abort = derive_abort_from_action(row.action)
+    if row.abort != derived_abort:
+        _fail(
+            "RC-ABORT-DERIVATION",
+            where,
+            f"code {row.code}: stored abort {row.abort!r} disagrees with derived {derived_abort!r} from action {row.action!r}",
+            "abort tri-state must derive from action text",
+        )
     for cls in row.abort_classes:
         if cls not in ABORT_CLASSES:
             _fail(
@@ -2053,9 +2090,10 @@ def validate_finding_table() -> EvidenceValidationResult:
       * exactly 12 codes, each unique, each named ``RUN-*``;
       * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
         unbound rows carry none and name what they wait on;
-      * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
-        SIX classes (4.1 is exhaustive), an aborting row names at least one class, and a
-        never-aborting row names none;
+      * every ``abort`` is a known tri-state, every ``abort`` tri-state agrees with the
+        mechanical derivation from its ``action`` string (:func:`derive_abort_from_action`),
+        every ``abort_classes`` entry is one of spec 4.1's SIX classes (4.1 is exhaustive), an
+        aborting row names at least one class, and a never-aborting row names none;
       * every message begins with its own ``[CODE]`` prefix and ends in a recovery command
         (spec 4.1: "Every recovery message ends with a command").
     """

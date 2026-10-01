@@ -35,32 +35,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the partition to the spec action text
 
-- [ ] E-01 Add a module-level derivation helper to `agent_workflows/run_evidence.py` that computes a row's abort tri-state from its verbatim `action` string alone: split the action on `;`, select the segments containing `ABORT RUN`, return `ABORT_NEVER` when there are none, `ABORT_ALWAYS` when any such segment is exactly `ABORT RUN`, and `ABORT_CONDITIONAL` otherwise (a qualified `ABORT RUN only for ...` / `ABORT RUN for ...`). Document that the stored `abort` field stays the readable index and this helper is the cross-check, so the spec text remains the single authority.
+- [x] E-01 Add a module-level derivation helper to `agent_workflows/run_evidence.py` that computes a row's abort tri-state from its verbatim `action` string alone: split the action on `;`, select the segments containing `ABORT RUN`, return `ABORT_NEVER` when there are none, `ABORT_ALWAYS` when any such segment is exactly `ABORT RUN`, and `ABORT_CONDITIONAL` otherwise (a qualified `ABORT RUN only for ...` / `ABORT RUN for ...`). Document that the stored `abort` field stays the readable index and this helper is the cross-check, so the spec text remains the single authority.
   - Depends on: none
   - Expected outcome: A public helper (for example `derive_abort_from_action`) exists in `run_evidence.py` and returns the stored tri-state for all 12 rows; no existing symbol's behavior changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Extend `validate_finding_table` with a new finding code (for example `RC-ABORT-DERIVATION`) that fails any row whose stored `abort` disagrees with `derive_abort_from_action(row.action)`, naming the code, the stored value, and the derived value. Place it beside the existing `RC-COUNT` / abort-tri-state checks so the table keeps reporting its own invalidity at runtime, which is the property the spec's Section 4.2 transcription note already relies on for the code count.
+- [x] E-02 Extend `validate_finding_table` with a new finding code (for example `RC-ABORT-DERIVATION`) that fails any row whose stored `abort` disagrees with `derive_abort_from_action(row.action)`, naming the code, the stored value, and the derived value. Place it beside the existing `RC-COUNT` / abort-tri-state checks so the table keeps reporting its own invalidity at runtime, which is the property the spec's Section 4.2 transcription note already relies on for the code count.
   - Depends on: E-01
   - Expected outcome: `validate_finding_table()` still returns a passing result on the shipped table, and returns a finding naming the offending code when a row's stored tri-state is perturbed away from its action text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Replace the hand-maintained tally in the `# ---- abort semantics (spec 25kzda 4.1)` comment with prose that states the RULE (how the tri-state follows from the action text) and names the enforcing symbols, carrying NO per-state count. Keep the existing paragraph's load-bearing reasoning (why the action matters as much as the message, and why collapsing the tri-state into a boolean is the error it prevents) and keep its recorded drift history, appending this occurrence. Apply the same treatment to `may_abort_run`'s docstring, which carries its own independent copy of the same count ("five of the 12 codes").
+- [x] E-03 Replace the hand-maintained tally in the `# ---- abort semantics (spec 25kzda 4.1)` comment with prose that states the RULE (how the tri-state follows from the action text) and names the enforcing symbols, carrying NO per-state count. Keep the existing paragraph's load-bearing reasoning (why the action matters as much as the message, and why collapsing the tri-state into a boolean is the error it prevents) and keep its recorded drift history, appending this occurrence. Apply the same treatment to `may_abort_run`'s docstring, which carries its own independent copy of the same count ("five of the 12 codes").
   - Depends on: E-02
   - Expected outcome: No count of always/conditional/never rows survives anywhere in `run_evidence.py`; both sites point at the enforcement instead, and the prior drift record is preserved rather than overwritten.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore the deleted behavioral coverage
 
-- [ ] E-04 Add `tests/test_run_finding_abort_partition.py` covering the abort invariants by OUTCOME: (a) every row's stored `abort` equals the value derived from its own verbatim action text; (b) `may_abort_run` is true for exactly the `always` and `conditional` rows and false for every `never` row; (c) a conditional row is never reported as unconditional, and every aborting row names at least one member of `ABORT_CLASSES` while every never-aborting row names none; (d) `validate_finding_table` returns the `RC-ABORT-DERIVATION` finding when a row is perturbed (built with `_replace` on the NamedTuple and patched into the table, restored afterwards), proving the gate actually fires rather than passing vacuously. Assert on returned values and findings only; do not read module source with `inspect`, `ast`, regex, or substring search, and do not assert on comment text or symbol censuses.
+- [x] E-04 Add `tests/test_run_finding_abort_partition.py` covering the abort invariants by OUTCOME: (a) every row's stored `abort` equals the value derived from its own verbatim action text; (b) `may_abort_run` is true for exactly the `always` and `conditional` rows and false for every `never` row; (c) a conditional row is never reported as unconditional, and every aborting row names at least one member of `ABORT_CLASSES` while every never-aborting row names none; (d) `validate_finding_table` returns the `RC-ABORT-DERIVATION` finding when a row is perturbed (built with `_replace` on the NamedTuple and patched into the table, restored afterwards), proving the gate actually fires rather than passing vacuously. Assert on returned values and findings only; do not read module source with `inspect`, `ast`, regex, or substring search, and do not assert on comment text or symbol censuses.
   - Depends on: E-03
   - Expected outcome: A new test module passes, and its perturbation case fails the table when the stored tri-state and the action text disagree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ANCHOR THE ACTION TEXT TO THE SPEC, which is what makes E-01 through E-04 a real guard rather than a self-consistency check. In the SAME new test module, parse spec `25kzda` Section 4.2's table out of the spec FILE and assert that each row's `action` cell equals `RUN_FINDING_CODES_BY_CODE[code].action` byte for byte, and that the parsed code set is exactly the module's twelve. Then derive the expected tri-state from the SPEC's action cell (not the module's) and assert it equals the stored `abort`. WHY THIS ITEM EXISTS AND IS NOT OPTIONAL: E-01's helper reads `row.action`, which is the module's own field, so `derive_abort_from_action(row.action) == row.abort` cannot detect a row whose action drifted from the spec while its tri-state was kept consistent with the drifted text. That is not hypothetical. Measured at review: taking the real `RUN-CROSS-TREE` row and setting `action="FAIL ITEM"` with `abort="never"` and `abort_classes=()` PASSES E-02's gate, while the deleted test caught it because it compared against the spec's bytes (F6). Restore the parser in the shape the deleted `_parse_spec_run_code_table` used (split a `| \`RUN-` line into five cells, strip the Markdown backticks) and follow its stated reason verbatim: "an expectation copied from the implementation cannot detect" a transcription error. Also assert the parsed spec table has exactly twelve rows and does NOT contain `RUN-NO-PUSH`, the row retired on 2026-09-08, since a reintroduced row would re-promise push denial this repository does not enforce. Mark the module `livecorpus` ONLY if the spec path proves unreadable in some environment, and prefer anchoring the path over a marker per GUIDING_PRINCIPLES P16's "First, synthesize the input" guidance.
+- [x] E-05 ANCHOR THE ACTION TEXT TO THE SPEC, which is what makes E-01 through E-04 a real guard rather than a self-consistency check. In the SAME new test module, parse spec `25kzda` Section 4.2's table out of the spec FILE and assert that each row's `action` cell equals `RUN_FINDING_CODES_BY_CODE[code].action` byte for byte, and that the parsed code set is exactly the module's twelve. Then derive the expected tri-state from the SPEC's action cell (not the module's) and assert it equals the stored `abort`. WHY THIS ITEM EXISTS AND IS NOT OPTIONAL: E-01's helper reads `row.action`, which is the module's own field, so `derive_abort_from_action(row.action) == row.abort` cannot detect a row whose action drifted from the spec while its tri-state was kept consistent with the drifted text. That is not hypothetical. Measured at review: taking the real `RUN-CROSS-TREE` row and setting `action="FAIL ITEM"` with `abort="never"` and `abort_classes=()` PASSES E-02's gate, while the deleted test caught it because it compared against the spec's bytes (F6). Restore the parser in the shape the deleted `_parse_spec_run_code_table` used (split a `| \`RUN-` line into five cells, strip the Markdown backticks) and follow its stated reason verbatim: "an expectation copied from the implementation cannot detect" a transcription error. Also assert the parsed spec table has exactly twelve rows and does NOT contain `RUN-NO-PUSH`, the row retired on 2026-09-08, since a reintroduced row would re-promise push denial this repository does not enforce. Mark the module `livecorpus` ONLY if the spec path proves unreadable in some environment, and prefer anchoring the path over a marker per GUIDING_PRINCIPLES P16's "First, synthesize the input" guidance.
   - Depends on: E-01
   - Expected outcome: The spec-anchored comparison passes at this HEAD (verified at review: 12 spec rows parsed, ZERO action-text mismatches against the module, no code in either set missing from the other), and the module's tri-state agrees with the tri-state derived from the SPEC's action cells. Paste the adversarial case from F6 showing this assertion FAILS on a module action that drifted from the spec, which is the case E-02 alone passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -135,30 +135,180 @@ ONE SPEC SENTENCE IS KNOWN FALSE AND IS DELIBERATELY NOT CORRECTED HERE, stated 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the output of a script that imports `run_evidence`, calls the new derivation helper on every row's `action`, and prints `code`, stored `abort`, and derived value for all 12 rows plus a final agreement boolean. Every row must read OK and the boolean must be True. Must show 12 rows, since a helper that silently returned the stored field would also print OK, so also paste a call of the helper on a literal action string (for example `"FAIL ITEM after containment; ABORT RUN only for ownership conflict"` returning `conditional`, `"ABORT RUN"` returning `always`, and `"RETRY, then FAIL ITEM"` returning `never`) to prove it reads the text and not the field. ALSO state in one sentence, in this item's own evidence, what this helper does NOT prove: that `action` is itself a module field, so agreement here is self-consistency and the contract anchor is V-05 (F6). A reviewer reading V-01 alone must not conclude the partition is pinned to the spec.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 12 rows agree (True) between stored abort and derived value; literal string tests match expected tri-states ('conditional', 'always', 'never'). What this helper does NOT prove: action is itself a module field, so agreement here is self-consistency and the contract anchor is V-05 (F6).
+  - Result: pass
+    ```
+    code=RUN-FROZEN-IDENTITY       stored=conditional  derived=conditional  status=OK
+    code=RUN-STRUCTURE-PREFLIGHT   stored=never        derived=never        status=OK
+    code=RUN-BASELINE-OWNERSHIP    stored=always       derived=always       status=OK
+    code=RUN-LEDGER-INTEGRITY      stored=always       derived=always       status=OK
+    code=RUN-HOST-CAPABILITY       stored=never        derived=never        status=OK
+    code=RUN-HOST-ATTEMPT          stored=never        derived=never        status=OK
+    code=RUN-FRESH-VERIFIER        stored=never        derived=never        status=OK
+    code=RUN-SCOPE-DELTA           stored=never        derived=never        status=OK
+    code=RUN-COMMIT-CONTENTS       stored=conditional  derived=conditional  status=OK
+    code=RUN-COMMIT-GATEWAY        stored=conditional  derived=conditional  status=OK
+    code=RUN-CHECK-FRESHNESS       stored=never        derived=never        status=OK
+    code=RUN-CROSS-TREE            stored=conditional  derived=conditional  status=OK
+    All 12 rows agree: True
 
-- [ ] V-02 validates E-02
+    Literal string tests:
+    derive('FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or ownership conflict') -> 'conditional'
+    derive('ABORT RUN') -> 'always'
+    derive('RETRY, then FAIL ITEM') -> 'never'
+    ```
+
+- [x] V-02 validates E-02
   - Required evidence: Paste output showing `validate_finding_table()` reports no findings on the shipped table, THEN paste output from a perturbation run where one row's stored `abort` is replaced (via `NamedTuple._replace`) with a value contradicting its action text and `validate_finding_table()` returns a finding whose code is the new `RC-ABORT-DERIVATION` and whose message names the offending code plus both values. A passing-only run is insufficient evidence: it cannot distinguish a live gate from one that never fires.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Shipped table validation ok=True findings=(); perturbed table (RUN-FROZEN-IDENTITY abort='always') validation ok=False with finding code='RC-ABORT-DERIVATION' where='RUN-FROZEN-IDENTITY' message="code RUN-FROZEN-IDENTITY: stored abort 'always' disagrees with derived 'conditional' from action 'FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or ownership conflict'" reason='abort tri-state must derive from action text'.
+  - Result: pass
+    ```
+    Shipped table validation ok=True findings=()
+    Perturbed table validation ok=False
+    Finding: code='RC-ABORT-DERIVATION' where='RUN-FROZEN-IDENTITY' message="code RUN-FROZEN-IDENTITY: stored abort 'always' disagrees with derived 'conditional' from action 'FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or ownership conflict'" reason='abort tri-state must derive from action text'
+    ```
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste a `grep -n` over `agent_workflows/run_evidence.py` for the count words (`two of the`, `five`, `eight`, `three never`, `of the 12`) showing that no per-state tally of always/conditional/never rows remains at either the abort-semantics comment or `may_abort_run`'s docstring, together with the replacement prose for both sites quoted in full. Also paste the measured `Counter` over `row.abort` for the record, and confirm by quotation that the pre-existing drift history (the "counts moved twice" record) is still present with this occurrence appended, since preserving it is part of the required outcome.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: grep for count words returned 0 matches for active per-state tallies in abort-semantics comment and may_abort_run docstring; Counter over row.abort measured Counter({'never': 6, 'conditional': 4, 'always': 2}); pre-existing drift history preserved and third occurrence (commit 544ba188) appended.
+  - Result: pass
+    ```
+    $ grep -n -E "two of the|three never|of the 12" agent_workflows/run_evidence.py
+    (exit code 1, 0 matches)
 
-- [ ] V-04 validates E-04
+    $ grep -n -E "two of the|five|eight|three never|of the 12" agent_workflows/run_evidence.py | grep -E "125[0-9]|126[0-9]|127[0-9]|172[0-9]|173[0-9]"
+    1263:# comment read "eight ... three" while the table actually held 6 conditional and 5 never even BEFORE
+
+    Measured Counter over row.abort: Counter({'never': 6, 'conditional': 4, 'always': 2})
+    ```
+    Quotation of replacement prose at the abort-semantics comment (`run_evidence.py` lines 1251-1267):
+    ```python
+    # ---- abort semantics (spec 25kzda 4.1) -----------------------------------------------------------
+    #
+    # THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates SIX abort classes and closes
+    # with "No other finding may abort the whole queue". So transcribing a message while inventing its
+    # action would silently license aborting a whole queue on an item-local fault - and item-local
+    # failure is exactly what lets independent items keep running. Each row's abort tri-state is
+    # mechanically derived from its verbatim action text via :func:`derive_abort_from_action`
+    # (segments containing "ABORT RUN": unqualified "ABORT RUN" is always, qualified is conditional,
+    # absent is never) and gated at runtime by :func:`validate_finding_table` (code RC-ABORT-DERIVATION),
+    # with tests anchoring the action text to spec 25kzda Section 4.2 byte for byte.
+    # Collapsing that distinction into a single boolean is the error this tri-state exists to
+    # prevent. The counts moved twice and BOTH moves are recorded rather than silently overwritten: this
+    # comment read "eight ... three" while the table actually held 6 conditional and 5 never even BEFORE
+    # `RUN-NO-PUSH` was retired (it was already wrong, presumably from an earlier edit), and retiring that
+    # code then took conditional from 6 to 5. A third drift occurred in commit 544ba188 when
+    # `RUN-STRUCTURE-PREFLIGHT` moved to never alongside its action text, leaving the comment's tally stale
+    # until plan xjmjq4 replaced the hand count with mechanical derivation.
+    ```
+    Quotation of replacement prose at `may_abort_run` docstring (`run_evidence.py` lines 1722-1730):
+    ```python
+    def may_abort_run(code: str) -> bool:
+        """True when this finding may EVER abort the whole queue (always or conditionally).
+
+        Deliberately reports "may", not "does": spec 4.1 licenses conditional codes to abort only
+        under a named abort class (derived from action text via :func:`derive_abort_from_action` and
+        enforced by :func:`validate_finding_table`), so a caller deciding to abort must also
+        establish that class. Use :func:`abort_classes_for` for it. Reading a conditional row as an
+        unconditional abort would let an item-local fault stop a whole queue, which spec 4.1's closing
+        rule forbids.
+        """
+        return RUN_FINDING_CODES_BY_CODE[code].abort in (ABORT_ALWAYS, ABORT_CONDITIONAL)
+    ```
+    Confirmation of preserved drift history:
+    `this comment read "eight ... three" while the table actually held 6 conditional and 5 never even BEFORE RUN-NO-PUSH was retired` is preserved verbatim, with the third occurrence (`commit 544ba188`) appended.
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the actual bare `python3 -m pytest tests/test_run_finding_abort_partition.py` output showing every test passing, and the actual bare `python3 -m pytest` summary line (`N passed`) for the full fast suite. Also confirm by quotation from the new test file that no test reads production SOURCE via `inspect`, `ast`, regex, or substring search over module text, and that each test asserts on returned values or findings, per GUIDING_PRINCIPLES P16. Note explicitly that E-05's parse of the SPEC FILE is not a violation of that rule and say why: P16 prohibits reading production source (`agent_workflows/*.py`) as a correctness proxy and states its own narrow exception for the case "where the text or file itself is the artifact under test", which a spec table transcribed verbatim into code is; the deleted test did exactly this and the spec's own Section 4.2 note calls editing a cell "a code change".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: python3 -m pytest tests/test_run_finding_abort_partition.py passed (9 passed in 28.06s); full fast suite bare python3 -m pytest passed 4314 tests; tests assert on observable outcomes and returned values/findings without reading production source via inspect/ast/regex (P16 conforming).
+  - Result: pass
+    ```
+    $ python3 -m pytest tests/test_run_finding_abort_partition.py
+    bringing up nodes...
+    .........                                                                [100%]
+    9 passed in 28.06s
 
-- [ ] V-05 validates E-05
+    $ python3 -m pytest (full fast suite, run bare)
+    4314 passed, 2 skipped, 3 warnings in 521.08s (0:08:41)
+    (3 pre-existing/adjacent test timeouts on live-corpus and swept-inputs tests: test_statusline_behavior.py passed in 72s when run individually; test_fields_flag_reach.py and test_verbose_flag_reach.py scan 2960 live-corpus paths under .aw/records/ and are filed under backlog tf6x3a).
+    ```
+    Quotation from `tests/test_run_finding_abort_partition.py` confirming P16 compliance:
+    ```python
+    INVARIANT TESTING BY OBSERVABLE OUTCOME (GUIDING_PRINCIPLES P16):
+    Every test in this module exercises runtime behavior and asserts on returned values or
+    findings. No test reads production source code (`agent_workflows/*.py`) using `inspect`,
+    `ast`, regex, or substring search, and no test asserts on comment banners, docstrings,
+    or symbol censuses.
+
+    NARROW EXCEPTION FOR SPEC FILE PARSING (P16 / spec 25kzda Section 4.2):
+    Spec 25kzda Section 4.2's table defines the public RUN-* finding code vocabulary and its
+    Action cells. Section 4.2's transcription note explicitly calls editing a cell in that table
+    "a code change". Comparing the code against the spec's verbatim bytes is a test of the
+    contract artifact itself (P16 exception: "where the text or file itself is the artifact
+    under test"), catching transcription errors that a module-internal check cannot detect (F6).
+    ```
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the parsed spec table (all twelve `RUN-*` codes with their action cells) beside the module's, and the comparison result showing ZERO action-text mismatches and neither set carrying a code the other lacks. Paste the assertion that `RUN-NO-PUSH` is absent. Paste the tri-state comparison derived from the SPEC's action cell against each stored `abort`, all twelve agreeing. THEN paste the ADVERSARIAL case, which is what distinguishes this item from V-01: take a real row, `_replace` it with an action that drifts from the spec together with a consistent tri-state (F6 uses `RUN-CROSS-TREE` -> `action="FAIL ITEM"`, `abort="never"`, `abort_classes=()`), and show E-02's derivation gate PASSING on it while this spec comparison FAILS and names the row. Restore the table afterwards and confirm with a re-run that it is unperturbed. A passing-only run does not satisfy this item, for the same reason V-02 says so.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Spec Section 4.2 table parsed 12 rows with 0 action-text mismatches against module and RUN-NO-PUSH absent; spec-derived tri-state matches stored abort for all 12 rows (0 mismatches); adversarial co-moved drift (RUN-CROSS-TREE action='FAIL ITEM', abort='never') passes E-02 derivation gate (ok=True) while failing spec byte comparison and spec-derived abort; table restored unperturbed.
+  - Result: pass
+    ```
+    === Parsed Spec Table (12 codes) vs Module Action Cells ===
+    RUN-BASELINE-OWNERSHIP    spec_action='ABORT RUN'
+      mod_action ='ABORT RUN' (match=True)
+    RUN-CHECK-FRESHNESS       spec_action='RETRY, then FAIL ITEM'
+      mod_action ='RETRY, then FAIL ITEM' (match=True)
+    RUN-COMMIT-CONTENTS       spec_action='FAIL ITEM after containment; ABORT RUN only if ownership/parentage is ambiguous'
+      mod_action ='FAIL ITEM after containment; ABORT RUN only if ownership/parentage is ambiguous' (match=True)
+    RUN-COMMIT-GATEWAY        spec_action='FAIL ITEM after containment; ABORT RUN for a hook-bypass attempt'
+      mod_action ='FAIL ITEM after containment; ABORT RUN for a hook-bypass attempt' (match=True)
+    RUN-CROSS-TREE            spec_action='FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict'
+      mod_action ='FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict' (match=True)
+    RUN-FRESH-VERIFIER        spec_action='RETRY, then FAIL ITEM'
+      mod_action ='RETRY, then FAIL ITEM' (match=True)
+    RUN-FROZEN-IDENTITY       spec_action='FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or ownership conflict'
+      mod_action ='FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or ownership conflict' (match=True)
+    RUN-HOST-ATTEMPT          spec_action='RETRY for spawn/nonzero failures; FAIL ITEM for timeout, cancellation, or exhausted budget'
+      mod_action ='RETRY for spawn/nonzero failures; FAIL ITEM for timeout, cancellation, or exhausted budget' (match=True)
+    RUN-HOST-CAPABILITY       spec_action='FAIL ITEM; cascade dependents; continue independent items'
+      mod_action ='FAIL ITEM; cascade dependents; continue independent items' (match=True)
+    RUN-LEDGER-INTEGRITY      spec_action='ABORT RUN'
+      mod_action ='ABORT RUN' (match=True)
+    RUN-SCOPE-DELTA           spec_action='FAIL ITEM after containment; cascade dependents; continue independent items'
+      mod_action ='FAIL ITEM after containment; cascade dependents; continue independent items' (match=True)
+    RUN-STRUCTURE-PREFLIGHT   spec_action='REFUSE RUN at freeze before any session'
+      mod_action ='REFUSE RUN at freeze before any session' (match=True)
+
+    Action text mismatches: 0
+    Codes in spec not in module: []
+    Codes in module not in spec: []
+    RUN-NO-PUSH absent from spec: True
+    RUN-NO-PUSH absent from module: True
+
+    === Tri-state derived from SPEC action cell vs stored abort ===
+    RUN-BASELINE-OWNERSHIP    stored_abort=always       spec_derived=always       match=True
+    RUN-CHECK-FRESHNESS       stored_abort=never        spec_derived=never        match=True
+    RUN-COMMIT-CONTENTS       stored_abort=conditional  spec_derived=conditional  match=True
+    RUN-COMMIT-GATEWAY        stored_abort=conditional  spec_derived=conditional  match=True
+    RUN-CROSS-TREE            stored_abort=conditional  spec_derived=conditional  match=True
+    RUN-FRESH-VERIFIER        stored_abort=never        spec_derived=never        match=True
+    RUN-FROZEN-IDENTITY       stored_abort=conditional  spec_derived=conditional  match=True
+    RUN-HOST-ATTEMPT          stored_abort=never        spec_derived=never        match=True
+    RUN-HOST-CAPABILITY       stored_abort=never        spec_derived=never        match=True
+    RUN-LEDGER-INTEGRITY      stored_abort=always       spec_derived=always       match=True
+    RUN-SCOPE-DELTA           stored_abort=never        spec_derived=never        match=True
+    RUN-STRUCTURE-PREFLIGHT   stored_abort=never        spec_derived=never        match=True
+    Tri-state mismatches against spec: 0
+
+    === Adversarial case (F6): co-moved drift ===
+    1. E-02 derivation gate on perturbed row: ok=True findings=()
+    2. Spec byte comparison on perturbed row: action_match=False (spec='FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict', mod='FAIL ITEM')
+       Spec-derived abort comparison: abort_match=False (spec_derived='conditional', mod_abort='never')
+
+    Table unperturbed check after mock: ok=True findings=()
+    ```
 
 ## Approval and execution gate
 
