@@ -6,7 +6,7 @@
 - Scope: Close `e2j5w4` with the invariant defended where it belongs rather than by accident. IN: (a) add two rows to the `CollisionTests.COLLISIONS` table in `tests/test_check_engine.py` whose fixtures place the identity-slot violation's files under a TERMINAL directory, one per (a)/(b) rule half, so the table that owns this rule fails the regression directly; (b) record in `_check_identity_slots`'s docstring that its corpus is terminal-inclusive BY CONTRACT and name the rows that pin it, because that function is where a future reader looks and it currently says nothing about the corpus it is handed; (c) append a dated measurement correction to backlog item `e2j5w4` recording that `t0jyb2` shipped its suggested fix, without touching its requirements, `- Status:` or `- Blocks-Release:`. OUT: any change to `check_engine.check_collisions`' or `_check_identity_slots`' BEHAVIOR, which measures correct on all four axes probed at authoring; widening the setid pass, whose narrow corpus is deliberate and documented; renaming any walkthrough (`nrqo90` already did, and re-renaming would rewrite cited history); the `CollisionTests` census/anti-vacuity concerns and the DECISIONS D140 parenthetical correction, both owned by sibling plan `aisk5z` at Order 01 in this same Set.
 - Scope-Paths: tests/test_check_engine.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dta75n
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dta75n verified (set id6slotgate, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-09-30 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-D01 through PR-D08 all FIXED in place. Structural lint conformed at `author` and reports zero findings at `review-finalize`. INDEPENDENTLY RE-RAN ALL FIVE AUTHORING FACTS at HEAD `5b03be28c` and every MECHANISM reproduces (zero live collision findings; the four-axis probe at `default=1 widened=1`; the mutation redding the parity test; that test's two equality assertions True with the slot presence False), so the plan's premise is sound. What review found instead were three defects that would each have cost an execution pass: the authored STOP condition ("more than the single parity test") fires on a tree carrying one pre-existing unrelated failure and would have killed a correct run (F-8); the declared backlog `- Scope-Paths:` points at `open/` while the item is `graduated/`, which `aw check` reports at `error` and which would have made `aw commit` refuse E-04's own deliverable (F-10); and E-04 duplicates an append the already-approved sibling `aisk5z` E-05 owns and targets correctly (F-11). Scope narrowed from three paths to two, E-04 converted to a write-nothing verification, and every count bar restated as a delta (F-9). Added OQ-02 recording the decision. `ce.stale_record_scope_paths`, `ce.check_durable_carrier` and `aw check` are all now clean for this plan. Human approval is still required. (Review record: `.aw/records/reviews/20260930-id6slotgate-02-dta75n-pin-the-identity-slot-pass-to-the-terminal-inclusive-corpus.review.md`.)
