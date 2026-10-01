@@ -6,7 +6,7 @@
 - Scope: IN: (a) delete the `not explicit_dir` conjunct from the no-project guard in `attention.run`, so an explicit `--dir` at a non-project directory takes the same honest refusal the cwd path takes; (b) the identical one-conjunct fix in `cli._run_plans` (`aw ipd board`), because it is the same guard, the same three surfaces, and the same greenwash, and fixing one of two identical siblings would leave the asymmetry this plan exists to remove; (c) fix the `--check` sub-branch inside that guard, which is the ONE surface the conjunct deletion does not make honest: it asserts `the view is valid` with exit 0 on a directory it never surveyed, a false positive under the anti-greenwashing invariant, and must refuse `cannot-run`/exit 2 like the sibling machine path; (d) a behavior test pinning all surfaces of both verbs for an explicit non-project `--dir`; (e) correcting the THREE stale citations of the deleted test file `tests/test_awretrofit_project_root_climb.py` in `attention.py` and `project_context.py`, which are the evidence this plan had to re-derive and which currently point a reader at nothing. OUT: changing what counts as a project (`find_project_root` stays git-blind); converting the ~74 other `resolve_verb_repo_root` call sites that fall back to cwd silently (the recorded open design question, carried not fixed); the missing `--dir` SUBDIRECTORY climb (F-05, a second defect found while measuring, carried to its own item); the runs-root leak (F-06, likewise); and any change to the message wording, exit codes, or `NextAction` payloads the cwd path already emits, which are correct and are the reference this plan brings the `--dir` path into line with.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/project_context.py, tests/test_attention_explicit_dir_nonproject.py
 - Item-Dependencies: none
-- Status: approved
+- Status: superseded
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: oq4ual
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 superseded (aw set): superseded by bjgqez (commit 5cea859bbde6)
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-1001, PR-1002, PR-1003, PR-1004, PR-1005 all fixed. Reviewed at HEAD `60e21419`. ALL SEVEN AUTHORED FINDINGS HOLD and the plan's diagnosis is exactly right: both guards exist as quoted, the three greenwashed surfaces reproduce (`0 artifacts shown` rc=0, `outcome:clean,exit:0,verified:true`, `the view is valid` rc=0), the cwd reference path refuses honestly on two of three, `aw ipd board` carries the identical defect, all three stale citations exist and the file does not, and the zero blast radius re-confirms (3387 passed both with and without the conjunct deletion simulated). FIVE CORRECTIONS. PR-1001: the five `NEEDS-BACKLOG-ITEM` placeholders are reported by `aw check plans` as an ERROR today (`check.ipd-uncarried-obligation`), and E-07 deferred filing them until after verification, so the plan would verify against a repository error it introduced; filing now moves first. PR-1002: E-05 told the executor to test `--check` and `--format json` on `aw ipd board`, which has NEITHER, and `--format json` there exits 2 as an argparse usage error that would falsely resemble the refusal. PR-1003: E-06's body misspelled the search string as `test_awstretrofit_`, which matches nothing, so an executor using it would find zero sites and could call the finding stale. PR-1004: F-04's `3251` is a drifted live count (3387 at review) that V-07 made a comparison bar. PR-1005: the F-06 reproduction trap is wider than `.aw/state/` (any in-repository path, measured), and E-05 left the CWD `--check` case E-04 changes pinned by nothing.
