@@ -295,7 +295,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # a weaker stated contract.
     #
     # I-07 IS THE RIGHT HOME AND THE FIT WAS VERIFIED, NOT ASSUMED: read at
-    # `.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md:135`,
+    # `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md:135`,
     # I-07 is "Release-gate preservation", assurance class "Repository invariant", and its control
     # column already names `evaluate_blocking_close` plus `check.blocking-item-closed-without-gate`,
     # `check.from-backlog-gate-mismatch` and `check.orphaned-live-blocker`.

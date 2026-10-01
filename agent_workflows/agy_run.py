@@ -119,7 +119,7 @@ SUPPORTED MODES:
   2. Spec Mode (--spec <target> | positional *.spec.md):
      Authors a conformant IPD from a specification document using repository scaffolding tools,
      then performs a completeness and conformance audit in Turn 2.
-     Example: python3 tools/agy_run.py --spec .aw/records/specs/20260809-2211-01-aw-project-layout.spec.md
+     Example: python3 tools/agy_run.py --spec .aw/records/specs/superseded/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md
 
   3. File Mode (--file / -f <path>):
      Executes an external prompt brief file (e.g. under .aw/records/prompts/),
