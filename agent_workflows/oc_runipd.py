@@ -1247,11 +1247,27 @@ def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
 
 
 def close_backlog_item(
-    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
+    repo: Path,
+    item_path: Path,
+    item_id6: str,
+    evidence: str,
+    message: str,
+    *,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
 ) -> tuple[int, str]:
     """Close an item through the gated setter. See `runner_shared.close_backlog_item`."""
     return runner_shared.close_backlog_item(
-        repo, item_path, item_id6, evidence, message, run_checked=run_checked
+        repo,
+        item_path,
+        item_id6,
+        evidence,
+        message,
+        gate_root=gate_root,
+        lane_carrier_ref=lane_carrier_ref,
+        lane_carrier_path=lane_carrier_path,
+        run_checked=run_checked,
     )
 
 

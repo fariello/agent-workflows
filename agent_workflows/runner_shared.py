@@ -35562,12 +35562,16 @@ def close_backlog_item(
     evidence: str,
     message: str,
     *,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
     run_checked: Callable[..., str],
 ) -> tuple[int, str]:
     """Close a backlog item `done` through the LIFECYCLE-OWNED setter, never by editing the file.
 
-    ``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably,
-    the ``repo_root`` the release-gate predicate evaluates against (see the warning below).
+    ``repo`` is the tree the setter operates on: it is where the item file MOVES.
+    When ``gate_root`` is passed (via `--gate-dir`), it is the tree the release-gate predicate
+    evaluates against (otherwise falling back to ``repo``).
 
     THE `--status` SPELLING IS RETAINED FOR RUNNER INTEGRATION (zhr6mc D1, superseded in fact by
     47ttnv). Both spellings (`aw backlog set <selector> --status done` and `aw backlog set done
@@ -35576,35 +35580,39 @@ def close_backlog_item(
     express and because only it honors `--gate-dir`, which the following paragraph depends on for
     the split-tree decision.
 
-    `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
-    gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
-    that predicate scans for release-gate carriers (`check_engine.py`'s `done` branch calls
-    `find_from_backlog_artifacts(repo_root, item_id6)`) and the tree its `--evidence` citation is
-    resolved against (`resolve_evidence_artifact(repo_root, evidence)`). `backlog.run_set` derives
-    both from the same `resolve_verb_repo_root(args.dir)`, so THE TWO CANNOT BE SPLIT FROM HERE: one
-    `--dir` is one tree for the move AND the gate. That is why `process_backlog_close` performs the
-    MOVE in the lane but takes the ELIGIBILITY decision against main BEFORE calling this, and why the
-    evidence it cites is a path that resolves in the lane. Do not "simplify" this to a lane-only
-    evaluation: in the lane this run's own plan already sits in `executed/`, so a lane-side carrier
-    scan is MORE likely to find a satisfying carrier than main's, and the error direction is the
-    permissive one -- a release-gated item could close `done` that main's view would refuse.
+    `--dir` is where the item file moves, while `--gate-dir` chooses the tree the release gate
+    evaluates against. Because the gated route runs `check_engine.evaluate_blocking_close`, passing
+    `--gate-dir` roots carrier discovery (`find_from_backlog_artifacts(gate_root, item_id6)`) and
+    evidence resolution (`resolve_evidence_artifact(gate_root, evidence)`) in the gate tree (main),
+    while the move happens in ``repo`` (the lane). An isolated turn passes `--gate-dir` to evaluate
+    against main, along with `--lane-carrier-ref` and `--lane-carrier-path` to override the lane's
+    one finalized carrier. The cited evidence resolves in the gate tree (main).
+    Do not "simplify" this to a lane-only evaluation: in the lane this run's own plan already sits in
+    `executed/`, so a lane-side carrier scan is MORE likely to find a satisfying carrier than main's,
+    and the error direction is the permissive one -- a release-gated item could close `done` that
+    main's view would refuse.
     """
-    cmd = pinned_module_argv(
-        [
-            "backlog",
-            "set",
-            item_id6,
-            "--status",
-            "done",
-            "--evidence",
-            evidence,
-            "--message",
-            message,
-            "--dir",
-            str(repo),
-            "--no-commit",
-        ]
-    )
+    argv = [
+        "backlog",
+        "set",
+        item_id6,
+        "--status",
+        "done",
+        "--evidence",
+        evidence,
+        "--message",
+        message,
+        "--dir",
+        str(repo),
+    ]
+    if gate_root is not None:
+        argv.extend(["--gate-dir", str(gate_root)])
+    if lane_carrier_ref is not None:
+        argv.extend(["--lane-carrier-ref", lane_carrier_ref])
+    if lane_carrier_path is not None:
+        argv.extend(["--lane-carrier-path", lane_carrier_path])
+    argv.append("--no-commit")
+    cmd = pinned_module_argv(argv)
     # Launched through the SHARED `run_checked` rather than a fresh `subprocess.run`: it already
     # carries the af7i6p tooling pin AND the ttywedge (g40w37) `stdin=DEVNULL` terminal denial, so this
     # close cannot become the one nested-`aw` site that wedges on a prompt nobody can answer. Its
@@ -35862,8 +35870,36 @@ def process_backlog_close(
         f"closed by {host_label}: IPD {item['id6']} executed "
         f"({verdict.reason}); evidence {verdict.evidence}"
     )
+    lane_carrier_ref: str | None = None
+    lane_carrier_path: str | None = None
+    if isolated:
+        if lane_handle is not None:
+            lane_carrier_ref = getattr(lane_handle, "branch", None) or (
+                lane_handle.get("branch") if isinstance(lane_handle, dict) else None
+            )
+            if lane_carrier_ref is None and isinstance(lane_handle, str):
+                lane_carrier_ref = lane_handle
+        if not lane_carrier_ref and lane_repo is not None:
+            rc_b, out_b, _ = _run_git(Path(lane_repo), ["branch", "--show-current"])
+            if rc_b == 0 and out_b.strip():
+                lane_carrier_ref = out_b.strip()
+        if overrides:
+            lane_carrier_path = next(iter(overrides.keys()))
+
+    close_kw: dict[str, Any] = {}
+    if isolated and lane_carrier_ref and lane_carrier_path:
+        close_kw = {
+            "gate_root": repo,
+            "lane_carrier_ref": lane_carrier_ref,
+            "lane_carrier_path": lane_carrier_path,
+        }
     rc, out = close_backlog_item(
-        write_repo, item_path, item_id6, verdict.evidence or "", message
+        write_repo,
+        item_path,
+        item_id6,
+        verdict.evidence or "",
+        message,
+        **close_kw,
     )
     if rc != 0:
         # E-04 fail-closed: a refused setter leaves the item ALONE and the refusal is the reason.
@@ -37201,6 +37237,11 @@ def evaluate_backlog_close(
     multi-carrier protection F-5/F-12 measured (21 of 108 carried items have more than one carrier,
     the tail running 9, 6, 5) is untouched: an item whose sibling has not run still does not close.
     Defaults to None, so every caller that does not pass it behaves exactly as before.
+
+    NOTE: this is the OUTER gate's override (deciding whether THIS run earned the close and filtering
+    IPD carriers). The INNER gate (`check_engine.evaluate_blocking_close`) has its own independent,
+    verified override (`lane_carrier_ref` / `lane_carrier_path`, verified against the git ref via
+    `git ls-tree` and never trusted), so the two are separate mechanisms.
     """
     from agent_workflows import check_engine as _ce
 

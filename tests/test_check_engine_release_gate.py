@@ -25,6 +25,7 @@ import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import check_engine
@@ -912,6 +913,156 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             self.assertFalse(verdict.legitimate)
             self.assertEqual(verdict.severity, "error")
             self.assertIsNone(verdict.path)
+
+    def test_post_merge_call_sites_inert_empty_override_and_no_evidence(self) -> None:
+        """4nbvfr E-07: post-merge main shows carrier executed, override is empty, HANDOFF passes unaided."""
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            main_repo = _create_minimal_repo(tmp_path / "main")
+            coord_repo = _create_minimal_repo(tmp_path / "coord")
+            bug_file = (
+                main_repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: next\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            plan_name = "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            plan_content = (
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: executed\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n"
+            )
+            (
+                main_repo / ".aw" / "records" / "plans" / "executed" / plan_name
+            ).write_text(plan_content, encoding="utf-8")
+            (
+                coord_repo / ".aw" / "records" / "plans" / "executed" / plan_name
+            ).write_text(plan_content, encoding="utf-8")
+            item = {
+                "id6": "plan01",
+                "configured_file": f".aw/records/plans/executed/{plan_name}",
+            }
+            override = runner_shared.lane_executed_carrier_override(
+                main_repo, coord_repo, item
+            )
+            self.assertEqual(override, {})
+
+            verdict = check_engine.evaluate_blocking_close(
+                main_repo,
+                bug_file,
+                "done",
+                evidence=None,
+                lane_carrier_ref=None,
+                lane_carrier_path=None,
+            )
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "HANDOFF")
+            self.assertEqual(verdict.severity, "ok")
+
+    def test_non_isolated_turn_inert_empty_override_and_no_evidence(self) -> None:
+        """4nbvfr E-07: non-isolated turn (write_repo == repo) override is empty, HANDOFF passes unaided."""
+        with TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            repo = _create_minimal_repo(tmp_path / "repo")
+            bug_file = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            bug_file.write_text(
+                "- Id: bug001\n"
+                "- Status: open\n"
+                "- Blocks-Release: next\n"
+                "- Set: bug001\n"
+                "- Priority: medium\n"
+                "- Work-Kind: bug\n"
+                "- Summary: Gated bug\n",
+                encoding="utf-8",
+            )
+            plan_name = "20260920-plan01-01-plan01-fix-bug.ipd.md"
+            plan_content = (
+                "# IPD: Fix bug\n\n"
+                "- Id: plan01\n"
+                "- Status: executed\n"
+                "- From-Backlog: bug001\n"
+                "- Blocks-Release: rel001\n"
+                "- Set: plan01\n"
+                "- Scope: Fix\n"
+                "- Scope-Paths: foo.py\n"
+            )
+            (repo / ".aw" / "records" / "plans" / "executed" / plan_name).write_text(
+                plan_content, encoding="utf-8"
+            )
+            item = {
+                "id6": "plan01",
+                "configured_file": f".aw/records/plans/executed/{plan_name}",
+            }
+            override = runner_shared.lane_executed_carrier_override(repo, repo, item)
+            self.assertEqual(override, {})
+
+            verdict = check_engine.evaluate_blocking_close(
+                repo,
+                bug_file,
+                "done",
+                evidence=None,
+                lane_carrier_ref=None,
+                lane_carrier_path=None,
+            )
+            self.assertTrue(verdict.legitimate)
+            self.assertEqual(verdict.path, "HANDOFF")
+            self.assertEqual(verdict.severity, "ok")
+
+    def test_non_isolated_turn_emits_no_new_flags(self) -> None:
+        """4nbvfr E-07: non-isolated turn emits no --gate-dir, --lane-carrier-ref, or --lane-carrier-path."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            item_path = (
+                repo
+                / ".aw"
+                / "records"
+                / "backlog"
+                / "open"
+                / "20260920-bug001-01-bug001-test-defect.backlog.md"
+            )
+            captured_cmd: list[str] = []
+
+            def fake_run_checked(cmd: list[str], **kwargs: Any) -> str:
+                captured_cmd.extend(cmd)
+                return ""
+
+            rc, _ = runner_shared.close_backlog_item(
+                repo,
+                item_path,
+                "bug001",
+                "",
+                "close message",
+                run_checked=fake_run_checked,
+            )
+            self.assertEqual(rc, 0)
+            self.assertIn("--dir", captured_cmd)
+            self.assertNotIn("--gate-dir", captured_cmd)
+            self.assertNotIn("--lane-carrier-ref", captured_cmd)
+            self.assertNotIn("--lane-carrier-path", captured_cmd)
 
     def test_release_gate_warnings_orphaned_live_blocker_remedy(self) -> None:
         """closescope 2a6phj E-05: orphaned-live-blocker warning names graduated for pending plan and --status done for executed plan."""

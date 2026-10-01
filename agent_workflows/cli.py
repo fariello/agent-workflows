@@ -5644,6 +5644,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Tree the release gate is evaluated against (where From-Backlog carriers are scanned for, and where --evidence is resolved; default: --dir).",
     )
     p_backlog_set.add_argument(
+        "--lane-carrier-ref",
+        dest="lane_carrier_ref",
+        default=None,
+        help="Git ref in the shared object store asserting a single From-Backlog carrier is executed/implemented (must be paired with --lane-carrier-path).",
+    )
+    p_backlog_set.add_argument(
+        "--lane-carrier-path",
+        dest="lane_carrier_path",
+        default=None,
+        help="Path of the From-Backlog carrier as the gate tree sees it (must be paired with --lane-carrier-ref).",
+    )
+    p_backlog_set.add_argument(
         "--status",
         default=None,
         choices=sorted(_backlog_status_vocab.STATUSES),
