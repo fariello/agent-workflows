@@ -3068,6 +3068,7 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
     """
     import argparse
 
+    from agent_workflows import artifact_core as _core
     from agent_workflows import plans_index as _pidx
 
     # Regenerate (no swallow: any exception propagates).
@@ -3084,22 +3085,23 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         )
     )
     # Verify it is now fresh.
-    rc = _pidx.run_index(
-        argparse.Namespace(
-            dir=str(repo_root),
-            check=True,
-            agent=False,
-            json=False,
-            no_color=True,
-            limit=None,
-            quiet=True,
-        )
+    resolved_repo_root, plans_dir = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
+    drift = _pidx.check_drift(
+        resolved_repo_root, plans_dir, limit=_pidx.DEFAULT_INDEX_LIMIT
     )
+    rc = _core.drift_exit_code(drift)
     if rc != 0:
-        raise RuntimeError(
+        failing = [d for d in drift if getattr(d, "severity", "") != "info"]
+        rendered = [f"{d.location}: {d.rule}: {d.detail}" for d in failing[:10]]
+        if len(failing) > 10:
+            rendered.append(f"... ({len(failing) - 10} more findings omitted)")
+        msg = (
             "owned plans index refresh did not converge (aw index plans --check nonzero); "
             "finalize fails closed rather than committing a stale index."
         )
+        if rendered:
+            msg = f"{msg}\n" + "\n".join(rendered)
+        raise RuntimeError(msg)
 
 
 def _pre_commit_phase_leaves_manifests_untouched() -> str:
