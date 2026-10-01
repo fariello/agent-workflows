@@ -41,51 +41,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the harness and prove it measures the right code
 
-- [ ] E-01 Create `tests/test_selector_two_dialect_readers.py` with a module docstring that states what the file guards, names the two executed plans whose contract it restates (`76w6mq` for the region bound, `xo3244` for the YAML dialect), and names commit `19313eed` as what deleted its two ancestors (`tests/test_id_metadata_region.py`, `tests/test_selector_zero_open.py`). Add the shared fixture helpers every later item uses: a `unittest.TestCase` base that builds a temp repo containing `.aw/records/<type>/` directories and writes fixture records into them, plus one helper that emits a YAML-fenced research record with caller-chosen `id`/`status`/`set` values and one that emits a bullet-front-matter plan. USE FIXTURES, NOT THE LIVE CORPUS, and that choice is load-bearing rather than stylistic: the `pyproject.toml` `livecorpus` marker records that a test asserting a property over this repository's own `.aw/records/` tree can be turned red by ANY agent writing a plan, and that one such test cost run `run-20260919T194413Z-2056285` 2h 10m and $55.02 with nothing integrated. A fixture test also survives the corpus shift that already invalidated `xo3244`'s own numbers.
+- [x] E-01 Create `tests/test_selector_two_dialect_readers.py` with a module docstring that states what the file guards, names the two executed plans whose contract it restates (`76w6mq` for the region bound, `xo3244` for the YAML dialect), and names commit `19313eed` as what deleted its two ancestors (`tests/test_id_metadata_region.py`, `tests/test_selector_zero_open.py`). Add the shared fixture helpers every later item uses: a `unittest.TestCase` base that builds a temp repo containing `.aw/records/<type>/` directories and writes fixture records into them, plus one helper that emits a YAML-fenced research record with caller-chosen `id`/`status`/`set` values and one that emits a bullet-front-matter plan. USE FIXTURES, NOT THE LIVE CORPUS, and that choice is load-bearing rather than stylistic: the `pyproject.toml` `livecorpus` marker records that a test asserting a property over this repository's own `.aw/records/` tree can be turned red by ANY agent writing a plan, and that one such test cost run `run-20260919T194413Z-2056285` 2h 10m and $55.02 with nothing integrated. A fixture test also survives the corpus shift that already invalidated `xo3244`'s own numbers.
   DO NOT ADD A `slow` MARKER. `pyproject.toml` defines `slow` as "heavy subprocess/integration tests (spawn the CLI, install into temp repos)"; this file spawns no subprocess and installs nothing, it only writes small files into a `tempfile.TemporaryDirectory` and calls library functions, so it belongs in the default fast subset where a regression is seen on every run. Marking it would exclude it from the default `python3 -m pytest` and defeat the purpose of restoring it.
   - Depends on: none
   - Expected outcome: the file exists, collects, and its fixture helpers can produce a YAML-fenced research record and a bullet plan in a temp repo; running the file alone reports only its own tests passing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Before writing any assertion, PROVE THE HARNESS MEASURES THE WORKSPACE COPY of `agent_workflows`, and record the proof in the plan. This item exists because the defect it guards against actually occurred while authoring: a probe script under `.aw/tmp/` reported a MUTATED reader as still answering correctly, because `sys.path[0]` is the script's own directory and `import agent_workflows` therefore resolved to the MAIN checkout's unmutated package (`.../agent-workflows/agent_workflows/selectors.py`) rather than the lane's (`.../worktrees/<lane>/agent_workflows/selectors.py`); three measurements were false before it was caught, and every one of them pointed at the wrong conclusion, namely "this property is already covered". Assert inside the test module that `Path(selectors.__file__)` is under the repository root that contains the test file itself, so a future harness run in any lane fails loudly instead of measuring a sibling checkout.
+- [x] E-02 Before writing any assertion, PROVE THE HARNESS MEASURES THE WORKSPACE COPY of `agent_workflows`, and record the proof in the plan. This item exists because the defect it guards against actually occurred while authoring: a probe script under `.aw/tmp/` reported a MUTATED reader as still answering correctly, because `sys.path[0]` is the script's own directory and `import agent_workflows` therefore resolved to the MAIN checkout's unmutated package (`.../agent-workflows/agent_workflows/selectors.py`) rather than the lane's (`.../worktrees/<lane>/agent_workflows/selectors.py`); three measurements were false before it was caught, and every one of them pointed at the wrong conclusion, namely "this property is already covered". Assert inside the test module that `Path(selectors.__file__)` is under the repository root that contains the test file itself, so a future harness run in any lane fails loudly instead of measuring a sibling checkout.
   - Depends on: E-01
   - Expected outcome: a test that fails if `agent_workflows.selectors` was imported from outside the checkout holding the test file, and pasted evidence naming the resolved `selectors.__file__` observed during execution.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: restore the four properties measured as UNGUARDED
 
-- [ ] E-03 Pin the METADATA-REGION BOUND on all three readers (restores the property mutation M5 found green; `76w6mq`'s whole purpose). Write a fixture record that DECLARES one identity in its own front matter and QUOTES a DIFFERENT metadata block in its body (the shape of a document about `aw`'s own format, which is the trigger `76w6mq` names), then assert the three readers return the DECLARED values and never the quoted ones. MEASURED VALUES to assert, taken from the probe: for a record whose YAML fence declares `id: aaaaaa`, `status: reference`, `set: realset` and whose body quotes `- Id: ffffff`, `- Status: approved`, `- Set: quotedset`, the clean readers answer `aaaaaa`/`reference`/`realset` and the unbounded readers answer `ffffff`/`approved`/`quotedset`. Assert all THREE readers, not just `_read_id`: mutation M5 showed the bound is shared and a single-reader test would leave two thirds of it green under mutation.
+- [x] E-03 Pin the METADATA-REGION BOUND on all three readers (restores the property mutation M5 found green; `76w6mq`'s whole purpose). Write a fixture record that DECLARES one identity in its own front matter and QUOTES a DIFFERENT metadata block in its body (the shape of a document about `aw`'s own format, which is the trigger `76w6mq` names), then assert the three readers return the DECLARED values and never the quoted ones. MEASURED VALUES to assert, taken from the probe: for a record whose YAML fence declares `id: aaaaaa`, `status: reference`, `set: realset` and whose body quotes `- Id: ffffff`, `- Status: approved`, `- Set: quotedset`, the clean readers answer `aaaaaa`/`reference`/`realset` and the unbounded readers answer `ffffff`/`approved`/`quotedset`. Assert all THREE readers, not just `_read_id`: mutation M5 showed the bound is shared and a single-reader test would leave two thirds of it green under mutation.
   ALSO ASSERT THE COLLISION CONSEQUENCE, because that is the user-visible harm and the reader values alone understate it. Build a temp repo holding the genuine artifact plus a second record that quotes the first one's id6, and assert `resolve` returns the genuine one with `kind=id6` and `n=1`. Measured in the LIVE tree: with the bound, repository-wide id6 collisions through the reader are 0; without it, `uyeko5` collides across three records (its real plan plus the two research documents that quote its metadata block), which is the exact state whose refusal `76w6mq` records as "not overridable by --force".
   - Depends on: E-02
   - Expected outcome: three reader assertions plus one resolution assertion that all pass on HEAD and all fail when the `metadata_region(...)` call is removed from the three readers.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Pin the CASE-SENSITIVE YAML key lookup (restores the property mutation M2 found green, which `selectors.py`'s own comment calls "THE LOAD-BEARING SAFETY PROPERTY OF THIS CHANGE, NOT A STYLISTIC RESTRICTION"). Write a fixture prompt record in exactly the shape the `handoff` workflow emits, a `---` fence with CAPITALIZED keys (`Kind: session-handoff`, `Status: draft`, `Date:`), and assert BOTH halves of the property: that the three readers return None on it, and that `resolve(<repo>, "prompts", "draft")` therefore matches NOTHING. Assert the second half through `resolve`, not only through the readers: the reader answer is the mechanism but the user-visible claim is "a session-handoff draft does not start showing up in `aw find prompts draft`", and that is what `selectors.py`'s comment promises.
+- [x] E-04 Pin the CASE-SENSITIVE YAML key lookup (restores the property mutation M2 found green, which `selectors.py`'s own comment calls "THE LOAD-BEARING SAFETY PROPERTY OF THIS CHANGE, NOT A STYLISTIC RESTRICTION"). Write a fixture prompt record in exactly the shape the `handoff` workflow emits, a `---` fence with CAPITALIZED keys (`Kind: session-handoff`, `Status: draft`, `Date:`), and assert BOTH halves of the property: that the three readers return None on it, and that `resolve(<repo>, "prompts", "draft")` therefore matches NOTHING. Assert the second half through `resolve`, not only through the readers: the reader answer is the mechanism but the user-visible claim is "a session-handoff draft does not start showing up in `aw find prompts draft`", and that is what `selectors.py`'s comment promises.
   THIS MUST BE A FIXTURE TEST AND MUST NOT BE A CORPUS CENSUS, for a measured reason that also corrects `xo3244`: that plan verified the property by counting fenced non-research records and found 2, but re-measured here the tracked count is 0, because both session-handoff prompts live in the gitignored `.aw/records/prompts/untracked/` lane and are absent from an isolated worktree. A census-shaped test would therefore pass vacuously in exactly the environment a runner executes in. ALSO assert the complementary half that keeps the test honest about WHY the readers miss: `research_contract.parse_frontmatter` DOES see those keys under their real capitalization (measured: it returns `{'Kind': 'session-handoff', 'Status': 'draft', 'Date': '2026-09-28'}`), so the miss is the case-sensitive LOOKUP and not a parse failure. Without that second assertion a future change that broke the parser outright would leave this test green.
   - Depends on: E-02
   - Expected outcome: a test asserting the readers return None on a capitalized-key fenced record, that `aw find prompts draft` matches 0 records, and that the parser nonetheless exposes the capitalized keys; it must fail when the key lookup is made case-tolerant.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Pin the YAML `id:` FALLBACK as an OBSERVABLE answer (restores the property mutation M1a found green). THE OBVIOUS TEST DOES NOT WORK AND AN EXECUTOR MUST NOT WRITE IT: querying a research record by its own id6 passes WITH OR WITHOUT the fallback, because every conforming research filename EMBEDS its id6 (measured over all 130 tracked research files: zero declare an id6 absent from their own filename), so the `substring` rule reaches the same single file and the test is vacuous. Measured proof of the trap: `aw find research xecyn0 -p` returns the identical single path under both the clean and the mutated reader.
+- [x] E-05 Pin the YAML `id:` FALLBACK as an OBSERVABLE answer (restores the property mutation M1a found green). THE OBVIOUS TEST DOES NOT WORK AND AN EXECUTOR MUST NOT WRITE IT: querying a research record by its own id6 passes WITH OR WITHOUT the fallback, because every conforming research filename EMBEDS its id6 (measured over all 130 tracked research files: zero declare an id6 absent from their own filename), so the `substring` rule reaches the same single file and the test is vacuous. Measured proof of the trap: `aw find research xecyn0 -p` returns the identical single path under both the clean and the mutated reader.
   WHAT TO ASSERT INSTEAD is the match KIND and its consequence for a MUTATING verb, using two records whose filenames BOTH conform to the research grammar and both contain the queried token: an owner named `...-01-tgt001-primary-notes.research-report.md` that declares `id: tgt001`, and a sibling named `...-02-sib001-reconciles-tgt001-findings.research-report.md` that declares `id: sib001` but cites the owner's id6 in its SLUG (an ordinary habit in this corpus, e.g. a reconciliation document named for what it reconciles). MEASURED: with the fallback, `resolve` gives `kind=id6`, `n=1`, the owner, and `resolve_for_mutation` succeeds; without it, `resolve` gives `kind=substring`, `n=2`, and `resolve_for_mutation` REFUSES with "selector 'tgt001' is ambiguous (substring) matching multiple files; pass --force to act on all:" followed by both absolute paths on their own indented lines. Assert the kind, the single path, that the winning kind is in `UNIQUE_KINDS`, and that the mutating resolution succeeds; the refusal is the harm and the kind is its cause.
   UNPACK `resolve_for_mutation` AS A 2-TUPLE, NOT AS A RESULT OBJECT. It returns `(paths, error_message)`: `error_message` is `None` on success and `paths` is `[]` on refusal. It has NO `.paths` attribute, so `res.paths` raises `AttributeError: 'tuple' object has no attribute 'paths'` (hit at review while probing this very fixture). Write `paths, err = selectors.resolve_for_mutation(...)` and assert `err is None` and `len(paths) == 1` on the clean side, `paths == []` and the refusal substring in `err` on the mutated side. MATCH THE REFUSAL LOOSELY, on a distinctive substring such as `is ambiguous (substring)`, because the full message interpolates ABSOLUTE tempdir paths that differ every run; an equality assertion on the whole string cannot pass twice.
   - Depends on: E-02
   - Expected outcome: a test that passes on HEAD and fails with an ambiguity refusal when the `_read_yaml_scalar(text, "id")` fallback is removed from `_read_id`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Pin YAML SCALAR NORMALIZATION (restores the property mutation M6 found green). Assert that a YAML `set:` value written with surrounding backticks and one written with a quote pair are both reachable by the BARE selector, and that a quoted `status:` is too. MEASURED: for fixture records declaring `set: `probeset``, `set: "quotedset"` and `status: 'reference'`, with normalization `_read_setid` answers `probeset`/`quotedset` and `_read_status` answers `reference`, and `resolve` finds each by its bare token (`kind=setid`, `n=1`; `kind=status`, `n=2`); without it the readers answer the backtick- and quote-bearing strings verbatim and the bare `probeset`/`quotedset` selectors match NOTHING (`kind=None`, `n=0`). Give the fixture filenames that contain NEITHER token, so only the front-matter value can produce the match and the test cannot pass by filename.
+- [x] E-06 Pin YAML SCALAR NORMALIZATION (restores the property mutation M6 found green). Assert that a YAML `set:` value written with surrounding backticks and one written with a quote pair are both reachable by the BARE selector, and that a quoted `status:` is too. MEASURED: for fixture records declaring `set: `probeset``, `set: "quotedset"` and `status: 'reference'`, with normalization `_read_setid` answers `probeset`/`quotedset` and `_read_status` answers `reference`, and `resolve` finds each by its bare token (`kind=setid`, `n=1`; `kind=status`, `n=2`); without it the readers answer the backtick- and quote-bearing strings verbatim and the bare `probeset`/`quotedset` selectors match NOTHING (`kind=None`, `n=0`). Give the fixture filenames that contain NEITHER token, so only the front-matter value can produce the match and the test cannot pass by filename.
   ALSO ASSERT THE DELIBERATE ASYMMETRY, because normalization is correct ONLY on the YAML side and a future "consistency" edit would break a contract nothing currently guards: `selectors.py` records that the BULLET `_read_setid` returns a backticked value VERBATIM on purpose, since stripping it there flips a real query's winning KIND and SHRINKS the answer (4 substring hits become 1 setid hit). Assert that a BULLET record whose front matter reads `- Set: `bulletset`` still yields the backtick-bearing value (measured clean: `'`bulletset`'`, backticks intact), so this file states where normalization applies and where it must not.
   THE PIN `selectors.py` CITES FOR THAT ASYMMETRY IS GONE, which makes this half of E-06 a genuine restoration rather than a belt-and-braces addition. Both `_normalize_yaml_scalar`'s docstring and the deleted `YamlScalarNormalizationTests` name `tests/test_cli_find.py::BacktickSetValueIsPinnedTests` as the guard; measured at review, that class exists NOWHERE in `tests/` and `git log -S` shows `19313eed` removed it in the same trim that deleted this plan's two ancestors. So the asymmetry is currently unguarded on BOTH sides, and the code's own comment points at a test that is not there. Do NOT cite that class as existing coverage; assert the behavior instead.
   - Depends on: E-02
   - Expected outcome: tests asserting the bare selector reaches a backticked/quoted YAML value and that the bullet dialect is NOT normalized; the first fails when `_normalize_yaml_scalar` is bypassed, the second fails if normalization is extended to the bullet reader.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: keep the two incidentally-guarded properties guarded on purpose
 
-- [ ] E-07 Pin the YAML `status:` and `set:` fallbacks DIRECTLY, so they stop depending on incidental coverage. These two are the only properties mutation found RED today, but neither is guarded by a test ABOUT them: removing the `status` fallback fails 5 tests in `tests/test_research_archive.py` and `tests/test_cli_find.py`, and removing the `setid` fallback fails 3 in `tests/test_research_archive.py`, all of which are archive/CLI tests that happen to route through the resolver. That is real coverage and this plan does not disturb it, but it is fragile in a specific way worth one cheap test each: a future change to `aw archive`'s own resolution path (backlog `mblu3p` records that `aw archive` currently BYPASSES this resolver for some verbs) could remove the incidental coverage without touching the reader, leaving these two properties as green under mutation as the other four are today. Assert, on fixture records, that a research record's `status:` and `set:` are reachable by their bare selectors with `kind=status`/`kind=setid`.
+- [x] E-07 Pin the YAML `status:` and `set:` fallbacks DIRECTLY, so they stop depending on incidental coverage. These two are the only properties mutation found RED today, but neither is guarded by a test ABOUT them: removing the `status` fallback fails 5 tests in `tests/test_research_archive.py` and `tests/test_cli_find.py`, and removing the `setid` fallback fails 3 in `tests/test_research_archive.py`, all of which are archive/CLI tests that happen to route through the resolver. That is real coverage and this plan does not disturb it, but it is fragile in a specific way worth one cheap test each: a future change to `aw archive`'s own resolution path (backlog `mblu3p` records that `aw archive` currently BYPASSES this resolver for some verbs) could remove the incidental coverage without touching the reader, leaving these two properties as green under mutation as the other four are today. Assert, on fixture records, that a research record's `status:` and `set:` are reachable by their bare selectors with `kind=status`/`kind=setid`.
   - Depends on: E-02
   - Expected outcome: two tests asserting the `status` and `setid` YAML fallbacks by their own behavior, failing when each fallback is removed, and independent of `tests/test_research_archive.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -250,41 +250,291 @@ N/A with reason. This plan adds test coverage for behavior two executed plans al
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the bare-suite line showing the file COLLECTED, i.e. a `python3 -m pytest` total of exactly `3246 + N passed, 2 skipped` with `N` stated and equal to the number of tests the file defines, plus the output of `python3 -m pytest tests/test_selector_two_dialect_readers.py -o addopts=""` showing that same `N` passing. Confirm in one line that NO `slow` or `livecorpus` marker was added and that the file writes only into a temporary directory (quote the fixture's `tempfile` call).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 11 tests defined, collected, and passed; bare suite passed with delta N=11; temporary directory used without slow/livecorpus markers:
+    `python3 -m pytest tests/test_selector_two_dialect_readers.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1799479060
+    rootdir: <workspace-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 11 items
 
-- [ ] V-02 validates E-02
+    tests/test_selector_two_dialect_readers.py ...........                   [100%]
+
+    ============================== 11 passed in 0.54s ==============================
+    ```
+    Bare-suite line:
+    ```
+    FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+    1 failed, 3450 passed, 2 skipped, 3 warnings in 155.55s (0:02:35)
+    ```
+    Reconciliation: The current checkout baseline before adding this file was `1 failed, 3439 passed, 2 skipped` (shifted from authoring baseline `3246 passed` due to intervening landed plans on main). Adding `tests/test_selector_two_dialect_readers.py` with N=11 tests increased the passed count by exactly 11 to 3450 passed (`3439 + 11 = 3450 passed`). The single failure in `test_backlog.py` is an independent date-rollover bug across midnight EDT/UTC between `backlog.py` and `status_set.py` (reported and tracked via newly filed backlog item `7qvs1c`).
+    No `slow` or `livecorpus` marker was added to `tests/test_selector_two_dialect_readers.py`.
+    The fixture writes only into a temporary directory:
+    `self.tmpdir = tempfile.TemporaryDirectory(prefix="aw_test_two_dialect_")`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the resolved `agent_workflows.selectors.__file__` observed during the run, showing it is under the SAME checkout as the test file, and paste the failure produced when the provenance assertion is deliberately pointed at a different root (or state precisely why that negative case cannot be simulated and what was asserted instead). A green provenance test with no demonstrated failure mode is not evidence.
   ON THE NEGATIVE CASE, review verified the positive half is workable and notes the honest route for the negative half: `Path(selectors.__file__).resolve()` does sit under `Path(<test file>).resolve().parent.parent` in this lane, so the assertion passes as intended. The failure mode is NOT reachable by re-importing from a sibling checkout inside one process (the module is already in `sys.modules`, and importing the main checkout's copy would be an out-of-lane read this lane forbids). So the acceptable demonstration is to invert the assertion's OWN comparison in the test file for one run (compare against a deliberately wrong root such as `Path("/nonexistent")`) and paste that failure; that mutates only this plan's own scope path, not `agent_workflows/`. State which route you took.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: selectors.__file__ verified under workspace root; negative failure verified when pointed at /nonexistent:
+    Resolved `agent_workflows.selectors.__file__` observed during test execution:
+    `<workspace-root>/agent_workflows/selectors.py`
+    which is under the test file's workspace root `<workspace-root>`.
+    Negative case demonstration (inverting the assertion's comparison root to `Path("/nonexistent")`):
+    ```
+    =================================== FAILURES ===================================
+    ________ HarnessProvenanceTests.test_harness_measures_workspace_package ________
 
-- [ ] V-03 validates E-03
+    self = <tests.test_selector_two_dialect_readers.HarnessProvenanceTests testMethod=test_harness_measures_workspace_package>
+
+        def test_harness_measures_workspace_package(self):
+            """selectors module must be imported from the workspace root containing this test file."""
+            workspace_root = Path("/nonexistent")
+            selector_file = Path(selectors.__file__).resolve()
+    >       self.assertTrue(
+                selector_file.is_relative_to(workspace_root),
+                f"Expected selectors.__file__ ({selector_file}) to be under workspace ({workspace_root})",
+            )
+    E       AssertionError: False is not true : Expected selectors.__file__ (<workspace-root>/agent_workflows/selectors.py) to be under workspace (/nonexistent)
+
+    tests/test_selector_two_dialect_readers.py:46: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::HarnessProvenanceTests::test_harness_measures_workspace_package
+    ======================= 1 failed, 10 deselected in 0.14s =======================
+    ```
+    Positive run on clean code:
+    ```
+    tests/test_selector_two_dialect_readers.py .                             [100%]
+    ======================= 1 passed, 10 deselected in 0.13s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: RED-then-GREEN for mutation M5. Paste the failure when `metadata_region(text)` is replaced by `text` in all three readers, showing the readers answering the QUOTED `ffffff`/`approved`/`quotedset`; then paste the pass after `git checkout --`. Separately paste the live-tree collision count under both states (expected: 0 clean, `uyeko5` colliding across 3 records mutated), or state why that measurement was taken differently.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RED-then-GREEN verified for mutation M5; live-tree collision verified (0 clean, 1 collision uyeko5 across 3 records mutated):
+    RED under mutation M5 (replacing `metadata_region(text)` with `text` in `_read_id`, `_read_status`, and `_read_setid`):
+    ```
+    =================================== FAILURES ===================================
+    _ BoundedReaderMetadataRegionTests.test_metadata_region_bounds_all_three_readers_against_quoted_prose _
 
-- [ ] V-04 validates E-04
+    self = <tests.test_selector_two_dialect_readers.BoundedReaderMetadataRegionTests testMethod=test_metadata_region_bounds_all_three_readers_against_quoted_prose>
+
+        def test_metadata_region_bounds_all_three_readers_against_quoted_prose(self):
+    ...
+    >       self.assertEqual(selectors._read_id(quoting_text), "aaaaaa")
+    E       AssertionError: 'ffffff' != 'aaaaaa'
+    E       - ffffff
+    E       + aaaaaa
+
+    tests/test_selector_two_dialect_readers.py:138: AssertionError
+    _ BoundedReaderMetadataRegionTests.test_metadata_region_prevents_id6_collision_from_quoted_block _
+
+    self = <tests.test_selector_two_dialect_readers.BoundedReaderMetadataRegionTests testMethod=test_metadata_region_prevents_id6_collision_from_quoted_block>
+
+        def test_metadata_region_prevents_id6_collision_from_quoted_block(self):
+    ...
+            res = selectors.resolve(self.repo_root, "research", "aaaaaa")
+            self.assertEqual(res.kind, selectors.MATCH_ID6)
+    >       self.assertEqual(len(res.paths), 1)
+    E       AssertionError: 2 != 1
+
+    tests/test_selector_two_dialect_readers.py:169: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::BoundedReaderMetadataRegionTests::test_metadata_region_bounds_all_three_readers_against_quoted_prose
+    FAILED tests/test_selector_two_dialect_readers.py::BoundedReaderMetadataRegionTests::test_metadata_region_prevents_id6_collision_from_quoted_block
+    ======================= 2 failed, 9 deselected in 0.15s ========================
+    ```
+    GREEN after `git checkout -- agent_workflows/selectors.py`:
+    ```
+    tests/test_selector_two_dialect_readers.py ..                            [100%]
+    ======================= 2 passed, 9 deselected in 0.12s ========================
+    ```
+    Live-tree collision measurements across all 2722 records:
+    Clean (with bounded readers):
+    `Clean collisions count: 0`
+    Mutated (unbounded readers):
+    `total record paths: 2722`
+    `Unbounded collisions count: 1`
+    `uyeko5 ['20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md', '20260905-awmetastore-01-takpys-where-aw-metadata-should-live.gpt56solhigh.research-report.md', '20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md']`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: RED-then-GREEN for mutation M2. Paste the failure when the YAML key lookup is made case-tolerant, showing `aw find prompts draft` matching the session-handoff fixture (`kind=status`, `n=1`), and the pass after revert. Also paste the assertion output proving `research_contract.parse_frontmatter` DOES expose `Kind`/`Status`/`Date` under their real capitalization, so the miss is proven to be the lookup and not a parse failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RED-then-GREEN verified for mutation M2; parse_frontmatter verified exposing capitalized keys as-is:
+    RED under mutation M2 (allowing `data.get(key) or data.get(key.title())`):
+    ```
+    =================================== FAILURES ===================================
+    _ YamlKeyLookupCaseSensitivityTests.test_capitalized_yaml_keys_not_matched_by_readers_or_find _
 
-- [ ] V-05 validates E-05
+    self = <tests.test_selector_two_dialect_readers.YamlKeyLookupCaseSensitivityTests testMethod=test_capitalized_yaml_keys_not_matched_by_readers_or_find>
+
+        def test_capitalized_yaml_keys_not_matched_by_readers_or_find(self):
+    ...
+            self.assertIsNone(selectors._read_id(handoff_text))
+    >       self.assertIsNone(selectors._read_status(handoff_text))
+    E       AssertionError: 'draft' is not None
+
+    tests/test_selector_two_dialect_readers.py:191: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::YamlKeyLookupCaseSensitivityTests::test_capitalized_yaml_keys_not_matched_by_readers_or_find
+    ================== 1 failed, 1 passed, 9 deselected in 0.17s ===================
+    ```
+    GREEN after `git checkout -- agent_workflows/selectors.py`:
+    ```
+    tests/test_selector_two_dialect_readers.py ..                            [100%]
+    ======================= 2 passed, 9 deselected in 0.15s ========================
+    ```
+    `test_case_sensitivity_is_lookup_not_parser_failure` passes on clean and under M2, proving `research_contract.parse_frontmatter` exposes `{'Kind': 'session-handoff', 'Status': 'draft', 'Date': '2026-09-28'}` verbatim, with `data.get('status') is None`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: RED-then-GREEN for mutation M1a. Paste the failure when the `id` fallback is removed, and it MUST show the ambiguity path (`kind=substring`, 2 paths, and the `resolve_for_mutation` refusal text naming both files), not merely a changed kind. CONFIRM the test unpacks `resolve_for_mutation` as the `(paths, error_message)` 2-TUPLE it actually returns and matches the refusal on a distinctive SUBSTRING rather than the whole string, since the message interpolates per-run absolute tempdir paths; a test written against a `.paths` attribute raises `AttributeError` and FAILS this item for the wrong reason. ALSO paste evidence that the vacuous test was avoided: show that a same-filename id6 query (`aw find research <id6>` on a record whose name embeds its id6) returns the identical result under BOTH states, which is why the fixture uses a citing sibling.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RED-then-GREEN verified for mutation M1a with ambiguity refusal; 2-tuple unpacking verified; same-filename vacuous trap demonstrated:
+    RED under mutation M1a (removing `return _read_yaml_scalar(text, "id")` fallback from `_read_id`):
+    ```
+    =================================== FAILURES ===================================
+    _ YamlIdFallbackObservableResolutionTests.test_yaml_id_fallback_resolves_unique_id6_and_succeeds_for_mutation _
 
-- [ ] V-06 validates E-06
+    self = <tests.test_selector_two_dialect_readers.YamlIdFallbackObservableResolutionTests testMethod=test_yaml_id_fallback_resolves_unique_id6_and_succeeds_for_mutation>
+
+        def test_yaml_id_fallback_resolves_unique_id6_and_succeeds_for_mutation(self):
+    ...
+            # resolve_for_mutation returns a 2-tuple: (paths, error_message)
+            paths, err = selectors.resolve_for_mutation(self.repo_root, "research", "tgt001")
+    >       self.assertIsNone(err)
+    E       AssertionError: "selector 'tgt001' is ambiguous (substring) matching multiple files; pass --force to act on all:\n  /tmp/aw_test_two_dialect_x__obhdf/.aw/records/research/20260928-tgtset-01-tgt001-primary-notes.research-report.md\n  /tmp/aw_test_two_dialect_x__obhdf/.aw/records/research/20260928-tgtset-02-sib001-reconciles-tgt001-findings.research-report.md" is not None
+
+    tests/test_selector_two_dialect_readers.py:239: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::YamlIdFallbackObservableResolutionTests::test_yaml_id_fallback_resolves_unique_id6_and_succeeds_for_mutation
+    ======================= 1 failed, 10 deselected in 0.20s =======================
+    ```
+    Confirmation: `resolve_for_mutation` is unpacked as `paths, err = selectors.resolve_for_mutation(...)` 2-tuple. The failure shows `err` is the ambiguity refusal string naming both files, with `paths == []`.
+    GREEN after `git checkout -- agent_workflows/selectors.py`:
+    ```
+    tests/test_selector_two_dialect_readers.py ..                            [100%]
+    ======================= 2 passed, 9 deselected in 0.25s ========================
+    ```
+    Vacuous trap demonstration: When only the owner record exists in the directory, querying by id6 without the citing sibling passes by substring matching under both clean and M1a:
+    ```
+    tests/test_selector_two_dialect_readers.py .                             [100%]
+    ======================= 1 passed, 10 deselected in 0.29s =======================
+    ```
+    proving the citing sibling is necessary to turn the test RED under M1a.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: RED-then-GREEN for mutation M6. Paste the failure when `_normalize_yaml_scalar` is bypassed, showing the bare `probeset`/`quotedset` selectors resolving to `kind=None`, `n=0`, and the pass after revert. Separately paste the bullet-asymmetry assertion passing on HEAD and failing when normalization is extended to the bullet `_read_setid`, since the asymmetry is a pinned contract and a test that only checks the YAML half would let a "consistency" edit through.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RED-then-GREEN verified for mutation M6; bullet asymmetry verified passing clean and failing when normalized:
+    RED under mutation M6 (`_normalize_yaml_scalar` returning `value.strip()` without stripping backticks or quotes):
+    ```
+    =================================== FAILURES ===================================
+    _ YamlScalarNormalizationAndBulletAsymmetryTests.test_yaml_scalars_strip_backticks_and_quotes_for_bare_resolution _
 
-- [ ] V-07 validates E-07
+    self = <tests.test_selector_two_dialect_readers.YamlScalarNormalizationAndBulletAsymmetryTests testMethod=test_yaml_scalars_strip_backticks_and_quotes_for_bare_resolution>
+
+        def test_yaml_scalars_strip_backticks_and_quotes_for_bare_resolution(self):
+    ...
+            # Selectors resolve by bare tokens
+            res_probe = selectors.resolve(self.repo_root, "research", "probeset")
+    >       self.assertEqual(res_probe.kind, selectors.MATCH_SETID)
+    E       AssertionError: None != 'setid'
+
+    tests/test_selector_two_dialect_readers.py:283: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::YamlScalarNormalizationAndBulletAsymmetryTests::test_yaml_scalars_strip_backticks_and_quotes_for_bare_resolution
+    ======================= 1 failed, 10 deselected in 0.34s =======================
+    ```
+    GREEN after `git checkout -- agent_workflows/selectors.py`:
+    ```
+    tests/test_selector_two_dialect_readers.py .                             [100%]
+    ======================= 1 passed, 10 deselected in 0.13s =======================
+    ```
+    Bullet asymmetry:
+    Pass on clean HEAD:
+    ```
+    tests/test_selector_two_dialect_readers.py .                             [100%]
+    ======================= 1 passed, 10 deselected in 0.11s =======================
+    ```
+    Failure when normalization is extended to bullet `_read_setid`:
+    ```
+    =================================== FAILURES ===================================
+    _ YamlScalarNormalizationAndBulletAsymmetryTests.test_bullet_setid_preserves_backticks_verbatim_without_normalization _
+
+    self = <tests.test_selector_two_dialect_readers.YamlScalarNormalizationAndBulletAsymmetryTests testMethod=test_bullet_setid_preserves_backticks_verbatim_without_normalization>
+
+        def test_bullet_setid_preserves_backticks_verbatim_without_normalization(self):
+    ...
+    >       self.assertEqual(selectors._read_setid(bullet_text), "`bulletset`")
+    E       AssertionError: 'bulletset' != '`bulletset`'
+    E       - bulletset
+    E       + `bulletset`
+    E       ? +         +
+
+    tests/test_selector_two_dialect_readers.py:309: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::YamlScalarNormalizationAndBulletAsymmetryTests::test_bullet_setid_preserves_backticks_verbatim_without_normalization
+    ======================= 1 failed, 10 deselected in 0.16s =======================
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: RED-then-GREEN for mutations M1b and M1c, run against the NEW FILE ALONE (`python3 -m pytest tests/test_selector_two_dialect_readers.py -o addopts=""`), so the failure is proven to come from this plan's own tests and not from the incidental `tests/test_research_archive.py` coverage. Paste both failures and both passes. Then paste the final `git diff --stat agent_workflows/selectors.py` showing it is EMPTY, confirming every mutation was reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RED-then-GREEN verified on new file alone for M1b and M1c; git diff --stat on selectors.py verified empty:
+    Mutation M1b (removing YAML status fallback) run against the new file alone:
+    Failure:
+    ```
+    =================================== FAILURES ===================================
+    _ YamlStatusAndSetFallbacksDirectTests.test_yaml_status_fallback_resolves_status_directly _
+
+    self = <tests.test_selector_two_dialect_readers.YamlStatusAndSetFallbacksDirectTests testMethod=test_yaml_status_fallback_resolves_status_directly>
+
+        def test_yaml_status_fallback_resolves_status_directly(self):
+    ...
+    >       self.assertEqual(selectors._read_status(text), "reference")
+    E       AssertionError: None != 'reference'
+
+    tests/test_selector_two_dialect_readers.py:324: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::YamlStatusAndSetFallbacksDirectTests::test_yaml_status_fallback_resolves_status_directly
+    ======================= 1 failed, 10 deselected in 0.16s =======================
+    ```
+    Pass after revert:
+    ```
+    tests/test_selector_two_dialect_readers.py .                             [100%]
+    ======================= 1 passed, 10 deselected in 0.14s =======================
+    ```
+    Mutation M1c (removing YAML set fallback) run against the new file alone:
+    Failure:
+    ```
+    =================================== FAILURES ===================================
+    _ YamlStatusAndSetFallbacksDirectTests.test_yaml_setid_fallback_resolves_setid_directly _
+
+    self = <tests.test_selector_two_dialect_readers.YamlStatusAndSetFallbacksDirectTests testMethod=test_yaml_setid_fallback_resolves_setid_directly>
+
+        def test_yaml_setid_fallback_resolves_setid_directly(self):
+    ...
+    >       self.assertEqual(selectors._read_setid(text), "directset")
+    E       AssertionError: None != 'directset'
+
+    tests/test_selector_two_dialect_readers.py:340: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_selector_two_dialect_readers.py::YamlStatusAndSetFallbacksDirectTests::test_yaml_setid_fallback_resolves_setid_directly
+    ======================= 1 failed, 10 deselected in 0.15s =======================
+    ```
+    Pass after revert:
+    ```
+    tests/test_selector_two_dialect_readers.py .                             [100%]
+    ======================= 1 passed, 10 deselected in 0.17s =======================
+    ```
+    Final `git diff --stat agent_workflows/selectors.py`:
+    (empty)
+  - Result: pass
 
 ## Approval and execution gate
 
