@@ -1,5 +1,5 @@
 - Id: s9z85a
-- Status: graduated
+- Status: done
 - Graduated-To: s9z85a
 - Blocks-Release: next
 - Set: s9z85a
@@ -8,6 +8,7 @@
 - Summary: finalize silently excuses an out-of-scope path committed in its own untrailered commit, so the --scope-reason demand never fires
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 1dcl10 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-s9z85a-01-1dcl10-record-the-disregarded-out-of-scope-paths-in-the-plan-s-perm.ipd.md); evidence .aw/records/plans/executed/20260930-s9z85a-01-1dcl10-record-the-disregarded-out-of-scope-paths-in-the-plan-s-perm.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 1dcl10
 - 2026-09-28 created (aw backlog): finalize silently excuses an out-of-scope path committed in its own untrailered commit, so the --scope-reason demand never fires
 
