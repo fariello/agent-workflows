@@ -6,7 +6,7 @@
 - Scope: Add one behavioral test module for the statusline surface, driving the real functions and the real class with real inputs and asserting observable outcomes. IN: the box renderer's invariants (four lines, rectangular in visible columns, `strip_ansi(styled) == plain`, determinism, no crash on hostile input); the scalar formatters' documented input/output tables; the label and activity formatters including their closed vocabularies and fallbacks; `statusline_action_for_item`'s derivation table; and the `Statusline` class's observable behavior (TTY versus non-TTY output, `update_item` merge semantics, duck-typed watchdog countdown, context-manager thread lifecycle, pause/resume reentrancy, the module-level pause/resume functions). OUT: any change to production code, the two deleted byte-pins, the visible-width conversion (approved plan `it6tpj` owns it), the ASCII-mode defect (sibling plan `mzrr7x` owns it), and the rest of the deleted module's non-statusline surface.
 - Scope-Paths: tests/test_statusline_behavior.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6tjq2j
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6tjq2j verified (set statuscov, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-301..PR-304 all fixed, zero deferred, zero open
 
