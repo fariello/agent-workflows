@@ -1,5 +1,5 @@
 - Id: 03aicr
-- Status: graduated
+- Status: done
 - Graduated-To: 03aicr
 - Blocks-Release: next
 - Set: 03aicr
@@ -8,6 +8,7 @@
 - Summary: test_drain_and_cascade_mapped_reasons_rendered_once asserts against live repo state and now fails on a clean tree
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD jefifu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-03aicr-01-jefifu-restore-the-drain-test-s-real-branch-coverage-which-an-inter.ipd.md); evidence .aw/records/plans/executed/20260929-03aicr-01-jefifu-restore-the-drain-test-s-real-branch-coverage-which-an-inter.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: jefifu
 - 2026-09-28 created (aw backlog): Filed while authoring the plan for backlog 3f4ayi: the one bare-suite failure at HEAD 71aee0d3 is an unrelated test coupled to plan 5o1jye's live lifecycle status.
 
