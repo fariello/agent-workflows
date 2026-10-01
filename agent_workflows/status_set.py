@@ -454,9 +454,7 @@ def _resolve_record_lifecycle(record_type: str, native_status: str) -> _LS.Resol
             style=_LS.style_for(_LS.UNKNOWN),
             family=record_type,
             native_status=native_status or None,
-            diagnostic="record type {0!r} is not a lifecycle family".format(
-                record_type
-            ),
+            diagnostic=f"record type {record_type!r} is not a lifecycle family",
         )
     from agent_workflows import term as _T
 
@@ -699,6 +697,37 @@ def validate_transition_allowed(
         )
 
     # Type-specific validation
+    _sentinel_override = getattr(args, "allow_unresolvable_release_sentinel", None)
+    if _sentinel_override is not None and not _sentinel_override.strip():
+        return (
+            False,
+            "--allow-unresolvable-release-sentinel requires a non-empty justification",
+        )
+
+    if rec.record_type == "releases":
+        eff_root = repo_root if repo_root is not None else _repo_root_of(rec.path)
+        old_status = (
+            normalize_target_status((rec.status or "planned"), "releases")
+            .strip()
+            .lower()
+        )
+        if old_status == "planned" and norm_status != "planned":
+            from agent_workflows import releases as _releases
+
+            sentinel_res = _releases.resolve_release_outcome(eff_root, "next")
+            planned_paths = [p.resolve() for p in sentinel_res.paths]
+            rec_resolved = rec.path.resolve()
+            if rec_resolved in planned_paths and len(planned_paths) == 1:
+                count = _releases.count_blocks_release_sentinel(eff_root)
+                if count > 0 and _sentinel_override is None:
+                    return (
+                        False,
+                        f"transitioning {rec.path.name} to '{norm_status}' would leave zero planned releases, "
+                        f"causing {count} record(s) with '- Blocks-Release: next' to dangle. "
+                        f"Create the successor first with 'aw releases new --version <X.Y.Z> --summary ... --apply' "
+                        f"or pass --allow-unresolvable-release-sentinel '<justification>'",
+                    )
+
     if rec.record_type == "specs":
         from agent_workflows import attention_contract as ac
 
@@ -719,7 +748,7 @@ def validate_transition_allowed(
                     and not getattr(args, "json", False)
                 )
                 if is_interactive:
-                    setattr(args, "by_human", True)
+                    args.by_human = True
                 if not getattr(args, "by_human", False):
                     return (
                         False,
@@ -1034,6 +1063,43 @@ def apply_status_change(
         )
         if _was_terminal and norm_status.strip().lower() not in _terminal_statuses:
             actor = f"{actor}, --allow-terminal-reopen"
+
+    _sentinel_override = getattr(args, "allow_unresolvable_release_sentinel", None)
+    if _sentinel_override is not None:
+        _sentinel_override = _sentinel_override.strip()
+        if not _sentinel_override:
+            raise ValueError(
+                "--allow-unresolvable-release-sentinel requires a non-empty justification"
+            )
+
+    if rec.record_type == "releases" and norm_status != "planned":
+        curr_status = (
+            normalize_target_status((rec.status or "planned"), "releases")
+            .strip()
+            .lower()
+        )
+        if curr_status == "planned":
+            from agent_workflows import releases as _releases
+
+            sentinel_res = _releases.resolve_release_outcome(repo_root, "next")
+            planned_paths = [p.resolve() for p in sentinel_res.paths]
+            rec_resolved = rec.path.resolve()
+            if rec_resolved in planned_paths and len(planned_paths) == 1:
+                count = _releases.count_blocks_release_sentinel(repo_root)
+                if count > 0 and not _sentinel_override:
+                    raise ValueError(
+                        f"transitioning {rec.path.name} to '{norm_status}' would leave zero planned releases, "
+                        f"causing {count} record(s) with '- Blocks-Release: next' to dangle. "
+                        f"Create the successor first with 'aw releases new --version <X.Y.Z> --summary ... --apply' "
+                        f"or pass --allow-unresolvable-release-sentinel '<justification>'"
+                    )
+
+    if rec.record_type == "releases" and _sentinel_override:
+        actor = f"{actor}, --allow-unresolvable-release-sentinel"
+        if getattr(args, "message", None):
+            message = f"{message} (override: {_sentinel_override})"
+        else:
+            message = f"{default_message} (override: {_sentinel_override})"
 
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()

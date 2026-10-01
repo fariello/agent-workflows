@@ -21,8 +21,22 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import ipd_schema as _schema
 
-
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
+
+SENTINEL_RESOLVED = "resolved"
+SENTINEL_ABSENT = "absent"
+SENTINEL_AMBIGUOUS = "ambiguous"
+
+RELEASE_SENTINEL_ABSENT_RULE = "check.release-sentinel-absent"
+RELEASE_SENTINEL_AMBIGUOUS_RULE = "check.release-sentinel-ambiguous"
+
+
+class ReleaseResolution(NamedTuple):
+    """Result of resolve_release_outcome: outcome enum + candidate paths."""
+
+    outcome: str
+    paths: List[Path]
+
 
 _ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
@@ -137,29 +151,50 @@ def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     return text
 
 
-def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
-    """Resolve a Blocks-Release value to a release record path: a release id6, or the literal `next`
-    (the single release whose Status is 'planned'). Returns None if unresolved (incl. zero/many
-    planned releases for `next`)."""
+def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
+    """Resolve a Blocks-Release value to an outcome enum and candidate paths.
+
+    Distinguishes three sentinel outcomes:
+      * SENTINEL_RESOLVED: exactly one candidate matched
+      * SENTINEL_ABSENT: zero candidates matched
+      * SENTINEL_AMBIGUOUS: two or more candidates matched
+    """
     repo_root = Path(repo_root)
     d = _releases_dir(repo_root)
     if not d.is_dir():
-        return None
+        return ReleaseResolution(SENTINEL_ABSENT, [])
     if value == "next":
         planned = []
-        for p in d.rglob("*.release.md"):
-            ms = _STATUS_RE.search(p.read_text(encoding="utf-8"))
+        for p in sorted(d.rglob("*.release.md")):
+            try:
+                txt = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            ms = _STATUS_RE.search(txt)
             if ms and ms.group(1) == "planned":
                 planned.append(p)
-        return planned[0] if len(planned) == 1 else None
+        if len(planned) == 1:
+            return ReleaseResolution(SENTINEL_RESOLVED, planned)
+        if len(planned) == 0:
+            return ReleaseResolution(SENTINEL_ABSENT, [])
+        return ReleaseResolution(SENTINEL_AMBIGUOUS, planned)
     if _core.ID6_RE.match(value):
-        for p in d.rglob("*.release.md"):
-            m = _ID_RE.search(p.read_text(encoding="utf-8"))
+        matches = []
+        for p in sorted(d.rglob("*.release.md")):
+            try:
+                txt = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            m = _ID_RE.search(txt)
             if m and m.group(1) == value:
-                return p
+                matches.append(p)
+        if len(matches) == 1:
+            return ReleaseResolution(SENTINEL_RESOLVED, matches)
+        if len(matches) > 1:
+            return ReleaseResolution(SENTINEL_AMBIGUOUS, matches)
     val_clean = value.lstrip("v")
     matching_ver = []
-    for p in d.rglob("*.release.md"):
+    for p in sorted(d.rglob("*.release.md")):
         try:
             txt = p.read_text(encoding="utf-8")
         except OSError:
@@ -170,7 +205,19 @@ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
             if ver == value or ver.lstrip("v") == val_clean:
                 matching_ver.append(p)
     if len(matching_ver) == 1:
-        return matching_ver[0]
+        return ReleaseResolution(SENTINEL_RESOLVED, matching_ver)
+    if len(matching_ver) > 1:
+        return ReleaseResolution(SENTINEL_AMBIGUOUS, matching_ver)
+    return ReleaseResolution(SENTINEL_ABSENT, [])
+
+
+def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
+    """Resolve a Blocks-Release value to a release record path: a release id6, or the literal `next`
+    (the single release whose Status is 'planned'). Returns None if unresolved (incl. zero/many
+    planned releases for `next`). Thin wrapper over resolve_release_outcome."""
+    res = resolve_release_outcome(repo_root, value)
+    if res.outcome == SENTINEL_RESOLVED and len(res.paths) == 1:
+        return res.paths[0]
     return None
 
 
@@ -697,16 +744,11 @@ def canonicalize_graduated_to(
     return ", ".join(entries), None
 
 
-def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
-    """Scan backlog + specs + plans items for a `Blocks-Release` value and flag any that does not
-    resolve to an existing release record or 'next' (awrelease Order 02; folds into the awcheck
-    engine seam). IPD 7mw7m5 (OQ-01 option a) added `plans` so a plan carrying a dangling
-    `- Blocks-Release:` is validated the same as backlog/specs; `rglob` recurses through the
-    disposition subdirs (pending/executed/...). This runs in the full cross-tree sweep (`aw check
-    all`), not a type-scoped `aw check plans`."""
+def count_blocks_release_sentinel(repo_root: Path) -> int:
+    """Count how many backlog, specs, and plans records carry '- Blocks-Release: next'."""
     repo_root = Path(repo_root)
     ignored_dirs = _core.get_ignored_dirs(repo_root)
-    drift: List[_core.Drift] = []
+    count = 0
     for sub in ("backlog", "specs", "plans"):
         for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
             if not base.is_dir() or _core.is_ignored_path(
@@ -725,14 +767,100 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
                 except OSError:
                     continue
                 m = _ITEM_BLOCKS_RELEASE_RE.search(text)
-                if m and resolve_release(repo_root, m.group(1)) is None:
+                if m and m.group(1).strip() == "next":
+                    count += 1
+    return count
+
+
+def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
+    """Scan backlog + specs + plans items for a `Blocks-Release` value and flag any that does not
+    resolve to an existing release record or 'next' (awrelease Order 02; folds into the awcheck
+    engine seam). IPD 7mw7m5 (OQ-01 option a) added `plans` so a plan carrying a dangling
+    `- Blocks-Release:` is validated the same as backlog/specs; `rglob` recurses through the
+    disposition subdirs (pending/executed/...). This runs in the full cross-tree sweep (`aw check
+    all`), not a type-scoped `aw check plans`.
+
+    Division of labour with the sentinel rules (IPD x4vf9p): an unresolvable sentinel ('next')
+    is attributed to the releases tree exactly once, as check.release-sentinel-absent (when zero
+    planned releases exist) or check.release-sentinel-ambiguous (when multiple planned releases exist),
+    and per-record check.blocks-release-dangling findings are suppressed for records whose value is
+    literally 'next'. Records carrying non-'next' values (concrete id6 or version) that do not
+    resolve continue to report per-record as check.blocks-release-dangling.
+    """
+    repo_root = Path(repo_root)
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    drift: List[_core.Drift] = []
+
+    sentinel_res = resolve_release_outcome(repo_root, "next")
+    rel_dir = _releases_dir(repo_root)
+    if not rel_dir.is_dir() and (repo_root / ".agents" / "releases").is_dir():
+        rel_dir = repo_root / ".agents" / "releases"
+    try:
+        loc = str(rel_dir.relative_to(repo_root))
+    except ValueError:
+        loc = ".aw/records/releases"
+
+    has_next_references = False
+
+    for sub in ("backlog", "specs", "plans"):
+        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+            if not base.is_dir() or _core.is_ignored_path(
+                base, repo_root, ignored_dirs
+            ):
+                continue
+            for p in base.rglob("*.md"):
+                if p.name in (
+                    "README.md",
+                    "INDEX.md",
+                    "STATUS.md",
+                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                m = _ITEM_BLOCKS_RELEASE_RE.search(text)
+                if not m:
+                    continue
+                val = m.group(1).strip()
+                if val == "next":
+                    has_next_references = True
+                    if sentinel_res.outcome != SENTINEL_RESOLVED:
+                        # Narrow suppression: root cause reported on releases tree.
+                        pass
+                    continue
+                if resolve_release(repo_root, val) is None:
+                    try:
+                        p_loc = str(p.relative_to(repo_root))
+                    except ValueError:
+                        p_loc = str(p)
                     drift.append(
                         _core.Drift(
-                            str(p),
+                            p_loc,
                             "check.blocks-release-dangling",
-                            f"Blocks-Release {m.group(1)!r} does not resolve to a release record",
+                            f"Blocks-Release {val!r} does not resolve to a release record",
                         )
                     )
+
+    if has_next_references:
+        if sentinel_res.outcome == SENTINEL_ABSENT:
+            drift.append(
+                _core.Drift(
+                    loc,
+                    RELEASE_SENTINEL_ABSENT_RULE,
+                    "release sentinel 'next' does not resolve: no planned release record in releases tree",
+                )
+            )
+        elif sentinel_res.outcome == SENTINEL_AMBIGUOUS:
+            names = ", ".join(p.name for p in sorted(sentinel_res.paths))
+            drift.append(
+                _core.Drift(
+                    loc,
+                    RELEASE_SENTINEL_AMBIGUOUS_RULE,
+                    f"release sentinel 'next' is ambiguous: multiple planned release records ({names})",
+                )
+            )
+
     return drift
 
 

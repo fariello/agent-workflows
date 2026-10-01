@@ -20,19 +20,15 @@ from __future__ import annotations
 
 import argparse
 import json
-from unittest import mock
 import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from unittest import mock
 
 from agent_workflows import artifact_core as _core
-from agent_workflows import check_engine
-from agent_workflows import cli
-from agent_workflows import ipd_schema
-from agent_workflows import releases
-from agent_workflows import runner_shared
+from agent_workflows import check_engine, cli, ipd_schema, releases, runner_shared
 from agent_workflows.term import Term
 
 
@@ -509,12 +505,14 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             self.assertNotIn("check.blocking-item-closed-without-gate", rules)
 
     def test_whole_family_rules_constant(self) -> None:
-        """RELEASE_GATE_RULES lists all 6 release-gate family rules."""
+        """RELEASE_GATE_RULES lists all 8 release-gate family rules."""
         expected = {
             "check.live-bug-ungated",
             "check.blocking-item-closed-without-gate",
             "check.from-backlog-gate-mismatch",
             "check.blocks-release-dangling",
+            "check.release-sentinel-absent",
+            "check.release-sentinel-ambiguous",
             "check.from-backlog-dangling",
             "check.from-backlog-malformed",
         }
@@ -907,7 +905,7 @@ class TestCheckEngineReleaseGate(unittest.TestCase):
             findings = check_engine.check_release_gates(repo)
             rules = [d.rule for d in findings]
             self.assertIn("check.from-backlog-gate-mismatch", rules)
-            self.assertIn("check.blocks-release-dangling", rules)
+            self.assertIn("check.release-sentinel-ambiguous", rules)
 
             verdict = check_engine.evaluate_blocking_close(repo, bug_file, "done")
             self.assertFalse(verdict.legitimate)
