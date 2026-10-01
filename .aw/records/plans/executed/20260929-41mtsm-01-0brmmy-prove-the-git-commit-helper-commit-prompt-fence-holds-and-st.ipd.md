@@ -6,7 +6,7 @@
 - Scope: `agent_workflows/git_commit_helper.py` (the `interactive=` docstring line and the `_is_interactive` argument-vs-environment ordering), `agent_workflows/term.py` (the `stdin_is_interactive` advice paragraph that names a superseded remedy), `tests/test_git_commit_helper.py` plus `tests/test_stdin_interactive.py` (the behavioral pty-plus-pipe regression test and the ambient-`CI` isolation), and `docs/cli-output-contract.md` (ADDED AT REVIEW: its ladder table is worded in `override=` terms and E-04 makes one of its rows false, so the doc is amended in the same change rather than left to drift). NOT in scope: changing the maintainer-ruled asymmetric precedence ladder itself, editing any `.spec.md`, or repairing the seven unrelated ambient-`CI` failures in `tests/test_completion.py`, `tests/test_runner_shared.py` and `tests/test_interactivity_resolver.py` (see Deferred; the last two are recorded by E-07 and raised as OQ-03 because they bear on the ladder's contract rather than being mere `CI` noise).
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/term.py, tests/test_git_commit_helper.py, tests/test_stdin_interactive.py, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: agent aw oc run
 - Id: 0brmmy
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0brmmy verified (set 41mtsm, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_stdin_interactive.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
