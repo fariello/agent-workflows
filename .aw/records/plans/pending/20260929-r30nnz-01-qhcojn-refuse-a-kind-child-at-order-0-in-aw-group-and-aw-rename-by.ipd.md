@@ -158,6 +158,7 @@ Every row was measured at HEAD `62871f64` by running the real CLI, not by readin
   - Carrier-Evidence: .aw/records/plans/executed/20260928-4y4xo5-01-ao0v8x-preserve-each-research-record-order-in-aw-group-research-the.ipd.md
 - `aw group plans`'s DATE FALLBACK: `plan_set_assign` derives the name date from `_plan_date(text)`, whose no-match fallback is the literal `20260101`. Measured and deferred by `e3hzyc` F-13; already carried.
   - Carrier: 949enf
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md
 - SWEEPING OR REPAIRING ANY EXISTING PLAN: none needs it. Measured across every plan in `.aw/records/plans/**`, ZERO carry both `- Kind: child` and `- Order: 0` (re-verified at review over 1033 plans; the authoring run said 950, which is the same answer over a smaller tree, so RE-MEASURE rather than trusting either count). If the executor finds one, REPORT it rather than regrouping another party's plan in a shared checkout.
   - Carrier-Declined: THE SET IS EMPTY, measured rather than assumed, so a carrier would point at nothing. The refusal this plan builds is preventive.
 - RESTORING `tests/test_awnaming_grammar_and_producers.py` (F-12): commit `19313eed` deleted it deliberately as part of a suite-wide trim, and re-adding 797 lines of another decision's coverage inside this plan would be a scope grab. E-01's bare-regroup guard re-pins the one preservation behavior this plan could break.

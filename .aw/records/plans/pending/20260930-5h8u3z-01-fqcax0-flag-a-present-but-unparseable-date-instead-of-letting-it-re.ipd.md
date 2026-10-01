@@ -122,6 +122,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE `20260101` FABRICATING FALLBACK IN `plans_refs._plan_date`. Out of fence because this plan changes the LINTER only, which is the fix shape the backlog item names, and because a plan that both flagged the value and changed what reads it could not show which half produced an observed effect. Already carried and in review.
   - Carrier: 949enf
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md
 - THE SECOND COPY OF THAT FALLBACK IN `plans_archive._plan_date`, which drives archive shard placement and sweep age. Out of fence for the same reason, and it is a genuinely separate decision (whether the ARCHIVE verb should consult a filename at all) with its own blast radius.
   - Carrier: dkfthf
 - REPAIRING THE ONE ALREADY-MISNAMED RECORD (F-05). It is an EXECUTED plan whose name is cited in `DECISIONS.md` and in a spec, so a repair is a reference-rewriting change to committed history, and the execution contract forbids changing what a plan in `executed/` records. This plan renames nothing.

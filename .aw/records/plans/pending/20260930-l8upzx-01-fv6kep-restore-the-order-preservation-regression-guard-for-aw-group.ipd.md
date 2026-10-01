@@ -98,6 +98,7 @@ No production change is proposed. If one proves necessary during execution, that
   - Carrier-Declined: OUT OF THIS ITEM'S SUBJECT AND PARTLY ALREADY COVERED. `SetidLengthAuthoringGuardTests`' subject survives in `tests/test_group_verb_policy.py`, whose docstring scopes it to exactly that policy, so carrying it would duplicate live coverage. The remaining three classes guard the naming GRAMMAR and the record PRODUCERS, which are different invariants with no measured gap behind them; 19313eed deleted 318 files, so a carrier naming "the rest of that commit" would be an unbounded obligation rather than a durable owner. A specific gap found later should be filed on its own measurement.
 - The DATE half of the `rename` guard as a standalone concern: `949enf` restores it for both verbs.
   - Carrier: 949enf
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md
 
 ## Scope check
 
