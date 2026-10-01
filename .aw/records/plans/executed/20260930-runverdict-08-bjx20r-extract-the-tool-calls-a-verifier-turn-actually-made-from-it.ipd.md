@@ -6,7 +6,7 @@
 - Scope: Build the MEASUREMENT AND THE PREDICATE ONLY, as a pure, fail-open-by-construction reader: extract the shell commands a session log shows were actually invoked, compare them against the commands `extract_verifier_test_commands` reports were claimed, and return a three-state corroboration verdict (`corroborated` / `uncorroborated` / `indeterminate`) with the observed and claimed sets attached. Ships with a fixture corpus and a first measurement over whatever real corpus the executing box has. EXPLICITLY NOT INCLUDED: wiring the verdict into `execute_item_core`, storing it on the attempt record, rendering it anywhere, and any refusal or downgrade based on it. Those are Order 09 (`btak7a`), which declares this plan as its `Item-Dependencies`, so a predicate cannot reach a gate before its calibration exists. A REFUSAL IS OUT OF SCOPE FOR THE WHOLE SET, not just for this plan: see this plan's Deferred section and `btak7a`'s OQ.
 - Scope-Paths: agent_workflows/verifier_corroboration.py, tests/test_verifier_corroboration.py, tests/fixtures/verifier_corroboration
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -15,10 +15,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: bjx20r
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 - From-Backlog: 5xgllt
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bjx20r verified (set runverdict, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 3 findings fixed; F-5's indirection mechanism was unhandled and would have produced a false uncorroborated verdict
 
