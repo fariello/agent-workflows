@@ -10560,7 +10560,6 @@ def reattempt_deferred_integrations(
     save_state: Callable[..., Any],
     append_jsonl: Callable[..., Any],
     handle_for: Callable[[Mapping[str, Any]], Any],
-    validation_runner_for: Callable[[Mapping[str, Any]], Any],
     integrate_review: Callable[..., tuple[bool, str, str]] | None = None,
     finish_integrated_review: Callable[..., None] | None = None,
     poll: bool = False,
@@ -10577,6 +10576,16 @@ def reattempt_deferred_integrations(
     through `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no
     shortcut that treats a clean `dirty_tree_overlap` as sufficient: that would prove only the absence
     of un-owned dirt, and say nothing about whether the suite still passes against today's main.
+    The injected ``integrate`` closure OWNS revalidation, and this ladder therefore takes no
+    validation-runner injection of its own; a caller wanting a different re-attempt runner must bind
+    it into ``integrate``. The alternative of injecting a ladder-level runner was rejected on measured
+    evidence (building the runner on a `dict(item)` copy writes `post_merge_revalidation` to the copy
+    leaving `REVALIDATION_CACHE_KEY` absent on the live item, causing a harness fault to be classified
+    as a measured `fail-merge` rather than `merge-unchecked`) and on structural grounds: the ladder
+    dispatches between ``integrate`` and ``integrate_review``, and the review adapter
+    `_integrate_review` calls `integrate_review_lane_branch(repo, handle, id6)` with no runner because
+    a review revalidates nothing, so a single ladder-level runner injection could not be meaningful for
+    one of the two paths it would serve.
 
     ``poll``/``ask`` are passed by the caller when NOTHING ELSE IS DISPATCHABLE (the loop's own
     `runnable is None`), which is rung 2's trigger. That condition covers both the last-item case and
@@ -10915,9 +10924,6 @@ def retry_deferred_integrations(
         save_state=save_state,
         append_jsonl=append_jsonl,
         handle_for=_handle_for,
-        validation_runner_for=lambda item: make_validation_runner(
-            state, run_dir, dict(item), suite_check=run_suite_check
-        ),
         poll=poll,
         interactive=is_interactive_run(
             argparse.Namespace(
@@ -24594,9 +24600,10 @@ def attributed_away_failure_ids(item: Mapping[str, Any]) -> tuple[str, ...]:
     vocabulary for the ids (inventing a second key is the `render_stream` F-4 producer/reader drift this
     module's comments cite twice).
 
-    IT IS READ-ONLY BECAUSE ONE CALL PATH MAKES THAT LOAD-BEARING. Both hosts' deferral re-attempt
-    lambdas pass `dict(item)` - a SHALLOW COPY - into `validation_runner_for`, so a READ of the answer
-    record works there while any WRITE would land on the copy and be lost.
+    IT IS A PURE READ-ONLY READER BY CONTRACT. It is consumed by `_relative_revalidation_verdict`
+    which computes a relative revalidation verdict and writes nothing through it; the legacy
+    shallow-copy call path (`dict(item)` passed to a discarded validation runner) was removed by
+    plan `vfcnyd`, so this reader is read-only by contract rather than to tolerate a shallow copy.
 
     IT GATES ON THE ANSWER TOKEN AND NOT ON THE PRESENCE OF THE SET, which is guard (c) of the three
     stated at :data:`GATE_ANSWER_RECORD_KEY`. `failing_tests` is populated for EVERY answer - it is what
