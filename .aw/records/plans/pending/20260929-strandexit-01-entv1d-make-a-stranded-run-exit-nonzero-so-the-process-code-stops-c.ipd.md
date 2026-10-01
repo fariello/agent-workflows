@@ -36,39 +36,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise before changing anything
 
-- [ ] E-01 Re-measure the defect at the executing HEAD and record the numbers in this plan's V-01 evidence, because every citation in this plan's Findings table is a point-in-time snapshot and one of the backlog's own citations has already rotted. For each of the three statuses in `runner_shared.EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES`, build a one-item queue dict carrying `action: "execute"` plus a refusing `integration_signal` (use `"suite-failed"`), then record: what `render_stream.integration_was_refused` returns, what `runner_shared.exit_code_statuses` projects, and what `runner_stop.deliberate_stop_exit_code` returns for that projection with `stopped=False`. ALSO record FOUR CONTRAST STATUSES, not one, because they serve two different purposes and the plan originally recorded only the first. Probe `substantially-complete`, `integration-blocked`, `failed` and `fail-gate`, each with the same refusing signal, and record for each its PROJECTED TOKEN as well as its exit code. All four must already return `1` BEFORE any change, which is what proves the fix must not be written at the status bar; and their projected tokens must each be the STATUS VERBATIM, which is the baseline E-03's narrow siting and E-05 case (i) must preserve (F-13). Measured at review: all four project onto their own status and return `1`. ALSO probe the REVIEW shape (`review_integrated: False`) and record that `item_reached_success` is True for it, since that is why the narrow siting reaches it. If any stranded case already returns nonzero at HEAD, STOP and report: the defect has been fixed or altered by other work and this plan's premise needs re-authoring rather than execution.
+- [x] E-01 Re-measure the defect at the executing HEAD and record the numbers in this plan's V-01 evidence, because every citation in this plan's Findings table is a point-in-time snapshot and one of the backlog's own citations has already rotted. For each of the three statuses in `runner_shared.EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES`, build a one-item queue dict carrying `action: "execute"` plus a refusing `integration_signal` (use `"suite-failed"`), then record: what `render_stream.integration_was_refused` returns, what `runner_shared.exit_code_statuses` projects, and what `runner_stop.deliberate_stop_exit_code` returns for that projection with `stopped=False`. ALSO record FOUR CONTRAST STATUSES, not one, because they serve two different purposes and the plan originally recorded only the first. Probe `substantially-complete`, `integration-blocked`, `failed` and `fail-gate`, each with the same refusing signal, and record for each its PROJECTED TOKEN as well as its exit code. All four must already return `1` BEFORE any change, which is what proves the fix must not be written at the status bar; and their projected tokens must each be the STATUS VERBATIM, which is the baseline E-03's narrow siting and E-05 case (i) must preserve (F-13). Measured at review: all four project onto their own status and return `1`. ALSO probe the REVIEW shape (`review_integrated: False`) and record that `item_reached_success` is True for it, since that is why the narrow siting reaches it. If any stranded case already returns nonzero at HEAD, STOP and report: the defect has been fixed or altered by other work and this plan's premise needs re-authoring rather than execution.
   - Depends on: none
   - Expected outcome: A recorded table showing `rc=0` for all three success-bar statuses with a refusing signal, `rc=1` with a verbatim-status projection for each of the four contrast statuses, and `item_reached_success=True` for the review shape. This is the falsifiable baseline the whole plan rests on. Re-measured at review HEAD `c6c573a4`, so a DIFFERENT result is a finding to report rather than to normalize.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: deny the success token to a stranded item
 
-- [ ] E-02 In `render_stream.py`, extract the stranded-item question into ONE exported predicate that answers it for BOTH stranded shapes, and have the two existing renderers call it rather than re-deriving. Today `render_stream.integration_was_refused` covers the EXECUTE shape and `render_stream.review_integration_was_refused` covers the REVIEW shape, and only the first reaches the outcome-word ladder (the review arm is consumed solely by `format_stranded_work_section`). Add a predicate that returns True when EITHER holds, site it in `render_stream.py` beside the two it composes, and give it a docstring stating that it is the one question the exit code and the headline must both ask so the two cannot drift. Do NOT change either existing predicate's behavior: they are separately tested and separately consumed. THE MODULE CHOICE IS FORCED, not preferred, though NOT for the reason first written here (corrected at review, F-15): `render_stream.py` does import three in-package modules (`lifecycle_style`, `run_selection_policy`, `term`), so "imports zero in-package modules" is false. What forces the choice is the edge that DOES exist: `runner_shared.py` imports `render_stream` AT MODULE LEVEL, so a module-level reverse import would be a genuine cycle, and the predicate can only live in `render_stream.py`. Do NOT justify the siting by citing `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`, which `runner_shared.py`'s own import comment still names: that file was DELETED by the suite trim `19313eed` and the guard no longer exists (F-15). The cycle argument stands on its own and needs no guard.
+- [x] E-02 In `render_stream.py`, extract the stranded-item question into ONE exported predicate that answers it for BOTH stranded shapes, and have the two existing renderers call it rather than re-deriving. Today `render_stream.integration_was_refused` covers the EXECUTE shape and `render_stream.review_integration_was_refused` covers the REVIEW shape, and only the first reaches the outcome-word ladder (the review arm is consumed solely by `format_stranded_work_section`). Add a predicate that returns True when EITHER holds, site it in `render_stream.py` beside the two it composes, and give it a docstring stating that it is the one question the exit code and the headline must both ask so the two cannot drift. Do NOT change either existing predicate's behavior: they are separately tested and separately consumed. THE MODULE CHOICE IS FORCED, not preferred, though NOT for the reason first written here (corrected at review, F-15): `render_stream.py` does import three in-package modules (`lifecycle_style`, `run_selection_policy`, `term`), so "imports zero in-package modules" is false. What forces the choice is the edge that DOES exist: `runner_shared.py` imports `render_stream` AT MODULE LEVEL, so a module-level reverse import would be a genuine cycle, and the predicate can only live in `render_stream.py`. Do NOT justify the siting by citing `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared`, which `runner_shared.py`'s own import comment still names: that file was DELETED by the suite trim `19313eed` and the guard no longer exists (F-15). The cycle argument stands on its own and needs no guard.
   - Depends on: E-01
   - Expected outcome: A single exported predicate in `render_stream.py` answering "does this item's own record say its work did not land?" for both shapes, with the two existing predicates unchanged and still individually callable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `runner_shared.exit_code_statuses`, deny `EXIT_SUCCESS_TOKEN` to an item E-02's predicate calls stranded, projecting it onto a new non-status token instead. Follow the EXACT pattern `EXIT_MALFORMED_ENTRY_TOKEN` already establishes in this same function: a module-level token constant that is deliberately not spellable as a real status (so it can never be confused with something a driver persists), a comment stating why, and a projection arm. SITE THE TEST INSIDE THE SUCCESS ARM, NOT BEFORE IT, and this is the review's most consequential correction (PR-501): write `elif item_reached_success(item): projected.append(TOKEN if work_did_not_land(item) else EXIT_SUCCESS_TOKEN)`, so ONLY an item that would otherwise have been called a success can lose it. A separate arm placed BEFORE the success arm (which this item originally specified) also produces the right exit code, but it swallows the REAL disposition of every already-failing item that happens to carry a refusing signal: measured, `integration-blocked` + `suite-failed` projects onto `integration-blocked` today and would project onto the stranded token instead, and the same holds for `failed`, `fail-gate` and `substantially-complete`. That contradicts this function's own docstring promise that "Every other non-success status is passed through unchanged, so it still reads as a failure and a reader of a debugger frame still sees the real disposition", and it is the projection-layer twin of the relabel hazard `render_stream.py` already documents at the headline ladder ("Testing the signal BEFORE the status would RELABEL that existing outcome to `STRANDED`, which is a regression dressed as the feature"). Both placements were driven at review and every exit code is IDENTICAL, so nothing is lost by choosing the narrower one. STILL AFTER the `queued` arm, which remains load-bearing and must be stated in the comment: `deliberate_stop_exit_code` keys its entire graceful-stop concession off that literal, and a `queued` item can carry a stale refusing signal from an earlier attempt (measured: it projects onto `queued` under both placements, and must keep doing so). DO NOT implement this by editing `EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES` or any other success bar: those bars answer four other questions (dependency satisfaction, reporting, skip classification) enumerated in the doc block above them, three shipped tests pin their exact membership (`test_reaskscore_composed.py`, `test_terminal_status_vocabulary.py`, `test_runner_shared.py::CrossHostSuccessBarEqualityTests`), and a stranded item's STATUS is legitimately a success - it is the INTEGRATION that failed, which is a different fact about a different step.
+- [x] E-03 In `runner_shared.exit_code_statuses`, deny `EXIT_SUCCESS_TOKEN` to an item E-02's predicate calls stranded, projecting it onto a new non-status token instead. Follow the EXACT pattern `EXIT_MALFORMED_ENTRY_TOKEN` already establishes in this same function: a module-level token constant that is deliberately not spellable as a real status (so it can never be confused with something a driver persists), a comment stating why, and a projection arm. SITE THE TEST INSIDE THE SUCCESS ARM, NOT BEFORE IT, and this is the review's most consequential correction (PR-501): write `elif item_reached_success(item): projected.append(TOKEN if work_did_not_land(item) else EXIT_SUCCESS_TOKEN)`, so ONLY an item that would otherwise have been called a success can lose it. A separate arm placed BEFORE the success arm (which this item originally specified) also produces the right exit code, but it swallows the REAL disposition of every already-failing item that happens to carry a refusing signal: measured, `integration-blocked` + `suite-failed` projects onto `integration-blocked` today and would project onto the stranded token instead, and the same holds for `failed`, `fail-gate` and `substantially-complete`. That contradicts this function's own docstring promise that "Every other non-success status is passed through unchanged, so it still reads as a failure and a reader of a debugger frame still sees the real disposition", and it is the projection-layer twin of the relabel hazard `render_stream.py` already documents at the headline ladder ("Testing the signal BEFORE the status would RELABEL that existing outcome to `STRANDED`, which is a regression dressed as the feature"). Both placements were driven at review and every exit code is IDENTICAL, so nothing is lost by choosing the narrower one. STILL AFTER the `queued` arm, which remains load-bearing and must be stated in the comment: `deliberate_stop_exit_code` keys its entire graceful-stop concession off that literal, and a `queued` item can carry a stale refusing signal from an earlier attempt (measured: it projects onto `queued` under both placements, and must keep doing so). DO NOT implement this by editing `EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES` or any other success bar: those bars answer four other questions (dependency satisfaction, reporting, skip classification) enumerated in the doc block above them, three shipped tests pin their exact membership (`test_reaskscore_composed.py`, `test_terminal_status_vocabulary.py`, `test_runner_shared.py::CrossHostSuccessBarEqualityTests`), and a stranded item's STATUS is legitimately a success - it is the INTEGRATION that failed, which is a different fact about a different step.
   - Depends on: E-02
   - Expected outcome: `exit_code_statuses` projects a stranded item onto a token outside `{EXIT_SUCCESS_TOKEN}`, so the unchanged `deliberate_stop_exit_code` returns `1` for it, AND every non-success status still projects onto itself verbatim (`integration-blocked`, `failed`, `fail-gate`, `substantially-complete` all unchanged even when carrying a refusing signal). No success-bar constant is modified, and `item["status"]` is not rewritten (the function still returns a fresh list and touches no state).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Verify the change reaches BOTH hosts through the shared seam and touches nothing else, then record the evidence. Confirm by reading the code that `oc_runipd.run_queue` and `agy_runipd.run_queue` each reach the new behavior via their existing `runner_shared.exit_code_statuses` + `runner_stop.deliberate_stop_exit_code` call pair, so NEITHER host file needs editing (which is why neither appears in `Scope-Paths`). ALSO confirm the change cannot alter a graceful stop's exit `0`: spec `c4gd2h` A1 and A4 both require a deliberate stop to exit `0`, so run the deliberate-stop path with a queue containing only `queued` items plus landed ones and confirm it still returns `0`. If either confirmation fails, do not proceed to E-06; report which one and stop.
+- [x] E-04 Verify the change reaches BOTH hosts through the shared seam and touches nothing else, then record the evidence. Confirm by reading the code that `oc_runipd.run_queue` and `agy_runipd.run_queue` each reach the new behavior via their existing `runner_shared.exit_code_statuses` + `runner_stop.deliberate_stop_exit_code` call pair, so NEITHER host file needs editing (which is why neither appears in `Scope-Paths`). ALSO confirm the change cannot alter a graceful stop's exit `0`: spec `c4gd2h` A1 and A4 both require a deliberate stop to exit `0`, so run the deliberate-stop path with a queue containing only `queued` items plus landed ones and confirm it still returns `0`. If either confirmation fails, do not proceed to E-06; report which one and stop.
   - Depends on: E-03
   - Expected outcome: A recorded reading showing one shared seam serving both hosts with zero host-file edits, plus a measured deliberate-stop case still exiting `0`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the behavior and amend the contract
 
-- [ ] E-05 Add `tests/test_stranded_run_exit_code.py` pinning the behavior by OUTCOME, driving the real predicates and asserting on real returned exit codes (never by reading source text, counting callers, or asserting a comment survives). Cover, each as its own case: (a) each of the three success-bar statuses with a refusing `integration_signal` exits nonzero; (b) a REVIEW item with `review_integrated: False` exits nonzero, which is the shape the pre-change code missed entirely; (c) a landed item whose signal is one of the two EARNED values (`verifier`, `driver-run-suite`) still exits `0`, so the fix cannot turn a good run red; (d) an item with NO `integration_signal` key at all still exits `0`, which is every non-isolated run and is the regression that would be most expensive to ship; (e) an item released by the gate answer (`integration_released_by_answer` set) still exits `0`, because that refusal was explicitly lifted; (f) a mixed queue with one stranded and one landed item exits nonzero, matching the headline's resolved OQ-02 ruling that a PARTIAL strand is still a strand; (g) a deliberate stop over `queued` plus landed items still exits `0`, pinning the `c4gd2h` A1/A4 requirement against this change; (h) a `queued` item CARRYING a stale refusing signal still projects onto `queued` and a stop over it exits `0`, because a requeued item retains `integration_signal` and this is what the `queued` arm's precedence actually protects (F-14, measured at review); and (i) THE NARROW-SITING GUARD, without which PR-501's correction is unprotected: for each of `integration-blocked`, `failed`, `fail-gate` and `substantially-complete` carrying a refusing `integration_signal`, assert the projected token is that STATUS VERBATIM and not the stranded token, so a future edit moving the test above the success arm turns this case red. Case (i) is the one case whose absence would let the plan's original mis-siting be reintroduced silently, and it is cheap: all four shapes were measured at review. For case (a), assert the test FAILS against pre-change code by recording the measured pre-change value from E-01 in a comment, so a future reader can tell the test would have caught this.
+- [x] E-05 Add `tests/test_stranded_run_exit_code.py` pinning the behavior by OUTCOME, driving the real predicates and asserting on real returned exit codes (never by reading source text, counting callers, or asserting a comment survives). Cover, each as its own case: (a) each of the three success-bar statuses with a refusing `integration_signal` exits nonzero; (b) a REVIEW item with `review_integrated: False` exits nonzero, which is the shape the pre-change code missed entirely; (c) a landed item whose signal is one of the two EARNED values (`verifier`, `driver-run-suite`) still exits `0`, so the fix cannot turn a good run red; (d) an item with NO `integration_signal` key at all still exits `0`, which is every non-isolated run and is the regression that would be most expensive to ship; (e) an item released by the gate answer (`integration_released_by_answer` set) still exits `0`, because that refusal was explicitly lifted; (f) a mixed queue with one stranded and one landed item exits nonzero, matching the headline's resolved OQ-02 ruling that a PARTIAL strand is still a strand; (g) a deliberate stop over `queued` plus landed items still exits `0`, pinning the `c4gd2h` A1/A4 requirement against this change; (h) a `queued` item CARRYING a stale refusing signal still projects onto `queued` and a stop over it exits `0`, because a requeued item retains `integration_signal` and this is what the `queued` arm's precedence actually protects (F-14, measured at review); and (i) THE NARROW-SITING GUARD, without which PR-501's correction is unprotected: for each of `integration-blocked`, `failed`, `fail-gate` and `substantially-complete` carrying a refusing `integration_signal`, assert the projected token is that STATUS VERBATIM and not the stranded token, so a future edit moving the test above the success arm turns this case red. Case (i) is the one case whose absence would let the plan's original mis-siting be reintroduced silently, and it is cheap: all four shapes were measured at review. For case (a), assert the test FAILS against pre-change code by recording the measured pre-change value from E-01 in a comment, so a future reader can tell the test would have caught this.
   - Depends on: E-03
   - Expected outcome: A new test module whose nine cases pass after the change, whose case (a) is documented as failing before it, and whose case (i) fails under the rejected arm placement (so the siting decision is guarded rather than merely argued).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Amend spec `25kzda`'s "Run exit codes" table so the contract states this rule instead of leaving it to be inferred, and say why in the Spec sync section. Make exit `1`'s row name the stranded class explicitly (its current clauses are "failed", "ended `dependency_not_met`", or "ended `ran`/`unavailable` without `--unverifiable-ok`", and a stranded item matches NONE of them, which is the gap the backlog item names). Add a dated note recording that the rule was derived from exit `0`'s own existing text ("every actionable item is verified") rather than invented, that the three-state classification in `docs/cli-output-contract.md` Section 3 is what refused a new code, and that the drivers now return `1` for this class. DO NOT touch the row-`4` UNRECONCILED CONFLICT note: it documents a live disagreement between this table and the shipped `aw runs` table from `4` upward, this plan deliberately stays at `1` where the two tables AGREE, and silently editing that note would erase a recorded open problem this plan does not solve. Do NOT restate the drivers' returned-code inventory as a fixed list anywhere in the amendment: that inventory is already measured stale (the note says "only `0`/`2`/`130`/`143`" while the shipped `integrate` and `audit` verbs return `1`), and repeating a number nothing enforces is how this table rotted before.
+- [x] E-06 Amend spec `25kzda`'s "Run exit codes" table so the contract states this rule instead of leaving it to be inferred, and say why in the Spec sync section. Make exit `1`'s row name the stranded class explicitly (its current clauses are "failed", "ended `dependency_not_met`", or "ended `ran`/`unavailable` without `--unverifiable-ok`", and a stranded item matches NONE of them, which is the gap the backlog item names). Add a dated note recording that the rule was derived from exit `0`'s own existing text ("every actionable item is verified") rather than invented, that the three-state classification in `docs/cli-output-contract.md` Section 3 is what refused a new code, and that the drivers now return `1` for this class. DO NOT touch the row-`4` UNRECONCILED CONFLICT note: it documents a live disagreement between this table and the shipped `aw runs` table from `4` upward, this plan deliberately stays at `1` where the two tables AGREE, and silently editing that note would erase a recorded open problem this plan does not solve. Do NOT restate the drivers' returned-code inventory as a fixed list anywhere in the amendment: that inventory is already measured stale (the note says "only `0`/`2`/`130`/`143`" while the shipped `integrate` and `audit` verbs return `1`), and repeating a number nothing enforces is how this table rotted before.
   - Depends on: E-05
   - Expected outcome: Spec `25kzda`'s exit-`1` row names the stranded class, carries a dated derivation note, and leaves the row-`4` conflict note intact.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,35 +161,239 @@ WHAT IS DELIBERATELY NOT TOUCHED. The row-`4` UNRECONCILED CONFLICT note stays e
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pasted baseline table from E-01: for each of `approved`, `executed`, `retired` with a refusing `integration_signal`, the returned value of `integration_was_refused`, the projected token list, and the exit code, showing `rc=0`; plus the FOUR contrast rows (`substantially-complete`, `integration-blocked`, `failed`, `fail-gate`) each showing `rc=1` AND a projected token equal to its own status verbatim, BEFORE any change; plus the review shape's `item_reached_success=True`. Paste the actual interpreter output, not a description of it. State the HEAD commit the measurement was taken at, and state explicitly whether the result matched the review's re-measurement at `c6c573a4` or differed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measurement taken at executing HEAD `e2105111c51509e2b4119b8d744361a09e883763`. The result MATCHED the review re-measurement at `c6c573a4` exactly across all probed rows.
+    Actual interpreter output:
+    ```
+    EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES: ['approved', 'executed', 'retired']
 
-- [ ] V-02 validates E-02
+    --- Success-bar statuses (stranded) ---
+    status=approved     refused=True  projected=['aw-item-met-its-action-success-bar'] rc=0
+    status=executed     refused=True  projected=['aw-item-met-its-action-success-bar'] rc=0
+    status=retired      refused=True  projected=['aw-item-met-its-action-success-bar'] rc=0
+
+    --- Contrast statuses ---
+    status=substantially-complete   projected=['substantially-complete'] rc=1
+    status=integration-blocked      projected=['integration-blocked'] rc=1
+    status=failed                   projected=['failed'] rc=1
+    status=fail-gate                projected=['fail-gate'] rc=1
+
+    --- Review shape ---
+    review_item: refused=False review_refused=True  reached_success=True  projected=['aw-item-met-its-action-success-bar'] rc=0
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The new predicate's source pasted, plus interpreter output showing it returns True for BOTH an execute-shaped stranded item (refusing `integration_signal`) and a review-shaped one (`review_integrated: False`), and False for an item with neither key. Additionally paste output showing `integration_was_refused` and `review_integration_was_refused` each still return what they returned in V-01's baseline for the same inputs, proving neither was altered.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `work_did_not_land` added to `agent_workflows/render_stream.py` composing `integration_was_refused` and `review_integration_was_refused`; returns True for both stranded shapes and False for non-stranded items while preserving the individual behavior of both composed predicates.
+    Source of `work_did_not_land` in `agent_workflows/render_stream.py`:
+    ```python
+    def work_did_not_land(item: dict[str, Any] | Mapping[str, Any]) -> bool:
+        """Did this item's own record say its work failed to land? (entv1d E-02)
 
-- [ ] V-03 validates E-03
+        ONE EXPORTED QUESTION FOR BOTH STRANDED SHAPES. Composes :func:`integration_was_refused`
+        (the EXECUTE path, keyed on `integration_signal`) and :func:`review_integration_was_refused`
+        (the REVIEW path, keyed on `review_integrated`).
+
+        This is the one question the exit code and the headline must both ask so the two cannot drift:
+        an item whose work did not land in the project repository is stranded regardless of whether
+        its turn was an execute or a review action.
+        """
+        if isinstance(item, Mapping) and not isinstance(item, dict):
+            item = dict(item)
+        return bool(integration_was_refused(item) or review_integration_was_refused(item))
+    ```
+    Actual interpreter output:
+    ```
+    work_did_not_land(exec_stranded): True
+    work_did_not_land(rev_stranded): True
+    work_did_not_land(neither): False
+
+    Preservation check:
+    exec_stranded: integration_was_refused=True, review_integration_was_refused=False
+    rev_stranded: integration_was_refused=False, review_integration_was_refused=True
+    neither: integration_was_refused=False, review_integration_was_refused=False
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: The diff of `exit_code_statuses` and the new token constant pasted. Interpreter output showing a stranded item now projects onto the new token and `deliberate_stop_exit_code` returns `1` for it. PLUS the negative evidence that the fix was sited correctly, in TWO independent senses. (i) NOT AT A SUCCESS BAR: `git diff` over `agent_workflows/runner_shared.py` filtered to the success-bar constant names, showing ZERO changes to `SUCCESS_STATES`, `EXECUTION_SUCCESS_STATES`, `EXECUTE_REPORTING_SUCCESS_STATES`, `EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES`, `SKIP_REPORTING_SUCCESS_STATES`, or `PLAN_REPORTING_SUCCESS_STATES`. (ii) NOT ABOVE THE SUCCESS ARM (PR-501): paste the projected token for `integration-blocked`, `failed`, `fail-gate` and `substantially-complete`, each carrying a refusing `integration_signal`, showing each projects onto its OWN STATUS verbatim rather than the stranded token, which is what preserves the function's documented pass-through promise. Also paste the `queued`-with-stale-signal projection showing `queued` (F-14). State in writing that the test sits INSIDE the success arm rather than in an arm before it, and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `EXIT_STRANDED_TOKEN` added and `exit_code_statuses` sites test inside success arm; stranded items project to `aw-item-work-was-stranded` and exit 1, zero changes to success-bar constants, and contrast statuses pass through verbatim.
+    Pasted diff of token constant and `exit_code_statuses` in `agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -26517,6 +26519,13 @@ EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
+     #: a failure under both normal and graceful-stop runs rather than silently excusing it.
+     EXIT_MALFORMED_ENTRY_TOKEN = "aw-queue-entry-was-malformed"
 
-- [ ] V-04 validates E-04
+    +#: The token :func:`exit_code_statuses` projects an item onto when its action's success bar was met
+    +#: but its own record says its work did not land (entv1d E-03). Deliberately not a real status,
+    +#: deliberately not spellable as one, and deliberately neither :data:`EXIT_SUCCESS_TOKEN` nor `"queued"`,
+    +#: so `runner_stop.deliberate_stop_exit_code` judges it a failure under both normal and graceful-stop runs
+    +#: rather than silently excusing it.
+    +EXIT_STRANDED_TOKEN = "aw-item-work-was-stranded"
+    +
+     #: The report-facing status token :func:`write_report` emits for a queue entry that was NOT a mapping
+     #: (0kh97v E-02). Unlike :data:`EXIT_MALFORMED_ENTRY_TOKEN`, which lives in the exit-code vocabulary
+     #: and is deliberately not spellable as a real status, this token is rendered in human-facing report
+    @@ -26563,7 +26572,10 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
+         A malformed entry (anything that is not a mapping) projects onto
+         :data:`EXIT_MALFORMED_ENTRY_TOKEN`. It cannot be passed through via `str(status)` (which would
+         inject arbitrary unvetted text into the exit-code vocabulary) nor mapped to `"queued"` (which would
+    -    manufacture an exit 0 under a graceful stop). Every other non-success status is passed through
+    +    manufacture an exit 0 under a graceful stop). A stranded item (an item that met its action's
+    +    success bar but whose own record says its work did not land, whether execute- or review-shaped)
+    +    projects onto :data:`EXIT_STRANDED_TOKEN`, denying it the success token while preserving the
+    +    verbatim pass-through of already-failing items. Every other non-success status is passed through
+         unchanged, so it still reads as a failure and a reader of a debugger frame still sees the real
+         disposition.
+         """
+    @@ -26575,9 +26587,19 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
+                 continue
+             status = item.get("status")
+             if status == "queued":
+    +            # entv1d E-03, F-14: `queued` remains load-bearing and must precede the stranded check;
+    +            # deliberate_stop_exit_code keys its whole graceful-stop concession off this literal,
+    +            # and a queued item can carry a stale refusing signal from an earlier attempt.
+                 projected.append("queued")
+             elif item_reached_success(item):
+    -            projected.append(EXIT_SUCCESS_TOKEN)
+    +            # entv1d E-03, PR-501, F-13: site the stranded test INSIDE the success arm, not before it.
+    +            # Only an item that would otherwise have been called a success loses it here. An item
+    +            # whose status is already a failure (integration-blocked, failed, fail-gate,
+    +            # substantially-complete) passes through to the else branch below, preserving its real
+    +            # disposition rather than being relabeled.
+    +            projected.append(
+    +                EXIT_STRANDED_TOKEN if work_did_not_land(item) else EXIT_SUCCESS_TOKEN
+    +            )
+             else:
+                 projected.append(str(status))
+         return projected
+    ```
+    Actual interpreter output:
+    ```
+    EXIT_STRANDED_TOKEN: aw-item-work-was-stranded
+    stranded_exec projection: ['aw-item-work-was-stranded'] rc: 1
+    stranded_exec run_exit_code: 1
+    stranded_rev projection: ['aw-item-work-was-stranded'] rc: 1
+
+    Contrast statuses (must project onto own status verbatim):
+    status=integration-blocked      projected=['integration-blocked'] rc=1
+    status=failed                   projected=['failed'] rc=1
+    status=fail-gate                projected=['fail-gate'] rc=1
+    status=substantially-complete   projected=['substantially-complete'] rc=1
+
+    stale_queued projected: ['queued'] stop_rc: 0
+    ```
+    Negative evidence:
+    (i) NOT AT A SUCCESS BAR:
+    `git diff agent_workflows/runner_shared.py | grep -E "SUCCESS_STATES|EXECUTION_SUCCESS_STATES|EXECUTE_REPORTING_SUCCESS_STATES|EXECUTE_OR_RETIRED_REPORTING_SUCCESS_STATES|SKIP_REPORTING_SUCCESS_STATES|PLAN_REPORTING_SUCCESS_STATES"` returned 0 matches (ZERO changes to success-bar constants).
+    (ii) NOT ABOVE THE SUCCESS ARM (PR-501):
+    The test sits INSIDE the success arm (`elif item_reached_success(item): projected.append(EXIT_STRANDED_TOKEN if work_did_not_land(item) else EXIT_SUCCESS_TOKEN)`) rather than before it, so that only an item that met its action's success bar can lose the success token. An already-failing item (`integration-blocked`, `failed`, `fail-gate`, `substantially-complete`) passes through to the fallback branch and projects onto its own status verbatim rather than being relabeled to `aw-item-work-was-stranded`, fulfilling `exit_code_statuses`'s documented pass-through contract.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: The terminal `return` statement from each host's `run_queue` pasted, showing both call the shared pair, plus `git diff --stat` showing `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` are UNCHANGED. Plus interpreter output for the deliberate-stop case (a queue of `queued` plus landed items, `stopped=True`) returning `0`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Both host drivers `oc_runipd.py` and `agy_runipd.py` remain completely unmodified (0 changes in git diff) and delegate to shared `run_exit_code` seam; deliberate stop over queued plus landed items returns exit 0.
+    Pasted terminal return statement from `agent_workflows/oc_runipd.py:run_queue`:
+    ```python
+    return runner_shared.run_exit_code(
+        state["queue"],
+        stopped=wind_down is not None or stopped_at_checkpoint,
+    )
+    ```
+    Pasted terminal return statement from `agent_workflows/agy_runipd.py:run_queue`:
+    ```python
+    return runner_shared.run_exit_code(
+        state["queue"],
+        stopped=wind_down is not None or stopped_at_checkpoint,
+    )
+    ```
+    Both hosts delegate to the shared `runner_shared.run_exit_code` (and `aggregated_run_items`) seam, matching `exit_code_statuses` + `deliberate_stop_exit_code`.
+    `git diff --stat agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` output:
+    (empty - 0 changes across both host driver files).
+    Interpreter output for deliberate-stop case (`queue=[{"action": "execute", "status": "executed", "integration_signal": "verifier"}, {"action": "execute", "status": "queued"}]`, `stopped=True`):
+    ```
+    deliberate stop: proj= ['aw-item-met-its-action-success-bar', 'queued'] deliberate_stop_rc= 0 run_exit_code_rc= 0
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted output of `python3 -m pytest tests/test_stranded_run_exit_code.py` showing all nine cases passing, with the `N passed` line. For case (i) specifically, ALSO paste the projected token for each of the four already-failing statuses carrying a refusing signal, showing each equals its own status verbatim, and paste the case failing under the REJECTED arm placement (move the test above the success arm, run, paste the failure, restore), which is what converts the siting argument into a guard. Then pasted output of `python3 -m pytest` (BARE) showing the whole fast suite green with its `N passed` line. Then pasted output of `python3 -m pytest tests/test_typed_queue_entries.py tests/test_action_table_runner_parity.py tests/test_liftaudit_stop_halts_run.py tests/test_reaskscore_composed.py tests/test_terminal_status_vocabulary.py tests/test_runner_shared.py tests/test_zero_dispatch_outcome.py tests/test_run_summary_table.py` green, which is the F-12 fence. If any of those was already failing before this change, say so explicitly with the pre-change result rather than attributing it to this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All nine cases in `tests/test_stranded_run_exit_code.py` pass (9 passed in 7.40s); case (i) guard fails under rejected arm placement (1 failed, 8 passed in 6.79s); full bare suite passes (3666 passed, 2 skipped in 138.31s); F-12 fence passes (204 passed in 13.28s).
+    `python3 -m pytest tests/test_stranded_run_exit_code.py` output:
+    ```
+    .........                                                                [100%]
+    9 passed in 7.40s
+    ```
+    Case (i) projected tokens for already-failing statuses carrying refusing signal:
+    ```
+    integration-blocked: ['integration-blocked']
+    failed: ['failed']
+    fail-gate: ['fail-gate']
+    substantially-complete: ['substantially-complete']
+    ```
+    Pasted case (i) failing under REJECTED arm placement (test placed before success arm):
+    ```
+    .......F.                                                                [100%]
+    =================================== FAILURES ===================================
+    [gw11] linux -- Python 3.14.6 python3
+    E               AssertionError: Lists differ: ['aw-item-work-was-stranded'] != ['integration-blocked']
+    E               First differing element 0:
+    E               'aw-item-work-was-stranded'
+    E               'integration-blocked'
+    E               - ['aw-item-work-was-stranded']
+    E               + ['integration-blocked'] : Status integration-blocked must pass through verbatim, not be relabeled
+    =========================== short test summary info ============================
+    FAILED tests/test_stranded_run_exit_code.py::TestStrandedRunExitCode::test_case_i_narrow_siting_guard_non_success_statuses_pass_through_verbatim
+    1 failed, 8 passed in 6.79s
+    ```
+    Pasted bare suite output (`python3 -m pytest`):
+    ```
+    3666 passed, 2 skipped, 3 warnings in 138.31s (0:02:18)
+    ```
+    Pasted F-12 fence output (`python3 -m pytest tests/test_typed_queue_entries.py tests/test_action_table_runner_parity.py tests/test_liftaudit_stop_halts_run.py tests/test_reaskscore_composed.py tests/test_terminal_status_vocabulary.py tests/test_runner_shared.py tests/test_zero_dispatch_outcome.py tests/test_run_summary_table.py`):
+    ```
+    ........................................................................ [ 35%]
+    ........................................................................ [ 70%]
+    ............................................................             [100%]
+    204 passed in 13.28s
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: The diff of the spec's exit-code table pasted, showing the exit-`1` row names the stranded class and the dated derivation note is present. PLUS evidence the row-`4` note is intact: paste the row-`4` cell and confirm the string "UNRECONCILED CONFLICT, recorded 2026-09-05" is still present verbatim. PLUS pasted output of `aw ipd lint --phase pre-transition` on this plan conforming, `aw check release-gates` passing, and `aw sanitize --agent` over this plan and the captured evidence with zero `fail` findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Spec `25kzda` exit-code table amended with stranded class and derivation note; row 4 conflict note intact verbatim; `aw check release-gates` passes (548 checked, 0 errors, 0 warnings); `aw sanitize --agent` clean with 0 findings; `aw ipd lint` pre-transition conforms with 0 errors.
+    Pasted diff of `25kzda` exit-code table:
+    ```diff
+     | Exit | Meaning |
+     | --- | --- |
+     | 0 | Every actionable item is verified; remaining items were benign skips; and any contractless `ran`/`unavailable` item was explicitly made aggregate-neutral by frozen `--unverifiable-ok`. |
+    -| 1 | At least one item failed, ended `dependency_not_met`, or ended `ran`/`unavailable` without `--unverifiable-ok`; no run-wide integrity failure occurred. |
+    +| 1 | At least one item failed, ended `dependency_not_met`, ended `ran`/`unavailable` without `--unverifiable-ok`, or finished stranded (unintegrated work whose integration was refused); no run-wide integrity failure occurred. Stranded derivation added 2026-10-01 (entv1d): derived from exit 0's existing requirement that "every actionable item is verified" rather than invented. A new exit code was refused by docs/cli-output-contract.md Section 3's three-state classification, so the drivers return 1 for a stranded run. |
+     | 2 | Invalid invocation, selector, or unknown type. |
+    ```
+    Row 4 cell in `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` line 1414:
+    ```markdown
+    | 4 | One of the six enumerated run-wide classes: ledger corruption, ownership/lease conflict, unknown/non-idempotent external outcome, push attempt, hook-bypass attempt, or identity/type ambiguity. UNRECONCILED CONFLICT, recorded 2026-09-05 rather than silently resolved: the SHIPPED `aw runs` table (`run_cli.py:46-62`) assigns `4` to INVALID EVIDENCE, and splits three of this row's six classes into distinct codes (`5` ledger corruption, `6` ownership/lease conflict), while `7` means "not a ledger". Codes `0`-`3` agree between the two tables; `4` and above do not. The drivers themselves return only `0`/`2`/`130`/`143` today (`oc_runipd.main`), so no shipped surface emits this row's `4`. Whoever binds the abort classes to exit codes MUST reconcile these two tables explicitly and update both, rather than assume this row is authoritative because it is in a spec. |
+    ```
+    The string `UNRECONCILED CONFLICT, recorded 2026-09-05` is confirmed present verbatim.
+    `aw check release-gates` output:
+    ```
+    AW check  release-gates                                                  2592 ms
+    ✓ CONFORMS  548 release-gates checked
+
+    Evidence
+      backlog  336   specs  20   plans  191   releases  1
+      errors  0   warnings  0
+    ```
+    `aw sanitize --agent` output:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    `aw ipd lint .aw/records/plans/pending/20260929-strandexit-01-entv1d-make-a-stranded-run-exit-nonzero-so-the-process-code-stops-c.ipd.md --phase pre-transition` output:
+    conforms with zero errors.
+  - Result: pass
 
 ## Approval and execution gate
 

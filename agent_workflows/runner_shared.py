@@ -212,6 +212,8 @@ from agent_workflows.render_stream import (
     # unchanged.
     format_run_order_announcement,
     format_spec_impact_announcement,
+    # strandexit (`entv1d`) E-02: predicate answering whether an item's work failed to land.
+    work_did_not_land,
 )
 
 # ---- module constants the moved bodies close over ------------------------------------------------
@@ -26517,6 +26519,13 @@ EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
 #: a failure under both normal and graceful-stop runs rather than silently excusing it.
 EXIT_MALFORMED_ENTRY_TOKEN = "aw-queue-entry-was-malformed"
 
+#: The token :func:`exit_code_statuses` projects an item onto when its action's success bar was met
+#: but its own record says its work did not land (entv1d E-03). Deliberately not a real status,
+#: deliberately not spellable as one, and deliberately neither :data:`EXIT_SUCCESS_TOKEN` nor `"queued"`,
+#: so `runner_stop.deliberate_stop_exit_code` judges it a failure under both normal and graceful-stop runs
+#: rather than silently excusing it.
+EXIT_STRANDED_TOKEN = "aw-item-work-was-stranded"
+
 #: The report-facing status token :func:`write_report` emits for a queue entry that was NOT a mapping
 #: (0kh97v E-02). Unlike :data:`EXIT_MALFORMED_ENTRY_TOKEN`, which lives in the exit-code vocabulary
 #: and is deliberately not spellable as a real status, this token is rendered in human-facing report
@@ -26563,7 +26572,10 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
     A malformed entry (anything that is not a mapping) projects onto
     :data:`EXIT_MALFORMED_ENTRY_TOKEN`. It cannot be passed through via `str(status)` (which would
     inject arbitrary unvetted text into the exit-code vocabulary) nor mapped to `"queued"` (which would
-    manufacture an exit 0 under a graceful stop). Every other non-success status is passed through
+    manufacture an exit 0 under a graceful stop). A stranded item (an item that met its action's
+    success bar but whose own record says its work did not land, whether execute- or review-shaped)
+    projects onto :data:`EXIT_STRANDED_TOKEN`, denying it the success token while preserving the
+    verbatim pass-through of already-failing items. Every other non-success status is passed through
     unchanged, so it still reads as a failure and a reader of a debugger frame still sees the real
     disposition.
     """
@@ -26575,9 +26587,19 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
             continue
         status = item.get("status")
         if status == "queued":
+            # entv1d E-03, F-14: `queued` remains load-bearing and must precede the stranded check;
+            # deliberate_stop_exit_code keys its whole graceful-stop concession off this literal,
+            # and a queued item can carry a stale refusing signal from an earlier attempt.
             projected.append("queued")
         elif item_reached_success(item):
-            projected.append(EXIT_SUCCESS_TOKEN)
+            # entv1d E-03, PR-501, F-13: site the stranded test INSIDE the success arm, not before it.
+            # Only an item that would otherwise have been called a success loses it here. An item
+            # whose status is already a failure (integration-blocked, failed, fail-gate,
+            # substantially-complete) passes through to the else branch below, preserving its real
+            # disposition rather than being relabeled.
+            projected.append(
+                EXIT_STRANDED_TOKEN if work_did_not_land(item) else EXIT_SUCCESS_TOKEN
+            )
         else:
             projected.append(str(status))
     return projected
@@ -26592,7 +26614,7 @@ def aggregated_run_items(
     1. Malformed entry: AggregatedItem(item_id="<malformed>", contribution_hint=CONTRIBUTION_FAILURE, needs_input=False)
     2. status == "queued" under stopped=True: benign_skip=True, needs_input=False
     3. status == "queued" under stopped=False: falls through to general rule below
-    4. item_reached_success(entry) is True: verified=True
+    4. item_reached_success(entry) is True and not work_did_not_land(entry): verified=True
     5. Gate predicate (bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry)): needs_input=True
     6. Failure default: contribution_hint=CONTRIBUTION_FAILURE
     """
@@ -26627,8 +26649,8 @@ def aggregated_run_items(
             )
         # Clause 3: status == "queued" under stopped=False takes the general rule below
         # (falls through to clauses 4, 5, 6).
-        elif item_reached_success(entry):
-            # Clause 4: Met its action's success bar
+        elif item_reached_success(entry) and not work_did_not_land(entry):
+            # Clause 4: Met its action's success bar and work landed (entv1d)
             items.append(
                 run_evidence.AggregatedItem(
                     item_id=item_id,
