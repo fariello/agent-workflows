@@ -1,5 +1,5 @@
 - Id: fkmjoy
-- Status: graduated
+- Status: done
 - Graduated-To: fkmjoy
 - Blocks-Release: next
 - Set: fkmjoy
@@ -8,6 +8,7 @@
 - Summary: check.scope-drift cannot audit a lane whose base diverged from its receipt's frozen base_head, so such an execution gets no scope advisory at all
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD iqtt8d executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-fkmjoy-01-iqtt8d-audit-the-lane-an-execution-actually-ran-in-so-an-attempt-sc.ipd.md); evidence .aw/records/plans/executed/20260929-fkmjoy-01-iqtt8d-audit-the-lane-an-execution-actually-ran-in-so-an-attempt-sc.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: iqtt8d
 - 2026-09-22 created (aw backlog): Found while executing plan wmnmei (rcptstale-01): measured on lc4unl, whose lane HEAD does not descend from its receipt's base.
 
