@@ -1006,6 +1006,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
+    common.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Include full nested diagnostics, change details, and evidence dictionaries.",
+    )
 
     parser = _AwArgumentParser(
         prog="agent-workflows",
@@ -5368,6 +5374,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=argparse.SUPPRESS,
         help="Comma-separated field projection for --agent output (envelope fields are preserved).",
     )
+    common_upgrade.add_argument(
+        "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Include full nested diagnostics, change details, and evidence dictionaries.",
+    )
 
     p_upgrade_test = sub.add_parser(
         "upgrade-test",
@@ -5442,8 +5454,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_upg_new.add_argument(
         "-v",
-        "--verbose",
+        dest="verbose",
         action="store_true",
+        default=argparse.SUPPRESS,
         help="Show full installer output and the file delta.",
     )
     p_upg_new.add_argument(
