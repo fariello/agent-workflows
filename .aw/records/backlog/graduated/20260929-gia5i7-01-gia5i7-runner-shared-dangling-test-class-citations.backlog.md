@@ -1,11 +1,13 @@
 - Id: gia5i7
-- Status: open
+- Status: graduated
+- Graduated-To: gia5i7
 - Set: gia5i7
 - Priority: low
 - Work-Kind: chore
 - Summary: runner_shared cites the test class NoRunnerImportTests at eight sites and it exists nowhere in tests/
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 9vtas9
 - 2026-09-29 created (aw backlog): runner_shared cites the test class NoRunnerImportTests at eight sites and it exists nowhere in tests/
 
 MEASURED 2026-09-29 in lane nbu56f at HEAD 4bf73373 while authoring plan cvs2b7 (backlog nbu56f).
