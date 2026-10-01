@@ -1,5 +1,5 @@
 - Id: lz16f3
-- Status: graduated
+- Status: done
 - Graduated-To: lz16f3
 - Set: lz16f3
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: An installed completion script goes stale silently for any user who never re-runs aw install or aw setup
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD s2yf26 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-lz16f3-01-s2yf26-report-a-stale-installed-tab-completion-to-a-user-who-never.ipd.md); evidence .aw/records/plans/executed/20260929-lz16f3-01-s2yf26-report-a-stale-installed-tab-completion-to-a-user-who-never.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: s2yf26
 - 2026-09-21 created (aw backlog): An installed completion script goes stale silently for any user who never re-runs aw install or aw setup
 
