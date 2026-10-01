@@ -2670,7 +2670,17 @@ def finalize_precheck(
 
     evidence: Dict[str, Any] = {}
 
-    plan_text = plan_path.read_text(encoding="utf-8")
+    if not plan_path.is_file():
+        return EXIT_CANNOT_RUN, f"plan file not found: {plan_path}", evidence, ()
+    try:
+        plan_text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return (
+            EXIT_CANNOT_RUN,
+            f"cannot read plan file {plan_path}: {exc}",
+            evidence,
+            (),
+        )
     doc = _lint.parse(plan_text)
     plan_id = (doc.meta_fields.get("Id") or "").strip()
     if not plan_id:

@@ -7584,6 +7584,29 @@ RETRYABLE_STALE_RECEIPT_SUMMARY: str = "is STALE: the plan content changed since
 #: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
 FINALIZE_REFUSAL_CODE: str = "finalize-refused"
 
+#: IPD 1fzist (rfhiu2): Stable refusal code recorded when resolve_plan_path fails before finalize.
+#: Sited beside FINALIZE_REFUSAL_CODE, NOT in VERIFY_ABSENCE_CODES: the verification-absence vocabulary
+#: is a closed 4-tuple guarding the post-execution verification pass, and expanding it for a lifecycle
+#: finalize refusal would conflate two distinct failure domains and break verification-absence consumers (F-6).
+FINALIZE_PLAN_UNRESOLVABLE_CODE: str = "finalize-plan-unresolvable"
+
+
+def finalize_unresolvable_text(plan_path: Path, exc: DriverError) -> tuple[str, str]:
+    """The human REASON and REMEDY for a plan whose re-resolution failed before finalize (1fzist).
+
+    Follows the three-property reason and concrete-remedy shape required by the Refusal contract.
+    """
+    reason = (
+        f"the runner could not re-resolve plan {plan_path.name} before finalize: {exc}. "
+        "Deliberately did not fall back to a known-stale path; no lifecycle finalize ran and nothing was merged"
+    )
+    remedy = (
+        f"locate the plan by its id6 with `aw find plans {plan_path.name}` (or by id6) and check it exists. "
+        "The lane worktree and its committed work are PRESERVED; do not re-run or discard the lane"
+    )
+    return reason, remedy
+
+
 #: The per-item key counting how many times THIS item has been re-dispatched by the send-back. Counted
 #: separately from `attempts`, because an item accrues attempts for reasons that have nothing to do
 #: with a refusal (an interrupt, a `--retry-incomplete` requeue), and spending correction budget on
@@ -26837,6 +26860,20 @@ def finalize_already_done(repo: Path, plan_path: Path, id6: str) -> bool:
     try:
         from agent_workflows import ipd_lifecycle
 
+        # IPD 1fzist (F-4, F-10): require that the plan file exists on disk and is contained in
+        # the repository tree being finalized (`repo`). Without existence, a nonexistent
+        # executed/-shaped ghost path converts real refusals to exit 0 (F-4). Without containment,
+        # a substituted path that exists in main while repo is the lane converts real refusals to
+        # exit 0 in the runner's default geometry (F-10).
+        plan_path = Path(plan_path)
+        repo = Path(repo)
+        if not plan_path.is_file():
+            return False
+        try:
+            plan_path.resolve().relative_to(repo.resolve())
+        except ValueError:
+            return False
+
         return bool(ipd_lifecycle.plan_already_finalized(repo, plan_path, id6).already)
     except Exception:
         return False
@@ -32037,6 +32074,7 @@ def execute_item_core(
 
     if work_dir and not is_review and not is_production:
         lane_root = Path(work_dir)
+        # Prompt-building fallback is advisory (context degradation vs. finalize lifecycle transition; 1fzist F-7).
         try:
             lane_plan_path = resolve_plan_path(
                 lane_root, item.get("configured_file", ""), item["id6"]
@@ -32531,13 +32569,12 @@ def execute_item_core(
                 # PERFORMED, so the honest act is to record that fact and report it rather than launch a
                 # child against a path that may not exist.
                 #
-                # THE TWIN FALLBACK AT THE FINALIZE SITE IS DELIBERATELY LEFT ALONE. An identical
-                # `except DriverError: current_plan_for_finalize = plan_path` guards the FINALIZE
-                # re-resolution further down this same function (search `current_plan_for_finalize`). It is
-                # byte-identical in shape, and it is NOT fixed here: it feeds `aw ipd finalize` rather than
-                # a verifier launch, so it has a different consumer and a different failure model (the
-                # finalize path has its own receipt and scope-reconciliation gates). Identified, reported,
-                # and out of this plan's fence on purpose; fixing it is a follow-up, not a silent widening.
+                # THE TWIN FALLBACK AT THE FINALIZE SITE WAS FIXED IN 1fzist. An identical
+                # `except DriverError: current_plan_for_finalize = plan_path` guarded the FINALIZE
+                # re-resolution further down this same function (search `current_plan_for_finalize`). It was
+                # byte-identical in shape and was left for follow-up plan 1fzist: it feeds `aw ipd finalize`
+                # rather than a verifier launch, so it has a different consumer and failure model (refusing
+                # with fail-gate disposition rather than partial, and closing downstream false-success gates).
                 current_plan_path = None
                 try:
                     current_plan_path = resolve_plan_path(
@@ -34543,381 +34580,509 @@ def execute_item_core(
                 and integration.earned
             ):
                 finalize_repo = Path(work_dir)
+                current_plan_for_finalize = None
                 try:
                     current_plan_for_finalize = resolve_plan_path(
                         finalize_repo, item.get("configured_file", ""), item["id6"]
                     )
-                except DriverError:
-                    current_plan_for_finalize = plan_path
-                actor = driver_actor(state, labels=host_labels)
-                fin_message = (
-                    f"{host_labels.command} self-finalize: {item['id6']} verified "
-                    f"(set {item['setid']}, attempt {attempt_no})."
-                )
-                record_item_spec_edits(
-                    finalize_repo,
-                    current_plan_for_finalize,
-                    item,
-                    reconcile=lambda r, p: compute_scope_reconciliation(
-                        r, p, labels=host_labels
-                    ),
-                )
-                sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
-                refreeze_stale_receipt_for_correction(
-                    repo,
-                    current_plan_for_finalize,
-                    item,
-                    attempt,
-                    actor=actor,
-                    run_dir=run_dir,
-                )
-                # finlockwait-01 (`y2vzit`) E-03: Lane arm finalize (first handle_finalize_refusal
-                # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
-                # (FINALIZE_LOCK_REATTEMPTS) keeping the LANE worktree `finalize_repo` argument.
-                # Re-attempts ONLY the driver_finalize subprocess; never re-runs the surrounding
-                # integration or merge step, and keeps the lane repo.
-                fin_rc, fin_msg = finalize_with_contention_retry(
-                    driver_finalize,
-                    finalize_repo,
-                    current_plan_for_finalize,
-                    item["id6"],
-                    actor,
-                    fin_message,
-                    attestation=get_run_attestation(run_dir),
-                    item=item,
-                    run_dir=run_dir,
-                    append_jsonl=append_jsonl,
-                )
-                if fin_rc == 0:
-                    perform_carrier_verification(
-                        target_repo=finalize_repo,
-                        b_id6=item["id6"],
-                        item=item,
-                        attempt=attempt,
-                        state=state,
-                        run_dir=run_dir,
-                        plan_path=current_plan_for_finalize,
-                        attempt_no=attempt_no,
-                        raw_launcher=raw_launcher,
-                        host_labels=host_labels,
-                        tracker=tracker,
-                        work_dir=work_dir,
-                        session_turn_counts=None,
-                    )
-                    process_backlog_close(
-                        run_dir,
-                        state,
+                except DriverError as exc:
+                    fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)
+                    record_refusal(
                         item,
-                        lane_handle=wt_handle,
-                        lane_repo=Path(work_dir),
+                        code=FINALIZE_PLAN_UNRESOLVABLE_CODE,
+                        reason=fin_reason,
+                        remedy=fin_remedy,
                     )
-                    # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
-                    # factory so the gate's revalidation step actually measures the merge result. Bound
-                    # from the local name this body already resolves (the same one the suite-signal and
-                    # `fixed`-recheck paths above use), so no new injection reaches the call sites.
-                    val_runner = make_integration_validation_runner(
-                        state, run_dir, item, suite_check=run_suite_check
+                    attempt["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    item["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    # IPD 1fzist: fail-gate disposition chosen from existing vocabulary because
+                    # its recorded non-retryable reason ("lifecycle gate or clean-base gate refused;
+                    # not a host failure to retry without human action") fits a plan path that
+                    # cannot be located, unlike partial which names another plan as future owner.
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {fin_reason}", "yellow"),
+                        file=sys.stderr,
                     )
+                    print(pal(f"    -> {fin_remedy}", "yellow"), file=sys.stderr)
+                    save_state(run_dir, state)
 
-                    # runconcur-01 (`vddpml`) E-03: THE FIRST-ATTEMPT PUBLISH, serialized behind the
-                    # repository integration lock. This is the site that produced the measured harm on
-                    # 2026-09-22: a peer driver advanced `main` between one run's completed validation
-                    # and its publish, twice. The gate and the real `git merge` both run INSIDE the
-                    # held lock, and main's tip is re-resolved there, so the tip the merge sees cannot
-                    # move under it.
-                    def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
-                        try:
-                            return integrate_lane_branch(
-                                repo, _handle, _item["id6"], val_runner
-                            )
-                        except TypeError:
-                            return integrate_lane_branch(
-                                repo,
-                                _handle,
-                                _item["id6"],
-                                val_runner,
-                                host_label=host_labels.command,
-                                run_checked=globals()["run_checked"],
-                                action_kind="execute",
-                            )
-
-                    integrated, integ_reason, integ_kind = (
-                        integrate_under_repository_lock(
-                            repo,
-                            item,
-                            wt_handle,
-                            state=state,
-                            holder_label=integration_lock_holder_label(state),
-                            integrate=_publish,
-                            progress=integration_lock_progress_reporter(),
-                            run_checked=globals()["run_checked"],
-                        )
+                if current_plan_for_finalize is not None:
+                    actor = driver_actor(state, labels=host_labels)
+                    fin_message = (
+                        f"{host_labels.command} self-finalize: {item['id6']} verified "
+                        f"(set {item['setid']}, attempt {attempt_no})."
                     )
-
-                    # mergeagent (`ounhsn`) E-03: send merge-back conflict to the agent to resolve in its lane
-                    sendback_records: list[dict[str, Any]] = list(
-                        attempt.get("merge_conflict_sendback") or []
+                    record_item_spec_edits(
+                        finalize_repo,
+                        current_plan_for_finalize,
+                        item,
+                        reconcile=lambda r, p: compute_scope_reconciliation(
+                            r, p, labels=host_labels
+                        ),
                     )
-                    conflict_budget = frozen_retry_budget(state)
-                    while (
-                        not integrated
-                        and wt_handle is not None
-                        and integ_kind == INTEGRATION_REFUSAL_CONFLICT
-                        and read_integration_cause(integ_reason)[0]
-                        == INTEGRATION_CAUSE_GIT_CONFLICT
-                        and int(item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0)
-                        < conflict_budget
-                    ):
-                        current_conflict_count = int(
-                            item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0
-                        )
-                        item[MERGE_CONFLICT_RETRY_COUNT_KEY] = (
-                            current_conflict_count + 1
-                        )
-                        save_state(run_dir, state)
-
-                        prep = prepare_lane_for_conflict_resolution(
-                            repo,
-                            wt_handle,
-                            run_checked=globals().get("run_checked"),
+                    sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
+                    refreeze_stale_receipt_for_correction(
+                        repo,
+                        current_plan_for_finalize,
+                        item,
+                        attempt,
+                        actor=actor,
+                        run_dir=run_dir,
+                    )
+                    # finlockwait-01 (`y2vzit`) E-03: Lane arm finalize (first handle_finalize_refusal
+                    # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
+                    # (FINALIZE_LOCK_REATTEMPTS) keeping the LANE worktree `finalize_repo` argument.
+                    # Re-attempts ONLY the driver_finalize subprocess; never re-runs the surrounding
+                    # integration or merge step, and keeps the lane repo.
+                    fin_rc, fin_msg = finalize_with_contention_retry(
+                        driver_finalize,
+                        finalize_repo,
+                        current_plan_for_finalize,
+                        item["id6"],
+                        actor,
+                        fin_message,
+                        attestation=get_run_attestation(run_dir),
+                        item=item,
+                        run_dir=run_dir,
+                        append_jsonl=append_jsonl,
+                    )
+                    if fin_rc == 0:
+                        perform_carrier_verification(
+                            target_repo=finalize_repo,
+                            b_id6=item["id6"],
                             item=item,
+                            attempt=attempt,
+                            state=state,
+                            run_dir=run_dir,
+                            plan_path=current_plan_for_finalize,
+                            attempt_no=attempt_no,
+                            raw_launcher=raw_launcher,
+                            host_labels=host_labels,
+                            tracker=tracker,
+                            work_dir=work_dir,
+                            session_turn_counts=None,
                         )
-                        if not prep.ok:
-                            break
+                        process_backlog_close(
+                            run_dir,
+                            state,
+                            item,
+                            lane_handle=wt_handle,
+                            lane_repo=Path(work_dir),
+                        )
+                        # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
+                        # factory so the gate's revalidation step actually measures the merge result. Bound
+                        # from the local name this body already resolves (the same one the suite-signal and
+                        # `fixed`-recheck paths above use), so no new injection reaches the call sites.
+                        val_runner = make_integration_validation_runner(
+                            state, run_dir, item, suite_check=run_suite_check
+                        )
 
-                        if not prep.conflicted_paths:
-                            # Clean merge; skip agent ask and re-attempt publish directly
-                            integrated, integ_reason, integ_kind = (
-                                integrate_under_repository_lock(
+                        # runconcur-01 (`vddpml`) E-03: THE FIRST-ATTEMPT PUBLISH, serialized behind the
+                        # repository integration lock. This is the site that produced the measured harm on
+                        # 2026-09-22: a peer driver advanced `main` between one run's completed validation
+                        # and its publish, twice. The gate and the real `git merge` both run INSIDE the
+                        # held lock, and main's tip is re-resolved there, so the tip the merge sees cannot
+                        # move under it.
+                        def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
+                            try:
+                                return integrate_lane_branch(
+                                    repo, _handle, _item["id6"], val_runner
+                                )
+                            except TypeError:
+                                return integrate_lane_branch(
                                     repo,
-                                    item,
-                                    wt_handle,
-                                    state=state,
-                                    holder_label=integration_lock_holder_label(state),
-                                    integrate=_publish,
-                                    progress=integration_lock_progress_reporter(),
+                                    _handle,
+                                    _item["id6"],
+                                    val_runner,
+                                    host_label=host_labels.command,
                                     run_checked=globals()["run_checked"],
+                                    action_kind="execute",
                                 )
-                            )
-                            continue
 
-                        conflict_detail = build_conflict_resolver_detail(
-                            wt_handle.path,
-                            paths=prep.conflicted_paths,
-                            base_commit=wt_handle.base_commit,
-                        )
-                        append_jsonl(
-                            run_dir / "events.jsonl",
-                            {
-                                "at": utc_now(),
-                                "event": "merge-conflict-sent-back",
-                                "id6": item["id6"],
-                                "attempt": attempt_no,
-                                "conflicted": list(prep.conflicted_paths),
-                                "shape": conflict_detail.get("shape"),
-                                "retry_attempt": item[MERGE_CONFLICT_RETRY_COUNT_KEY],
-                                "retry_budget": conflict_budget,
-                            },
+                        integrated, integ_reason, integ_kind = (
+                            integrate_under_repository_lock(
+                                repo,
+                                item,
+                                wt_handle,
+                                state=state,
+                                holder_label=integration_lock_holder_label(state),
+                                integrate=_publish,
+                                progress=integration_lock_progress_reporter(),
+                                run_checked=globals()["run_checked"],
+                            )
                         )
 
-                        conflict_prompt_text = merge_conflict_question(
-                            conflict_detail,
-                            main_tip=prep.merge_head,
+                        # mergeagent (`ounhsn`) E-03: send merge-back conflict to the agent to resolve in its lane
+                        sendback_records: list[dict[str, Any]] = list(
+                            attempt.get("merge_conflict_sendback") or []
                         )
-                        conflict_session = attempt.get("session_id")
-                        interrupted = False
-                        try:
-                            if host_labels == OC_HOST_LABELS:
-                                resume_via_launcher(
-                                    raw_launcher,
-                                    (
-                                        state,
-                                        run_dir,
-                                        item,
-                                        plan_path,
-                                        write_prompt(
-                                            run_dir,
-                                            item,
-                                            conflict_prompt_text,
-                                            attempt_no,
-                                            suffix="merge-conflict",
-                                        ),
-                                        attempt_no,
-                                    ),
-                                    {
-                                        "log_suffix": "merge-conflict",
-                                        "label_suffix": "merge-conflict",
-                                        "tracker": tracker,
-                                        "work_dir": work_dir,
-                                        "resume_session": conflict_session,
-                                    },
-                                )
-                            else:
-                                resume_via_launcher(
-                                    raw_launcher,
-                                    (
-                                        state,
-                                        run_dir,
-                                        item,
-                                        write_prompt(
-                                            run_dir,
-                                            item,
-                                            conflict_prompt_text,
-                                            attempt_no,
-                                            suffix="merge-conflict",
-                                        ),
-                                        attempt_no,
-                                    ),
-                                    {
-                                        "session_id": conflict_session,
-                                        "use_continue": False,
-                                        "log_suffix": "merge-conflict",
-                                        "label_suffix": "merge-conflict",
-                                        "work_dir": work_dir,
-                                        "tracker": tracker,
-                                    },
-                                )
-                        except (KeyboardInterrupt, StallTimeout):
-                            interrupted = True
-
-                        if work_dir:
-                            with contextlib.suppress(OSError):
-                                lane_containment.collect_lane_submissions(
-                                    run_dir=run_dir,
-                                    item=item,
-                                    run_id=state["run_id"],
-                                    lane_root=Path(work_dir),
-                                    plan_path=plan_path,
-                                    attempt=attempt_no,
-                                )
-
-                        if interrupted:
-                            break
-
-                        resolved, consummated = check_conflict_resolution_consummated(
-                            wt_handle.path,
-                            prep.conflicted_paths,
-                            prep.merge_head,
-                        )
-                        sendback_entry = {
-                            "conflicted": list(prep.conflicted_paths),
-                            "shape": conflict_detail.get("shape"),
-                            "resolved": resolved,
-                            "consummated": consummated,
-                        }
-                        sendback_records.append(sendback_entry)
-                        attempt["merge_conflict_sendback"] = sendback_records
-                        save_state(run_dir, state)
-
-                        if consummated:
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "merge-conflict-resolved",
-                                    "id6": item["id6"],
-                                    "attempt": attempt_no,
-                                    "conflicted": list(prep.conflicted_paths),
-                                    "shape": conflict_detail.get("shape"),
-                                },
+                        conflict_budget = frozen_retry_budget(state)
+                        while (
+                            not integrated
+                            and wt_handle is not None
+                            and integ_kind == INTEGRATION_REFUSAL_CONFLICT
+                            and read_integration_cause(integ_reason)[0]
+                            == INTEGRATION_CAUSE_GIT_CONFLICT
+                            and int(item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0)
+                            < conflict_budget
+                        ):
+                            current_conflict_count = int(
+                                item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0
                             )
-                            integrated, integ_reason, integ_kind = (
-                                integrate_under_repository_lock(
-                                    repo,
-                                    item,
-                                    wt_handle,
-                                    state=state,
-                                    holder_label=integration_lock_holder_label(state),
-                                    integrate=_publish,
-                                    progress=integration_lock_progress_reporter(),
-                                    run_checked=globals()["run_checked"],
-                                )
-                            )
-                        else:
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "merge-conflict-unresolved",
-                                    "id6": item["id6"],
-                                    "attempt": attempt_no,
-                                    "conflicted": list(prep.conflicted_paths),
-                                    "shape": conflict_detail.get("shape"),
-                                    "consummated": consummated,
-                                },
-                            )
-
-                    # Ensure lane is integrable by existing human path on terminal arm
-                    if not integrated and wt_handle is not None:
-                        if merge_in_progress(wt_handle.path):
-                            _run_git(wt_handle.path, ["merge", "--abort"])
-                            attempt["merge_conflict_lane_aborted"] = True
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "lane-merge-aborted",
-                                    "id6": item["id6"],
-                                    "attempt": attempt_no,
-                                    "detail": "in-progress lane merge aborted before terminal refusal",
-                                },
+                            item[MERGE_CONFLICT_RETRY_COUNT_KEY] = (
+                                current_conflict_count + 1
                             )
                             save_state(run_dir, state)
 
-                    if not integrated:
-                        _record_lane_ending_facts(
-                            attempt,
-                            work_dir,
-                            git_head_fn=git_head,
-                            git_status_fn=git_status,
-                        )
-                        # Defence in depth against future re-nesting: wt_handle is guaranteed
-                        # non-None here by the enclosing guard at lines 34315-34320 (self_finalize
-                        # and work_dir and wt_handle is not None and integration.earned) and is never
-                        # rebound between there and this block. This is not a live-path fix.
-                        if wt_handle is not None:
-                            with contextlib.suppress(DriverError):
-                                item["integration_changed_files"] = list(
-                                    build_lane_outcome(
-                                        repo, wt_handle, item["id6"]
-                                    ).changed_files
+                            prep = prepare_lane_for_conflict_resolution(
+                                repo,
+                                wt_handle,
+                                run_checked=globals().get("run_checked"),
+                                item=item,
+                            )
+                            if not prep.ok:
+                                break
+
+                            if not prep.conflicted_paths:
+                                # Clean merge; skip agent ask and re-attempt publish directly
+                                integrated, integ_reason, integ_kind = (
+                                    integrate_under_repository_lock(
+                                        repo,
+                                        item,
+                                        wt_handle,
+                                        state=state,
+                                        holder_label=integration_lock_holder_label(
+                                            state
+                                        ),
+                                        integrate=_publish,
+                                        progress=integration_lock_progress_reporter(),
+                                        run_checked=globals()["run_checked"],
+                                    )
                                 )
-                        decision = record_integration_refusal(
-                            run_dir=run_dir,
-                            state=state,
-                            item=item,
-                            attempt=attempt,
-                            integ_kind=integ_kind,
-                            integ_reason=integ_reason,
-                            branch=wt_handle.branch if wt_handle else None,
-                            save_state=save_state,
-                            append_jsonl=append_jsonl,
-                        )
-                        fail_status = decision.status
-                        render_record_integration_refusal(
-                            item,
-                            code=fail_status,
-                            reason=integ_reason,
-                            branch=wt_handle.branch if wt_handle else None,
-                        )
-                        lane_branch = wt_handle.branch if wt_handle else "(none)"
-                        print(
-                            pal(
-                                f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
-                                f"integrated to main ({fail_status}): {integ_reason}",
-                                "yellow",
-                            ),
-                            file=sys.stderr,
-                        )
-                        if decision.deferred:
+                                continue
+
+                            conflict_detail = build_conflict_resolver_detail(
+                                wt_handle.path,
+                                paths=prep.conflicted_paths,
+                                base_commit=wt_handle.base_commit,
+                            )
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "merge-conflict-sent-back",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "conflicted": list(prep.conflicted_paths),
+                                    "shape": conflict_detail.get("shape"),
+                                    "retry_attempt": item[
+                                        MERGE_CONFLICT_RETRY_COUNT_KEY
+                                    ],
+                                    "retry_budget": conflict_budget,
+                                },
+                            )
+
+                            conflict_prompt_text = merge_conflict_question(
+                                conflict_detail,
+                                main_tip=prep.merge_head,
+                            )
+                            conflict_session = attempt.get("session_id")
+                            interrupted = False
+                            try:
+                                if host_labels == OC_HOST_LABELS:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            plan_path,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                conflict_prompt_text,
+                                                attempt_no,
+                                                suffix="merge-conflict",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "log_suffix": "merge-conflict",
+                                            "label_suffix": "merge-conflict",
+                                            "tracker": tracker,
+                                            "work_dir": work_dir,
+                                            "resume_session": conflict_session,
+                                        },
+                                    )
+                                else:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                conflict_prompt_text,
+                                                attempt_no,
+                                                suffix="merge-conflict",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "session_id": conflict_session,
+                                            "use_continue": False,
+                                            "log_suffix": "merge-conflict",
+                                            "label_suffix": "merge-conflict",
+                                            "work_dir": work_dir,
+                                            "tracker": tracker,
+                                        },
+                                    )
+                            except (KeyboardInterrupt, StallTimeout):
+                                interrupted = True
+
+                            if work_dir:
+                                with contextlib.suppress(OSError):
+                                    lane_containment.collect_lane_submissions(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        run_id=state["run_id"],
+                                        lane_root=Path(work_dir),
+                                        plan_path=plan_path,
+                                        attempt=attempt_no,
+                                    )
+
+                            if interrupted:
+                                break
+
+                            resolved, consummated = (
+                                check_conflict_resolution_consummated(
+                                    wt_handle.path,
+                                    prep.conflicted_paths,
+                                    prep.merge_head,
+                                )
+                            )
+                            sendback_entry = {
+                                "conflicted": list(prep.conflicted_paths),
+                                "shape": conflict_detail.get("shape"),
+                                "resolved": resolved,
+                                "consummated": consummated,
+                            }
+                            sendback_records.append(sendback_entry)
+                            attempt["merge_conflict_sendback"] = sendback_records
+                            save_state(run_dir, state)
+
+                            if consummated:
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "merge-conflict-resolved",
+                                        "id6": item["id6"],
+                                        "attempt": attempt_no,
+                                        "conflicted": list(prep.conflicted_paths),
+                                        "shape": conflict_detail.get("shape"),
+                                    },
+                                )
+                                integrated, integ_reason, integ_kind = (
+                                    integrate_under_repository_lock(
+                                        repo,
+                                        item,
+                                        wt_handle,
+                                        state=state,
+                                        holder_label=integration_lock_holder_label(
+                                            state
+                                        ),
+                                        integrate=_publish,
+                                        progress=integration_lock_progress_reporter(),
+                                        run_checked=globals()["run_checked"],
+                                    )
+                                )
+                            else:
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "merge-conflict-unresolved",
+                                        "id6": item["id6"],
+                                        "attempt": attempt_no,
+                                        "conflicted": list(prep.conflicted_paths),
+                                        "shape": conflict_detail.get("shape"),
+                                        "consummated": consummated,
+                                    },
+                                )
+
+                        # Ensure lane is integrable by existing human path on terminal arm
+                        if not integrated and wt_handle is not None:
+                            if merge_in_progress(wt_handle.path):
+                                _run_git(wt_handle.path, ["merge", "--abort"])
+                                attempt["merge_conflict_lane_aborted"] = True
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "lane-merge-aborted",
+                                        "id6": item["id6"],
+                                        "attempt": attempt_no,
+                                        "detail": "in-progress lane merge aborted before terminal refusal",
+                                    },
+                                )
+                                save_state(run_dir, state)
+
+                        if not integrated:
+                            _record_lane_ending_facts(
+                                attempt,
+                                work_dir,
+                                git_head_fn=git_head,
+                                git_status_fn=git_status,
+                            )
+                            # Defence in depth against future re-nesting: wt_handle is guaranteed
+                            # non-None here by the enclosing guard at lines 34315-34320 (self_finalize
+                            # and work_dir and wt_handle is not None and integration.earned) and is never
+                            # rebound between there and this block. This is not a live-path fix.
+                            if wt_handle is not None:
+                                with contextlib.suppress(DriverError):
+                                    item["integration_changed_files"] = list(
+                                        build_lane_outcome(
+                                            repo, wt_handle, item["id6"]
+                                        ).changed_files
+                                    )
+                            decision = record_integration_refusal(
+                                run_dir=run_dir,
+                                state=state,
+                                item=item,
+                                attempt=attempt,
+                                integ_kind=integ_kind,
+                                integ_reason=integ_reason,
+                                branch=wt_handle.branch if wt_handle else None,
+                                save_state=save_state,
+                                append_jsonl=append_jsonl,
+                            )
+                            fail_status = decision.status
+                            render_record_integration_refusal(
+                                item,
+                                code=fail_status,
+                                reason=integ_reason,
+                                branch=wt_handle.branch if wt_handle else None,
+                            )
+                            lane_branch = wt_handle.branch if wt_handle else "(none)"
                             print(
                                 pal(
-                                    f"    -> {decision.reason}",
-                                    "cyan",
+                                    f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
+                                    f"integrated to main ({fail_status}): {integ_reason}",
+                                    "yellow",
                                 ),
                                 file=sys.stderr,
                             )
-                        disposition = fail_status
+                            if decision.deferred:
+                                print(
+                                    pal(
+                                        f"    -> {decision.reason}",
+                                        "cyan",
+                                    ),
+                                    file=sys.stderr,
+                                )
+                            disposition = fail_status
+                        else:
+                            _record_lane_ending_facts(
+                                attempt,
+                                work_dir,
+                                git_head_fn=git_head,
+                                git_status_fn=git_status,
+                            )
+                            attempt["ending_head"] = git_head(repo)
+                            attempt["ending_status"] = git_status(repo)
+                            if (
+                                wt_handle is not None
+                                and lane_containment.lane_preserved_for_missing_input(
+                                    item
+                                )
+                            ):
+                                missing_input_reason = (
+                                    "a missing-input report was refused; the lane is preserved and "
+                                    "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                                )
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "lane-preserved-for-missing-input",
+                                        "id6": item["id6"],
+                                        "branch": wt_handle.branch,
+                                        "worktree": str(wt_handle.path),
+                                        "reason": missing_input_reason,
+                                    },
+                                )
+                                lane_containment.record_preserved_lane_state(
+                                    item=item,
+                                    handle=wt_handle,
+                                    reason=missing_input_reason,
+                                    reason_codes=("missing-input-refused",),
+                                )
+                                print(
+                                    pal(
+                                        f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
+                                        f"refused (paused per spec R3.2); the lane was not torn down",
+                                        "yellow",
+                                    ),
+                                    file=sys.stderr,
+                                )
+                            elif wt_handle is not None:
+                                decision = lane_containment.teardown_lane_if_classified(
+                                    repo=repo,
+                                    handle=wt_handle,
+                                    run_dir=run_dir,
+                                    item=item,
+                                )
+                                if decision.torn_down:
+                                    wt_handle = None
+                                else:
+                                    lane_containment.record_lane_preserved(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        handle=wt_handle,
+                                        reason=decision.reason,
+                                        reason_codes=decision.reason_codes,
+                                        detail=decision.inventory.as_dict(),
+                                    )
+                                    print(
+                                        pal(
+                                            f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
+                                            f"{decision.reason}",
+                                            "yellow",
+                                        ),
+                                        file=sys.stderr,
+                                    )
+                            disposition = "executed"
+                            attempt["disposition"] = "executed"
+                            attempt["finalized"] = True
+                            attempt["integrated"] = integ_reason
+                            item["status"] = "executed"
+                            try:
+                                item["last_plan_path"] = str(
+                                    resolve_plan_path(
+                                        repo,
+                                        item.get("configured_file", ""),
+                                        item["id6"],
+                                    )
+                                )
+                            except DriverError:
+                                pass
+                            save_state(run_dir, state)
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "ipd-finalized",
+                                    "id6": item["id6"],
+                                    "setid": item["setid"],
+                                    "integration": integ_reason,
+                                },
+                            )
                     else:
                         _record_lane_ending_facts(
                             attempt,
@@ -34927,197 +35092,131 @@ def execute_item_core(
                         )
                         attempt["ending_head"] = git_head(repo)
                         attempt["ending_status"] = git_status(repo)
-                        if (
-                            wt_handle is not None
-                            and lane_containment.lane_preserved_for_missing_input(item)
-                        ):
-                            missing_input_reason = (
-                                "a missing-input report was refused; the lane is preserved and "
-                                "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
-                            )
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "lane-preserved-for-missing-input",
-                                    "id6": item["id6"],
-                                    "branch": wt_handle.branch,
-                                    "worktree": str(wt_handle.path),
-                                    "reason": missing_input_reason,
-                                },
-                            )
-                            lane_containment.record_preserved_lane_state(
-                                item=item,
-                                handle=wt_handle,
-                                reason=missing_input_reason,
-                                reason_codes=("missing-input-refused",),
-                            )
-                            print(
-                                pal(
-                                    f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
-                                    f"refused (paused per spec R3.2); the lane was not torn down",
-                                    "yellow",
-                                ),
-                                file=sys.stderr,
-                            )
-                        elif wt_handle is not None:
-                            decision = lane_containment.teardown_lane_if_classified(
-                                repo=repo,
-                                handle=wt_handle,
-                                run_dir=run_dir,
-                                item=item,
-                            )
-                            if decision.torn_down:
-                                wt_handle = None
-                            else:
-                                lane_containment.record_lane_preserved(
-                                    run_dir=run_dir,
-                                    item=item,
-                                    handle=wt_handle,
-                                    reason=decision.reason,
-                                    reason_codes=decision.reason_codes,
-                                    detail=decision.inventory.as_dict(),
-                                )
-                                print(
-                                    pal(
-                                        f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
-                                        f"{decision.reason}",
-                                        "yellow",
-                                    ),
-                                    file=sys.stderr,
-                                )
-                        disposition = "executed"
-                        attempt["disposition"] = "executed"
-                        attempt["finalized"] = True
-                        attempt["integrated"] = integ_reason
-                        item["status"] = "executed"
-                        try:
-                            item["last_plan_path"] = str(
-                                resolve_plan_path(
-                                    repo, item.get("configured_file", ""), item["id6"]
-                                )
-                            )
-                        except DriverError:
-                            pass
-                        save_state(run_dir, state)
-                        append_jsonl(
-                            run_dir / "events.jsonl",
-                            {
-                                "at": utc_now(),
-                                "event": "ipd-finalized",
-                                "id6": item["id6"],
-                                "setid": item["setid"],
-                                "integration": integ_reason,
-                            },
+                        # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
+                        # happens next. Delegated so this arm and its twin below cannot drift.
+                        disposition = handle_finalize_refusal(
+                            run_dir=run_dir,
+                            state=state,
+                            item=item,
+                            attempt=attempt,
+                            fin_rc=fin_rc,
+                            fin_msg=fin_msg,
+                            disposition=disposition,
+                            host_labels=host_labels,
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
                         )
-                else:
-                    _record_lane_ending_facts(
-                        attempt,
-                        work_dir,
-                        git_head_fn=git_head,
-                        git_status_fn=git_status,
-                    )
-                    attempt["ending_head"] = git_head(repo)
-                    attempt["ending_status"] = git_status(repo)
-                    # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
-                    # happens next. Delegated so this arm and its twin below cannot drift.
-                    disposition = handle_finalize_refusal(
-                        run_dir=run_dir,
-                        state=state,
-                        item=item,
-                        attempt=attempt,
-                        fin_rc=fin_rc,
-                        fin_msg=fin_msg,
-                        disposition=disposition,
-                        host_labels=host_labels,
-                        save_state=save_state,
-                        append_jsonl=append_jsonl,
-                    )
             elif self_finalize and not work_dir and integration.earned:
+                current_plan_for_finalize = None
                 try:
                     current_plan_for_finalize = resolve_plan_path(
                         repo, item.get("configured_file", ""), item["id6"]
                     )
-                except DriverError:
-                    current_plan_for_finalize = plan_path
-                actor = driver_actor(state, labels=host_labels)
-                fin_message = (
-                    f"{host_labels.command} self-finalize: {item['id6']} verified "
-                    f"(set {item['setid']}, attempt {attempt_no})."
-                )
-                record_item_spec_edits(
-                    repo,
-                    current_plan_for_finalize,
-                    item,
-                    reconcile=lambda r, p: compute_scope_reconciliation(
-                        r, p, labels=host_labels
-                    ),
-                )
-                refreeze_stale_receipt_for_correction(
-                    repo,
-                    current_plan_for_finalize,
-                    item,
-                    attempt,
-                    actor=actor,
-                    run_dir=run_dir,
-                )
-                # finlockwait-01 (`y2vzit`) E-03: Non-lane arm finalize (second handle_finalize_refusal
-                # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
-                # (FINALIZE_LOCK_REATTEMPTS) keeping `repo`.
-                fin_rc, fin_msg = finalize_with_contention_retry(
-                    driver_finalize,
-                    repo,
-                    current_plan_for_finalize,
-                    item["id6"],
-                    actor,
-                    fin_message,
-                    attestation=get_run_attestation(run_dir),
-                    item=item,
-                    run_dir=run_dir,
-                    append_jsonl=append_jsonl,
-                )
-                attempt["ending_head"] = git_head(repo)
-                attempt["ending_status"] = git_status(repo)
-                if fin_rc == 0:
-                    perform_carrier_verification(
-                        target_repo=repo,
-                        b_id6=item["id6"],
-                        item=item,
-                        attempt=attempt,
-                        state=state,
-                        run_dir=run_dir,
-                        plan_path=current_plan_for_finalize,
-                        attempt_no=attempt_no,
-                        raw_launcher=raw_launcher,
-                        host_labels=host_labels,
-                        tracker=tracker,
-                        work_dir=work_dir,
-                        session_turn_counts=state.setdefault("session_turn_counts", {}),
+                except DriverError as exc:
+                    fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)
+                    record_refusal(
+                        item,
+                        code=FINALIZE_PLAN_UNRESOLVABLE_CODE,
+                        reason=fin_reason,
+                        remedy=fin_remedy,
                     )
-                    attempt["disposition"] = "executed"
-                    attempt["finalized"] = True
-                    disposition = "executed"
-                    try:
-                        plan_path = resolve_plan_path(
-                            repo, item.get("configured_file", ""), item["id6"]
-                        )
-                    except DriverError:
-                        pass
-                else:
-                    # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
-                    # shared performer so the no-lane path cannot drift from the lane path.
-                    disposition = handle_finalize_refusal(
+                    attempt["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    item["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    # IPD 1fzist: fail-gate disposition chosen from existing vocabulary because
+                    # its recorded non-retryable reason ("lifecycle gate or clean-base gate refused;
+                    # not a host failure to retry without human action") fits a plan path that
+                    # cannot be located, unlike partial which names another plan as future owner.
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {fin_reason}", "yellow"),
+                        file=sys.stderr,
+                    )
+                    print(pal(f"    -> {fin_remedy}", "yellow"), file=sys.stderr)
+                    save_state(run_dir, state)
+
+                if current_plan_for_finalize is not None:
+                    actor = driver_actor(state, labels=host_labels)
+                    fin_message = (
+                        f"{host_labels.command} self-finalize: {item['id6']} verified "
+                        f"(set {item['setid']}, attempt {attempt_no})."
+                    )
+                    record_item_spec_edits(
+                        repo,
+                        current_plan_for_finalize,
+                        item,
+                        reconcile=lambda r, p: compute_scope_reconciliation(
+                            r, p, labels=host_labels
+                        ),
+                    )
+                    refreeze_stale_receipt_for_correction(
+                        repo,
+                        current_plan_for_finalize,
+                        item,
+                        attempt,
+                        actor=actor,
                         run_dir=run_dir,
-                        state=state,
+                    )
+                    # finlockwait-01 (`y2vzit`) E-03: Non-lane arm finalize (second handle_finalize_refusal
+                    # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
+                    # (FINALIZE_LOCK_REATTEMPTS) keeping `repo`.
+                    fin_rc, fin_msg = finalize_with_contention_retry(
+                        driver_finalize,
+                        repo,
+                        current_plan_for_finalize,
+                        item["id6"],
+                        actor,
+                        fin_message,
+                        attestation=get_run_attestation(run_dir),
                         item=item,
-                        attempt=attempt,
-                        fin_rc=fin_rc,
-                        fin_msg=fin_msg,
-                        disposition=disposition,
-                        host_labels=host_labels,
-                        save_state=save_state,
+                        run_dir=run_dir,
                         append_jsonl=append_jsonl,
                     )
+                    attempt["ending_head"] = git_head(repo)
+                    attempt["ending_status"] = git_status(repo)
+                    if fin_rc == 0:
+                        perform_carrier_verification(
+                            target_repo=repo,
+                            b_id6=item["id6"],
+                            item=item,
+                            attempt=attempt,
+                            state=state,
+                            run_dir=run_dir,
+                            plan_path=current_plan_for_finalize,
+                            attempt_no=attempt_no,
+                            raw_launcher=raw_launcher,
+                            host_labels=host_labels,
+                            tracker=tracker,
+                            work_dir=work_dir,
+                            session_turn_counts=state.setdefault(
+                                "session_turn_counts", {}
+                            ),
+                        )
+                        attempt["disposition"] = "executed"
+                        attempt["finalized"] = True
+                        disposition = "executed"
+                        try:
+                            plan_path = resolve_plan_path(
+                                repo, item.get("configured_file", ""), item["id6"]
+                            )
+                        except DriverError:
+                            pass
+                    else:
+                        # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
+                        # shared performer so the no-lane path cannot drift from the lane path.
+                        disposition = handle_finalize_refusal(
+                            run_dir=run_dir,
+                            state=state,
+                            item=item,
+                            attempt=attempt,
+                            fin_rc=fin_rc,
+                            fin_msg=fin_msg,
+                            disposition=disposition,
+                            host_labels=host_labels,
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
+                        )
             if disposition == "executed":
                 if not (item.get("backlog_close") or {}).get("closed"):
                     process_backlog_close(run_dir, state, item)
