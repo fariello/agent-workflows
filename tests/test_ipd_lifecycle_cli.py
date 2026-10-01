@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -2977,6 +2980,283 @@ class AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef(unittest.TestC
         self.assertEqual(res.evidence.get("abandoned_commit"), sha)
         self.assertIsNone(res.evidence.get("retained_ref"))
         self.assertEqual(res.evidence.get("recovery_route"), "fsck-only")
+
+
+class MachineOutputPurityAndFailLoudDetailTests(unittest.TestCase):
+    """IPD wgp0g3: stdout purity on success path and fail-loud drift detail surfacing."""
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run_cli(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        env = dict(os.environ)
+        env.pop("AW_EXECUTION_ROLE", None)
+        env["PYTHONPATH"] = (
+            f"{support.REPO_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(
+                os.pathsep
+            )
+        )
+        return subprocess.run(
+            [sys.executable, "-m", "agent_workflows", *args],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    def _setup_plan(
+        self,
+        filename: str = "20260824-demo-01-abc123-demo.ipd.md",
+        plan_id: str = "abc123",
+    ) -> Path:
+        text = _completed_plan_text(plan_id=plan_id)
+        plan_path = _write_plan(self.root, text, filename)
+        _commit_all(self.root, "init plan")
+        return plan_path
+
+    def _do_inscope_work(self) -> None:
+        (self.root / "agent_workflows" / "demo.py").write_text(
+            "print(1)\n", encoding="utf-8"
+        )
+        (self.root / "tests" / "test_demo.py").write_text(
+            "def test(): pass\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "in-scope work")
+
+    def test_machine_stdout_is_pure_on_success_path(self) -> None:
+        """(a) Machine stdout is pure on success path under --json and --agent."""
+        # 1. Test --json
+        self._setup_plan()
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_json = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(
+            res_json.returncode,
+            0,
+            f"finalize --json failed (rc={res_json.returncode}):\nstdout: {res_json.stdout}\nstderr: {res_json.stderr}",
+        )
+        data_json = json.loads(res_json.stdout)
+        self.assertEqual(data_json.get("schema"), "aw.agent/v1")
+        self.assertEqual(data_json.get("status"), "clean")
+
+        # 2. Test --agent in a clean repo
+        self._tmp.cleanup()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self._setup_plan()
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_agent = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--agent",
+            ]
+        )
+        self.assertEqual(
+            res_agent.returncode,
+            0,
+            f"finalize --agent failed (rc={res_agent.returncode}):\nstdout: {res_agent.stdout}\nstderr: {res_agent.stderr}",
+        )
+        agent_lines = [ln for ln in res_agent.stdout.splitlines() if ln.strip()]
+        self.assertTrue(len(agent_lines) > 0, "agent stdout was empty")
+        parsed_records = []
+        for ln in agent_lines:
+            parsed_records.append(json.loads(ln))
+        self.assertTrue(
+            any(r.get("schema") == "aw.agent/v1" for r in parsed_records),
+            "payload record missing from --agent stdout",
+        )
+
+    def test_refusal_path_and_begin_do_not_regress(self) -> None:
+        """(b) The refusal path and aw ipd begin do not regress under --json and --agent."""
+        self._setup_plan()
+        # begin --json
+        res_b_json = self._run_cli(
+            ["ipd", "begin", "abc123", "--actor", "opencode/test", "--json"]
+        )
+        self.assertEqual(res_b_json.returncode, 0, res_b_json.stderr)
+        data_b_json = json.loads(res_b_json.stdout)
+        self.assertEqual(data_b_json.get("schema"), "aw.agent/v1")
+
+        # begin with unknown plan -> refusal under --json
+        res_b_bad = self._run_cli(
+            ["ipd", "begin", "nosuchplan", "--actor", "opencode/test", "--json"]
+        )
+        self.assertEqual(res_b_bad.returncode, LC.EXIT_CANNOT_RUN)
+        data_b_bad = json.loads(res_b_bad.stdout)
+        self.assertEqual(data_b_bad.get("schema"), "aw.agent/v1")
+
+        # finalize refusal path (e.g. without begin receipt) under --json
+        res_fin_refuse_json = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "m",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(res_fin_refuse_json.returncode, LC.EXIT_FINDINGS)
+        data_fin_refuse = json.loads(res_fin_refuse_json.stdout)
+        self.assertEqual(data_fin_refuse.get("schema"), "aw.agent/v1")
+
+        # finalize refusal path under --agent
+        res_fin_refuse_agent = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "m",
+                "--apply",
+                "--agent",
+            ]
+        )
+        self.assertEqual(res_fin_refuse_agent.returncode, LC.EXIT_FINDINGS)
+        agent_lines = [
+            ln for ln in res_fin_refuse_agent.stdout.splitlines() if ln.strip()
+        ]
+        self.assertTrue(len(agent_lines) > 0)
+        parsed_refuse = [json.loads(ln) for ln in agent_lines]
+        self.assertTrue(any(r.get("schema") == "aw.agent/v1" for r in parsed_refuse))
+
+    def test_fail_loud_arm_refuses_on_genuine_non_convergence(self) -> None:
+        """(c) Genuine non-convergence (name-metadata-mismatch) refuses as COMMITTED-INCOMPLETE."""
+        self._setup_plan(
+            filename="20260824-demo-01-zzzz99-demo.ipd.md", plan_id="abc123"
+        )
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_f = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(res_f.returncode, LC.EXIT_FINDINGS)
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(journal)
+        self.assertEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
+        lifecycle_commit = journal.get("lifecycle_commit")
+        self.assertIsNotNone(lifecycle_commit)
+
+        # Lifecycle commit is NOT rolled back
+        proc = subprocess.run(
+            ["git", "cat-file", "-e", lifecycle_commit],
+            cwd=self.root,
+            capture_output=True,
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"lifecycle commit {lifecycle_commit} was rolled back or pruned",
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(head, lifecycle_commit)
+
+    def test_fail_loud_detail_reaches_payload(self) -> None:
+        """(d) Drift detail (name-metadata-mismatch) reaches the JSON payload summary/diagnostics."""
+        self._setup_plan(
+            filename="20260824-demo-01-zzzz99-demo.ipd.md", plan_id="abc123"
+        )
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_f = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(res_f.returncode, LC.EXIT_FINDINGS)
+
+        # Recover payload
+        stdout = res_f.stdout.strip()
+        idx = stdout.find("{")
+        self.assertNotEqual(idx, -1, f"no JSON object found in stdout: {stdout}")
+        data = json.loads(stdout[idx:])
+
+        summary = data.get("summary", "")
+        diag_details = [d.get("detail", "") for d in data.get("diagnostics", [])]
+
+        # The literal rule name 'name-metadata-mismatch' must reach summary or diagnostic detail
+        has_rule = "name-metadata-mismatch" in summary or any(
+            "name-metadata-mismatch" in dt for dt in diag_details
+        )
+        self.assertTrue(
+            has_rule,
+            f"'name-metadata-mismatch' missing from summary and diagnostic details: summary={summary!r}, diag_details={diag_details!r}",
+        )
+
+        # Original sentence must still be present as prefix/substring (additive)
+        orig_sentence = (
+            "owned plans index refresh did not converge (aw index plans --check nonzero); "
+            "finalize fails closed rather than committing a stale index."
+        )
+        self.assertIn(orig_sentence, summary)
 
 
 if __name__ == "__main__":
