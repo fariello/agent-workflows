@@ -23,8 +23,8 @@
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-701..PR-707 all fixed
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH, fixed), PR-702 (MEDIUM, fixed), PR-703 (MEDIUM, fixed), PR-704 (MEDIUM, fixed), PR-705 (LOW, fixed), PR-706 (LOW, fixed), PR-707 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-denypush-01-x2dwu5-record-the-measured-landlock-feasibility-and-amend-spec-25kz.review.md`. I RE-RAN ALL THREE PROBES E-01 DEMANDS rather than reading research `uq4y6q`, since the plan's whole deliverable is a measurement: this host reports `abi: 4`, probe (a) gives `allowed connect ok: True` with `denied connect refused: True PermissionError(13, 'Permission denied')` and `RESULT: ENFORCED`, probe (b) gives `fs denied write: EPERM -> ENFORCED` and `net 443: EPERM -> ENFORCED` from ONE ruleset, and probe (c) confirms `net_port rule struct size: 16 (allowed_access u64 + port u64; NO address field)`. So F-1, F-2 and F-3 hold and the conclusion is correct. THE ONE SERIOUS FINDING was a security overclaim this plan would have written into an APPROVED spec: F-5 and E-03 said the credential half of 5.2's requirement "is ALREADY built and shipped", and it is not, in three measured ways - `runner_shared.pinned_child_env` is `os.environ.copy()` and the launcher pops only four internal keys, so NO environment-carried credential (`GH_TOKEN`, a forwarded `SSH_AUTH_SOCK`) is withheld even in hardened mode; `_apply_execution_profile` returns `argv` unchanged outside the opt-in Linux-only `hardened` profile; and `_hardened_credential_paths` is a fixed existing-paths enumeration. Since the requirement is about PUSH and an environment token is a push-capable credential, the unqualified sentence would have asserted a boundary the code does not provide, in the same spec section whose history is `RUN-NO-PUSH` retired and `supports_deny_push` deleted for exactly that shape. Now bounded in E-03, re-measured in F-5, failed by V-03, and OQ-01 re-framed because its case FOR splitting rested on the false premise. Also fixed: E-01's address-blindness probe required internet egress, which I proved unnecessary by re-measuring it entirely on loopback (`127.0.0.1:37037 CONNECTED`, `127.0.0.2:37037 CONNECTED` on one allowed port, `127.0.0.3:38573 EPERM`), so E-01 now requires that shape; V-04 named `aw research find --id uq4y6q` as consumed-by evidence when that verb prints only `id6/status/path/summary` in every mode including `--json` and `--agent` (measured), so it could never have contained the evidence; V-02's `count('out of scope')` could not discriminate, since the edit deliberately keeps container isolation out of scope; the gate carried no scope fence and no transition-ownership sentence; V-03's grep had no expected count although `grep -c 'deny push-capable'` returns 2, the second hit being Section 6.1 limit 4 which Order 03 owns.
-- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `oq05nc`. Carries the measured Landlock findings (`uq4y6q`) into the spec.
+- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -40,32 +40,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the measurement on the executing host
 
-- [ ] E-01 Re-run the three Landlock probes from research `uq4y6q` on the executing host and retain their verbatim output: (a) a `CONNECT_TCP` ruleset with one `LANDLOCK_RULE_NET_PORT` rule allowing a loopback listener, proving the allowed connect succeeds AND a connect to a DIFFERENT (unallowed) port is refused; (b) a combined ruleset carrying both `handled_access_fs` and `handled_access_net`, proving one `restrict_self` enforces both classes; (c) address-blindness, proving a port rule admits two DISTINCT ADDRESSES on the same allowed port while refusing a different port. Do NOT add these scripts to the tree (research `uq4y6q` records why a throwaway measurement script that nothing calls would rot).
+- [x] E-01 Re-run the three Landlock probes from research `uq4y6q` on the executing host and retain their verbatim output: (a) a `CONNECT_TCP` ruleset with one `LANDLOCK_RULE_NET_PORT` rule allowing a loopback listener, proving the allowed connect succeeds AND a connect to a DIFFERENT (unallowed) port is refused; (b) a combined ruleset carrying both `handled_access_fs` and `handled_access_net`, proving one `restrict_self` enforces both classes; (c) address-blindness, proving a port rule admits two DISTINCT ADDRESSES on the same allowed port while refusing a different port. Do NOT add these scripts to the tree (research `uq4y6q` records why a throwaway measurement script that nothing calls would rot).
   - USE LOOPBACK, NOT PUBLIC HOSTS, and this is a correctness requirement rather than a preference. Research `uq4y6q` measured (a) and (c) against `github.com:443`, `1.1.1.1:443` and `140.82.113.4:443`; reproducing that shape makes the result depend on EXTERNAL REACHABILITY and DNS, so on an offline or egress-filtered host the decisive address-blind finding is simply unobtainable, and an executor under time pressure can misread an unreachable host as a denial. Both facts are measurable entirely on loopback: bind two listeners on DISTINCT addresses (`127.0.0.1` and `127.0.0.2`) at the SAME port, allow only that port, and show both connect while a third listener on another port is refused. DEMONSTRATED AT REVIEW, so this is not a hypothesis: that exact construction yields `127.0.0.1:37037 CONNECTED`, `127.0.0.2:37037 CONNECTED`, `127.0.0.3:38573 EPERM`, which is address-blindness proven with no egress at all. Naming a public host in the pasted output is also the realistic path by which this plan's evidence acquires an unnecessary external dependency the reader cannot re-run.
   - NAME THE CONSTANT, NEVER THE BIT. Write `LANDLOCK_ACCESS_NET_CONNECT_TCP` and derive its value; do not hand-write a numeric literal. The orchestrator `l4vw9o` records the measured reason (its reviewer set the bit to `1 << 0`, which is `BIND_TCP`, and got a total denial that READ LIKE enforcement because the ruleset handled a right the test never exercised). A one-sided read of that run would have reported a working boundary that did not exist.
   - Depends on: none
   - Expected outcome: Three captured outputs. Each of (a) and (c) must show BOTH sides in one run, since a run in which everything is denied is indistinguishable from an over-tight jail and proves nothing. If the executing host reports Landlock ABI < 4, (a) and (b) legitimately report unsupported; record that verbatim and treat it as the measurement, since a host-specific result is the expected shape here and the spec amendment in E-03 must then say the capability was unavailable on the measuring host rather than asserting a universal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: amend the two records that currently assert or disclaim this
 
-- [ ] E-02 Amend `host_sandbox_profile`'s module docstring, whose published-guarantees ("WHAT THIS DOES NOT DO") paragraph currently ends with the sentence "Network scoping and container isolation are out of scope here." (measured at review: that exact string occurs ONCE in the module and nowhere else in `agent_workflows/`, `tests/` or `docs/`, so it is a safe anchor to replace rather than a phrase repeated elsewhere). Replace the network half of that claim with the measured position: network scoping is now MEASURED rather than out of scope, `handled_access_net` is already the second member of the ruleset attr `landlock_bootstrap_source` packs (it passes a literal `0` today), and the reason no network rule is added is the port-granularity limit, not absence of a mechanism. Keep container isolation out of scope, which is unchanged and still true.
+- [x] E-02 Amend `host_sandbox_profile`'s module docstring, whose published-guarantees ("WHAT THIS DOES NOT DO") paragraph currently ends with the sentence "Network scoping and container isolation are out of scope here." (measured at review: that exact string occurs ONCE in the module and nowhere else in `agent_workflows/`, `tests/` or `docs/`, so it is a safe anchor to replace rather than a phrase repeated elsewhere). Replace the network half of that claim with the measured position: network scoping is now MEASURED rather than out of scope, `handled_access_net` is already the second member of the ruleset attr `landlock_bootstrap_source` packs (it passes a literal `0` today), and the reason no network rule is added is the port-granularity limit, not absence of a mechanism. Keep container isolation out of scope, which is unchanged and still true.
   - STATE THE LIMIT IN THE SAME SENTENCE AS THE CAPABILITY, never in a following one. This paragraph is the module's "WHAT THIS DOES NOT DO" contract, so a reader who stops mid-paragraph must not come away believing network denial is available here. The replacement must not read as "network denial works" with the caveat deferred; it reads as "network denial is measured and CANNOT separate a git remote from the model API on one port, so none is applied".
   - PRESERVE THE FIVE TOKENS A LIVE TEST READS. `tests/test_host_sandbox_profile.py::test_module_publishes_its_guarantees` lowercases `hsp.__doc__` and asserts it contains `read-only`, `driver`, `linux`, `git common` and `void`. None sits in the sentence being replaced, so the edit should be safe by construction; do not let a reflow of the paragraph drop one. V-02 is what proves this rather than assuming it.
   - Depends on: E-01
   - Expected outcome: The docstring names the measured limit and stops implying nobody looked. No code outside the docstring is touched by this item, so no test behavior changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Amend spec `25kzda` 5.2 in place. The bullet "deny push-capable network routes and withhold remote credentials" STAYS (plan `01reg8` deliberately preserved it as this work's landing site, and its own deferred row says narrowing it "would delete that work's landing site"). Add prose immediately after the existing paragraph that already explains why the requirement outlived 4.2's `RUN-NO-PUSH`, recording: that the requirement is now MEASURED and not merely aspirational; that kernel-level TCP denial is real at Landlock ABI 4 with two-sided proof; that the mechanism is port-granular with no address field, so it cannot separate a git remote from the model API on 443; that the remaining gap is host-granular filtering; and the CREDENTIAL half in the PRECISELY BOUNDED form F-5 states, which is the one claim in this amendment that could itself become an overclaim. The credential wording must say all three of: (i) in hardened mode `oc_runipd._hardened_credential_paths` makes credential FILES inaccessible (`~/.ssh`, `~/.netrc`, `~/.git-credentials`, `~/.config/gh` and peers), wired through `build_sandbox_plan`'s `credential_paths`; (ii) NO credential carried in the ENVIRONMENT is withheld, because `runner_shared.pinned_child_env` copies `os.environ` wholesale and neither launcher clears it, so a `GH_TOKEN`/`GITHUB_TOKEN` or a forwarded `SSH_AUTH_SOCK` reaches the worker regardless; and (iii) hardened mode is OPT-IN and Linux-only, so the default profile withholds nothing. State explicitly that no host reports this capability today and the answer remains fail-closed.
+- [x] E-03 Amend spec `25kzda` 5.2 in place. The bullet "deny push-capable network routes and withhold remote credentials" STAYS (plan `01reg8` deliberately preserved it as this work's landing site, and its own deferred row says narrowing it "would delete that work's landing site"). Add prose immediately after the existing paragraph that already explains why the requirement outlived 4.2's `RUN-NO-PUSH`, recording: that the requirement is now MEASURED and not merely aspirational; that kernel-level TCP denial is real at Landlock ABI 4 with two-sided proof; that the mechanism is port-granular with no address field, so it cannot separate a git remote from the model API on 443; that the remaining gap is host-granular filtering; and the CREDENTIAL half in the PRECISELY BOUNDED form F-5 states, which is the one claim in this amendment that could itself become an overclaim. The credential wording must say all three of: (i) in hardened mode `oc_runipd._hardened_credential_paths` makes credential FILES inaccessible (`~/.ssh`, `~/.netrc`, `~/.git-credentials`, `~/.config/gh` and peers), wired through `build_sandbox_plan`'s `credential_paths`; (ii) NO credential carried in the ENVIRONMENT is withheld, because `runner_shared.pinned_child_env` copies `os.environ` wholesale and neither launcher clears it, so a `GH_TOKEN`/`GITHUB_TOKEN` or a forwarded `SSH_AUTH_SOCK` reaches the worker regardless; and (iii) hardened mode is OPT-IN and Linux-only, so the default profile withholds nothing. State explicitly that no host reports this capability today and the answer remains fail-closed.
   - Depends on: E-01
   - Expected outcome: 5.2 records the measurement and a credential claim bounded to file-based credentials under an opt-in profile. The requirement bullet, the 5.2 action table, and the 5.6 packet example's `deny_push` string are all UNCHANGED, so nothing that depends on them moves. DO NOT write an unqualified "the credential half is shipped": F-5 measures why that sentence would be false, and writing a fail-OPEN claim into the contract of record is the exact defect this Set exists to refuse.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Append a `## Workflow history` record to spec `25kzda` with `aw specs note` naming this plan and the measurement, and set research `uq4y6q`'s outcome and consumed-by provenance with `aw research set-outcome <id> --to adopted --consumed-by x2dwu5 --apply` so the findings doc is linked to the plan that consumed it (the verb is PREVIEW-ONLY without `--apply`, and it refreshes the index itself). Then run `aw research index` and `aw research index --check`.
+- [x] E-04 Append a `## Workflow history` record to spec `25kzda` with `aw specs note` naming this plan and the measurement, and set research `uq4y6q`'s outcome and consumed-by provenance with `aw research set-outcome <id> --to adopted --consumed-by x2dwu5 --apply` so the findings doc is linked to the plan that consumed it (the verb is PREVIEW-ONLY without `--apply`, and it refreshes the index itself). Then run `aw research index` and `aw research index --check`.
   - `--to adopted` REQUIRES a non-empty `consumed-by` and the checker enforces it: `research_index` reports `outcome: adopted requires a non-empty consumed-by`, and a `consumed-by` id6 resolving to no plan/spec/backlog is a `dangling-consumed-by` finding. So both flags must be passed in the SAME call, and `x2dwu5` resolves only once this plan exists in the tree, which it does.
   - Depends on: E-03
   - Expected outcome: The spec's history shows the amendment with its date and this plan's id6; `uq4y6q`'s front matter carries `outcome: adopted` and `consumed-by: [x2dwu5]`; `aw research index --check` reports no drift.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -214,25 +214,173 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The three probe outputs pasted verbatim, each showing the command's own printed result lines. Probe (a) must show BOTH sides (an allowed connect succeeding AND a denied connect refused), because a one-sided result cannot distinguish an enforcing jail from a permissive one, which is the standard `_denial_checker_source` already sets. Probe (c) must show two DISTINCT ADDRESSES connecting on the SAME allowed port AND a third on a different port refused, which is what proves address-blindness rather than merely asserting it. Confirm in this evidence that the probes used LOOPBACK addresses and that the pasted output names no public host or external IP, per E-01: an evidence block whose decisive line depends on internet egress is not reproducible by the next reader. A host reporting ABI < 4 must paste that verbatim instead, and V-03 must then reflect the unavailable result rather than a universal claim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three probes were executed entirely on loopback addresses on the host (reporting Landlock ABI 4). No public host or external IP was named or contacted.
 
-- [ ] V-02 validates E-02
+Probe (a) verbatim output (two-sided: allowed connect succeeds, unallowed connect refused with PermissionError):
+```text
+abi: 4
+allowed loopback port: 44825
+create_ruleset fd: 7 errno: 0
+add_rule(NET_PORT) rc: 0 errno: 0
+restrict_self rc: 0 errno: 0
+allowed connect ok: True
+denied connect refused: True PermissionError(13, 'Permission denied')
+RESULT: ENFORCED
+```
+
+Probe (b) verbatim output (combined ruleset enforcing both filesystem and network rights under one restrict_self):
+```text
+combined create_ruleset fd: 5 errno: 0
+add PATH_BENEATH rc: 0
+restrict rc: 0
+fs allowed write: OK
+fs denied write: EPERM -> ENFORCED
+net unallowed: EPERM -> ENFORCED
+```
+
+Probe (c) verbatim output (address-blindness: allowed port admits connections to both 127.0.0.1 and 127.0.0.2 on the same port, while unallowed port on 127.0.0.3 is refused):
+```text
+add_rule rc: 0
+net_port rule struct size: 16 (allowed_access u64 + port u64; NO address field)
+restrict rc: 0
+127.0.0.1:34593 CONNECTED
+127.0.0.2:34593 CONNECTED
+127.0.0.3:42525 EPERM -> KERNEL DENIED
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff` of `agent_workflows/host_sandbox_profile.py` showing only docstring lines changed, plus the pasted `python3 -m pytest` summary line showing the suite still passes. Additionally paste a command proving the replaced sentence is gone AND that the survivors a live test reads are intact, for example `python3 -c "import agent_workflows.host_sandbox_profile as m; d=m.__doc__.lower(); print('stale:', 'network scoping and container isolation are out of scope' in d); print({t: t in d for t in ('read-only','driver','linux','git common','void')})"`. The first must print False and every token True; that second half is the real check, because `test_module_publishes_its_guarantees` asserts exactly those five tokens and a paragraph reflow is how one would silently vanish. DO NOT use a bare `count('out of scope')` as the evidence: the replacement KEEPS container isolation out of scope, so a nonzero count is the CORRECT result and the number alone distinguishes nothing. The diff must show NO change to any `def`, signature, or constant.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/host_sandbox_profile.py`:
+```diff
+diff --git a/agent_workflows/host_sandbox_profile.py b/agent_workflows/host_sandbox_profile.py
+index d1f10c373..f2e9a4e1b 100644
+--- a/agent_workflows/host_sandbox_profile.py
++++ b/agent_workflows/host_sandbox_profile.py
+@@ -33,7 +33,12 @@ worker (x03wgn Section 1: "A same-user process with arbitrary shell access canno
+ cryptographically or filesystem-enforced from prompts, hooks, environment variables, or
+ Python role checks alone."). This module is the OPT-IN complement for when "the driver is
+ the only writer" must be literal. Hardened mode is NOT the default (Phase 6.4). Network
+-scoping and container isolation are out of scope here.
++denial is measured and cannot separate a git remote from the model API on one port, so
++none is applied (network scoping is now measured rather than out of scope, and
++`handled_access_net` is already the second member of the ruleset attr
++`landlock_bootstrap_source` packs passing literal 0 today, so the reason no network rule
++is added is this port-granularity limit, not absence of a mechanism); container isolation
++remains out of scope here.
 
-- [ ] V-03 validates E-03
+ PLATFORM AND PROBE THE GUARANTEE WAS VERIFIED ON. Linux ONLY. The mechanism is a ladder,
+ and every rung is decided by an EXECUTED probe, never by inspection:
+```
+The diff shows changes strictly limited to docstring lines in `agent_workflows/host_sandbox_profile.py` with no changes to any `def`, signature, or constant.
+
+Verification of docstring tokens:
+```text
+$ python3 -c "import agent_workflows.host_sandbox_profile as m; d=m.__doc__.lower(); print('stale:', 'network scoping and container isolation are out of scope' in d); print({t: t in d for t in ('read-only','driver','linux','git common','void')})"
+stale: False
+{'read-only': True, 'driver': True, 'linux': True, 'git common': True, 'void': True}
+```
+
+Full bare pytest summary line:
+```text
+4245 passed, 2 skipped, 3 warnings in 231.14s (0:03:51)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `git diff` of the spec showing the added prose, and a grep proving the preserved artifacts are BYTE-UNCHANGED. RUN THE GREP AND STATE THE COUNTS, do not assert them: `grep -c 'deny push-capable' <spec>` must report **2** (measured at review), because the spec asserts push denial at TWO sites and only 5.2's bullet is this plan's; the SECOND hit is Section 6.1 limit 4 ("No-push and hook guarantees require control of execution", whose body reads "deny push-capable network/credentials"), which this plan MUST leave unchanged and which is owned by Order 03's audit per the orchestrator's Cross-IPD row. An audit-style report of one hit means the grep was wrong, not that the site is absent. Also grep `'deny push-capable network routes and withhold remote credentials'` (must be 1) and `'"deny_push"'` (must be 1, the 5.6 packet example), and confirm the 5.2 action-table row naming no-push enforcement is unchanged. The added prose must state all four of: ABI-4 denial is real, it is port-granular and address-blind, the credential half in its BOUNDED form (files inaccessible in hardened mode; NO environment-carried credential withheld; opt-in and Linux-only), and that no host reports the capability today (fail-closed). A diff that removes or narrows the bullet FAILS this item, since `01reg8` preserved it deliberately. A diff asserting an UNQUALIFIED "the credential half is shipped" ALSO FAILS, for the reason F-5 measures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+```diff
+diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+index b42cea905..e365ff6c7 100644
+--- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
++++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+@@ -1167,6 +1167,8 @@ OpenCode and Antigravity are not assumed to have the same session, interception,
 
-- [ ] V-04 validates E-04
+ THE PUSH-DENIAL ENTRY BELOW IS A REQUIREMENT ON A HOST, AND IT SURVIVED THE RETIREMENT OF SECTION 4.2's `RUN-NO-PUSH` CODE DELIBERATELY. The two are different artifacts and the distinction decides whether a reader is looking at a live rule or a withdrawn one: 4.2 was a REPORTING vocabulary that claimed preflight had PROVED push denial, and it was retired on 2026-09-08 because nothing proves it; this list asks whether a host CAN enforce it, and the honest answer for every host today is NO. The requirement asks what a host can enforce, no host can, and the list records the gap so a future probed capability has somewhere to land; which is why the requirement is kept rather than deleted. Removing the now-unenforced `supports_deny_push` flag and the verdicts nothing consumes was executed by plan `01reg8` (backlog `aagh7v`).
+
++MEASURED FEASIBILITY AND BOUNDS (plan `x2dwu5`): This push-denial requirement is now measured rather than merely aspirational. On Linux, kernel-level TCP denial is real at Landlock ABI 4 with two-sided proof (allowing an explicit loopback port while refusing connects to unallowed ports). However, Landlock network rules (`LANDLOCK_RULE_NET_PORT`) are strictly port-granular with no address field, so kernel port filtering alone cannot separate a git remote from the model API on TCP 443 without either permitting git pushes or severing model access. The remaining architectural gap for network push denial is host-granular filtering (such as a network namespace combined with a filtering proxy). On the credential half, protection is strictly bounded rather than complete: (i) in hardened mode, `oc_runipd._hardened_credential_paths` makes credential files inaccessible (`~/.ssh`, `~/.netrc`, `~/.git-credentials`, `~/.config/gh` and peers) via `build_sandbox_plan`'s `credential_paths`; (ii) no credential carried in the environment is withheld, because `runner_shared.pinned_child_env` copies `os.environ` wholesale and neither launcher clears it, allowing environment-carried tokens such as `GH_TOKEN`/`GITHUB_TOKEN` or a forwarded `SSH_AUTH_SOCK` to reach the worker regardless; and (iii) hardened mode is opt-in and Linux-only, so the default profile withholds nothing. Consequently, no host reports this capability today, and the descriptor's answer remains fail-closed.
++
+ At minimum the descriptor answers, independently, whether the host can:
+```
+
+Grep counts on the spec verifying preserved artifacts:
+```text
+$ python3 -c "
+spec = '.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md'
+with open(spec) as f:
+    text = f.read()
+print('deny push-capable count:', text.count('deny push-capable'))
+print('exact bullet count:', text.count('deny push-capable network routes and withhold remote credentials'))
+print('deny_push packet count:', text.count('\"deny_push\"'))
+"
+deny push-capable count: 2
+exact bullet count: 1
+deny_push packet count: 1
+```
+The Section 5.2 action-table row naming no-push enforcement is unchanged:
+`| Plan/spec review or IPD authoring | Isolated worktree, path policy, argv capture, no-push enforcement, commit gateway, hook-preserving commit, timeout/cancel, fresh verifier |`
+The requirement bullet `- deny push-capable network routes and withhold remote credentials;` is preserved verbatim.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Pasted output of `aw research index --check` reporting no drift, and the tail of the spec's `## Workflow history` showing the new dated record naming `x2dwu5`. FOR THE CONSUMED-BY LINK, paste the doc's own front-matter lines (`outcome:` and `consumed-by:`) or the doc's entry from `.aw/records/research/INDEX.json`, NOT `aw research find --id uq4y6q`: measured at review, that verb prints exactly `id6 <TAB> status <TAB> path <TAB> summary` (`research_index.run_find`) and carries NO outcome or consumed-by column in any mode including `--json`/`--agent`, so it CANNOT evidence this item and citing it would be an unfalsifiable check. Also paste `aw check` output showing no new violations and `aw sanitize --agent` exiting zero, since V-01's pasted probe output is the realistic leak vector in this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Output of `aw research index --check` (exited 0, reporting no drift for uq4y6q):
+```text
+$ aw research index --check
+EXIT: 0
+```
+
+Spec `25kzda` workflow history tail:
+```markdown
+- 2026-10-01 note (aw specs): AMENDED (plan x2dwu5, backlog oq05nc): Section 5.2 amended in place to record measured Landlock ABI 4 TCP network denial feasibility (proven two-sided on loopback) and its port-granularity limit (no address field, cannot separate git push from model API on TCP 443), and to record the bounded credential withholding status (files inaccessible under opt-in hardened mode, no environment-carried credentials withheld; fail-closed descriptor answer maintained)
+```
+
+Consumed-by provenance from `20260929-denypush-00-uq4y6q-landlock-network-push-denial-feasibility.findings.md` front-matter:
+```yaml
+outcome: adopted
+summary: Measured feasibility of OS-level push denial via Landlock ABI4 network rules: two-sided denial proven, but rules are port-only with no address field
+consumed-by: [x2dwu5]
+```
+
+And entry from `.aw/records/research/INDEX.json`:
+```json
+{
+  "consumed_by": [
+    "x2dwu5"
+  ],
+  "created": "20260929",
+  "date": "20260929",
+  "has_body": true,
+  "id6": "uq4y6q",
+  "kind": "findings",
+  "model": "",
+  "order": "00",
+  "outcome": "adopted",
+  "path": "20260929-denypush-00-uq4y6q-landlock-network-push-denial-feasibility.findings.md",
+  "priority": "low",
+  "set_id": "denypush",
+  "status": "todo",
+  "summary": "Measured feasibility of OS-level push denial via Landlock ABI4 network rules: two-sided denial proven, but rules are port-only with no address field",
+  "topic": [
+    "sandbox",
+    "security",
+    "landlock",
+    "push-denial"
+  ]
+}
+```
+
+`aw sanitize --agent` output (exited 0 with no leaks):
+```text
+$ aw sanitize --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+
+`aw check` confirmed no new release-gates or blocker violations introduced by this change.
+  - Result: pass
 
 ## Approval and execution gate
 
