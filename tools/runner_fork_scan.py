@@ -254,13 +254,48 @@ def free_names(node: ast.stmt) -> set[str]:
 
 
 def is_pure_delegation(node: ast.stmt) -> bool:
-    """The SANCTIONED wrapper shape: one statement calling a single `runner_shared.X(...)`.
+    """The SANCTIONED wrapper shapes: one-statement function call or constructor-only class delegation.
 
-    Deliberately the same predicate the four `test_rununify_*` pin files carry, so this scanner's
-    "real fork" count and those guards' tables cannot disagree about what a wrapper is. A wrapper is
-    NOT duplication: the maintainer's `818uru` OQ-02 ruling makes it the target form, so counting one
-    as a fork would overstate the remaining work.
+    Delegation has TWO sanctioned shapes:
+      1. A one-statement call for a function calling a single `runner_shared.X(...)`.
+      2. CONSTRUCTOR-ONLY inheritance for a class: an `ast.ClassDef` at least one of whose bases
+         is `runner_shared.<the class's own name>`, and whose own non-docstring body consists only of
+         `FunctionDef`/`AsyncFunctionDef` members whose names are a subset of `{"__init__"}`.
+
+    HALF TWO (requiring constructor-only members and refusing any class-level assignment or logic override)
+    is what stops an override or divergent class from being read as a delegation.
+
+    This fixes the measured false negative where delegating subclasses overriding only `__init__`
+    to inject host callables were reported as three-way forks because `ast.ClassDef` was rejected outright.
+    A wrapper is NOT duplication: the maintainer's `818uru` OQ-02 ruling makes it the target form, so
+    counting one as a fork would overstate the remaining work.
     """
+    if isinstance(node, ast.ClassDef):
+        has_shared_base = any(
+            isinstance(base, ast.Attribute)
+            and isinstance(base.value, ast.Name)
+            and base.value.id == SHARED
+            and base.attr == node.name
+            for base in node.bases
+        )
+        if not has_shared_base:
+            return False
+        body = [
+            stmt
+            for stmt in node.body
+            if not (
+                isinstance(stmt, ast.Expr)
+                and isinstance(stmt.value, ast.Constant)
+                and isinstance(stmt.value.value, str)
+            )
+        ]
+        for stmt in body:
+            if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return False
+            if stmt.name != "__init__":
+                return False
+        return True
+
     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
         return False
     body = [

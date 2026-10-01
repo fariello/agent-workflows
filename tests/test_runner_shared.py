@@ -31,6 +31,7 @@ STATUS OF THE ORIGINAL THREE STRUCTURAL ASSERTIONS:
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import copy
 import inspect
@@ -38,12 +39,16 @@ import io
 import json
 import pathlib
 import re
+import sys
 import tempfile
 import unittest
 from typing import Any
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from support import REPO_ROOT, load_module  # noqa: E402
 
 BOTH = ("oc_runipd", "agy_runipd")
 _MODULES = {
@@ -4931,6 +4936,85 @@ class LegacySpecEditsStateTests(unittest.TestCase):
             self.assertIn("leg002", rendered_refused)
 
 
+def _parse_module_tree(mod_or_path: Any) -> ast.Module:
+    """Parse an AST module tree from a module object or file path."""
+    if isinstance(mod_or_path, (str, pathlib.Path)):
+        return ast.parse(pathlib.Path(mod_or_path).read_text(encoding="utf-8"))
+    if hasattr(mod_or_path, "__file__") and mod_or_path.__file__:
+        return ast.parse(pathlib.Path(mod_or_path.__file__).read_text(encoding="utf-8"))
+    raise ValueError(f"Cannot parse AST from {mod_or_path!r}")
+
+
+def _top_level_defs(tree: ast.Module) -> dict[str, ast.stmt]:
+    """Extract top-level FunctionDef, AsyncFunctionDef, and ClassDef statements."""
+    defs: dict[str, ast.stmt] = {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            defs[node.name] = node
+    return defs
+
+
+def find_dead_codefined_symbols(
+    shared_mod: Any,
+    oc_mod: Any,
+    agy_mod: Any,
+    *,
+    is_pure_delegation_fn: Any = None,
+) -> tuple[list[str], dict[str, dict[str, bool]]]:
+    """Sweep three modules for dead def-or-class symbols in shared that neither host reaches.
+
+    A symbol fails if ALL THREE conditions hold:
+      1. neither_resolves: neither host's attribute resolves (getattr identity) to the shared object
+      2. neither_delegates: neither host's definition is a sanctioned delegation
+      3. has_shared: a definition exists in the shared module
+
+    Returns:
+      (co_defined_symbols, failures_dict)
+    """
+    if is_pure_delegation_fn is None:
+        scanner = load_module(
+            "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+        )
+        is_pure_delegation_fn = scanner.is_pure_delegation
+
+    shared_tree = _parse_module_tree(shared_mod)
+    oc_tree = _parse_module_tree(oc_mod)
+    agy_tree = _parse_module_tree(agy_mod)
+
+    shared_defs = _top_level_defs(shared_tree)
+    oc_defs = _top_level_defs(oc_tree)
+    agy_defs = _top_level_defs(agy_tree)
+
+    common_names = sorted(
+        set(shared_defs.keys()) & set(oc_defs.keys()) & set(agy_defs.keys())
+    )
+    failures: dict[str, dict[str, bool]] = {}
+
+    for name in common_names:
+        shared_obj = getattr(shared_mod, name, None)
+        oc_obj = getattr(oc_mod, name, None)
+        agy_obj = getattr(agy_mod, name, None)
+
+        oc_resolves = oc_obj is shared_obj
+        agy_resolves = agy_obj is shared_obj
+        neither_resolves = not oc_resolves and not agy_resolves
+
+        oc_delegates = is_pure_delegation_fn(oc_defs[name])
+        agy_delegates = is_pure_delegation_fn(agy_defs[name])
+        neither_delegates = not oc_delegates and not agy_delegates
+
+        has_shared = name in shared_defs and shared_obj is not None
+
+        if neither_resolves and neither_delegates and has_shared:
+            failures[name] = {
+                "neither_resolves": neither_resolves,
+                "neither_delegates": neither_delegates,
+                "has_shared": has_shared,
+            }
+
+    return common_names, failures
+
+
 class FullAutoDurableHistoryPinTests(unittest.TestCase):
     """Pin the durable-history auto-approval contract and prevent divergent shared constants.
 
@@ -4978,6 +5062,84 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
                 "Found divergent co-defined module-level constant(s) in runner_shared:\n"
                 + "\n".join(failures)
             )
+
+    def test_no_dead_codefined_def_or_class_symbols_in_runner_shared(self) -> None:
+        """Mechanically ensure no dead def-or-class body exists in runner_shared.
+
+        Twin to test_no_divergent_codefined_constants_in_runner_shared (plan gjni4c E-01),
+        added by plan vbhat9 (Set deadshared) E-02.
+        Collects top-level FunctionDef/AsyncFunctionDef/ClassDef co-defined in runner_shared,
+        oc_runipd, and agy_runipd, and fails if any symbol has:
+          1. Neither host's attribute resolves (getattr identity) to the runner_shared object
+          2. Neither host's definition is a sanctioned delegation under is_pure_delegation
+          3. A runner_shared definition exists
+        """
+        scanner = load_module(
+            "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+        )
+        common_names, failures = find_dead_codefined_symbols(
+            runner_shared,
+            oc_runipd,
+            agy_runipd,
+            is_pure_delegation_fn=scanner.is_pure_delegation,
+        )
+        self.assertGreater(
+            len(common_names),
+            0,
+            "Sweep collected an empty population; expected non-trivial three-way co-defined symbols.",
+        )
+        if failures:
+            lines = [
+                f"  {name}: neither_resolves={details['neither_resolves']}, "
+                f"neither_delegates={details['neither_delegates']}, "
+                f"has_shared={details['has_shared']}"
+                for name, details in failures.items()
+            ]
+            self.fail(
+                "Found dead co-defined def-or-class symbol(s) in runner_shared:\n"
+                + "\n".join(lines)
+            )
+
+    def test_dead_codefined_symbols_guard_is_discriminating_negative_test(self) -> None:
+        """Prove the def-or-class sweep in E-02 fails on the exact historical defect (plan vbhat9 E-03).
+
+        Builds three synthetic module sources under tmp_path: a shared module defining f,
+        and two host modules each defining their own real-bodied f that does not resolve
+        to the shared one. Drives find_dead_codefined_symbols over the synthetic modules and
+        asserts the sweep reports f.
+        """
+        with tempfile.TemporaryDirectory(prefix="test_dead_codefined_") as tmp_dir:
+            tmp_path = pathlib.Path(tmp_dir)
+            shared_file = tmp_path / "synthetic_shared.py"
+            oc_file = tmp_path / "synthetic_oc.py"
+            agy_file = tmp_path / "synthetic_agy.py"
+
+            shared_file.write_text("def f():\n    return 'shared'\n", encoding="utf-8")
+            oc_file.write_text(
+                "def f():\n    return 'oc_real_body'\n", encoding="utf-8"
+            )
+            agy_file.write_text(
+                "def f():\n    return 'agy_real_body'\n", encoding="utf-8"
+            )
+
+            mod_shared = load_module("synthetic_shared", shared_file)
+            mod_oc = load_module("synthetic_oc", oc_file)
+            mod_agy = load_module("synthetic_agy", agy_file)
+
+            scanner = load_module(
+                "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+            )
+            common_names, failures = find_dead_codefined_symbols(
+                mod_shared,
+                mod_oc,
+                mod_agy,
+                is_pure_delegation_fn=scanner.is_pure_delegation,
+            )
+            self.assertIn("f", common_names)
+            self.assertIn("f", failures)
+            self.assertTrue(failures["f"]["neither_resolves"])
+            self.assertTrue(failures["f"]["neither_delegates"])
+            self.assertTrue(failures["f"]["has_shared"])
 
     def test_set_plan_approved_durable_history_pin(self) -> None:
         """Pin the exact argv, no-defaults, and host defaults for set_plan_approved (gjni4c E-03, E-04, E-05).
