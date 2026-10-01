@@ -34,6 +34,7 @@ from typing import (
 
 from agent_workflows import artifact_core as core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows.artifact_types import EXIT_CANNOT_RUN
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import lifecycle_style as LS
@@ -3933,8 +3934,7 @@ def run(args) -> int:
             # the directory it checked, which is exactly what helps an operator standing in the wrong
             # one); the MACHINE summary states the condition and the remedies without the path.
             #
-            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract, recorded
-            # here because the number differs from the human path's on purpose (decision D1).
+            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract.
             # `aw.agent/v1` admits ONLY 0/1/2 (`agent_schema.validate_agent_record`: "Field 'exit'
             # must be an integer in (0, 1, 2)"), and additionally requires an error-class record to
             # carry exit=2; `docs/cli-output-contract.md` Section 3 classifies precisely this case
@@ -3946,11 +3946,12 @@ def run(args) -> int:
             # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in
             # the package now builds an `exit_code=3` record. That property is pinned by
             # `tests/test_attention.py::NoProjectAgentEnvelopeTests` and
-            # `tests/test_agent_surface_conformance.py::test_attention_non_project_cwd`.)
+            # `tests/test_no_project_exit_is_cannot_run.py`.)
             #
-            # THE HUMAN PATH IS UNCHANGED at exit 3, so the shipped assertion in
-            # `tests/test_agent_surface_conformance.py::test_attention_non_project_cwd` (rc 3, prose on stderr, empty stdout)
-            # keeps passing and no operator-visible behavior regresses.
+            # THE HUMAN PATH WAS LATER MOVED TO EXIT 2 AS WELL by backlog `c6vs7y` (IPD `rwvzqm`),
+            # retiring the human exit 3 so one condition has one code and satisfies the published
+            # uniform three-state exit classification across all audience surfaces. Pinned by
+            # `tests/test_no_project_exit_is_cannot_run.py`.
             #
             # nogitmsg `quqyc4` E-04 ADDS THE INSTALL OFFER AS STRUCTURED DATA, not only as prose:
             # when cwd IS inside a git repository, the record carries a `NextAction` so an automated
@@ -3992,7 +3993,7 @@ def run(args) -> int:
             no_project_message("attention", repo_root, explicit=bool(explicit_dir))
             + "\n"
         )
-        return 3
+        return EXIT_CANNOT_RUN
 
     type_filters = parse_type_filters(getattr(args, "types", None))
 

@@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
 
 - Added: `check.from-backlog-malformed` release gate rule, enforcing single-valued `- From-Backlog:` metadata in plans and specs, reporting multi-token values separately from dangling references while preserving `-` clearing semantics.
 - Added: ratified and published the `aw attention` fail-closed no-match exit contract in `docs/cli-output-contract.md`, distinguishing standing questions from named-artifact assertions, and pinned all nine surfaces plus derived vocabulary exemption sources in `tests/test_attention.py` (D157).
+- Changed (BREAKING): the human no-project exit code for aw next and aw ipd board (and their aliases) now returns 2 (cannot-run) instead of 3, aligning with the published uniform three-state exit classification and machine-readable command declarations (D158).
 - Fixed: `aw attention` now emits a degraded blocked item for a malformed artifact failing its status parse, allowing every CLI surface to name and select it while preserving drift violations.
 - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
 - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.

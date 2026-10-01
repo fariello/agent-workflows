@@ -378,9 +378,8 @@ def no_project_message(
     PROBING FOR GIT HERE IS A MESSAGE CONCERN AND MUST NEVER BE PROMOTED INTO ``find_project_root``
     (`quqyc4` E-02). Root detection is DELIBERATELY git-blind: a ``.aw/`` tree can exist without git,
     and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
-    OQ-01), a rule locked by ``tests/test_awretrofit_project_root_climb.py``'s
-    ``test_bare_git_ancestor_is_not_a_root``. This function only decides what to SAY once that climb
-    has already failed; it never decides what counts as a project.
+    OQ-01), an unpinned rule (the test that formerly locked it was deleted). This function only decides
+    what to SAY once that climb has already failed; it never decides what counts as a project.
     """
 
     where = Path(start_dir) if start_dir is not None else Path.cwd()

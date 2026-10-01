@@ -169,6 +169,8 @@ The CLI enforces a uniform three-state exit classification across all verbs:
 - `2` (**Usage Error / Cannot-Run / Fatal**): Invalid arguments, conflicting flags, missing required
   environment dependencies, or fatal execution errors preventing domain inspection.
 
+A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, "no AW project found at the working directory or any ancestor" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike. The reason stems from the machine envelope contract: `aw.agent/v1` admits only 0, 1, or 2, and the exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on a machine surface to the three states. Allowing the human surface to differ would produce one condition answering with two different codes. Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration. Note that commands in the run-execution family (`aw run` and `aw runs`) carry a separate, wider exit vocabulary documented alongside those verbs, and reconciling that separate vocabulary with the three-state classification is outside the scope of this section.
+
 ---
 
 ## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds

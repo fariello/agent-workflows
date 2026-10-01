@@ -9734,6 +9734,7 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
 def _run_plans(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
+    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
     from agent_workflows.project_context import (
         git_root_for_message,
         is_project_dir,
@@ -9774,11 +9775,13 @@ def _run_plans(
             # `docs/cli-output-contract.md` ("the embedded `exit` MUST equal the process exit code")
             # forbade emitting 2 beside a process exit of 3. Since that ruling, attcor `rkn8ya` E-12
             # fixed the SAME defect in `aw attention` by satisfying parity the OTHER way: it moved the
-            # MACHINE process exit to 2, leaving the HUMAN surface at 3. That shipped, and
-            # `tests/test_attention.py::NoProjectAgentEnvelopeTests` pins it. Widening the schema now
-            # would promote exit 3 into two published contracts at the moment its only other emitter
-            # was removed, and would leave two verbs answering one condition with different codes.
-            # After this change `grep -n "exit_code=3" agent_workflows/*.py` finds NO site, so the
+            # MACHINE process exit to 2, originally leaving the HUMAN surface at 3. The human surface
+            # was LATER moved to 2 as well by backlog `c6vs7y` (IPD `rwvzqm`), retiring the human exit 3
+            # so one condition has one code across all audience surfaces. That cross-surface agreement
+            # is pinned by `tests/test_no_project_exit_is_cannot_run.py`. Widening the schema would
+            # promote exit 3 into two published contracts at the moment its only other emitter was
+            # removed, and would leave verbs answering one condition with different codes. After this
+            # change no executable site in the package constructs an `exit_code=3` record, so the
             # schema and both contract docs need no amendment at all.
             #
             # THE SUMMARY IS SANITIZED for the same reason attention's is: `no_project_message`
@@ -9825,7 +9828,7 @@ def _run_plans(
         sys.stderr.write(
             no_project_message("ipd board", root, explicit=bool(explicit_dir)) + "\n"
         )
-        return 3
+        return EXIT_CANNOT_RUN
 
     # Validate --status up front so a typo teaches the valid set instead of silently
     # returning an empty board (assess-self-documentation S1). Handler-side (not argparse

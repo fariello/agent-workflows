@@ -3067,7 +3067,9 @@ class NoProjectAgentEnvelopeTests(unittest.TestCase):
         self.assertNotIn("/home/", out_j)
 
         rc_h, out_h, err_h, _ = self._run_from_nowhere()
-        self.assertEqual(rc_h, 3)
+        # Human exit 3 was retired to 2 by backlog c6vs7y (IPD rwvzqm); full matrix owned by
+        # tests/test_no_project_exit_is_cannot_run.py.
+        self.assertEqual(rc_h, 2)
         self.assertEqual(out_h, "")
         self.assertIn("no AW project found", err_h)
 
