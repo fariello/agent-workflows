@@ -6,7 +6,7 @@
 - Scope: Give the table a REACHABILITY dimension that is measured rather than asserted, and make the audit surface report it. IN: a new per-row field recording, for each named predicate, whether a run entrypoint can reach it, computed by a new measured prover rather than hand-declared; a new `validate_finding_table` finding code refusing a `BOUND` row with no reachable predicate; a new public accessor partitioning the table by reachability so the audit surface stops being a hand-written sentence; a new behavioral test module; and the three prose sites (the module's binding-states comment, its 2026-09-05 re-measurement comment, and spec `25kzda`'s line-76 count) corrected to state what is measured. OUT: every row's `code`, `inspects`, `pass_criterion`, `message`, `action`, `abort`, `abort_classes` and `predicates` VALUES are unchanged; no row is added or removed, so `RC-COUNT`'s literal 12 is untouched; no code is promoted or demoted between `BOUND` and either unbound state; no predicate is wired to a new call site; and the `EV-*`, `IPD-EXEC-*` and non-`RUN-*` families are untouched.
 - Scope-Paths: agent_workflows/run_evidence.py, tests/test_run_finding_reachability.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: f7z10q
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: f7z10q verified (set u7bfks, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH, fixed), PR-102 (HIGH, fixed), PR-103 (MEDIUM, fixed), PR-104 (MEDIUM, fixed), PR-105 (LOW, fixed). Readiness recorded in `- Readiness:`. Detail on the `reviewed (aw set)` record below and in `.aw/records/reviews/20260930-u7bfks-01-f7z10q-...review.md`.
 - 2026-10-01 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-101 (HIGH, fixed), PR-102 (HIGH, fixed), PR-103 (MEDIUM, fixed), PR-104 (MEDIUM, fixed), PR-105 (LOW, fixed). Re-derived every load-bearing measurement independently at review HEAD cf896ea01 rather than trusting the plan findings. F-02 through F-09 all reproduce exactly, including the three mixed-verdict rows, the 35-of-35 predicate resolution with its BrokenChainError caveat, the LeaseTable.claim true negative, the four emitted-not-in-table codes and the nine table-only codes. Three of the plan own figures measured STALE in under two days and are corrected in place as F-10 through F-12: two test files now reference this vocabulary (one pinning len(bound_run_finding_codes()) == 10 and asserting validate_finding_table().ok, so E-04 firing is a RED SUITE not a quiet finding), 00pirb has EXECUTED and edited this same spec file without touching E-06 sentence, and the suite baseline moved 3387 to 3653. One genuinely new hazard was measured: the prover costs about 3000 ms over 177 modules against a 0.2 s import, 60x E-03 own 50ms threshold, so E-03 no longer offers import-time derivation as a choice and now mandates the lazy memoized accessor with the row literals and NamedTuple field list unchanged. E-01 census widened from one grep to three, V-01/V-03/V-04 strengthened, and the suite-count bar replaced with re-derivation.
