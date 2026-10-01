@@ -1,5 +1,5 @@
 - Id: 5hf2qy
-- Status: graduated
+- Status: done
 - Graduated-To: 5hf2qy
 - Blocks-Release: next
 - Set: 5hf2qy
@@ -8,6 +8,7 @@
 - Summary: The progress denominator reads 0/1 for a zero-dispatch queue of 8 matched items
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 35mjqc executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-5hf2qy-01-35mjqc-display-the-matched-artifact-count-in-the-progress-denominat.ipd.md); evidence .aw/records/plans/executed/20260929-5hf2qy-01-35mjqc-display-the-matched-artifact-count-in-the-progress-denominat.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 35mjqc
 - 2026-09-28 created (aw backlog): Found while authoring plan 4po0sc from backlog b7oicl; measured at HEAD b26cced3.
 
