@@ -206,6 +206,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   this plan's `- Scope-Paths:` and E-04 is a verification that writes nothing, which removes the ordering
   hazard the authored version tried to manage rather than merely sequencing it.
   - Carrier: aisk5z
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-id6slotgate-01-aisk5z-retire-the-walkthrough-identity-slot-defect-unpin-the-census.ipd.md
 - NARROWING OR REWRITING `tests/test_collision_population_parity.py`. Its parity subject is legitimate and its
   incidental slot assertion is currently load-bearing. Once E-02 lands, the guard no longer depends on it, but
   removing the assertion is not this plan's business and would reduce coverage before a reviewer asked for it.
