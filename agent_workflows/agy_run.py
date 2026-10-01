@@ -114,7 +114,7 @@ SUPPORTED MODES:
      Executes a pending Implementation Plan Document (.aw/records/plans/pending/*.ipd.md),
      then performs a skeptical post-execution audit in the same conversation session.
      Example: python3 tools/agy_run.py 7cvh9t
-     Example: python3 tools/agy_run.py --ipd .aw/records/plans/pending/20260821-awoptimize-01-nmwy3m.ipd.md
+     Example: python3 tools/agy_run.py --ipd .aw/records/plans/executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
 
   2. Spec Mode (--spec <target> | positional *.spec.md):
      Authors a conformant IPD from a specification document using repository scaffolding tools,

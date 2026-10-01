@@ -4241,7 +4241,7 @@ LAUNCH IDENTITY (model / variant / agent):
   runipd reviews
 
   # Review a single pending plan:
-  runipd 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
+  runipd pr2nd0
 
   # Review all to-review plans in a set using an existing session:
   runipd ipdrunner --session <session_id>

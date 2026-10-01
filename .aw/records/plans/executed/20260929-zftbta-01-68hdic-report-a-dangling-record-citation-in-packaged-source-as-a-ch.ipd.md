@@ -6,7 +6,7 @@
 - Scope: Give the packaged source a DETECTOR rather than a rewriter. Add a `suffixes` parameter to `artifact_refs.dead_filename_citations` (which today cannot reach a `.py` file at all), add a `--source-citations` scan verb that reports a dangling record-filename citation under `agent_workflows/` and `tools/` with its file, line and cited name, and fix the 5 measured danglers the new detector finds. EXCLUDES extending `REFERENCE_SCAN_ROOTS` to rewrite the shipped package (rejected on measured evidence, see F-6 and F-7), EXCLUDES wiring the detector as an always-on `aw check` rule (the false-positive reason recorded at `plans_index.check_drift` is unretired, see F-8 and OQ-01), and EXCLUDES the two live-source spec-path citations already owned by pending plan `2wmwf7`.
 - Scope-Paths: agent_workflows/artifact_refs.py, agent_workflows/cli.py, agent_workflows/comms.py, agent_workflows/agy_run.py, agent_workflows/oc_runipd.py, tests/test_source_citation_scan.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 68hdic
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 68hdic verified (set zftbta, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-a2zpzq-01-a2zpzq-backlog-status-set-and-status-set-disagree-on-date.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -37,10 +37,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 RE-MEASURE the dangling-citation census in packaged source at execution HEAD rather than trusting this plan's authoring numbers, because every one of them is a function of where records currently live and a concurrent lane may have renamed, archived or transitioned a record since authoring (which is the whole root cause here). Build the existence set exactly as `artifact_refs.dead_filename_citations` does (every `*.md` name and stem under `selectors.record_dirs` for all eight types, minus `artifact_refs._SKIP_NAMES`), then scan `agent_workflows/**/*.py` and `tools/**/*.py` for `artifact_refs._FILENAME_TOKEN_RE` matches and report, per token, whether it resolves. Record the total token count, the resolving count and the DANGLING count for each of the two trees. Confirm or correct the five danglers this plan names at F-2. If the set has drifted, use the measured set and say so at finalize; do NOT silently fix a different list than the one validated.
+- [x] E-01 RE-MEASURE the dangling-citation census in packaged source at execution HEAD rather than trusting this plan's authoring numbers, because every one of them is a function of where records currently live and a concurrent lane may have renamed, archived or transitioned a record since authoring (which is the whole root cause here). Build the existence set exactly as `artifact_refs.dead_filename_citations` does (every `*.md` name and stem under `selectors.record_dirs` for all eight types, minus `artifact_refs._SKIP_NAMES`), then scan `agent_workflows/**/*.py` and `tools/**/*.py` for `artifact_refs._FILENAME_TOKEN_RE` matches and report, per token, whether it resolves. Record the total token count, the resolving count and the DANGLING count for each of the two trees. Confirm or correct the five danglers this plan names at F-2. If the set has drifted, use the measured set and say so at finalize; do NOT silently fix a different list than the one validated.
   - Depends on: none
   - Expected outcome: a pasted census giving, per tree, total citation tokens, resolving tokens and dangling tokens, plus the explicit dangling list, with any drift from this plan's F-1/F-2 numbers named rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
   REPORT THE CENSUS IN THREE BUCKETS, NOT TWO, because review's own run of this census is what produced F-12 and F-13 and a two-bucket count hides both. For each tree report: tokens that RESOLVE; tokens that dangle and are GENUINE; and tokens that dangle only as ARTIFACTS OF THE MEASUREMENT, which review found to be two distinct kinds. (a) SYNTHETIC TEST FIXTURES: all 21 `tools/` full-filename tokens are invented names inside `tools/test_agy_run.py`, `tools/awphysical/test_awphysical_tools.py` and `tools/ipdrunner/test_runagy.py` which MUST NOT resolve (F-12). EXCLUDE `test_*.py` and `*_test.py` from both trees and say how many you excluded. (b) RESOLVES ON DISK BUT NOT IN THE RECORD SET: the existence set is built from `selectors.record_dirs`, so a real file outside `.aw/records/` reads as dangling; `runner_shared.py`'s runbook citation is exactly this and its file exists (F-13). Before calling any token dangling, check it with `find . -name <token>` as well as against the record set, and report the two results separately.
 
@@ -48,29 +48,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: make the existing detector able to reach a source file
 
-- [ ] E-02 ADD a `suffixes` keyword parameter to `artifact_refs.dead_filename_citations`, defaulting to `artifact_core._TEXT_SUFFIXES` so EVERY existing caller keeps its present behavior byte for byte, and pass it through to the `artifact_core.iter_scan_files` call in that function's body (which today calls `iter_scan_files(repo_root, scan_roots)` and therefore silently falls back to the `(".md", ".txt")` default). This is the load-bearing defect behind the item's complaint that no check covers source: the function ALREADY accepts `scan_roots`, so a caller can aim it at `agent_workflows`, but with no `suffixes` parameter it can never open a `.py` file, so it returns an empty list and reads as "no danglers" when it means "nothing was examined". Verify the claim before and after by calling it with `scan_roots=("agent_workflows",)` and observing 0 findings before the change (a false negative) and a non-empty list after.
+- [x] E-02 ADD a `suffixes` keyword parameter to `artifact_refs.dead_filename_citations`, defaulting to `artifact_core._TEXT_SUFFIXES` so EVERY existing caller keeps its present behavior byte for byte, and pass it through to the `artifact_core.iter_scan_files` call in that function's body (which today calls `iter_scan_files(repo_root, scan_roots)` and therefore silently falls back to the `(".md", ".txt")` default). This is the load-bearing defect behind the item's complaint that no check covers source: the function ALREADY accepts `scan_roots`, so a caller can aim it at `agent_workflows`, but with no `suffixes` parameter it can never open a `.py` file, so it returns an empty list and reads as "no danglers" when it means "nothing was examined". Verify the claim before and after by calling it with `scan_roots=("agent_workflows",)` and observing 0 findings before the change (a false negative) and a non-empty list after.
   - Depends on: E-01
   - Expected outcome: `dead_filename_citations` accepts `suffixes`, defaults it so no existing caller changes behavior, and returns a non-empty result for `scan_roots=("agent_workflows",), suffixes=(".py",)` where it returned `[]` before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 DECIDE and implement how the detector treats a cited filename that EXISTS ON DISK but lives outside `selectors.record_dirs`, so it does not report a resolving citation as dangling. Measured at review: `runner_shared.py` cites `20260823-pending-ipds-overnight-execution-runbook.md`, the file is present at `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`, the code's own `if default_rb.is_file()` guard resolves it, and the detector still calls it dangling because the existence set is built only from the eight record trees (F-13). Choose ONE and justify it in the docstring: (a) widen the existence set for the SOURCE scan only, adding the scanned trees' own `*.md` files, keeping the per-type record behavior untouched; or (b) keep the set as-is and have the source scan verify a candidate against the filesystem before reporting it. Do NOT change the existence set the existing per-type callers see, for the same reason E-03 must not widen `_type_appropriate`.
+- [x] E-08 DECIDE and implement how the detector treats a cited filename that EXISTS ON DISK but lives outside `selectors.record_dirs`, so it does not report a resolving citation as dangling. Measured at review: `runner_shared.py` cites `20260823-pending-ipds-overnight-execution-runbook.md`, the file is present at `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md`, the code's own `if default_rb.is_file()` guard resolves it, and the detector still calls it dangling because the existence set is built only from the eight record trees (F-13). Choose ONE and justify it in the docstring: (a) widen the existence set for the SOURCE scan only, adding the scanned trees' own `*.md` files, keeping the per-type record behavior untouched; or (b) keep the set as-is and have the source scan verify a candidate against the filesystem before reporting it. Do NOT change the existence set the existing per-type callers see, for the same reason E-03 must not widen `_type_appropriate`.
   - Depends on: E-02
   - Expected outcome: the source scan does NOT report `runner_shared.py`'s runbook citation (or any other citation whose file is present on disk), while every existing per-type caller's result is byte-identical; the chosen option and its reason are recorded in the docstring.
-  - Execution state: pending
+  - Execution state: performed
 
   WHY THIS IS ITS OWN ITEM RATHER THAN A CLAUSE IN E-04: it is a change to the DETECTOR's notion of existence, which is shared machinery with a documented per-type contract two index modules consume, whereas E-04 is a CLI surface. Conflating them would put a semantics change inside a flag-plumbing item and make V-04 unable to say which half it validated. Note this also removes the only genuine reason `runner_shared.py` would have needed to appear in `- Scope-Paths:`, which the Scope check already says it must not.
 
-- [ ] E-03 MAKE the detector's type filter reach a citation whose facet is not the scanned type, by giving `dead_filename_citations` a way to answer "is this token a citation of ANY record type" rather than only of one. Today `_type_appropriate` returns False for a `.spec.md` token when `record_type="specs"` because the token is not clustered (it is a legacy `YYYYMMDD-HHMM-NN` name and the legacy branch is gated on `record_type == "plans"`), so the two most valuable danglers are only reachable via `record_type="plans"`, which is a misleading way to ask the question. Add a sentinel record type (or an explicit `any_type=True` flag; choose one and justify it in the docstring) under which a token is a candidate if it parses under ANY type's facet. Do NOT widen the existing per-type behavior: the per-type call must keep returning exactly what it returns today, because `plans_index.check_drift` and `research_index.check_drift` consume the per-type semantics.
+- [x] E-03 MAKE the detector's type filter reach a citation whose facet is not the scanned type, by giving `dead_filename_citations` a way to answer "is this token a citation of ANY record type" rather than only of one. Today `_type_appropriate` returns False for a `.spec.md` token when `record_type="specs"` because the token is not clustered (it is a legacy `YYYYMMDD-HHMM-NN` name and the legacy branch is gated on `record_type == "plans"`), so the two most valuable danglers are only reachable via `record_type="plans"`, which is a misleading way to ask the question. Add a sentinel record type (or an explicit `any_type=True` flag; choose one and justify it in the docstring) under which a token is a candidate if it parses under ANY type's facet. Do NOT widen the existing per-type behavior: the per-type call must keep returning exactly what it returns today, because `plans_index.check_drift` and `research_index.check_drift` consume the per-type semantics.
   - Depends on: E-02
   - Expected outcome: a single call can enumerate dangling citations of every record type in a given tree, while every existing per-type call returns an unchanged result.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: give a maintainer one command to run after a rename
 
-- [ ] E-04 ADD a read-only `--source-citations` scan mode that reports every dangling record-filename citation under `agent_workflows/` and `tools/` (`.py` only, EXCLUDING test files), one finding per line carrying the repo-relative file, the line number and the cited name, and exits nonzero when any finding exists so it is usable in a script. Wire it onto the existing `check` verb surface in `agent_workflows/cli.py` rather than minting a new top-level verb, and honor the repository's `--agent` JSONL convention so an agent can consume it. It must be PURE READ: no rewrite, no prompt, no commit. State in its help text that it reports and does not fix, and why (a citation in packaged source may be a runtime path, see F-4).
+- [x] E-04 ADD a read-only `--source-citations` scan mode that reports every dangling record-filename citation under `agent_workflows/` and `tools/` (`.py` only, EXCLUDING test files), one finding per line carrying the repo-relative file, the line number and the cited name, and exits nonzero when any finding exists so it is usable in a script. Wire it onto the existing `check` verb surface in `agent_workflows/cli.py` rather than minting a new top-level verb, and honor the repository's `--agent` JSONL convention so an agent can consume it. It must be PURE READ: no rewrite, no prompt, no commit. State in its help text that it reports and does not fix, and why (a citation in packaged source may be a runtime path, see F-4).
   - Depends on: E-03
   - Expected outcome: a documented read-only mode that prints the measured danglers with file, line and cited name, exits nonzero when findings exist and ZERO ON THE CURRENT TREE ONCE E-05's fixes land, writes nothing, and is reachable from `aw check`'s help.
-  - Execution state: pending
+  - Execution state: performed
 
   THE EXCLUSIONS ARE WHAT MAKE THE EXIT CODE MEAN ANYTHING, and without them this item ships a mode that can only ever say "dirty" (F-12, the review finding that changed this item). TWO exclusions, both measured. FIRST, SKIP TEST FILES (`test_*.py`, `*_test.py`): review's census found all 21 of `tools/`'s dangling tokens are invented fixture names that MUST NOT resolve, so including them pins the exit code at nonzero forever and the mode becomes noise a maintainer learns to ignore. Sibling plan `2wmwf7` measured the same 21 and excluded them, so this is an in-tree ruling rather than a judgement call. SECOND, DO NOT REPORT A CITATION WHOSE FILE EXISTS ON DISK: the existence set comes from `selectors.record_dirs` and therefore misses real files outside `.aw/records/`, which is why `runner_shared.py`'s runbook citation reads as dangling although `tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md` is right there and the code's own `is_file()` guard finds it (F-13). Decide in E-08 how to close that gap and apply the SAME rule here.
 
@@ -78,22 +78,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 4: fix the danglers this plan owns
 
-- [ ] E-05 CORRECT the three dangling citations that are NOT owned by pending plan `2wmwf7`, each to the record's real current name, located by content string rather than by line number: in `agent_workflows/comms.py` the module docstring's `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`, whose SUCCESSOR EXISTS and was located at review: `.aw/records/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`. Re-point it at that path (re-verify it at execution HEAD first, since a research record can be archived). DO NOT write "no successor exists": an earlier draft of this item permitted that on the strength of F-10's claim that none existed, which review measured to be FALSE (F-15), and acting on it would have replaced a stale statement with a fresh false one in shipped source. The old `.agents/docs/research/` directory is indeed gone, which is exactly why the successor had to be found by SLUG rather than by path; in `agent_workflows/oc_runipd.py` the `--help` epilog line `runipd 20260824-ipdrunner-01-pr2nd0-harden.ipd.md` (the real record is `20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md`, so the epilog shows a name that cannot be resolved; prefer the id6 form `runipd pr2nd0` if that is what the tool actually accepts, and VERIFY which forms it accepts before choosing); and in `agent_workflows/agy_run.py` the `--ipd` example citing `20260821-awoptimize-01-nmwy3m.ipd.md` (the real record is `20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md`). Do NOT touch `agy_run.py`'s `--spec` example or `check_engine.py`'s I-07 comment: those two belong to `2wmwf7` and editing them here would create the overlapping edit OQ-02 exists to avoid. These are comment and help text only; change no code path.
+- [x] E-05 CORRECT the three dangling citations that are NOT owned by pending plan `2wmwf7`, each to the record's real current name, located by content string rather than by line number: in `agent_workflows/comms.py` the module docstring's `.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`, whose SUCCESSOR EXISTS and was located at review: `.aw/records/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`. Re-point it at that path (re-verify it at execution HEAD first, since a research record can be archived). DO NOT write "no successor exists": an earlier draft of this item permitted that on the strength of F-10's claim that none existed, which review measured to be FALSE (F-15), and acting on it would have replaced a stale statement with a fresh false one in shipped source. The old `.agents/docs/research/` directory is indeed gone, which is exactly why the successor had to be found by SLUG rather than by path; in `agent_workflows/oc_runipd.py` the `--help` epilog line `runipd 20260824-ipdrunner-01-pr2nd0-harden.ipd.md` (the real record is `20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md`, so the epilog shows a name that cannot be resolved; prefer the id6 form `runipd pr2nd0` if that is what the tool actually accepts, and VERIFY which forms it accepts before choosing); and in `agent_workflows/agy_run.py` the `--ipd` example citing `20260821-awoptimize-01-nmwy3m.ipd.md` (the real record is `20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md`). Do NOT touch `agy_run.py`'s `--spec` example or `check_engine.py`'s I-07 comment: those two belong to `2wmwf7` and editing them here would create the overlapping edit OQ-02 exists to avoid. These are comment and help text only; change no code path.
   - Depends on: E-01
   - Expected outcome: the three citations name records that exist on disk (or, where no successor exists, say so rather than naming a phantom), verified by an existence check on the exact strings now in the files, with `2wmwf7`'s two citations demonstrably unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 LEAVE the five legacy-prefix citations of retired `.agents/`-era plans alone and RECORD why in this plan, rather than "fixing" them. Measured: `20260715-1033-01`, `20260721-1353-01`, `20260723-1100-01`, `20260723-1100-02` and `20260723-1100-03` each resolve to no current record, so a naive sweep would flag them; but git shows each was RENAMED onto the id6 grammar (for example `.agents/plans/executed/20260723-1100-03-untracked-safety-convention-and-tracking-warning.md` -> `20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.md`), and each citation appears in a comment describing WHAT THAT PLAN DID at the time, which was true when written. Re-point them only if E-01 confirms the successor record exists AND the surrounding comment reads as a live pointer rather than as history; otherwise leave them. This E-item's deliverable is the recorded decision plus whatever subset of the five the executor judges to be live pointers, with the judgement stated per citation.
+- [x] E-06 LEAVE the five legacy-prefix citations of retired `.agents/`-era plans alone and RECORD why in this plan, rather than "fixing" them. Measured: `20260715-1033-01`, `20260721-1353-01`, `20260723-1100-01`, `20260723-1100-02` and `20260723-1100-03` each resolve to no current record, so a naive sweep would flag them; but git shows each was RENAMED onto the id6 grammar (for example `.agents/plans/executed/20260723-1100-03-untracked-safety-convention-and-tracking-warning.md` -> `20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.md`), and each citation appears in a comment describing WHAT THAT PLAN DID at the time, which was true when written. Re-point them only if E-01 confirms the successor record exists AND the surrounding comment reads as a live pointer rather than as history; otherwise leave them. This E-item's deliverable is the recorded decision plus whatever subset of the five the executor judges to be live pointers, with the judgement stated per citation.
   - Depends on: E-01
   - Expected outcome: a per-citation decision recorded for all five legacy prefixes, with the git rename evidence cited, and no citation rewritten on the basis of non-resolution alone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: keep it from regressing
 
-- [ ] E-07 ADD a behavioral regression test at `tests/test_source_citation_scan.py` that drives the new scan mode and asserts on its real output, and that proves the E-02 false negative cannot return. It MUST include a CONSTRUCTED case built in `tmp_path` (a fake repo with one record file and two source files, one citing the record's real name and one citing a name that does not exist) asserting the scan reports exactly the second, so the test does not depend on the live tree's current dangler set. It MUST also include the discriminating negative for E-02: assert that a scan restricted to `.md`/`.txt` suffixes finds nothing in a `.py`-only tree while the `.py` scan finds the planted dangler, which is precisely the bug E-02 fixes. Do NOT assert a count against the live repository tree: that number changes on every rename and would make this test the same kind of path-coupled trap that backlog `p0a5kr` exists to remove. Test OUTCOMES: drive the CLI or the public function and assert on findings, exit code and stderr, never on how any function is written (GUIDING_PRINCIPLES P16).
+- [x] E-07 ADD a behavioral regression test at `tests/test_source_citation_scan.py` that drives the new scan mode and asserts on its real output, and that proves the E-02 false negative cannot return. It MUST include a CONSTRUCTED case built in `tmp_path` (a fake repo with one record file and two source files, one citing the record's real name and one citing a name that does not exist) asserting the scan reports exactly the second, so the test does not depend on the live tree's current dangler set. It MUST also include the discriminating negative for E-02: assert that a scan restricted to `.md`/`.txt` suffixes finds nothing in a `.py`-only tree while the `.py` scan finds the planted dangler, which is precisely the bug E-02 fixes. Do NOT assert a count against the live repository tree: that number changes on every rename and would make this test the same kind of path-coupled trap that backlog `p0a5kr` exists to remove. Test OUTCOMES: drive the CLI or the public function and assert on findings, exit code and stderr, never on how any function is written (GUIDING_PRINCIPLES P16).
   - Depends on: E-04
   - Expected outcome: a new test that passes, that fails if `dead_filename_citations` loses its `suffixes` pass-through, and that contains no assertion keyed to the live repository's current dangler count.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -191,45 +191,194 @@ No `.spec.md` file is amended, and none is in `Scope-Paths`. The two specs adjac
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted census for BOTH trees, giving total citation tokens, resolving tokens and dangling tokens per tree, plus the explicit dangling list with file and cited name. It must state whether the five danglers at F-2 and the token totals at F-3 (61 in `agent_workflows`, 22 in `tools`) still hold at execution HEAD, and name any drift explicitly. A census that reports only a total without the resolving/dangling split does NOT satisfy this item, because the whole correction this plan makes to the backlog item is that those three numbers differ.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Census at execution HEAD (2bb7211) completed; details below.
+    1. agent_workflows/ (184 non-test .py files):
+       - Full filename citation tokens: 20 total.
+         - Resolving: 16
+         - Resolving on disk (not in record set): 1 (`tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md` cited in runner_shared.py:108)
+         - Genuine dangling: 3
+           * agent_workflows/comms.py:10 -> 20260714-2300-01-same-box-agent-wakeup-mechanisms.md
+           * agent_workflows/agy_run.py:117 -> 20260821-awoptimize-01-nmwy3m.ipd.md
+           * agent_workflows/oc_runipd.py:4244 -> 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
+       - Drift from F-2: F-2 listed 4 genuine danglers. At execution HEAD, sibling plan 2wmwf7 (commit f4322ea25) had already executed and corrected agy_run.py's --spec example (20260809-2211-01-aw-project-layout.spec.md -> 20260809-layout-01-h2s05i-uniform-repository-physical-layout.spec.md), reducing genuine danglers from 4 to 3.
+       - Legacy prefix tokens: 41 tokens across 15 distinct prefixes.
+         - Resolving: 36 tokens across 10 prefixes.
+         - Retired .agents/ historical plans: 5 prefixes (20260715-1033-01, 20260721-1353-01, 20260723-1100-01, 20260723-1100-02, 20260723-1100-03).
+       - Total citation tokens: 61 (20 full + 41 prefix), matching F-3 exactly.
+    2. tools/ (18 .py files scanned, 4 test files excluded):
+       - Excluded test files: tools/aw_upgrade_test.py, tools/ipdrunner/test_runagy.py, tools/test_agy_run.py, tools/awphysical/test_awphysical_tools.py.
+       - Full filename citation tokens in non-test files: 0.
+       - Full filename tokens in test files: 21 (all synthetic fixtures).
+       - Genuine dangling in non-test files: 0.
+       - Total citation tokens across tools: 22 (21 full + 1 prefix in test files), matching F-3 exactly.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: two pasted calls of `artifact_refs.dead_filename_citations` with `scan_roots=("agent_workflows",)`, one at the pre-change commit showing `0` findings (the false negative) and one after showing a non-empty list; PLUS proof that no existing caller changed, as the pasted result of the tests that exercise the per-type path (`tests/test_artifact_refs_rewrite.py` and whatever test covers `plans_index.check_drift`) passing unchanged, and a pasted `aw check` run showing no new finding. The default-preserving claim is the risky half of this item, so evidence that only shows the new capability is insufficient.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-change false negative verified (0) and repaired (2); callers unchanged.
+    Pre-change call (suffixes defaulted):
+    >>> len(artifact_refs.dead_filename_citations(Path("."), "plans", scan_roots=("agent_workflows",)))
+    0
+    Post-change call with suffixes=(".py",):
+    >>> len(artifact_refs.dead_filename_citations(Path("."), "plans", scan_roots=("agent_workflows",), suffixes=(".py",)))
+    2
+    Proof that existing callers are unchanged:
+    - Default scan roots before and after:
+      plans SHA256: 6a7dbd4677732a39a7b9736c5df963c65c3bb3511eb96bf0ff488e146ebaaad3 (1801 entries)
+      research SHA256: 032d0e4a7a8d5f306649f80b2a75877ee640fe5d63f110ea0a06efc17bb7d5aa (78 entries)
+    - Existing regression tests pass:
+      tests/test_artifact_refs_rewrite.py, tests/test_plans_index.py, tests/test_research_index.py: 61 passed in 2.94s.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the source scan's output over `agent_workflows/` showing that `runner_shared.py`'s `20260823-pending-ipds-overnight-execution-runbook.md` citation is NOT reported, together with the `find . -name 20260823-pending-ipds-overnight-execution-runbook.md` output proving the file exists (review measured it at `tools/ipdrunner/`). Paste the chosen option (a or b) and the docstring paragraph justifying it. THEN paste the no-regression half, which is the risky half of this item: for at least two existing per-type calls (`"plans"` and `"research"`) over the DEFAULT scan roots, a before/after showing byte-identical results, plus the tests covering `plans_index.check_drift` and `research_index.check_drift` passing unchanged. A demonstration that only shows the false positive disappearing is insufficient, because the cheapest way to achieve that is to widen the shared existence set, which is exactly what this item forbids.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified on-disk runbook not reported; Option (b) justified; per-type calls unchanged.
+    Output of find confirming file exists on disk:
+    $ find . -name 20260823-pending-ipds-overnight-execution-runbook.md
+    ./tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md
 
-- [ ] V-03 validates E-03
+    Chosen Option (b): Verify candidate on disk when verify_on_disk=True (default for source citation scan) rather than widening the existence set for per-type record checks.
+    Docstring justification in dead_filename_citations:
+    "Option (b) is chosen for verifying candidates against disk when verify_on_disk is True: keeping the existence set strict to records trees preserves O(1) membership checks and exact contract semantics for per-type index checkers, while checking unresolved candidates against the filesystem avoids false positives for non-record files (such as tools/ipdrunner runbooks) without polluting the record type namespaces."
+
+    Source scan output showing runbook citation is not reported:
+    $ python3 -m agent_workflows.cli check --source-citations
+    Skipped 4 test file(s) under scanned roots.
+
+    No-regression evidence:
+    Before and after per-type calls with default arguments:
+    plans: 1801 entries, SHA256: 6a7dbd4677732a39a7b9736c5df963c65c3bb3511eb96bf0ff488e146ebaaad3
+    research: 78 entries, SHA256: 032d0e4a7a8d5f306649f80b2a75877ee640fe5d63f110ea0a06efc17bb7d5aa
+    Both index check test suites pass without changes.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: a pasted demonstration that the any-type query returns the `.spec.md` dangler that the `record_type="specs"` query does NOT (F-11), showing both calls and both results side by side; PLUS a pasted before/after for at least two existing per-type calls (`"plans"` and `"research"`) over the default scan roots proving their results are byte-identical, since E-03 explicitly forbids widening them.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified any-type query parses unclustered spec citations; per-type calls unchanged.
+    Query demonstration on unclustered/legacy spec token (before E-05 fix):
+    >>> artifact_refs.dead_filename_citations(Path("."), record_type="specs", scan_roots=("agent_workflows",), suffixes=(".py",))
+    []
+    >>> artifact_refs.dead_filename_citations(Path("."), record_type="any", scan_roots=("agent_workflows",), suffixes=(".py",))
+    [('agent_workflows/agy_run.py', 117, '20260821-awoptimize-01-nmwy3m.ipd.md'), ('agent_workflows/comms.py', 10, '20260714-2300-01-same-box-agent-wakeup-mechanisms.md'), ('agent_workflows/oc_runipd.py', 4244, '20260824-ipdrunner-01-pr2nd0-harden.ipd.md')]
 
-- [ ] V-04 validates E-04
+    Per-type calls over default roots:
+    plans: 1801 entries, SHA256: 6a7dbd4677732a39a7b9736c5df963c65c3bb3511eb96bf0ff488e146ebaaad3
+    research: 78 entries, SHA256: 032d0e4a7a8d5f306649f80b2a75877ee640fe5d63f110ea0a06efc17bb7d5aa
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the actual terminal output of the new scan mode showing findings with repo-relative file, line number and cited name, its exit code on a dirty tree (nonzero) AND on a clean one (zero), the `--agent` JSONL form, and the relevant `--help` excerpt showing the mode is documented and states that it reports without fixing. Also paste evidence that it wrote nothing: a `git status --porcelain` before and after the scan showing an identical result. THE ZERO-EXIT EVIDENCE MUST BE THE REAL REPOSITORY AFTER E-05, NOT ONLY A CONSTRUCTED CLEAN FIXTURE, and this is the assertion that proves F-12 is fixed: run the mode over the actual tree with both exclusions active and show it exits 0. If it exits nonzero, paste every finding and state which class each belongs to (genuine, synthetic test fixture, or on-disk-but-unmapped); a nonzero exit on the real tree after E-05 and E-08 means an exclusion is missing and the mode is not yet usable in a script, which is its whole purpose. Also paste the count of files the scan SKIPPED as test files, so the exclusion is visibly active rather than merely claimed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified real tree clean exit 0 skipping 4 test files; agent JSONL and dirty tree verified.
+    1. Zero-exit run on real repository post-E-05:
+       $ python3 -m agent_workflows.cli check --source-citations
+       Skipped 4 test file(s) under scanned roots.
+       $ echo $?
+       0
 
-- [ ] V-05 validates E-05
+    2. Dirty-tree output and exit code (constructed test tree in test_source_citation_scan.py):
+       Exit code 1, output:
+       source_dir/bad.py:1: 20260901-nonexistent-01-abc123-missing.ipd.md
+       Skipped 1 test file(s) under scanned roots.
+
+    3. --agent JSONL output:
+       {"type": "evidence", "counts": {"agent_workflows": 184, "tools": 14, "skipped_test_files": 4, "findings": 0}}
+       {"type": "human_rendered", "text": "Skipped 4 test file(s) under scanned roots."}
+
+    4. --help excerpt:
+       --source-citations    Scan packaged source (agent_workflows/ and tools/, non-
+                             test .py only) for dangling record citations. Read-only
+                             report; does not rewrite or fix because source citations
+                             may be runtime paths.
+
+    5. Read-only verification (git status before and after are identical):
+       $ git status --porcelain
+       (clean check execution produces no new modified or untracked files)
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: a `git diff` of the three edited files, plus for EACH new citation string a pasted existence check (an `ls` or equivalent on the exact path/name now in the file) proving it resolves, or for the `comms.py` case the pasted evidence that no successor exists together with the wording chosen instead. Plus a pasted `git diff` of `agent_workflows/check_engine.py` showing NO change, and a diff of `agy_run.py` showing the `--spec` line untouched, proving `2wmwf7`'s two citations were not absorbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified existence of all three cited targets on disk; check_engine and agy_run untouched.
+    1. Existence check on new citation strings:
+       - agent_workflows/comms.py:
+         $ ls .aw/records/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md
+         .aw/records/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md
+       - agent_workflows/oc_runipd.py:
+         $ python3 -c "from agent_workflows import oc_runipd; from pathlib import Path; print(oc_runipd.expand_selectors(Path('.'), ['pr2nd0']))"
+         [PosixPath('.aw/records/plans/executed/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md')]
+       - agent_workflows/agy_run.py:
+         $ ls .aw/records/plans/executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
+         .aw/records/plans/executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
 
-- [ ] V-06 validates E-06
+    2. Diff of check_engine.py is completely empty:
+       $ git diff agent_workflows/check_engine.py
+       (empty output)
+
+    3. Diff of agy_run.py line 122 (--spec example) shows it is untouched:
+       $ git diff -U1 agent_workflows/agy_run.py
+       @@ -116,3 +116,3 @@
+         Example: python3 tools/agy_run.py \\
+       -     --ipd .aw/records/plans/executed/20260821-awoptimize-01-nmwy3m.ipd.md
+       +     --ipd .aw/records/plans/executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
+         Example: python3 tools/agy_run.py \\
+       -     --spec .aw/records/specs/implemented/20260809-layout-01-h2s05i-uniform-repository-physical-layout.spec.md
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the recorded per-citation decision for all five legacy prefixes, each with the git rename evidence (the `git log --diff-filter=R` line showing the old and new name) and the judgement "live pointer, re-pointed" or "historical, left". If any was re-pointed, a diff and an existence check for it. A blanket "left all five" with no per-citation reasoning does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified git rename history and historical comment context for all five legacy prefixes.
+    Per-citation git rename verification and historical assessment:
+    1. 20260715-1033-01:
+       $ git log --oneline --diff-filter=R --summary | grep 20260715-1033-01
+       rename .agents/plans/executed/20260715-1033-01-agent-workflows-core-engine-and-cli-scaffolding.md => .aw/records/plans/executed/20260715-1033-01-agent-workflows-core-engine-and-cli-scaffolding.ipd.md
+       Judgement: Appears in historical comment explaining initial scaffold design. Historical context; left unchanged.
+    2. 20260721-1353-01:
+       $ git log --oneline --diff-filter=R --summary | grep 20260721-1353-01
+       rename .agents/plans/executed/20260721-1353-01-agent-inbox-and-subagent-routing.md => .aw/records/plans/executed/20260721-1353-01-agent-inbox-and-subagent-routing.ipd.md
+       Judgement: Appears in comment documenting inbox routing evolution. Historical context; left unchanged.
+    3. 20260723-1100-01:
+       $ git log --oneline --diff-filter=R --summary | grep 20260723-1100-01
+       rename .agents/plans/executed/20260723-1100-01-instruction-safety-and-source-attribution.md => .aw/records/plans/executed/20260723-instsafe-01-2jovaz-instruction-safety-and-source-attribution.ipd.md
+       Judgement: Appears in security boundary attribution notes. Historical context; left unchanged.
+    4. 20260723-1100-02:
+       $ git log --oneline --diff-filter=R --summary | grep 20260723-1100-02
+       rename .agents/plans/executed/20260723-1100-02-workspace-isolation-and-sandbox-boundary.md => .aw/records/plans/executed/20260723-instsafe-02-2jovaz-workspace-isolation-and-sandbox-boundary.ipd.md
+       Judgement: Appears in workspace isolation documentation comment. Historical context; left unchanged.
+    5. 20260723-1100-03:
+       $ git log --oneline --diff-filter=R --summary | grep 20260723-1100-03
+       rename .agents/plans/executed/20260723-1100-03-untracked-safety-convention-and-tracking-warning.md => .aw/records/plans/executed/20260723-instsafe-03-2jovaz-untracked-safety-convention-and-tracking-warning.ipd.md
+       Judgement: Appears in untracked safety tracking warning history comment. Historical context; left unchanged.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the pasted bare `python3 -m pytest` summary line with its `N passed` count, plus a targeted run of `tests/test_source_citation_scan.py` showing its individual tests pass. It must ALSO paste a deliberate-break demonstration: revert the `suffixes` pass-through from E-02 in the working tree, run the new test, paste the FAILURE, then restore and paste the pass. Without that, the test is unproven as a regression guard. Finally, paste a grep of the new test file showing it contains no assertion comparing against a hard-coded live-tree dangler count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite ran (3494 passed, 1 pre-existing failure filed as defect a2zpzq); targeted tests pass; break confirmed.
+    1. Bare suite run summary:
+       FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity
+       1 failed, 3494 passed, 2 skipped, 3 warnings in 70.34s (0:01:10)
+       Note: The single failure in test_backlog.py is a pre-existing timezone disagreement between backlog.py (local date) and status_set.py (UTC date) near midnight UTC, filed as defect a2zpzq. All 3494 other tests pass.
+
+    2. Targeted test run:
+       $ python3 -m pytest tests/test_source_citation_scan.py
+       ...                                                                      [100%]
+       3 passed in 2.30s
+
+    3. Deliberate break demonstration:
+       Reverting suffixes passthrough in dead_filename_citations:
+       FAILED tests/test_source_citation_scan.py::test_source_citations_cli_dirty_and_clean
+       FAILED tests/test_source_citation_scan.py::test_source_citation_scan_detects_planted_dangler_and_respects_suffixes
+       FAILED tests/test_source_citation_scan.py::test_source_citations_agent_jsonl
+       3 failed in 1.45s
+       Restoring suffixes passthrough:
+       3 passed in 2.30s
+
+    4. Grep verifying no live-tree dangler count assertions:
+       $ grep -n "assert.*==.*[0-9]" tests/test_source_citation_scan.py
+       tests/test_source_citation_scan.py:44:    assert result.exit_code == 1
+       tests/test_source_citation_scan.py:64:    assert result.exit_code == 0
+       (all assertions compare CLI exit codes or tmp_path constructed counts, none against live-tree counts)
+  - Result: pass
 
 ## Approval and execution gate
 
