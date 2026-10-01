@@ -1,5 +1,5 @@
 - Id: zftbta
-- Status: graduated
+- Status: done
 - Graduated-To: zftbta
 - Blocks-Release: next
 - Set: zftbta
@@ -8,6 +8,7 @@
 - Summary: aw rename leaves 44 record citations dangling in agent_workflows source, so a maintainer keeps hand-fixing the shipped package after every rename
 
 ## Workflow history
+- 2026-09-30 set (aw backlog): closed by aw oc run: IPD 68hdic executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.ipd.md); evidence .aw/records/plans/executed/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 68hdic
 - 2026-09-26 created (aw backlog): aw rename leaves 44 record citations dangling in agent_workflows source, so a maintainer keeps hand-fixing the shipped package after every rename
 
