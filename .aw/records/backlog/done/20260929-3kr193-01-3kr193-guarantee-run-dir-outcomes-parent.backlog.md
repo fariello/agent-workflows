@@ -1,5 +1,5 @@
 - Id: 3kr193
-- Status: graduated
+- Status: done
 - Graduated-To: 3kr193
 - Set: 3kr193
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether run-directory outcomes/ should be guaranteed by its writers, as sessions/ and prompts/ now are
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD 2kyw59 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-3kr193-01-2kyw59-guarantee-the-run-directory-outcomes-parent-at-the-one-site.ipd.md); evidence .aw/records/plans/executed/20261001-3kr193-01-2kyw59-guarantee-the-run-directory-outcomes-parent-at-the-one-site.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 2kyw59
 - 2026-09-29 created (aw backlog): Decide whether run-directory outcomes/ should be guaranteed by its writers, as sessions/ and prompts/ now are
 

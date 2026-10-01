@@ -159,13 +159,18 @@ def lane_submission_root(
 
 
 def prepare_lane_submission_dir(paths: WorkerPaths) -> None:
-    """Create the lane-side submission tree BEFORE the turn, so the worker only has to write files.
+    """Create the submission tree BEFORE the turn, so the worker only has to write files.
 
-    Called by the driver right after it projects the paths. Tolerates a non-isolated turn (nothing to
-    create) and an already-existing tree (an adopted lane, a retry). It creates the `outcomes/`
-    subdirectory too, because the outcome path the prompt names is nested and a worker that has to
-    `mkdir -p` first is a worker that can get that wrong.
+    Guarantees the outcome parent directory exists on BOTH execution branches: for an isolated
+    turn it creates `paths.lane_outcome.parent` in the lane submission tree, and for a non-isolated
+    turn (`paths.lane_root is None`) it creates `Path(paths.prompt_outcome).parent` on the
+    driver side.
     """
+    if paths.lane_root is None:
+        driver_outcome = Path(paths.prompt_outcome)
+        if driver_outcome.is_absolute():
+            driver_outcome.parent.mkdir(parents=True, exist_ok=True)
+        return
     if paths.lane_submission_root is None or paths.lane_outcome is None:
         return
     paths.lane_outcome.parent.mkdir(parents=True, exist_ok=True)

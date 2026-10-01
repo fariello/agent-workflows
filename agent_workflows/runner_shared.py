@@ -8958,7 +8958,14 @@ def recorded_outcome_path(run_dir: Path, item: Mapping[str, Any]) -> Path | None
 
     Split out from :func:`read_recorded_outcome` because the zero-work predicate needs a different
     question: that reader collapses "absent" and "unparseable" into one `None`, and those are OPPOSITE
-    answers here (absent PROVES nothing was written; unparseable proves nothing at all)."""
+    answers here (absent PROVES nothing was written; unparseable proves nothing at all).
+
+    DELIBERATELY a pure path helper that creates nothing on disk. Absence of the outcome file
+    (and of the `outcomes/` directory itself) is a meaningful answer rather than an error condition
+    to be fixed with a mkdir. The guarantee for agent-written outcome paths is sited at prompt-build
+    time where the promise is made (`prepare_lane_submission_dir` on the non-isolated branch, and
+    `build_verifier_prompt`), decided under backlog 3kr193.
+    """
 
     position = item.get("position")
     id6 = item.get("id6")
@@ -27533,6 +27540,7 @@ def build_verifier_prompt(
     verify_outcome = (
         run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
     )
+    verify_outcome.parent.mkdir(parents=True, exist_ok=True)
     if audit:
         # DELIBERATELY BEFORE the role notice is even computed: an AUDIT's subject plan is already
         # TERMINAL (`plan_audit_target` refuses anything not in `executed/`), so there is no pending
