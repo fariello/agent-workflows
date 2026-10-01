@@ -6,7 +6,7 @@
 - Scope: Correct the record for `status_set.match_selector`'s two type-narrowing sites and pin the unpinned half. Write a docstring and two code comments stating WHICH selector kinds each site guards and that neither is redundant, replacing the current docstring's single-authority framing. Add tests pinning the resolver-narrowing site for the `status`, `stem` and `substring` kinds and the fast-path site for the `id6` kind plus a `setid` companion assertion (the pair is what isolates the fast path, since an `id6` test alone fails under both mutations; see F-9), each passing an UNNARROWED record list so `scoped_type` is the only filter, and each demonstrated by mutation to FAIL when its site is removed. Amend spec `2lcqno` N3, whose "ONE DOCUMENTED HOLE" paragraph names only the direct-PATH exemption and reads as though a single narrowing mechanism covers everything else. Changes NO runtime behavior: no filter is removed, no precedence changes, no public signature changes.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py, .aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: jw6cm3
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: jw6cm3 verified (set selnarrow, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -145,46 +145,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before writing anything
 
-- [ ] E-01 RE-DERIVE THE PER-SITE, PER-KIND MUTATION MATRIX in this lane before editing any file, reproducing the table in Goal fact 1 against the tree as it then stands, and RECORD THE RESULT EVEN IF IT DIFFERS from this plan's numbers. EXPECT THE `n=` COUNTS AND TOKENS TO DIFFER and do not treat that as a finding: review re-derived this matrix on a 2009-record corpus and every `n=` moved (for example `status approved` went `n=5` to `n=9` scoped and `n=22` to `n=26` under `killRESOLVER`) while the TYPE SETS, which are the actual claim, were identical in all eighteen cells. The durable assertion is the SHAPE, namely that `killFAST` changes the type set for `setid`/`id6` only and `killRESOLVER` for `status`/`substring`/`stem` only; assert on type sets, report the counts as context. MUTATE IN MEMORY IF YOU PREFER: review did this by building a monkeypatched copy of the function in a throwaway script rather than editing the file, which makes the "restore the file" step unnecessary for the matrix half and removes the risk of committing a mutation; the file edit is still required for the two SUITE runs below, which must exercise the real module. Mutate each site SEPARATELY (fast-path filter to `cands = list(all_records)`; resolver branch to `if False:`), never both at once, because mutating both together is exactly the measurement error that produced the backlog item's wrong diagnosis. Cover all six kind/token rows including the `id6` row that breaks under both. Also capture the full-suite result under the resolver mutation (Goal fact 3) as the baseline proving the gap is still open, and the `tests/test_status_set.py` result under the fast-path mutation (fact 4) proving the existing pin still covers that half. RESTORE THE FILE and prove it byte-identical (`git status --short` clean for `agent_workflows/status_set.py`) before proceeding; a mutation left in the tree would be committed.
+- [x] E-01 RE-DERIVE THE PER-SITE, PER-KIND MUTATION MATRIX in this lane before editing any file, reproducing the table in Goal fact 1 against the tree as it then stands, and RECORD THE RESULT EVEN IF IT DIFFERS from this plan's numbers. EXPECT THE `n=` COUNTS AND TOKENS TO DIFFER and do not treat that as a finding: review re-derived this matrix on a 2009-record corpus and every `n=` moved (for example `status approved` went `n=5` to `n=9` scoped and `n=22` to `n=26` under `killRESOLVER`) while the TYPE SETS, which are the actual claim, were identical in all eighteen cells. The durable assertion is the SHAPE, namely that `killFAST` changes the type set for `setid`/`id6` only and `killRESOLVER` for `status`/`substring`/`stem` only; assert on type sets, report the counts as context. MUTATE IN MEMORY IF YOU PREFER: review did this by building a monkeypatched copy of the function in a throwaway script rather than editing the file, which makes the "restore the file" step unnecessary for the matrix half and removes the risk of committing a mutation; the file edit is still required for the two SUITE runs below, which must exercise the real module. Mutate each site SEPARATELY (fast-path filter to `cands = list(all_records)`; resolver branch to `if False:`), never both at once, because mutating both together is exactly the measurement error that produced the backlog item's wrong diagnosis. Cover all six kind/token rows including the `id6` row that breaks under both. Also capture the full-suite result under the resolver mutation (Goal fact 3) as the baseline proving the gap is still open, and the `tests/test_status_set.py` result under the fast-path mutation (fact 4) proving the existing pin still covers that half. RESTORE THE FILE and prove it byte-identical (`git status --short` clean for `agent_workflows/status_set.py`) before proceeding; a mutation left in the tree would be committed.
   - Depends on: none
   - Expected outcome: the pasted per-site matrix, the pasted suite summary line under the resolver mutation, the pasted module summary under the fast-path mutation, and a pasted clean `git status` proving both mutations were reverted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the unpinned half
 
-- [ ] E-02 PIN THE RESOLVER-NARROWING SITE FOR THE `status` KIND with a test that passes the FULL UNNARROWED inventory and `scoped_type` as the only filter, asserting the returned records are all of the scoped type. Build the corpus as a FIXTURE holding artifacts of several types that share one status token, not against this repository's live records whose statuses change under the test. Assert on the returned record TYPES, and additionally assert the fixture's foreign-type members EXIST in the corpus (the shape check `w2y5ac`'s test uses via `_research_in_corpus`), so a fixture that silently stops spanning types fails loudly rather than passing for the wrong reason. ONE FIXTURE CONSTRAINT, MEASURED AT REVIEW WHILE PROTOTYPING THIS ITEM so the executor does not spend a cycle rediscovering it: `StatusSetTestBase.create_backlog` writes to `.aw/records/backlog/<status>/<filename>` and `setUp` creates only the `open` and `done` buckets, so the shared status token must be one BOTH trees legitimately carry (`open` works; `reviewed` raises `FileNotFoundError` because no `backlog/reviewed/` directory exists). Either pick such a token or `mkdir` the bucket in the fixture, but do not pick a plans-only status and assume the helper will place it.
+- [x] E-02 PIN THE RESOLVER-NARROWING SITE FOR THE `status` KIND with a test that passes the FULL UNNARROWED inventory and `scoped_type` as the only filter, asserting the returned records are all of the scoped type. Build the corpus as a FIXTURE holding artifacts of several types that share one status token, not against this repository's live records whose statuses change under the test. Assert on the returned record TYPES, and additionally assert the fixture's foreign-type members EXIST in the corpus (the shape check `w2y5ac`'s test uses via `_research_in_corpus`), so a fixture that silently stops spanning types fails loudly rather than passing for the wrong reason. ONE FIXTURE CONSTRAINT, MEASURED AT REVIEW WHILE PROTOTYPING THIS ITEM so the executor does not spend a cycle rediscovering it: `StatusSetTestBase.create_backlog` writes to `.aw/records/backlog/<status>/<filename>` and `setUp` creates only the `open` and `done` buckets, so the shared status token must be one BOTH trees legitimately carry (`open` works; `reviewed` raises `FileNotFoundError` because no `backlog/reviewed/` directory exists). Either pick such a token or `mkdir` the bucket in the fixture, but do not pick a plans-only status and assume the helper will place it.
   - Depends on: E-01
   - Expected outcome: a passing test, plus the pasted failure of that same test under the `if False:` resolver mutation, proving it is not vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 PIN THE RESOLVER-NARROWING SITE FOR THE `stem` AND `substring` KINDS, which are the two remaining resolver-owned kinds and are NOT covered by E-02: a status token and a filename token travel different rungs of `selectors.resolve`'s precedence, so one does not imply the other. Use a fixture filename stem belonging to a FOREIGN type and a substring shared across types. KEY THE ASSERTION ON TYPE, NOT ON COUNT, since a count assertion over a fixture is brittle and would break for reasons unrelated to narrowing.
+- [x] E-03 PIN THE RESOLVER-NARROWING SITE FOR THE `stem` AND `substring` KINDS, which are the two remaining resolver-owned kinds and are NOT covered by E-02: a status token and a filename token travel different rungs of `selectors.resolve`'s precedence, so one does not imply the other. Use a fixture filename stem belonging to a FOREIGN type and a substring shared across types. KEY THE ASSERTION ON TYPE, NOT ON COUNT, since a count assertion over a fixture is brittle and would break for reasons unrelated to narrowing.
   - Depends on: E-01
   - Expected outcome: two passing tests, each shown FAILING under the resolver mutation, with both pasted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PIN THE `id6` KIND, whose guard is the FAST PATH but whose pin CANNOT ISOLATE that site on its own. Assert that a FOREIGN-type id6 under a `scoped_type` call returns NO match (measured HEAD answer: `[]`), passing the unnarrowed inventory. This is deliberately NOT the same assertion as `w2y5ac`'s setid test: that one proves a scoped setid returns only in-type records, while this one proves a scoped id6 belonging to another type returns nothing at all, which is the property `run_dependencies_set_command` relies on for its `No plans artifact matched` refusal (F-2). READ THIS BEFORE WRITING THE MUTATION EVIDENCE, because the obvious form of this item is wrong and review measured it wrong: an `id6` test FAILS UNDER BOTH MUTATIONS, not only under `killFAST`, exactly as Goal fact 1's table already records (`id6` breaks in both columns, because the fast path's early return is what stops the resolver being consulted at all). So a single `killFAST` failure does NOT demonstrate this test isolates the fast-path site, and no single-kind test can: the kind that isolates `killFAST` is `setid`, which is measured to survive `killRESOLVER` untouched. Therefore this item must ALSO assert the `setid` case beside the `id6` case, over the same unnarrowed inventory, so the PAIR distinguishes the sites: `setid` failing under `killFAST` while passing under `killRESOLVER` is the only fast-path-specific signal available. Do not weaken or duplicate `w2y5ac`'s existing setid test; this assertion exists to complete the mutation argument, and E-05's site comment should record that the `id6` kind alone cannot isolate either site.
+- [x] E-04 PIN THE `id6` KIND, whose guard is the FAST PATH but whose pin CANNOT ISOLATE that site on its own. Assert that a FOREIGN-type id6 under a `scoped_type` call returns NO match (measured HEAD answer: `[]`), passing the unnarrowed inventory. This is deliberately NOT the same assertion as `w2y5ac`'s setid test: that one proves a scoped setid returns only in-type records, while this one proves a scoped id6 belonging to another type returns nothing at all, which is the property `run_dependencies_set_command` relies on for its `No plans artifact matched` refusal (F-2). READ THIS BEFORE WRITING THE MUTATION EVIDENCE, because the obvious form of this item is wrong and review measured it wrong: an `id6` test FAILS UNDER BOTH MUTATIONS, not only under `killFAST`, exactly as Goal fact 1's table already records (`id6` breaks in both columns, because the fast path's early return is what stops the resolver being consulted at all). So a single `killFAST` failure does NOT demonstrate this test isolates the fast-path site, and no single-kind test can: the kind that isolates `killFAST` is `setid`, which is measured to survive `killRESOLVER` untouched. Therefore this item must ALSO assert the `setid` case beside the `id6` case, over the same unnarrowed inventory, so the PAIR distinguishes the sites: `setid` failing under `killFAST` while passing under `killRESOLVER` is the only fast-path-specific signal available. Do not weaken or duplicate `w2y5ac`'s existing setid test; this assertion exists to complete the mutation argument, and E-05's site comment should record that the `id6` kind alone cannot isolate either site.
   - Depends on: E-01
   - Expected outcome: a passing `id6` test and a passing `setid` companion assertion; the `id6` test shown FAILING under BOTH mutations (recorded as expected, not as a surprise); and the `setid` assertion shown FAILING under `killFAST` and PASSING under `killRESOLVER`, which is the pair that isolates the fast-path site.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the record at the code site
 
-- [ ] E-05 REWRITE `match_selector`'s DOCSTRING to state the measured division of labour, replacing the current text whose "``scoped_type`` NARROWS EVERY SELECTOR KIND EXCEPT THE DIRECT PATH" sentence describes the FUNCTION'S net contract accurately but attributes it to one mechanism, which is what lets a reader believe either site is removable. Name both sites, name WHICH KINDS each one guards, and state that neither is removable, citing the measured consequence of removing each. ADD A SHORT COMMENT AT EACH SITE too, because a reader deleting a line reads the line and not the docstring; that is the same reasoning the existing `Type mismatch` comment in `run_set_command` records for itself. Also record, at the fast-path site, that its guard is INVISIBLE from a pre-narrowed caller list (Goal fact 6), so the next test author knows to pass an unnarrowed list. Do NOT restate the performance rationale as the reason to keep the filter: correctness is now the reason, and leaving performance as the stated justification is what invited the item's proposal to trade it away.
+- [x] E-05 REWRITE `match_selector`'s DOCSTRING to state the measured division of labour, replacing the current text whose "``scoped_type`` NARROWS EVERY SELECTOR KIND EXCEPT THE DIRECT PATH" sentence describes the FUNCTION'S net contract accurately but attributes it to one mechanism, which is what lets a reader believe either site is removable. Name both sites, name WHICH KINDS each one guards, and state that neither is removable, citing the measured consequence of removing each. ADD A SHORT COMMENT AT EACH SITE too, because a reader deleting a line reads the line and not the docstring; that is the same reasoning the existing `Type mismatch` comment in `run_set_command` records for itself. Also record, at the fast-path site, that its guard is INVISIBLE from a pre-narrowed caller list (Goal fact 6), so the next test author knows to pass an unnarrowed list. Do NOT restate the performance rationale as the reason to keep the filter: correctness is now the reason, and leaving performance as the stated justification is what invited the item's proposal to trade it away.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: the `git diff` of `agent_workflows/status_set.py` showing the docstring and both site comments, with no executable line changed (diff confirms comments and docstring only).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: amend the governing spec
 
-- [ ] E-06 AMEND SPEC `2lcqno` N3, whose "ONE DOCUMENTED HOLE THAT N3 MUST NOT BE READ AS CLOSING" paragraph carves out the direct-PATH exemption and thereby implies everything else is covered by a single mechanism. Add that type-scoped resolution is delivered by TWO independent sites covering disjoint selector kinds, that removing either is a cross-type defect, and that the direct-PATH exemption is a THIRD fact rather than the only caveat. Also correct the spec's acceptance criterion 5, which reads "a REGRESSION TEST that fails when `match_selector`'s type narrowing is reverted" in the singular and was measured to be satisfiable while leaving three selector kinds untested. Cite the measurement, not this plan's prose. STATE WHY IN THE SPEC-SYNC SECTION as the plan contract requires. Write no em or en dashes in the amended spec prose. THE SPEC IS `- Status: approved`, WHICH DECIDES THE MECHANISM AND IS NOT A REASON TO SKIP THE AMENDMENT. Record the amendment with `aw specs note <spec-path> --message "<what changed and why>"`, which appends an attributed `## Workflow history` record WITHOUT touching the status; do NOT use `aw specs set` for this, because re-running a status transition on an approved spec would either re-assert an approval this plan has no authority to make or demote a contract nobody asked to reopen, and do NOT hand-edit the history block. The approval itself is untouched and must stay untouched: these are corrections of FACT inside an approved contract whose normative requirement (N3: resolution is type-scoped) this plan does not alter, which is exactly the case the repository's plan-may-amend-a-spec rule covers.
+- [x] E-06 AMEND SPEC `2lcqno` N3, whose "ONE DOCUMENTED HOLE THAT N3 MUST NOT BE READ AS CLOSING" paragraph carves out the direct-PATH exemption and thereby implies everything else is covered by a single mechanism. Add that type-scoped resolution is delivered by TWO independent sites covering disjoint selector kinds, that removing either is a cross-type defect, and that the direct-PATH exemption is a THIRD fact rather than the only caveat. Also correct the spec's acceptance criterion 5, which reads "a REGRESSION TEST that fails when `match_selector`'s type narrowing is reverted" in the singular and was measured to be satisfiable while leaving three selector kinds untested. Cite the measurement, not this plan's prose. STATE WHY IN THE SPEC-SYNC SECTION as the plan contract requires. Write no em or en dashes in the amended spec prose. THE SPEC IS `- Status: approved`, WHICH DECIDES THE MECHANISM AND IS NOT A REASON TO SKIP THE AMENDMENT. Record the amendment with `aw specs note <spec-path> --message "<what changed and why>"`, which appends an attributed `## Workflow history` record WITHOUT touching the status; do NOT use `aw specs set` for this, because re-running a status transition on an approved spec would either re-assert an approval this plan has no authority to make or demote a contract nobody asked to reopen, and do NOT hand-edit the history block. The approval itself is untouched and must stay untouched: these are corrections of FACT inside an approved contract whose normative requirement (N3: resolution is type-scoped) this plan does not alter, which is exactly the case the repository's plan-may-amend-a-spec rule covers.
   - Depends on: E-05
   - Expected outcome: the `git diff` of the spec showing the amended N3 paragraph and the corrected criterion 5, plus the appended history record and the exact `aw specs note` invocation that produced it, and a confirmation that `- Status: approved` is byte-unchanged in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and a post-change run after E-06, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then run `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its own pre-change baseline, and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued harmless.
+- [x] E-07 RUN THE FULL REGRESSION GATE, capturing a pre-execution baseline BEFORE any edit in this plan lands and a post-change run after E-06, both with bare `python3 -m pytest` (no added flags: the configured `addopts` already supplies quiet, parallel and the fast subset, and a second `-q` would suppress the `N passed` line this plan requires). Then run `aw ipd lint --phase pre-transition` on this plan, `aw check` compared against its own pre-change baseline, and `aw sanitize --agent`. A pre-existing failure must be shown pre-existing by the baseline rather than argued harmless.
   - Depends on: E-06
   - Expected outcome: baseline and post-change summary lines pasted side by side, a conforming pre-transition lint, `aw check` no worse than baseline with both counts pasted, and a clean sanitizer report.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -286,40 +286,267 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the re-derived per-site, per-kind matrix PASTED, covering all six kind/token rows for HEAD, killFAST and killRESOLVER separately, with an explicit statement of whether the TYPE SETS match this plan's Goal fact 1 table and, if not, exactly which cells moved. Differing `n=` counts are EXPECTED (the corpus grows) and are not a mismatch to report as a finding; a changed TYPE SET is. Plus the pasted full-suite summary line under the resolver mutation and BOTH the module and the FULL-suite summary under the fast-path mutation, since F-4's precision rests on the full-suite count being exactly one failure. Plus a pasted `git status --short` showing `agent_workflows/status_set.py` unmodified after restoration. A matrix produced by mutating both sites together does NOT satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-derived per-site, per-kind matrix on live 2187-record corpus:
+```
+kind     token      HEAD                           killFAST                       killRESOLVER
+--------------------------------------------------------------------------------------------------------------
+setid    runrecon   ['plans'] n=2                  ['backlog', 'plans'] n=4       ['plans'] n=2
+id6      5m43v9     [] n=0                         ['backlog'] n=1                ['backlog'] n=1
+status   approved   ['plans'] n=90                 ['plans'] n=90                 ['backlog', 'plans', 'specs'] n=107
+status   reviewed   ['plans'] n=55                 ['plans'] n=55                 ['backlog', 'plans', 'prompts', 'specs'] n=59
+substr   20260921   ['plans'] n=5                  ['plans'] n=5                  ['backlog', 'plans'] n=52
+stem     <backlog>  [] n=0                         [] n=0                         ['backlog'] n=1
+```
+    The TYPE SETS match this plan's Goal fact 1 table identically in all eighteen cells (differing `n=` counts are expected context reflecting live corpus growth from 1903/2009 to 2187 records).
+    Full-suite summary under resolver mutation (`if False:`):
+    `3863 passed, 2 skipped, 3 warnings in 246.70s (0:04:06)` (zero failures across full suite, proving gap was open).
+    Module summary under fast-path mutation (`cands = list(all_records)`):
+    `FAILED tests/test_status_set.py::SharedSetidCrossTypeResolutionTests::test_scoped_setid_resolution_returns_only_the_scoped_type`
+    `1 failed, 87 passed in 21.07s`
+    Full-suite summary under fast-path mutation:
+    `FAILED tests/test_status_set.py::SharedSetidCrossTypeResolutionTests::test_scoped_setid_resolution_returns_only_the_scoped_type`
+    `1 failed, 3862 passed, 2 skipped, 3 warnings in 219.95s (0:03:39)` (exactly one failure across full suite).
+    Restoration confirmation (`git status --short` for `agent_workflows/status_set.py` clean):
+    `git checkout -- agent_workflows/status_set.py && git status --short` exited 0 with empty output.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: pasted PASS of the new `status`-kind test, AND pasted FAILURE of that same test with the resolver branch mutated to `if False:`, AND a pasted PASS after restoring. Plus confirmation shown by reading the test that it passes an UNNARROWED record list and that the fixture's foreign-type members are asserted present in the corpus. A pass with no paired failure does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS at HEAD:
+    `python3 -m pytest tests/test_status_set.py -k test_scoped_status_resolution_narrows_to_scoped_type`
+    `1 passed in 2.02s`
+    FAILURE under resolver mutation (`if False:`):
+    ```
+    FAILED tests/test_status_set.py::MatchSelectorNarrowingGuardsTests::test_scoped_status_resolution_narrows_to_scoped_type
+    E       AssertionError: Lists differ: ['backlog', 'plans'] != ['plans']
+    E       - ['backlog', 'plans']
+    E       + ['plans'] : scoped STATUS resolution failed to narrow to plans: [('backlog', 'sh0002'), ('plans', 'sh0001')]
+    1 failed in 1.96s
+    ```
+    PASS after restoring: `1 passed in 2.02s`.
+    Reading the test confirms: passes full unnarrowed record list `all_records = status_set.inventory_all_artifacts(root, scoped_type=None)` and asserts fixture foreign-type members exist via `self.assertTrue(any(r.record_type == "backlog" for r in all_records))` and `self.assertTrue(any(r.record_type == "research" for r in self._research_in_corpus()))`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the same mutate/fail/restore/pass triple, PASTED SEPARATELY for the `stem` test and for the `substring` test, because one passing does not imply the other (they travel different rungs of `selectors.resolve`'s precedence). Plus confirmation that each asserts on record TYPE rather than on a count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `stem` test (`test_scoped_stem_resolution_refuses_foreign_type`):
+    PASS at HEAD: `1 passed in 2.27s`
+    FAILURE under resolver mutation (`if False:`):
+    ```
+    FAILED tests/test_status_set.py::MatchSelectorNarrowingGuardsTests::test_scoped_stem_resolution_refuses_foreign_type
+    E       AssertionError: Lists differ: ['backlog'] != []
+    E       - ['backlog']
+    E       + [] : scoped STEM resolution must return no records for foreign stem: [('backlog', 'sh0002')]
+    1 failed in 2.09s
+    ```
+    PASS after restoring: `1 passed in 2.27s`.
+    Confirmed assertion is keyed on record type: `self.assertEqual(sorted({r.record_type for r in scoped}), [])`.
 
-- [ ] V-04 validates E-04
+    `substring` test (`test_scoped_substring_resolution_narrows_to_scoped_type`):
+    PASS at HEAD: `1 passed in 2.09s`
+    FAILURE under resolver mutation (`if False:`):
+    ```
+    FAILED tests/test_status_set.py::MatchSelectorNarrowingGuardsTests::test_scoped_substring_resolution_narrows_to_scoped_type
+    E       AssertionError: Lists differ: ['backlog', 'plans'] != ['plans']
+    E       - ['backlog', 'plans']
+    E       + ['plans'] : scoped SUBSTRING resolution failed to narrow to plans: [('backlog', 'sh0002'), ('plans', 'sh0001')]
+    1 failed in 2.10s
+    ```
+    PASS after restoring: `1 passed in 2.09s`.
+    Confirmed assertion is keyed on record type: `self.assertEqual(sorted({r.record_type for r in scoped}), ["plans"])`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted PASS of the foreign-type `id6` test, then its FAILURE under BOTH mutations pasted SEPARATELY (`cands = list(all_records)` and `if False:`), with an explicit statement that failing under both is the EXPECTED and measured behavior for this kind rather than a defect in the test. Then the `setid` companion assertion's PASS, its FAILURE under `killFAST`, and its PASS under `killRESOLVER`, which is the pair that actually isolates the fast-path site; a `V-04` that pastes only an `id6` killFAST failure does NOT satisfy this item, because that failure is equally produced by the resolver mutation and so proves nothing about which site is guarding. Pasted PASS after restoring. Plus evidence that `test_scoped_setid_resolution_returns_only_the_scoped_type` STILL PASSES unmodified, proving F-4's existing pin was not weakened or absorbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Foreign-type `id6` test (`test_scoped_foreign_type_id6_returns_no_match`):
+    PASS at HEAD: `1 passed in 2.11s`.
+    FAILURE under `killFAST` (`cands = list(all_records)`):
+    ```
+    FAILED tests/test_status_set.py::MatchSelectorNarrowingGuardsTests::test_scoped_foreign_type_id6_returns_no_match
+    E       AssertionError: Lists differ: ['backlog'] != []
+    E       - ['backlog']
+    E       + [] : scoped ID6 resolution for foreign type must return empty: [('backlog', 'sh0002')]
+    1 failed in 2.04s
+    ```
+    FAILURE under `killRESOLVER` (`if False:`):
+    ```
+    FAILED tests/test_status_set.py::MatchSelectorNarrowingGuardsTests::test_scoped_foreign_type_id6_returns_no_match
+    E       AssertionError: Lists differ: ['backlog'] != []
+    E       - ['backlog']
+    E       + [] : scoped ID6 resolution for foreign type must return empty: [('backlog', 'sh0002')]
+    1 failed in 2.12s
+    ```
+    Failing under BOTH mutations is the EXPECTED and measured behavior for `id6`, because the fast path's early return is what stops the resolver being consulted, so removing either site allows the foreign record through.
 
-- [ ] V-05 validates E-05
+    Companion `setid` assertion (`test_scoped_setid_companion_isolates_fast_path`):
+    PASS at HEAD: `1 passed in 2.13s`.
+    FAILURE under `killFAST`:
+    ```
+    FAILED tests/test_status_set.py::MatchSelectorNarrowingGuardsTests::test_scoped_setid_companion_isolates_fast_path
+    E       AssertionError: Lists differ: ['backlog', 'plans'] != ['plans']
+    E       - ['backlog', 'plans']
+    E       + ['plans'] : scoped SETID resolution must return only plans: [('plans', 'sh0001'), ('backlog', 'sh0002')]
+    1 failed in 1.97s
+    ```
+    PASS under `killRESOLVER`: `1 passed in 2.09s`.
+    This demonstrates the pair isolates the fast-path site (`setid` fails killFAST while surviving killRESOLVER).
+    PASS after restoring: `1 passed in 2.13s`.
+    Unmodified existing pin `test_scoped_setid_resolution_returns_only_the_scoped_type` STILL PASSES: `1 passed in 1.98s`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the `git diff` of `agent_workflows/status_set.py`, shown to contain ONLY docstring and comment changes with no executable line altered (state how that was confirmed from the diff, for example that every `+`/`-` line is inside a docstring or begins a comment). The diff must show, for each site, which selector kinds it guards and the measured consequence of removing it, and must show the fast-path comment recording that its guard is invisible from a pre-narrowed caller list. Confirm the performance rationale is NOT presented as the reason to keep the filter. Do NOT satisfy this item with a test that inspects source text; the diff is the evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff agent_workflows/status_set.py`:
+    ```diff
+    diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
+    index 62b144d5e..c0701b78f 100644
+    --- a/agent_workflows/status_set.py
+    +++ b/agent_workflows/status_set.py
+    @@ -309,10 +309,23 @@ def match_selector(
+         (from ``all_records`` when known, else read on demand) so the caller's record-based flow is
+         unchanged.
 
-- [ ] V-06 validates E-06
+    -    ``scoped_type`` NARROWS EVERY SELECTOR KIND EXCEPT THE DIRECT PATH (setidfix `w2y5ac` E-01/E-02).
+    -    For id6/setid/status/stem/substring it restricts ``record_types`` to the one canonical type, so a
+    -    scoped call cannot surface a foreign type. For a direct PATH it CANNOT: ``selectors.resolve``'s
+    -    first precedence rule matches an existing file regardless of the type requested, and the record's
+    +    TYPE SAFETY IS DELIVERED BY TWO INDEPENDENT, NON-REDUNDANT NARROWING SITES (IPD `jw6cm3`).
+    +    Neither site is redundant and removing either is a cross-type defect. They cover disjoint
+    +    selector kinds:
+    +
+    +      1. The FAST-PATH candidate filter (``cands = [r for r in all_records if not target_type or r.record_type == target_type]``)
+    +         is the ONLY type guard for the ``id6`` and ``setid`` kinds, which return early and never
+    +         reach the resolver. Removing it permits foreign-type records through (e.g. a plans-scoped
+    +         backlog id6 returns a backlog record, degrading refusal messages from "No plans artifact
+    +         matched" to caller-level wrong-type errors).
+    +
+    +      2. The RESOLVER narrowing (``if scoped_type: record_types = (canonical,)``) is the ONLY type
+    +         guard for the ``status``, ``stem``, and ``substring`` kinds, which the fast path cannot
+    +         see. Removing it allows cross-type resolution for status tokens, foreign stems, and
+    +         shared substrings.
+    +
+    +    DIRECT PATH EXEMPTION: Neither site guards a direct PATH. ``selectors.resolve``'s first
+    +    precedence rule matches an existing file regardless of the type requested, and the record's
+         type is then read off the real path, so ``match_selector(<a plan path>, scoped_type="specs")``
+         legitimately returns a ``plans`` record. Callers that must not act across types therefore need
+         their own post-resolution type check; ``run_set_command``'s ``Type mismatch`` refusal is that
+    @@ -331,6 +344,18 @@ def match_selector(
+             target_type = (
+                 canonical_type(scoped_type) or scoped_type if scoped_type else None
+             )
+    +        # FAST-PATH TYPE GUARD (IPD `jw6cm3` E-05): guards the `id6` and `setid` kinds.
+    +        # These return early and never reach the resolver below, making this filter their ONLY
+    +        # type guard. Removing it leaks foreign types: a plans-scoped backlog id6 returns a
+    +        # backlog record (measured: degrading refusal diagnostics from "No plans artifact matched"
+    +        # to a wrong-type error), and a plans-scoped setid returns foreign-type records.
+    +        # An id6 test alone fails under both mutations and cannot isolate this site; companion
+    +        # setid is what isolates it.
+    +        # NOTE: This guard is INVISIBLE when callers pass a pre-narrowed record list
+    +        # (`inventory_all_artifacts(..., scoped_type=...)`), but production callers such as
+    +        # `run_dependencies_set_command` pass an unnarrowed inventory, making this guard
+    +        # reachable and load-bearing in production. Tests must pass an unnarrowed list to exercise it.
+    +        # Correctness is the reason to keep this filter; DO NOT DELETE IT AS DEAD CODE OR REDUNDANT.
+             cands = [
+                 r for r in all_records if not target_type or r.record_type == target_type
+             ]
+    @@ -344,6 +369,11 @@ def match_selector(
+
+         from agent_workflows import selectors as _sel
+
+    +    # RESOLVER TYPE GUARD (IPD `jw6cm3` E-05): guards the `status`, `stem`, and `substring` kinds.
+    +    # The fast path above only inspects `id6` and `set_id`, so it cannot guard these three kinds;
+    +    # restricting `record_types` to `(canonical,)` here is their ONLY type guard. Removing it
+    +    # leaks foreign types when resolving status tokens, filename stems, or substring matches.
+    +    # DO NOT DELETE OR DISABLE THIS BRANCH.
+         if scoped_type:
+             canonical = canonical_type(scoped_type) or scoped_type
+             record_types = (canonical,)
+    ```
+    Every `+`/`-` line is confirmed to be inside `match_selector`'s docstring or begins with `#`, with zero executable code lines altered.
+    The diff names each site, the kinds it guards (`id6`/`setid` at fast path, `status`/`stem`/`substring` at resolver), and the consequence of removal.
+    The fast-path comment explicitly notes invisibility under pre-narrowed caller inventories while citing unnarrowed production callers (`run_dependencies_set_command`).
+    Correctness (not performance) is confirmed stated as the sole reason to keep the filter.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the `git diff` of the spec file showing the amended N3 paragraph and the corrected acceptance criterion 5, the pasted history record plus the exact `aw specs note` command that appended it, and a confirmation that the amended prose contains no em or en dashes. Plus a statement that N3's normative requirement was not altered, only its account of how many mechanisms deliver it. AND confirm from the diff that `- Status: approved` is byte-unchanged and that no `aw specs set` was run against this spec, since an approved contract's approval attestation is not this plan's to rewrite.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff .aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md b/.aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
+    index 16c2d2125..4e946747d 100644
+    --- a/.aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
+    +++ b/.aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md
+    @@ -126,10 +126,16 @@ superseded document across a reversal:
+       its type MUST NOT fail on cross-type multiplicity.
+       ALREADY SATISFIED FOR A SETID as of commit `91077905` (Section 1 finding 3), so the work N3 authorizes
+       is a REGRESSION PIN, not a build. It is worth pinning precisely because nothing currently tests it.
+    -  ONE DOCUMENTED HOLE THAT N3 MUST NOT BE READ AS CLOSING: scoped resolution is type-safe for every
+    -  selector kind EXCEPT a direct PATH, because `selectors.resolve`'s path precedence matches an existing
+    -  file regardless of the type requested. The `Type mismatch` refusal is the ONLY guard on that case, and
+    -  plan `w2y5ac`'s review measured that deleting it lets `aw specs set approved <a plan path> --by-human`
+    +  TYPE SCOPING IS DELIVERED BY TWO INDEPENDENT SITES (IPD `jw6cm3`): `status_set.match_selector` delivers
+    +  type scoping through two separate mechanisms covering disjoint selector kinds. The fast-path filter
+    +  (`cands = [r for r in all_records if not target_type or r.record_type == target_type]`) guards the
+    +  `id6` and `setid` kinds (which return early and never reach the resolver). The resolver narrowing
+    +  (`if scoped_type: record_types = (canonical,)`) guards the `status`, `stem`, and `substring` kinds.
+    +  Removing either site is a cross-type defect.
+    +  THE DIRECT-PATH EXEMPTION IS A THIRD FACT RATHER THAN THE ONLY CAVEAT: scoped resolution is type-safe
+    +  for every selector kind EXCEPT a direct PATH, because `selectors.resolve`'s path precedence matches an
+    +  existing file regardless of the type requested. The `Type mismatch` refusal is the ONLY guard on that
+    +  case, and plan `w2y5ac`'s review measured that deleting it lets `aw specs set approved <a plan path> --by-human`
+       rewrite a PLAN and append a forged human attestation to it, with the suite still green. That refusal
+       must be PINNED, never retired as dead code.
+     - **N4 (honest ambiguity, never a generic failure).** Where a type genuinely cannot be inferred and the
+    @@ -235,8 +241,13 @@ report the denominator alongside it, so a zero is corroborated rather than assum
+        printed side by side and equal. See Section 6, which the review corrected from a two-way to a
+        three-way split.
+     5. `aw ipd set approved <a setid shared with other types>` acts on the plan Set only. Already true
+    -   (Section 1 finding 3), so the evidence is a REGRESSION TEST that fails when `match_selector`'s type
+    -   narrowing is reverted, not a demonstration that the command works.
+    +   (Section 1 finding 3), so the evidence is REGRESSION TESTS pinning both independent narrowing sites
+    +   (the fast-path candidate filter and the resolver `record_types` branch) that fail when either site
+    +   is reverted, not a demonstration that the command works. A singular regression test was measured
+    +   satisfiable by `test_scoped_setid_resolution_returns_only_the_scoped_type` while leaving three
+    +   selector kinds (`status`, `stem`, `substring`) completely untested across the entire test suite
+    +   (disabling the resolver branch yielded 3246 passed at authoring, 3346 passed at review, and
+    +   3863 passed at execution with zero failures). Both sites must be pinned independently.
+     6. The direct-PATH cross-type write remains REFUSED. Evidence: `aw specs set approved <a plan path>
+        --by-human` exits nonzero and writes nothing, and a test pins it (nothing does today).
+     7. Where a type cannot be inferred and the setid spans types, the untyped setter reports the candidates
+    @@ -316,6 +327,8 @@ requires is only that the two surfaces AGREE and that the choice be stated.
+       unchanged, so nothing here turns on the exact figure.)
 
-- [ ] V-07 validates E-07
+     ## Workflow history
+    +
+    +- 2026-10-01 note (aw specs): IPD jw6cm3 E-06: Document two independent narrowing sites in N3 and correct criterion 5 to require regression tests for both sites
+     - 2026-09-13 approved (aw set, --by-human): status set to approved
+    ```
+    Exact invocation that appended history note:
+    `aw specs note .aw/records/specs/approved/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md --message "IPD jw6cm3 E-06: Document two independent narrowing sites in N3 and correct criterion 5 to require regression tests for both sites"`
+    Appended history record:
+    `- 2026-10-01 note (aw specs): IPD jw6cm3 E-06: Document two independent narrowing sites in N3 and correct criterion 5 to require regression tests for both sites`
+    Confirmed amended prose contains zero em or en dashes (scanned with Unicode Pd category check).
+    Confirmed N3's normative requirement (type-scoped resolution) is untouched; only the factual account of the two mechanisms and criterion 5 precision were corrected.
+    Confirmed `- Status: approved` is byte-unchanged in the diff and no `aw specs set` was run.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: bare `python3 -m pytest` output with the `N passed` summary line pasted, beside the pre-execution baseline captured the same way, so any failure is shown pre-existing rather than introduced. Plus `aw ipd lint --phase pre-transition` conforming, `aw check` counts before and after pasted with the after no worse, and `aw sanitize --agent` reporting zero findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full suite summary lines:
+    Baseline:    `3863 passed, 2 skipped, 3 warnings in 193.98s (0:03:13)`
+    Post-change: `3868 passed, 2 skipped, 3 warnings in 142.71s (0:02:22)`
+    (All tests passed, net +5 tests from MatchSelectorNarrowingGuardsTests, zero failures).
+    `aw ipd lint --phase pre-transition` output:
+    `conforming` (exit code 0, 0 findings).
+    `aw check` counts:
+    Baseline:    `errors 70   warnings 0`
+    Post-change: `errors 70   warnings 0` (no worse).
+    `aw sanitize --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    (zero findings).
+  - Result: pass
 
 ## Approval and execution gate
 
