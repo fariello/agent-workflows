@@ -1,5 +1,5 @@
 - Id: cciw6g
-- Status: graduated
+- Status: done
 - Graduated-To: docremfall
 - Blocks-Release: next
 - Set: docremfall
@@ -8,5 +8,6 @@
 - Summary: doctor.build_remediation's generic fallback invents a misleading per-artifact Fix line for any rule it does not know, telling a user to inspect frontmatter of a non-file sentinel location
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD x19law executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260928-docremfall-01-x19law-stop-the-remediation-fallback-asserting-a-per-file-frontmatt.ipd.md); evidence .aw/records/plans/executed/20260928-docremfall-01-x19law-stop-the-remediation-fallback-asserting-a-per-file-frontmatt.ipd.md
 - 2026-09-28 set (aw backlog): graduated by run run-20260928T235632Z-1358353: x19law
 - 2026-09-20 created (aw backlog): Found while executing IPD sk7ggr E-06. build_remediation ends in an unconditional fallback returning summary_fix='inspect artifact frontmatter and schema conformity.' and detailed_fix=f'inspect {loc} frontmatter and schema conformity.', which is wrong for any finding that is not about a single artifact's frontmatter. Reproduced with the new info rule check.collisions-not-checked, whose location is the sentinel <collisions> (a finding about a SCAN, not a file): the human report renders 'Fix: inspect <collisions> frontmatter and schema conformity.', instructing the user to inspect the frontmatter of something that is not a file. PRE-EXISTING and general, not specific to that rule: the fallback fires for every rule without a case, and _categorize_drift's sentinel exclusion tuple ('<git>','<version>','<setup>','<layout>','<attention>','<artifacts>','<sanitizer>') is a CLOSED literal, so any new sentinel also gets path-searched before hitting the same fallback. NOT FIXED IN sk7ggr: agent_workflows/doctor.py is outside that plan's declared Scope-Paths, and widening scope silently is forbidden. WORKED AROUND instead, honestly and in-scope: the rule's detail is deliberately kept under 60 characters because the fallback promotes a short detail to the report TITLE, so the report at least reads as a true sentence about the scan, with the remedy carried in the Drift's structured observed/required/recovery fields. Suggested fix: give the fallback a shape that does not assert a per-file frontmatter remedy (prefer the Drift's own recovery field when set), and derive the sentinel exclusion from a shared constant rather than a closed tuple.

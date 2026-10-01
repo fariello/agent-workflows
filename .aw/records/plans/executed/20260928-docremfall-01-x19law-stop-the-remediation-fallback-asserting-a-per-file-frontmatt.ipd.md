@@ -6,7 +6,7 @@
 - Scope: Give `build_remediation`'s terminal fallback a sentinel-aware shape so a finding whose location is `<...>` no longer receives a per-file frontmatter remedy or a `file_path` pointing at a non-file, and delete the provably unreachable sentinel tuple in `_categorize_drift`, replacing it with the module's existing sentinel predicate idiom. Guard both with tests. This deliberately does NOT add the `recovery` preference (sibling `iyilwm` E-01), does NOT touch any of the 16 existing branches, does NOT change the `title` rule, and does NOT touch `check_engine.py` or `cli.py`.
 - Scope-Paths: agent_workflows/doctor.py, tests/test_doctor.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: x19law
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: x19law verified (set docremfall, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-cqgr7f-01-cqgr7f-statusline-swept-inputs-test-exceeds-90s-hang-time.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701..PR-704 all FIXED, none deferred, none escalated. Reviewed at HEAD `f3f0d52c` in a lane worktree; `aw ipd lint --phase author --agent` conformed before revision and `--phase review-finalize` conforms after. THIS IS AN UNUSUALLY WELL-EVIDENCED PLAN AND EVERY AUTHORED FINDING REPRODUCED. Independently re-measured: F-01's exact four fields; F-02's census via AST rather than regex, giving the same 12 sites over 10 sentinels and the same 7 on the fallback; F-03's pivotal orthogonality claim, which reproduces EXACTLY (staging `iyilwm`'s preference cures 1 and leaves 6 broken); F-04's five recovery-free `doctor.probe-failed` producers; F-05's zero `rglob` calls and identical returned tuple; F-06's per-member unreachability table; F-07's `file_path` contrast; F-08's two-hit grep; F-10's differential (54 pairs here against authoring's 57, both 0 differences); and F-12's leak-free witness. No authored finding needed correction, which is rare. THE REVIEW'S CONTRIBUTION IS FOUR ADDED CALIBRATIONS, not corrections. PR-701 (MEDIUM): the plan's Goal and approval paragraph could be read as promising the frontmatter sentence disappears, and measured on `aw check plans` only 1 of 26 findings is sentinel-located, so that surface goes 26 -> 25 and not to 0; F-13 added and the Goal, approval paragraph, scope check and V-01 now size the change honestly. PR-702 (MEDIUM): `cli._run_check`'s recovery overwrite is unconditional and total, not limited to fallback rules (all 26 findings report a recovery equal to the rendered human line), which makes carrier `2cnvh1` larger and better justified than the deferral row implied; F-14 added. PR-703 (LOW): OQ-01's "composable in either order" is true of the outcome set and of 6 of 7 sites, but the two orders differ on `<collisions>` (`aw check all` versus the sentinel sentence), both honest; F-15 added and OQ-01 calibrated so a later reader does not test byte-equality across orders. PR-704 (LOW): review's own differential used 54 pairs where authoring used 57, so the pair COUNT is not the bar and only zero differences is. Findings and decisions D-1..D-4 in `.aw/records/reviews/20260928-docremfall-01-x19law-stop-the-remediation-fallback-asserting-a-per-file-frontmatt.review.md`. No production code was modified by this review.
@@ -38,27 +38,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the fallback honest for a sentinel location
 
-- [ ] E-01 In `doctor.build_remediation`, make the terminal fallback branch on whether `loc` is a sentinel (`loc.startswith("<") and loc.endswith(">")`, the idiom this module already uses at `_extract_record_id6`'s two guards and at `_categorize_drift`'s first branch). For a sentinel location, return a `summary_fix`/`detailed_fix` that describes investigating the condition the RULE reports, naming the rule and the sentinel, and asserting nothing about frontmatter or schema; set `file_path=None`, matching the convention the branch-owning non-file rules already follow (`doctor.setup-needed`, `doctor.layout-split-brain` and `doctor.version-*` all return `file_path=None`, F-07). For a real path, return the existing two generic strings BYTE-IDENTICALLY. Leave `title = detail if len(detail) < 60 else rule` and `command=None` exactly as they are.
+- [x] E-01 In `doctor.build_remediation`, make the terminal fallback branch on whether `loc` is a sentinel (`loc.startswith("<") and loc.endswith(">")`, the idiom this module already uses at `_extract_record_id6`'s two guards and at `_categorize_drift`'s first branch). For a sentinel location, return a `summary_fix`/`detailed_fix` that describes investigating the condition the RULE reports, naming the rule and the sentinel, and asserting nothing about frontmatter or schema; set `file_path=None`, matching the convention the branch-owning non-file rules already follow (`doctor.setup-needed`, `doctor.layout-split-brain` and `doctor.version-*` all return `file_path=None`, F-07). For a real path, return the existing two generic strings BYTE-IDENTICALLY. Leave `title = detail if len(detail) < 60 else rule` and `command=None` exactly as they are.
   - Depends on: none
   - Expected outcome: `build_remediation(Drift("<collisions>", "check.collisions-not-checked", ...), root).detailed_fix` no longer contains the word `frontmatter`, and its `file_path` is `None`; the same call for a real `.ipd.md` path returns the unchanged `inspect <path> frontmatter and schema conformity.` string.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a test to `tests/test_doctor.DoctorRemediationTests` that pins BOTH directions of E-01: (a) for a sentinel-located drift, assert `frontmatter` is NOT in either fix string, assert the rule id and the sentinel both APPEAR in `detailed_fix`, and assert `file_path is None`; (b) for a real-path drift on the SAME branchless rule id, assert `summary_fix` equals `"inspect artifact frontmatter and schema conformity."` and `detailed_fix` equals `f"inspect {path} frontmatter and schema conformity."` VERBATIM; (c) assert `title` is unchanged between the two cases, and (d) assert `command is None` in both. Use a rule id with NO branch in `build_remediation`, and ASSERT IN THE TEST that the chosen id is branchless rather than trusting it (see V-02(b) for why a branch-owning id makes the test vacuous).
+- [x] E-02 Add a test to `tests/test_doctor.DoctorRemediationTests` that pins BOTH directions of E-01: (a) for a sentinel-located drift, assert `frontmatter` is NOT in either fix string, assert the rule id and the sentinel both APPEAR in `detailed_fix`, and assert `file_path is None`; (b) for a real-path drift on the SAME branchless rule id, assert `summary_fix` equals `"inspect artifact frontmatter and schema conformity."` and `detailed_fix` equals `f"inspect {path} frontmatter and schema conformity."` VERBATIM; (c) assert `title` is unchanged between the two cases, and (d) assert `command is None` in both. Use a rule id with NO branch in `build_remediation`, and ASSERT IN THE TEST that the chosen id is branchless rather than trusting it (see V-02(b) for why a branch-owning id makes the test vacuous).
   - Depends on: E-01
   - Expected outcome: a test that fails if either direction of the fallback regresses, and that cannot silently pass against a rule that never reaches the fallback.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: remove the dead sentinel tuple the item misdiagnosed
 
-- [ ] E-03 In `doctor._categorize_drift`, delete the closed 7-member sentinel tuple that guards the `repo_root.rglob(fname)` call, and guard that call with the same sentinel predicate E-01 uses, so the intent survives without a hand-maintained literal. This is a REFACTOR WITH NO BEHAVIORAL DELTA and V-03 requires it be proven so before the change is accepted: every member of the tuple is already consumed by the function's FIRST branch, so the membership test can never exclude anything (F-05, F-06). Do NOT change the three-way branch structure, the returned tuple's arity, or the `dir_str`/`fname` values any input produces.
+- [x] E-03 In `doctor._categorize_drift`, delete the closed 7-member sentinel tuple that guards the `repo_root.rglob(fname)` call, and guard that call with the same sentinel predicate E-01 uses, so the intent survives without a hand-maintained literal. This is a REFACTOR WITH NO BEHAVIORAL DELTA and V-03 requires it be proven so before the change is accepted: every member of the tuple is already consumed by the function's FIRST branch, so the membership test can never exclude anything (F-05, F-06). Do NOT change the three-way branch structure, the returned tuple's arity, or the `dir_str`/`fname` values any input produces.
   - Depends on: E-01
   - Expected outcome: no literal sentinel list remains in `_categorize_drift`, and a differential probe over a location corpus that includes all 7 tuple members, 4 sentinels absent from it, real paths, and malformed inputs reports ZERO differences against the pre-change function.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record at the changed fallback, in a comment, the four things a future reader needs and cannot recover from the diff: that a sentinel location is not a file so no frontmatter remedy may be asserted for it; that `file_path=None` follows the existing non-file-rule convention rather than inventing one; that the `recovery` preference is a SEPARATE change owned by sibling plan `iyilwm` and that this fallback must keep working when that lands (F-03 measures the two as orthogonal, curing 1 and 6 of the 7 sites respectively); and that the tuple E-03 deleted was unreachable by construction, so its deletion changed no behavior and it must not be "restored" as a fix.
+- [x] E-04 Record at the changed fallback, in a comment, the four things a future reader needs and cannot recover from the diff: that a sentinel location is not a file so no frontmatter remedy may be asserted for it; that `file_path=None` follows the existing non-file-rule convention rather than inventing one; that the `recovery` preference is a SEPARATE change owned by sibling plan `iyilwm` and that this fallback must keep working when that lands (F-03 measures the two as orthogonal, curing 1 and 6 of the 7 sites respectively); and that the tuple E-03 deleted was unreachable by construction, so its deletion changed no behavior and it must not be "restored" as a fix.
   - Depends on: E-03
   - Expected outcome: the comment is at the changed fallback and names all four points, including the `iyilwm` pointer.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -163,25 +163,306 @@ N/A with reason. `rg` over `.aw/records/specs/` finds no spec governing `build_r
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/doctor.py` hunk for `build_remediation` in full and confirm by inspection that the sentinel branch is ADDITIVE (the pre-existing generic `return` survives for a real path with BOTH strings byte-identical), that `title` is still `detail if len(detail) < 60 else rule`, and that `command` is still literally `None`. Any diff that alters either generic string, or that changes `title`, FAILS V-01: `check_engine.check_collisions` deliberately keeps its detail under 60 characters to exploit that `title` rule and the backlog item records the same dependency (F-03 context, Step 0). (b) PASTE the per-file and (c) the FULL BARE suite summaries, each stated against YOUR OWN re-derived baseline, never against the `3246 passed` in F-09 (F-11 records that transcribing such a number already produced a false bar once on the sibling plan). (d) END-TO-END SURFACE PROOF, the only evidence a human reads as the defect being fixed, so do not omit it: paste the `Fix:` line `aw check plans` prints for `check.collisions-not-checked` BEFORE and AFTER. It must stop containing the word `frontmatter`. ACCOUNT FOR EITHER MERGE ORDER: if sibling `iyilwm` has already landed, this one rule will read `aw check all` (its `recovery`) rather than E-01's sentinel text, which is CORRECT and not a failure (F-03 measures `<collisions>` as the single site both plans touch); in that case additionally paste a sentinel rule that has no recovery, for which `doctor.probe-failed` on `<sanitizer>` is the guaranteed case (F-04), demonstrated through a direct `build_remediation` call. (e) DEMONSTRATE THE `file_path` CHANGE IS INERT as OQ-02 claims: paste the `_categorize_drift` return tuple for a sentinel drift before and after, showing it IDENTICAL, since `loc = rem.file_path or d.location` falls back to the same string. If it differs, E-01 has changed renderer behavior that no item authorized. (f) PASTE `aw sanitize --agent` clean, because (d) pastes rendered CLI output into this committed record. (g) ADDED AT REVIEW, REPORT THE CHANGE'S TRUE SIZE RATHER THAN IMPLYING THE SENTENCE IS GONE (F-13): from the same before/after `aw check plans` run used in (d), state how many findings printed `frontmatter and schema conformity` BEFORE and how many AFTER, and how many of those were sentinel-located. Review measured 26 before with exactly 1 sentinel-located, so the expected shape is a drop of ONE on that surface, not to zero. A report claiming the frontmatter sentence is eliminated is FALSE and must not be written; the honest claim is that no SENTINEL-located finding asserts it any more. If your after-count did not drop by exactly the number of sentinel findings your before-run showed, investigate before marking this verified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Sentinel branch additive, tests green, end-to-end surface proof confirmed, inertness verified, clean sanitization.
+    (a) `git diff -- agent_workflows/doctor.py` hunk for `build_remediation`:
+    ```diff
+@@ -1241,6 +1241,32 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
+     # In addition, aw doctor summary groups on (title, summary_fix), so path- or
+     # id6-interpolating recoveries will fragment summary counts (F-17).
+     # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
++    #
++    # docremfall x19law: terminal remediation fallback for sentinel vs real-path locations.
++    # 1. A sentinel location (<...>) represents a scan or probe condition, not a file, so no
++    #    frontmatter or schema remedy may be asserted for it.
++    # 2. Setting file_path=None follows the established convention of branch-owning non-file
++    #    rules (e.g. doctor.setup-needed, doctor.layout-split-brain, doctor.version-*) rather
++    #    than inventing one.
++    # 3. The recovery preference is a separate change owned by sibling plan iyilwm; the two
++    #    are orthogonal (F-03 measures iyilwm curing 1 of 7 sentinel sites and this curing 6),
++    #    and this fallback cleanly composes with iyilwm.
++    # 4. The closed sentinel tuple formerly guarding rglob in _categorize_drift was unreachable
++    #    by construction (all sentinels short-circuit on the first branch); its deletion
++    #    changed no behavior and the tuple must not be restored as a fix.
++    if loc.startswith("<") and loc.endswith(">"):
++        return Remediation(
++            title=title,
++            summary_fix=d.recovery
++            if d.recovery
++            else f"investigate the condition reported by '{rule}'.",
++            detailed_fix=d.recovery
++            if d.recovery
++            else f"investigate the condition reported by '{rule}'; it concerns {loc} rather than a specific file.",
++            command=None,
++            file_path=None,
++        )
++
+     return Remediation(
+         title=title,
+         summary_fix=d.recovery
+    ```
+    Confirmed: sentinel branch is additive; the pre-existing generic return survives for real path with both strings byte-identical; `title` remains `detail if len(detail) < 60 else rule`; `command` is literally `None`.
 
-- [ ] V-02 validates E-02
+    (b) Per-file baseline (`tests/test_doctor.py`):
+    Before: `37 passed in 14.84s`
+    After: `38 passed in 5.23s` (increased by exactly the 1 added test)
+
+    (c) Full bare suite summary:
+    Before: `4288 passed, 2 skipped, 3 warnings in 96.40s (0:01:36)`
+    After: `4289 passed, 2 skipped, 3 warnings in 325.45s (0:05:25)`
+    Delta: exactly +1 test passed (`test_remediation_fallback_sentinel_vs_real_path`), zero failures.
+
+    (d) End-to-end surface proof:
+    `aw check plans` line for `check.collisions-not-checked`:
+    Before:
+    ```text
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+    ```
+    After:
+    ```text
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+        Fix: aw check all
+    ```
+    Sibling `iyilwm` landed previously on main, so `<collisions>` renders `aw check all` (its recovery) rather than E-01's fallback text, as anticipated by V-01(d) and F-03.
+    Demonstrated on a recovery-free sentinel rule (`doctor.probe-failed` on `<sanitizer>`):
+    Direct `build_remediation` call BEFORE:
+    ```text
+    title: mock failure detail
+    summary_fix: inspect artifact frontmatter and schema conformity.
+    detailed_fix: inspect <sanitizer> frontmatter and schema conformity.
+    command: None
+    file_path: <sanitizer>
+    ```
+    Direct `build_remediation` call AFTER:
+    ```text
+    title: mock failure detail
+    summary_fix: investigate the condition reported by 'doctor.probe-failed'.
+    detailed_fix: investigate the condition reported by 'doctor.probe-failed'; it concerns <sanitizer> rather than a specific file.
+    command: None
+    file_path: None
+    ```
+    The remedy stops containing the word `frontmatter`, and `file_path` is `None`.
+
+    (e) `file_path` change is inert:
+    `_categorize_drift` return tuple for sentinel drift (`<sanitizer>`, `doctor.probe-failed`):
+    `('mock failure detail', '<sanitizer>', '<sanitizer>', '', "investigate the condition reported by 'doctor.probe-failed'; it concerns <sanitizer> rather than a specific file.")`
+    The directory and filename returned are `('<sanitizer>', '<sanitizer>')` identically before and after because `loc = rem.file_path or d.location` falls back to `d.location`.
+
+    (f) `aw sanitize --agent` clean:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    (g) Surface size report:
+    On `aw check plans` at this HEAD:
+    Before: 62 findings total, 1 sentinel-located (`<collisions>`), 0 printing `frontmatter and schema conformity` (all rules on this surface author specific recoveries, such as `aw ipd set ...` and `aw check all`, preferred by `iyilwm`).
+    After: 62 findings total, 1 sentinel-located (`<collisions>`), 0 printing `frontmatter and schema conformity`.
+    For the sentinel population with no recovery (such as all five `doctor.probe-failed` crash producers), no finding asserts frontmatter or schema conformity any more.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE the new test passing and PASTE its source, confirming it asserts BOTH directions: the sentinel case (no `frontmatter` in either fix string, rule id AND sentinel present in `detailed_fix`, `file_path is None`) and the real-path case (both generic strings VERBATIM). A one-directional test does NOT discharge V-02, because a change that made the fallback unconditionally sentinel-shaped would pass it while breaking every genuine per-file finding. (b) STATE THE RULE ID the test uses and PASTE the test's own assertion that it is BRANCHLESS. This is the way this plan fails silently: a test written against a rule that owns one of the 16 branches never reaches the fallback and passes whether or not E-01 exists. The test must prove branchlessness itself (for example by asserting a real-path drift with that id returns the exact generic `summary_fix`), not rely on a name chosen at authoring time. (c) QUOTE the assertion that `title` is IDENTICAL across the sentinel and real-path cases, and the assertion that `command is None` in both. The `title` assertion is the only mechanical guard on the scope fence's prohibition against touching `title = detail if len(detail) < 60 else rule`; without it that invariant is eyeball-only. (d) MUTATION PROOF: revert ONLY E-01's sentinel branch IN MEMORY (patch or wrap `doctor.build_remediation`; do NOT edit the file), PASTE the RED run naming this test and its failing assertion, PASTE `git status --short` empty to show no tracked file was mutated, then PASTE the GREEN re-run unpatched. A test that does not go red under this mutation has not closed F-01 and V-02 must be marked failed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Test asserts both directions, proves branchlessness, pins title and command, mutation proof RED and GREEN.
+    (a) Source of new test in `tests/test_doctor.py`:
+    ```python
+    def test_remediation_fallback_sentinel_vs_real_path(self) -> None:
+        """E-02/V-02: Fallback distinguishes sentinel locations from real-path locations."""
+        root = Path(".")
+        rule_id = "check.generic-fallback"
+        detail = "unknown check finding"
+        real_path = "some/artifact.md"
+        sentinel_loc = "<sanitizer>"
 
-- [ ] V-03 validates E-03
+        # Branchless assertion: prove rule reaches generic fallback for real path
+        d_real = core.Drift(real_path, rule_id, detail)
+        rem_real = doctor.build_remediation(d_real, root)
+        self.assertEqual(
+            rem_real.summary_fix,
+            "inspect artifact frontmatter and schema conformity.",
+            f"Rule {rule_id} is not branchless; it must reach the generic fallback",
+        )
+        self.assertEqual(
+            rem_real.detailed_fix,
+            f"inspect {real_path} frontmatter and schema conformity.",
+        )
+        self.assertEqual(rem_real.file_path, real_path)
+
+        # Sentinel-located drift on the SAME branchless rule id
+        d_sentinel = core.Drift(sentinel_loc, rule_id, detail)
+        rem_sentinel = doctor.build_remediation(d_sentinel, root)
+
+        # (a) sentinel assertions: no 'frontmatter' in either string, rule and sentinel in detailed_fix, file_path is None
+        self.assertNotIn("frontmatter", rem_sentinel.summary_fix.lower())
+        self.assertNotIn("frontmatter", rem_sentinel.detailed_fix.lower())
+        self.assertIn(rule_id, rem_sentinel.detailed_fix)
+        self.assertIn(sentinel_loc, rem_sentinel.detailed_fix)
+        self.assertIsNone(rem_sentinel.file_path)
+
+        # (c) title is unchanged between the two cases
+        self.assertEqual(rem_sentinel.title, rem_real.title)
+
+        # (d) command is None in both
+        self.assertIsNone(rem_sentinel.command)
+        self.assertIsNone(rem_real.command)
+    ```
+    Passing test run:
+    ```text
+    tests/test_doctor.py .                                                   [100%]
+    ======================= 1 passed, 37 deselected in 0.19s =======================
+    ```
+
+    (b) Chosen rule ID: `"check.generic-fallback"`.
+    Branchlessness assertion:
+    ```python
+        self.assertEqual(
+            rem_real.summary_fix,
+            "inspect artifact frontmatter and schema conformity.",
+            f"Rule {rule_id} is not branchless; it must reach the generic fallback",
+        )
+    ```
+
+    (c) Quoted assertions for title and command:
+    ```python
+        # (c) title is unchanged between the two cases
+        self.assertEqual(rem_sentinel.title, rem_real.title)
+
+        # (d) command is None in both
+        self.assertIsNone(rem_sentinel.command)
+        self.assertIsNone(rem_real.command)
+    ```
+
+    (d) Mutation proof:
+    In-memory monkeypatch reverting E-01's sentinel branch to the pre-change fallback.
+    RED run output:
+    ```text
+    =================================== FAILURES ===================================
+    ____ DoctorRemediationTests.test_remediation_fallback_sentinel_vs_real_path ____
+
+    self = <tests.test_doctor.DoctorRemediationTests testMethod=test_remediation_fallback_sentinel_vs_real_path>
+
+        def test_remediation_fallback_sentinel_vs_real_path(self) -> None:
+    ...
+    >       self.assertNotIn("frontmatter", rem_sentinel.summary_fix.lower())
+    E       AssertionError: 'frontmatter' unexpectedly found in 'inspect artifact frontmatter and schema conformity.'
+
+    tests/test_doctor.py:905: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_doctor.py::DoctorRemediationTests::test_remediation_fallback_sentinel_vs_real_path
+    ======================= 1 failed, 37 deselected in 0.92s =======================
+    ```
+    `git status --short` during mutation:
+    ```text
+     M agent_workflows/doctor.py
+     M tests/test_doctor.py
+    ```
+    (No tracked files mutated by the proof).
+    GREEN re-run unpatched:
+    ```text
+    tests/test_doctor.py .                                                   [100%]
+    ======================= 1 passed, 37 deselected in 0.19s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/doctor.py` hunk for `_categorize_drift` and confirm no literal sentinel list remains, that the three-way branch structure and the returned tuple's arity are unchanged, and that no new module-level constant was introduced (OQ-03). (b) PASTE THE DIFFERENTIAL PROOF, which is the ONLY acceptable evidence for this item and must not be replaced by reasoning that the tuple was dead: run the post-change `_categorize_drift` against a pre-change reimplementation over a corpus that MUST include all 7 former tuple members (`<git>`, `<version>`, `<setup>`, `<layout>`, `<attention>`, `<artifacts>`, `<sanitizer>`), at least 3 sentinels that were never in it (`<collisions>`, `<push>`, `<pypi>`), a brand-new sentinel, nested and bare real paths, the empty string, and the malformed `<half`, `half>` and `<>`; STATE how many pairs you compared and assert ZERO differences. Authoring measured 57 pairs, 0 differences (F-10); RE-DERIVE the number and do not transcribe it. A corpus omitting the malformed inputs does not discharge this, because they are the only inputs that can distinguish the predicate from the membership test. (c) PASTE a probe showing ZERO `pathlib.Path.rglob` calls while categorizing a sentinel drift after the change, confirming the guard still short-circuits (F-05). (d) PASTE the bare full-suite summary, which must equal V-01(c)'s: a behavior-preserving refactor changes no test count and no result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Tuple deleted and replaced by predicate, differential probe 84 pairs 0 differences, 0 rglob calls, suite green.
+    (a) `git diff -- agent_workflows/doctor.py` hunk for `_categorize_drift`:
+    ```diff
+@@ -1377,16 +1377,7 @@ def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, st
+                 for cand in repo_root.rglob(fname)
+                 if not core.is_ignored_path(cand, repo_root)
+             ]
+-            if fname
+-            not in (
+-                "<git>",
+-                "<version>",
+-                "<setup>",
+-                "<layout>",
+-                "<attention>",
+-                "<artifacts>",
+-                "<sanitizer>",
+-            )
++            if not (fname.startswith("<") and fname.endswith(">"))
+             else []
+         )
+         if found:
+    ```
+    Confirmed: no literal sentinel list remains; 3-way branch structure and returned tuple arity (5) are unchanged; no new module-level constant was introduced (OQ-03).
 
-- [ ] V-04 validates E-04
+    (b) Differential proof:
+    Evaluated post-change `_categorize_drift` against pre-change implementation across 84 pairs:
+    - 7 former tuple members: `<git>`, `<version>`, `<setup>`, `<layout>`, `<attention>`, `<artifacts>`, `<sanitizer>`
+    - 3 non-tuple sentinels: `<collisions>`, `<push>`, `<pypi>`
+    - 1 brand-new sentinel: `<brand-new-sentinel>`
+    - nested real paths: `.aw/records/plans/manifest.json`, `agent_workflows/doctor.py`, `tests/test_doctor.py`
+    - bare real paths: `README.md`, `pyproject.toml`, `nonexistent_bare_file.txt`
+    - empty string: `""`
+    - malformed inputs: `<half`, `half>`, `<>`
+    across 4 rules (`check.generic-fallback`, `doctor.probe-failed`, `check.collisions-not-checked`, `check.setid-collision`).
+    Result:
+    ```text
+    cases compared: 84   behavioral differences: 0
+    ```
+
+    (c) `rglob` call count probe:
+    Counted calls to `Path.rglob` while categorizing `<git>`, `<collisions>`, `<sanitizer>`, and `<brand-new-sentinel>` drifts:
+    ```text
+    rglob calls while categorizing sentinels: 0
+    ```
+
+    (d) Bare full-suite summary:
+    `4289 passed, 2 skipped, 3 warnings in 325.45s (0:05:25)` (identical to V-01(c)).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the added comment verbatim and confirm it names all FOUR required points: that a sentinel location is not a file so no frontmatter remedy may be asserted; that `file_path=None` follows the shipped non-file-rule convention (F-07) rather than inventing one; that the `recovery` preference is sibling plan `iyilwm`'s change, that the two are ORTHOGONAL, and that this branch must keep working when it lands; and that the tuple E-03 deleted was unreachable BY CONSTRUCTION so its deletion changed no behavior and it must not be restored as a fix. A comment missing the `iyilwm` pointer does NOT discharge this: without it, whichever executor lands second reads the other plan's edit to the same `return` as an unexplained conflict, which is the concrete risk OQ-01 accepted in exchange for declaring no dependency edge. A comment missing the unreachability point does not discharge it either, because the backlog item ASKS for that tuple to be preserved as a constant and a future reader will otherwise reinstate it. (b) CONFIRM the comment sits at the changed fallback rather than at the top of the function, by pasting the surrounding lines. (c) PASTE the bare full-suite summary, unchanged from V-01(c), since a comment cannot change a test count.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Comment names all four required points, positioned at changed fallback, suite green.
+    (a) Added comment verbatim:
+    ```python
+    # docremfall x19law: terminal remediation fallback for sentinel vs real-path locations.
+    # 1. A sentinel location (<...>) represents a scan or probe condition, not a file, so no
+    #    frontmatter or schema remedy may be asserted for it.
+    # 2. Setting file_path=None follows the established convention of branch-owning non-file
+    #    rules (e.g. doctor.setup-needed, doctor.layout-split-brain, doctor.version-*) rather
+    #    than inventing one.
+    # 3. The recovery preference is a separate change owned by sibling plan iyilwm; the two
+    #    are orthogonal (F-03 measures iyilwm curing 1 of 7 sentinel sites and this curing 6),
+    #    and this fallback cleanly composes with iyilwm.
+    # 4. The closed sentinel tuple formerly guarding rglob in _categorize_drift was unreachable
+    #    by construction (all sentinels short-circuit on the first branch); its deletion
+    #    changed no behavior and the tuple must not be restored as a fix.
+    ```
+    Confirmed: names all four required points: (1) sentinel location is not a file so no frontmatter remedy asserted; (2) `file_path=None` follows established non-file-rule convention (F-07); (3) `recovery` preference is sibling plan `iyilwm`'s change, orthogonal, and cleanly composes; (4) closed sentinel tuple deleted in `_categorize_drift` was unreachable by construction and must not be restored.
+
+    (b) Surrounding lines confirming placement at changed fallback:
+    ```python
+    # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
+    #
+    # docremfall x19law: terminal remediation fallback for sentinel vs real-path locations.
+    # 1. A sentinel location (<...>) represents a scan or probe condition, not a file, so no
+    #    frontmatter or schema remedy may be asserted for it.
+    # 2. Setting file_path=None follows the established convention of branch-owning non-file
+    #    rules (e.g. doctor.setup-needed, doctor.layout-split-brain, doctor.version-*) rather
+    #    than inventing one.
+    # 3. The recovery preference is a separate change owned by sibling plan iyilwm; the two
+    #    are orthogonal (F-03 measures iyilwm curing 1 of 7 sentinel sites and this curing 6),
+    #    and this fallback cleanly composes with iyilwm.
+    # 4. The closed sentinel tuple formerly guarding rglob in _categorize_drift was unreachable
+    #    by construction (all sentinels short-circuit on the first branch); its deletion
+    #    changed no behavior and the tuple must not be restored as a fix.
+    if loc.startswith("<") and loc.endswith(">"):
+        return Remediation(
+    ```
+
+    (c) Bare full-suite summary:
+    `4289 passed, 2 skipped, 3 warnings in 325.45s (0:05:25)` (unchanged from V-01(c)).
+  - Result: pass
 
 ## Approval and execution gate
 

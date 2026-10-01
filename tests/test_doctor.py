@@ -875,6 +875,46 @@ class DoctorRemediationTests(unittest.TestCase):
                 self.assertEqual(rem.command, baseline_rem.command)
                 self.assertEqual(rem.title, baseline_rem.title)
 
+    def test_remediation_fallback_sentinel_vs_real_path(self) -> None:
+        """E-02/V-02: Fallback distinguishes sentinel locations from real-path locations."""
+        root = Path(".")
+        rule_id = "check.generic-fallback"
+        detail = "unknown check finding"
+        real_path = "some/artifact.md"
+        sentinel_loc = "<sanitizer>"
+
+        # Branchless assertion: prove rule reaches generic fallback for real path
+        d_real = core.Drift(real_path, rule_id, detail)
+        rem_real = doctor.build_remediation(d_real, root)
+        self.assertEqual(
+            rem_real.summary_fix,
+            "inspect artifact frontmatter and schema conformity.",
+            f"Rule {rule_id} is not branchless; it must reach the generic fallback",
+        )
+        self.assertEqual(
+            rem_real.detailed_fix,
+            f"inspect {real_path} frontmatter and schema conformity.",
+        )
+        self.assertEqual(rem_real.file_path, real_path)
+
+        # Sentinel-located drift on the SAME branchless rule id
+        d_sentinel = core.Drift(sentinel_loc, rule_id, detail)
+        rem_sentinel = doctor.build_remediation(d_sentinel, root)
+
+        # (a) sentinel assertions: no 'frontmatter' in either string, rule and sentinel in detailed_fix, file_path is None
+        self.assertNotIn("frontmatter", rem_sentinel.summary_fix.lower())
+        self.assertNotIn("frontmatter", rem_sentinel.detailed_fix.lower())
+        self.assertIn(rule_id, rem_sentinel.detailed_fix)
+        self.assertIn(sentinel_loc, rem_sentinel.detailed_fix)
+        self.assertIsNone(rem_sentinel.file_path)
+
+        # (c) title is unchanged between the two cases
+        self.assertEqual(rem_sentinel.title, rem_real.title)
+
+        # (d) command is None in both
+        self.assertIsNone(rem_sentinel.command)
+        self.assertIsNone(rem_real.command)
+
 
 if __name__ == "__main__":
     unittest.main()
