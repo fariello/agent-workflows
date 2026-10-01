@@ -1,5 +1,5 @@
 - Id: rcjorx
-- Status: graduated
+- Status: done
 - Graduated-To: rcjorx
 - Blocks-Release: next
 - Set: rcjorx
@@ -8,6 +8,7 @@
 - Summary: Docs advertise --fields as a general agent-mode flag but only four runs subcommands accept it, so the documented example exits 2
 
 ## Workflow history
+- 2026-10-01 set (aw backlog): closed by aw oc run: IPD 75ic2f executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-rcjorx-01-75ic2f-wire-fields-onto-the-shared-output-mode-parents-so-every-age.ipd.md); evidence .aw/records/plans/executed/20260929-rcjorx-01-75ic2f-wire-fields-onto-the-shared-output-mode-parents-so-every-age.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 75ic2f
 - 2026-09-28 created (aw backlog): Filed while authoring plan gygujf (from backlog 3f4ayi): the human guide's --fields example exits 2 with unrecognized arguments, and only the four runs subcommands wire the flag.
 
