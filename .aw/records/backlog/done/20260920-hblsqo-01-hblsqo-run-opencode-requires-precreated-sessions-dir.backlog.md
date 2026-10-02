@@ -1,5 +1,5 @@
 - Id: hblsqo
-- Status: graduated
+- Status: done
 - Graduated-To: hblsqo
 - Blocks-Release: next
 - Set: hblsqo
@@ -8,6 +8,7 @@
 - Summary: run_opencode opens the attempt log without creating sessions/, so a new caller crashes at launch
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD z3ifg8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-hblsqo-01-z3ifg8-guarantee-a-run-directory-s-log-and-prompt-parents-exist-ins.ipd.md); evidence .aw/records/plans/executed/20260929-hblsqo-01-z3ifg8-guarantee-a-run-directory-s-log-and-prompt-parents-exist-ins.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: z3ifg8
 - 2026-09-20 created (aw backlog): Found while wiring the standalone audit verb (plan mp289j).
 
