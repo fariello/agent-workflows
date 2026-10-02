@@ -6,7 +6,7 @@
 - Scope: Fix the one live doubled-verb remedy in `runner_shared.finalize_retry_remedy`, document the verb-inclusion contract on the `HostLabels.command` field, and add a behavioral guard that renders every host-command-carrying remedy for both hosts and refuses a first token that is not a real subcommand. The guard is WIDER than the one commit `19313eed` deleted, which covered only `turn_retry_remedy` and would not have caught this defect (F-06).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: z3si7r
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z3si7r verified (set verbdouble, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all fixed
 
