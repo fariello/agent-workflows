@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_check_engine_release_gate.py, AGENTS.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: pa0mjn
