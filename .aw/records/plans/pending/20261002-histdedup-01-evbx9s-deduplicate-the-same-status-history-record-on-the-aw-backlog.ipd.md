@@ -1,0 +1,254 @@
+# IPD: Deduplicate the same-status history record on the aw backlog set --status path through the one shared predicate
+
+- Date: 2026-10-02
+- Kind: child
+- Concern: The two spellings of `aw backlog set` disagree on whether an idempotent same-status re-assertion is RECORDED. `status_set.apply_status_change` (the positional spelling) consults `status_set.same_status_message_is_duplicate` and skips the write when the record would merely repeat the newest one; `backlog.run_set` (the `--status` spelling) consults nothing and calls `backlog._reattach_history` unconditionally, so every repeated call appends another byte-identical record and the item's `## Workflow history` grows without bound. Re-measured live in this lane at HEAD `f55aed0b` by driving both spellings twice over identical fixtures: the `--status` spelling produced THREE inline records (two identical `- 2026-10-02 same-status (aw backlog): metadata only` plus the fixture's `created`), the positional spelling produced TWO. The defect is the ABSENCE of a consultation, not a wrong predicate: the predicate already exists, already has two consumers (`status_set.apply_status_change` and `specs.run_set`), and already recognizes `backlog`'s own record shape unchanged (measured: it returns True for a repeat of a `same-status (aw backlog)` record and False once the message differs), so this is a third consumer of one definition rather than a new mechanism.
+- Scope: IN: (a) make `backlog.run_set` consult `status_set.same_status_message_is_duplicate` before writing a SAME-STATUS record, suppressing only the new record and never the metadata rewrite, the gate fields, the close-legitimacy verdict or the file move; (b) express the suppression as an explicit parameter of the SHARED writer `backlog._reattach_history` rather than as a second history-assembly block in `run_set`, because a hand-rolled skip in the caller measurably DESTROYS prior history (see F-02) and would fork the one assembly the function exists to own; (c) decide and implement the SIDECAR's behavior on a suppressed write, since `run_set` appends `record_history.append_advisory` unconditionally and the item names this as a hazard (OQ-01, resolved: follow the `specs.run_set` precedent and suppress it too); (d) guard the EMPTY-HISTORY-BLOCK hazard F-03 measures, where the predicate and `_prior_history_records` disagree on which lines are records and a suppressed write can leave the heading with nothing under it; (e) a new behavioral test module driving BOTH spellings twice over identical fixtures and comparing whole files, covering the repeat, the changed-message, the defaulted-message, the genuine-transition-then-repeat, and the F-03 edge; (f) one CHANGELOG entry. OUT, each with a reason recorded under "Deferred": the UTC-versus-local clock split (`2wae2x`/`tl8qmc`/`doe2fo`/`o8l2y2`, all `open`, all release-gated), which this plan must NORMALIZE AROUND and must not fix or depend on; the dispatch UNIFICATION that deletes this fork entirely (`fcnz1r` -> Set `setdisp`, spec `wy9aru`), which this plan deliberately lands BEFORE rather than racing (see "Deferred" and F-06); the actor asymmetry and the defaulted-message divergence, both DECLINED in `jbipfa`; the sidecar write ORDER (`ulepef`); the 517-record existing corpus, which is committed history and must not be rewritten; `status_set.apply_status_change` and `same_status_message_is_duplicate` themselves, which already behave correctly and are RELIED ON unmodified; and `backlog.run_note`, which is not a transition and has no same-status question.
+- Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_history_dedup_parity.py, CHANGELOG.md
+- Item-Dependencies: none
+- Status: to-review
+- From-Spec: wy9aru
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: r74211
+- Set: histdedup
+- Order: 1
+- Highest E allocated: 06
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: evbx9s
+
+## Workflow history
+- 2026-10-02 same-status (aw set): status unchanged (to-review)
+
+- 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `r74211`. Both spellings were re-driven twice over identical fixtures at HEAD `f55aed0b` to confirm the item's measurement still reproduces; the candidate fix was then applied as a THROWAWAY source probe and the whole bare suite run against it (3 failed, 4624 passed, identical to the 3-failure baseline, so blast radius is ZERO); the probe was reverted and the tree is clean. Three facts the item did NOT record were measured and are recorded as F-02, F-03 and F-05.
+- 2026-10-02 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make an idempotent `aw backlog set` re-assertion record the same thing whichever spelling was typed, so a backlog item's `## Workflow history` stops accumulating byte-identical records on the `--status` path, without suppressing any record a user actually expected and without destroying the prior history the shared writer exists to preserve.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: give the shared writer a suppression parameter, then consult the shared predicate
+
+- [ ] E-01 `agent_workflows/backlog.py` (`_reattach_history`): add a keyword parameter `write_record: bool = True`. When it is True the function behaves EXACTLY as today. When it is False the function assembles the history block from the prior records ALONE, emitting no new record, and still re-emits the metadata head and the prose body exactly as it does today. Build the block as `hist_block = "\n".join(([new_record] + prior) if write_record else prior)`, leaving every other line of the function untouched.
+
+    WHY THE PARAMETER GOES HERE AND NOT IN THE CALLER, which is the whole architectural argument of this plan and is measured rather than asserted. The obvious reading of the backlog item ("skip the call to `_reattach_history`") is WRONG and DESTROYS HISTORY. `run_set` reaches this call having already computed `rendered = _render_item(item, body, source_text=text)`, and `_render_item` is fed a body from `_strip_metadata_and_history`, which DELIBERATELY DISCARDS the history block; `_render_item` then MINTS A FRESH `created` record stamped with TODAY's date. So `rendered` at that point does not contain the item's real past at all. Measured in this lane on a fixture carrying three real records (`2026-09-20`, `2026-09-05`, `2026-09-01`): the value of `rendered` BEFORE the `_reattach_history` call held exactly one line, `- 2026-10-02 created (aw backlog): Probe item`, while `_prior_history_records(text)` returned all three. Skipping the call therefore replaces three real records with one synthetic re-dated forgery. `_reattach_history`'s own docstring already records this exact failure ("an item whose records were 2026-01-01 and 2026-01-02 came back with a single `created` line dated today"), which is why the restoration of the priors is the function's JOB and cannot be bypassed. The parameter asks it to do that job while writing no new record; a caller-side skip asks it not to do the job at all.
+
+    DEFAULT True IS THE SAFETY ARGUMENT AND IS NOT DECORATION, exactly as `jbipfa` E-01 argued for `label`. This function has TWO callers in the tree, `backlog.run_set` and `set_records.close_on_answer` (verified by searching the whole repository for the symbol; `production_checks` consumes the sibling `_prior_history_records`, not this function). E-02 updates ONE of them and E-03 deliberately leaves the other alone. Defaulting to True means a third caller arriving on a long-lived branch keeps today's behavior instead of raising `TypeError` at merge time.
+
+    DO NOT MOVE THE PREDICATE CALL INTO THIS FUNCTION. It receives `old_text` and a pre-rendered string, not a parsed item, and it cannot see the item's PRIOR status, so it cannot discriminate a same-status write from a transition; that discrimination is the caller's knowledge, which is precisely why `jbipfa` made `label` a parameter rather than deriving it here. Keeping this function a pure assembler also keeps it testable without a repository.
+  - Depends on: none
+  - Expected outcome: `_reattach_history(old, rendered, "open", "msg", label="same-status")` is byte-identical to today's output; the same call with `write_record=False` emits the identical metadata head and prose body with a history block containing the prior records verbatim, newest-first, and NO new record; the message fallback, the `old_text` source of priors, and the newest-first assembly are unchanged in the diff.
+  - Execution state: pending
+
+- [ ] E-02 `agent_workflows/backlog.py` (`run_set`): consult the shared predicate at the `_reattach_history` call site and pass `write_record=not is_dup`. Compute it ONLY for the same-status case, keyed on the `label` E-02 of `jbipfa` already computes:
+
+    ```python
+    is_dup = False
+    if label == "same-status":
+        from agent_workflows.status_set import same_status_message_is_duplicate
+        is_dup = same_status_message_is_duplicate(
+            text, status=label, date=today, message=msg
+        )
+    ```
+
+    FOUR BINDING DETAILS, each measured, each of which a naive port gets wrong.
+
+    (1) THE DATE MUST BE THE SAME CLOCK `_reattach_history` STAMPS WITH, which is the LOCAL date (`datetime.date.today().isoformat()`), NOT the UTC date `status_set.apply_status_change` uses. Do NOT copy the UTC expression across while you are here. The predicate compares the newest record's date field against the date you pass, and the newest record on this path was written by the LOCAL clock, so passing UTC makes the predicate return False for part of every day and silently restores today's duplicate. Measured: against a record dated `2026-09-30`, the predicate returns True when asked with `2026-09-30` and False when asked with `2026-10-01`. The clock split is itself a live release-blocking bug owned elsewhere (`2wae2x`, `tl8qmc`, `doe2fo`, `o8l2y2`); this plan NORMALIZES AROUND it by reading the one clock this function already uses, and fixing it here would be exactly the combined commit `wy9aru` S5 forbids.
+
+    (2) THE MESSAGE MUST BE THE RESOLVED MESSAGE, not the raw flag. `_reattach_history` computes `msg = message.strip() or f"status -> {new_status}"`, so a defaulted call writes `status -> open`. Passing the raw empty string would compare `""` against a stored `status -> open` and never match, leaving the defaulted case duplicating. Measured: with the resolved message passed, two defaulted same-status calls produce ONE record; this is the same bypass `1i300e` F-9 fixed on the other path, and it must not be re-created here.
+
+    (3) THE STATUS TOKEN PASSED MUST BE THE LABEL (`same-status`), not `new_status`. The predicate matches when `mid == status` OR either side is the literal `same-status`, so passing `label` matches the record `jbipfa` E-02 actually writes. Measured: both `status="same-status"` and `status="open"` return True against a `same-status` record, so this is belt-and-braces rather than load-bearing today, but `label` is the honest value and it stays correct if the match rule narrows.
+
+    (4) SUPPRESS ONLY THE RECORD. The gate-field clearing, `_render_item`'s metadata rewrite, `--blocks-release`, `--graduated-to`, the release-exempt pair, `--work-kind`/`--priority`, `decide_gate_default`, `evaluate_blocking_close`, the close-evidence write, the destination resolution and the file move ALL still run exactly as today, because a reclassification that happens to repeat its message must still reclassify. The `rendered` string keeps flowing through every one of those writers untouched; only the history block differs.
+
+    DO NOT WIDEN THE PREDICATE TO SCAN THE WHOLE FILE. It compares the NEWEST record only, deliberately, and its docstring records why: a genuinely new note that reuses an older wording must still be recorded, and scanning the whole file is "the `x6tk1u` defect wearing a different hat". Changing it would also break its two existing consumers.
+  - Depends on: E-01
+  - Expected outcome: two identical same-status `aw backlog set <path> --status open --message "metadata only"` calls leave ONE such record, matching the positional spelling; two calls with DIFFERENT messages leave BOTH records; two defaulted same-status calls leave ONE; a genuine transition followed by a repeat of it leaves the transition record plus nothing; every prior record survives verbatim in all four cases; no metadata field, gate verdict or file move changes behavior.
+  - Execution state: pending
+
+- [ ] E-03 `agent_workflows/backlog.py` (`run_set`): make the SIDECAR agree with the inline decision by skipping the `record_history.append_advisory` call when the inline record was suppressed, resolving OQ-01. Guard the existing `if item.id:` block with the same `is_dup` so a suppressed transition writes neither copy.
+
+    THE PRECEDENT IS EXACT AND ALREADY IN THE TREE, so this is consistency rather than a new policy. `specs.run_set` computes `sidecar_msg = None`, assigns it ONLY inside the `if not same_status_message_is_duplicate(...)` branch that also writes the inline record, and later calls `_sidecar_append` only `if sidecar_msg is not None`. One predicate, one decision, both copies. This item gives `backlog.run_set` the same shape.
+
+    WHY NOT KEEP WRITING THE SIDECAR, which is the defensible alternative OQ-01 weighs: the sidecar is an ADVISORY, gitignored, machine-local activity log whose whole documented purpose is to describe transitions that happened to the durable record (`record_history.append_advisory`'s docstring, and the maintainer's 2026-09-10 `vhbvwz` OQ-01 ruling it quotes). A sidecar line for a write that was deliberately suppressed describes a transition the durable record does not contain, which is the same phantom-event shape spec `2vev8j` C5 forbids and plan `ulepef` is landing to close on this very function. Writing it anyway would mean deliberately adding a phantom while another approved plan removes phantoms from the adjacent line.
+
+    THE ASYMMETRY THAT REMAINS AND IS CORRECT: `status_set.apply_status_change` writes NO sidecar record at all, on either branch (verified: `record_history` is not imported in `status_set.py`). So after this item the two spellings still differ on sidecar COUNT (`--status` writes one on a recorded transition, positional writes none). That gap is owned by `fcnz1r` and ruled on by `wy9aru` 4.3; do not close it here. Measured at base and unchanged by this plan: the `--status` spelling left 2 sidecar lines for two calls and the positional spelling left 0.
+
+    DO NOT REORDER THE SIDECAR CALL relative to the durable write while you are here. Its placement BEFORE `core.atomic_write` is a real defect, but it is `ulepef`'s (`approved`, `Blocks-Release: next`, same function, declared in its `Scope-Paths`), and moving it here would collide with reviewed work. Add the guard in place.
+  - Depends on: E-02
+  - Expected outcome: a suppressed same-status call appends NO new line to `.aw/records/history.jsonl` and NO inline record; a recorded call appends exactly one of each, as today; the sidecar call's POSITION in the function is unchanged, so `ulepef` still applies cleanly.
+  - Execution state: pending
+
+- [ ] E-04 `agent_workflows/backlog.py` (`run_set`): make the suppression FAIL SAFE against the bounding disagreement F-03 measures, by refusing to suppress when suppression would leave the history block empty. Compute the priors once and require them: suppress only when `is_dup and _prior_history_records(text)` is non-empty; otherwise write the record as today.
+
+    THE HAZARD IS REAL AND IS MEASURED, not hypothetical. The predicate reads the newest record through `attention._history_section_lines`, while `_reattach_history` restores priors through `backlog._prior_history_records`, and the two BOUND the history block differently: `_prior_history_records` requires a record to start at column zero (`ln.startswith("- ")`) precisely so an indented, prose-quoted example line is never mistaken for a record, a rule its docstring justifies with the measured `tk1gqo` incident where five quoted lines were promoted into an item's provenance. `_history_section_lines` applies no such rule. So an item whose only history-shaped line is INDENTED yields a predicate answer of True and a prior-record list of `[]`. Measured in this lane with the candidate fix applied, on exactly such a fixture: the item came back with `## Workflow history` followed by blank lines and no record at all inside the block, and `backlog.validate_item` returned NO drift on that result, so nothing in the tree would have caught it.
+
+    THIS IS THE ITEM THAT ANSWERS THE BACKLOG ITEM'S OWN WARNING that "a dedup predicate wired into a path that never had one can silently swallow a record a user expected, and the failure is invisible". The guard converts the one measured invisible-loss case into a harmless extra record. Do NOT instead "fix" the disagreement by changing either reader: `_prior_history_records`'s column-zero rule is a pinned fix for a measured data-loss bug and must not be loosened, and `_history_section_lines` has many other consumers whose behavior is out of this plan's scope. Reconciling the two bounding rules is a real follow-up and is recorded under "Deferred" with a filed carrier.
+  - Depends on: E-02
+  - Expected outcome: on the indented-prose fixture the record is WRITTEN (no suppression) and the history block is never left empty; on a normal fixture carrying at least one real prior record the suppression still fires; no item is ever written whose `## Workflow history` heading has no record under it.
+  - Execution state: pending
+
+### Task group 2: prove it behaviorally, and record it
+
+- [ ] E-05 NEW FILE `tests/test_backlog_history_dedup_parity.py`: a behavioral test module that DRIVES both spellings through `cli.main` over identical fixtures in temporary repositories and asserts on the written files, never on source text. Cover these cases, each driving the verb TWICE and comparing the WHOLE file (not just a count):
+
+    (a) same-status, identical explicit `--message`, twice: exactly ONE such record on BOTH spellings, and the prior records intact.
+    (b) same-status, DIFFERENT messages: BOTH records present on BOTH spellings. This is the regression guard for the predicate's newest-record-only rule and is the case that would catch an author who widened it to a whole-file scan.
+    (c) same-status, DEFAULTED message (no `--message`), twice: ONE record on the `--status` spelling. Assert the `--status` spelling against ITSELF here rather than cross-spelling, because the two paths default to DIFFERENT message strings (`status -> open` versus `status unchanged (open)`), an asymmetry `jbipfa` declined and this plan must not depend on.
+    (d) genuine transition then an identical repeat of it: the transition record, then suppression.
+    (e) the F-03 indented-prose fixture: the record IS written and the history block is non-empty.
+    (f) the sidecar: a suppressed call adds no `.aw/records/history.jsonl` line; a recorded call adds exactly one.
+
+    TWO CONSTRAINTS ON EVERY CROSS-SPELLING COMPARISON, both mandated by spec `wy9aru` S3 and both measured as necessary. NORMALIZE THE DATE BY SHAPE with a regex, never by reading a clock a second time, because the two paths stamp LOCAL and UTC dates and a whole-record comparison is red for part of every day. NORMALIZE THE ACTOR (`(aw backlog)` versus `(aw set)`), which is truthful attribution and deliberately kept. `tests/test_history_label_parity.py` already provides `_normalize_history_record` doing exactly both; reuse that shape rather than inventing a third normalizer, and state in the module docstring WHY each normalization exists and which artifact owns the axis.
+
+    FORBIDDEN, per AGENTS.md and GUIDING_PRINCIPLES P16: no `inspect`, `ast`, regex or substring search over production source; no assertion that `same_status_message_is_duplicate` is CALLED, or how many callers it has. The claim "the dedup now applies to both spellings" must be proved by driving both spellings and comparing the resulting FILES. A test asserting the predicate is imported would pass against a call whose arguments are wrong in all four ways E-02 enumerates.
+  - Depends on: E-04
+  - Expected outcome: a new test module whose every assertion is over written file content, exit codes, or sidecar lines; it FAILS at base on cases (a), (c), (d) and (f) and passes after E-01 through E-04; the whole bare suite's failure set is otherwise unchanged.
+  - Execution state: pending
+
+- [ ] E-06 `CHANGELOG.md`: one entry under the current unreleased heading recording that `aw backlog set --status` no longer appends a duplicate same-status history record, matching the positional spelling. Follow the file's existing entry shape and write no em or en dashes. State the user-visible effect (a repeated idempotent re-assertion no longer grows an item's history) rather than the internal mechanism, and do NOT claim the two spellings are now equivalent in general, which would be false while the clock, actor, defaulted-message and sidecar-count axes remain open.
+  - Depends on: E-05
+  - Expected outcome: one new CHANGELOG entry in the established style, naming the behavior change and not overclaiming parity.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- ONE PREDICATE, CONSULTED FROM EVERY PATH, is the established answer to this exact class. `specs.py` documents the principle twice in its own dual-dispatch note ("a gate in only one of them is bypassed by choosing the other"), and `backlog.run_set`'s `decide_gate_default` comment states it operationally: "A default wired into one only would fire for one spelling of one verb and not the other, which is worse than not shipping it because it teaches a false expectation." This plan adds a third consumer of `status_set.same_status_message_is_duplicate`; it does not add a second predicate.
+- CITE BY SYMBOL, NOT BY LINE. Spec `ipd-structure-and-linting` Section 10.2 (advisory `IPD-C801`) and spec `wy9aru`'s own "no line-number citation appears in this spec" rule both apply here: `status_set.py` is 3013 lines and several live plans edit it, so every citation in this plan is by `module.function` or by a quoted string.
+- THE TWO SPELLINGS ARE A KNOWN RECURRING DEFECT CLASS WITH A FILED ROOT CAUSE. `fcnz1r` enumerates three release-blocking instances (`43p53n` gate-field clearing, `mawwlc`/`47ttnv` the close predicate, and the gate default) each fixed by duplicating behavior into the second path. This plan is a fourth instance of the same shape and is deliberately minimal for that reason: the durable fix is `fcnz1r`'s unification, not more duplication.
+- A SAME-STATUS WRITE IS TAGGED `same-status` DELIBERATELY, by both paths, since `jbipfa` landed. `status_set.apply_status_change`'s docstring gives the reason ("so verdict readers do not mistake it for a review record"), and that label is the key this plan's predicate call is gated on.
+- `_prior_history_records` REQUIRES COLUMN ZERO, and that is a pinned fix rather than a style choice: its docstring records the `tk1gqo` incident where five indented prose-quoted lines were promoted into an item's real provenance, turning 11 records into 17. Any work near the history block must preserve that rule.
+- THE SIDECAR IS ADVISORY AND MUST NEVER GATE A DURABLE WRITE (`record_history.append_advisory`, quoting the maintainer's 2026-09-10 `vhbvwz` OQ-01 ruling). This plan makes the sidecar follow the inline decision; it never makes the inline decision depend on the sidecar.
+- RUN THE SUITE BARE. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; `python3 -m pytest` is the whole command (AGENTS.md).
+
+## Findings
+
+| # | Severity | Measurement | What it means |
+|---|---|---|---|
+| F-01 | MEDIUM (the defect) | At HEAD `f55aed0b`, two identical same-status calls: `--status` spelling -> THREE inline records (`- 2026-10-02 same-status (aw backlog): metadata only` twice, plus the fixture's `created`); positional spelling -> TWO. | **THE ITEM'S CENTRAL CLAIM REPRODUCES EXACTLY.** The label is now `same-status` on both paths (`jbipfa` landed), so the ONLY surviving difference in this scenario is the record COUNT. The predicate, asked directly against a `same-status (aw backlog)` record, returns True for a repeat and False once the message differs, so it already understands this path's record shape with no change. |
+| F-02 | HIGH (the item's suggested fix, as literally written, destroys history) | The value of `rendered` immediately BEFORE the `_reattach_history` call, on a fixture carrying records dated `2026-09-20`, `2026-09-05` and `2026-09-01`, is a history block of exactly ONE line: `- 2026-10-02 created (aw backlog): Probe item`. `_prior_history_records(text)` returns all three. | **"SKIP THE HISTORY WRITE" IS NOT THE SAME AS "SKIP THE CALL", AND THE DIFFERENCE IS THREE LOST RECORDS.** `_strip_metadata_and_history` discards the history block and `_render_item` mints a fresh re-dated `created` line, so restoring the priors is `_reattach_history`'s JOB. Hence E-01 puts the suppression INSIDE the writer. This is the same failure the function's own docstring already records from `vhbvwz` E-08; an author following the backlog item's wording literally would re-create it. |
+| F-03 | MEDIUM (a NEW invisible-loss case the item did not know) | With the candidate fix applied, on an item whose only history-shaped line is INDENTED (`    - <today> same-status (aw backlog): metadata only`), the predicate returns True while `_prior_history_records` returns `[]`. Result written to disk: `## Workflow history` followed by blank lines and NO record. `backlog.validate_item` returned NO drift on it. | **THE PREDICATE AND THE PRIOR-RECORD READER BOUND THE HISTORY BLOCK DIFFERENTLY, so suppression can empty the block and nothing catches it.** `_prior_history_records` requires column zero (the pinned `tk1gqo` fix); `attention._history_section_lines`, which the predicate reads through, does not. This is precisely the "silently swallow a record, invisibly" risk the backlog item warned about, in a shape the item did not identify. E-04 fails safe rather than reconciling the two readers. |
+| F-04 | INFORMATIONAL (blast radius is zero) | Baseline bare suite at HEAD `f55aed0b`: `3 failed, 4624 passed, 2 skipped` (`test_selector_type_containment::test_must_not_refuse_matrix`, `test_run_finding_reachability::...test_unreachable_binding_refusal_fires_under_perturbation`, `test_spec_review_attestation::...test_every_real_spec_in_this_repository_still_conforms`). With the candidate fix applied as a throwaway source probe: `3 failed, 4624 passed, 2 skipped`, the SAME three. | **NO EXISTING TEST PINS THE DUPLICATE, so the fix breaks nothing and nothing currently guards the correct behavior either.** That cuts both ways and is why E-05 is a new module rather than an edit: the property is entirely unguarded today. The three baseline failures are pre-existing and unrelated (selector containment, run-finding reachability, and a live-corpus spec conformance sweep); they must be reported as the baseline, not as this plan's. |
+| F-05 | LOW (a second asymmetry on the same two calls, NOT this plan's to close) | Same two-call runs: the `--status` spelling left TWO lines in `.aw/records/history.jsonl`; the positional spelling left ZERO. `record_history` is not imported in `status_set.py` at all. | **THE SIDECAR COUNT DIVERGES TOO, and it diverges even on a non-duplicate transition, so it is a different defect.** E-03 makes the sidecar follow the INLINE decision on the `--status` path (the `specs.run_set` precedent), which is as far as this plan may go; making the two spellings AGREE on sidecar behavior requires the `wy9aru` 4.3 ruling and belongs to `fcnz1r`. Recorded so a reviewer is not surprised that parity is still incomplete after this plan. |
+| F-06 | MEDIUM (sequencing, resolved in this plan's favor) | Spec `wy9aru` Section 7 lists "Same-status dedup asymmetry | `r74211` (`open`)" as an axis unification deliberately does NOT close, and S4/S5 require unification to be incremental and forbid a commit that both unifies a path and fixes a deferred axis. Plan `vhiqo6` (`to-review`, Set `setdisp`, Order 05) would reduce `backlog.run_set` to a thin adapter. | **THE UNIFICATION SET EXPLICITLY DELEGATES THIS DEFECT TO THIS ITEM, so the two are complementary rather than racing, but ORDER MATTERS.** This plan must land BEFORE `vhiqo6`, for the same reason `wy9aru` Section 6 requires unification to land after `jbipfa`: both edit `backlog.run_set`'s history assembly, and landing second costs a conflict with reviewed work. This plan is small, has zero blast radius, and touches one call site; `vhiqo6` is a migration. Recorded as a dependency NOTE rather than an `Item-Dependencies` edge, because the edge runs the other way (nothing here waits on `vhiqo6`). |
+| F-07 | INFORMATIONAL (the predicate needs no change) | `same_status_message_is_duplicate` returns True against a `- <today> same-status (aw backlog): metadata only` newest record when asked with `status="same-status"`, and ALSO when asked with `status="open"`, because its match rule accepts either side being the literal `same-status`. It returns False once the message differs. | **THE SHARED PREDICATE IS CONSUMED UNMODIFIED, which is what keeps this a small change.** Its deliberate properties (newest record only; actor not compared) are RELIED ON and must not be edited: it has two other consumers, and its docstring records the measured runs behind both properties. Passing `label` rather than `new_status` is the honest argument and survives a future narrowing of the match rule. |
+
+## Proposed changes (ordered, validatable)
+
+1. `backlog._reattach_history` gains `write_record: bool = True`; when False it assembles the block from priors alone and writes no new record (E-01).
+2. `backlog.run_set` consults `status_set.same_status_message_is_duplicate` for the `same-status` label only, with the LOCAL date, the RESOLVED message and the LABEL as the status token, and passes `write_record=not is_dup` (E-02).
+3. The `record_history.append_advisory` call in `run_set` is guarded by the same decision, so a suppressed write leaves no sidecar phantom (E-03).
+4. Suppression fails safe: it is declined when `_prior_history_records` is empty, so the history block can never be emptied (E-04).
+5. A new behavioral test module drives both spellings twice over identical fixtures across six cases, normalizing the date by shape and the actor (E-05).
+6. One CHANGELOG entry (E-06).
+
+## Deferred / out of scope (with reason)
+
+- THE UTC-VERSUS-LOCAL CLOCK SPLIT is OUT and must be normalized around, never fixed here. `backlog.py` stamps the LOCAL date and `status_set.py` the UTC date, so for the length of the local offset every day the two spellings write different dates. `2vev8j` 4.4 already rules UTC correct. Fixing it inside a `chore` would silently absorb release-gated work, and `wy9aru` S5 forbids a commit that both changes a path and fixes a deferred axis. E-02 detail (1) turns this into a positive implementation constraint: read the clock this function already uses.
+  - Carrier: 2wae2x, tl8qmc, doe2fo, o8l2y2
+- THE DISPATCH UNIFICATION that deletes this fork is OUT, owned by Set `setdisp` (plans `63zo2f`, `c6f6sj`, `afdmn6`, `m1jlwm`, `m94eht`, `vhiqo6`) under spec `wy9aru`. `wy9aru` Section 7 names this very item as an axis unification does not close, so the division of labor is the spec's own. See F-06 for the ordering: this lands first.
+  - Carrier: fcnz1r, vhiqo6
+- THE SIDECAR WRITE ORDER (appended BEFORE the durable write, so a failed write leaves a phantom) is OUT, which declares this file in its `Scope-Paths` and already carries the `2vev8j` amendment. E-03 adds a guard IN PLACE and must not reorder the call.
+  - Carrier: ulepef
+- THE ACTOR ASYMMETRY (`(aw backlog)` versus `(aw set)`) and THE DEFAULTED-MESSAGE DIVERGENCE (`status -> open` versus `status unchanged (open)`) are OUT. Both were explicitly DECLINED in `jbipfa` as truthful attribution and as out of scope respectively, and `wy9aru` Section 7 records that decline. Every cross-spelling assertion in E-05 normalizes or avoids them.
+  - Carrier-Declined: Declined upstream in plan `jbipfa` and recorded in spec `wy9aru` Section 7 as "Actor string, defaulted message | `jbipfa` Deferred (declined) | Declined there as truthful attribution; no carrier wanted". The actor parenthesis is where every writer in this tree records its own identity, so unifying it would require choosing which lie to tell; `same_status_message_is_duplicate` documents that it deliberately does not compare the actor, so no consumer is misled. Re-filing a carrier here would reopen a decision a reviewed plan and an authored spec both settled.
+- THE SIDECAR COUNT ASYMMETRY between the two spellings (one writes a record, the other writes none) is OUT; see F-05. It needs the `wy9aru` 4.3 ruling.
+  - Carrier: fcnz1r
+- THE BOUNDING DISAGREEMENT between `backlog._prior_history_records` (column-zero required) and `attention._history_section_lines` (not) is OUT as a RECONCILIATION, and E-04 only fails safe around it. Reconciling them properly means either loosening a pinned data-loss fix (`tk1gqo`) or changing a reader with many consumers across the attention and readiness surfaces, which is its own review. FILED AT AUTHORING TIME from F-03's measurement, so the executor inherits a carrier rather than an instruction.
+  - Carrier: wkpcop
+- THE 517 EXISTING `set`-LABELLED AND DUPLICATE RECORDS in the live corpus are OUT. They are committed history; rewriting them would destroy provenance, and `jbipfa` already ruled the same way about the same corpus.
+  - Carrier-Declined: Deliberately never to be done. These are COMMITTED history records, and `jbipfa` ruled on the identical question for the identical corpus ("the 517 EXISTING records, which are committed history and must not be rewritten"). Rewriting them would destroy provenance to make a cosmetic field uniform, so this is a permanent decision rather than deferred work, and a carrier would imply someone should eventually act on it.
+- `status_set.apply_status_change` AND `same_status_message_is_duplicate` ARE NOT MODIFIED. Both already behave correctly and both are RELIED ON by this plan and by two other consumers; see F-07.
+  - Carrier-Declined: Not an outstanding obligation. Both surfaces already implement the correct behavior, which is precisely why this plan consumes rather than changes them; there is no defect here to carry. Editing either would affect two other consumers and would discard the measured properties their docstrings pin.
+- `backlog.run_note` IS OUT. It is deliberately not a transition (its docstring: "A note is not a transition"), it reads no status vocabulary, and a note's whole purpose is to add a record, so it has no same-status question to answer.
+  - Carrier-Declined: Not an obligation. `run_note` has no status to re-assert, so the defect class this plan closes cannot arise there; nothing is left undone.
+- `set_records.close_on_answer`, the other `_reattach_history` caller, IS NOT CHANGED. It performs a genuine `blocked -> done` close, never a same-status write, so `write_record` correctly defaults True for it.
+  - Carrier-Declined: Not an obligation. The caller is already correct under E-01's default, verified by reading it: it transitions `blocked -> done` unconditionally and can never make a same-status write, so no follow-up work exists to hand off.
+
+## Scope check
+
+- Over-scope: none. The three declared paths are the minimum: the one function carrying the defect, one new test module, and the CHANGELOG.
+- Under-scope: FOUR axes on which the two spellings still disagree after this plan, each named with its owner and NONE of which this plan may absorb: the history DATE clock (`2wae2x`/`tl8qmc`/`doe2fo`/`o8l2y2`), the ACTOR string and the DEFAULTED MESSAGE (both declined in `jbipfa`), and the SIDECAR COUNT (`fcnz1r`/`wy9aru` 4.3). Also under-scope by deliberate choice: the `_prior_history_records` versus `_history_section_lines` bounding disagreement, which E-04 fails safe around rather than resolving and which the executor must FILE (see "Deferred"). A reader should not conclude from this plan that the two spellings are now equivalent; they agree on the record COUNT and the LABEL, and still differ on the rest.
+- In-scope surface per file: `agent_workflows/backlog.py` only within `_reattach_history` (one new parameter, one line of assembly) and `run_set` (the predicate consultation, the `write_record` argument, the sidecar guard); `tests/test_backlog_history_dedup_parity.py` is new; `CHANGELOG.md` gains one entry.
+- EXPECTED UNMODIFIED, listed so finalize reconciliation has something to reconcile against: `agent_workflows/status_set.py` (both `apply_status_change` and `same_status_message_is_duplicate`), `agent_workflows/specs.py`, `agent_workflows/set_records.py`, `agent_workflows/attention.py` and `attention_contract.py`, `agent_workflows/record_history.py`, `agent_workflows/cli.py` (the dispatch fork is untouched), `backlog._prior_history_records` and `backlog._strip_metadata_and_history` (both bounding rules preserved exactly), `backlog.run_note`, `backlog.validate_item`, and `tests/test_history_label_parity.py`.
+
+## Required tests / validation
+
+- The new module `tests/test_backlog_history_dedup_parity.py`, run directly, covering E-05's six cases.
+- The WHOLE BARE SUITE, `python3 -m pytest`, with the actual summary line pasted. The failure set must equal the F-04 baseline (`3 failed, 4624 passed, 2 skipped`) plus nothing, with the new module's tests passing. Any fourth failure must be explained or fixed, never normalized away.
+- `python3 -m pytest tests/test_history_label_parity.py tests/test_backlog.py` specifically, since those two modules own the adjacent properties (the label contract, and the preservation and parity properties) that E-01 and E-02 could plausibly break.
+- `aw backlog check` on this repository's live corpus, to confirm no item is left non-conformant.
+- A BOTH-TIMEZONE demonstration of at least case (a), run once bare and once under `TZ=UTC`, since the predicate call's date argument is the detail E-02 warns is easiest to get wrong and a single-timezone run cannot distinguish a correct local read from an incorrect UTC one for most of the day.
+
+## Spec / documentation sync
+
+- `_reattach_history`'s docstring gains a paragraph recording WHY `write_record` exists (the two spellings disagreed on whether an idempotent re-assertion is recorded; backlog `r74211`), naming `status_set.same_status_message_is_duplicate` as the authority consulted by the CALLER, and stating that the default preserves existing behavior for an unaware caller. It must also keep every existing paragraph, in particular the `old_text`-not-`rendered` explanation that F-02 shows is load-bearing.
+- `run_set` gains a comment at the predicate call recording the four binding details from E-02 (local clock, resolved message, label as the status token, suppress only the record) and naming this as the THIRD consumer of one predicate.
+- `same_status_message_is_duplicate`'s docstring is UPDATED ONLY to add `backlog.run_set` to its list of consumers if it enumerates them, and is otherwise LEFT ALONE: its recorded properties (newest record only, actor not compared) and the measurements behind them must not be edited or "improved".
+- NO SPEC AMENDMENT IS REQUIRED, and that is a deliberate finding rather than an omission. Spec `wy9aru` Section 7 ALREADY assigns this axis to `r74211` and expects it to be closed elsewhere, so closing it fulfills that spec rather than contradicting it; no `.spec.md` file is declared in `Scope-Paths` and none may be edited. Spec `2vev8j` C5 (no event for a transition that did not happen) is likewise SATISFIED rather than amended by E-03.
+- `CHANGELOG.md`: one entry (E-06).
+
+## Open questions
+
+### OQ-01: on a suppressed inline record, should the advisory sidecar line still be written?
+
+- Blocking: no
+- Status: resolved
+- Owner: this plan (E-03)
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, not escalated, because the tree already answers it twice. SUPPRESS IT. (1) THE PRECEDENT: `specs.run_set` already ties the two together, computing `sidecar_msg` only inside the same `not same_status_message_is_duplicate(...)` branch that writes the inline record and calling `_sidecar_append` only when it is set, so one predicate makes one decision for both copies; `backlog.run_set` calling the same predicate and then writing the sidecar anyway would be the only place in the tree where they disagree. (2) THE CONTRACT: the sidecar is an advisory, gitignored, machine-local ACTIVITY LOG describing transitions made to the durable record (`record_history.append_advisory`, quoting the maintainer's 2026-09-10 `vhbvwz` OQ-01 ruling). A line for a deliberately suppressed write describes a transition the durable record does not contain, which is the phantom-event shape spec `2vev8j` C5 forbids and which plan `ulepef` is landing to remove from this very function. REJECTED ALTERNATIVE: keep writing it as a "fuller activity log". Rejected because it makes `aw record-history <id6>` report transitions no artifact records, which is the exact failure `ulepef` measured, and because a log of suppressed no-ops has no reader. NOTE what this does NOT resolve: the two spellings still differ on sidecar COUNT, because `status_set` writes none at all (F-05); that is `fcnz1r`'s under `wy9aru` 4.3.
+
+### OQ-02: should this plan reconcile the two history-block bounding rules that F-03 exposes?
+
+- Blocking: no
+- Status: resolved
+- Owner: this plan (E-04), with a filed carrier for the reconciliation
+- Resolution or deferral rationale: NO. FAIL SAFE HERE, FILE THE RECONCILIATION. `backlog._prior_history_records` requires a record to begin at column zero and its docstring justifies that with the measured `tk1gqo` incident in which five indented prose-quoted lines were promoted into an item's real provenance (11 records became 17); `attention._history_section_lines`, which the predicate reads through, applies no such rule. Reconciling them means either LOOSENING a pinned data-loss fix or CHANGING a reader with many consumers across the attention and readiness surfaces, and either is a larger blast radius than this whole plan. So E-04 declines to suppress whenever suppression would empty the block, which converts the one measured invisible-loss case into a harmless extra record, and the executor FILES the reconciliation as a backlog item citing F-03's measurement. REJECTED ALTERNATIVE: have the predicate call read priors through `_prior_history_records` instead, making the two agree by construction. Rejected because it would require either editing the shared predicate (which has two other consumers and whose properties are deliberately pinned) or re-implementing its newest-record parse in `backlog.py`, which is a second copy of the grammar and the very duplication this plan exists to reduce.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [ ] V-01 validates E-01
+  - Required evidence: PASTE the `git diff` of `_reattach_history` showing ONLY the new parameter and the one-line assembly change, with the message fallback, the `old_text` prior source and the newest-first order visibly untouched. PASTE the output of a direct two-call demonstration: `_reattach_history(old, rendered, "open", "msg", label="same-status")` and the same call with `write_record=False`, over a fixture carrying at least TWO prior records, showing the first output byte-identical to today's and the second containing the identical metadata head and prose body with the prior records verbatim and no new record. The second output must NOT contain a re-dated `created` line, which is the F-02 failure.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: PASTE the actual terminal transcript of driving `aw backlog set <path> --status open --message "metadata only"` TWICE in a scratch repository, followed by the WHOLE resulting file, showing ONE such record and every prior record intact. Then PASTE the same for the three other cases: different messages (BOTH records present), defaulted message twice (ONE record), and a genuine transition followed by an identical repeat (transition record, then no growth). PASTE the four lines of the implementation showing the date argument is the LOCAL `datetime.date.today().isoformat()` this function already uses, the message argument is the RESOLVED message including the `status -> <status>` fallback, the status argument is `label`, and the consultation is gated on `label == "same-status"`. Separately CONFIRM that a `--work-kind`/`--priority` reclassification whose message repeats still rewrites the metadata, by pasting the before and after metadata block.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: PASTE the line count and content of `.aw/records/history.jsonl` after a SUPPRESSED same-status call (must be unchanged from before the call) and after a RECORDED call (must have grown by exactly one line). PASTE the diff of the guarded block showing the sidecar call's POSITION in `run_set` is unchanged relative to `core.atomic_write`, so `ulepef` still applies; a diff that moves it FAILS this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: PASTE the whole file written after driving the verb twice against the F-03 fixture (an item whose only history-shaped line is INDENTED by four spaces), showing a record IS written and the `## Workflow history` heading is NOT left with an empty block. PASTE, from the same run, the measured values of the predicate (True) and of `_prior_history_records` (`[]`) proving the guard is the thing that fired rather than the predicate declining. Then PASTE a normal-fixture run proving suppression STILL fires when at least one real prior record exists, so the guard has not disabled the feature.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: PASTE the actual `python3 -m pytest tests/test_backlog_history_dedup_parity.py` output with its summary line. PASTE the BASE-state run of the same module (against `git stash` or an equivalent revert of E-01 through E-04) showing it FAILS on cases (a), (c), (d) and (f), because a test that passes before the fix proves nothing. PASTE the whole bare `python3 -m pytest` summary line and confirm the failure SET equals the F-04 baseline of three named pre-existing failures. PASTE the `TZ=UTC` run of case (a). CONFIRM BY INSPECTION, quoting the relevant lines, that the module contains no `inspect`, `ast`, or source-reading assertion and no caller count, and that every cross-spelling comparison normalizes the date by shape and the actor.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: PASTE the new CHANGELOG entry and confirm it contains no em or en dash, matches the surrounding entry style, and does not claim general parity between the two spellings. PASTE the `aw backlog check` output over this repository's corpus showing no new finding. PASTE the id6 of the backlog item filed for the F-03 bounding reconciliation required under "Deferred".
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan requires explicit human approval before execution and must not be executed from the authoring turn. The executor is bound by the AGENTS.md execution contract: commit ONLY the three declared `Scope-Paths` through `aw commit <plan> -- <paths>`, never `git add -A` or `git commit -a`, never `--no-verify`, and never push. Paste the ACTUAL runner output for every test claim; a summary line reconstructed from memory is a contract violation, and "the suite still passes" is the easiest claim to fake here because the baseline already carries three failures that an inattentive report would read as this plan's.
+
+ORDERING OBLIGATION, which is the one coordination this plan carries: land BEFORE plan `vhiqo6` (Set `setdisp`, Order 05), which reduces `backlog.run_set` to a thin adapter over the shared engine and therefore rewrites the exact history assembly E-01 and E-02 edit. Spec `wy9aru` Section 7 delegates this axis to `r74211` and S5 forbids a single commit that both unifies a path and fixes a deferred axis, so the two must not be combined; Section 6 applies the same first-the-small-reviewed-plan ordering to `jbipfa`. If `vhiqo6` has already executed when this plan is dispatched, STOP and report rather than re-applying the fix to a function that no longer assembles history: the correct remedy then is a corrective IPD against the shared engine, not a merge.
+
+Before the terminal transition, `aw ipd lint --phase pre-transition` must report conforming and every `V-*` item must carry pasted evidence. Then move this plan to `.aw/records/plans/executed/` through the tooled lifecycle. Do NOT set backlog `r74211` to `done` from the authoring turn; the runner sets `graduated` on verification.
