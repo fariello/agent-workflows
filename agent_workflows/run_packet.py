@@ -739,4 +739,4 @@ def apply_outcome_envelope(
                 }
             )
 
-    return snapshot
+    return snapshot  # type: ignore[return-value]  # checker-limitation: record_step_attempt returns RunStateSnapshot containing step state

@@ -1236,7 +1236,7 @@ def run_new(args) -> int:
     )
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
     dest = (
-        _resolve_backlog_root(repo_root)
+        _resolve_backlog_root(repo_root)  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
         / _rp.target_subdir("backlog", status)
         / filename
     )
@@ -1737,7 +1737,7 @@ def run_set(args) -> int:
         if accepted_evidence:
             rendered = set_close_evidence_line(rendered, accepted_evidence)
 
-    dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(
+    dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
         "backlog", new_status
     )
     dest = dest_dir / src.name

@@ -238,3 +238,41 @@ jobs:
         run: |
           python -m pytest \
             tests/test_command_surface_declarations.py
+
+  typecheck:
+    name: static type gate (fail-closed)
+    runs-on: ubuntu-latest
+    # Static type gate over agent_workflows/ with narrowed error codes (plan m7fllj E-03).
+    #
+    # FAIL-CLOSED, NOT ADVISORY: no continue-on-error. Closes backlog fcua9q by failing CI on
+    # annotation defects like g321ny and provably catching live bugs (F-06).
+    #
+    # SINGLE PYTHON VERSION ("3.12"): modern mypy dropped Python 3.9 support at 1.20.0 and refuses
+    # a 3.9 target (F-07, F-08). A matrix job would fail at install on the 3.9 leg. Pinned to 3.12,
+    # safely within mypy's supported range and not the newest release.
+    #
+    # SINGLE OS (ubuntu-latest): measured platform-invariant (F-14). Mypy analyzes a declared platform
+    # rather than host OS; runs with --platform linux, win32, and darwin report identical totals because
+    # Windows branches are type-checked on all platforms regardless. Running on multiple OSes would add
+    # runner cost with zero additional type-check coverage.
+    #
+    # INSTALL VIA `.[test]`: follows pyproject.toml declarations (mypy>=1.18,<3 and filelock>=4) rather
+    # than hand-listing dependencies.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python "3.12"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the project + test extra
+        shell: bash
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[test]"
+
+      - name: Run static type gate (mypy agent_workflows)
+        shell: bash
+        run: python -m mypy agent_workflows

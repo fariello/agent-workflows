@@ -519,7 +519,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         if repo_root is None:
             repo_root = Path.cwd()
         pending = (
-            repo_root
+            repo_root  # type: ignore[operator]  # checker-limitation: target_subdir returns str for plans
             / ".aw"
             / "records"
             / "plans"

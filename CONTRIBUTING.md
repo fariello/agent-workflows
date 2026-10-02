@@ -171,6 +171,25 @@ and the plan-filename normalizer. The framework's own
 `verify` workflow discovers and runs them. Test only the mechanical parts, not the
 instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 
+## Static type checking
+
+To run static type checking across the `agent_workflows/` package:
+
+```bash
+make typecheck
+```
+
+This runs `python3 -m mypy agent_workflows` using the configuration in `pyproject.toml`. Static type checking is enforced in CI on pull requests and pushes to `main` via the fail-closed `typecheck` job.
+
+The baseline is triaged rather than clean-by-nature: existing findings are suppressed using per-line `# type: ignore[<code>]` comments with inline reasons explaining each checker limitation, platform or version condition, or benign re-annotation, so future maintainers understand and can revisit those judgements.
+
+The gate has five honest limits:
+1. Ten error codes are disabled (`arg-type`, `attr-defined`, `assignment`, `misc`, `union-attr`, and related completeness codes) to focus signal on callable and return defects; whole families of annotation issues are not caught.
+2. The checker targets Python 3.10, so Python 3.9-only incompatibilities are invisible even though 3.9 is the project's declared floor.
+3. The check runs in CI only; local commits and merges are not blocked by a git hook.
+4. Only `agent_workflows/` is checked; `tests/` and helper tools are unchecked.
+5. The clean baseline is defined relative to the pinned environment (`mypy>=1.18,<3` and `filelock>=4` in the test and dev dependency sets); environments resolving different dependency versions (such as `filelock` 3.x) may report different findings.
+
 ## Authoring conventions
 
 - Match what the software does today; do not document aspirations

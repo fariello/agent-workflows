@@ -1508,9 +1508,8 @@ def rc_has_our_stanza(text: Optional[str]) -> bool:
     else's work we must not clobber; a hand-added stanza with this fence means THE USER ALREADY DID
     THE WORK, so the right answer is "already satisfied, nothing to do" rather than appending a
     second copy. Measured on the reporting machine 2026-09-12: exactly that stanza was there,
-    hand-added, before this code existed.
     """
-    return bool(text) and RC_FENCE_OPEN in text
+    return bool(text) and RC_FENCE_OPEN in text  # type: ignore[operator]  # checker-limitation: bool(text) guarantees non-None string operand
 
 
 def rc_sources_bash_completion(text: Optional[str]) -> bool:
