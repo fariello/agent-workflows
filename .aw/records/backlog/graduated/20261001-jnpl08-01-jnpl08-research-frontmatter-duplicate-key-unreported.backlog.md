@@ -1,5 +1,6 @@
 - Id: jnpl08
-- Status: open
+- Status: graduated
+- Graduated-To: jnpl08
 - Blocks-Release: next
 - Set: jnpl08
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: research_contract.parse_frontmatter accepts a duplicated YAML key with last-wins semantics, so a record with two status keys parses as valid rather than reporting the duplication; the bullet trees' sibling rule 7ohskw flags a duplicated metadata bullet and the YAML dialect has no equivalent
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: 7d4bgs
 - 2026-10-01 created (aw backlog): research_contract.parse_frontmatter accepts a duplicated YAML key with last-wins semantics, so a record with two status keys parses as valid rather than reporting the duplication; the bullet trees' sibling rule 7ohskw flags a duplicated metadata bullet and the YAML dialect has no equivalent
 
 FILED WHILE AUTHORING plan `deftzy` (Set `7w6zsl`), which closes the research write paths that can CREATE a duplicate key but deliberately leaves the reader's behavior alone.
