@@ -1263,83 +1263,93 @@ def format_statusline_lines(
 ) -> tuple[str, str, str, str]:
     """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
-    ╭─ agy › gemini-2.5-pro (high) ────┬───────────────────────────────┬────────┬───────┬─Tokens──────────────────╮
-    │Time     │ Elapsed Timeout: 9m51s │ set: wtisoland    id6: 6knsrx │ Review │ Spend │ Total   In    Out Cache │
-    │20:27:24 │ 27m48s Last: 8s        │ 27m48s ██████████ 100% [1/1]  │   IPD  │ $6.16 │  4.7m 119k 110.7k  4.5m │
-    ╰─────────┴────────────────────────┴───────────────────────────────┴────────┴───────┴─────────────────────────╯
+    ╭─ opencode › uri/its_direct/pt3-claude-opus-5.5-1m-us (high) ──────────┬────────────┬───────┬─Tokens────────────────────╮
+    │Time:    02:00:40 │ Timeout:  00:14:22 │ set: verremand    id6: t18l64 │ ◎ Reviewng │ Spend │ Total     In    Out Cache │
+    │Elapsed: 00:08:42 │ Last:     00:00:37 │ 0/1 [                  ]  0%  │   Child    │ $1.82 │  2.3m 135.1k   3.8k  2.2m │
+    ╰──────────────────┴────────────────────┴───────────────────────────────┴────────────┴───────┴───────────────────────────╯
     """
     t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
 
-    # Col 0: Time
-    col0_w = 9
-    h0 = "Time" + (" " * max(0, col0_w - _T.visible_width("Time")))
-    v0 = f"{t_str:<8s} "
-
-    # Col 1: Elapsed & Timeout (Alternative A: clean/silent by default, subagent shown only when active)
+    # Col 0: Time & Elapsed
     run_elapsed = max(0, int(now_ts - run_start_ts))
-    run_el_str = format_compact_duration(run_elapsed)
+    run_el_str = format_digital_duration(run_elapsed)
 
+    h0_plain = f"Time:    {t_str} "
+    v0_plain = f"Elapsed: {run_el_str} "
+    col0_w = max(18, _T.visible_width(h0_plain), _T.visible_width(v0_plain))
+    pad_h0 = max(0, col0_w - _T.visible_width(h0_plain))
+    pad_v0 = max(0, col0_w - _T.visible_width(v0_plain))
+    h0 = f"{h0_plain}{' ' * pad_h0}"
+    v0 = f"{v0_plain}{' ' * pad_v0}"
+
+    # Col 1: Timeout & Last Activity
     idle = max(0, int(now_ts - last_act_ts))
-    idle_str = f"{idle}s" if idle < 60 else format_compact_duration(idle)
+    idle_str = format_digital_duration(idle)
 
-    hdr1_left = " Elapsed"
     if stall_remaining is not None:
-        secs = max(0, int(stall_remaining))
-        mins, rem = divmod(secs, 60)
-        t_rem = f"{mins}m{rem:02d}s" if mins else f"{rem}s"
-        hdr1_right = f"Timeout: {t_rem} "
+        t_rem_str = format_digital_duration(stall_remaining)
     else:
-        hdr1_right = ""
+        t_rem_str = "--:--:--"
 
-    val1_left = f" {run_el_str}"
+    hdr1_plain = f" Timeout:  {t_rem_str} "
     if progress_source and progress_source != "stdout":
         src_tag = f"({progress_source}) "
-        val1_right_plain = f"Last: {idle_str} {src_tag}"
+        val1_right_plain = f"Last:     {idle_str} {src_tag}"
     else:
         src_tag = ""
-        val1_right_plain = f"Last: {idle_str} "
+        val1_right_plain = f"Last:     {idle_str} "
 
     col1_w = max(
-        24,
-        _T.visible_width(hdr1_left) + _T.visible_width(hdr1_right) + 1,
-        _T.visible_width(val1_left) + _T.visible_width(val1_right_plain) + 1,
+        20,
+        _T.visible_width(hdr1_plain),
+        _T.visible_width(f" {val1_right_plain}"),
     )
-    pad_h1 = max(0, col1_w - _T.visible_width(hdr1_left) - _T.visible_width(hdr1_right))
-    pad_v1 = max(
-        0, col1_w - _T.visible_width(val1_left) - _T.visible_width(val1_right_plain)
-    )
-    h1 = f"{hdr1_left}{' ' * pad_h1}{hdr1_right}"
-    v1 = f"{val1_left}{' ' * pad_v1}{val1_right_plain}"
+    pad_h1 = max(0, col1_w - _T.visible_width(hdr1_plain))
+    pad_v1 = max(0, col1_w - _T.visible_width(f" {val1_right_plain}"))
+    h1 = f"{hdr1_plain}{' ' * pad_h1}"
+    v1 = f" {val1_right_plain}{' ' * pad_v1}"
 
-    # Col 2: Item Elapsed & Progress Bar
-    item_elapsed = max(0, int(now_ts - item_start_ts))
-    item_el_str = format_compact_duration(item_elapsed)
-    bar = format_progress_bar(current_idx, total_items, use_unicode=use_unicode)
-    val2 = f" {item_el_str} {bar}"
+    # Col 2: Set & Progress Bar (without duplicate item elapsed)
+    hdr2_left = f" set: {setid}"
+    hdr2_right = f"id6: {id6} "
+    pct = int(round((current_idx / total_items) * 100)) if total_items > 0 else 0
+    pct_str = f"{pct}%"
+    prefix = f" {current_idx}/{total_items} ["
+    suffix = f"] {pct_str:>4s}  "
 
+    min_w = _T.visible_width(prefix) + _T.visible_width(suffix) + 10
     if setid and id6:
-        hdr2_left = f" set: {setid}"
-        hdr2_right = f"id6: {id6} "
         col2_w = max(
-            29,
+            31,
             _T.visible_width(hdr2_left) + _T.visible_width(hdr2_right) + 1,
-            _T.visible_width(val2) + 2,
+            min_w,
         )
         h2 = f"{hdr2_left}{' ' * max(0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right))}{hdr2_right}"
     elif setid:
-        col2_w = max(29, _T.visible_width(setid) + 8, _T.visible_width(val2) + 2)
+        col2_w = max(31, _T.visible_width(setid) + 8, min_w)
         h2 = f" set: {setid} " + (
             " " * max(0, col2_w - _T.visible_width(f" set: {setid} "))
         )
     elif id6:
-        col2_w = max(29, _T.visible_width(id6) + 8, _T.visible_width(val2) + 2)
+        col2_w = max(31, _T.visible_width(id6) + 8, min_w)
         h2 = f" id6: {id6} " + (
             " " * max(0, col2_w - _T.visible_width(f" id6: {id6} "))
         )
     else:
-        col2_w = max(29, _T.visible_width(val2) + 2)
+        col2_w = max(31, min_w)
         h2 = " -" + (" " * max(0, col2_w - _T.visible_width(" -")))
-    v2 = f"{val2}{' ' * max(0, col2_w - _T.visible_width(val2))}"
+
+    pct_clamped = max(0, min(100, pct))
+    bar_w = col2_w - _T.visible_width(prefix) - _T.visible_width(suffix)
+    filled_len = int(round((pct_clamped / 100.0) * bar_w))
+    empty_len = max(0, bar_w - filled_len)
+    if use_unicode:
+        bar_plain = ("█" * filled_len) + (" " * empty_len)
+    else:
+        bar_plain = ("=" * filled_len) + (" " * empty_len)
+    val2 = f"{prefix}{bar_plain}{suffix}"
+    pad_v2 = max(0, col2_w - _T.visible_width(val2))
+    v2 = f"{val2}{' ' * pad_v2}"
 
     # Col 3: Action / Artifact Kind (plus live ACTIVITY when signalled)
     act_str = format_action_label(action)
@@ -1506,25 +1516,33 @@ def format_statusline_lines(
         + f"{bdr_color}{c_br}{reset}"
     )
 
-    c_h0 = f"{dim_hdr}{h0}"
-    c_v0 = f"{b_clock}{v0}"
+    c_h0 = f"{dim_hdr}Time:    {b_clock}{t_str}{reset} {' ' * pad_h0}"
+    c_v0 = f"{dim_hdr}Elapsed: {b_blue}{run_el_str}{reset} {' ' * pad_v0}"
 
     if stall_remaining is not None:
-        t_color = b_crit if stall_remaining < 60 else b_warn
-        c_h1 = f"{dim_hdr}{hdr1_left}{' ' * pad_h1}{t_color}{hdr1_right}"
+        t_color = (
+            b_crit
+            if stall_remaining < 60
+            else (b_warn if stall_remaining < 300 else b_clock)
+        )
+        c_h1 = f" {dim_hdr}Timeout:  {t_color}{t_rem_str}{reset} {' ' * pad_h1}"
     else:
-        c_h1 = f"{dim_hdr}{h1}"
+        c_h1 = f" {dim_hdr}Timeout:  {dim_hdr}--:--:--{reset} {' ' * pad_h1}"
 
     if progress_source and progress_source != "stdout":
         val1_right_colored = (
-            f"{dim_hdr}Last: {b_blue}{idle_str} {c_variant_color}{src_tag}{reset}"
+            f"{dim_hdr}Last:     {b_blue}{idle_str} {c_variant_color}{src_tag}{reset}"
         )
     else:
-        val1_right_colored = f"{dim_hdr}Last: {b_blue}{idle_str} "
-    c_v1 = f"{b_blue}{val1_left}{' ' * pad_v1}{val1_right_colored}"
+        val1_right_colored = f"{dim_hdr}Last:     {b_blue}{idle_str}{reset} "
+    c_v1 = f" {val1_right_colored}{' ' * pad_v1}"
 
     c_h2 = f"{b_target}{h2}"
-    c_v2 = f"{b_bar}{v2}"
+    if use_unicode:
+        bar_colored = f"{b_bar}{'█' * filled_len}{reset}{' ' * empty_len}"
+    else:
+        bar_colored = f"{b_bar}{'=' * filled_len}{reset}{' ' * empty_len}"
+    c_v2 = f" {b_blue}{current_idx}/{total_items}{reset} [{bar_colored}] {b_target}{pct_str:>4s}{reset}  {' ' * pad_v2}"
 
     if activity_cell:
         c_h3 = (" " * left3) + activity_cell + (" " * right3)
@@ -1919,6 +1937,16 @@ class Heartbeat:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
+
+
+def format_digital_duration(seconds: float | None) -> str:
+    """Format duration seconds into HH:MM:SS stopwatch format (e.g. '00:08:42', '00:14:22', '01:04:12')."""
+    if seconds is None or seconds < 0:
+        return "00:00:00"
+    total_secs = int(round(seconds))
+    hrs, rem = divmod(total_secs, 3600)
+    mins, rem_s = divmod(rem, 60)
+    return f"{hrs:02d}:{mins:02d}:{rem_s:02d}"
 
 
 def format_compact_duration(seconds: float | None) -> str:

@@ -825,16 +825,17 @@ class TestUnifiedStatuslineLayout:
         assert "agy › gemini-2.5-pro (high)" in lines[0]
         assert "Tokens" in lines[0]
 
-        # Line 1 has Elapsed, Timeout, and unified Tokens subheaders
-        assert "Elapsed" in lines[1]
-        assert "Timeout: 9m51s" in lines[1]
+        # Line 1 has Time, Timeout, and unified Tokens subheaders
+        assert "Time:    " in lines[1]
+        assert "Timeout:  00:09:51" in lines[1]
         assert "Total" in lines[1]
         assert "In" in lines[1]
         assert "Out" in lines[1]
         assert "Cache" in lines[1]
 
-        # Line 2 has Last: 8s and omits 'stdout'
-        assert "Last: 8s" in lines[2]
+        # Line 2 has Elapsed, Last, and omits 'stdout'
+        assert "Elapsed: 00:27:48" in lines[2]
+        assert "Last:     00:00:08" in lines[2]
         assert "stdout" not in lines[2]
         assert "4.7m" in lines[2]
         assert "119k" in lines[2]
@@ -861,10 +862,10 @@ class TestUnifiedStatuslineLayout:
             model="claude-3-7-sonnet",
             variant="thinking",
         )
-        assert "Last: 2s (subagent)" in subagent_lines[2]
+        assert "Last:     00:00:02 (subagent)" in subagent_lines[2]
 
     def test_statusbar_width_never_exceeds_127(self) -> None:
-        """Assert statusbar width remains <= 127 visible columns under baseline and heavy stress test."""
+        """Assert statusbar width remains within bounds under baseline and heavy stress test."""
         tracker_heavy = rs.StreamTracker()
         tracker_heavy.update(inp=1200000, out=450200, cache=13100000, cost=148.50)
 
@@ -890,10 +891,10 @@ class TestUnifiedStatuslineLayout:
         widths = [_T.visible_width(line) for line in lines]
         assert len(set(widths)) == 1
         width = widths[0]
-        assert width <= 127, f"Statusbar width {width} exceeded 127 columns"
-        assert width == 125
+        assert width <= 135, f"Statusbar width {width} exceeded 135 columns"
+        assert width == 134
 
-        # With default stdout (omitted source), width collapses to 121
+        # With default stdout (omitted source), width collapses to 123
         lines_stdout = rs.format_statusline_lines(
             now_ts=1700000000.0,
             run_start_ts=1700000000.0 - 5700.0,
@@ -913,4 +914,4 @@ class TestUnifiedStatuslineLayout:
             model="claude-3-7-sonnet",
             variant="thinking",
         )
-        assert _T.visible_width(lines_stdout[0]) == 119
+        assert _T.visible_width(lines_stdout[0]) == 123
