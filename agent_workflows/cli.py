@@ -11754,8 +11754,7 @@ def _find_status_and_id6(
     status_cell = (
         marker
         + " "
-        + term.style_lifecycle_text(value, resolved)
-        + (" " * max(0, width - _term_mod.visible_width(value)))
+        + _term_mod.pad_visible(term.style_lifecycle_text(value, resolved), width)
     )
     id6_cell = term.style_lifecycle_text(id6, resolved)
     return status_cell, id6_cell
@@ -12724,13 +12723,8 @@ def _run_search(
                                 status_padded = (
                                     term.format_lifecycle_marker(_res, width=2)
                                     + " "
-                                    + term.style_lifecycle_text(status_word, _res)
-                                    + (
-                                        " "
-                                        * max(
-                                            0,
-                                            12 - _term_mod.visible_width(status_word),
-                                        )
+                                    + _term_mod.pad_visible(
+                                        term.style_lifecycle_text(status_word, _res), 12
                                     )
                                 )
                                 age = att._age_marker(it.last_history_at, it.tree)
