@@ -1,11 +1,13 @@
 - Id: pa0mjn
-- Status: open
+- Status: graduated
+- Graduated-To: pa0mjn
 - Set: pa0mjn
 - Priority: medium
 - Work-Kind: chore
 - Summary: Decide whether an advisory whole-tree rule should report historical done items whose close dropped a release gate (check.blocking-item-closed-without-gate is staged-scoped in every caller, so 53 such items on disk are invisible to aw check)
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: heh05a
 - 2026-10-01 created (aw backlog): Decide whether an advisory whole-tree rule should report historical done items whose close dropped a release gate (check.blocking-item-closed-without-gate is staged-scoped in every caller, so 53 such items on disk are invisible to aw check)
 
 Filed while authoring plan 1hrlp3 (backlog mbjuv5), which deferred this row and needs a durable carrier for it.
