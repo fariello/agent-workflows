@@ -1,11 +1,13 @@
 - Id: n5gsea
-- Status: open
+- Status: graduated
+- Graduated-To: n5gsea
 - Set: n5gsea
 - Priority: low
 - Work-Kind: chore
 - Summary: The shipped --on-conflict accepts a fifth value 'ask' that spec 25kzda 2.1 does not declare, a spec-versus-code divergence the deleted bidirectional guard never covered
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: 1dkj1n
 - 2026-10-01 created (aw backlog): Found while measuring rcp8c4: with the bidirectional flag-surface guard deleted, an actual spec-versus-code divergence now ships undetected
 
 MEASURED at HEAD `af30ba67f`. Spec `25kzda` Section 2.1 declares the flag as `[--on-conflict <drop|refuse|force|prompt>]` and its prose bullet enumerates exactly those four values. The shipped flag accepts FIVE: `runner_shared.RUN_POLICY_FLAGS_BY_FLAG['--on-conflict'].choices` is `('drop', 'refuse', 'force', 'prompt', 'ask')`, argparse therefore accepts `--on-conflict ask` on BOTH hosts (verified by driving `oc_runipd.build_parser()` and `agy_runipd.build_parser()`, each returning `on_conflict='ask'` rather than exiting 2), and the row's `help` string names `ask` to operators. So an operator-visible value exists that the approved contract does not declare.
