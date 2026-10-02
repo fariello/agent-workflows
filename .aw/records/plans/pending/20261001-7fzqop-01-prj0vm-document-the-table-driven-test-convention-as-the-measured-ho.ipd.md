@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: state the convention in its canonical home
 
-- [ ] E-01 In `GUIDING_PRINCIPLES.md`, add a new `###` subsection to principle 16 (`## 16. Test outcomes and behavior, never code structure or text`), placed AFTER the existing `### When tests depend on the live checkout or environment:` subsection so it is the last subsection of P16. Title it so it is greppable for the three terms measured absent today (`tabulated`, `table-driven`, `subTest`). It must state, as bullets:
+- [x] E-01 In `GUIDING_PRINCIPLES.md`, add a new `###` subsection to principle 16 (`## 16. Test outcomes and behavior, never code structure or text`), placed AFTER the existing `### When tests depend on the live checkout or environment:` subsection so it is the last subsection of P16. Title it so it is greppable for the three terms measured absent today (`tabulated`, `table-driven`, `subTest`). It must state, as bullets:
 
   **THE ROW SHAPE.** A module- or class-level table of tuples, with the CASE STRING FIRST as a human-readable prose id, and a trailing `why` column. Cite the canonical in-repo statement of the shape, which is already written as a comment on `test_ipd_lint.py`'s `RULES` table: `(case, the plan text, codes that MUST all be reported, message substrings that must appear on those codes' diagnostics, codes that must NOT be reported, why this row exists)`.   State the middle columns as what they are, VARIABLE per table (inputs, expected value, required `needles`, `forbidden` substrings), and do NOT prescribe a fixed arity: measured, the `needles`/`forbidden` pair appears in 7 files and is a common shape, not a universal one. The seven are `test_check_engine.py`, `test_completion.py`, `test_executed_transition_gate_e2e.py`, `test_installer.py`, `test_ipd_lint.py`, `test_ipd_schema.py` and `test_run_selection_policy.py` (CORRECTED AT REVIEW, PR-105, F-16: F-08's list named `test_record_producers.py`, which carries ZERO `needles`, and omitted `test_installer.py`, which carries 4; the count of 7 was right and the membership was not).
 
@@ -48,9 +48,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   **THE AGGREGATE FAILURE MESSAGE IS PART OF THE CONVENTION.** The table reports EVERY failing row at once, not just the first, via the accumulate idiom: collect each row's problems into a list and assert that list is empty at the end, with a message that states how many of how many rows were wrong and what their pattern MEANS. Cite `test_runner_profiles.ProfileNameGrammarTests.test_every_name_is_accepted_or_refused_by_the_grammar`, whose aggregate message tells the reader to read the DIRECTION of the failures because over-reservation and under-reservation are different defects.
   - Depends on: none
   - Expected outcome: `rg -c 'tabulat|table-driven|subTest' GUIDING_PRINCIPLES.md` returns a nonzero count where it returns nothing today, and the subsection states the row shape, the case-first rule as an identity rule, the mandatory `why` column with its justification, and the all-rows-at-once aggregate message.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the SAME subsection added by E-01, state WHEN TO TABULATE and WHEN NOT TO, taking both halves from the recorded reasoning rather than inventing a rule.
+- [x] E-02 In the SAME subsection added by E-01, state WHEN TO TABULATE and WHEN NOT TO, taking both halves from the recorded reasoning rather than inventing a rule.
 
   **WHEN IT IS RIGHT:** clusters of tests differing only in DATA. Quote the method from commit `75b90271`: "clusters differing only in DATA become one table whose rows each carry the rule they encode and which reports every failing row at once. What was a CLASS per mode is now a COLUMN". Name the columns that commit reports as carrying the value (host, lint phase, entry point, cutover marker, queue shape, git state, resolver), and cite the fuller in-repo statement in the `test_runner_profiles.py` module docstring, which names HOST, TIER and ROUTE as the three mode-columns and explains that a chain tested level by level cannot exhibit an INVERSION.
 
@@ -61,11 +61,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   **TWO TRAPS MEASURED IN PRACTICE, both recorded in `75b90271` and worth one bullet each.** FIRST, a safety gate must keep every refusal INDIVIDUALLY detectable: pin the refusal CODE, not merely that it refused, or two distinct refusals collapse into "it refused". SECOND, do not reference a production CONSTANT in the expected column when the constant is the published interface under test: `test_ipd_lint.py`'s `RULES` comment records that constant-referencing rows stayed GREEN when two code definitions were swapped, because constant and reported value move together, and it forbids "tidying" the literals back. State that a three-valued column is sometimes required and must not be collapsed to a bool, citing the same commit's measured `None`-means-absent versus `False`-means-decided distinction.
   - Depends on: E-01
   - Expected outcome: the subsection answers "should I tabulate this?" in both directions with in-repo citations, and carries the individually-detectable-refusal rule and the literal-strings rule as named traps.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: state the per-row-verdict rule as pytest actually behaves
 
-- [ ] E-03 In the same subsection, state the per-row-verdict rule. **THE BACKLOG ITEM'S FOURTH INSTRUCTION IS BACKWARDS FOR THIS REPOSITORY AND MUST NOT BE COPIED IN.** The item asks for "the rule that a row's failure must be raised INSIDE the subTest context or the row's per-row verdict is unobtainable". That is true of `unittest` and FALSE of the runner this repository runs, and writing it as an unconditional rule would instruct authors to delete the aggregate diagnostic E-01 just made mandatory. Re-measured for this plan at HEAD `dfee027e` with a two-class probe (an in-context `self.subTest` + `assertEqual` class and an accumulate class, each over a 3-row table with rows b and c failing):
+- [x] E-03 In the same subsection, state the per-row-verdict rule. **THE BACKLOG ITEM'S FOURTH INSTRUCTION IS BACKWARDS FOR THIS REPOSITORY AND MUST NOT BE COPIED IN.** The item asks for "the rule that a row's failure must be raised INSIDE the subTest context or the row's per-row verdict is unobtainable". That is true of `unittest` and FALSE of the runner this repository runs, and writing it as an unconditional rule would instruct authors to delete the aggregate diagnostic E-01 just made mandatory. Re-measured for this plan at HEAD `dfee027e` with a two-class probe (an in-context `self.subTest` + `assertEqual` class and an accumulate class, each over a 3-row table with rows b and c failing):
 
   - under `python3 -m pytest` with `pytest-subtests` ABSENT (confirmed absent: `python3 -m pip show pytest-subtests` reports `Package(s) not found`, and `pytest-subtests` appears nowhere in `pyproject.toml`, so no extra installs it), the in-context class reported ONLY row b, never reached the trailing aggregate assertion, and printed no aggregate marker; the accumulate class reported BOTH wrong rows with the full `this row exists because:` text for each.
   - under `python3 -m unittest` the in-context class reported row b AND row c as separate subtest failures and still ran the aggregate. RE-MEASURED AND THE TOTAL CORRECTED AT REVIEW (PR-106, F-17): running the in-context class ALONE finishes `FAILED (failures=3)` (two rows plus the aggregate), while discovering BOTH probe classes finishes `FAILED (failures=4)` (those three plus the accumulate class's one aggregate failure). The authored plan reported `failures=3` without saying which invocation produced it; V-03 now names the invocation so the number is reproducible rather than ambiguous.
@@ -77,9 +77,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT DUPLICATE `t5txjk`'s PAGE, AND SAY WHICH HALF IS WHOSE (ADDED AT REVIEW, PR-107, F-18). `t5txjk` E-04 adds `docs/row-level-test-evidence.md` carrying, in its own words, "the two-idiom hazard in one paragraph with the reason a passing `subTest` is silent under this repository's runner configuration, and the rule that a row verdict is only trustworthy when the row's failure is raised inside the subtest context". That overlaps this E-item's subject. The division that keeps both honest, and which `t5txjk` itself already asserts by naming `7fzqop` as the Carrier for "RESTATING THE ROW SHAPE OR THE `why` COLUMN CONVENTION": THIS plan states the AUTHORING rule (which idiom to write, and why accumulate is the default), and `t5txjk` states the EVIDENCE PROCEDURE (how to obtain a row verdict with its helper, and the one pasteable command). So keep this subsection's row-verdict bullets to the authoring consequence plus the honest statement that a per-row `PASS` list is not evidence today, and point at `t5txjk` for the procedure rather than describing it. If `t5txjk` has shipped by execution time, link its page; if not, cite it as pending. Either way do not restate its command.
   - Depends on: E-01
   - Expected outcome: the subsection states which idiom to use under which runner with the measured consequence of each, declines to promise a per-row verdict the toolchain cannot yet produce, and warns that an in-loop bare `assert` truncates the sweep.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the pointer and the guard. In `CONTRIBUTING.md`, append ONE bullet to the `## Authoring conventions` list (beside the existing `Tests depending on the live checkout or environment:` bullet, which is the established shape for pointing at P16) naming the convention and pointing at the P16 subsection by its title. Keep it a POINTER, not a second copy, per that file's own "Keep each policy or rule in exactly one canonical place and link to it, rather than duplicating it (P8)" bullet.
+- [x] E-04 Add the pointer and the guard. In `CONTRIBUTING.md`, append ONE bullet to the `## Authoring conventions` list (beside the existing `Tests depending on the live checkout or environment:` bullet, which is the established shape for pointing at P16) naming the convention and pointing at the P16 subsection by its title. Keep it a POINTER, not a second copy, per that file's own "Keep each policy or rule in exactly one canonical place and link to it, rather than duplicating it (P8)" bullet.
 
   COORDINATE WITH APPROVED PLAN `76ic0k`, WHICH EDITS THE SAME LIST AND FORBIDS ONE OF THIS PLAN'S EDITS (ADDED AT REVIEW, PR-101, F-12). `76ic0k` (Set `structpin` Order 02) is `- Status: approved` with `- Readiness: go-pending-approval` and declares `- Scope-Paths: tests/test_no_code_structure_pins.py, CONTRIBUTING.md`. Its E-04 appends its OWN pointer bullet to this same `## Authoring conventions` list and instructs, verbatim, "do NOT edit `GUIDING_PRINCIPLES.md`: P16 already says everything this Set needs, and duplicating it is the P8 violation the same section warns against." That instruction is scoped to ITS subject (restating P16's four prohibitions), not to this plan's subject (a convention P16 does not yet state at all), so the two are compatible in substance. They are NOT automatically compatible in execution:
   - BOTH plans append a bullet to the same list in the same file, so whichever runs second must REREAD the list and place its bullet beside the other rather than assuming the authored line numbers. Do not resolve this by text search for a line offset; locate the `## Authoring conventions` heading and append at the end of its bullet list.
@@ -95,7 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   BOUND THE "INSIDE P16" ASSERTION ON THE FILE'S REAL STRUCTURE, BECAUSE P16 IS THE LAST PRINCIPLE AND HAS NO CLOSING BOUNDARY (ADDED AT REVIEW, PR-103, F-14). Measured: `GUIDING_PRINCIPLES.md` is 186 lines, `## 16.` begins at line 167, and NO `## 17.` or any later `##` exists, so P16 runs to end of file. The precedent test bounds its section by finding a NEXT heading (`### 3.1 ` then `### 3.2 `) and asserts both are found; copying that shape literally here would fail, because there is no heading after the new subsection. Bound the slice as "from the `## 16.` heading to the next `## ` heading OR end of file", and assert the subsection's offset is greater than the `## 16.` offset. Do not assert a trailing `## ` exists.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `CONTRIBUTING.md` points at the new subsection without restating it and without clobbering `76ic0k`'s bullet if present; the new test calls none of the six forms `76ic0k` flags; it bounds P16 to end-of-file rather than requiring a following heading; and it goes red if any of the four load-bearing rules is removed from P16.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -197,25 +197,330 @@ No `.spec.md` file is touched, so no spec amendment is declared and `Scope-Paths
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full new P16 subsection as committed, plus the output of `rg -n 'tabulat|table-driven|subTest' GUIDING_PRINCIPLES.md` showing the terms now present where F-01 measured none. Then, reading the pasted prose only, answer these four questions and quote the sentence that answers each: (a) what is the first column of a row and what is it FOR; (b) what is the last column and why is it not optional; (c) what does the failure message render for a failing row; (d) does the rule require the first column to be NAMED `case`? Answer (d) must be NO. A paste that does not answer all four is a failed item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full new P16 subsection committed in GUIDING_PRINCIPLES.md with all anchor terms present and four questions answered:
+    ```markdown
+    ### Tabulated and table-driven tests (accumulate versus subTest):
 
-- [ ] V-02 validates E-02
+    Table-driven tests group related test cases differing primarily in data into a single table. When authoring or reviewing table-driven tests in this repository, follow these conventions:
+
+    - **The row shape**: A module- or class-level table of tuples, with the human-readable case identifier first and a trailing `why` column. The canonical in-repository shape is stated in `tests/test_ipd_lint.py`'s `RULES` table comment: `(case, the plan text, codes that MUST all be reported, message substrings that must appear on those codes' diagnostics, codes that must NOT be reported, why this row exists)`. The middle columns vary by table (such as inputs, expected value, required `needles`, and `forbidden` substrings; seen across `test_check_engine.py`, `test_completion.py`, `test_executed_transition_gate_e2e.py`, `test_installer.py`, `test_ipd_lint.py`, `test_ipd_schema.py`, and `test_run_selection_policy.py`). Do not prescribe a rigid arity for middle columns.
+    - **The case-first rule**: The first column serves as the row's human-readable identity in diagnostics and failure messages. While `case` is the most common variable name in loop bindings, the rule requires identity rather than a specific parameter name. Clear contextual names such as `index`, `name`, or `value` are fully conforming when they identify the row.
+    - **The mandatory `why` column**: Every row carries the rule or invariant it encodes in a trailing `why` column, rendered in failure diagnostics as `this row exists because: <why>`. This column is required because tabulating eliminates the individual test method name that previously documented the test's intent. Without `why`, a failing row reports an unexplained data mismatch; with it, the diagnostic states exactly which invariant failed.
+    - **The aggregate failure message**: A table test must report all failing rows at once rather than aborting on the first bad row. Use the accumulate pattern: collect failure diagnostics into a list across the loop, then assert the list is empty at the end. The aggregate assertion message should report the fraction of failing rows and explain what the pattern of failures means. See `tests/test_runner_profiles.py` (`ProfileNameGrammarTests.test_every_name_is_accepted_or_refused_by_the_grammar`), whose aggregate message distinguishes between over-reservation and under-reservation defects.
+    - **When to tabulate**: Tabulate clusters of tests that differ only in data. As recorded in commit `75b90271`: "clusters differing only in DATA become one table whose rows each carry the rule they encode and which reports every failing row at once. What was a CLASS per mode is now a COLUMN" (such as host, lint phase, entry point, cutover marker, queue shape, git state, or resolver). See also the `tests/test_runner_profiles.py` module docstring, which explains using mode columns (HOST, TIER, ROUTE) where testing level-by-level ensures that precedence chains cannot hide inversions.
+    - **When NOT to tabulate**: Do not merge tests where a tabular structure obscures the underlying property. Keep tests separate when:
+      - The property is sequence or rollback order (where recoverability is the reverse execution order and cannot be expressed in an isolated row).
+      - The behavior is an idempotence pair.
+      - The scenario is a multi-step consent transcript.
+      - An explicit ordering constraint exists between phases (such as preflight and apply).
+      - The assertion is an `assertRaises` checking an immediate exception.
+      - The claim is structural rather than behavioral.
+      - The subject compares two dynamic results to each other rather than to a fixed expectation.
+      - The test demonstrates a contrast between outcomes (such as absent-yields-empty versus malformed-raises).
+      Tests that are deliberately not rows should carry a one-line docstring stating why, following the convention in `tests/test_runner_profiles.py`.
+    - **Safety gate and constant traps**:
+      - Keep refusals individually detectable: Pin the specific refusal code or diagnostic rather than asserting generic refusal, ensuring distinct refusal reasons cannot collapse into an ambiguous failure.
+      - Use literal strings for published interfaces: In expected columns, use string literals rather than referencing production constants that define the published interface under test. Referencing constants allows breaking renames to pass silently because constant and code move together (as documented in `tests/test_ipd_lint.py`'s `RULES` table comment).
+      - Preserve tri-states: When a field has three semantic states (such as `None` meaning absent/fall-through versus `False` meaning explicit refusal), keep the column three-valued rather than coercing to a boolean.
+    - **Runner behavior and row verdicts (accumulate versus subTest)**:
+      - In default pytest runs (where `pytest-subtests` is not installed), an in-context failure inside `with self.subTest()` aborts test execution immediately: pytest reports only the first failing row, skips all subsequent rows in the loop, and never reaches the aggregate assertion message.
+      - In contrast, under `python3 -m unittest`, `subTest` captures individual row failures and proceeds to the aggregate check.
+      - An in-loop bare `assert` (outside any subtest context) aborts the loop on the first failure, truncating execution so that later rows never run at all. The accumulate pattern avoids this by collecting issues and asserting once after the loop.
+      - Because default pytest runs do not produce per-row outcomes for accumulate tables, a per-row `PASS` list cannot be claimed as valid test evidence today. Valid evidence consists of the enclosing test verdict accompanied by the row's inputs and expected values. Plan `t5txjk` addresses opt-in row-level evidence tooling, while `vtup6x` defines evidence-substitution rules.
+    ```
+
+    `rg -n 'tabulat|table-driven|subTest' GUIDING_PRINCIPLES.md`:
+    ```
+    188:### Tabulated and table-driven tests (accumulate versus subTest):
+    190:Table-driven tests group related test cases differing primarily in data into a single table. When authoring or reviewing table-driven tests in this repository, follow these conventions:
+    194:- **The mandatory `why` column**: Every row carries the rule or invariant it encodes in a trailing `why` column, rendered in failure diagnostics as `this row exists because: <why>`. This column is required because tabulating eliminates the individual test method name that previously documented the test's intent. Without `why`, a failing row reports an unexplained data mismatch; with it, the diagnostic states exactly which invariant failed.
+    196:- **When to tabulate**: Tabulate clusters of tests that differ only in data. As recorded in commit `75b90271`: "clusters differing only in DATA become one table whose rows each carry the rule they encode and which reports every failing row at once. What was a CLASS per mode is now a COLUMN" (such as host, lint phase, entry point, cutover marker, queue shape, git state, or resolver). See also the `tests/test_runner_profiles.py` module docstring, which explains using mode columns (HOST, TIER, ROUTE) where testing level-by-level ensures that precedence chains cannot hide inversions.
+    197:- **When NOT to tabulate**: Do not merge tests where a tabular structure obscures the underlying property. Keep tests separate when:
+    211:- **Runner behavior and row verdicts (accumulate versus subTest)**:
+    212:  - In default pytest runs (where `pytest-subtests` is not installed), an in-context failure inside `with self.subTest()` aborts test execution immediately: pytest reports only the first failing row, skips all subsequent rows in the loop, and never reaches the aggregate assertion message.
+    213:  - In contrast, under `python3 -m unittest`, `subTest` captures individual row failures and proceeds to the aggregate check.
+    ```
+
+    Answers to four questions reading pasted prose only:
+    (a) What is the first column of a row and what is it FOR:
+    Answer: The first column serves as the row's human-readable identity in diagnostics and failure messages.
+    Quote: "The first column serves as the row's human-readable identity in diagnostics and failure messages."
+    (b) What is the last column and why is it not optional:
+    Answer: The last column is a trailing `why` column carrying the invariant or rule encoded by the row; it is not optional because tabulating destroys the per-case test method name that documented the test's intent, and without it a failing row reports an unexplained data mismatch.
+    Quote: "Every row carries the rule or invariant it encodes in a trailing `why` column, rendered in failure diagnostics as `this row exists because: <why>`. This column is required because tabulating eliminates the individual test method name that previously documented the test's intent. Without `why`, a failing row reports an unexplained data mismatch; with it, the diagnostic states exactly which invariant failed."
+    (c) What does the failure message render for a failing row:
+    Answer: The failure message renders `this row exists because: <why>`.
+    Quote: "rendered in failure diagnostics as `this row exists because: <why>`"
+    (d) Does the rule require the first column to be NAMED `case`?
+    Answer: NO.
+    Quote: "While `case` is the most common variable name in loop bindings, the rule requires identity rather than a specific parameter name. Clear contextual names such as `index`, `name`, or `value` are fully conforming when they identify the row."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the when-to and when-NOT-to bullets as committed. Show they name at least five of the recorded not-a-row reasons (sequence/rollback order, idempotence pairs, consent transcripts, phase ordering, `assertRaises`, structural claims, two-results-compared, outcome contrast) and both traps (individually-detectable refusal codes; literal strings over constants that move with the reported value). THEN PROVE NO DEAD FILE IS CITED AS A LIVE EXAMPLE, which F-15 widened from one file to ten: for EVERY `tests/test_*.py` path the new prose names, paste an `ls` showing it exists. A `git grep` for `test_migration_complex` alone does NOT discharge this item, because nine other suites that commit names are equally gone (`test_orchestrator_probe`, `test_run_analytics_findings`, `test_ipd_dependency_check`, `test_research_contract`, `test_host_adapters_skills`, `test_backlog_graduated`, `test_release_gate_close`, `test_nested_tty_noninteractive`, `test_spec_visibility`). Also paste the `needles`/`forbidden` file list if the prose names one, matching F-16's corrected membership rather than F-08's.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pasted when-to and when-NOT-to bullets committed with 8 not-a-row reasons, both traps, tri-states, and live file citations verified:
+    ```markdown
+    - **When to tabulate**: Tabulate clusters of tests that differ only in data. As recorded in commit `75b90271`: "clusters differing only in DATA become one table whose rows each carry the rule they encode and which reports every failing row at once. What was a CLASS per mode is now a COLUMN" (such as host, lint phase, entry point, cutover marker, queue shape, git state, or resolver). See also the `tests/test_runner_profiles.py` module docstring, which explains using mode columns (HOST, TIER, ROUTE) where testing level-by-level ensures that precedence chains cannot hide inversions.
+    - **When NOT to tabulate**: Do not merge tests where a tabular structure obscures the underlying property. Keep tests separate when:
+      - The property is sequence or rollback order (where recoverability is the reverse execution order and cannot be expressed in an isolated row).
+      - The behavior is an idempotence pair.
+      - The scenario is a multi-step consent transcript.
+      - An explicit ordering constraint exists between phases (such as preflight and apply).
+      - The assertion is an `assertRaises` checking an immediate exception.
+      - The claim is structural rather than behavioral.
+      - The subject compares two dynamic results to each other rather than to a fixed expectation.
+      - The test demonstrates a contrast between outcomes (such as absent-yields-empty versus malformed-raises).
+      Tests that are deliberately not rows should carry a one-line docstring stating why, following the convention in `tests/test_runner_profiles.py`.
+    - **Safety gate and constant traps**:
+      - Keep refusals individually detectable: Pin the specific refusal code or diagnostic rather than asserting generic refusal, ensuring distinct refusal reasons cannot collapse into an ambiguous failure.
+      - Use literal strings for published interfaces: In expected columns, use string literals rather than referencing production constants that define the published interface under test. Referencing constants allows breaking renames to pass silently because constant and code move together (as documented in `tests/test_ipd_lint.py`'s `RULES` table comment).
+      - Preserve tri-states: When a field has three semantic states (such as `None` meaning absent/fall-through versus `False` meaning explicit refusal), keep the column three-valued rather than coercing to a boolean.
+    ```
+    Eight recorded not-a-row reasons named (exceeds the required 5): sequence/rollback order, idempotence pairs, consent transcripts, phase ordering, assertRaises, structural claims, two-results-compared, outcome contrast.
+    Both traps named: individually-detectable refusal codes ("Keep refusals individually detectable") and literal strings over constants ("Use literal strings for published interfaces"), plus tri-states preservation.
 
-- [ ] V-03 validates E-03
+    Proof of live file citations: for EVERY `tests/test_*.py` path named in the new prose, `ls` confirms existence:
+    ```
+    $ ls tests/test_ipd_lint.py tests/test_runner_profiles.py tests/test_check_engine.py tests/test_completion.py tests/test_executed_transition_gate_e2e.py tests/test_installer.py tests/test_ipd_schema.py tests/test_run_selection_policy.py
+    tests/test_check_engine.py		    tests/test_ipd_lint.py
+    tests/test_completion.py		    tests/test_ipd_schema.py
+    tests/test_executed_transition_gate_e2e.py  tests/test_runner_profiles.py
+    tests/test_installer.py			    tests/test_run_selection_policy.py
+    ```
+    Proof that none of the ten dead suites from F-15 are cited or exist:
+    ```
+    $ ls tests/test_orchestrator_probe.py tests/test_migration_complex.py tests/test_run_analytics_findings.py tests/test_ipd_dependency_check.py tests/test_research_contract.py tests/test_host_adapters_skills.py tests/test_backlog_graduated.py tests/test_release_gate_close.py tests/test_nested_tty_noninteractive.py tests/test_spec_visibility.py
+    ls: cannot access 'tests/test_orchestrator_probe.py': No such file or directory
+    ls: cannot access 'tests/test_migration_complex.py': No such file or directory
+    ls: cannot access 'tests/test_run_analytics_findings.py': No such file or directory
+    ls: cannot access 'tests/test_ipd_dependency_check.py': No such file or directory
+    ls: cannot access 'tests/test_research_contract.py': No such file or directory
+    ls: cannot access 'tests/test_host_adapters_skills.py': No such file or directory
+    ls: cannot access 'tests/test_backlog_graduated.py': No such file or directory
+    ls: cannot access 'tests/test_release_gate_close.py': No such file or directory
+    ls: cannot access 'tests/test_nested_tty_noninteractive.py': No such file or directory
+    ls: cannot access 'tests/test_spec_visibility.py': No such file or directory
+    ```
+    The `needles`/`forbidden` list names the exact corrected 7 files from F-16: `test_check_engine.py`, `test_completion.py`, `test_executed_transition_gate_e2e.py`, `test_installer.py`, `test_ipd_lint.py`, `test_ipd_schema.py`, and `test_run_selection_policy.py`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the row-verdict bullets as committed, then paste a RE-RUN of the F-04 probe at execution HEAD, NAMING THE EXACT INVOCATION FOR EACH RUN (F-17): the `python3 -m pytest` run (showing the in-context class reporting only the first failing row with no aggregate marker, and the accumulate class reporting both rows with their `why` text) and the `python3 -m unittest` run. For the unittest half, state whether you ran the in-context class ALONE (expect `FAILED (failures=3)`) or discovered both probe classes (expect `failures=4`); a pasted count with no named invocation fails this item. Paste `python3 -m pip show pytest-subtests` alongside. The committed prose must agree with that output: if the plugin is present at execution time, the measurement differs and the prose must say what was actually observed rather than what this plan predicted. ALSO paste the in-loop bare-`assert` probe (F-20) showing which rows executed, since that is the hazard bullet's own evidence. Run every probe in a GITIGNORED scratch dir (the repo's `tmp/` is gitignored) and delete it afterwards, pasting `git status --short` empty. Confirm the prose does NOT describe `t5txjk`'s strict mode as existing: `rg -n 'AW_ROW_STRICT|strict mode' GUIDING_PRINCIPLES.md` must either return nothing or return only text that marks it as pending. Confirm the prose does NOT restate `t5txjk`'s pasteable command (F-18): it must point at that plan or its shipped page for the procedure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Row-verdict bullets committed; F-04 probe re-run across pytest and unittest with named invocations and F-20 bare-assert probe executed:
+    ```markdown
+    - **Runner behavior and row verdicts (accumulate versus subTest)**:
+      - In default pytest runs (where `pytest-subtests` is not installed), an in-context failure inside `with self.subTest()` aborts test execution immediately: pytest reports only the first failing row, skips all subsequent rows in the loop, and never reaches the aggregate assertion message.
+      - In contrast, under `python3 -m unittest`, `subTest` captures individual row failures and proceeds to the aggregate check.
+      - An in-loop bare `assert` (outside any subtest context) aborts the loop on the first failure, truncating execution so that later rows never run at all. The accumulate pattern avoids this by collecting issues and asserting once after the loop.
+      - Because default pytest runs do not produce per-row outcomes for accumulate tables, a per-row `PASS` list cannot be claimed as valid test evidence today. Valid evidence consists of the enclosing test verdict accompanied by the row's inputs and expected values. Plan `t5txjk` addresses opt-in row-level evidence tooling, while `vtup6x` defines evidence-substitution rules.
+    ```
 
-- [ ] V-04 validates E-04
+    Pip check showing pytest-subtests absent:
+    ```
+    $ python3 -m pip show pytest-subtests
+    WARNING: Package(s) not found: pytest-subtests
+    ```
+
+    Re-run of F-04 probe at execution HEAD (in gitignored `tmp/rowprobe/test_rowprobe.py`):
+    Invocation 1: `python3 -m pytest tmp/rowprobe/test_rowprobe.py -o addopts="" -p no:randomly -s`
+    ```
+    collecting ... collected 2 items
+
+    tmp/rowprobe/test_rowprobe.py FAGGREGATE_MARKER: 2 of 3 rows wrong
+    row b (this row exists because: row b fails)
+    row c (this row exists because: row c fails)
+    F
+
+    =================================== FAILURES ===================================
+    ________________ InContextSubTestTests.test_in_context_subtests ________________
+
+    self = <test_rowprobe.InContextSubTestTests testMethod=test_in_context_subtests>
+
+        def test_in_context_subtests(self):
+            wrong = []
+            for case, expected, why in ROWS:
+                with self.subTest(case=case):
+    >               self.assertTrue(expected, f"failed: {why}")
+    E               AssertionError: False is not true : failed: row b fails
+
+    tmp/rowprobe/test_rowprobe.py:14: AssertionError
+    _______________________ AccumulateTests.test_accumulate ________________________
+
+    self = <test_rowprobe.AccumulateTests testMethod=test_accumulate>
+
+        def test_accumulate(self):
+            wrong = []
+            for case, expected, why in ROWS:
+                if not expected:
+                    wrong.append(f"{case} (this row exists because: {why})")
+            if wrong:
+                print(f"AGGREGATE_MARKER: {len(wrong)} of {len(ROWS)} rows wrong\n" + "\n".join(wrong))
+    >       self.assertEqual(wrong, [], "failures:\n" + "\n".join(wrong))
+    E       AssertionError: Lists differ: ['row b (this row exists because: row b fa[49 chars]ls)'] != []
+    ...
+    FAILED tmp/rowprobe/test_rowprobe.py::InContextSubTestTests::test_in_context_subtests
+    FAILED tmp/rowprobe/test_rowprobe.py::AccumulateTests::test_accumulate
+    ============================== 2 failed in 0.05s ===============================
+    ```
+
+    Invocation 2: `python3 -m unittest tmp.rowprobe.test_rowprobe.InContextSubTestTests -v` (running in-context class ALONE):
+    ```
+    test_in_context_subtests (tmp.rowprobe.test_rowprobe.InContextSubTestTests.test_in_context_subtests) ...
+      test_in_context_subtests (tmp.rowprobe.test_rowprobe.InContextSubTestTests.test_in_context_subtests) (case='row b') ... FAIL
+      test_in_context_subtests (tmp.rowprobe.test_rowprobe.InContextSubTestTests.test_in_context_subtests) (case='row c') ... FAIL
+    AGGREGATE_MARKER_REACHED
+    test_in_context_subtests (tmp.rowprobe.test_rowprobe.InContextSubTestTests.test_in_context_subtests) ... FAIL
+    ...
+    FAILED (failures=3)
+    ```
+
+    Invocation 3: `python3 -m unittest discover -s tmp/rowprobe -p test_rowprobe.py -v` (discovering BOTH probe classes):
+    ```
+    test_accumulate (test_rowprobe.AccumulateTests.test_accumulate) ... AGGREGATE_MARKER: 2 of 3 rows wrong
+    row b (this row exists because: row b fails)
+    row c (this row exists because: row c fails)
+    FAIL
+    test_in_context_subtests (test_rowprobe.InContextSubTestTests.test_in_context_subtests) ...
+      test_in_context_subtests (test_rowprobe.InContextSubTestTests.test_in_context_subtests) (case='row b') ... FAIL
+      test_in_context_subtests (test_rowprobe.InContextSubTestTests.test_in_context_subtests) (case='row c') ... FAIL
+    AGGREGATE_MARKER_REACHED
+    test_in_context_subtests (test_rowprobe.InContextSubTestTests.test_in_context_subtests) ... FAIL
+    ...
+    FAILED (failures=4)
+    ```
+
+    Re-run of F-20 in-loop bare-assert probe (`tmp/rowprobe/test_bareassert.py`):
+    `python3 -m pytest tmp/rowprobe/test_bareassert.py -o addopts="" -p no:randomly -s`
+    ```
+    tmp/rowprobe/test_bareassert.py FROWS_EXECUTED=['row a: passes', 'row b: fails']
+    .
+    ...
+    ========================= 1 failed, 1 passed in 0.04s ==========================
+    ```
+    Shows row c never ran.
+
+    Scratch probe cleanup:
+    `rm -rf tmp/rowprobe && git status --short` (empty).
+
+    No strict mode or command restatement in GUIDING_PRINCIPLES.md:
+    `rg -n 'AW_ROW_STRICT|strict mode' GUIDING_PRINCIPLES.md` returned nothing (exit code 1).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: six parts, all required. (1) Paste the `CONTRIBUTING.md` bullet and show it is a pointer: it must name the P16 subsection and must not restate the row shape. ALSO paste the whole `## Authoring conventions` bullet list as committed and state whether `76ic0k`'s bullet was present when you appended, proving a coordinated append rather than a clobber (F-12). (2) Paste `python3 -m pytest tests/test_tabulated_test_convention.py` passing, with its summary line. (3) Paste a MUTATION demonstration proving sensitivity: delete one documented anchor phrase from `GUIDING_PRINCIPLES.md`, show the NARROWED run FAILING and naming the missing anchor, restore with `git checkout -- GUIDING_PRINCIPLES.md`, and show it PASSING again, with `git status --short` empty pasted before and after and a statement that you ran only the narrowed node while the edit was live. (4) PROVE THE `76ic0k` COMPATIBILITY (F-13): paste a search of the new test for all six flagged forms (`inspect.getsource`, `inspect.getsourcelines`, `inspect.getsourcefile`, `ast.parse`, `ast.walk`, `ast.unparse`) returning NONE, and if `tests/test_no_code_structure_pins.py` exists at execution time, paste it running GREEN with the new test present. (5) PROVE THE EOF BOUNDING (F-14): paste the test's section-slicing code showing it tolerates the absence of a `## ` heading after P16, and state that `GUIDING_PRINCIPLES.md` has no `## 17.`. (6) Paste a bare `python3 -m pytest` GREEN summary line with the count increased by exactly the tests added, and `aw sanitize --agent` showing no new finding. A pass without part (3) is a failed item, since an anchor test that cannot fail proves nothing; a pass without part (4) is a failed item, since it would ship a test that reddens an approved plan's guard.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Six parts satisfied: CONTRIBUTING.md pointer verified, test passes, mutation sensitivity demonstrated, 76ic0k compatibility proven, EOF bounding proven, full suite clean.
+    Pasted bullet:
+    ```markdown
+    - Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
+      P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
+      shape, the mandatory `why` column, when to tabulate, and runner-dependent row
+      verdicts.
+    ```
+    Full `## Authoring conventions` list as committed:
+    ```markdown
+    ## Authoring conventions
+
+    - Match what the software does today; do not document aspirations
+      (`GUIDING_PRINCIPLES.md` P2).
+    - Keep each policy or rule in exactly one canonical place and link to it, rather than
+      duplicating it (P8).
+    - Do not use em or en dashes in USER-FACING prose you author (READMEs, CHANGELOG, and
+      docs meant for end users); use hyphens or parenthetical dashes. The point is to keep
+      user-facing text from reading as machine-written. This does NOT apply to internal or
+      AI-facing artifacts (IPDs/plans, research findings, prompts, specs, walkthroughs, commit
+      messages, code comments); spend no effort avoiding dashes there.
+    - The standing agent execution contract (commit only your own files path-scoped, never
+      `git add -A`/bare/`-a`, never push; paste the actual runner output when you claim tests
+      passed; review-means-read-only; never change what a plan in `executed/` records, though a
+      dated history line pointing at later work may be appended) lives
+      in the managed `AGENT-WORKFLOWS` block in `AGENTS.md`. That block is the canonical home;
+      this file and the `.aw/records/plans` README point at it (D69).
+    - Output conventions (`GUIDING_PRINCIPLES.md` P14): human TTY output is concise, aligned,
+      and scannable via the `Term` helper (bold-colored words, bracketed fixed-width severity
+      labels `[ERROR]`, `[WARN ]`, `[INFO ]`); non-TTY machine output routes through universal
+      machine flags (`--agent` / `--json`) for parseable stream output.
+    - Tests depending on the live checkout or environment: follow the canonical decision
+      rule in `GUIDING_PRINCIPLES.md` P16 ("When tests depend on the live checkout or
+      environment").
+    - Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
+      P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
+      shape, the mandatory `why` column, when to tabulate, and runner-dependent row
+      verdicts.
+    ```
+    Sibling `76ic0k`'s bullet was NOT present in `CONTRIBUTING.md` when appended; the append placed the pointer bullet at the end of the existing list following the live-checkout convention bullet.
+
+    Part (2): `python3 -m pytest tests/test_tabulated_test_convention.py` passing:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
+
+    tests/test_tabulated_test_convention.py ..                               [100%]
+
+    ============================== 2 passed in 0.19s ===============================
+    ```
+
+    Part (3): Mutation demonstration proving sensitivity:
+    Executed with only the narrowed node run while the mutation edit was live:
+    - Before mutation: `git status --short` verified.
+    - Mutated `GUIDING_PRINCIPLES.md`: replaced `'this row exists because: <why>'` with `'this row is because: <why>'`.
+    - Narrowed run failing on missing anchor:
+      `python3 -m pytest tests/test_tabulated_test_convention.py -o addopts=""`
+      Output:
+      ```
+      AssertionError: 'this row exists because: <why>' not found in P16 subsection of GUIDING_PRINCIPLES.md
+      FAILED tests/test_tabulated_test_convention.py::TestTabulatedTestConvention::test_guiding_principles_p16_carries_tabulated_convention_subsection
+      ========================= 1 failed, 1 passed in 0.10s ==========================
+      ```
+    - Restored: `git checkout -- GUIDING_PRINCIPLES.md`.
+    - Narrowed run passing after restore:
+      `python3 -m pytest tests/test_tabulated_test_convention.py -o addopts=""`
+      Output:
+      ```
+      ============================== 2 passed in 0.19s ===============================
+      ```
+
+    Part (4): `76ic0k` compatibility proof:
+    Search of `tests/test_tabulated_test_convention.py` for all six flagged AST/inspect forms:
+    ```
+    $ rg 'inspect\.(getsource|getsourcelines|getsourcefile)|ast\.(parse|walk|unparse)' tests/test_tabulated_test_convention.py
+    (returns nothing, exit code 1)
+    ```
+    Sibling test `tests/test_no_code_structure_pins.py` does not exist at execution time (`ls` returns code 2 No such file or directory).
+
+    Part (5): EOF bounding proof:
+    Pasted section-slicing code from `tests/test_tabulated_test_convention.py`:
+    ```python
+        # Locate section 16 by heading boundary
+        p16_heading = "## 16. Test outcomes and behavior, never code structure or text"
+        p16_idx = content.find(p16_heading)
+        self.assertNotEqual(
+            p16_idx,
+            -1,
+            f"Missing heading '{p16_heading}' in {GUIDING_PRINCIPLES_FILE.name}",
+        )
+
+        # Bounding rule: P16 is the last principle in GUIDING_PRINCIPLES.md and ends at EOF.
+        # Tolerate the absence of a following '## ' heading.
+        next_heading = "\n## "
+        end_idx = content.find(next_heading, p16_idx + len(p16_heading))
+        section_16 = content[p16_idx:end_idx] if end_idx != -1 else content[p16_idx:]
+    ```
+    Confirmed `GUIDING_PRINCIPLES.md` has no `## 17.` (`rg "^## 1[7-9]" GUIDING_PRINCIPLES.md` returns no match).
+
+    Part (6): Bare `python3 -m pytest` and `aw sanitize --agent`:
+    Before-baseline: `4 failed, 4592 passed, 2 skipped, 3 warnings in 540.58s` (the 4 pre-existing failures identified: `test_spec_review_attestation` [dirty live-corpus spec `89xjll`], `test_typecheck_gate` [concurrency flake], `test_verbose_flag_reach` [concurrency flake], `test_run_finding_reachability` [reachability table drift]).
+    After-baseline: `4 failed, 4594 passed, 2 skipped, 3 warnings` (passed count increased by exactly 2, the number of tests added by E-04).
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

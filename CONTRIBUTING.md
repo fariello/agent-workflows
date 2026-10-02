@@ -214,6 +214,10 @@ The gate has five honest limits:
 - Tests depending on the live checkout or environment: follow the canonical decision
   rule in `GUIDING_PRINCIPLES.md` P16 ("When tests depend on the live checkout or
   environment").
+- Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
+  P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
+  shape, the mandatory `why` column, when to tabulate, and runner-dependent row
+  verdicts.
 
 ## Adding a CLI command: the output-contract checklist
 
