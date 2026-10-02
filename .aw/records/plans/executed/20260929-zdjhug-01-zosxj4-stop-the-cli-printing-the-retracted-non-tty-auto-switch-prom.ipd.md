@@ -6,7 +6,7 @@
 - Scope: IN: (a) the one-line wording fix in `agent_workflows.HumanRenderer.render`'s agent-output-hint branch, dropping the false parenthetical; (b) the remaining false instances of the same string in LIVE reference surfaces: the sample terminal transcript in `docs/cli-human-guide.md` "Anatomy of a standard render", which `3rsdbj` could not reach because that file was explicitly OUT of its fence as already-correct reference wording, AND (added at review, F-08) the present-tense Conventions clause in `.aw/records/research/20260924-cliinv-00-ffi66q-aw-cli-command-inventory.survey.md`, which this plan had wrongly pre-classified as an untouchable historical record; (c) refreshing the four `*.human.golden` conformance fixtures that record this renderer's bytes, so the committed record of the hint does not contradict the code; (d) a NEW behavior test that pins the absence of the false promise in rendered human output, because the renderer currently has NO test caller at all and a one-line string is otherwise free to regress. OUT: restoring the deleted conformance gates that used to consume those goldens (F-04; it is a much larger job, it belongs to the suite-trim restoration family, and it is carried by a new backlog item rather than smuggled in here); correcting the two goldens' UNRELATED stale remediation text (F-05, same carrier); `agent_workflows.result_types.select_output` and `should_color`, whose docstrings and behavior are already correct for this ruling and are the reason only this user-visible string was wrong; the six docs `3rsdbj` already fixed; and any change to WHEN machine output is selected, which is behavior this plan must not touch.
 - Scope-Paths: agent_workflows/renderers.py, docs/cli-human-guide.md, tests/fixtures/conformance_goldens/check_findings.human.golden, tests/fixtures/conformance_goldens/error_cannot_run.human.golden, tests/fixtures/conformance_goldens/mutation_preview.human.golden, tests/fixtures/conformance_goldens/read_clean.human.golden, tests/test_human_renderer_agent_hint.py, .aw/records/research/20260924-cliinv-00-ffi66q-aw-cli-command-inventory.survey.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: zosxj4
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zosxj4 verified (set zdjhug, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-krwj2o-01-krwj2o-restore-deleted-cli-conformance-test-gates-and-ref.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
