@@ -2514,6 +2514,9 @@ def run_agy_turn(
             # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
             # entry signals nothing, which renders no activity cell rather than a guessed one.
             activity=activity_for_item(item),
+            runner="agy",
+            model=options.get("model"),
+            variant=options.get("variant"),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # stallfp kaga7s (display parity only): show the countdown from the clock that kills.

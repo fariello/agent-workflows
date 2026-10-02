@@ -3000,6 +3000,9 @@ def run_opencode(
             # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
             # entry signals nothing, which renders no activity cell rather than a guessed one.
             activity=activity_for_item(item),
+            runner="opencode",
+            model=options.get(model_key),
+            variant=options.get(variant_key),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # The countdown the operator sees must come from the watchdog that kills, so the
