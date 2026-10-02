@@ -125,7 +125,7 @@ NO TEST MAY PIN THE REAL TREE'S CENSUS COUNT. That number moves with every lane 
 
 ## Spec / documentation sync
 
-N/A for spec text: this plan changes how spec `25kzda` is cited and never what it says, so no clause moves and no amendment is owed. No user-facing text changes: the `--help` edit belonged to the removed promotion and moves with it to `1vd74h`.
+N/A for spec text: this plan changes how spec `25kzda` is cited and never what it says, so no clause moves and no amendment is owed. `- From-Spec:` IS DELIBERATELY ABSENT (removed at review, PR-003), so `aw check` raises the `info` advisory `check.plan-spec-link-missing` suggesting `--from-spec 25kzda`. Do NOT follow it: this plan cites spec `25kzda` as the TARGET of its citations and graduated from backlog `p9y51u`, not from the spec. No user-facing text changes: the `--help` edit belonged to the removed promotion and moves with it to `1vd74h`.
 
 ## Open questions
 
