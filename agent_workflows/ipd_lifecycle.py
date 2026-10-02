@@ -64,8 +64,9 @@ from agent_workflows import contention_wait
 # instead.
 #
 # HONEST LIMIT: this is an environment SELECTOR, i.e. the operational-default guidance layer, not a
-# hardened boundary. A same-user worker with shell access can unset the variable. Hard enforcement is
-# an OS sandbox / separate principal (x03wgn, Phase 6 `1o4eif`).
+# hardened boundary. A same-user worker with shell access can unset the variable. Per GUIDING_PRINCIPLES
+# P15, this check guards against an honest mistake (a managed worker accidentally running lifecycle
+# transitions and forking a second receipt), not a malicious agent.
 # --------------------------------------------------------------------------------------
 
 # The env selector the runner exports into a managed worker's child environment.
@@ -4477,13 +4478,10 @@ def finalize(
     # reach the transaction around it. `ROLLUP_REFUSED_WORKER_ROLE` is REUSED as the finding id so the
     # two transition paths report one vocabulary rather than two.
     #
-    # HONEST LIMIT, stated rather than implied: unsetting `AW_EXECUTION_ROLE` is now stopped inside
-    # lane worktrees by requiring the driver's attestation token (`AW_DRIVER_ATTEST`), which is
-    # minted into the run directory and withheld from worker child processes. The remaining limit:
-    # a same-user agent inside the lane can still read
-    # `<main>/.aw/records/runs/<run-id>/driver-attest.token` by absolute path or cd to the main
-    # checkout; hard enforcement against a determined same-user agent requires an OS sandbox or
-    # separate principal (`1o4eif`).
+    # HONEST LIMIT, stated rather than implied: unsetting `AW_EXECUTION_ROLE` remains possible for
+    # a same-user worker with shell access. Per GUIDING_PRINCIPLES P15 and backlog `dvonrn` D7,
+    # this check guards against honest workflow errors rather than a hostile agent; OS-level
+    # containment (`1o4eif`) is optional isolation an operator may choose, not a required fix.
     if worker_role_active(os.environ if env is None else env):
         return FinalizeResult(
             EXIT_CANNOT_RUN,
