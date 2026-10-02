@@ -1,11 +1,13 @@
 - Id: zllcnv
-- Status: open
+- Status: graduated
+- Graduated-To: zllcnv
 - Set: zllcnv
 - Priority: low
 - Work-Kind: chore
 - Summary: Hoist the duplicated _refuse_unsafe_descriptive helper into attention_contract once backlog, specs and research all ship their own copy, reconciling the refusal wording deliberately rather than as collateral; recorded by uz05bl OQ-02 as a third-consumer decision
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 685iq8
 - 2026-10-01 created (aw backlog): Hoist the duplicated _refuse_unsafe_descriptive helper into attention_contract once backlog, specs and research all ship their own copy, reconciling the refusal wording deliberately rather than as collateral; recorded by uz05bl OQ-02 as a third-consumer decision
 
 FILED AS THE CARRIER for the hoist row in plan `deftzy` (Set `7w6zsl`), which is the THIRD consumer that pending plan `uz05bl` OQ-02 named as the point at which a hoist becomes worthwhile.
