@@ -9,7 +9,7 @@
 - Scope: Make `plans_archive._find_targets` resolve an EXPLICIT target through `selectors.resolve_for_mutation(repo_root, "plans", target)` so it accepts the same vocabulary as every other verb, compare a setid against the TERSE token via `plans_index.set_terse_id` rather than the raw `- Set:` line, keep the existing terminal-root restriction, and make an explicit target that matches nothing REFUSE (nonzero) instead of printing a success banner. Add the outcome tests this matcher has none of. EXCLUDES: the BARE sweep path (`sweep_candidates`, `--age`), which is a different code path with different semantics and legitimately exits 0 on an empty result; `selectors.py`; `plans_refs.py`; and `research_archive.py`.
 - Scope-Paths: agent_workflows/plans_archive.py, tests/test_plans_archive_selectors.py
 - Item-Dependencies: executed:eby93o
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1x4tdo
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1x4tdo verified (set awrenamesel, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
