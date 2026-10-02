@@ -1,11 +1,13 @@
 - Id: tvv8gg
-- Status: open
+- Status: graduated
+- Graduated-To: tvv8gg
 - Set: tvv8gg
 - Priority: medium
 - Work-Kind: chore
 - Summary: plan_already_finalized cites a guard test file that does not exist, so the reusable-plan fail-open substitution it warns against is unguarded
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: pud8rp
 - 2026-09-30 created (aw backlog): Identified while authoring IPD `1fzist` (rfhiu2-01), whose F-9 measured it.
 
 WHAT IS WRONG. `ipd_lifecycle.plan_already_finalized`'s docstring names a specific guard:
