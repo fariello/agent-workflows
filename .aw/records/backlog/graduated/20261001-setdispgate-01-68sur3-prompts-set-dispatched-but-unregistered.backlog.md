@@ -1,5 +1,6 @@
 - Id: 68sur3
-- Status: open
+- Status: graduated
+- Graduated-To: declabsent
 - Blocks-Release: next
 - Set: setdispgate
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw prompts set is dispatched in cli.main and documented in help but is not registered in the parser
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: gm9baj
 - 2026-10-01 created (aw backlog): Filed while authoring the fcnz1r dispatch-unification Set; measured, not inferred.
 
 MEASURED 2026-10-01:
