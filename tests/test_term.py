@@ -8,12 +8,15 @@ import io
 import os
 from pathlib import Path
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 
 from agent_workflows import cli
 from agent_workflows import config as CFG
 from agent_workflows import lifecycle_style as LS
+from agent_workflows import render_stream
 from agent_workflows import term as T
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
@@ -1434,6 +1437,138 @@ class CapabilityMatrixTests(unittest.TestCase):
         out16 = self._render(_Utf8TTY())
         self.assertIn(f"\033[1;{T.color_16_for_stage(self.STAGE)}m", out16)
         self.assertNotIn("38;5;", out16)
+
+
+class ColorDepthEndToEndLadderTests(unittest.TestCase):
+    """End-to-end color depth ladder tests asserting on observable ANSI bytes (E-04)."""
+
+    def test_end_to_end_ladder_observable_ansi_rendering(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env = os.environ.copy()
+            env["XDG_CONFIG_HOME"] = tmpdir
+            env["AW_NO_REEXEC"] = "1"
+            env["TERM"] = "xterm-256color"
+            env.pop("NO_COLOR", None)
+            env.pop("FORCE_COLOR", None)
+            env.pop("COLORTERM", None)
+
+            def _pin(tier: str) -> None:
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows",
+                        "config",
+                        "set",
+                        "color_depth",
+                        tier,
+                    ],
+                    env=env,
+                    check=True,
+                    capture_output=True,
+                )
+
+            def _find_backlog(*args: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [sys.executable, "-m", "agent_workflows", "find", "backlog", *args],
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=True,
+                )
+
+            # Cell 1: --color and pin 256 -> some escape code contains 38;5;
+            _pin("256")
+            res_256 = _find_backlog("--color")
+            escapes_256 = re.findall(r"\033\[([0-9;]*)m", res_256.stdout)
+            self.assertTrue(
+                any("38;5;" in code for code in escapes_256),
+                f"Expected 38;5; escape in 256 pin output, got: {escapes_256}",
+            )
+
+            # Cell 2: --color and pin 16 -> NO code contains 38;5;
+            _pin("16")
+            res_16 = _find_backlog("--color")
+            escapes_16 = re.findall(r"\033\[([0-9;]*)m", res_16.stdout)
+            self.assertTrue(
+                len(escapes_16) > 0, "Expected ANSI escapes for 16-color pin"
+            )
+            self.assertFalse(
+                any("38;5;" in code for code in escapes_16),
+                f"Expected no 38;5; escape in 16 pin output, got: {escapes_16}",
+            )
+
+            # Cell 3: --color and pin none -> stdout contains NO \x1b at all (regression gate)
+            _pin("none")
+            res_none = _find_backlog("--color")
+            self.assertNotIn(
+                "\033",
+                res_none.stdout,
+                "Expected no ANSI escapes at color_depth=none even with --color",
+            )
+
+            # Cell 4: NO flag on a pipe -> stdout contains no \x1b regardless of pin (criterion A11)
+            for tier in ("256", "16", "none"):
+                _pin(tier)
+                res_noflag = _find_backlog()
+                self.assertNotIn(
+                    "\033",
+                    res_noflag.stdout,
+                    f"Expected no ANSI escapes without --color on pipe at pin={tier}",
+                )
+
+
+class LifecycleDepthConsumerTests(_DepthTestBase):
+    """Direct behavioral tests for the Term.lifecycle_depth consumer and agreement (E-05)."""
+
+    def test_lifecycle_depth_consumer_and_two_consumer_agreement(self):
+        resolved = T.resolve_lifecycle("backlog", "blocked")
+
+        # Cell (a): pin none -> lifecycle_depth == DEPTH_NONE and style_lifecycle_text bare word with no \x1b
+        self._capable_tty()
+        self._pin("none")
+        t_none = T.Term(stream=_FakeTTY())
+        self.assertEqual(t_none.lifecycle_depth(), T.DEPTH_NONE)
+        styled_none = t_none.style_lifecycle_text("blocked", resolved)
+        self.assertEqual(styled_none, "blocked")
+        self.assertNotIn("\033", styled_none)
+
+        # Cell (b): pin 16 -> DEPTH_16 and styled text contains no 38;5;
+        self._capable_tty()
+        self._pin("16")
+        t_16 = T.Term(stream=_FakeTTY())
+        self.assertEqual(t_16.lifecycle_depth(), T.DEPTH_16)
+        styled_16 = t_16.style_lifecycle_text("blocked", resolved)
+        self.assertIn("\033", styled_16)
+        self.assertNotIn("38;5;", styled_16)
+
+        # Cell (c): pin 256 -> DEPTH_256
+        self._capable_tty()
+        self._pin("256")
+        t_256 = T.Term(stream=_FakeTTY())
+        self.assertEqual(t_256.lifecycle_depth(), T.DEPTH_256)
+
+        # Cell (d): override=True guard cell: Term(stream=<fake pipe>, color=True) with pin 16 resolves 16.
+        # Without override=True, the naive fix returns 'none'; the shipped code returns '256'.
+        self._capable_tty()
+        self._pin("16")
+        t_pipe_16 = T.Term(stream=_FakePipe(), color=True)
+        self.assertEqual(t_pipe_16.lifecycle_depth(), T.DEPTH_16)
+
+        # Two-consumer agreement across all three pins:
+        # Palette(True).lifecycle(resolved) and Term(stream=<fake TTY>).style_lifecycle_text("blocked", resolved)
+        # must agree everywhere.
+        for pin in (T.DEPTH_NONE, T.DEPTH_16, T.DEPTH_256):
+            with self.subTest(pin=pin):
+                self._capable_tty()
+                self._pin(pin)
+                pal = render_stream.Palette(True)
+                t_term = T.Term(stream=_FakeTTY())
+                self.assertEqual(
+                    t_term.style_lifecycle_text("blocked", resolved),
+                    pal.lifecycle(resolved),
+                )
 
 
 if __name__ == "__main__":
