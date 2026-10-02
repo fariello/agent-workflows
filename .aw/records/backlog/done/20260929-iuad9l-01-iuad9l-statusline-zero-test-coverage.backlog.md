@@ -1,5 +1,5 @@
 - Id: iuad9l
-- Status: graduated
+- Status: done
 - Graduated-To: statuscov
 - Set: iuad9l
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The statusline box renderer has zero test coverage of any kind
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD mzrr7x executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-statuscov-01-mzrr7x-honor-the-ascii-single-byte-guarantee-in-the-runner-statusli.ipd.md); evidence .aw/records/plans/executed/20260930-statuscov-01-mzrr7x-honor-the-ascii-single-byte-guarantee-in-the-runner-statusli.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 6tjq2j, mzrr7x
 - 2026-09-29 created (aw backlog): Filed at review of plan it6tpj (/plan-review), discharging a Deferred row that instructed the executor to file it.
 
