@@ -1,11 +1,13 @@
 - Id: vmrhj0
-- Status: open
+- Status: graduated
+- Graduated-To: vmrhj0
 - Set: vmrhj0
 - Priority: medium
 - Work-Kind: chore
 - Summary: the turn-retry allowlist admits only the legacy token failed-safely while its canonical replacement fail-gate is non-retryable, so whether a host-failure turn is retryable depends on which vocabulary generation wrote the disposition
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: p47qfu
 - 2026-09-30 created (aw backlog): the turn-retry allowlist admits only the legacy token failed-safely while its canonical replacement fail-gate is non-retryable, so whether a host-failure turn is retryable depends on which vocabulary generation wrote the disposition
 
 FOUND WHILE AUTHORING plan `4gx141` (backlog `rb4wgj`), whose E-04 must state which disposition token spec 25kzda 5.5's host-failure rows mean and therefore surfaced this.
