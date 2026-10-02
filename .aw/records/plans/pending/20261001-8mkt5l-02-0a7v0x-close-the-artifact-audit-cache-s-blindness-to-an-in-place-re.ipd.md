@@ -6,7 +6,7 @@
 - Scope: Verify a tier-one identity CLAIM against the file on disk before returning it, and re-derive once when the claim does not hold, so the three wrong answers close without touching the signature. IN: `artifact_audit.find_artifact`'s tier one (the verification and the one re-derivation), the `_INDEX_CACHE` commentary's RESIDUAL LIMIT 1 paragraph naming this item as carrier, and a new `tests/test_artifact_audit_identity_staleness.py` pinning the three wrong answers plus the two cost-shape invariants. OUT: `_dir_signature` (unchanged, deliberately: see F-03, the item's own named remedy is FALSIFIED here), the MISS-ON-NEW half (F-05, which no in-lookup verification can close and which needs a different instrument), `_INDEX_CACHE_MAX`'s wholesale clear (carrier `an1a33`), `build_index`'s traversal, `audit_artifact`'s fresh status read, and `selectors`.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_identity_staleness.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: 0a7v0x
 
 ## Workflow history
+- 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261001-8mkt5l-02-0a7v0x-...review.md
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-derived at review: the RESIDUAL LIMIT 1 comment, the tier ordering in `find_artifact`, the three `_ID_LINE_RE` twins, the insert-only guards in `artifact_rename`/`ipd_authoring`, the 9 `artifact_index=` sites in `run_viewer`, the backlog falsification note, and the three carriers (`ieg7q6`, `an1a33`, `1sn4h0` each resolve via `aw find`). Fixed: the explicit-index re-derivation route (a `build_index` call returns the SAME stale object because run_viewer's index IS the cache entry and the signature is unchanged; now pop-only-if-same-object then rebuild), wholesale `clear()` narrowed to the one key, inner pass runs all three tiers, a sixth test pinning the explicit-index path, a newly found in-place-created-collision residual documented and deferred with the miss half, a stale OQ-02 cross-reference, and the finalize-ownership clause made conditional.
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `ieg7q6`. Every number below was MEASURED in this lane at HEAD `8ca1d979c`; none is transcribed from the item. The item's core reproduction HOLDS and three of its surrounding claims MOVED, which is why this plan does not implement the remedy the item names.
