@@ -1,5 +1,6 @@
 - Id: fv4b6s
-- Status: open
+- Status: graduated
+- Graduated-To: setdispgate
 - Blocks-Release: next
 - Set: setdispgate
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: Positional aw specs set deferred writes an invalid Gate-Kind the --status spelling refuses
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: ju3rhs
 - 2026-10-01 created (aw backlog): Filed while authoring the fcnz1r dispatch-unification Set; measured, not inferred.
 
 MEASURED 2026-10-01 in a scratch repo at HEAD ec857565a, driving both spellings over an identical 'approved' spec fixture with a deliberately INVALID gate kind:
