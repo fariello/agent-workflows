@@ -1,5 +1,5 @@
 - Id: 5xgllt
-- Status: graduated
+- Status: done
 - Graduated-To: runverdict
 - Set: runverdict
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Cross-check the verifier's claimed tests_run commands against the session log's actual tool calls
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD btak7a executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-runverdict-08-bjx20r-extract-the-tool-calls-a-verifier-turn-actually-made-from-it.ipd.md, .aw/records/plans/executed/20260930-runverdict-09-btak7a-record-the-verifier-corroboration-verdict-on-the-attempt-and.ipd.md); evidence .aw/records/plans/executed/20260930-runverdict-08-bjx20r-extract-the-tool-calls-a-verifier-turn-actually-made-from-it.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: bjx20r, btak7a
 - 2026-09-23 created (aw backlog): Cross-check the verifier's claimed tests_run commands against the session log's actual tool calls
 
