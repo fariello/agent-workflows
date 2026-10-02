@@ -1,5 +1,6 @@
 - Id: tl8qmc
-- Status: open
+- Status: graduated
+- Graduated-To: tl8qmc
 - Blocks-Release: next
 - Set: tl8qmc
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: backlog.py stamps history with the LOCAL date while status_set.py stamps the UTC date, so between local midnight and UTC midnight the two setter spellings write different dates and their parity test fails
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: dmrbqa
 - 2026-09-30 created (aw backlog): Measured 2026-09-30 20:06 EDT / 2026-10-01 00:06 UTC while authoring plan fqcax0: tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity fails deterministically inside the local/UTC date gap.
 
 MEASURED WHILE AUTHORING PLAN fqcax0. Unrelated to that plan, which touches no .py file; found because the authoring turn ran the suite inside the window where the two clocks disagree.
