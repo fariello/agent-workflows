@@ -123,6 +123,12 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
                 *args: object, **kwargs: object
             ) -> tuple[int, str, Path | None, list[str]]:
                 in_finalize[0] = True
+                (run_dir / "outcomes/01-1fz001-verification.json").write_text(
+                    json.dumps(
+                        {"verdict": "verified", "tests_run": ["python3 -m pytest"]}
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vsession", None, []
 
             real_resolve = runner_shared.resolve_plan_path
@@ -249,6 +255,12 @@ class TestFinalizeStalePlanPath(unittest.TestCase):
                 *args: object, **kwargs: object
             ) -> tuple[int, str, Path | None, list[str]]:
                 in_finalize[0] = True
+                (run_dir / "outcomes/01-1fz002-verification.json").write_text(
+                    json.dumps(
+                        {"verdict": "verified", "tests_run": ["python3 -m pytest"]}
+                    ),
+                    encoding="utf-8",
+                )
                 return 0, "vsession", None, []
 
             real_resolve = runner_shared.resolve_plan_path

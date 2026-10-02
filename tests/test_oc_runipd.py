@@ -3263,7 +3263,21 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 plan.rename(executed)
                 return 0, "finalized"
 
+            v_outcome = run_dir / "outcomes" / "01-wir001-verification.json"
+
             def fake_run(*a, **k):
+                if k.get("fresh_session"):
+                    v_outcome.write_text(
+                        json.dumps(
+                            {
+                                "verdict": "VERIFIED",
+                                "tests_run": [
+                                    "python3 -m unittest tests.test_from_backlog -v"
+                                ],
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
                 return 0, "ses1", str(run_dir / "log"), ["oc"]
 
             with (
@@ -3361,12 +3375,29 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            v_outcome = run_dir / "outcomes" / "01-wir001-verification.json"
+
+            def fake_run(*a, **k):
+                if k.get("fresh_session"):
+                    v_outcome.write_text(
+                        json.dumps(
+                            {
+                                "verdict": "VERIFIED",
+                                "tests_run": [
+                                    "python3 -m unittest tests.test_from_backlog -v"
+                                ],
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                return 0, "ses1", str(run_dir / "log"), ["oc"]
+
             with (
                 mock.patch.object(driver, "driver_begin", lambda r, i, a: (0, "ok")),
                 mock.patch.object(
                     driver,
                     "run_opencode",
-                    lambda *a, **k: (0, "ses1", str(run_dir / "log"), ["oc"]),
+                    fake_run,
                 ),
                 mock.patch.object(
                     driver,
@@ -6853,6 +6884,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                     "self_finalize": True,
                     "isolate_worktree": True,
                     "no_audit": False,
+                    "retry_budget": 0,
                 },
             }
 
@@ -6879,6 +6911,9 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
             def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
                 work_dir = kwargs.get("work_dir")
                 if kwargs.get("fresh_session"):
+                    (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
+                        json.dumps({"verdict": "CORRECTION_REQUIRED"}), encoding="utf-8"
+                    )
                     return 0, "vses", str(run_dir / "vlog"), ["oc"]
                 wt = Path(work_dir) if work_dir else repo
                 (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -6950,6 +6985,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                     "self_finalize": True,
                     "isolate_worktree": True,
                     "no_audit": False,
+                    "retry_budget": 0,
                 },
             }
 
@@ -6978,6 +7014,9 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                 work_dir = kwargs.get("work_dir")
                 if kwargs.get("fresh_session"):
                     # EXIT 0, which is the whole point: a tidy exit with an unreadable verdict.
+                    (run_dir / "outcomes" / "01-unr001-verification.json").write_text(
+                        '{"verdict": "VERI', encoding="utf-8"
+                    )
                     return 0, "vses", str(run_dir / "vlog"), ["oc"]
                 wt = Path(work_dir) if work_dir else repo
                 (wt / "src").mkdir(parents=True, exist_ok=True)

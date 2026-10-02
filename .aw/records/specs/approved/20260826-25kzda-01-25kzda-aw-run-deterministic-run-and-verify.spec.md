@@ -1338,9 +1338,10 @@ It must never retry these classes regardless of budget:
 
 An out-of-scope mutation therefore fails and contains the item on the first occurrence even if ten retries remain. A human gate and dependency-not-met outcome are state gates, not retryable failures. Each permitted correction has a new attempt number and idempotency key and invalidates stale evidence from earlier attempts.
 
-The runner provides two distinct classification surfaces that key on different evidence by design:
+The runner provides three distinct classification surfaces that key on different evidence by design:
 - `turn_failure_is_retryable`: classifies a finished turn by its runner disposition.
 - `finalize_retry_decision`: classifies a refused finalize by the gate's findings carried across the subprocess boundary. It keys primarily on shipped lint finding codes (`finalize_refusal_is_retryable`, `retryable_finalize_finding_codes`), retaining a prose fallback for findings without a lint code and for answerable checkpoint messages excluded from the code set.
+- `verification_retry_decision`: classifies a refused or unevidenced verification outcome before integration. It remands the lane to the executing agent under the shared `--retry-budget` with a separate action counter when verification evidence is missing (`verifier-no-test-evidence`), the verdict requires correction (`verifier-declined`), or the outcome file was unreadable/unrecorded (`verification-outcome-unreadable`, `verification-never-recorded`); environment obstacles (`BLOCKED`) are not retryable.
 
 The normative mapping between the retry classes above and the runner's disposition vocabulary is declared in the following table:
 
@@ -1349,7 +1350,7 @@ The normative mapping between the retry classes above and the runner's dispositi
 | host spawn failure | `failed-safely` | `turn_failure_is_retryable` | Yes | Host failed to spawn or crashed under driver supervision. Guarded against deliberate operator stop. Canonical token `failed` has no live producer and is classified non-retryable in code. |
 | host nonzero exit that did not create an ambiguous side effect | `failed-safely` | `turn_failure_is_retryable` | Yes | Nonzero exit cleanly captured and contained in lane worktree. |
 | missing expected artifact or failed deterministic check for which a bounded correction is safe | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate by finding codes; no distinct retryable turn disposition. |
-| missing or stale validation evidence | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`); turn disposition `substantially-complete` is not retryable at turn level to avoid double-spend. |
+| missing or stale validation evidence | None (turn); findings (finalize); refusal (verification) | `finalize_retry_decision`, `verification_retry_decision` | Yes (at finalize and verification) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`) and verification gate (`verifier-no-test-evidence`, `verifier-declined`, `verification-outcome-unreadable`, `verification-never-recorded`; `BLOCKED` is not retried); turn disposition `substantially-complete` is not retryable at turn level to avoid double-spend. |
 | verifier transport failure | (none) | (none) | No consumer | No disposition; not consumed in tree. |
 | out-of-scope mutation | `fail-gate` | `turn_failure_is_retryable` / finalize gate | No | First on never-retry list; gate refusal. |
 | overlapping ownership or lease conflict | `fail-gate`, `integration-blocked` | `turn_failure_is_retryable` / integration ladder | No | Concurrent mutation or conflict; not retryable as host failure. |
@@ -1637,6 +1638,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-10-02 note (aw specs): AMENDED (plan t18l64, backlog kw31r2): Section 5.5 amended to declare verification_retry_decision as a third classification surface alongside turn_failure_is_retryable and finalize_retry_decision, updating the class-to-surface table for missing or stale validation evidence across both finalize and verification gates.
 - 2026-10-01 note (aw specs): amend Section 2.1c consequence 2: refuse contradictory verification flags on both hosts and subcommands via shared predicate (plan zdgc6t, backlog byazcp)
 - 2026-10-01 note (aw specs): AMENDED (plan f7z10q, backlog u7bfks): infrastructure paragraph line-78 sentence amended to state what BOUND asserts (named resolving predicate) and does not assert (execution reachability), pointing at run_evidence.bound_run_finding_codes_reachability(); Section 4.2 table untouched
 - 2026-10-01 note (aw specs): AMENDED (plan x2dwu5, backlog oq05nc): Section 5.2 amended in place to record measured Landlock ABI 4 TCP network denial feasibility (proven two-sided on loopback) and its port-granularity limit (no address field, cannot separate git push from model API on TCP 443), and to record the bounded credential withholding status (files inaccessible under opt-in hardened mode, no environment-carried credentials withheld; fail-closed descriptor answer maintained)

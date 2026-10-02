@@ -1,5 +1,5 @@
 - Id: kw31r2
-- Status: graduated
+- Status: done
 - Graduated-To: verremand
 - Blocks-Release: next
 - Set: verremand
@@ -8,6 +8,7 @@
 - Summary: Remand verification evidence refusals and verification failures back to the agent under retry conventions
 
 ## Workflow history
+- 2026-10-02 done (aw backlog): closed by aw agy run: IPD t18l64 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-verremand-01-t18l64-remand-verification-evidence-refusals-and-verification-failu.ipd.md); evidence .aw/records/plans/executed/20261001-verremand-01-t18l64-remand-verification-evidence-refusals-and-verification-failu.ipd.md
 - 2026-10-01 graduated (aw set): Graduated to plan t18l64
 - 2026-10-01 created (aw backlog): Remand verification evidence refusals and verification failures back to the agent under retry conventions
 
