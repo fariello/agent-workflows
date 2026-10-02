@@ -37,37 +37,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make each writer create the directory it writes into
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, make `write_prompt` create its own parent directory before writing. Insert `path.parent.mkdir(parents=True, exist_ok=True)` between the `path = (run_dir / "prompts" / ...)` assignment and the existing `path.write_text(prompt, encoding="utf-8")`. Extend the docstring with one sentence stating that the function GUARANTEES `prompts/` exists rather than requiring the caller to have created it, so the next reader does not delete the mkdir as redundant after seeing `initialize_run_core` also do it.
+- [x] E-01 In `agent_workflows/runner_shared.py`, make `write_prompt` create its own parent directory before writing. Insert `path.parent.mkdir(parents=True, exist_ok=True)` between the `path = (run_dir / "prompts" / ...)` assignment and the existing `path.write_text(prompt, encoding="utf-8")`. Extend the docstring with one sentence stating that the function GUARANTEES `prompts/` exists rather than requiring the caller to have created it, so the next reader does not delete the mkdir as redundant after seeing `initialize_run_core` also do it.
 
   THIS FUNCTION IS THE CLEAREST CASE IN THE PLAN AND IS INTENTIONALLY FIRST. Unlike `attempt_log_path`, `write_prompt` both COMPUTES the path and WRITES to it in the same body, so there is no pure-accessor argument against fixing it in place and no caller that wants the path without the side effect. It has at least a dozen call sites (re-measured at review: ELEVEN inside `runner_shared` itself plus one in `oc_runipd.handle_audit_command`; authoring said "one plus eight"), and the mkdir is correct for ALL of them by construction rather than by census, because the function itself performs the write, so no caller can want the path without the side effect. Do not re-derive this count as an acceptance bar; it is context.
   - Depends on: none
   - Expected outcome: `runner_shared.write_prompt(Path(tempfile.mkdtemp()), {"position": 1, "id6": "abc123", "action": "exec"}, "hi", 1)` returns the path and the file exists, where the SAME call raises `FileNotFoundError` at this head. `python3 -m pytest tests/test_runner_shared.py tests/test_oc_runipd.py` stays green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/oc_runipd.py`, make `run_opencode` create the session-log parent before opening it. Add `log_path.parent.mkdir(parents=True, exist_ok=True)` immediately after the existing `log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)` assignment, which is well before the `with` block containing `log_path.open("w", encoding="utf-8") as log`. Placing it at the assignment rather than adjacent to the open is deliberate: the `with` header also enters `turn_telemetry`, and a statement wedged between the context managers of a single multi-manager `with` is not expressible without restructuring that header.
+- [x] E-02 In `agent_workflows/oc_runipd.py`, make `run_opencode` create the session-log parent before opening it. Add `log_path.parent.mkdir(parents=True, exist_ok=True)` immediately after the existing `log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)` assignment, which is well before the `with` block containing `log_path.open("w", encoding="utf-8") as log`. Placing it at the assignment rather than adjacent to the open is deliberate: the `with` header also enters `turn_telemetry`, and a statement wedged between the context managers of a single multi-manager `with` is not expressible without restructuring that header.
 
   DO NOT MOVE OR RESTRUCTURE THE `with` HEADER. It composes several context managers, at least `turn_telemetry(...)` and the log open, and the telemetry manager records the turn; reordering or splitting them changes what is recorded on an exception path. CONFIRMED AT REVIEW: the open is the SECOND manager in that header, appearing as `log_path.open("w", encoding="utf-8") as log,` with a trailing comma immediately before the closing `):`, so a statement genuinely cannot be placed between the managers without restructuring. The mkdir is idempotent and cheap, so it costs the existing initializer-backed callers nothing on a directory that already exists.
   ONE STATEMENT IS PROVABLY ENOUGH FOR THE WHOLE SPAN (F-13): scanning the 166 body lines between the assignment and the open for any other filesystem write found exactly one hit, the log open itself. So no second parent needs creating in that region, and the executor should not go hunting for one.
   - Depends on: none
   - Expected outcome: `run_opencode` no longer raises `FileNotFoundError` when `<run_dir>/sessions/` is absent; a minimal run directory with no subdirectories reaches the launch attempt instead of dying before it. VERIFIED AT REVIEW by applying this exact one-liner: the outcome changed from `FileNotFoundError` on the log path to the fake-launch sentinel `RuntimeError("stop-before-launch")`, with `<run_dir>/sessions/` existing afterwards (F-12). `python3 -m pytest tests/test_oc_runipd.py` stays green.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/agy_runipd.py`, apply the same one-line fix to the twin `run_agy_turn`, immediately after its own `log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)` assignment. The item asked for this host to be CHECKED; it was, and it has the identical defect (F-03), so it is FIXED here rather than merely noted.
+- [x] E-03 In `agent_workflows/agy_runipd.py`, apply the same one-line fix to the twin `run_agy_turn`, immediately after its own `log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)` assignment. The item asked for this host to be CHECKED; it was, and it has the identical defect (F-03), so it is FIXED here rather than merely noted.
 
   FIX BOTH HOSTS IN THE SAME CHANGE, AND DO NOT "UNIFY" THEM WHILE HERE. Leaving agy broken would mean a later agy-side caller rediscovers the same crash, and the repository's runner-unification work has already moved the shared helper into `runner_shared`; the remaining per-host code is the launch body, which this plan is not refactoring. Add the identical statement, not a new shared wrapper around the two launch bodies.
   - Depends on: none
   - Expected outcome: the agy launch path no longer requires a precreated `sessions/`; `python3 -m pytest tests/test_agy_runipd_cli.py tests/test_runner_shared.py` stays green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the guarantee so it cannot silently regress
 
-- [ ] E-04 Add `tests/test_run_dir_parents_are_guaranteed.py` pinning the guarantee BY OUTCOME on a run directory that deliberately has NO subdirectories, driving the real functions in `tempfile` fixtures and asserting on real filesystem side effects. Cover, each as its own test: (a) `write_prompt` into a bare run directory returns a path that EXISTS and whose content round-trips, and creates `prompts/`; (b) the same call is idempotent when `prompts/` already exists and does not raise or truncate a sibling; (c) `attempt_log_path` remains PURE, i.e. calling it on a bare run directory creates NOTHING on disk (assert `not (run_dir / "sessions").exists()` afterwards), which is the pin that the fix was not put in the wrong place; (d) `oc_runipd.run_opencode` on a bare run directory gets PAST the log-open and fails (if at all) for a launch-related reason rather than `FileNotFoundError` on the log path, with `<run_dir>/sessions/` existing afterwards; (e) the agy twin likewise.
+- [x] E-04 Add `tests/test_run_dir_parents_are_guaranteed.py` pinning the guarantee BY OUTCOME on a run directory that deliberately has NO subdirectories, driving the real functions in `tempfile` fixtures and asserting on real filesystem side effects. Cover, each as its own test: (a) `write_prompt` into a bare run directory returns a path that EXISTS and whose content round-trips, and creates `prompts/`; (b) the same call is idempotent when `prompts/` already exists and does not raise or truncate a sibling; (c) `attempt_log_path` remains PURE, i.e. calling it on a bare run directory creates NOTHING on disk (assert `not (run_dir / "sessions").exists()` afterwards), which is the pin that the fix was not put in the wrong place; (d) `oc_runipd.run_opencode` on a bare run directory gets PAST the log-open and fails (if at all) for a launch-related reason rather than `FileNotFoundError` on the log path, with `<run_dir>/sessions/` existing afterwards; (e) the agy twin likewise.
 
   ASSERT ON BEHAVIOR AND FILESYSTEM STATE, NEVER ON SOURCE TEXT. Do NOT use `inspect`, `ast`, regex, or substring search over the production modules to check that a `mkdir` call is present, and do NOT count call sites: those are code-pinning tests, which this repository forbids (GUIDING_PRINCIPLES P16), and they would pass even if the mkdir were unreachable. Test (c) is the single most important item here, because it is the only guard against a future "simplification" that moves the mkdir into `attempt_log_path` and reintroduces the pure-accessor violation F-06 describes.
   FOR (d) AND (e), COPY `host_sandbox_profile`'s PROBE BLOCK AND DELETE ITS MKDIR LINE. That block is a COMPLETE WORKING TEMPLATE, not merely a stylistic precedent (F-14), and review drove it successfully against both the broken and the fixed code (F-12). Its ingredients, all load-bearing: a real `git init -b main` in a tempdir (the isolation path needs a repository); `options={"opencode": "/bin/false", "agy_executable": "/bin/false"}` so no real binary is resolved; a `fake_popen` that PASSES `git` and `sys.executable` THROUGH to the real `subprocess.Popen` and raises `RuntimeError("stop-before-launch")` otherwise; restoring `subprocess.Popen` in a `finally`; and an `item` of `{"id6","setid","position","action"}`. THE ONE EDIT IS TO REMOVE ITS `(run_dir / "sessions").mkdir(parents=True)` LINE, which is exactly the workaround this plan makes unnecessary, so the test's own diff from the template evidences the fix. Assert that the surfaced outcome is the sentinel (or any non-`FileNotFoundError`) AND that `<run_dir>/sessions/` exists afterwards. Do NOT assert the sentinel is the ONLY acceptable outcome: a later launch-path change could legitimately fail earlier for an unrelated reason, and the property under test is the absence of `FileNotFoundError` on the log path.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the new module passes; each of its launch-path tests demonstrably FAILS against the unpatched code (verify by reverting the one-line change locally, observing the failure, and restoring it), which is what proves the test exercises the fix rather than passing vacuously. Review pre-verified this asymmetry for the oc side (`FileNotFoundError` before, sentinel after), so a test that passes in BOTH states is wrong and must be fixed rather than accepted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,25 +160,115 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a transcript that calls `runner_shared.write_prompt` on a FRESH `tempfile.mkdtemp()` directory containing no subdirectories, showing (a) the returned path, (b) that the file exists and its content round-trips, and (c) that `<run_dir>/prompts/` now exists. Then paste the SAME call run against the reverted code showing `FileNotFoundError`, which is the negative control proving the change is what fixed it. Finally paste the `N passed` line from `python3 -m pytest tests/test_runner_shared.py tests/test_oc_runipd.py` showing no existing caller needed an edit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified write_prompt creates prompts/ and content round-trips; negative control fails with FileNotFoundError; existing suite green (313 passed in 25.10s).
+    (1) Fresh bare tempfile run_dir with fix applied:
+    ```
+    >>> temp_dir = pathlib.Path(tempfile.mkdtemp())
+    >>> item = {"position": 1, "id6": "abc123", "action": "exec"}
+    >>> returned_path = runner_shared.write_prompt(temp_dir, item, "hi", 1)
+    >>> print(f"returned_path: {returned_path}")
+    returned_path: /tmp/tmpn1kqde56/prompts/01-abc123-exec-attempt-1.md
+    >>> print(f"file exists: {returned_path.exists()}")
+    file exists: True
+    >>> print(f"content: {returned_path.read_text(encoding='utf-8')}")
+    content: hi
+    >>> print(f"prompts/ exists: {(temp_dir / 'prompts').exists()}")
+    prompts/ exists: True
+    ```
+    (2) Negative control pre-fix / reverted code:
+    ```
+    NEGATIVE CONTROL PRE-FIX: FileNotFoundError raised: [Errno 2] No such file or directory: '/tmp/tmpe5enhy3g/prompts/01-abc123-exec-attempt-1.md'
+    ```
+    (3) Existing caller suite green:
+    ```
+    313 passed in 25.10s
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste evidence that `oc_runipd.run_opencode` on a run directory with NO `sessions/` no longer dies on the log open. Acceptable form: the E-04(d) test output, plus a transcript showing the exception that surfaces is the patched-launch sentinel (or any non-`FileNotFoundError` outcome) rather than `FileNotFoundError` on the log path, AND that `<run_dir>/sessions/` exists afterwards. Also quote the resulting source region to show the mkdir sits at the `log_path = attempt_log_path(...)` assignment and that the multi-manager `with` header entering `turn_telemetry` alongside `log_path.open("w", ...)` is UNCHANGED (a diff of that header showing zero lines changed is sufficient).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: run_opencode reaches launch and creates sessions/ on a bare run directory; negative control raises FileNotFoundError; with header unchanged.
+    (1) E-04(d) test output:
+    `tests/test_run_dir_parents_are_guaranteed.py::RunDirParentsGuaranteedByWritersTests::test_oc_run_opencode_guarantees_sessions_dir PASSED`
+    (2) Transcript showing launch sentinel rather than FileNotFoundError and sessions/ existing:
+    ```
+    OC POST-FIX exception: RuntimeError: stop-before-launch
+    sessions/ exists: True
+    ```
+    Negative control (reverted mkdir):
+    ```
+    AssertionError: FileNotFoundError(2, 'No such file or directory') is an instance of <class 'FileNotFoundError'> : run_opencode raised FileNotFoundError on missing sessions parent: [Errno 2] No such file or directory: '/tmp/tmplcuoljyy/run/sessions/01-probe1-attempt-1.jsonl'
+    ```
+    (3) Source region in `agent_workflows/oc_runipd.py`:
+    ```python
+        verbosity = int(options.get("verbosity") or 0)
+        pal = Palette(should_color(sys.stdout))
+        log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+    ```
+    The multi-manager `with` header entering `turn_telemetry` and `log_path.open("w", ...)` is unchanged:
+    ```python
+        with (
+            turn_telemetry(
+                run_dir,
+                telemetry_identity,
+                repo=state.get("repo"),
+                extra_context={"model": options.get(model_key)},
+            ),
+            log_path.open("w", encoding="utf-8") as log,
+        ):
+    ```
+    `git diff agent_workflows/oc_runipd.py` confirms only `log_path.parent.mkdir(parents=True, exist_ok=True)` was added.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the agy-side equivalent of V-02: the E-04(e) test output showing `run_agy_turn` reaching the launch attempt on a bare run directory with `sessions/` created afterwards, plus the `N passed` line from `python3 -m pytest tests/test_agy_runipd_cli.py tests/test_runner_shared.py`. State explicitly that BOTH hosts now carry the fix, since fixing only one is the named failure mode in the negative fence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: run_agy_turn reaches launch and creates sessions/ on a bare run directory; negative control raises FileNotFoundError; both hosts fixed; suite green (191 passed in 10.96s).
+    (1) E-04(e) test output:
+    `tests/test_run_dir_parents_are_guaranteed.py::RunDirParentsGuaranteedByWritersTests::test_agy_run_agy_turn_guarantees_sessions_dir PASSED`
+    (2) Transcript showing launch sentinel rather than FileNotFoundError and sessions/ existing:
+    ```
+    AGY POST-FIX exception: RuntimeError: stop-before-launch
+    sessions/ exists: True
+    ```
+    Negative control (reverted mkdir):
+    ```
+    AssertionError: FileNotFoundError(2, 'No such file or directory') is an instance of <class 'FileNotFoundError'> : run_agy_turn raised FileNotFoundError on missing sessions parent: [Errno 2] No such file or directory: '/tmp/tmpk3o15bf6/run/sessions/01-probe1-attempt-1.jsonl'
+    ```
+    (3) Host test suite green:
+    ```
+    191 passed in 10.96s
+    ```
+    BOTH hosts (`oc_runipd.py` and `agy_runipd.py`) now carry the identical `log_path.parent.mkdir(parents=True, exist_ok=True)` fix immediately after `log_path = attempt_log_path(...)`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the full `python3 -m pytest tests/test_run_dir_parents_are_guaranteed.py` output including the `N passed` line and the count of tests, and paste the BARE `python3 -m pytest` summary line showing zero failures and a total no lower than the F-10 baseline of `3246 passed, 2 skipped` plus the new module's count. Separately paste the (c) purity result: the assertion that `attempt_log_path` created NOTHING, i.e. `(run_dir / "sessions").exists()` is False after calling it. Confirm by quoting the new module that it contains NO `import inspect`, NO `import ast`, and no regex or substring search over `agent_workflows/` source, and that its launch-path tests patch `subprocess.Popen` rather than executing an agent binary. Finally paste `aw sanitize --agent` showing no new findings.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 5 passed in tests/test_run_dir_parents_are_guaranteed.py; bare suite 4441 passed; attempt_log_path purity verified; no AST/inspect; sanitizer clean.
+    (1) Full pytest output for `tests/test_run_dir_parents_are_guaranteed.py`:
+    ```
+    .....                                                                    [100%]
+    5 passed in 9.36s
+    ```
+    (2) Bare pytest summary line (4441 passed exceeds baseline of 3246):
+    ```
+    4441 passed, 2 skipped, 3 warnings in 267.81s (0:04:27)
+    ```
+    (3) Purity result for `attempt_log_path`:
+    ```
+    >>> log_path = runner_shared.attempt_log_path(run_dir, item, 1)
+    >>> print(f"log_path: {log_path.name}, sessions/ exists: {(run_dir / 'sessions').exists()}")
+    log_path: 01-probe1-attempt-1.jsonl, sessions/ exists: False
+    ```
+    (4) Structural independence confirmation:
+    `tests/test_run_dir_parents_are_guaranteed.py` contains NO `import inspect`, NO `import ast`, and no regex/substring search over `agent_workflows/`. Both `test_oc_run_opencode_guarantees_sessions_dir` and `test_agy_run_agy_turn_guarantees_sessions_dir` patch `subprocess.Popen = fake_popen` within a try/finally block rather than executing an agent binary.
+    (5) Sanitizer output:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
