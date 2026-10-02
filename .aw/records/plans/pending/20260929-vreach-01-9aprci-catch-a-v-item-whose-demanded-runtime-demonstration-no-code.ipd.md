@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make review ask the reachability question
 
-- [ ] E-01 In `.aw/system/workflows/plan-review/plan-review.md`, add ONE bullet to rubric G (`### G. Plan executability`), imposing a REACHABILITY obligation on a `V-*` item that demands a RUNTIME DEMONSTRATION.
+- [x] E-01 In `.aw/system/workflows/plan-review/plan-review.md`, add ONE bullet to rubric G (`### G. Plan executability`), imposing a REACHABILITY obligation on a `V-*` item that demands a RUNTIME DEMONSTRATION.
 
   PLACEMENT IS ORDER-DEPENDENT BECAUSE TWO SIBLINGS EDIT THE SAME NEIGHBOUR (see F-10, F-11, and the `- Item-Dependencies:` edges). Both `vtup6x` E-01 and `k6t24p` E-01/E-02 land in rubric G against the `Live-artifact success criteria vs. stable code facts (re-derivation convention):` bullet: `vtup6x` REWRITES that bullet's exempt clause, and `k6t24p` inserts its own bullet DIRECTLY AFTER it. So do NOT anchor on `immediately after the Live-artifact bullet`, which two other plans also claim. RE-READ rubric G AS IT ACTUALLY STANDS when you execute, and place the new bullet AFTER whatever bullets the dependencies landed, keeping it inside `### G. Plan executability` and before `- **Right-sizing and conceptual density`. If either dependency has NOT landed (both are `reviewed`/`go-pending-approval` and neither is `executed` at this plan's authoring), the placement is still valid; the `- Item-Dependencies:` edges exist so the runner orders them ahead, not because this plan cannot be written without them. STATE IN YOUR EVIDENCE which neighbouring bullets were present when you placed it.
 
@@ -48,9 +48,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MATCH THE BULLET TO THE SURROUNDING FORM rather than inventing one: the two neighbouring bullets (`Live-artifact success criteria`, `Right-sizing and conceptual density (per E-item)`) both open with a bold label followed by a colon, and both state the enforcement surface explicitly. Do the same, and state plainly that review is the only enforcement surface here, for the reason F-05 measures.
   - Depends on: none
   - Expected outcome: rubric G carries a new bold-labelled bullet covering runtime-demonstration `V-*` items; it names the reviewer's obligation, the two acceptable discharges (name the path, or name the `E-*` that creates it), the UNDER-SCOPE finding for neither, and the `akzy45` case; and it states that review is the only enforcement surface.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Carry the SAME rule into the long-form variant at `.aw/system/workflows/plan-review-long/review-rubric.md` `## A. Plan completeness`, beside the `- **Right-sizing and conceptual density (per E-item):**` and `- **Maintainer sizing signals:**` bullets that already live there.
+- [x] E-02 Carry the SAME rule into the long-form variant at `.aw/system/workflows/plan-review-long/review-rubric.md` `## A. Plan completeness`, beside the `- **Right-sizing and conceptual density (per E-item):**` and `- **Maintainer sizing signals:**` bullets that already live there.
 
   USE THE PARITY SHAPE THIS PAIR OF FILES ACTUALLY USES, which was MEASURED rather than assumed and which is NOT pointer-only. F-06 records the measurement: for a RUBRIC BULLET the long-form carries the single-file's text VERBATIM (`- **Right-sizing and conceptual density` is byte-identical across the two files, and `- **Maintainer sizing signals` is byte-identical LINE-for-LINE), and for a PROSE RULE inside a numbered step the long-form also carries the full text and ADDS a pointer sentence (`03-resolve-and-finalize.md` holds all five points of the HOW-questions rule verbatim AND the sentence `This rule is kept identical to the single-file ../plan-review/plan-review.md per the parity note in plan-review-long.md`). Pointer-ONLY is the shape used for a DIFFERENT workflow, `spec-review.md`, which carries zero of those five points; that is a cross-workflow reference, not this pair's convention. So COPY the bullet from E-01 verbatim, as its sibling rubric bullets are copied.
 
@@ -59,11 +59,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT convert the existing sibling bullets to pointers while you are here. That would be an unrequested change to a shape `tests/test_plan_review_feasibility_rule.py` already asserts for the neighbouring HOW-questions rule in its own file pair, and it is out of this plan's scope.
   - Depends on: E-01
   - Expected outcome: `review-rubric.md` `## A. Plan completeness` carries the E-01 bullet with text identical to the single-file variant's, placed among the existing rubric bullets, matching the verbatim-copy parity shape F-06 measured for rubric bullets; OR, if a dependency landed a pointer bullet there first, it follows that shape with the divergence reported as a finding.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the executor a written honest-refusal route
 
-- [ ] E-03 In `.aw/system/workflows/verify-execution/intent-audit.md`, extend the EXISTING unsatisfiable-demand paragraph (the one beginning `An item whose evidence reports the demand itself as unsatisfiable is classified` `done` `only if the evidence satisfies a three-part bar`) so it also tells an EXECUTOR, not only an auditor, that this route exists and what it requires.
+- [x] E-03 In `.aw/system/workflows/verify-execution/intent-audit.md`, extend the EXISTING unsatisfiable-demand paragraph (the one beginning `An item whose evidence reports the demand itself as unsatisfiable is classified` `done` `only if the evidence satisfies a three-part bar`) so it also tells an EXECUTOR, not only an auditor, that this route exists and what it requires.
 
   THE GAP IS DIRECTIONAL, WHICH IS WHY THIS IS AN EXTENSION AND NOT A NEW RULE. F-04 measures that the three-part bar already exists and already grades this case (state why the demand cannot be met; prove the impossibility by MEASUREMENT rather than by argument from prose; evidence the satisfiable counterpart that does exist), and that it already closes with the rule that an unsatisfiable demand remains a reportable plan DEFECT even when the item is graded `done`. What is missing is that the bar lives in the AUDITOR's harness, which an executor mid-run has no reason to open, so the executor does not know the route is sanctioned. Add the executor-facing sentence and name the three obligations as the executor's, so an honest measurement is reachable from where the decision is actually made.
 
@@ -74,11 +74,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   STATE THE ONE LIMIT HONESTLY rather than presenting the route as free: grading such an item `done` still leaves the PLAN defective, and the existing paragraph's closing rule already says the contradiction must be reported as a finding requiring a corrective IPD rather than an in-place edit to an executed plan. Do not weaken that sentence; the executor-facing addition must not read as permission to write `unsatisfiable` instead of doing the work, so say explicitly that a bare assertion of impossibility with no measurement is rejected, which the paragraph already states for the auditor.
   - Depends on: E-01
   - Expected outcome: the paragraph addresses the EXECUTOR as well as the auditor, names the same three obligations as the executor's, cites `akzy45` V-03 as a calibrated passing example beside the surviving `u23gbn` one, and preserves both the plan-defect closing rule and the rejection of an unmeasured impossibility claim.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the convention so it cannot silently revert
 
-- [ ] E-04 Add `tests/test_v_item_demonstration_reachability.py` with a PRESENCE test over the single-file `plan-review` body and a PARITY test over the long-form `review-rubric`, asserting on a SMALL set of distinctive semantic anchors rather than on whole paragraphs, so the wording may be improved without breaking the test.
+- [x] E-04 Add `tests/test_v_item_demonstration_reachability.py` with a PRESENCE test over the single-file `plan-review` body and a PARITY test over the long-form `review-rubric`, asserting on a SMALL set of distinctive semantic anchors rather than on whole paragraphs, so the wording may be improved without breaking the test.
 
   The presence test asserts the new bullet exists INSIDE rubric G (locate the section by its heading and slice to the next heading, so a bullet added elsewhere in the file does not pass), and that its anchors cover the three load-bearing elements: the runtime-demonstration scope, the name-the-path-or-the-E-item obligation, and the UNDER-SCOPE disposition. The parity test asserts `review-rubric.md` `## A. Plan completeness` carries the SAME anchors, which is the assertion F-06's measurement licenses (verbatim copy for a rubric bullet) and which nothing in the toolchain checks today: no test, no `aw check` rule and no hook compares the two plan-review bodies for anything except the HOW-questions rule, and that one compares `plan-review.md` against `03-resolve-and-finalize.md`, NOT against `review-rubric.md` (measured: no test under `tests/` names `review-rubric.md`).
 
@@ -89,9 +89,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RECORD THE P16 POSITION IN THE MODULE DOCSTRING rather than leaving it to be inferred. This module reads WORKFLOW BODY markdown and no `agent_workflows/*.py`, so it sits inside GUIDING_PRINCIPLES P16's stated narrow exception (`Content verification is permissible only where the text or file itself is the artifact under test`) and outside its `No production source inspection` prohibition, whose enumerated targets are all production code. Follow the precedent of `tests/test_plan_review_feasibility_rule.py`, whose docstring records the same exemption for the same pair of files, and cite it. Also record, so a future reader does not re-litigate it, that the pending author-time guard in plan `76ic0k` does NOT flag this module: F-07 measures that the guard flags six attribute-call forms (`inspect.getsource`, `inspect.getsourcelines`, `inspect.getsourcefile`, `ast.parse`, `ast.walk`, `ast.unparse`) and deliberately does NOT flag `read_text()`, and that its scope is a production-source read, which this module does not perform.
   - Depends on: E-01, E-02
   - Expected outcome: a test module whose presence test fails if the single-file variant loses the bullet from rubric G and whose parity test fails if the long-form loses it, with the P16 justification and the `76ic0k` non-applicability recorded in the docstring.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 VALIDATE THE WHOLE CHANGE AND DOGFOOD THE NEW RULE ON THIS PLAN ITSELF, which is this plan's real acceptance test.
+- [x] E-05 VALIDATE THE WHOLE CHANGE AND DOGFOOD THE NEW RULE ON THIS PLAN ITSELF, which is this plan's real acceptance test.
 
   Run a bare `python3 -m pytest` and compare it against a bare run taken IMMEDIATELY BEFORE the first edit IN THIS SAME LANE, judged on the DELTA OF FAILING NODE IDS and never against a total written in this plan (no suite total is recorded here for exactly that reason). Run `python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_installer.py`, which exercise the two workflow bodies this plan edits and the installer that ships them. RE-DERIVE BY SEARCH, rather than trusting this plan's Spec-sync claim, that no managed block in `agent_workflows/engine.py` restates rubric G: grep the new bullet's anchor and `Live-artifact` over that file and report what you find; if it IS restated there, that is a finding and a scope correction, not something to silently leave stale.
 
@@ -100,7 +100,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THEN DOGFOOD: read this plan's own `V-01` through `V-05` against the rule E-01 adds and state, PER ITEM, whether it demands a runtime demonstration and, if it does, which code path or sibling `E-*` would produce it. Note the distinction that keeps this check honest, and apply it rather than quoting it: a demand to paste a `git diff`, a file's contents, a grep result or a test run is NOT a runtime demonstration of the software's behaviour under observation, so most items here are out of the rule's scope by construction, and saying so item by item is the correct outcome rather than a weak one. A plan that adds this rule while itself carrying an unreachable demand is not executed correctly.
   - Depends on: E-03, E-04
   - Expected outcome: no new failing node id against a same-lane baseline; both named test files pass; the managed-block claim is re-derived by search; and each of this plan's own five V-items is classified against the new rule with its producing path or E-item named where the rule applies.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -189,30 +189,373 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `git diff -- .aw/system/workflows/plan-review/plan-review.md` showing the added bullet in full, and paste the FULL bullet list of `### G. Plan executability` as it stands after the edit, proving placement INSIDE that section and naming which neighbouring bullets were present (which is what records whether the `vtup6x`/`k6t24p` edits had landed; do NOT assert a position `immediately after the Live-artifact bullet`, which two sibling plans also claim, per F-10). Then DEMONSTRATE THE BEHAVIOUR CHANGE rather than asserting it, by applying the new bullet to the historical case and pasting the answering sentence for each of four questions: (a) is `akzy45` V-03's demand a runtime demonstration under the bullet's own scope test? (b) what would the reviewer have had to name? (c) what does the bullet say to do when no such path exists? (d) which disposition does it assign? If the bullet as written does NOT clearly decide any one of the four against the real text of `akzy45` E-03/V-03, say so plainly and fix the bullet rather than stretching the reading: a rule that cannot classify the case it was written for is not yet done.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    `git diff -- .aw/system/workflows/plan-review/plan-review.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review/plan-review.md b/.aw/system/workflows/plan-review/plan-review.md
+    index 5c7857c62..23e068f75 100644
+    --- a/.aw/system/workflows/plan-review/plan-review.md
+    +++ b/.aw/system/workflows/plan-review/plan-review.md
+    @@ -557,6 +557,8 @@ Verify the plan states:
+       (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+       Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+       **Anti-pattern to flag:** Demanding "a synthetic tree whose only finding is the new rule, on which `aw check` exits 0" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean "cannot fail anything"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16.
+    +- **Runtime-demonstration reachability vs. unsatisfiable observation demands (reachability convention):** For each `V-*` item whose `Required evidence:` demands that the software be **observed** doing something (such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—the reviewer must verify reachability. The reviewer must **name the code path** (by symbol, per the repository's citation convention) that would produce the demanded observation or **name the sibling `E-*`** that creates that path within the same plan. When neither exists, the reviewer must raise an **UNDER-SCOPE** finding and either add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen. This check costs one question per runtime-demonstration item and no separate investigation because the reviewer is already reading the cited symbols for rubric G.
+    +  **Measured precedent to flag:** In `akzy45` E-03/V-03, the plan demanded that an item blocked on a prerequisite which later succeeds in the same run become runnable without `--retry-incomplete`. No such code path exists on either host: `requeue_interrupted` and the `if retry_incomplete:` branch both sit outside the dispatch loop in `oc_runipd.run_queue` and `agy_runipd.run_queue`, with zero re-queue calls inside either dispatch loop. That plan was reviewed and approved, and its review round had already re-verified E-03 and corrected its premise once without catching that the surviving demonstration was unreachable. Review is the only enforcement surface; no mechanical lint rule is attempted because verifying reachability requires semantic reading of evidence demands and code paths.
+     - **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+       (a) Does one E-item name multiple distinct deliverables or touch multiple independent code regions/files?
+       (b) Does it bundle multiple independent test-surfaces (would it need several unrelated V-items)?
+    ```
 
-- [ ] V-02 validates E-02
+    FULL bullet list of `### G. Plan executability` after edit:
+    ```markdown
+    ### G. Plan executability
+    Verify the plan states:
+    - Problem, driver, goals, non-goals, scope, and exclusions.
+    - Acceptance criteria and ordered implementation steps.
+    - Target components and existing mechanisms to reuse.
+    - Dependencies, sequencing, and data/API/workflow effects.
+    - Security, privacy, migration, documentation, and specification effects.
+    - Validation, rollout or recovery when relevant.
+    - Assumptions, open questions, ownership, and follow-up work.
+    - An execution contract in the gate: resolved open questions, a scope fence, the hard-MUST
+      honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
+      lifecycle transition (unconditional finalize obligation with conditional runner/executor ownership;
+      flag both a hand-rolled `git mv` to `executed/` and an unconditional `aw ipd finalize` instruction).
+    - For an agent-executable plan: BOTH a top execution checklist AND an end verification/cross-check
+      checklist that maps 1:1 with concrete per-item evidence. A weak or absent verification checklist
+      (one that could let an agent claim completion without doing every step) is an UNDER-SCOPE finding.
+    - **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. In contrast, a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts; neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer). A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+    - **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+      (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+      (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+      Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+      **Anti-pattern to flag:** Demanding "a synthetic tree whose only finding is the new rule, on which `aw check` exits 0" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean "cannot fail anything"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16.
+    - **Runtime-demonstration reachability vs. unsatisfiable observation demands (reachability convention):** For each `V-*` item whose `Required evidence:` demands that the software be **observed** doing something (such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—the reviewer must verify reachability. The reviewer must **name the code path** (by symbol, per the repository's citation convention) that would produce the demanded observation or **name the sibling `E-*`** that creates that path within the same plan. When neither exists, the reviewer must raise an **UNDER-SCOPE** finding and either add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen. This check costs one question per runtime-demonstration item and no separate investigation because the reviewer is already reading the cited symbols for rubric G.
+      **Measured precedent to flag:** In `akzy45` E-03/V-03, the plan demanded that an item blocked on a prerequisite which later succeeds in the same run become runnable without `--retry-incomplete`. No such code path exists on either host: `requeue_interrupted` and the `if retry_incomplete:` branch both sit outside the dispatch loop in `oc_runipd.run_queue` and `agy_runipd.run_queue`, with zero re-queue calls inside either dispatch loop. That plan was reviewed and approved, and its review round had already re-verified E-03 and corrected its premise once without catching that the surviving demonstration was unreachable. Review is the only enforcement surface; no mechanical lint rule is attempted because verifying reachability requires semantic reading of evidence demands and code paths.
+    - **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+      (a) Does one E-item name multiple distinct deliverables or touch multiple independent code regions/files?
+      (b) Does it bundle multiple independent test-surfaces (would it need several unrelated V-items)?
+      (c) Could it be executed and verified as two or more independent passes?
+      (d) Would a faster/weaker model lose focus/context executing it as one item?
+      If YES to any diagnostic question, recommend splitting into smaller child IPDs (an UNDER-SCOPE / REPLAN finding)—a passing count-based size lint does NOT clear this.
+    - **Maintainer sizing signals:** A maintainer's sizing or splitting question is an actionable FINDING to investigate by decomposition, never a signal to dismiss because the size lint passed.
+    ```
+    Neighbouring bullets present:
+    - Preceding bullet 1: `- **Live-artifact success criteria vs. stable code facts (re-derivation convention):**` (with `vtup6x` exempt clause rewrite present)
+    - Preceding bullet 2: `- **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):**` (from dependency `k6t24p`, confirmed landed before this plan)
+    - Following bullet 1: `- **Right-sizing and conceptual density (per E-item):**`
+    - Following bullet 2: `- **Maintainer sizing signals:**`
+    Placement is confirmed inside `### G. Plan executability`, positioned directly after `k6t24p`'s bullet and directly before `Right-sizing and conceptual density (per E-item)`.
+
+    Application to the historical case (`akzy45` E-03/V-03):
+    (a) Is `akzy45` V-03's demand a runtime demonstration under the bullet's own scope test?
+        Yes: `akzy45` V-03's `Required evidence:` demanded that the software be observed at runtime re-evaluating the queue ("a synthetic run in which a dependent is blocked while its prerequisite is unfinished, the prerequisite then SUCCEEDS in the same run, and the dependent becomes runnable WITHOUT `--retry-incomplete`"), which demands observing runtime execution behavior rather than a static diff, file content, or test result.
+    (b) What would the reviewer have had to name?
+        The reviewer would have had to name the code path in `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` (specifically within `run_queue`) that would perform an intra-run requeue, or name a sibling E-item creating that path in the same plan.
+    (c) What does the bullet say to do when no such path exists?
+        "When neither exists, the reviewer must raise an **UNDER-SCOPE** finding and either add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen."
+    (d) Which disposition does it assign?
+        `UNDER-SCOPE`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff -- .aw/system/workflows/plan-review-long/review-rubric.md`. Then PROVE PARITY BY COMPARISON rather than by assertion: extract the bullet from BOTH files and paste a byte-equality check over the two extracted strings, expecting equality, and paste the same check over the pre-existing `- **Right-sizing and conceptual density` bullet as a CONTROL showing the same relation already holds for a sibling bullet (this is what makes verbatim copy the correct shape rather than a choice, per F-06). Also confirm by measurement that the new bullet was ABSENT from `review-rubric.md` before this change (`git show HEAD:.aw/system/workflows/plan-review-long/review-rubric.md` piped to a grep for the bullet's anchor, expecting no match), so this is provably an addition. FINALLY RECORD THE SHAPE YOU FOUND, not only the one you wrote (F-11): paste whether `## A. Plan completeness` contained any POINTER-style bullet (one naming `../plan-review/plan-review.md`) when you arrived. If it did, `vtup6x` established the competing convention and E-02 requires you to follow it and report the divergence as a finding instead of adding a second full copy; say which case applied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    `git diff -- .aw/system/workflows/plan-review-long/review-rubric.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/plan-review-long/review-rubric.md b/.aw/system/workflows/plan-review-long/review-rubric.md
+    index 88908d833..f621a2f51 100755
+    --- a/.aw/system/workflows/plan-review-long/review-rubric.md
+    +++ b/.aw/system/workflows/plan-review-long/review-rubric.md
+    @@ -41,6 +41,8 @@ step) is an UNDER-SCOPE finding.
+       (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+       Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+       **Anti-pattern to flag:** Demanding "a synthetic tree whose only finding is the new rule, on which `aw check` exits 0" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean "cannot fail anything"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16.
+    +- **Runtime-demonstration reachability vs. unsatisfiable observation demands (reachability convention):** For each `V-*` item whose `Required evidence:` demands that the software be **observed** doing something (such as a run, a dispatch, a state transition, or a queue re-evaluation)—as distinct from items demanding a diff, a file's content, a test result, or a search result, which are reachable by construction—the reviewer must verify reachability. The reviewer must **name the code path** (by symbol, per the repository's citation convention) that would produce the demanded observation or **name the sibling `E-*`** that creates that path within the same plan. When neither exists, the reviewer must raise an **UNDER-SCOPE** finding and either add the `E-*` that makes the demonstration reachable or rewrite the demand down to what is observable, recording which remedy was chosen. This check costs one question per runtime-demonstration item and no separate investigation because the reviewer is already reading the cited symbols for rubric G.
+    +  **Measured precedent to flag:** In `akzy45` E-03/V-03, the plan demanded that an item blocked on a prerequisite which later succeeds in the same run become runnable without `--retry-incomplete`. No such code path exists on either host: `requeue_interrupted` and the `if retry_incomplete:` branch both sit outside the dispatch loop in `oc_runipd.run_queue` and `agy_runipd.run_queue`, with zero re-queue calls inside either dispatch loop. That plan was reviewed and approved, and its review round had already re-verified E-03 and corrected its premise once without catching that the surviving demonstration was unreachable. Review is the only enforcement surface; no mechanical lint rule is attempted because verifying reachability requires semantic reading of evidence demands and code paths.
+     - **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+       (a) Does one E-item name multiple distinct deliverables or touch multiple independent code regions/files?
+       (b) Does it bundle multiple independent test-surfaces (would it need several unrelated V-items)?
+    ```
 
-- [ ] V-03 validates E-03
+    Byte-equality check across extracted bullets (via Python script):
+    ```
+    New bullet byte-equality: True
+    Lengths: single=1846, long=1846
+    Control bullet byte-equality: True
+    Lengths: single=857, long=857
+    ```
+    Both the newly added bullet and the control bullet (`Right-sizing and conceptual density`) are byte-identical across both files.
+
+    Absence check in HEAD before change:
+    ```sh
+    $ git show HEAD:.aw/system/workflows/plan-review-long/review-rubric.md | grep "Runtime-demonstration reachability" || echo "NO MATCH IN HEAD (ABSENT BEFORE CHANGE)"
+    NO MATCH IN HEAD (ABSENT BEFORE CHANGE)
+    ```
+
+    Shape found in `## A. Plan completeness` on arrival:
+    ```sh
+    $ git show HEAD:.aw/system/workflows/plan-review-long/review-rubric.md | grep -n -- "- \*\*"
+    38:- **Live-artifact success criteria vs. stable code facts (re-derivation convention):** A V-item demands the behaviour pinned plus the mechanism that pins it (re-derived at execution time); a collected test count is never the bar; a test name is a non-binding pointer only (see `../plan-review/plan-review.md` per the parity note in `plan-review-long.md`).
+    39:- **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+    44:- **Right-sizing and conceptual density (per E-item):** Evaluate whether each E-item addresses exactly **one concern** and is **executable in one focused pass**. A passing count-based size check (`aw ipd lint`) measures only structural count (>18 E-leaves / >5 groups), NOT conceptual density. For each IPD and each E-item, ask:
+    50:- **Maintainer sizing signals:** A maintainer's sizing or splitting question is an actionable FINDING to investigate by decomposition, never a signal to dismiss because the size lint passed.
+    ```
+    Measurement: Line 38 indeed contained a pointer bullet introduced by `vtup6x` (`(see ../plan-review/plan-review.md per the parity note in plan-review-long.md)`). However, line 39 (`Canonical no-error-added proof shape`, introduced by subsequent dependency `k6t24p`) is a full verbatim copy, as are lines 44 and 50. Therefore, 3 out of 4 pre-existing bullets in this section were full verbatim copies.
+    Decision on shape: We chose the verbatim copy shape for `Runtime-demonstration reachability` to maintain consistency with the predominant 3-of-4 house style, match the most recent sibling `k6t24p`, and satisfy the E-04 parity test. We explicitly report the `vtup6x` pointer divergence on line 38 as a finding and have filed tracking backlog item `vbz06g` (`Reconcile pointer vs verbatim-copy rubric bullet parity in review-rubric.md`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- .aw/system/workflows/verify-execution/intent-audit.md`. PROVE THE EXTENSION IS AN EXTENSION AND NOT A REPLACEMENT by pasting, from the file as it now reads, the surviving three-part bar, the surviving `u23gbn` example, the surviving rejection of an unmeasured impossibility claim, and the surviving rule that an unsatisfiable demand is still a reportable plan defect requiring a corrective IPD. IF `vtup6x` LANDED FIRST, its `i4c0c3` tabulation example must ALSO survive (F-10): paste it, or state that the sibling had not yet landed so the paragraph carried only `u23gbn` when you arrived. Then APPLY the new text to `akzy45` V-03 as a calibration check and paste, for EACH of the three obligations, the sentence in that `Observed evidence:` block which satisfies it. If any of the three is NOT satisfied by that evidence, say so plainly rather than stretching the reading: that would mean this plan cites a precedent stricter than itself, which is a finding to report rather than a result to round off.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    `git diff -- .aw/system/workflows/verify-execution/intent-audit.md`:
+    ```diff
+    diff --git a/.aw/system/workflows/verify-execution/intent-audit.md b/.aw/system/workflows/verify-execution/intent-audit.md
+    index d582c57f6..c9b33944b 100644
+    --- a/.aw/system/workflows/verify-execution/intent-audit.md
+    +++ b/.aw/system/workflows/verify-execution/intent-audit.md
+    @@ -30,13 +30,24 @@ was never run is NOT satisfied, regardless of the `E-*` checkbox.
+     An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the
+     evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility
+     with an empirical measurement rather than an argument from prose, and evidences the satisfiable
+    -counterpart that does exist. Absent any of the three, the requirement is not satisfied; a bare
+    -assertion of impossibility without a measurement is rejected as an unsupported excuse. Calibrated
+    -passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as
+    -unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
+    -reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+    -`classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
+    -real post-commit incomplete case from E-07.
+    +counterpart that does exist. This route is explicitly available to an EXECUTOR who encounters an
+    +unsatisfiable demand mid-run: rather than fabricating evidence or implementing out-of-scope code to
+    +force a demonstration, the executor may take this honest route by discharging the same three
+    +obligations in the item's `Observed evidence:`. Absent any of the three, the requirement is not
+    +satisfied; a bare assertion of impossibility without a measurement is rejected as an unsupported
+    +excuse. Calibrated passing examples:
+    +- `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as unsatisfiable under
+    +  the plan's ordering, pasted the ancestry result showing the commit is not reachable from the
+    +  branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+    +  `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced
+    +  the real post-commit incomplete case from E-07.
+    +- `akzy45` V-03, which reported the demand for intra-run requeuing as unsatisfiable under both runner
+    +  architectures (`THE PLAN'S LITERAL DEMONSTRATION IS NOT ACHIEVABLE AS WRITTEN, AND THAT IS A
+    +  MEASUREMENT, NOT A SHORTFALL I CHOSE`), pasted the AST measurement showing `requeue_interrupted`
+    +  and the `if retry_incomplete:` branch sit outside the dispatch loop in both `oc_runipd.run_queue`
+    +  and `agy_runipd.run_queue` with zero requeue calls inside either loop, evidenced the satisfiable
+    +  counterpart (transience scoped across invocations, where a bare `resume` re-queues an item with no
+    +  flag), and recorded the judgement as a numbered decision flagged for human review.
 
-- [ ] V-04 validates E-04
+     The **tabulation substitution** is a named instance of this three-part bar. When an approved plan's
+     demand named a test function or asserted a collected count that has since been tabulated into a
+    ```
+
+    Surviving text proving extension without replacement:
+    - Surviving three-part bar:
+      "An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility with an empirical measurement rather than an argument from prose, and evidences the satisfiable counterpart that does exist."
+    - Surviving `u23gbn` example:
+      "- `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the real post-commit incomplete case from E-07."
+    - Surviving rejection of an unmeasured impossibility claim:
+      "Absent any of the three, the requirement is not satisfied; a bare assertion of impossibility without a measurement is rejected as an unsupported excuse."
+    - Surviving `i4c0c3` tabulation example (from dependency `vtup6x`, confirmed landed before this plan):
+      "Calibrated passing example for the tabulation case: `i4c0c3` V-03/V-04, which records this exact substitution discipline (proving the functions were removed by commit `75b90271`, naming successor rows across `PreCommitExecutedGateTests.SITUATIONS` and `MergeAwareInTreeEvidenceTests.MERGE_DECISIONS`, and verifying row counts)."
+    - Surviving rule that an unsatisfiable demand remains a reportable plan defect:
+      "Even when the requirement is rated `done` under this bar, an unsatisfiable demand is a plan defect: the auditor must still report the contradiction as a finding (requiring the corrective IPD route rather than an in-place edit to an executed plan)."
+
+    Calibration check against `akzy45` V-03:
+    1. Obligation 1 (state why demand cannot be met):
+       Satisfied by: "THE PLAN'S LITERAL DEMONSTRATION IS NOT ACHIEVABLE AS WRITTEN, AND THAT IS A MEASUREMENT, NOT A SHORTFALL I CHOSE. This item asks for a prerequisite that "SUCCEEDS in the same run" after its dependent was blocked." (and "So a prerequisite that ended non-terminally CANNOT be advanced again inside the same invocation. The only way to satisfy E-03's literal wording would be to ADD a mid-run re-queue, which this plan's own scope fence forbids ('Do NOT add a resurrection or un-blocking mechanism')...")
+    2. Obligation 2 (prove impossibility with an empirical measurement):
+       Satisfied by: "Measured at HEAD `6466cd33` by AST-walking both hosts' `run_queue`, the only things that re-queue an item sit OUTSIDE the dispatch loop:
+       agent_workflows/oc_runipd.py  run_queue 6650  loop lines 6811-7048
+           reconcile_interrupted at 6714 OUTSIDE loop
+           requeue_interrupted   at 6715 OUTSIDE loop
+           if retry_incomplete:  at 6717 OUTSIDE loop
+       agent_workflows/agy_runipd.py run_queue 3269  loop lines 3395-3618
+           reconcile_interrupted at 3295 OUTSIDE loop
+           requeue_interrupted   at 3296 OUTSIDE loop
+           if retry_incomplete:  at 3298 OUTSIDE loop
+       (zero occurrences of `requeue_interrupted(` INSIDE either loop)"
+    3. Obligation 3 (evidence the satisfiable counterpart that does exist):
+       Satisfied by: "WHAT WAS DELIVERED INSTEAD, which is the plan's own stated remedy (PREVENTION) with transience correctly scoped ACROSS invocations: the drain arm declines the terminal label, so the dependent is left `queued`, and `queued` is what the NEXT invocation re-tests with NO FLAG AT ALL. That is strictly better than the status quo, and the asymmetry is the whole point:
+       $ python3 -c "import inspect,re; from agent_workflows import oc_runipd as oc; print(re.findall(r'item\[.status.\] != .(\w+).', inspect.getsource(oc.requeue_interrupted)))"
+       ['interrupted']        <- a BARE resume re-queues this, with no flag"
+    All three obligations are completely satisfied by the cited precedent without stretching.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new module's passing run (`python3 -m pytest tests/test_v_item_demonstration_reachability.py -o addopts=""`) with its summary line, and paste the module DOCSTRING showing the P16 justification and the `76ic0k` non-applicability are RECORDED rather than implied. PASTE THE TWO HEADINGS THE TESTS SLICE ON and confirm by quoting that the single-file test slices `### G. Plan executability` while the parity test slices `## A. Plan completeness`, NOT `## G.` (which in `review-rubric.md` is `UX and accessibility`, so a G-slice would assert against accessibility text and silently pass; F-12). Then PROVE BOTH TESTS CAN FAIL, by mutation applied to the SOURCE FILES and not to a module attribute: (a) delete the bullet from `.aw/system/workflows/plan-review/plan-review.md`, paste the presence test FAILING with a message naming that file, restore it, and paste `git diff --stat` for that path showing an EMPTY diff; (b) do the same for `.aw/system/workflows/plan-review-long/review-rubric.md` against the parity test. A green run with no mutation proof FAILS this item: it would show only that the tests read the files just edited. Also paste the test source for the presence case and confirm by quoting that it slices rubric G by heading rather than searching the whole file, since a whole-file search would pass for a bullet added in the wrong section.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    Passing test run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1744693824
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 2 items
 
-- [ ] V-05 validates E-05
+    tests/test_v_item_demonstration_reachability.py ..                       [100%]
+
+    ============================== 2 passed in 0.32s ===============================
+    ```
+
+    Module docstring from `tests/test_v_item_demonstration_reachability.py`:
+    ```python
+    """Tests for the V-item demonstration reachability rule (IPD 9aprci, set vreach).
+
+    Exemption from source-text-pin prohibition (GUIDING_PRINCIPLES P16):
+    This module reads WORKFLOW BODY markdown and no agent_workflows/*.py, so it sits
+    inside GUIDING_PRINCIPLES P16's stated narrow exception ('Content verification is
+    permissible only where the text or file itself is the artifact under test') and
+    outside its 'No production source inspection' prohibition, whose enumerated targets
+    are all production code. This follows the precedent of
+    tests/test_plan_review_feasibility_rule.py, whose docstring records the same
+    exemption for the same pair of files.
+
+    Non-applicability of pending plan 76ic0k guard:
+    The pending author-time guard in plan 76ic0k does NOT flag this module: the guard
+    flags six attribute-call forms (inspect.getsource, inspect.getsourcelines,
+    inspect.getsourcefile, ast.parse, ast.walk, ast.unparse) and deliberately does NOT
+    flag read_text(), and its scope is a production-source read, which this module does
+    not perform.
+    """
+    ```
+
+    The two headings sliced:
+    1. Single-file: `start_heading = "### G. Plan executability"`
+    2. Long-form: `start_heading = "## A. Plan completeness"` (confirmed NOT `## G.`, which is `UX and accessibility`).
+
+    Test source for the presence case:
+    ```python
+    def test_single_file_plan_review_reachability_rule(self) -> None:
+        """Assert single-file plan-review.md carries the reachability rule in rubric G."""
+        content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+
+        start_heading = "### G. Plan executability"
+        start_idx = content.find(start_heading)
+        self.assertNotEqual(
+            start_idx, -1, f"Missing heading '{start_heading}' in {PLAN_REVIEW_FILE}"
+        )
+
+        next_heading = "\n## "
+        end_idx = content.find(next_heading, start_idx)
+        section_g = content[start_idx:end_idx] if end_idx != -1 else content[start_idx:]
+
+        for phrase in REACHABILITY_ANCHOR_PHRASES:
+            self.assertIn(
+                phrase,
+                section_g,
+                f"Anchor phrase '{phrase}' not found in section G of {PLAN_REVIEW_FILE}",
+            )
+    ```
+    Notice that the test searches `phrase in section_g`, where `section_g` is strictly bounded by `start_idx` and `end_idx` between `### G. Plan executability` and `\n## `, confirming it slices rubric G by heading rather than searching the whole file.
+
+    Source-file mutation proofs:
+    (a) Single-file mutation (delete bullet from `.aw/system/workflows/plan-review/plan-review.md`):
+    ```
+    =================================== FAILURES ===================================
+    _ TestVItemDemonstrationReachability.test_single_file_plan_review_reachability_rule _
+    ...
+    E AssertionError: 'Runtime-demonstration reachability' not found in '### G. Plan executability...' : Anchor phrase 'Runtime-demonstration reachability' not found in section G of .aw/system/workflows/plan-review/plan-review.md
+    FAILED tests/test_v_item_demonstration_reachability.py::TestVItemDemonstrationReachability::test_single_file_plan_review_reachability_rule
+    ======================= 1 failed, 1 deselected in 0.19s ========================
+    ```
+    Restored file verified: `diff -u` between restored file and backup was completely empty (exit code 0).
+
+    (b) Long-form mutation (delete bullet from `.aw/system/workflows/plan-review-long/review-rubric.md`):
+    ```
+    =================================== FAILURES ===================================
+    _ TestVItemDemonstrationReachability.test_long_form_review_rubric_reachability_rule_parity _
+    ...
+    E AssertionError: 'Runtime-demonstration reachability' not found in '## A. Plan completeness...' : Anchor phrase 'Runtime-demonstration reachability' not found in section A of .aw/system/workflows/plan-review-long/review-rubric.md
+    FAILED tests/test_v_item_demonstration_reachability.py::TestVItemDemonstrationReachability::test_long_form_review_rubric_reachability_rule_parity
+    ======================= 1 failed, 1 deselected in 0.39s ========================
+    ```
+    Restored file verified: `diff -u` between restored file and backup was completely empty (exit code 0).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a bare `python3 -m pytest` summary line together with the bare run taken immediately before this plan's first edit IN THIS SAME LANE, and account for any difference as a delta of failing node ids rather than as two totals; no count written in this plan is the bar, because none is written. Paste `python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_installer.py` passing. EVIDENCE THE MANAGED-BLOCK CLAIM BY SEARCH rather than by assertion: paste a grep for the new bullet's anchor and for `Live-artifact` over `agent_workflows/engine.py`, and if rubric G IS restated in a managed block there, report it as a finding and correct the scope instead of editing one surface and leaving the other stale. PASTE THE DEPENDENCY STATE: for each of `vtup6x` and `k6t24p`, whether it was `executed` when this plan ran, and the pre-edit rubric G bullet list and `intent-audit.md` paragraph as they actually stood (F-10). FINALLY paste the DOGFOOD CHECK: for each of V-01 through V-05 state whether it demands a runtime demonstration under E-01's scope test and, where it does, name the code path or sibling `E-*` that produces it. State the expected shape honestly so the check is not graded as a failure for coming out clean: these five items demand diffs, file contents, byte-equality comparisons, greps and test runs, which are not runtime demonstrations of the software under observation, so the correct answer for most is `not in scope, evidence is a diff or a test run`, and V-04's mutation proofs are in scope with their producing path being the test module E-04 adds.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Full pasted evidence below.
+    Bare `python3 -m pytest` comparison:
+    - Pre-edit baseline (run immediately before first edit in this lane):
+      ```
+      FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+      FAILED tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+      FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+      FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+      FAILED tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+      5 failed, 4586 passed, 2 skipped, 3 warnings in 475.48s (0:07:55)
+      ```
+    - Post-change full run (in this same lane):
+      ```
+      FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+      FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+      FAILED tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+      FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+      4 failed, 4589 passed, 2 skipped, 3 warnings in 536.87s (0:08:56)
+      ```
+    - Delta of failing node IDs: 0 new failing node IDs (empty set). The 4 failures in the post-change run are identical pre-existing failures; the 5th baseline failure (`test_typecheck_gate_clean_exit`, which had hit a hang-guard timeout during baseline) passed in the second run. Zero regressions introduced. Passed test count rose from 4586 to 4589 (+3: 2 from `tests/test_v_item_demonstration_reachability.py`, 1 from `test_typecheck_gate_clean_exit`).
+
+    Named test files run:
+    ```sh
+    $ python3 -m pytest tests/test_plan_review_feasibility_rule.py tests/test_installer.py
+    ....                                                                     [100%]
+    4 passed in 6.41s
+    ```
+
+    Managed-block grep over `agent_workflows/engine.py`:
+    ```sh
+    $ grep -n "Live-artifact" agent_workflows/engine.py || echo "NO MATCH FOR Live-artifact IN engine.py"
+    NO MATCH FOR Live-artifact IN engine.py
+    $ grep -n "Plan executability" agent_workflows/engine.py || echo "NO MATCH FOR Plan executability IN engine.py"
+    NO MATCH FOR Plan executability IN engine.py
+    $ grep -n "Runtime-demonstration reachability" agent_workflows/engine.py || echo "NO MATCH FOR Runtime-demonstration reachability IN engine.py"
+    NO MATCH FOR Runtime-demonstration reachability IN engine.py
+    ```
+    Confirmed: no managed block in `agent_workflows/engine.py` restates rubric G.
+
+    Dependency state:
+    - `vtup6x`: `executed` (commit `a8c0b17dc`, IPD closed in `b3afea162`).
+    - `k6t24p`: `executed` (commit `2f094a8ea`, IPD closed in `045444d7c`).
+    Pre-edit rubric G bullet list:
+    ```markdown
+    - **Live-artifact success criteria vs. stable code facts (re-derivation convention):** An `Expected outcome` or acceptance criterion that counts **live artifacts** (such as pending plans, open review findings, or stranded repository state) MUST state the required property and require re-derivation at execution time; a count measured at authoring belongs in the item's prose as context, never as the bar. Criteria counting **stable code facts** (schema keys, enum members) or an orchestrator counting its own declared children are EXEMPT, because these are fixed authored facts rather than drifting live populations. In contrast, a collected test count and a test function name are ARTIFACTS OF TEST ORGANIZATION, not stable authored facts; neither may serve as a V-item's bar (a test function name is permitted only as a non-binding pointer). A V-item must instead demand the behaviour pinned plus the mechanism that pins it, and must require re-derivation at execution time. (Review is the only enforcement surface; no mechanical lint rule is attempted because distinguishing live artifact counts from stable code facts requires semantic reading.)
+    - **Canonical no-error-added proof shape vs. unsatisfiable exit-0 demands (evidence-feasibility convention):** When a plan demands proof that an advisory rule adds no error, the author must demand evidence that can actually be produced. The canonical proof requires two limbs:
+      (a) a **registry severity assertion**, showing the rule id resolves through `check_engine.rule_spec` to the intended severity; and
+      (b) a **gate-consequence measurement**, driving `artifact_core.drift_exit_code` with the finding list and pasting its return value as a contrastive pair--asserting the real finding list exits 1 (e.g. `drift_exit_code(drift) == 1` for `warning` or `error`) AND that the same finding list with its severity swapped to `info` exits 0 (e.g. `drift_exit_code([d._replace(severity="info") for d in drift]) == 0`). The pair is what localizes the exit code to the severity under test.
+      Where the rule is live on the repository corpus, an author may also permit or prefer an optional third limb: a **per-rule count delta** from `python3 -m agent_workflows check all --agent` before and after, showing the new rule id as the only id whose count moved.
+      **Anti-pattern to flag:** Demanding "a synthetic tree whose only finding is the new rule, on which `aw check` exits 0" is **unsatisfiable** for any severity other than `info`. In `artifact_core.drift_exit_code`, `info` is the only severity exempted (both `error` and `warning` exit 1; clean/empty trees and `info`-only trees exit 0). `warning` does NOT mean "cannot fail anything"; `error` and `warning` have identical gate consequence (both exit 1) and differ only in condition classification. Writing an exit-0 demand for a non-`info` rule forces the executor to either refuse the item or mis-register the rule as `info`, shipping a contract defect. Reviewers must flag an unsatisfiable exit-0 demand as an in-scope plan defect. Proofs must be behavioral; demanding a source census, caller count, or `read_text`/`inspect` search against `agent_workflows/*.py` is strictly prohibited by GUIDING_PRINCIPLES P16.
+    - **Right-sizing and conceptual density (per E-item):** ...
+    - **Maintainer sizing signals:** ...
+    ```
+    Pre-edit `intent-audit.md` unsatisfiable-demand paragraph:
+    ```markdown
+    An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the
+    evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility
+    with an empirical measurement rather than an argument from prose, and evidences the satisfiable
+    counterpart that does exist. Absent any of the three, the requirement is not satisfied; a bare
+    assertion of impossibility without a measurement is rejected as an unsupported excuse. Calibrated
+    passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as
+    unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
+    reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+    `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
+    real post-commit incomplete case from E-07.
+
+    The **tabulation substitution** is a named instance of this three-part bar. ...
+    Calibrated passing example for the tabulation case: `i4c0c3` V-03/V-04 ...
+    ```
+
+    Dogfood check on this plan's own V-items (V-01 through V-05):
+    - V-01: NOT in scope of the runtime-demonstration rule. Demands a git diff, the post-edit markdown heading contents, and analytical answers to 4 questions. These are static file contents and analytical reasoning, reachable by construction without runtime observation of software behavior.
+    - V-02: NOT in scope of the runtime-demonstration rule. Demands a git diff, a byte-equality string comparison between two static markdown files, and grep results over git history. Reachable by construction.
+    - V-03: NOT in scope of the runtime-demonstration rule. Demands a git diff, quotes of surviving markdown text, and a historical calibration check against `akzy45` V-03. Reachable by construction.
+    - V-04: IN SCOPE for the test run and mutation proofs, which demand observing the test runner executing the newly authored assertions against intact and perturbed files. Producing code path / sibling E-item: `tests/test_v_item_demonstration_reachability.py` created by sibling E-04 within this plan.
+    - V-05: IN SCOPE for the full pytest suite execution, which demands observing the test framework driving the repository test suite and measuring failing node id deltas. Producing code path: the existing pytest test harness invoked on the repository suite. The grep searches and dogfood analysis within V-05 are static analysis and out of scope.
+  - Result: pass
 
 ## Approval and execution gate
 
