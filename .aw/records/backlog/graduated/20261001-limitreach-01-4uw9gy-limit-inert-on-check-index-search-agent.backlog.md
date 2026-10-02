@@ -1,5 +1,6 @@
 - Id: 4uw9gy
-- Status: open
+- Status: graduated
+- Graduated-To: limitreach
 - Blocks-Release: next
 - Set: limitreach
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw check, aw index and aw search accept --limit under --agent and ignore it, so three further documented token-control surfaces are inert
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 2zvxhx
 - 2026-10-01 created (aw backlog): aw check, aw index and aw search accept --limit under --agent and ignore it, so three further documented token-control surfaces are inert
 
 MEASURED 2026-10-01 at HEAD 74b301435 while authoring plan okiso1 from backlog item wdazvp.
