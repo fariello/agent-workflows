@@ -6,7 +6,7 @@
 - Scope: Reframe the small number of comment and docstring sites whose stated JUSTIFICATION for a mechanism is a hostile agent, so each states the honest mistake it actually catches. Two sites are confirmed at authoring (`ipd_lifecycle`'s sandbox pointer, `orchestrate_isolation`'s module docstring) and the executor re-derives the full list from Order 01's audit. EXCLUDES every HONEST-LIMIT DISCLAIMER that names a hostile agent in order to deny protecting against it, which is P15-compliant already and must be left alone. EXCLUDES all behavior: no predicate, refusal, exit code, message a user sees, or test outcome changes. EXCLUDES the driver-attestation comments deleted by backlog `dvonrn`, the `wtiso_gate` prose deleted by Order 02, and every dangling test citation.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/orchestrate_isolation.py
 - Item-Dependencies: executed:bec7ee, executed:38pxaz
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dmjp0u
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dmjp0u verified (set malgate, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete; 7 findings all fixed; the census family was corrected because the authored one could not reach one of the plan's own two named subjects, and both reviewer-owned open questions are resolved.
