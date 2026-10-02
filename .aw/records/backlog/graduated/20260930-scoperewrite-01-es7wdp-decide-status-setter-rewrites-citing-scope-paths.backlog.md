@@ -1,11 +1,13 @@
 - Id: es7wdp
-- Status: open
+- Status: graduated
+- Graduated-To: scoperewrite
 - Set: scoperewrite
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether a record status transition should rewrite citing Scope-Paths entries, removing the cause of stale scope targets instead of grading the symptom
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 5h3qyy
 - 2026-09-30 created (aw backlog): Decide whether a record status transition should rewrite citing Scope-Paths entries, removing the cause of stale scope targets instead of grading the symptom
 
 RAISED as OQ-01 of plan guti33 (Set 9xap30), which graduated backlog 9xap30 and implements the SYMPTOM half: it re-tiers a plain moved check.scope-path-target-stale finding to info so a routine status transition stops setting an exit code. THIS ITEM IS THE CAUSE half, which is backlog 9xap30's option (c) and is a maintainer decision rather than something the repository answers.
