@@ -6,7 +6,7 @@
 - Scope: Introduce verification retry accounting and a pure verification retry decision helper in runner_shared.py following the proven finalize_retry_decision / turn_retry_decision pattern; record WHICH verification refusal occurred at each verifier failure site and perform the remand ONCE, after the rescore and before the silent-turn / integration gates, through handle_verification_refusal, so retryable verification refusals are remanded back to the agent in its lane as queued with recovery_next=True until the retry budget is exhausted; render the verification refusal into the recovery prompt through a dedicated notice that survives lane isolation; add outcome tests in tests/test_verification_sendback.py; and amend spec 25kzda Section 5.5's class-to-surface table to name the new classification surface.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, tests/test_verification_sendback.py, tests/test_oc_runipd.py, tests/test_defect_report.py, tests/test_inlane_retirement_lands.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -18,9 +18,9 @@
 - Highest E allocated: 06
 - Author: antigravity
 - Id: t18l64
-- Approval: 2026-10-02, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: t18l64 verified (set verremand, attempt 2). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261002-6r7zmw-01-6r7zmw-reconcile-verifier-mocks-in-agy-and-stale-plan-pat.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_agy_runipd_cli.py: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope tests/test_finalize_stale_plan_path.py: changed by the plan's approved execution (auto-reconciled by aw agy run); in-scope-unmodified tests/test_defect_report.py: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified tests/test_inlane_retirement_lands.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-02 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (HIGH), PR-005..PR-008 (MEDIUM), PR-009 (LOW), all FIXED. Findings and five decision rows in .aw/records/reviews/20261001-verremand-01-t18l64-remand-verification-evidence-refusals-and-verification-failu.review.md.
 
