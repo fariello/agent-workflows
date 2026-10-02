@@ -9299,6 +9299,86 @@ def _orient(term: Term) -> None:
     _teach(term)
 
 
+def _sanitize_config_agent_value(obj: Any) -> Any:
+    from . import agent_schema
+
+    if isinstance(obj, str):
+        val = config._preserve_home(obj)
+        if agent_schema._HOME_PATH_RE.search(val):
+            val = agent_schema.normalize_repo_path(val)
+        return val
+    elif isinstance(obj, dict):
+        return {k: _sanitize_config_agent_value(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_config_agent_value(v) for v in obj]
+    return obj
+
+
+def _sanitize_config_agent_error_message(msg: str) -> str:
+    # Prefer omission of user-supplied token from refusal messages
+    msg = re.sub(r"Unknown config key '[^']*'", "Unknown config key", msg)
+    msg = re.sub(r"Unknown repos subkey '[^']*'", "Unknown repos subkey", msg)
+    msg = re.sub(r"Missing value for '[^']*'", "Missing value", msg)
+    # Sanitize any residual home path to <path>
+    msg = re.sub(r"(?:/home|/Users)/[^\s'\"]+", "<path>", msg)
+    return msg
+
+
+def _emit_config_agent_record(
+    cmd: str,
+    outcome: str,
+    exit_code: int,
+    verified: bool,
+    complete: bool,
+    kind: str = "result",
+    extra: Optional[Dict[str, Any]] = None,
+    args: Optional[argparse.Namespace] = None,
+) -> int:
+    from . import agent_schema
+
+    rec: Dict[str, Any] = {
+        "schema": agent_schema.SCHEMA_VERSION,
+        "kind": kind,
+        "cmd": cmd,
+        "outcome": outcome,
+        "exit": exit_code,
+        "verified": verified,
+        "complete": complete,
+    }
+    if extra:
+        rec.update(extra)
+    rec = _sanitize_config_agent_value(rec)
+    if args and getattr(args, "fields", None):
+        fields = args.fields
+        if isinstance(fields, str):
+            fields = [f.strip() for f in fields.split(",") if f.strip()]
+        rec = agent_schema.filter_record_fields(rec, fields)
+    sys.stdout.write(agent_schema.render_jsonl_record(rec))
+    return exit_code
+
+
+def _emit_config_agent_error(
+    cmd: str,
+    msg: str,
+    term: Term,
+    args: Optional[argparse.Namespace] = None,
+) -> int:
+    if getattr(args, "agent", False):
+        clean_msg = _sanitize_config_agent_error_message(msg)
+        return _emit_config_agent_record(
+            cmd=cmd,
+            outcome="cannot-run",
+            exit_code=2,
+            verified=False,
+            complete=False,
+            kind="error",
+            extra={"error": clean_msg},
+            args=args,
+        )
+    term.status("fail", msg)
+    return 2
+
+
 def _run_config_show(args: argparse.Namespace, term: Term) -> int:
     """Display the configuration file location, status, and settings (or a single variable)."""
     cfg = config.load()
@@ -9312,8 +9392,7 @@ def _run_config_show(args: argparse.Namespace, term: Term) -> int:
         try:
             canon_key, val = config.get_config_value(varname, cfg)
         except config.ConfigError as exc:
-            term.status("fail", str(exc))
-            return 2
+            return _emit_config_agent_error("config-show", str(exc), term, args)
 
         if getattr(args, "json", False) or getattr(args, "as_json", False):
             payload = {
@@ -9326,23 +9405,20 @@ def _run_config_show(args: argparse.Namespace, term: Term) -> int:
             return 0
 
         if getattr(args, "agent", False):
-            from agent_workflows.term import format_agent_json
-
-            print(
-                format_agent_json(
-                    kind="result",
-                    cmd="config-show",
-                    outcome="clean",
-                    exit_code=0,
-                    extra={
-                        "config_file": str(cfg_file),
-                        "config_present": present,
-                        "key": canon_key,
-                        "value": val,
-                    },
-                )
+            return _emit_config_agent_record(
+                cmd="config-show",
+                outcome="clean",
+                exit_code=0,
+                verified=True,
+                complete=True,
+                extra={
+                    "config_file": cfg_path_str,
+                    "config_present": present,
+                    "key": canon_key,
+                    "value": val,
+                },
+                args=args,
             )
-            return 0
 
         term.heading("agent-workflows configuration")
         term.line(
@@ -9369,22 +9445,19 @@ def _run_config_show(args: argparse.Namespace, term: Term) -> int:
         return 0
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-show",
-                outcome="clean",
-                exit_code=0,
-                extra={
-                    "config_file": str(cfg_file),
-                    "config_present": present,
-                    "config": cfg,
-                },
-            )
+        return _emit_config_agent_record(
+            cmd="config-show",
+            outcome="clean",
+            exit_code=0,
+            verified=True,
+            complete=True,
+            extra={
+                "config_file": cfg_path_str,
+                "config_present": present,
+                "config": cfg,
+            },
+            args=args,
         )
-        return 0
 
     term.heading("agent-workflows configuration")
     term.line(
@@ -9448,32 +9521,32 @@ def _run_config_get(args: argparse.Namespace, term: Term) -> int:
     cfg = config.load()
     varname = getattr(args, "varname", "").strip()
     if not varname:
-        term.status("fail", "Missing variable name. Usage: aw config get <varname>")
-        return 2
+        return _emit_config_agent_error(
+            "config-get",
+            "Missing variable name. Usage: aw config get <varname>",
+            term,
+            args,
+        )
 
     try:
         canon_key, val = config.get_config_value(varname, cfg)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-get", str(exc), term, args)
 
     if getattr(args, "json", False) or getattr(args, "as_json", False):
         print(json.dumps({canon_key: val}, indent=2, sort_keys=True))
         return 0
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-get",
-                outcome="clean",
-                exit_code=0,
-                extra={"key": canon_key, "value": val},
-            )
+        return _emit_config_agent_record(
+            cmd="config-get",
+            outcome="clean",
+            exit_code=0,
+            verified=True,
+            complete=True,
+            extra={"key": canon_key, "value": val},
+            args=args,
         )
-        return 0
 
     if isinstance(val, bool):
         print(str(val).lower())
@@ -9492,16 +9565,14 @@ def _run_config_set(args: argparse.Namespace, term: Term) -> int:
     try:
         varname, val_expr = config.parse_set_args(raw_tokens)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-set", str(exc), term, args)
 
     try:
         updated_cfg, canon_key, final_val = config.set_config_value(
             varname, val_expr, auto_save=True
         )
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-set", str(exc), term, args)
 
     cfg_file = config.config_path()
     cfg_path_str = config._preserve_home(str(cfg_file))
@@ -9517,22 +9588,19 @@ def _run_config_set(args: argparse.Namespace, term: Term) -> int:
         return 0
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-set",
-                outcome="clean",
-                exit_code=0,
-                extra={
-                    "key": canon_key,
-                    "value": final_val,
-                    "config_file": str(cfg_file),
-                },
-            )
+        return _emit_config_agent_record(
+            cmd="config-set",
+            outcome="clean",
+            exit_code=0,
+            verified=True,
+            complete=True,
+            extra={
+                "key": canon_key,
+                "value": final_val,
+                "config_file": cfg_path_str,
+            },
+            args=args,
         )
-        return 0
 
     term.status(
         "ok",
@@ -9545,14 +9613,17 @@ def _run_config_unset(args: argparse.Namespace, term: Term) -> int:
     """Unset (remove) a configuration variable."""
     varname = getattr(args, "varname", "").strip()
     if not varname:
-        term.status("fail", "Missing variable name. Usage: aw config unset <varname>")
-        return 2
+        return _emit_config_agent_error(
+            "config-unset",
+            "Missing variable name. Usage: aw config unset <varname>",
+            term,
+            args,
+        )
 
     try:
         updated_cfg, canon_key = config.unset_config_value(varname, auto_save=True)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-unset", str(exc), term, args)
 
     cfg_file = config.config_path()
     cfg_path_str = config._preserve_home(str(cfg_file))
@@ -9568,18 +9639,15 @@ def _run_config_unset(args: argparse.Namespace, term: Term) -> int:
         return 0
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-unset",
-                outcome="clean",
-                exit_code=0,
-                extra={"key": canon_key, "config_file": str(cfg_file)},
-            )
+        return _emit_config_agent_record(
+            cmd="config-unset",
+            outcome="clean",
+            exit_code=0,
+            verified=True,
+            complete=True,
+            extra={"key": canon_key, "config_file": cfg_path_str},
+            args=args,
         )
-        return 0
 
     term.status(
         "ok",
@@ -9594,16 +9662,14 @@ def _run_config_add(args: argparse.Namespace, term: Term) -> int:
     try:
         item_val, varname = config.parse_add_args(raw_tokens)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-add", str(exc), term, args)
 
     try:
         updated_cfg, canon_key, updated_list, was_added, stored = (
             config.add_config_item(varname, item_val, auto_save=True)
         )
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-add", str(exc), term, args)
 
     cfg_file = config.config_path()
     cfg_path_str = config._preserve_home(str(cfg_file))
@@ -9625,24 +9691,21 @@ def _run_config_add(args: argparse.Namespace, term: Term) -> int:
         return 0
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-add",
-                outcome="clean",
-                exit_code=0,
-                extra={
-                    "key": canon_key,
-                    "item": stored,
-                    "added": was_added,
-                    "value": updated_list,
-                    "config_file": str(cfg_file),
-                },
-            )
+        return _emit_config_agent_record(
+            cmd="config-add",
+            outcome="clean",
+            exit_code=0,
+            verified=True,
+            complete=True,
+            extra={
+                "key": canon_key,
+                "item": stored,
+                "added": was_added,
+                "value": updated_list,
+                "config_file": cfg_path_str,
+            },
+            args=args,
         )
-        return 0
 
     if was_added:
         term.status(
@@ -9663,16 +9726,14 @@ def _run_config_remove(args: argparse.Namespace, term: Term) -> int:
     try:
         item_val, varname = config.parse_remove_args(raw_tokens)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-remove", str(exc), term, args)
 
     try:
         updated_cfg, canon_key, updated_list, was_removed, stored = (
             config.remove_config_item(varname, item_val, auto_save=True)
         )
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-remove", str(exc), term, args)
 
     cfg_file = config.config_path()
     cfg_path_str = config._preserve_home(str(cfg_file))
@@ -9694,24 +9755,21 @@ def _run_config_remove(args: argparse.Namespace, term: Term) -> int:
         return 0 if was_removed else 1
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-remove",
-                outcome="clean" if was_removed else "not_found",
-                exit_code=0 if was_removed else 1,
-                extra={
-                    "key": canon_key,
-                    "item": stored,
-                    "removed": was_removed,
-                    "value": updated_list,
-                    "config_file": str(cfg_file),
-                },
-            )
+        return _emit_config_agent_record(
+            cmd="config-remove",
+            outcome="clean" if was_removed else "findings",
+            exit_code=0 if was_removed else 1,
+            verified=True if was_removed else False,
+            complete=True,
+            extra={
+                "key": canon_key,
+                "item": stored,
+                "removed": was_removed,
+                "value": updated_list,
+                "config_file": cfg_path_str,
+            },
+            args=args,
         )
-        return 0 if was_removed else 1
 
     if was_removed:
         term.status(
@@ -9733,14 +9791,12 @@ def _run_config_is(args: argparse.Namespace, term: Term) -> int:
     try:
         item_val, varname = config.parse_is_args(raw_tokens)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-is", str(exc), term, args)
 
     try:
         canon_key, present, stored = config.is_config_item_present(varname, item_val)
     except config.ConfigError as exc:
-        term.status("fail", str(exc))
-        return 2
+        return _emit_config_agent_error("config-is", str(exc), term, args)
 
     if getattr(args, "json", False) or getattr(args, "as_json", False):
         print(
@@ -9753,18 +9809,15 @@ def _run_config_is(args: argparse.Namespace, term: Term) -> int:
         return 0 if present else 1
 
     if getattr(args, "agent", False):
-        from agent_workflows.term import format_agent_json
-
-        print(
-            format_agent_json(
-                kind="result",
-                cmd="config-is",
-                outcome="clean" if present else "not_found",
-                exit_code=0 if present else 1,
-                extra={"key": canon_key, "item": stored, "present": present},
-            )
+        return _emit_config_agent_record(
+            cmd="config-is",
+            outcome="clean" if present else "findings",
+            exit_code=0 if present else 1,
+            verified=True if present else False,
+            complete=True,
+            extra={"key": canon_key, "item": stored, "present": present},
+            args=args,
         )
-        return 0 if present else 1
 
     if present:
         term.status(

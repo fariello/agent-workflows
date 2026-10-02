@@ -6,7 +6,7 @@
 - Scope: IN: replacing all eight dead `--agent` branches in the seven `cli._run_config_*` handlers with an emitter that actually exists and produces a VALIDATED `aw.agent/v1` record; fixing the two independent payload defects the measurement found (the invalid `outcome="not_found"` at two sites, and the unsanitized absolute `config_file`/`repos.*` paths that `agent_schema` refuses outright); giving the thirteen `--agent`-blind refusal paths in those handlers a machine-readable `error` record instead of a human `FAIL` line on stdout; and a DEFAULT-COLLECTED test file driving ALL SEVEN verbs plus both not-found paths and a refusal path, asserting a schema-valid record with exit parity, because the total absence of such a test is exactly what let a never-working branch ship. OUT (each with a reason): `config exclude {add,list,rm}`, which is a different handler (`cli._run_config_exclude`) and is measurably unaffected (`config exclude list --agent` exits 0), so touching it would widen scope with no defect to justify it; the `--json` branches of these same handlers, which measurably WORK (they call `json.dumps` directly) and whose payload shape is a published surface a consumer may already parse, so changing them would be a breaking change dressed as a fix; ANY change to `agent_workflows/agent_schema.py`, including adding `not_found` to `VALID_OUTCOMES`, since the schema is a published contract shared by every verb and widening it to accommodate two call sites inverts the fix; the agent-surface conformance SWEEP and the `conformance_matrix.py` harness, owned by pending plan `f36de0` (Set `agentemitswp`), whose E-02 registers this family as `known_broken` citing this very item, so building a sweep here would duplicate an approved plan; the identical unsanitized-echo defect in `attention`/`runs`/`partition`, owned by open backlog `enygec`; and the mutation-leaf sweep gap owned by open backlog `w78faq`.
 - Scope-Paths: agent_workflows/cli.py, tests/test_config_agent_surface.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: kfbom1
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kfbom1 verified (set dtq6jr, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-012 all FIXED, zero deferred, zero open. Findings and four Decisions rows in .aw/records/reviews/20261001-dtq6jr-01-kfbom1-give-the-seven-aw-config-verbs-a-working-schema-valid-agent.review.md. Readiness go-pending-approval; human approval still required before execution.
 
@@ -45,16 +45,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the defect, then choose the emitter route on evidence
 
-- [ ] E-01 REPRODUCE ALL FOUR DEFECTS AT THE EXECUTION HEAD AND CAPTURE THE BASELINE, before changing a line, because three of the four are invisible to the suite today and an executor who trusts this plan's prose instead of re-measuring will not notice if one has been fixed underneath it.
+- [x] E-01 REPRODUCE ALL FOUR DEFECTS AT THE EXECUTION HEAD AND CAPTURE THE BASELINE, before changing a line, because three of the four are invisible to the suite today and an executor who trusts this plan's prose instead of re-measuring will not notice if one has been fixed underneath it.
   DRIVE THE EIGHT BRANCHES AS SUBPROCESSES, not in-process, and with `XDG_CONFIG_HOME` pointed at a throwaway directory so no real user config is touched (verified safe at authoring: the config is written under the temp dir and the operator's own file is untouched). Record per verb the exit code, stdout BYTE COUNT, and the final stderr line, for all eight invocations in F-01's table plus `config exclude list --agent` as the negative control that must keep exiting 0.
   RE-RUN THE PAYLOAD VALIDATION, which is the half the backlog item could not confirm. For each of the ten payloads in F-03's table, build the record the current branch would construct and pass it to `agent_schema.validate_agent_record`; paste the verdicts. THE REQUIRED PROPERTY IS THAT EXACTLY TWO PAYLOADS VALIDATE, `config-get` and `config-is` (hit), and that the other eight are refused on the two defect classes F-03 names; re-derive that rather than matching a count, since the refused TOTAL is a function of the executing operator's own config location and is not a stable code fact. Specifically: `config-is` (miss) is refused on the INVALID OUTCOME ALONE and so is refused on every machine, while the six `config_file`-carrying payloads are refused only when the config lives under a home directory, which is the DEFAULT but is not true under a `/tmp` `XDG_CONFIG_HOME` (F-04). STOP and report if a payload F-03 calls VALID is now refused, or if `config-is` (miss) is now accepted: either means `agent_schema`, `config.load`, or a handler moved under this plan. Do NOT stop merely because the refused total differs from eight; state the total you measured, which `XDG_CONFIG_HOME` produced it, and whether the two-valid property held.
   SUBSTITUTE A REAL USER NAME FOR `/home/<other>/` WHEN REPRODUCING. Every home path in this plan is written with a placeholder the leak-sanitizer allows, and that same placeholder is allowed by the validator under test, so a literal copy VALIDATES CLEANLY and would make a live defect look fixed. See the last bullet of `## Project conventions discovered (Step 0)`.
   CAPTURE THE BARE SUITE BASELINE as `python3 -m pytest` with NO added flags (`pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; adding `-n0` makes it several times slower and a second `-q` suppresses the summary line this plan requires pasted). Measured at authoring on commit `e8baea74e`: `3499 passed, 2 skipped, 3 warnings in 146.17s`. That is CONTEXT, not the bar: re-derive your own baseline at the real execution head and compare E-06 against THAT, since the suite grows between authoring and execution.
   - Depends on: none
   - Expected outcome: a pasted table showing every one of the seven verbs exiting nonzero with empty stdout under `--agent`, the `config exclude list` control exiting 0, the payload-validation verdicts with the two-valid property re-derived, and a green bare-suite baseline with its own counts.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CHOOSE THE EMITTER ROUTE AND RECORD WHY, as a written decision before any handler is edited, because the two candidate routes differ in what they can CARRY and picking wrongly silently drops the family's whole payload.
+- [x] E-02 CHOOSE THE EMITTER ROUTE AND RECORD WHY, as a written decision before any handler is edited, because the two candidate routes differ in what they can CARRY and picking wrongly silently drops the family's whole payload.
   THE TWO ROUTES ARE MEASURED IN F-07 AND F-08; do not re-derive them, but DO confirm the measurement still holds. Route A is `CommandResult` + `get_renderer(ctx).emit(res, ctx)`, the dominant in-repo convention. Route B is a hand-built dict plus `agent_schema.render_jsonl_record`, used today by `partition.py` and `run_analytics_cli.py` and by `attention.unresolved_selector_agent_record`.
   ROUTE A DISCARDS THE PAYLOAD, AND THAT IS THE DECIDING MEASUREMENT (F-07). `CommandResult.to_agent_record` builds a FIXED key set and copies NOTHING from `data`: a `CommandResult` carrying `data={"key": ..., "value": ...}` renders to a record with no `key` and no `value` at all, in both compact and `--verbose` mode. Routing through `Evidence` does not rescue it either: a list, dict, or None value collapses to the bare key string `"value"` with the value DISCARDED, so `config get repos.search --agent` would report that a value exists without saying what it is. That is strictly worse than the status quo for a consumer, which at least knows it crashed.
   SO ROUTE B IS EXPECTED TO WIN, but state the decision as the executor's own after re-measuring, and record it either way. If Route A is chosen, the plan REQUIRES naming the mechanism by which `key`/`value`/`config_file` reach the record, because no such mechanism exists today and inventing one is a change to `result_types.py`, which is NOT in `- Scope-Paths:` and would need the scope widened and re-reviewed.
@@ -62,11 +62,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ADD A NEW SHARED HELPER TO `term.py`. The absent symbol was `term.format_agent_json`, and recreating it would put a record builder in the module every renderer imports, which the module's own comments give as the reason filesystem and config work is kept off its import path. A local helper inside `cli.py`, next to the seven handlers it serves, is in scope; a new public `term` API is not.
   - Depends on: E-01
   - Expected outcome: a written route decision in this plan's history or findings naming the chosen mechanism, with the re-measured evidence for the payload-carrying property that decided it.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix the eight success branches
 
-- [ ] E-03 REPLACE ALL EIGHT DEAD `--agent` BRANCHES WITH THE CHOSEN EMITTER AND FIX THE TWO PAYLOAD DEFECTS IN THE SAME PASS, because the three defects sit on the same eight branches and fixing them in separate passes would leave a known-invalid record emitted in between.
+- [x] E-03 REPLACE ALL EIGHT DEAD `--agent` BRANCHES WITH THE CHOSEN EMITTER AND FIX THE TWO PAYLOAD DEFECTS IN THE SAME PASS, because the three defects sit on the same eight branches and fixing them in separate passes would leave a known-invalid record emitted in between.
   THE EIGHT SITES, each an `--agent` branch in `agent_workflows/cli.py`, named by enclosing function because a line number expires before this plan executes: `_run_config_show` (TWO branches, one on the single-variable path and one on the whole-config path), `_run_config_get`, `_run_config_set`, `_run_config_unset`, `_run_config_add`, `_run_config_remove`, `_run_config_is`. Each currently contains the literal `from agent_workflows.term import format_agent_json`; after this item that string must appear NOWHERE in the file.
   FIX DEFECT 2, THE INVALID OUTCOME, AT BOTH SITES. `_run_config_remove` and `_run_config_is` pass `outcome="clean" if <hit> else "not_found"`, and `not_found` is not in `agent_schema.VALID_OUTCOMES` (verified: the validator rejects it). Both verbs already return 1 on a miss on the human AND `--json` paths, so the exit code is settled and must not change; only the outcome WORD needs to become a valid one. `findings` is the documented pairing for exit 1 (`docs/cli-agent-protocol.md`: "`exit: 1` pairs with `findings` or `fail`"), and both words validate at exit 1 (measured). Pick ONE, use it at both sites, and say which, so the two sibling verbs cannot answer the same condition differently. Do NOT widen `VALID_OUTCOMES`; that file is out of scope for the reason given in `- Scope:`.
    FIX DEFECT 3, THE UNSANITIZED PATHS, WHICH IS THE ONE AN EXECUTOR IS MOST LIKELY TO MISS because it does not reproduce under a `/tmp` config. SIX branches put `str(cfg_file)` into the payload (both `_run_config_show` branches plus `set`, `unset`, `add`, `remove`; corrected at review from `Four`, PR-001), and `agent_schema`'s unsanitized-home-path rule REFUSES an absolute path under a home directory, which is the DEFAULT config location (measured: a `/home/<realuser>/.config/...` value is refused; the same path through `config._preserve_home` becomes `~/.config/...` and is accepted). `set`, `unset`, `add`, and `remove` ALREADY compute `cfg_path_str = config._preserve_home(str(cfg_file))` for their human output, so the sanitized form is in hand at those four and the fix is to emit THAT rather than the raw path; `_run_config_show` computes it too, near the top of the handler.
@@ -75,9 +75,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   LEAVE THE HUMAN AND `--json` BRANCHES BYTE-IDENTICAL. The `--json` branches measurably work and are a surface a consumer may already parse; the human branches are what an operator reads. Only the `--agent` branches change in this item.
   - Depends on: E-02
   - Expected outcome: the literal `format_agent_json` appears nowhere in `agent_workflows/cli.py`; all seven verbs emit exactly one schema-valid `aw.agent/v1` record under `--agent` at the same exit code they return today, including when a home path reaches `config_file`, `item`, `value`, or a nested `config` leaf; the human and `--json` outputs are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 GIVE THE THIRTEEN REFUSAL PATHS A MACHINE-READABLE `error` RECORD, so a consumer that passes a bad key gets a parseable refusal instead of a human `FAIL` line on stdout. This is a SEPARATE item from E-03 because it is a different defect (no `ImportError` is involved), it affects different code paths (the early returns, not the success branches), and it is the one defect in this plan that NO prior artifact records.
+- [x] E-04 GIVE THE THIRTEEN REFUSAL PATHS A MACHINE-READABLE `error` RECORD, so a consumer that passes a bad key gets a parseable refusal instead of a human `FAIL` line on stdout. This is a SEPARATE item from E-03 because it is a different defect (no `ImportError` is involved), it affects different code paths (the early returns, not the success branches), and it is the one defect in this plan that NO prior artifact records.
   THE THIRTEEN SITES are the `term.status("fail", ...)` + `return 2` pairs inside the seven handlers: one in `_run_config_show`, and two each in `_run_config_get`, `_run_config_set`, `_run_config_unset`, `_run_config_add`, `_run_config_remove`, `_run_config_is`. They split into `config.ConfigError` handlers and missing-argument guards. Count them at execution time rather than trusting this number, and report the count you find (re-measured at review on HEAD `6447fe3e1`: thirteen, with exactly that per-handler distribution).
   DO NOT TOUCH THE TWO `term.status("warn", ...)` + `return 1` PATHS, clarified at review (PR-011). `_run_config_remove` and `_run_config_is` each carry one, and they are the HUMAN branches of the not-found case, reached only after the `--agent` branch has already returned. They are therefore DEFECT 2's territory and are discharged by E-03's outcome-word fix, not by this item; converting one to an `error` record would be wrong twice over, since the miss is a legitimate exit-1 finding and not an exit-2 refusal, and the validator refuses an `error` record at exit 1 (measured). This item is exit 2 only.
   THE RECORD MUST BE `kind: "error"` WITH `exit: 2`, `verified: false`, `complete: false`, and an `outcome` of `error` or `cannot-run`. These are not free choices: the validator REFUSES an error record at any other exit code, refuses `complete: true` on one, and refuses exit 2 paired with any other outcome (all measured). Exit 2 is already what these paths return and already in the family's declared `exit_contract`, so no exit code changes.
@@ -85,11 +85,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE HUMAN PATH MUST NOT CHANGE. The `FAIL` line with the full valid-key list is what teaches an operator the right key, and it goes to stdout today; keep it exactly as it is when `--agent` is absent.
   - Depends on: E-03
   - Expected outcome: every exit-2 refusal path in the seven handlers emits a schema-valid `error` record under `--agent`, with no unsanitized echo of the user's argument; the two exit-1 `warn` miss paths are untouched by this item; and the human output is byte-identical when `--agent` is absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it so it cannot regress
 
-- [ ] E-05 ADD `tests/test_config_agent_surface.py` DRIVING EVERY VERB AND EVERY OUTCOME CLASS, DEFAULT-COLLECTED. The absence of any test touching these branches is the whole reason a never-working surface shipped, so this item is the plan's actual deliverable; E-03 and E-04 are what make it pass.
+- [x] E-05 ADD `tests/test_config_agent_surface.py` DRIVING EVERY VERB AND EVERY OUTCOME CLASS, DEFAULT-COLLECTED. The absence of any test touching these branches is the whole reason a never-working surface shipped, so this item is the plan's actual deliverable; E-03 and E-04 are what make it pass.
   THE REQUIRED MATRIX, which is the backlog item's own "ALL SEVEN verbs" requirement plus the three cases the measurement proves it would miss: (a) all seven verbs on their SUCCESS path; (b) `config remove` and `config is` on their NOT-FOUND path, asserting exit 1 and a valid outcome, which is where defect 2 lived; (c) at least one REFUSAL path per handler shape, asserting exit 2 and a `kind: "error"` record, which is defect 4; (d) a `config show --agent` run against a config file containing a FOREIGN home path, which is the ONLY case that exercises the NESTED sanitization branch, since `config.load` folds the operator's own home to `~` and a default-config test can never reach it; and (e) ADDED AT REVIEW (PR-008), at least one case driving a FOREIGN home path through a NON-NESTED field, because F-04a measured `item` and `value` as independent carriers that (d) does not touch. Two invocations cover it: `config get repos.search --agent` against a config whose `repos.search` holds a foreign path (exercising `value`), and `config is /home/<realuser>/x in repos.exclude --agent` (exercising `item`, which is pure user input and reaches the record with no config involvement at all). Substitute a real non-placeholder user name per the last conventions bullet, or the case passes vacuously.
   ASSERT FOUR PROPERTIES PER CASE, each because a measured failure violates it: stdout is NON-EMPTY (today every one of the eight is empty); exactly ONE `aw.agent/v1` record parses out of it; `agent_schema.validate_agent_record` returns `[]` on that record (call the real validator, do not re-implement the check, and do not merely assert the JSON parses, which is what would have let defects 2 and 3 through); and the record's `exit` EQUALS the subprocess exit code, which is the contract's own parity rule.
    DRIVE THE CLI AS A SUBPROCESS WITH `XDG_CONFIG_HOME` AT A TEMP DIR. Subprocess, because an in-process `cli.main` call cannot observe the real process exit code that the parity assertion compares against, and because the `ImportError` this pins is an import-time failure. Temp `XDG_CONFIG_HOME`, because four of the seven verbs WRITE the config and a test that touched the operator's real file would be unacceptable (verified safe at authoring, and re-verified at review: a subprocess with it set wrote only under the temp dir and the operator's own `config.json` was untouched).
@@ -98,19 +98,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NO STATIC ANALYSIS OF PRODUCTION SOURCE. Do not assert that the string `format_agent_json` is absent by reading `cli.py`, do not use `inspect`/`ast`, and do not count call sites: AGENTS.md P16 forbids code-pinning tests outright, and the behavioral assertions above already prove the import is gone, since the branch cannot emit a valid record while it still crashes.
   - Depends on: E-04
   - Expected outcome: a new default-collected test file covering all five case classes (a) through (e), whose every case fails on the pre-E-03 tree and passes after E-04, with the pasted node count and runtime.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE FULL REGRESSION VALIDATION AND PROVE THE UNCHANGED SURFACES UNCHANGED. Four runs, all pasted. (a) The new file alone. (b) The bare `python3 -m pytest`, compared to E-01's baseline as FAILING-NODE-ID SETS rather than counts alone, so a swap of one failure for another cannot read as no change. (c) `python3 -m pytest tests/test_config.py tests/test_cli.py tests/test_command_surface_declarations.py -o addopts=""`: these are the suites owning these handlers' human and `--json` behavior and are the regression witnesses that those paths did not move, plus the declaration gate pinning this family's `agent_record_kind` and `exit_contract`. `-o addopts=""` is used ONLY here, to reach `tests/test_cli.py`, which is `slow`-marked and deselected by default; it is a no-op for `tests/test_config.py`, which carries no mark (PR-004). It also clears `-n auto`, so expect a serial, slower run rather than re-adding flags. (d) A captured before/after diff of the human and `--json` output for one verb of each shape (read, mutation, membership), since no existing test covers every one of those paths.
+- [x] E-06 RUN THE FULL REGRESSION VALIDATION AND PROVE THE UNCHANGED SURFACES UNCHANGED. Four runs, all pasted. (a) The new file alone. (b) The bare `python3 -m pytest`, compared to E-01's baseline as FAILING-NODE-ID SETS rather than counts alone, so a swap of one failure for another cannot read as no change. (c) `python3 -m pytest tests/test_config.py tests/test_cli.py tests/test_command_surface_declarations.py -o addopts=""`: these are the suites owning these handlers' human and `--json` behavior and are the regression witnesses that those paths did not move, plus the declaration gate pinning this family's `agent_record_kind` and `exit_contract`. `-o addopts=""` is used ONLY here, to reach `tests/test_cli.py`, which is `slow`-marked and deselected by default; it is a no-op for `tests/test_config.py`, which carries no mark (PR-004). It also clears `-n auto`, so expect a serial, slower run rather than re-adding flags. (d) A captured before/after diff of the human and `--json` output for one verb of each shape (read, mutation, membership), since no existing test covers every one of those paths.
   - Depends on: E-05
   - Expected outcome: four pasted runs, a failing-node-id set comparison against E-01's baseline showing no new failure, and a byte-identical before/after for the human and `--json` surfaces.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RECORD THE USER-FACING CHANGELOG LINE AND REPORT THE CROSS-PLAN RECONCILIATION. Separate from E-06 because neither part is a test run and the second part is deliberately a REPORT rather than an action.
+- [x] E-07 RECORD THE USER-FACING CHANGELOG LINE AND REPORT THE CROSS-PLAN RECONCILIATION. Separate from E-06 because neither part is a test run and the second part is deliberately a REPORT rather than an action.
   ADD ONE `- Fixed:` LINE to the pending section of `CHANGELOG.md`, in USER-FACING prose with NO em or en dashes (`CONTRIBUTING.md` authoring conventions): that `aw config show`, `get`, `set`, `unset`, `add`, `remove`, and `is` now produce machine readable output when you pass `--agent`, where before they stopped with an error and printed nothing.
   REPORT, WITHOUT ACTING ON IT, that plan `f36de0` (Set `agentemitswp`) registers this family as a `known_broken` exemption in its sweep citing backlog `dtq6jr`, and that its E-02 instructs ITS executor to delete that entry once this lands. Whichever of the two plans executes second inherits the reconciliation. Do NOT edit `f36de0`: it is another plan's authored content, and if it has reached the executed state its record must not be rewritten at all. Name its path and its current lifecycle directory in the report so the human can see which order actually happened.
   - Depends on: E-06
   - Expected outcome: one CHANGELOG line containing no em or en dash, and the `f36de0` reconciliation reported with that plan's path and lifecycle directory, with `f36de0` itself unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -228,40 +228,226 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted per-verb table from the subprocess drive, showing for each of the seven verbs the exit code, the stdout byte count, and the stderr tail, plus the `config exclude list --agent` control at rc 0 with non-empty stdout. The pasted payload-validation verdicts for all ten payloads, with the TWO-VALID PROPERTY re-derived (`config-get` and `config-is` hit validate; the other eight refuse on an invalid outcome, an unsanitized `config_file`, or both), the refused total you measured stated explicitly alongside the `XDG_CONFIG_HOME` that produced it, and a statement of whether the property held. A count differing from F-03's eight is NOT by itself a stop condition (F-03a); a change to WHICH payloads validate is. The pasted bare `python3 -m pytest` summary line with its pass/skip counts. A statement that `XDG_CONFIG_HOME` was pointed at a throwaway directory, so no real config was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Subprocess drive with `XDG_CONFIG_HOME` pointed at a throwaway temporary directory:
+    ```
+    Command                        | RC  | Stdout Bytes | Stderr Tail
+    --------------------------------------------------------------------------------
+    config show (whole)            | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config show (var)              | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config get                     | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config set                     | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config unset                   | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config add                     | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config remove                  | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config is                      | 1   | 0            | ImportError: cannot import name 'format_agent_json' from 'agent_workflows.term' (agent_workflows/term.py)
+    config exclude list (control)  | 0   | 104          |
+    ```
+    Payload validation verdicts across both environments:
+    ```
+    === Testing payloads under DEFAULT (home-dir config: /home/<realuser>/.config/agent-workflows/config.json) ===
+      config-show (var)      -> REFUSED: Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-show (whole)    -> REFUSED: Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-get             -> VALID
+      config-set             -> REFUSED: Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-unset           -> REFUSED: Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-add             -> REFUSED: Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-remove (hit)    -> REFUSED: Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-remove (miss)   -> REFUSED: Unknown outcome 'not_found'; expected one of ('clean', 'ok', 'conforms', 'findings', 'fail', 'preview', 'stale', 'skipped', 'partial', 'unverified', 'changed-unverified', 'cannot-run', 'error'); Unsanitized absolute home path in field 'config_file': '/home/<realuser>/.config/agent-workflows/config.json'
+      config-is (hit)        -> VALID
+      config-is (miss)       -> REFUSED: Unknown outcome 'not_found'; expected one of ('clean', 'ok', 'conforms', 'findings', 'fail', 'preview', 'stale', 'skipped', 'partial', 'unverified', 'changed-unverified', 'cannot-run', 'error')
+    Total valid: 2, Total refused: 8
 
-- [ ] V-02 validates E-02
+    === Testing payloads under /tmp XDG_CONFIG_HOME (/tmp/x/agent-workflows/config.json) ===
+      config-show (var)      -> VALID
+      config-show (whole)    -> VALID
+      config-get             -> VALID
+      config-set             -> VALID
+      config-unset           -> VALID
+      config-add             -> VALID
+      config-remove (hit)    -> VALID
+      config-remove (miss)   -> REFUSED: Unknown outcome 'not_found'; expected one of ('clean', 'ok', 'conforms', 'findings', 'fail', 'preview', 'stale', 'skipped', 'partial', 'unverified', 'changed-unverified', 'cannot-run', 'error')
+      config-is (hit)        -> VALID
+      config-is (miss)       -> REFUSED: Unknown outcome 'not_found'; expected one of ('clean', 'ok', 'conforms', 'findings', 'fail', 'preview', 'stale', 'skipped', 'partial', 'unverified', 'changed-unverified', 'cannot-run', 'error')
+    Total valid: 8, Total refused: 2
+    ```
+    Measured refused total: 8 under default home config, 2 under /tmp XDG_CONFIG_HOME. The two-valid property held exactly: `config-get` and `config-is (hit)` validate; `config-is (miss)` refuses on invalid outcome alone.
+    Bare suite baseline captured:
+    `2 failed, 4374 passed, 2 skipped, 3 warnings in 428.48s (0:07:08)`
+    Failing node IDs were parallel alarm timeouts on live corpus/statusline tests (`test_box_renderer_invariants_across_swept_inputs`, `test_verbose_flag_end_to_end_observable_difference`), both passing when run individually (`2 passed in 47.99s`).
+    XDG_CONFIG_HOME was pointed at a throwaway temp directory throughout; no operator config was touched.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the recorded route decision naming the chosen mechanism, plus the pasted re-measurement of the property that decided it: a `CommandResult` carrying `data={"key":..., "value":...}` rendered through `AgentRenderer`, shown with the arbitrary keys ABSENT from the output record, and an `Evidence` item with a LIST value shown collapsing to the bare key. If Route A was chosen instead, the evidence must instead name the mechanism by which `key`/`value`/`config_file` reach the record and show it working, and must confirm `- Scope-Paths:` was widened and re-reviewed if that mechanism required editing `result_types.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Route B chosen: hand-built dictionary serialized via `agent_schema.render_jsonl_record`, which invokes `assert_valid_agent_record` internally before writing.
+    Re-measurement of Route A vs Route B:
+    ```
+    Route A via AgentRenderer.emit (compact):
+    {"schema":"aw.agent/v1","kind":"result","cmd":"config get","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}
+    to_agent_record(verbose=False): {'schema': 'aw.agent/v1', 'kind': 'result', 'cmd': 'config get', 'outcome': 'clean', 'exit': 0, 'verified': True, 'complete': True, 'findings': 0, 'next': None}
+    Route A via AgentRenderer.emit (verbose):
+    {"schema":"aw.agent/v1","kind":"result","cmd":"config get","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":null}
+    to_agent_record(verbose=True): {'schema': 'aw.agent/v1', 'kind': 'result', 'cmd': 'config get', 'outcome': 'clean', 'exit': 0, 'verified': True, 'complete': True, 'findings': 0, 'next': None}
+    Evidence via AgentRenderer.emit (compact):
+    {"schema":"aw.agent/v1","kind":"result","cmd":"config get","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["value"],"next":null}
+    Evidence with list value (verbose=False): ['value']
+    Sanitized evidence item: value
+    Route B render_jsonl_record:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"config-get","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"repos.search","value":["~/src"]}
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: all seven verbs re-driven as subprocesses under `--agent`, each pasted with its exit code and its full emitted record, every record shown passing `agent_schema.validate_agent_record` with `[]`. Specifically: the `config remove` and `config is` MISS cases pasted showing exit 1 and the chosen valid outcome word, IDENTICAL between the two verbs, with the word named. A `config show --agent` run whose `config_file` is shown in `~`-folded form rather than absolute. A `config show --agent` run against a config containing a FOREIGN home path, pasted, showing the record validating. ADDED AT REVIEW (PR-008): a `config get --agent` run whose `value` carries a FOREIGN home path and a `config is --agent` run whose `item` ARGUMENT is one, both pasted and both shown validating with `[]`, since F-04a measured those two fields as carriers independent of `config_file`; each run must use a real non-placeholder user name, with that stated, because the placeholder form validates vacuously. A grep for the literal `format_agent_json` in `agent_workflows/cli.py` returning no hits. Pasted proof that the human and `--json` output of at least one affected verb is byte-identical to the E-01 capture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All seven verbs re-driven as subprocesses under `--agent`:
+    ```
+    === config show (whole) (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-show","outcome":"clean","exit":0,"verified":true,"complete":true,"config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json","config_present":false,"config":{"config_version":2,"repos":{"search":[],"installed":[],"exclude":[],"ignore":[]},"defaults":{"backup":true,"prune":true}}}
+    Validation errors: []
+    === config show (var) (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-show","outcome":"clean","exit":0,"verified":true,"complete":true,"config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json","config_present":false,"key":"defaults.backup","value":true}
+    Validation errors: []
+    === config get (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-get","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"repos.search","value":[]}
+    Validation errors: []
+    === config set (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-set","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"defaults.backup","value":false,"config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json"}
+    Validation errors: []
+    === config unset (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-unset","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"defaults.backup","config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json"}
+    Validation errors: []
+    === config add (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-add","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"repos.exclude","item":"/tmp/x","added":true,"value":["/tmp/x"],"config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json"}
+    Validation errors: []
+    === config remove (hit) (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-remove","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"repos.exclude","item":"/tmp/x","removed":true,"value":[],"config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json"}
+    Validation errors: []
+    === config remove (miss) (rc=1) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-remove","outcome":"findings","exit":1,"verified":false,"complete":true,"key":"repos.exclude","item":"/tmp/x","removed":false,"value":[],"config_file":"/tmp/tmp9jcq96hx/agent-workflows/config.json"}
+    Validation errors: []
+    === config is (miss) (rc=1) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-is","outcome":"findings","exit":1,"verified":false,"complete":true,"key":"repos.exclude","item":"/tmp/x","present":false}
+    Validation errors: []
+    === config is (hit) (rc=0) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-is","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"repos.exclude","item":"/tmp/x","present":true}
+    Validation errors: []
+    ```
+    Both `config remove` and `config is` miss cases exit 1 with outcome `"findings"` (identical between both).
+    `config show --agent` under home configuration emits `config_file` in `~`-folded form:
+    ```
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-show","outcome":"clean","exit":0,"verified":true,"complete":true,"config_file":"~/.config/agent-workflows/config.json","config_present":false,"config":{"config_version":2,"repos":{"search":[],"installed":[],"exclude":[],"ignore":[]},"defaults":{"backup":true,"prune":true}}}
+    config_file in record: ~/.config/agent-workflows/config.json
+    Errors: []
+    ```
+    Foreign home path cases driven with real non-placeholder username `testforeignuser`:
+    ```
+    === config show with nested foreign path ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-show","outcome":"clean","exit":0,"verified":true,"complete":true,"config_file":"/tmp/tmp38rjhc37/agent-workflows/config.json","config_present":true,"config":{"config_version":2,"repos":{"search":["testforeignuser/myproject"],"installed":[],"exclude":["testforeignuser/excluded_dir"],"ignore":[]},"defaults":{"backup":true,"prune":true}}}
+    Errors: []
+    === config get with foreign path in value ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-get","outcome":"clean","exit":0,"verified":true,"complete":true,"key":"repos.search","value":["testforeignuser/src"]}
+    Errors: []
+    === config is with foreign path argument ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"result","cmd":"config-is","outcome":"findings","exit":1,"verified":false,"complete":true,"key":"repos.exclude","item":"testforeignuser/arg_item","present":false}
+    Errors: []
+    ```
+    Literal `format_agent_json` grep in `agent_workflows/cli.py`: exited 1, 0 hits found.
+    Human and `--json` outputs confirmed byte-identical across read, mutation, and membership shapes.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the count of refusal paths actually found, stated and compared against thirteen. At least one refusal path per handler pasted under `--agent`, each showing exit 2, a `kind: "error"` record with `verified: false` and `complete: false`, and `validate_agent_record` returning `[]`. The sanitization decision named, with the `config get /home/<realuser>/secret --agent` case pasted (a real non-placeholder user name, since the placeholder validates vacuously) showing a clean record rather than a `ValueError`, since that is the exact input that raises today. ADDED AT REVIEW (PR-012): the emitted record shown to contain NO local account name anywhere, and if the chosen remedy was `agent_schema.normalize_repo_path`, the pasted `aw sanitize --agent` output over that record showing no finding, because that function is validator-clean while retaining the username and so validator-clean is not the bar here. Pasted proof that the same invocation WITHOUT `--agent` still prints the full `FAIL` line with the valid-key list, byte-identical to E-01's capture.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Refusal paths found: exactly 13 sites across all seven handlers (1 show, 2 get, 2 set, 2 unset, 2 add, 2 remove, 2 is), matching the plan count of 13.
+    Refusal outputs under `--agent` across all 13 sites:
+    ```
+    === 1. config show (bad key) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-show","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    === 2. config get (missing arg) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-get","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing variable name. Usage: aw config get <varname>"}
+    === 3. config get (bad key with real home path) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-get","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    === 4. config set (syntax error) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-set","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing value. Usage: aw config set  <value>"}
+    === 5. config set (bad key) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-set","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    === 6. config unset (missing arg) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-unset","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing variable name. Usage: aw config unset <varname>"}
+    === 7. config unset (bad key) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-unset","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    === 8. config add (syntax error) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-add","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing variable name. Usage: aw config add <value> to <varname>"}
+    === 9. config add (bad key) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-add","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    === 10. config remove (syntax error) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-remove","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing variable name. Usage: aw config remove <value> from <varname>"}
+    === 11. config remove (bad key) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-remove","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    === 12. config is (syntax error) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-is","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Missing variable name. Usage: aw config is <value> in <varname>"}
+    === 13. config is (bad key) (rc=2) ===
+    STDOUT: {"schema":"aw.agent/v1","kind":"error","cmd":"config-is","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"error":"Unknown config key. Valid keys: aw_home, color_depth, config_version, defaults, defaults.backup, defaults.leftovers, defaults.migrate_layout, defaults.prune, repos, repos.exclude, repos.ignore, repos.installed, repos.search"}
+    ```
+    Sanitization decision: omission of user-supplied variable token from machine error messages (`Unknown config key '<key>'` -> `Unknown config key`, `Missing value for '<key>'` -> `Missing value`), plus replacing residual home paths with `<path>`, leaving zero username or home path leakage. `validate_agent_record` returns `[]` on every record.
+    `aw check-local-leaks . --agent` clean:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Without `--agent`, `config get no.such.key` confirmed byte-identical to baseline capture:
+    `refusal_human : BYTE-IDENTICAL (rc=2)`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the new file's own pytest output pasted, with the node count and runtime. Proof it is DEFAULT-COLLECTED: the pasted result of collecting it under a bare run (for example its node ids appearing in `python3 -m pytest --collect-only -q` output, or the file's own `--collect-only -q` reporting a nonzero count with nothing deselected) and a statement that it carries no `slow` or `livecorpus` mark. Proof the test actually catches the defect: the pasted FAILING output of the same file run against the pre-E-03 tree (by stash, by `git worktree`, or by temporarily reverting the handler edits), demonstrating it goes red, because a test authored after the fix proves nothing about whether it would have caught it. An enumeration showing all FIVE required case classes are present (seven success; two not-found; refusal; foreign home path NESTED in the config; and foreign home path in a NON-NESTED `value` and `item`, added at review as PR-008), with the node id of at least one case per class named. A statement that the foreign-path cases use a real non-placeholder user name, since the placeholder form validates vacuously and would make those cases pass against the unfixed tree. A statement that no production source file is read, parsed, or regexed by the test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_config_agent_surface.py`:
+    `22 passed in 18.06s`
+    Default-collected proof:
+    `python3 -m pytest tests/test_config_agent_surface.py --collect-only -q`:
+    `tests/test_config_agent_surface.py: 22`
+    The file carries no `slow` or `livecorpus` mark.
+    Defect catch proof: run against pre-E-03 tree:
+    `22 failed in 13.65s`
+    All 22 nodes failed with `ImportError` on success/miss and `JSONDecodeError` on refusal paths.
+    All five case classes present:
+    - (a) success: `test_config_show_whole_success_agent`, `test_config_show_var_success_agent`, `test_config_get_success_agent`, `test_config_set_success_agent`, `test_config_unset_success_agent`, `test_config_add_success_agent`, `test_config_remove_success_agent`, `test_config_is_success_agent`.
+    - (b) not-found: `test_config_remove_not_found_agent`, `test_config_is_not_found_agent`.
+    - (c) refusal: `test_config_show_refusal_bad_key_agent`, `test_config_get_refusal_missing_var_agent`, `test_config_get_refusal_bad_key_foreign_path_agent`, `test_config_set_refusal_bad_key_agent`, `test_config_unset_refusal_missing_var_agent`, `test_config_unset_refusal_bad_key_agent`, `test_config_add_refusal_syntax_agent`, `test_config_remove_refusal_syntax_agent`, `test_config_is_refusal_syntax_agent`.
+    - (d) foreign home path nested in config: `test_config_show_nested_foreign_home_path_agent`.
+    - (e) foreign home path in non-nested value/item: `test_config_get_foreign_home_path_in_value_agent`, `test_config_is_foreign_home_path_in_item_agent`.
+    Foreign-path cases use real non-placeholder username `testforeignuser`.
+    No production source file is read, parsed, or regexed by the test suite.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: the pasted bare `python3 -m pytest` summary, with the failing-node-id SET compared to E-01's baseline (not counts alone) and any difference explained. The pasted output of the new file run alone. The pasted output of `python3 -m pytest tests/test_config.py tests/test_cli.py tests/test_command_surface_declarations.py -o addopts=""`. The before/after capture for one verb of each shape (read, mutation, membership), shown byte-identical on both the human and the `--json` surface.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) New file alone: `22 passed in 18.06s`
+    (b) Bare `python3 -m pytest` summary:
+    `4398 passed, 2 skipped, 3 warnings in 221.01s (0:03:41)`
+    Failing-node-id set comparison:
+    Baseline failing nodes: `{'tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs', 'tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference'}` (caused by timeout under 37-worker parallel execution, verified passing individually).
+    Current failing nodes: `set()` (0 failed). New failures: none.
+    (c) Regression test suites with `-o addopts=""`:
+    `python3 -m pytest tests/test_config.py tests/test_cli.py tests/test_command_surface_declarations.py -o addopts=""`:
+    `96 passed in 358.57s (0:05:58)`
+    (d) Before/after capture comparison across read, mutation, membership:
+    ```
+    read_human               : BYTE-IDENTICAL (rc=0)
+    read_json                : BYTE-IDENTICAL (rc=0)
+    mutation_human           : BYTE-IDENTICAL (rc=0)
+    mutation_json            : BYTE-IDENTICAL (rc=0)
+    membership_hit_human     : BYTE-IDENTICAL (rc=0)
+    membership_hit_json      : BYTE-IDENTICAL (rc=0)
+    membership_miss_human    : BYTE-IDENTICAL (rc=1)
+    membership_miss_json     : BYTE-IDENTICAL (rc=1)
+    refusal_human            : BYTE-IDENTICAL (rc=2)
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the single CHANGELOG line quoted verbatim, confirmed to contain no em or en dash and to be in user-facing prose. A statement that plan `f36de0`'s `known_broken` entry was REPORTED and NOT edited, naming that plan's path and its current lifecycle directory, plus `git status` evidence that the file is unmodified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verbatim CHANGELOG.md line: `- Fixed: \`aw config show\`, \`get\`, \`set\`, \`unset\`, \`add\`, \`remove\`, and \`is\` now produce machine readable output when you pass \`--agent\`, where before they stopped with an error and printed nothing.`
+    Confirmed to contain no em or en dash and written in user-facing prose.
+    Plan `f36de0` reconciliation reported: plan path is `.aw/records/plans/executed/20260929-agentemitswp-01-f36de0-pin-every-declared-machine-surface-with-an-executed-conforma.ipd.md`, in lifecycle directory `executed`. Per contract, it is left untouched and not modified. `git status` confirms zero modifications to `f36de0`.
+  - Result: pass
 
 ## Approval and execution gate
 
