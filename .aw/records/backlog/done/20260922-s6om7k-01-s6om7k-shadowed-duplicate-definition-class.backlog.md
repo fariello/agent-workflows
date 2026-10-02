@@ -1,5 +1,5 @@
 - Id: s6om7k
-- Status: graduated
+- Status: done
 - Graduated-To: s6om7k
 - Set: s6om7k
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: oc_runipd carried a duplicate locked_run definition that shadowed its own wrapper
 
 ## Workflow history
+- 2026-10-02 done (aw backlog): closed by aw agy run: IPD szkgb8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-s6om7k-01-szkgb8-enforce-the-no-duplicate-top-level-definition-property-in-ci.ipd.md); evidence .aw/records/plans/executed/20260930-s6om7k-01-szkgb8-enforce-the-no-duplicate-top-level-definition-property-in-ci.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: szkgb8
 - 2026-09-22 created (aw backlog): oc_runipd carried a duplicate locked_run definition that shadowed its own wrapper
 

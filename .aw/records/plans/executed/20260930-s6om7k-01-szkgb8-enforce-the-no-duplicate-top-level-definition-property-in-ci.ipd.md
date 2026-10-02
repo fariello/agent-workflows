@@ -6,7 +6,7 @@
 - Scope: Add ruff `F811` as a named fail-closed CI gate over `agent_workflows/`, `tests/` and `tools/`, configured (via a command-line `--config` override of `lint.dummy-variable-rgx`) so it also catches the leading-underscore symbols ruff exempts by default, and record in `GUIDING_PRINCIPLES` P16 that a linter detecting a real runtime defect is not the code-pinning shape P16 prohibits. NOT in scope: adopting ruff's other default findings, changing any persistent ruff configuration in `pyproject.toml`, adding any AST or source-reading test, or changing either runner.
 - Scope-Paths: .github/workflows/tests.yml, GUIDING_PRINCIPLES.md, .aw/records/plans/pending/20260930-s6om7k-01-szkgb8-enforce-the-no-duplicate-top-level-definition-property-in-ci.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: aw oc run
 - Id: szkgb8
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: szkgb8 verified (set s6om7k, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review verdict APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-007 all fixed; readiness go-pending-approval
 - 2026-09-30 to-review (aw oc run): authored from backlog `s6om7k`; graduated with the item's suggested AST fix REPLACED by a ruff `F811` CI gate after measuring that the suggested instrument is prohibited by P16 and that the sanctioned one already detects the exact reconstructed defect.
@@ -34,26 +34,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the gate is landable before wiring it
 
-- [ ] E-01 Re-measure, at execution HEAD and **with the PINNED `ruff==0.4.4` binary the gate will actually use** (not whatever `ruff` is on `PATH` -- see F-11, where measuring the wrong binary produced three wrong facts in this plan's first draft), the facts this plan's design rests on, and ABORT with the measurement recorded if any has changed. Install the pinned binary into a scratch venv first (`python3 -m venv <scratch>/v && <scratch>/v/bin/pip install 'ruff==0.4.4'`) and confirm `<scratch>/v/bin/ruff --version` prints `ruff 0.4.4`, so every fact below is attributed to a named binary.
+- [x] E-01 Re-measure, at execution HEAD and **with the PINNED `ruff==0.4.4` binary the gate will actually use** (not whatever `ruff` is on `PATH` -- see F-11, where measuring the wrong binary produced three wrong facts in this plan's first draft), the facts this plan's design rests on, and ABORT with the measurement recorded if any has changed. Install the pinned binary into a scratch venv first (`python3 -m venv <scratch>/v && <scratch>/v/bin/pip install 'ruff==0.4.4'`) and confirm `<scratch>/v/bin/ruff --version` prints `ruff 0.4.4`, so every fact below is attributed to a named binary.
   - (a) The gate's exact command exits 0 over the covered tree, so the gate lands green with no cleanup tranche:
     `ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/`
   - (b) The `--config 'lint.dummy-variable-rgx="^$"'` override is STILL REQUIRED, by showing that WITHOUT it a leading-underscore duplicate is NOT flagged and WITH it the same file IS. Write a two-definition probe named `_dup_probe` under gitignored scratch and run the gate command against it with and without the flag. This is the load-bearing fact of the whole plan (F-10): without the override the gate silently misses every private symbol, which is 1,189 of the 4,335 top-level definitions in `agent_workflows/`. If the override is somehow no longer needed, that means ruff changed `F811`'s interaction with `dummy-variable-rgx`, which is a DESIGN CHANGE -- stop and report rather than quietly dropping the flag.
   - (c) `--target-version py312` is retained as FUTURE-PROOFING, not because `0.4.4` needs it. Record both measurements so the next author does not delete it as dead weight: with `0.4.4` the `tests/` tree is clean with AND without the flag (that version's parser does not reject the 3.12-only f-string in `tests/test_check_engine_spec_criteria.py`), whereas a NEWER ruff without the flag fails with two `invalid-syntax` errors at that file and needs it. The flag therefore costs nothing today and is what keeps a future hook `rev` bump from reding `main` for an unrelated parse reason.
   - Depends on: none
   - Expected outcome: `ruff --version` output plus every command's exit code and tail output pasted, each attributed to the pinned binary. Baseline confirmed clean AND the override confirmed load-bearing, or a concrete divergence recorded and the plan stopped before it edits CI.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Reconstruct the ORIGINAL defect **in BOTH its public and its private naming** and prove the gate catches each, so the gate is validated against the real bug rather than a toy, and specifically against the naming the real runners use for thin wrappers. Rebuild the shadowed module from history in a gitignored scratch directory under `.aw/state/`: take `git show 12a5c05b:agent_workflows/oc_runipd.py` (the commit that LIFTED `locked_run`, whose own message records "A duplicate locked_run definition I introduced was caught by the new"), extract the stale `locked_run` function block from `git show 12a5c05b^:agent_workflows/oc_runipd.py`, and re-insert that block at a top-level boundary several thousand lines BELOW the wrapper.
+- [x] E-02 Reconstruct the ORIGINAL defect **in BOTH its public and its private naming** and prove the gate catches each, so the gate is validated against the real bug rather than a toy, and specifically against the naming the real runners use for thin wrappers. Rebuild the shadowed module from history in a gitignored scratch directory under `.aw/state/`: take `git show 12a5c05b:agent_workflows/oc_runipd.py` (the commit that LIFTED `locked_run`, whose own message records "A duplicate locked_run definition I introduced was caught by the new"), extract the stale `locked_run` function block from `git show 12a5c05b^:agent_workflows/oc_runipd.py`, and re-insert that block at a top-level boundary several thousand lines BELOW the wrapper.
   - (a) PUBLIC name, as it historically was: run the gate command and show `F811` naming `locked_run`.
   - (b) PRIVATE name, which is the case that decides the gate's design: produce the same reconstruction with `locked_run` renamed to `_locked_run` throughout and run the gate command WITHOUT and WITH the `--config 'lint.dummy-variable-rgx="^$"'` override. Without it the gate is SILENT on a real shadowed definition (exit 0); with it the gate reports `F811` and exits 1. Do (b) on a REAL private wrapper too, by shadowing `oc_runipd._detect_driver_command` (a live thin wrapper, `agent_workflows/oc_runipd.py:4115`) in a scratch copy, so the proof is against a symbol that exists today rather than only a renamed historical one.
   - Use the PINNED `ruff==0.4.4` binary from E-01 for every run, and state its version beside each result. Delete the scratch directory when done; it must not be committed.
   - Depends on: E-01
   - Expected outcome: for (a) and for both arms of (b)-with-override, `F811 Redefinition of unused <symbol> from line <wrapper line>` at the stale definition's line with exit 1; and for (b)-without-override, exit 0 and no finding, which is the measured hole the gate's config closes. This proves the gate would have caught the originating instance AND catches the private-wrapper shape the originating instance would have taken under this repository's own naming convention.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire the gate and record the policy
 
-- [ ] E-03 Add a named fail-closed `F811` step to `.github/workflows/tests.yml`. Put it in the EXISTING `attention-check` job rather than creating a new job or extending the 18-cell `unittest` matrix: that job is already the repository's single-run, read-only, fail-closed gate lane (its own comment says "matching the secret-scan / local-leaks single-job precedent ... not per Python matrix"), and a redefinition is a property of the source text, so running it once is sufficient and running it 18 times buys nothing.
+- [x] E-03 Add a named fail-closed `F811` step to `.github/workflows/tests.yml`. Put it in the EXISTING `attention-check` job rather than creating a new job or extending the 18-cell `unittest` matrix: that job is already the repository's single-run, read-only, fail-closed gate lane (its own comment says "matching the secret-scan / local-leaks single-job precedent ... not per Python matrix"), and a redefinition is a property of the source text, so running it once is sufficient and running it 18 times buys nothing.
   - The step installs ruff pinned to the SAME version as the pre-commit hook (`ruff==0.4.4`, from `.pre-commit-config.yaml`'s `rev: v0.4.4`) with its own `python -m pip install 'ruff==0.4.4'` line, following the job's existing `python -m pip install -e .` precedent. Do NOT add ruff to `pyproject.toml`'s `[test]` extra: that would pull a linter into the 18-cell test matrix's dependency set for no benefit.
   - The command is EXACTLY:
 
@@ -73,14 +73,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - The comment must also record that `F811` is NOT auto-fixable (measured: `--select F811 --fix` leaves the file byte-identical and still exits 1), so the `--fix` the local hook passes can never silently delete one of the two definitions, and that whoever bumps the hook's `rev` must bump this step's pin too.
   - Depends on: E-02
   - Expected outcome: `tests.yml` carries one new named step. `python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/tests.yml'))"` parses clean, and the step's own command run locally with the PINNED `0.4.4` binary exits 0 against the current tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add one paragraph to `GUIDING_PRINCIPLES.md` Section 16 recording that a LINTER RULE DETECTING A REAL RUNTIME DEFECT IS NOT A CODE-STRUCTURE PIN, and why the distinction is not a loophole. State the test: `F811` reports a condition under which the shipped module's behavior is already wrong (one of two definitions is unreachable, so the exported symbol is not the one the author wrote), which is an OUTCOME; a census or placement pin reports only that source LOOKS different from a remembered shape, which is what P16 forbids. State the consequence explicitly so it cannot be read as general permission: this does NOT re-open `inspect`/`ast`/regex reads of production source in TESTS, and the deleted guards named in backlog items `xvp5vx`, `baskrx`, `s4jctz` and `1bxw6o` stay deleted. Cite this plan's id and the backlog item so the reasoning is traceable.
+- [x] E-04 Add one paragraph to `GUIDING_PRINCIPLES.md` Section 16 recording that a LINTER RULE DETECTING A REAL RUNTIME DEFECT IS NOT A CODE-STRUCTURE PIN, and why the distinction is not a loophole. State the test: `F811` reports a condition under which the shipped module's behavior is already wrong (one of two definitions is unreachable, so the exported symbol is not the one the author wrote), which is an OUTCOME; a census or placement pin reports only that source LOOKS different from a remembered shape, which is what P16 forbids. State the consequence explicitly so it cannot be read as general permission: this does NOT re-open `inspect`/`ast`/regex reads of production source in TESTS, and the deleted guards named in backlog items `xvp5vx`, `baskrx`, `s4jctz` and `1bxw6o` stay deleted. Cite this plan's id and the backlog item so the reasoning is traceable.
   - The paragraph MUST also state the gate's two KNOWN HOLES, so it does not read as a completeness claim and so a later author does not discover them by being bitten (this follows the KNOWN HOLE precedent `tests/test_carrier_scan_single_item_contract.py` sets in its docstring): (1) a first definition CONSUMED at module level between the two (`ALIAS = f`) marks the binding used, so `F811` stays silent while the shadowing is real -- measured, and closing it needs dataflow analysis ruff does not perform; (2) the gate binds the CI surface going forward and does not retroactively prove history clean.
   - Keep it to ONE paragraph in the `### What to do instead:` discussion, phrased as a boundary clarification rather than a new permission, and do NOT weaken or reword any existing P16 prohibition bullet.
   - Depends on: E-03
   - Expected outcome: P16 carries the new paragraph; a future author asking "may I AST-walk production source to check for duplicates?" reads the answer (no; the linter gate already covers it) instead of re-deciding, and an author reading the gate knows what it does NOT catch.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -189,25 +189,198 @@ No new test file is authored, and that is deliberate: the deliverable IS a CI ga
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `<scratch>/v/bin/ruff --version` printing `ruff 0.4.4`, so every figure below is attributable to the binary the gate will use. PLUS the pasted output and exit code of the gate's exact command over `agent_workflows/ tests/ tools/` (expect exit 0, "All checks passed!"). PLUS the override-is-load-bearing probe pair: the gate command against a `_dup_probe` double definition WITHOUT `--config 'lint.dummy-variable-rgx="^$"'` (expect exit 0, no finding) and WITH it (expect `F811` and exit 1); a run that cannot show the without-case passing has not established that the override is needed and must stop rather than proceed. PLUS the `--target-version py312` measurement on `0.4.4` with and without the flag, and an explicit statement that it is retained as future-proofing rather than a present need (E-01(c)).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pinned binary ruff 0.4.4 verified; gate exact command clean over tree (exit 0); override load-bearing confirmed on _dup_probe (exit 0 without, F811 exit 1 with); py312 target version confirmed clean.
+    1. Pinned binary version check:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff --version
+    ruff 0.4.4
+    ```
+    2. Gate exact command over covered tree:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/
+    All checks passed!
+    (exit code: 0)
+    ```
+    3. Override-is-load-bearing probe pair on `_dup_probe`:
+    Without override:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 .aw/state/scratch_szkgb8/probe_f811.py
+    All checks passed!
+    (exit code: 0)
+    ```
+    With override:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' .aw/state/scratch_szkgb8/probe_f811.py
+    .aw/state/scratch_szkgb8/probe_f811.py:5:5: F811 Redefinition of unused `_dup_probe` from line 1
+    Found 1 error.
+    (exit code: 1)
+    ```
+    4. `--target-version py312` measurements on `0.4.4` over `tests/`:
+    Without flag:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 tests/
+    All checks passed!
+    (exit code: 0)
+    ```
+    With flag:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 tests/
+    All checks passed!
+    (exit code: 0)
+    ```
+    The `--target-version py312` flag is retained as future-proofing rather than a present need of `0.4.4` (E-01(c)), ensuring future hook rev bumps do not fail on 3.12 syntax constructs in `tests/`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pinned `ruff --version` output, then for the PUBLIC reconstruction the pasted `F811` naming the stale definition's line and the wrapper's line with exit 1; then for the PRIVATE reconstruction (`_locked_run`) BOTH runs, the one WITHOUT the override showing "All checks passed!" and exit 0 and the one WITH it showing `F811` and exit 1; then the same with-override result for the live-wrapper shadow of `oc_runipd._detect_driver_command`. The without-override exit 0 is REQUIRED EVIDENCE, not a curiosity: it is the measurement that proves the gate's config is doing the work, and a run that omits it has not validated the plan's central design decision. Plus confirmation that the scratch directory was removed (`git status --short` showing nothing under `.aw/state/`, and no scratch path in the staged set).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pinned ruff 0.4.4 verified; public defect flags F811 locked_run at stale definition line (exit 1); private defect flags F811 _locked_run with override (exit 1) and exits 0 without override; live wrapper shadow flags F811 _detect_driver_command (exit 1); scratch directory cleaned up.
+    1. Pinned binary version check:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff --version
+    ruff 0.4.4
+    ```
+    2. PUBLIC reconstruction from commit `12a5c05b` (`reconstruct_public.py`):
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' .aw/state/scratch_szkgb8/reconstruct_public.py
+    .aw/state/scratch_szkgb8/reconstruct_public.py:7034:5: F811 Redefinition of unused `locked_run` from line 2695
+    Found 1 error.
+    (exit code: 1)
+    ```
+    3. PRIVATE reconstruction (`_locked_run`, `reconstruct_private.py`):
+    Without override:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 .aw/state/scratch_szkgb8/reconstruct_private.py
+    All checks passed!
+    (exit code: 0)
+    ```
+    With override:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' .aw/state/scratch_szkgb8/reconstruct_private.py
+    .aw/state/scratch_szkgb8/reconstruct_private.py:7034:5: F811 Redefinition of unused `_locked_run` from line 2695
+    Found 1 error.
+    (exit code: 1)
+    ```
+    4. Live wrapper shadow of `oc_runipd._detect_driver_command` (`oc_runipd_shadow_detect.py`):
+    Without override:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 .aw/state/scratch_szkgb8/oc_runipd_shadow_detect.py
+    All checks passed!
+    (exit code: 0)
+    ```
+    With override:
+    ```
+    $ .aw/state/scratch_szkgb8/v/bin/ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' .aw/state/scratch_szkgb8/oc_runipd_shadow_detect.py
+    .aw/state/scratch_szkgb8/oc_runipd_shadow_detect.py:5487:5: F811 Redefinition of unused `_detect_driver_command` from line 4326
+    Found 1 error.
+    (exit code: 1)
+    ```
+    5. Scratch directory removal:
+    `rm -rf .aw/state/scratch_szkgb8` executed; `git status --short` confirms clean state under `.aw/state/` with no scratch artifacts remaining.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the new step quoted verbatim from `.github/workflows/tests.yml`, showing the pinned `ruff==0.4.4`, `--select F811`, the `--config 'lint.dummy-variable-rgx="^$"'` override, `--target-version py312`, all three directories, and the comment covering the version pin, the narrow selection, the override's purpose, the DO-NOT about `pyproject.toml`, and the non-auto-fixability. PLUS `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/tests.yml'))"` exiting 0. PLUS the step's own command executed locally with the pinned binary, exit 0. PLUS a DELIBERATE-BREAK demonstration on the real gate, not on a reconstruction, run TWICE: once with a duplicate PUBLIC top-level `def` and once with a duplicate PRIVATE (`_`-prefixed) one, each introduced into a file the gate covers, running the step's exact command, pasting the `F811` failure and exit 1, reverting, re-running, pasting the pass. Both namings are required because the private one is the case the gate was redesigned for; a gate that has not been observed failing on it has not been validated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Named fail-closed F811 step added to tests.yml attention-check job; YAML parses clean; local run with pinned ruff 0.4.4 clean; deliberate break demonstrates F811 on public probe (exit 1, reverted exit 0) and private probe (exit 1, reverted exit 0).
+    1. Verbatim step in `.github/workflows/tests.yml`:
+    ```yaml
+          # Enforce the no-duplicate-top-level-definition property (plan szkgb8, backlog s6om7k).
+          # Pinned to the SAME version as .pre-commit-config.yaml (rev: v0.4.4); whoever bumps the
+          # hook's rev must bump this step's pin too.
+          # Tokens are load-bearing:
+          # - `ruff==0.4.4`: dev-only gate dependency; not added to pyproject.toml [test] extra.
+          # - `--select F811`: confines the gate to duplicate definitions (redefinition of unused name);
+          #   adopting ruff's other default findings is a separate decision.
+          # - `--config 'lint.dummy-variable-rgx="^$"'`: THE fix for private symbols (F-10). Ruff exempts
+          #   names matching dummy-variable-rgx from F811 by default, silently missing every leading-underscore
+          #   duplicate (1,189 of agent_workflows/ top-level defs, including thin wrappers).
+          #   DO NOT write this into pyproject.toml: repo-wide configuration breaks pre-commit with F841 errors (F-12).
+          #   CLI scoping confines the override to this single invocation.
+          # - `--target-version py312`: future-proofing (E-01(c)); prevents a future ruff rev bump from
+          #   failing on 3.12 syntax constructs (e.g. backslashes/quotes in f-strings).
+          # - `agent_workflows/ tests/ tools/`: covers library code, tests (avoiding shadowed test methods),
+          #   and tools (e.g. runner_fork_scan.py).
+          # - `--no-cache`: ensures the CI verdict is independent of any cached state.
+          # F811 is NOT auto-fixable (ruff --select F811 --fix leaves files unchanged and exits 1),
+          # so the pre-commit hook's --fix cannot silently delete definitions.
+          - name: ruff F811 check (no duplicate top-level definitions; fail closed)
+            shell: bash
+            run: |
+              python -m pip install 'ruff==0.4.4'
+              ruff check --no-cache --select F811 --target-version py312 \
+                --config 'lint.dummy-variable-rgx="^$"' \
+                agent_workflows/ tests/ tools/
+    ```
+    2. YAML validation:
+    ```
+    $ python3 -c "import yaml; yaml.safe_load(open('.github/workflows/tests.yml'))"
+    (exit code: 0)
+    ```
+    3. Step command executed locally on clean tree with pinned ruff 0.4.4:
+    ```
+    $ ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/
+    All checks passed!
+    (exit code: 0)
+    ```
+    4. Deliberate break demonstrations on real covered file (`agent_workflows/__init__.py`):
+    PUBLIC duplicate (`public_probe_duplicate`):
+    ```
+    $ ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/
+    agent_workflows/__init__.py:49:5: F811 Redefinition of unused `public_probe_duplicate` from line 45
+    Found 1 error.
+    (exit code: 1)
+    ```
+    Reverted and verified pass:
+    ```
+    $ git checkout agent_workflows/__init__.py && ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/
+    Updated 1 path from the index
+    All checks passed!
+    (exit code: 0)
+    ```
+    PRIVATE duplicate (`_private_probe_duplicate`):
+    ```
+    $ ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/
+    agent_workflows/__init__.py:49:5: F811 Redefinition of unused `_private_probe_duplicate` from line 45
+    Found 1 error.
+    (exit code: 1)
+    ```
+    Reverted and verified pass:
+    ```
+    $ git checkout agent_workflows/__init__.py && ruff check --no-cache --select F811 --target-version py312 --config 'lint.dummy-variable-rgx="^$"' agent_workflows/ tests/ tools/
+    Updated 1 path from the index
+    All checks passed!
+    (exit code: 0)
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: the new P16 paragraph quoted verbatim, showing (a) the outcome-versus-shape test, (b) the explicit statement that source-reading TESTS remain prohibited, (c) the named items whose deleted guards stay deleted, (d) a citation of `szkgb8` and backlog `s6om7k`, and (e) the two stated KNOWN HOLES (the `ALIAS = f` module-level-consumption case and the no-retroactive-proof limit). PLUS confirmation that no existing P16 prohibition bullet was reworded or weakened (`git diff GUIDING_PRINCIPLES.md` showing additions only). PLUS the bare `python3 -m pytest` summary line with its `N passed` count, proving the two edits regress nothing. PLUS `aw check plans --agent` output showing no finding for `szkgb8`, and `aw ipd lint` reporting conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. GUIDING_PRINCIPLES.md P16 updated with outcome-vs-shape boundary paragraph and two known holes; git diff confirms additions only; full test suite run bare (4603 passed, pre-existing failures noted); aw sanitize clean; aw ipd lint conforming and aw check plans zero findings.
+    1. Verbatim P16 paragraph in `GUIDING_PRINCIPLES.md`:
+    ```markdown
+    - **Linter rules detecting runtime defects vs. code-structure pins**: Enforcing a static linter rule in CI to detect a broken runtime state (such as ruff's `F811` redefinition check, added in plan `szkgb8` from backlog `s6om7k`) is not a code-structure pin under P16, because it tests an outcome rather than code shape: `F811` reports a condition under which the shipped module's behavior is already wrong (one of two definitions is unreachable, so the exported symbol is not the one the author wrote), which is an outcome; a census or placement pin reports only that source looks different from a remembered shape, which is what P16 forbids. This boundary clarification is not a loophole and must not be read as general permission: this does not re-open `inspect`, `ast`, or regex reads of production source in tests, and the deleted guards named in backlog items `xvp5vx`, `baskrx`, `s4jctz`, and `1bxw6o` stay deleted. Additionally, following the known-hole documentation precedent, the gate carries two stated known holes: (1) a first definition consumed at module level between the two (`ALIAS = f`) marks the binding used, so `F811` stays silent while the shadowing is real (closing it requires dataflow analysis ruff does not perform); and (2) the gate binds the CI surface going forward and does not retroactively prove history clean.
+    ```
+    2. Confirmation of no existing prohibition bullets altered (`git diff GUIDING_PRINCIPLES.md` additions only):
+    ```diff
+    diff --git a/GUIDING_PRINCIPLES.md b/GUIDING_PRINCIPLES.md
+    index e9cb06621..23cf60c6b 100644
+    --- a/GUIDING_PRINCIPLES.md
+    +++ b/GUIDING_PRINCIPLES.md
+    @@ -178,6 +178,7 @@ Tests exist to prove that the software behaves correctly when executed. They do
+     - **Exercise the code**: Call the function, invoke the CLI, run the subprocess, supply inputs, and assert observable outputs (return values, stdout/stderr, exit codes, created files, state mutations).
+     - **Verify test sensitivity with mutation**: A test is only valid if breaking the underlying behavior makes the test fail. If reorganizing working code or editing a docstring breaks the test, the test is broken.
+     - **The one narrow exception**: Content verification is permissible only where the text or file itself is the artifact under test (for example, verifying published documentation does not cite deleted test files, or checking that test modules do not attempt network installations in offline suites). Production code is never subject to text or AST structure pins.
+    +- **Linter rules detecting runtime defects vs. code-structure pins**: Enforcing a static linter rule in CI to detect a broken runtime state (such as ruff's `F811` redefinition check, added in plan `szkgb8` from backlog `s6om7k`) is not a code-structure pin under P16, because it tests an outcome rather than code shape: `F811` reports a condition under which the shipped module's behavior is already wrong (one of two definitions is unreachable, so the exported symbol is not the one the author wrote), which is an outcome; a census or placement pin reports only that source looks different from a remembered shape, which is what P16 forbids. This boundary clarification is not a loophole and must not be read as general permission: this does not re-open `inspect`, `ast`, or regex reads of production source in tests, and the deleted guards named in backlog items `xvp5vx`, `baskrx`, `s4jctz`, and `1bxw6o` stay deleted. Additionally, following the known-hole documentation precedent, the gate carries two stated known holes: (1) a first definition consumed at module level between the two (`ALIAS = f`) marks the binding used, so `F811` stays silent while the shadowing is real (closing it requires dataflow analysis ruff does not perform); and (2) the gate binds the CI surface going forward and does not retroactively prove history clean.
+    ```
+    3. Bare `python3 -m pytest` test suite summary line:
+    `4 failed, 4603 passed, 2 skipped, 3 warnings in 377.15s (0:06:17)`
+    (All 4 failures are pre-existing across the test suite: dirty live-corpus spec `89xjll`, typecheck gate in `render_stream.py:3640`, `test_run_finding_reachability`, and `test_statusline_behavior` alarm signal under full xdist load; isolated re-run of `test_statusline_behavior.py` passes 41/41 clean).
+    4. Conformance checks:
+    - `python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260930-s6om7k-01-szkgb8-enforce-the-no-duplicate-top-level-definition-property-in-ci.ipd.md`: reports conforming.
+    - `python3 -m agent_workflows check plans --agent`: reports zero findings for `szkgb8`.
+    - `python3 -m agent_workflows sanitize --agent`: clean (`{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`).
+  - Result: pass
 
 ## Approval and execution gate
 

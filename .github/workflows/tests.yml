@@ -195,6 +195,33 @@ jobs:
         shell: bash
         run: python -m agent_workflows check release-gates --agent
 
+      # Enforce the no-duplicate-top-level-definition property (plan szkgb8, backlog s6om7k).
+      # Pinned to the SAME version as .pre-commit-config.yaml (rev: v0.4.4); whoever bumps the
+      # hook's rev must bump this step's pin too.
+      # Tokens are load-bearing:
+      # - `ruff==0.4.4`: dev-only gate dependency; not added to pyproject.toml [test] extra.
+      # - `--select F811`: confines the gate to duplicate definitions (redefinition of unused name);
+      #   adopting ruff's other default findings is a separate decision.
+      # - `--config 'lint.dummy-variable-rgx="^$"'`: THE fix for private symbols (F-10). Ruff exempts
+      #   names matching dummy-variable-rgx from F811 by default, silently missing every leading-underscore
+      #   duplicate (1,189 of agent_workflows/ top-level defs, including thin wrappers).
+      #   DO NOT write this into pyproject.toml: repo-wide configuration breaks pre-commit with F841 errors (F-12).
+      #   CLI scoping confines the override to this single invocation.
+      # - `--target-version py312`: future-proofing (E-01(c)); prevents a future ruff rev bump from
+      #   failing on 3.12 syntax constructs (e.g. backslashes/quotes in f-strings).
+      # - `agent_workflows/ tests/ tools/`: covers library code, tests (avoiding shadowed test methods),
+      #   and tools (e.g. runner_fork_scan.py).
+      # - `--no-cache`: ensures the CI verdict is independent of any cached state.
+      # F811 is NOT auto-fixable (ruff --select F811 --fix leaves files unchanged and exits 1),
+      # so the pre-commit hook's --fix cannot silently delete definitions.
+      - name: ruff F811 check (no duplicate top-level definitions; fail closed)
+        shell: bash
+        run: |
+          python -m pip install 'ruff==0.4.4'
+          ruff check --no-cache --select F811 --target-version py312 \
+            --config 'lint.dummy-variable-rgx="^$"' \
+            agent_workflows/ tests/ tools/
+
 
   output-conformance:
     name: CLI output-conformance harness (fail-closed)
