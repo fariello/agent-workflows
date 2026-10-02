@@ -1,11 +1,13 @@
 - Id: s8veyk
-- Status: open
+- Status: graduated
+- Graduated-To: hostcapgate
 - Set: runwire
 - Priority: medium
 - Work-Kind: chore
 - Summary: supports_fresh_verifier_session is probed but gates nothing: ACTION_CAPABILITY_REQUIREMENTS has one row and it requires no capability
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 4qv834, bqtgmo, y9m1ya
 - 2026-09-30 created (aw backlog): Filed while authoring Set runwire from backlog ildjse. Sibling plan eow7p4 enforces verifier session independence at the runner, but deliberately does NOT add a capability requirement row, because that would refuse whole action classes on a host and is a policy change with a much larger blast radius. This item carries that residual.
 
 MEASURED at 2026-09-30 (lane worktree ildjse, HEAD cedab274).
