@@ -1,0 +1,208 @@
+# IPD: Restore the security-hardening boundary coverage as outcome tests and close the loopback prefix fail-open
+
+- Date: 2026-10-02
+- Kind: child
+- Concern: SEVEN SHIPPED SECURITY BOUNDARY CHECKERS HAVE NO TEST CALLER AT ALL, AND THE COVERAGE GAP IS HIDING A LIVE FAIL-OPEN. Commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests", 2026-09-24) deleted `tests/test_security_hardening.py` whole, 1190 lines. MEASURED AT AUTHORING HEAD `4fbbc8386`: `rg -l security_hardening tests/` returns NOTHING, so every `check_*` function in `agent_workflows/security_hardening.py` (576 lines) ships with zero test callers. I DID NOT STOP AT THE COVERAGE ARGUMENT, because a coverage gap is only a hypothesis until it hides something. I recovered the deleted file into gitignored scratch and ran it: `10 passed in 0.29s`, so the deleted suite does NOT fail against current source and a pure restoration would have been green and uninformative. SO I PROBED THE CHECKERS DIRECTLY, AND `check_local_server_binding` FAILS OPEN: its loopback test is `normalized in LOOPBACK_HOSTS or normalized.startswith("127.")`, a bare string-prefix test with no notion of an address, so the attacker-controlled hostnames `127.0.0.1.evil.com`, `127.evil.com`, `127.0.0.1@evil.com` and `127.0.0.1 evil.com` are each ACCEPTED as loopback (`ok=True`, reason "server binds loopback and requires an auth token"). A routable host whose name merely begins with `127.` therefore passes the gate that exists to refuse it, while `docs/security.md` tells a reader the checker "refuses a bind to a routable address". The deleted suite could not have caught this: its binding table carried `127.0.0.1`, `::1`, `localhost` and `0.0.0.0` and no prefix-confusion row at all.
+- Scope: Restore behavioral coverage for the seven boundary checkers plus the aggregate and the two canonical-scanner adapters in `agent_workflows/security_hardening.py` as one new per-module test file; fix the `check_local_server_binding` prefix fail-open; add the first test caller for `host_runner.redact_worker_output`, the one production integration point of this module. Out of scope: the `[::1]`/`::ffff:` bracket and IPv4-mapped spellings beyond the one refusal arm named in E-03 (carrier below), the case-insensitivity of the `RedactionPolicy` key match (carrier below, it lives in another module), any new boundary, any wiring of these checkers into `aw check` or a hook, and the packaging boundary (Order 02 of this Set).
+- Scope-Paths: tests/test_security_hardening.py, tests/test_host_runner_redaction.py, agent_workflows/security_hardening.py, docs/security.md
+- Item-Dependencies: none
+- Status: to-review
+- Work-Kind: security
+- Priority: high
+- From-Backlog: mflqqf
+- Set: mflqqf
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: gqyold
+
+## Workflow history
+
+- 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `mflqqf` in a non-interactive authoring turn. Measurement at HEAD `4fbbc8386` recovered the deleted suite into gitignored scratch and found it GREEN (`10 passed`), so the plan's subject grew from pure restoration to restoration plus the one live fail-open that direct probing found and the deleted suite could not have caught (F-04, F-05).
+- 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Give every boundary checker in `security_hardening` a real test caller again, so a checker that degrades to "always allow" is reported by the suite instead of shipping unnoticed, and close the one fail-open that probing the uncovered surface actually found. Every restored test must CALL the checker and assert on its returned `BoundaryResult`, never read the module's source.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: restore the boundary coverage
+
+- [ ] E-01 Create `tests/test_security_hardening.py` covering the four boundary checkers whose decision surface needs no temporary filesystem, recovered from `git show 19313eed^:tests/test_security_hardening.py` and re-verified against the CURRENT signatures rather than pasted blind. The four are `check_local_server_binding`, `check_untrusted_text_isolated` (with `classify_untrusted_text`), `check_destructive_tool_gated`, and the `run_boundary_checks`/`HardeningReport` aggregate. KEEP THE RECOVERED FILE'S TABLE-DRIVEN SHAPE AND ITS CENTRAL ARGUMENT, which is a security argument and not a tidiness one: every table must carry BOTH a holding row and a refusing row, because `BoundaryResult.ok=True` is the PERMISSIVE answer, so a checker degraded to "always allow" is the realistic regression and is precisely what a table of only-holding rows cannot see. Assert on the `boundary`, `ok` and `reason` fields and on `evidence`, not merely on truthiness, so a refusal that carries no justifying evidence is caught. THE MEASURED ROWS ARE RECORDED HERE SO THIS COSTS NO ROUND TRIP (F-07): binding holds for `127.0.0.1`, `::1`, `localhost` and refuses `0.0.0.0`, `1270.0.0.1`, `127evil.example.com`, `localhost.evil.com`, `[::1]`, `::ffff:127.0.0.1`; an authenticated-but-routable bind and an unauthenticated loopback bind each refuse; untrusted text refuses whenever `treated_as_instructions` is True REGARDLESS of content and holds otherwise even when an injection marker matched (the marker set is reported in `evidence`); the destructive gate holds for `('git_push','human',True)`, refuses `('git_push','human',False)`, refuses `('git_push','executor',True)` and `('git_push','bogus',True)`, and holds for a non-destructive `read_file` with no consent at all.
+  - Depends on: none
+  - Expected outcome: The file exists and passes against unmodified source EXCEPT the prefix-confusion rows added by E-02, which are expected red until E-03. `python3 -m pytest tests/test_security_hardening.py -o addopts="" -q` collects and runs, and `rg -c security_hardening tests/test_security_hardening.py` is non-zero where `rg -l security_hardening tests/` returned nothing before.
+  - Execution state: pending
+
+- [ ] E-02 Add to the binding table in `tests/test_security_hardening.py` the PREFIX-CONFUSION rows the deleted suite never carried, each asserting a REFUSAL: `127.0.0.1.evil.com`, `127.evil.com`, `127.0.0.1@evil.com` and `127.0.0.1 evil.com`. These are the rows that express the property the checker's docstring and `docs/security.md` both already claim, namely that a routable address is refused, and a hostname whose label merely BEGINS with `127.` resolves wherever its owner points it. This item is expected to FAIL until E-03 lands; that failure is the point, and it must be observed BEFORE the fix rather than reconstructed after. Keep `127.1.2.3` as a HOLDING row: it is a genuine loopback address in `127.0.0.0/8` and must not be caught by the fix, so it is the control proving E-03 narrowed the gate rather than closing it.
+  - Depends on: E-01
+  - Expected outcome: Run before E-03 is performed, the four new rows fail, each reporting that a refusal was expected and `ok=True` was returned with the reason "server binds loopback and requires an auth token". This reproduces the measurement this plan was authored from. The `127.1.2.3` holding row passes both before and after.
+  - Execution state: pending
+
+- [ ] E-03 Fix `security_hardening.check_local_server_binding` so the loopback test is an ADDRESS test rather than a string-prefix test. The defect is the `normalized.startswith("127.")` disjunct, which accepts any hostname beginning with those four characters. Parse the candidate with `ipaddress` (stdlib, so D138 is untouched) and accept it only when it is a genuine loopback address or the exact literal `localhost`; anything that does not parse as an address and is not `localhost` must REFUSE. Keep the function's signature, its return type, the `BOUNDARY_SERVER_BINDING` identifier and the existing refusal `reason` wording, so no caller or assertion of the boundary id changes. PRESERVE THE WHOLE EXISTING HOLDING SET, which is what makes this a narrowing and not a rewrite: `127.0.0.1`, `::1`, `localhost`, `127.1.2.3` and the surrounding-whitespace spelling `'  127.0.0.1  '` must all still hold, and all five are asserted in E-01 and E-02 so a fix that broke one would be caught. ALSO DECIDE THE `127.0.0.0/8` ENTRY DELIBERATELY: it currently sits in `LOOPBACK_HOSTS` and holds today, but a CIDR block is not a bind target, so either keep it holding for compatibility or refuse it, and state which in the diff comment. Do not silently change its verdict without saying so.
+  - Depends on: E-02
+  - Expected outcome: `check_local_server_binding` refuses each of the four prefix-confusion spellings and still holds for all five legitimate spellings. The E-02 rows now pass.
+  - Execution state: pending
+
+- [ ] E-04 Add to `tests/test_security_hardening.py` the three boundary checkers that need a real temporary filesystem, restored from the recovered file and re-verified: `check_external_file_access`, `check_real_home_excluded` and `check_evidence_redaction`. Build every input with `tmp_path` or `tempfile`, never by writing into the repository tree. THE CONTAINMENT ARM MUST CARRY THE SYMLINK-ESCAPE ROW, which I verified holds today and which is the row most worth pinning because it is the one an in-string path check would miss: a symlink inside the base pointing at a file outside it is REFUSED (`reason` begins "external file access escapes the consented base"). For `check_real_home_excluded`, assert the real HOME, its parent and `/` are each REFUSED while a `tempfile` base holds, and note in the test prose the measured asymmetry that a directory UNDER the real HOME holds (the guard refuses a base that CONTAINS home, not one contained BY it) so a reader does not mistake the arm for a stronger claim than it makes. For `check_evidence_redaction`, pin the TWO-STAGE property specifically, which is the whole point of that checker: a secret in a sensitive KEY is masked by the `RedactionPolicy` and the boundary HOLDS, while a home path in a non-sensitive key survives redaction and is caught by the canonical leak sanitizer, failing closed with a `home-path` finding in `evidence`. Pass `repo_root` explicitly so the arm does not depend on the module's `__file__` walk.
+  - Depends on: none
+  - Expected outcome: Every arm passes against unmodified source. The redaction arm shows both stages doing work: `{'authorization': 'Bearer abc123'}` holds, `{'stdout': '/home/<some-user>/secret/path'}` refuses with a `home-path` finding.
+  - Execution state: pending
+
+- [ ] E-05 Add to `tests/test_security_hardening.py` the skill least-privilege arm and the two canonical-scanner adapter arms, restored from the recovered `SkillLeastPrivilegeTests` and `CanonicalScannerReuseTests`. The skill arm's two rows are a matched pair and neither is meaningful alone: the package `host_adapters.build_skill_package` actually produces must PASS its own guard (without this holding row the tamper row is vacuous, since a checker that rejects everything would satisfy it), and the same package with a verbatim imperative chunk of the canonical body spliced into `main_file_content` must be REFUSED with the justifying findings present in `evidence`. Construct the tampered package by rebuilding a `SkillPackage` with the spliced `main_file_content`, as the recovered file did. For the adapters, assert each finds its PLANTED input and clears its CLEAN one, so neither is asserted in only the permissive direction: `scan_text_for_secrets` on a planted AWS-key-shaped string returns a finding and returns none on innocuous text, and `scan_artifact_for_leaks` runs over a `tmp_path` tree rather than the live repository, since the live tree's finding count is a population another lane can move.
+  - Depends on: E-04
+  - Expected outcome: Both skill rows behave as specified and both adapter arms show a planted-versus-clean pair. `python3 -m pytest tests/test_security_hardening.py -o addopts="" -q` is fully green at this point.
+  - Execution state: pending
+
+### Task group 2: cover the one production integration point
+
+- [ ] E-06 Create `tests/test_host_runner_redaction.py` giving `host_runner.redact_worker_output` its first test caller. THIS IS THE ONLY PLACE ANY OF THIS MODULE IS WIRED INTO PRODUCTION (F-06): `check_evidence_redaction` has exactly one non-test caller in the package and it is that function, whose own docstring states the contract an uncovered function cannot be trusted to keep, that "the caller must treat that as a failure to record rather than admitting the raw text". Drive it with a `RawWorkerResult` and assert the OBSERVABLE two-part outcome: a secret in a sensitive position is masked in the returned result, and a planted home path in `stdout` returns a `BoundaryResult` whose `ok` is False. ASSERT THE MEASURED GAP HONESTLY RATHER THAN THE DOCSTRING'S PROMISE: I verified that with a planted home path the function returns `ok=False` while the returned `stdout` STILL CARRIES THE RAW TEXT UNMASKED, because the `RedactionPolicy` masks sensitive KEYS and the leak sanitizer only DETECTS. That is defensible (the boundary result is the fail-closed signal and the caller is told to refuse the record) but it is not what a reader of the module docstring's "a planted home-path/secret is masked/blocked" would expect, so the test must pin the ACTUAL behavior and say in its prose which half is masking and which is detection. Do not change `host_runner.py` in this plan; it is not in `- Scope-Paths:` and the gap is recorded, not fixed.
+  - Depends on: E-05
+  - Expected outcome: The file passes, pinning that `redact_worker_output` masks sensitive-key content, returns `ok=False` on a planted home path, and does NOT itself mask that home path. `rg -c redact_worker_output tests/` is non-zero where it was zero before.
+  - Execution state: pending
+
+### Task group 3: correct the document and prove the tree still holds
+
+- [ ] E-07 Update `docs/security.md` to drop the now-false statement that these boundaries ship "without dedicated test coverage (tracked in backlog item mflqqf)" and to state the narrowed loopback rule E-03 implements, so the document stops describing a gate more absolute than the code enforced. Then run the full suite BARE as `python3 -m pytest` with no added flags and confirm no regression, measuring the collected total against a baseline taken AT THE EXECUTION BASE rather than trusting any number in this plan. THE BASE IS NOT GREEN AND YOU MUST NOT ACCEPT THAT ON THIS PLAN'S WORD (F-08): at authoring the bare suite was `5 failed, 4622 passed, 2 skipped in 410.45s`, and only two of the five are filed. Re-measure at your base, and for every red node re-run it ALONE before accepting it as pre-existing; two of the five authoring failures PASSED in isolation (`2 passed in 118.59s`), so they are load-sensitive rather than standing, and a node that fails under load but passes alone must be reported as such and not waved through.
+  - Depends on: E-06
+  - Expected outcome: `docs/security.md` no longer claims the boundaries are untested, and the bare suite shows no newly failing test against the executor's own base baseline, with the collected total rising by exactly the number of tests this plan adds.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- TESTS ASSERT OUTCOMES, NEVER CODE STRUCTURE. `AGENTS.md` forbids reading production source with `inspect`, `ast`, regex or substring search, forbids caller counts and symbol censuses as a proxy for correctness, and requires restored coverage to CALL the code and assert on real outputs (GUIDING_PRINCIPLES P16). Every item above drives a checker and asserts its returned `BoundaryResult`. The one structural-sounding claim in this plan, that the loopback test is a string prefix rather than an address test, is validated by CALLING `check_local_server_binding` with the confusing hostnames, not by reading the comparison.
+- THE `rg -c` COUNTS IN THE EXPECTED OUTCOMES ARE REACHABILITY CHECKS ON THE NEW TEST FILES, NOT ASSERTIONS INSIDE THEM. They belong in the V-item evidence as proof the restored file reaches the module at all; no committed test may assert a count over the tree, which is exactly the code-pinning P16 forbids.
+- PER-MODULE TEST FILES ARE THE CONVENTION, which is why the restored security coverage goes to one file named for its module and the `host_runner` arm goes to its own. The tree already carries `tests/test_host_runner_output_bound.py` beside the other `host_runner` surfaces, so a second narrowly named file is the established shape rather than a new one.
+- THE SUITE RUNS BARE. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, so E-07 uses `python3 -m pytest` with no added flags; `-o addopts=""` appears above ONLY for the narrowed per-file runs where per-test counts are needed, which is the documented exception.
+- A COUNT OVER THE LIVE TREE IS RE-DERIVED, NOT MATCHED. A suite total is a LIVE population that other lanes move, so every count comparison in this plan is SELF-RELATIVE: measure before, measure after, require the delta to equal the tests added. The authoring figure belongs in the prose as context and never as a bar.
+- STDLIB ONLY IN THE FIX. D138 makes dependency minimization the operative principle and `tests/test_packaging.py` pins the runtime dependency set to exactly `{"filelock"}`, so E-03's address parsing uses `ipaddress` from the stdlib. A new runtime dependency would fail that existing guard.
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | `tests/test_security_hardening.py` was deleted whole by `19313eed`, 1190 lines. | `git show 19313eed --stat` lists `tests/test_security_hardening.py \| 1190 ------`. |
+| F-02 | Every checker in the module ships with zero test callers at authoring HEAD `4fbbc8386`, so the backlog item's first measurement still holds. | `rg -l security_hardening tests/` exits 1 with no output. `agent_workflows/security_hardening.py` is 576 lines. |
+| F-03 | A PURE RESTORATION WOULD HAVE BEEN GREEN AND UNINFORMATIVE, which is why this plan does not stop there. The deleted suite passes unmodified against current source. | Recovered `19313eed^:tests/test_security_hardening.py` into gitignored `.aw/state/` scratch and ran it: `10 passed in 0.29s`. |
+| F-04 | THE GAP HIDES A LIVE FAIL-OPEN. `check_local_server_binding` ACCEPTS attacker-controlled hostnames that merely begin with `127.`, returning `ok=True` and the reason "server binds loopback and requires an auth token" for `127.0.0.1.evil.com`, `127.evil.com`, `127.0.0.1@evil.com` and `127.0.0.1 evil.com`. The loopback test is `normalized in LOOPBACK_HOSTS or normalized.startswith("127.")`, a bare string-prefix test with no notion of an address. | Direct probe at authoring HEAD calling `check_local_server_binding(h, True, 'tok')` for each spelling, each printing `ok=True`. |
+| F-05 | THE DELETED SUITE COULD NOT HAVE CAUGHT F-04, so this is a genuine blind spot in the restored coverage rather than a regression the trim knowingly dropped. Its binding table carried `127.0.0.1`, `::1`, `localhost` and `0.0.0.0` and no prefix-confusion row at all, which is why E-02 ADDS rows rather than restoring them. | The recovered `LocalServerBindingTests` table read in full; its four rows are the two loopback holds, the routable refusal and the unauthenticated refusal. |
+| F-06 | `docs/security.md` states the checker "refuses a bind to a routable address", which F-04 shows it does not, and the same document states these boundaries ship "without dedicated test coverage (tracked in backlog item mflqqf)", which this plan makes false. Both sentences are in scope for E-07. | `docs/security.md` boundary 1 and its opening paragraph. |
+| F-07 | THE MEASURED DECISION SURFACE IS RECORDED SO THE EXECUTOR NEED NOT RE-DERIVE IT. Binding: holds `127.0.0.1`, `::1`, `localhost`, `127.1.2.3`, `'  127.0.0.1  '`, `127.0.0.0/8`; refuses `0.0.0.0`, `1270.0.0.1`, `127evil.example.com`, `localhost.evil.com`, `[::1]`, `::ffff:127.0.0.1`, `127x`. Destructive gate: `can_record_human_approval` is True ONLY for `human`, False for `executor` and `verifier`, and `agent` plus any unknown role RAISE `RolePermissionError` (which the checker swallows into a refusal). Containment: a symlink inside the base pointing outside is REFUSED. Isolation: real HOME, its parent and `/` all refuse, a `tempfile` base holds, and a directory UNDER home HOLDS. Untrusted text: the verdict follows `treated_as_instructions` and never the content, and marker matching is literal, so `ignore  previous  instructions` with doubled spaces does NOT match. | Each line is one direct probe at authoring HEAD against the live module. |
+| F-08 | THE BASE IS NOT GREEN, AND ONLY TWO OF THE FIVE RED NODES ARE FILED, so an executor must re-measure rather than trust a green expectation. Bare `python3 -m pytest` at authoring HEAD gave `5 failed, 4622 passed, 2 skipped, 3 warnings in 410.45s`. The five are `test_spec_review_attestation` (filed, `6bolin`), `test_run_finding_reachability` (filed, `8jeh4x`), `test_selector_type_containment` (filed, `bxnhdj`), `test_verbose_flag_reach` (NOT filed) and `test_typecheck_gate` (NOT filed). The last two PASS IN ISOLATION, so they are load-sensitive under `-n auto` rather than standing failures. | Bare suite run, output above. Narrowed re-run of the two unfiled nodes: `2 passed in 118.59s`. Filed-ness checked with `rg -l` over `.aw/records/backlog/open/`. |
+| F-09 | `redact_worker_output` is the module's ONLY production wiring and it too has zero tests, so the integration is as unproven as the checkers. `check_evidence_redaction` has exactly one non-test caller in the package, inside that function. | `rg -ln security_hardening` over the package matches only `agent_workflows/host_runner.py`; `rg -ln redact_worker_output tests/` returns nothing. |
+| F-10 | THE PRODUCTION PATH DOES NOT DO WHAT ITS DOCSTRING SAYS, and E-06 pins the real behavior rather than the promise. `host_runner.py`'s module docstring says a planted home-path/secret is "masked/blocked", but driving `redact_worker_output` with a home path in `stdout` returns `ok=False` while the returned `stdout` still carries the raw text. The `RedactionPolicy` masks sensitive KEYS; the leak sanitizer only DETECTS. | Probe at authoring HEAD: `boundary ok: False` with `redacted stdout: 'token=abc /home/<some-user>/x'`. |
+| F-11 | `RedactionPolicy`'s sensitive-key match is CASE-SENSITIVE, so `{'token': ...}` is masked while `{'TOKEN': ...}` is not. This is a real sharp edge but it lives in `agent_workflows/run_ledger_store.py`, outside this plan's declared paths, so it is deferred to a carrier rather than fixed here. | Probe: `pol.redact({'token':'s3cr3t'})` gives `[REDACTED]`, `pol.redact({'TOKEN':'s3cr3t'})` returns the value unchanged. `RedactionPolicy._redact_value` tests `parent_key in self.sensitive_keys` against a `frozenset` of lowercase keys. |
+| F-12 | No sibling pending plan declares either test file or `agent_workflows/security_hardening.py`, so this plan's paths are uncontested. Two siblings touch NEARBY files and neither overlaps: `36sifo` declares `agent_workflows/doctor.py` and `agent_workflows/host_runner.py` is only CITED by it, and `g8q99a` declares `agent_workflows/leak_sanitizer.py` plus `docs/security.md` is only cited. | `rg -l` for each path over `.aw/records/plans/pending/`, then `- Scope-Paths:` read from each matching plan. |
+
+## Proposed changes (ordered, validatable)
+
+1. `tests/test_security_hardening.py` (new): table-driven boundary arms for all seven checkers, the aggregate and the two scanner adapters, each table carrying both a holding and a refusing row, plus the four net-new prefix-confusion refusal rows (E-01, E-02, E-04, E-05).
+2. `agent_workflows/security_hardening.py`: `check_local_server_binding`'s loopback test becomes an `ipaddress`-based address test, preserving signature, return type, boundary id, refusal wording and the whole existing holding set (E-03).
+3. `tests/test_host_runner_redaction.py` (new): the first test caller for `host_runner.redact_worker_output`, pinning the measured masking-versus-detection split (E-06).
+4. `docs/security.md`: drop the "without dedicated test coverage" paragraph and state the narrowed loopback rule (E-07).
+
+## Deferred / out of scope (with reason)
+
+- The `RedactionPolicy` CASE-SENSITIVE sensitive-key match (F-11) is NOT fixed here. It lives in `agent_workflows/run_ledger_store.py`, which this plan does not declare, and changing a shared redaction policy's matching is a behavior change for every ledger caller rather than test restoration.
+  - Carrier: go20fk
+- The `host_runner.redact_worker_output` masking gap (F-10) is PINNED BY A TEST, NOT FIXED. E-06 asserts the actual behavior so a future change is visible; making the function mask what the sanitizer merely detects would change `agent_workflows/host_runner.py`, which is outside the declared paths and is a design decision (whether a detected leak should be masked in place or refuse the record outright) rather than a restoration. The honest position is that the CODE may be right and the module docstring wrong, which is why the carrier item states both remedies and asks which, rather than asserting a defect.
+  - Carrier: fe6aro
+- The IPv6 bracket spelling `[::1]` and the IPv4-mapped `::ffff:127.0.0.1` are asserted as REFUSALS in E-01 because that is what the checker does today, and this plan does NOT make them hold. Whether a host that legitimately binds `[::1]` should be accepted is a capability question about the callers, and there are no callers yet (F-09), so inventing the answer now would pin a contract nothing uses.
+  - Carrier-Declined: NOTHING IS OUTSTANDING HERE, so there is no obligation to carry. This row records a verdict the plan PINS as current behavior rather than work it leaves undone: E-01 asserts both spellings refuse, so the behavior is covered, not deferred. A future caller that needs `[::1]` accepted will arrive with its own requirement and can change the assertion then; filing an item now would assert an obligation that no caller has created.
+- Wiring these checkers into `aw check`, a hook, or a release gate is out of scope.
+  - Carrier-Declined: NOT AN OBLIGATION THIS PLAN CREATES OR DISCHARGES. Six of the seven checkers have no production caller at all (F-09), so wiring them is a net-new feature with its own design question (what refuses, where, and with what operator message), not a loose end left by restoring test coverage. Backlog item `mflqqf` asks for coverage of the shipped boundaries and does not ask for them to be enforced anywhere new, so filing a carrier here would invent scope the item never had.
+- The packaging boundary half of backlog item `mflqqf` is Order 02 of this Set and is not touched here.
+  - Carrier: d0lg63
+
+## Scope check
+
+- Over-scope: none. The two new test files, the one-function source fix and the one document edit are each required by a numbered item. The fix is confined to the single function whose fail-open the restored coverage exposes.
+- Under-scope: Deliberate and named above. The `RedactionPolicy` case sensitivity and the `host_runner` masking gap are recorded with reproducing probes and left unfixed, and no checker gains a production caller. A reviewer who wants any of these in scope should say so before approval, since each would change the declared `- Scope-Paths:`.
+- FULL ACCOUNTING OF THE DELETED FILE, because a restoration plan's most important property is that nothing was silently dropped. The deleted `tests/test_security_hardening.py` held EIGHT classes and all eight have a stated disposition: `LocalServerBindingTests` (E-01, plus four net-new rows in E-02), `UntrustedTextIsolationTests`, `DestructiveToolGateTests` and `AggregateTests` (E-01); `ExternalFileAccessTests`, `RealHomeExcludedTests` and `EvidenceRedactionTests` (E-04); `SkillLeastPrivilegeTests` and `CanonicalScannerReuseTests` (E-05). Eight of eight, no silent drop. Note that the recovered file's `EvidenceRedactionTests` also carried an arm asserting the checker uses the repository's canonical sanitizer MODULE; that arm is NOT restored verbatim, because asserting which module a function imported is exactly the code-pinning P16 forbids, and the property is instead pinned behaviorally by the `home-path` finding in E-04.
+
+## Required tests / validation
+
+Narrowed runs with `-o addopts=""` for per-test counts on the two new files, then the FULL suite run BARE (`python3 -m pytest`) with its actual output pasted.
+
+CAPTURE YOUR OWN BASELINE; DO NOT USE A NUMBER FROM THIS PLAN. The authoring figure of `4622 passed, 5 failed, 2 skipped` at HEAD `4fbbc8386` is a dated measurement, not a bar. Every count comparison here is SELF-RELATIVE: measure before any edit, measure after, and require the delta to equal the number of tests added.
+
+THE BAR IS "NO NEWLY FAILING TEST", NOT "GREEN", and that is a deliberate consequence of F-08 rather than a license to wave anything through. Five nodes were red at authoring and three are filed (`6bolin`, `8jeh4x`, `bxnhdj`). For EVERY red node at your base, re-run it ALONE before accepting it: two of the five passed in isolation, so they are load-sensitive under `-n auto`, and a node that fails under load but passes alone must be REPORTED as such. Anything red that is neither filed nor reproducible in isolation is new and must be investigated, not accepted.
+
+E-02's rows must be observed FAILING before E-03 is performed and PASSING after, since a fix validated only after the fact does not demonstrate it addressed the measured defect. E-03's falsifiability must additionally be shown by a negative control: restoring the `startswith("127.")` disjunct temporarily must make the E-02 rows fail again, and the revert must be proven in the same pass.
+
+METHOD RULE FOR THE NEGATIVE CONTROL. This is a SHARED CHECKOUT, so hold every temporary source edit for the shortest possible window: run only the NARROWED node while the edit is live (`-o addopts=""` on the single file), never the full suite, then restore and paste `git status --short` empty. Build every filesystem input under `tmp_path` or `tempfile`; no test may write into the repository tree, and the scanner arm must run over a temporary tree rather than the live repository, whose finding count another lane can move.
+
+## Spec / documentation sync
+
+No `.spec.md` file is amended, so none appears in `- Scope-Paths:`. `docs/security.md` IS amended and is declared: E-07 removes the sentence saying these boundaries ship without dedicated test coverage, which this plan makes false, and states the narrowed loopback rule so the document stops describing a gate stronger than the code enforced (F-06). The behavior changed in E-03 is governed by that document plus the checker's own docstring, and the change brings the code INTO line with both rather than altering a published contract. `CHANGELOG.md` is not touched: a fail-open fix in a module with no production caller changes no user-visible behavior, and the executor should say so rather than inventing an entry.
+
+## Open questions
+
+### OQ-01: Should `127.0.0.0/8` remain an accepted bind target after the address-based fix?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE to KEEP IT HOLDING, with the reasoning recorded so a reviewer can overturn it cheaply. The literal `127.0.0.0/8` sits in `LOOPBACK_HOSTS` today and holds, and E-03 preserves the existing holding set because this plan's fix is a NARROWING of a fail-open, not a revision of the accepted set; changing a verdict that is correct-by-intention would widen the change beyond the measured defect. A CIDR block is admittedly not a bind target, which is why E-03 requires the executor to state the decision in the diff comment rather than leave it implicit. Not blocking: were the maintainer to prefer a refusal, only the one entry changes and every other arm stands.
+
+### OQ-02: Should the two unfiled load-sensitive suite failures be filed by this plan?
+
+- Blocking: no
+- Status: open
+- Owner: human
+- Carrier: wc5c5e
+- Resolution or deferral rationale: FILED RATHER THAN DECIDED, which is the honest split between what the repository can tell us and what it cannot. It CAN tell us `test_verbose_flag_reach` and `test_typecheck_gate` fail under the parallel suite and pass in isolation, and that the isolated pair takes 118.59s against a 90.0s per-test hang guard (F-08). It CANNOT tell us whether a load-sensitive test is a defect in the test, a real concurrency bug, or an accepted property of a 4600-test parallel run, and classifying it `bug` would assert a user-perceptible defect the evidence does not establish. So the measurement is immortalized on backlog item `wc5c5e` with the triage question stated, and the classification stays the maintainer's. Not blocking: this plan is executable either way, and F-08 already tells the executor to re-measure and report rather than trust a green expectation.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [ ] V-01 validates E-01
+  - Required evidence: Paste `python3 -m pytest tests/test_security_hardening.py -o addopts="" -q` showing the collected count, and the output of `rg -c security_hardening tests/test_security_hardening.py`. Then paste a NEGATIVE CONTROL proving the tables can fail in the PERMISSIVE direction, which is the one that matters: temporarily make `check_destructive_tool_gated` return an `ok=True` result unconditionally, paste the resulting failure showing the REFUSAL rows breaking, revert it, and paste `git status --short` empty. A run that only shows passing tests does not satisfy this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: Paste the four prefix-confusion rows FAILING before E-03 is performed, with the returned `ok=True` and the reason "server binds loopback and requires an auth token" visible, and separately paste them PASSING after. The before-and-after pair is the required shape; a single passing run does not satisfy this item. Paste the `127.1.2.3` holding row passing in BOTH runs, since that is what proves the fix narrowed the gate rather than closing it.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: Paste `git diff agent_workflows/security_hardening.py` so the reviewer sees the address-based test, the preserved signature and boundary id, and the explicit comment recording the `127.0.0.0/8` decision (OQ-01). Paste a direct call result showing each of the four confusing spellings refused AND all five legitimate spellings (`127.0.0.1`, `::1`, `localhost`, `127.1.2.3`, `'  127.0.0.1  '`) still holding. Paste a NEGATIVE CONTROL: restore the `startswith("127.")` disjunct, show the E-02 rows failing again, restore the fix, and paste `git status --short` empty. Hold that edit for the narrowed run only.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: Paste the passing run covering the three filesystem arms. Paste specifically the SYMLINK-ESCAPE result, showing the refusal reason beginning "external file access escapes the consented base", and the TWO-STAGE redaction pair, showing `{'authorization': ...}` holding while a home path in a non-sensitive key refuses with a `home-path` finding in `evidence`. A redaction arm that only shows the holding case does not satisfy this item, because it cannot distinguish a working two-stage check from one whose sanitizer stage never runs. Paste evidence that no test wrote into the repository tree: `git status --short` empty after the run.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: Paste the passing run covering the skill arm and both adapter arms. Paste the skill arm's two outcomes explicitly: the generated package HOLDING and the spliced package REFUSED with non-empty `findings` in `evidence`. Paste each adapter's planted-versus-clean pair with its counts. Confirm in the pasted output that the leak-scan arm ran over a temporary tree, not the live repository.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: Paste `python3 -m pytest tests/test_host_runner_redaction.py -o addopts="" -q` passing, and `rg -c redact_worker_output tests/`. Paste the observed `redact_worker_output` outcome for a planted home path, showing BOTH halves: the returned `BoundaryResult.ok` is False AND the returned `stdout` still carries the raw text (F-10). Pinning only the `ok=False` half does not satisfy this item, because the plan's claim is specifically that the docstring's "masked/blocked" overclaims and the test must record which half is which.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: Paste `git diff docs/security.md` showing the removed "without dedicated test coverage" claim and the stated loopback rule. Paste the FULL bare `python3 -m pytest` output including the final summary line, with no added flags. Paste your own execution-base baseline total measured BEFORE the change and the new total, and state the delta explicitly; the delta must equal the number of tests this plan added. For EVERY red node in either run, paste its isolated re-run and classify it: filed and pre-existing (name the backlog id), load-sensitive (passes alone, must be reported), or NEW (must be investigated, never accepted). Do NOT report the run green by excluding any node. Paste `git diff --cached --name-only` before the commit showing ONLY the four declared `- Scope-Paths:` entries, and paste `aw ipd lint --phase pre-transition` reporting conforming.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review` and requires explicit human approval before execution; it writes no `- Readiness:` field, since that is `/plan-review`'s output and never an author's to assert.
+
+EXECUTION CONTRACT. Commit only the four declared `- Scope-Paths:` and only through `aw commit <plan> -- <paths>`, never `git add -A` and never with `--no-verify`; do not push; do not create a tag or release. The full suite must be run BARE (`python3 -m pytest`) and its actual output pasted, never summarized or claimed. V-01 and V-03 each require a TEMPORARY source edit as a negative control: both must be reverted in the same pass and the revert proven with `git status --short`, because leaving a neutered checker in the tree would ship the very fail-open this plan exists to close. HOLD EVERY SUCH EDIT FOR THE NARROWED RUN ONLY: run the single affected file with `-o addopts=""` while the edit is live, never the full suite, because this is a shared checkout and a restore after a multi-minute run discards whatever a co-worker wrote in the interval. ORDER MATTERS AND IS NOT OPTIONAL: E-02 must be observed failing BEFORE E-03 is performed, so do not fix the checker first and reconstruct the failure afterwards.
+
+SCOPE FENCE. The declared `- Scope-Paths:` are `tests/test_security_hardening.py`, `tests/test_host_runner_redaction.py`, `agent_workflows/security_hardening.py` and `docs/security.md`. That is a DECLARATION so finalize can reconcile what was edited against what was declared, not a stop condition: if the work genuinely requires a path outside it, make the edit and JUSTIFY it at finalize with `--scope-reason`, and acknowledge any declared-but-unmodified path with `--scope-ack`. Do not stop and report over a scope question. DO stop and report for a genuinely unsafe condition: an unresolvable concurrent edit to `agent_workflows/security_hardening.py` or `docs/security.md`, or a prerequisite symbol that is absent. Verified at authoring that no sibling pending plan declares any of the four paths (F-12), so none is contested today; note that `g8q99a` CITES `docs/security.md` without declaring it, so re-check that file before editing.
+
+POST-GATE LIFECYCLE MOVE. The finalize obligation is unconditional: this plan does not reach `.aw/records/plans/executed/` until every `V-*` carries pasted evidence with a non-pending `Result` and `aw ipd lint --phase pre-transition` reports conforming. OWNERSHIP IS CONDITIONAL: when executed under `aw oc run` or `aw agy run`, the RUNNER performs the finalize and the lifecycle move, so do not invoke it yourself; when executed by hand outside a runner, the executor performs it via `aw ipd finalize`. Never hand-edit the status line and never hand-move the file. This plan is one of two graduation carriers for backlog item `mflqqf` (Order 02 carries the packaging half), so it does NOT close that item on its own; the item stays `graduated` until both carriers execute.
