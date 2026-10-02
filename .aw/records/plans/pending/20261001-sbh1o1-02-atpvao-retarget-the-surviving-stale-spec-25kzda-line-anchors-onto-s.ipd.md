@@ -107,6 +107,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - **THE THREE `:166` SITES IN `closure_target_admission` AND `enforce_mixed_type_gate`.** Owned by `yu47nf` E-07 and `mt54wr` E-04, both declared and both approved. Editing them here would create a merge conflict for no gain (F-05). This plan's declared dependency on both means they should already be corrected when it runs; E-01 verifies rather than assumes.
   - Carrier: yu47nf
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-isjodh-01-yu47nf-admit-a-non-plan-dependency-target-into-the-with-dependencie.ipd.md
 - **EDITING SPEC `25kzda` ITSELF.** It is not in `- Scope-Paths:` and needs no amendment: this plan changes only how the spec is CITED, not what it says. No contract moves, so no spec-sync obligation arises.
   - Carrier-Declined: There is no obligation to hand off. A citation sweep changes the CITING side only, and the spec carries no stale citation of its own, so nothing is left undone for a later carrier to pick up.
 - **THE CROSS-FILE SOURCE CITATIONS** in `agy_runipd.run_queue`'s shutdown-reporter refresh comment (two offsets attached to the token `oc_runipd.py`) and the two in `review_findings.py`. These cite other source files, not the spec, so they are outside the class (F-02). They are a DIFFERENT and real staleness class (a source line number rots just as fast), and the detector `mt54wr` ships cannot see them because it indexes spec `- Id:` values. Routed to OQ-02 for a maintainer scope decision rather than carried here.
