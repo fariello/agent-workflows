@@ -1,5 +1,6 @@
 - Id: kkjrqr
-- Status: open
+- Status: graduated
+- Graduated-To: kkjrqr
 - Blocks-Release: next
 - Set: kkjrqr
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: a --fields projection drops a summary's next paging continuation, so a truncated agent answer can carry no command to retrieve the rest
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 6rcby1
 - 2026-09-30 created (aw backlog): a --fields projection drops a summary's next paging continuation, so a truncated agent answer can carry no command to retrieve the rest
 
 MEASURED 2026-09-30 while authoring plan `mcdvx0` from backlog item `cm80ge`.
