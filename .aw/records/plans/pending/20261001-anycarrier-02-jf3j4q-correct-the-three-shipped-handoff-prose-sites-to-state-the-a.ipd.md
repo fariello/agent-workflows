@@ -124,7 +124,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `check_engine.evaluate_blocking_close` and every other predicate: unchanged by construction. The code is right and the prose is wrong; this plan moves only the prose.
   - Carrier-Declined: Not an obligation at all, but a statement of this plan's own boundary. The predicate's ALL-carrier behavior is already correct and already shipped by `2o5wka`; there is nothing left to do to it, so there is nothing to carry. Declared here only so a reader cannot mistake the plan's silence about the predicate for an oversight.
 - The residual ungated-sibling divergence (`2o5wka` OQ-02) and the positional-spelling bypass: separate concerns, owned elsewhere, and explicitly excluded by backlog `d1ldvk`'s own NOT IN SCOPE clause.
-  - Carrier: 2misq5
+  - Carrier: kntbbc
 - `AGENTS.md` and `.aw/records/backlog/README.md`: already corrected by `2o5wka` E-06 (F-09). Re-editing them would duplicate shipped work.
   - Carrier-Evidence: .aw/records/plans/executed/20260929-anycarrier-01-2o5wka-make-the-handoff-arm-require-every-same-gate-carrier-execute.ipd.md
 - The repository's four pre-existing suite failures (F-07): not caused by and not touched by this plan. Triaged and reported, not fixed; one passes in isolation (a parallel-run artifact) and one is a live-corpus test failing on another party's artifact.
