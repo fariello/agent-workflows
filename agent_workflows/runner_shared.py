@@ -8067,7 +8067,10 @@ def finalize_retry_remedy(
             "or remove the stale lock file if the recorded process is dead"
         )
 
-    command = getattr(labels, "command", None) or "aw oc"
+    # `labels.command` ALREADY CARRIES THE VERB (`aw oc run` / `aw agy run`), so suffixing `run`
+    # renders `aw oc run run resume <run-id>` (plan `z3si7r`). The fallback carries the verb for the
+    # same reason, matching `turn_retry_remedy`.
+    command = getattr(labels, "command", None) or "aw oc run"
     if retry:
         return (
             "no action needed yet: the run is handing this item back to the same agent in this run "
@@ -8077,7 +8080,7 @@ def finalize_retry_remedy(
     return (
         f"complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real "
         f"observed evidence), confirm with `aw ipd lint {id6} --phase pre-transition`, then finalize "
-        f"with `aw ipd finalize {id6}` or resume the run with `{command} run resume <run-id>`. Do NOT "
+        f"with `aw ipd finalize {id6}` or resume the run with `{command} resume <run-id>`. Do NOT "
         f"discard the lane: the work itself is preserved there and is what the bookkeeping describes"
     )
 
@@ -26177,6 +26180,12 @@ class HostLabels(NamedTuple):
     #: `_compute_scope_reconciliation` (the finalize record's reason/ack strings),
     #: `_detect_driver_command` (its fallback return) and `driver_actor` (the actor prefix an
     #: `attention_contract` gate then validates).
+    #:
+    #: CONTRACT: This value INCLUDES the run verb (`aw oc run` / `aw agy run`). A caller
+    #: interpolating this field must therefore append a SUBCOMMAND (`resume`, `stop`, ...)
+    #: or a bare selector (e.g. `<id6>`), and NEVER a second verb. Appending a second verb
+    #: (e.g. `{command} run resume`) renders `aw oc run run resume`, which is parsed as an
+    #: ambiguous Set selector prefix rather than a command and exits 2 (plan `z3si7r`).
     command: str
 
     #: The operator-facing REVIEW command, e.g. `"aw oc review"`. A field of its own rather than a

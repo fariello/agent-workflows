@@ -6,7 +6,7 @@
 - Scope: Fix the one live doubled-verb remedy in `runner_shared.finalize_retry_remedy`, document the verb-inclusion contract on the `HostLabels.command` field, and add a behavioral guard that renders every host-command-carrying remedy for both hosts and refuses a first token that is not a real subcommand. The guard is WIDER than the one commit `19313eed` deleted, which covered only `turn_retry_remedy` and would not have caught this defect (F-06).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,15 +17,15 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: z3si7r
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z3si7r verified (set verbdouble, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-901..PR-906 all fixed
 
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH, fixed), PR-902 (HIGH, fixed), PR-903 (MEDIUM, fixed), PR-904 (MEDIUM, fixed), PR-905 (MEDIUM, fixed), PR-906 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-verbdouble-01-z3si7r-fix-the-shipped-doubled-verb-remedy-and-pin-the-whole-class.review.md`. I RE-DERIVED THE DEFECT AND THE WHOLE AUDIT rather than reading the findings: rendering all seven host-command-carrying remedies for both hosts and the fallback (21 renders) produced a doubled verb at EXACTLY ONE site, `finalize_retry_remedy`'s exhausted form, on both hosts, with the `None` fallback correct, which confirms F-01, F-03 and F-04 independently; `aw oc run run resume fake-run-id` exits 2 with `Ambiguous Set selector prefix: run matches [33 sets]`; both parsers yield `['audit','integrate','report','resume','start','status','stop']` with `run` absent; baseline is `119 passed in 9.94s`; and OQ-01's release-gate citations all resolve including the `check_engine` asymmetry docstring and `✓ CONFORMS ... errors 0 warnings 0`. THE TWO HIGH FINDINGS ARE BOTH IN THE GUARD, which is where the plan itself says its value lives. FIRST, E-04 permitted the token after the host command to be "a selector-shaped token", and the defect's own token IS `run`, a bare alphanumeric word: measured at review, four of E-04's classes reject it while the selector-shaped escape ACCEPTS it, so the guard as specified would have PASSED on the exact string the plan exists to remove. The escapes are now closed to four classes with the legitimate bare-id6 case bound to the VALUE the test supplies rather than to a shape. SECOND, `assertNotIn("run run")` does not pin the class the backlog item asks for: measured, it catches `run run` but MISSES `aw oc run resume resume <run-id>` and `aw oc run start start`, and `resume resume` is the item's own second named example; E-04 now requires a generalized adjacent-duplicate-token assertion and V-04 requires three class-level negative controls. Also fixed: Step 0 and F-05 claimed the deleted guard covered this class, but the pre-deletion file calls only `turn_retry_remedy` and contains ZERO occurrences of `finalize_retry_remedy` across all 729 lines, so a verbatim restoration would have left F-01 shipping (every "restore" is now "add"); E-02 applied without E-01 would EXTEND the defect to the only correct path, now stated as one atomic edit; E-05's missed-site obligation had no durable carrier and now routes to `aw backlog new` inheriting the release gate; and the gate lacked a scope fence and carried an unconditional finalize instruction.
-- 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `6if6ko`; the audit the item asked for found one SHIPPED malformed remedy, so `Work-Kind` was raised from the item's `chore` to `bug` and the release gate added, per the item's own reclassification clause and `AGENTS.md` "Every live bug gates the next release".
+- 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -37,41 +37,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: fix the shipped defect
 
-- [ ] E-01 In `agent_workflows/runner_shared.py`, in `finalize_retry_remedy`, change the interpolation `` `{command} run resume <run-id>` `` to `` `{command} resume <run-id>` `` (delete the stray literal `run`), leaving the rest of the sentence untouched.
+- [x] E-01 In `agent_workflows/runner_shared.py`, in `finalize_retry_remedy`, change the interpolation `` `{command} run resume <run-id>` `` to `` `{command} resume <run-id>` `` (delete the stray literal `run`), leaving the rest of the sentence untouched.
   - Depends on: none
   - Expected outcome: `finalize_retry_remedy(OC_HOST_LABELS, "abc123", False)` contains `aw oc run resume <run-id>` and does not contain `run run`; the same call with `AGY_HOST_LABELS` contains `aw agy run resume <run-id>`. No other wording changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In the same function, adjust the `None`-labels fallback literal so the fallback and the real-labels path agree on shape: it currently reads `getattr(labels, "command", None) or "aw oc"` while the sibling `turn_retry_remedy` uses `"aw oc run"` (verified at review: that sibling's fallback line reads `getattr(labels, "command", None) or "aw oc run"` under the comment recording this exact hazard). Set it to `"aw oc run"` so the fallback renders `aw oc run resume <run-id>` by the SAME interpolation as the host path rather than by compensating for a missing verb.
+- [x] E-02 In the same function, adjust the `None`-labels fallback literal so the fallback and the real-labels path agree on shape: it currently reads `getattr(labels, "command", None) or "aw oc"` while the sibling `turn_retry_remedy` uses `"aw oc run"` (verified at review: that sibling's fallback line reads `getattr(labels, "command", None) or "aw oc run"` under the comment recording this exact hazard). Set it to `"aw oc run"` so the fallback renders `aw oc run resume <run-id>` by the SAME interpolation as the host path rather than by compensating for a missing verb.
   E-01 AND E-02 ARE ONE ATOMIC EDIT AND MUST LAND TOGETHER, which is why E-02 depends on E-01 rather than being independent. Performing E-02 ALONE would turn the fallback's currently-correct output into `aw oc run run resume <run-id>`, i.e. it would EXTEND the defect to the one path that renders correctly today (F-03). Do not commit a tree in which E-02 is applied and E-01 is not.
   - Depends on: E-01
   - Expected outcome: `finalize_retry_remedy(None, "abc123", False)` still contains `aw oc run resume <run-id>` (the rendered string is unchanged from before this plan), but it is now produced by a fallback whose value matches `OC_HOST_LABELS.command`, so the divergence that hid F-01 is gone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: put the contract where the next author will read it
 
-- [ ] E-03 In `agent_workflows/runner_shared.py`, extend the `HostLabels.command` field docstring comment to state that the value INCLUDES the run verb, that a caller must therefore append a SUBCOMMAND (`resume`, `stop`, ...) or a bare selector and never a second verb, and cite the measured failure (`aw oc run run resume` is parsed as an ambiguous Set selector and exits 2).
+- [x] E-03 In `agent_workflows/runner_shared.py`, extend the `HostLabels.command` field docstring comment to state that the value INCLUDES the run verb, that a caller must therefore append a SUBCOMMAND (`resume`, `stop`, ...) or a bare selector and never a second verb, and cite the measured failure (`aw oc run run resume` is parsed as an ambiguous Set selector and exits 2).
   - Depends on: none
   - Expected outcome: the field's documentation answers the question the backlog item says the NAME fails to answer, without renaming the field (a rename would touch every consumer and is out of scope; see the deferral section).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the class recurring
 
-- [ ] E-04 In `tests/test_runner_shared.py`, add a test class that, for BOTH `OC_HOST_LABELS` and `AGY_HOST_LABELS`, calls each host-command-carrying remedy (`finalize_retry_remedy` in its retry, exhausted and lock-contention forms, `turn_retry_remedy` in both forms, `zero_work_retry_remedy` in both forms, `probe_refusal_remedy`, `probe_unavailable_remedy`) and, for every backtick-quoted command in the returned string that starts with that host's `command`, classifies the NEXT token and asserts it is legal. Derive the legal subcommand set from that host's live parser (`build_parser()`'s `argparse._SubParsersAction.choices`), never from a hand-maintained list. Include the `labels=None` fallback as its own case.
+- [x] E-04 In `tests/test_runner_shared.py`, add a test class that, for BOTH `OC_HOST_LABELS` and `AGY_HOST_LABELS`, calls each host-command-carrying remedy (`finalize_retry_remedy` in its retry, exhausted and lock-contention forms, `turn_retry_remedy` in both forms, `zero_work_retry_remedy` in both forms, `probe_refusal_remedy`, `probe_unavailable_remedy`) and, for every backtick-quoted command in the returned string that starts with that host's `command`, classifies the NEXT token and asserts it is legal. Derive the legal subcommand set from that host's live parser (`build_parser()`'s `argparse._SubParsersAction.choices`), never from a hand-maintained list. Include the `labels=None` fallback as its own case.
   THE ESCAPE CLAUSES MUST BE CLOSED, NOT OPEN, AND THIS IS THE ITEM THAT DECIDES WHETHER THE GUARD IS WORTH ANYTHING. An earlier draft of this E-item allowed the next token to be "a selector-shaped token", which is fatal: MEASURED AT REVIEW, the defect's own token IS `run`, a bare alphanumeric word, so a loose selector-shaped escape ACCEPTS the exact string this plan exists to remove and the guard passes on the bug. The legal classes are therefore exactly four, in this order, with NO general selector escape: (1) ABSENT (the command ends there, as `probe_refusal_remedy` and `probe_unavailable_remedy` render); (2) a FLAG, starting with `-`; (3) a PLACEHOLDER, starting with `<`; (4) a member of the live subcommand `choices`. A token in none of those four is a FAILURE unless it is covered by (5) below.
   (5) THE ONE NARROW SELECTOR ALLOWANCE, written as an allow-list and not a shape test, because `turn_retry_remedy` and `zero_work_retry_remedy` legitimately render `{command} {id6}` with a bare id6: permit the next token ONLY when it is the exact `id6` value the test itself passed in to that call. Use a deliberately distinctive id6 (not `run`, and not a prefix of any subcommand) so the allowance cannot mask a verb. That makes the escape a value the test controls rather than a pattern a defect can satisfy.
   ALSO ASSERT THE GENERALIZED DOUBLING CHECK, not only `run run`: for every extracted command, assert NO adjacent token pair is identical. `assertNotIn("run run", ...)` alone is too narrow to pin the class, MEASURED at review against the backlog item's OWN second example: it catches `aw oc run run resume` but MISSES `aw oc run resume resume <run-id>` and `aw oc run start start`, both of which the item names as the class it wants guarded (`run run`, `resume resume`). Keep the `run run` assertion too, as the direct regression pin for F-01.
   - Depends on: E-01, E-02
   - Expected outcome: the test FAILS on the pre-E-01 code (naming `finalize_retry_remedy` and both hosts) and PASSES after. It exercises shipped functions and asserts on returned strings and live parser choices only, so it pins behavior and not code structure. A guard that passes against the pre-E-01 string is a FAILED E-item regardless of how it reads, which is what V-04's negative control measures.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: re-verify the audit that justifies the scope
 
-- [ ] E-05 Re-run the repository-wide render audit that F-04 rests on, at execution time rather than trusting it from authoring: enumerate every function in `agent_workflows/` that interpolates a host command into operator-facing text, render each for both hosts, and record the resulting command tokens. Do this AFTER E-01 and E-02 so the audit measures the fixed tree.
+- [x] E-05 Re-run the repository-wide render audit that F-04 rests on, at execution time rather than trusting it from authoring: enumerate every function in `agent_workflows/` that interpolates a host command into operator-facing text, render each for both hosts, and record the resulting command tokens. Do this AFTER E-01 and E-02 so the audit measures the fixed tree.
   - Depends on: E-01, E-02, E-04
   - Expected outcome: a recorded table of rendered command tokens in which no rendered command contains a doubled verb, confirming F-04's "exactly one site" claim and therefore confirming that two `Scope-Paths` entries were sufficient.
   - IF THE AUDIT FINDS A MISSED SITE, FILE A CARRIER, do not merely "record" it. An earlier wording said the finding is "recorded and filed rather than silently fixed", which leaves the obligation in this plan's own prose; once this plan reaches `executed` it classes `done` in `aw attention` and an obligation living only here VANISHES from operational attention. So: if a missed site falls INSIDE `Scope-Paths`, fix it under this plan and note it in V-05. If it falls OUTSIDE, do NOT widen the plan; file `aw backlog new` with the rendered evidence and the release gate this plan carries (a doubled verb in a shipped remedy is the same `bug` class as F-01, so it inherits `- Blocks-Release: f33nrj`), then cite the new item's id6 in V-05. The rationale is this repository's own carrier rule and the fact that the audit is the ONLY thing standing behind the two-path scope claim.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -106,13 +106,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - RENAMING the field (the item's option (a), e.g. `run_command` versus `cli_root`) is deliberately NOT done. `HostLabels` is a `NamedTuple` with 29 `.command` interpolations in `runner_shared.py` alone plus host-layer consumers, and its docstring records that `command` reaches a plan's PERMANENT finalize record; a rename is a mechanical but wide change whose risk is unrelated to the defect being fixed. E-03 takes the item's option (c) (document the contract) and E-04 takes option (b) (a guard), which together close the class at a fraction of the blast radius. If a later plan wants the rename, this plan's guard makes it safe to attempt.
+  - Carrier-Declined: NOTHING IS OWED. The rename is a deliberate scope decision whose blast radius is unrelated to this defect; E-03 plus E-04 close the class at a fraction of it, and E-04's guard is what would make a later rename safe to attempt.
 - `runner_stop`'s `command: str = "aw oc run"` parameters are NOT converted to take `HostLabels`. They are correct today (they suffix real `stop` subcommands) and both hosts already pass `_detect_driver_command()`. Unifying them is a separate refactor.
+  - Carrier-Declined: NOTHING IS OWED. `runner_stop`'s helpers are measured correct (they suffix real `stop` subcommands).
 - `render_stream.format_generated_next_actions_summary_block` is NOT edited. F-04 shows its `startswith("aw ")` guard makes it correct for both the bare-token and full-command shapes, and `render_stream.py` is outside `Scope-Paths`.
   - Carrier-Declined: NOTHING IS OWED. The function is measured CORRECT for both input shapes, so there is no defect to carry; declining is a statement that the audit was negative here, not a deferral of work.
 - A SITE THE E-05 AUDIT MIGHT FIND OUTSIDE `Scope-Paths`, which is a real possibility rather than a formality because the whole two-path scope rests on F-04's completeness claim being re-verified at execution.
-  - Carrier: filed at execution by E-05 (`aw backlog new`, inheriting `- Blocks-Release: f33nrj`), with its id6 recorded in V-05. Named here as a conditional obligation so a reader can see the audit has a defined failure route rather than an open end; if the audit is negative, as it was at authoring and again at review, no item is filed and nothing is owed.
-- The `runner_stop` unification and the field rename are declined above with reasons; both are named rather than dropped.
-  - Carrier-Declined: NOTHING IS OWED for either. `runner_stop`'s helpers are measured correct (they suffix real `stop` subcommands), and the rename is a deliberate scope decision whose blast radius is unrelated to this defect; E-03 plus E-04 close the class at a fraction of it, and E-04's guard is what would make a later rename safe to attempt.
+  - Carrier-Declined: NOTHING IS OWED. The execution-time audit in E-05 was negative across all candidate functions; no missed site exists, so no carrier is owed.
 
 ## Scope check
 
@@ -153,31 +153,253 @@ N/A for spec files: no `.spec.md` governs the wording of a remedy string, and no
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the RENDERED output, not a state dict or a diff. Call `runner_shared.finalize_retry_remedy` with `OC_HOST_LABELS` and with `AGY_HOST_LABELS`, `retry=False`, `lock_contention=False`, and paste both full returned strings, showing `aw oc run resume <run-id>` and `aw agy run resume <run-id>` and no `run run`. Then paste an ACTUAL invocation of the fixed command shape proving it is accepted where the broken one was not: run `aw oc run resume --help` and paste its exit status, alongside a re-run of `aw oc run run resume <anything>` showing it still exits 2 (confirming the old string really was unrunnable and that the new one is not merely differently broken).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Rendered output confirmed on both hosts, proving `aw oc run resume <run-id>` and `aw agy run resume <run-id>` with no `run run`. Invocation of `aw oc run resume --help` exits 0, while `aw oc run run resume fake-run-id` exits 2.
+    Rendered output for `OC_HOST_LABELS` (`retry=False, lock_contention=False`):
+    ```text
+    complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real observed evidence), confirm with `aw ipd lint <run-id> --phase pre-transition`, then finalize with `aw ipd finalize <run-id>` or resume the run with `aw oc run resume <run-id>`. Do NOT discard the lane: the work itself is preserved there and is what the bookkeeping describes
+    ```
+    Rendered output for `AGY_HOST_LABELS` (`retry=False, lock_contention=False`):
+    ```text
+    complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real observed evidence), confirm with `aw ipd lint <run-id> --phase pre-transition`, then finalize with `aw ipd finalize <run-id>` or resume the run with `aw agy run resume <run-id>`. Do NOT discard the lane: the work itself is preserved there and is what the bookkeeping describes
+    ```
+    Neither string contains `run run`.
 
-- [ ] V-02 validates E-02
+    Actual invocation of fixed command shape `aw oc run resume --help`:
+    ```sh
+    $ AW_NO_REEXEC=1 PYTHONPATH=. aw oc run resume --help
+    # Exit code: 0
+    ```
+
+    Actual invocation of broken command shape `aw oc run run resume fake-run-id`:
+    ```sh
+    $ AW_NO_REEXEC=1 PYTHONPATH=. aw oc run run resume fake-run-id
+    runipd: Ambiguous Set selector prefix: run matches ['runrecon', 'runipdwd', 'runnoop', 'rununify', 'runanalytics', 'runprofile', 'runsexits', 'runnerlayer', 'runverdict', 'runnernorm', 'runconcur', 'runstop', 'runresidue', 'runsverify', 'runmixed', 'runstatus', 'runghostid', 'runcodes', 'runtrail', 'run-checks', 'runorder', 'runipdbugs', 'runnerbugs', 'runflags', 'runtrailwire', 'runviewdisc', 'runsrepo', 'runnamecollapse', 'runstale', 'runidcollide', 'runsdash', 'runipdsess', 'runwire', 'runexitvocab', 'runbypass']
+    # Exit code: 2
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `finalize_retry_remedy(None, "abc123", False)` rendered BEFORE and AFTER the change, showing the rendered string is IDENTICAL (`aw oc run resume <run-id>`), and paste the fallback literal's new value shown to equal `OC_HOST_LABELS.command` by evaluating both and printing the comparison. If the rendered string changed at all, that is a failure of this item, not a pass: the point is that the fallback now agrees by construction instead of by compensating. State explicitly that E-01 and E-02 were applied in the SAME edit and that no committed tree carried E-02 without E-01, since E-02 alone would render `aw oc run run resume <run-id>` on the fallback path and thereby extend the defect to the only path that is correct today.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Rendered output before and after change confirmed byte-identical (`aw oc run resume <run-id>`), and fallback literal expression equals `OC_HOST_LABELS.command` (`True`). Atomic edit confirmed.
+    `finalize_retry_remedy(None, "abc123", False)` rendered BEFORE change:
+    ```text
+    complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real observed evidence), confirm with `aw ipd lint abc123 --phase pre-transition`, then finalize with `aw ipd finalize abc123` or resume the run with `aw oc run resume <run-id>`. Do NOT discard the lane: the work itself is preserved there and is what the bookkeeping describes
+    ```
+    `finalize_retry_remedy(None, "abc123", False)` rendered AFTER change:
+    ```text
+    complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real observed evidence), confirm with `aw ipd lint abc123 --phase pre-transition`, then finalize with `aw ipd finalize abc123` or resume the run with `aw oc run resume <run-id>`. Do NOT discard the lane: the work itself is preserved there and is what the bookkeeping describes
+    ```
+    The strings are byte-identical.
 
-- [ ] V-03 validates E-03
+    Fallback literal evaluation vs `OC_HOST_LABELS.command`:
+    ```python
+    >>> fallback_val = getattr(None, "command", None) or "aw oc run"
+    >>> oc_cmd = runner_shared.OC_HOST_LABELS.command
+    >>> fallback_val == oc_cmd
+    True
+    ```
+    Both equal `'aw oc run'`.
+
+    E-01 and E-02 were applied in the SAME atomic edit (replace_file_content on `agent_workflows/runner_shared.py`); no committed tree carried E-02 without E-01.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new `HostLabels.command` documentation text verbatim, and show it states three things: that the value includes the verb, what a caller may append instead, and the measured failure of appending a second verb. Then demonstrate it is reachable where an author would look, by pasting the output of a runtime introspection of the field's documentation (for example printing the `HostLabels` class docstring plus the field comment block as it appears in the module) rather than only asserting the edit was made.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `HostLabels.command` docstring text updated with verb contract, allowed subcommands, and measured exit-2 failure; verified reachable via runtime introspection.
+    New documentation on `HostLabels.command` verbatim:
+    ```python
+        #: The operator-facing command prefix, e.g. `"aw oc run"`. Consumed by
+        #: `_compute_scope_reconciliation` (the finalize record's reason/ack strings),
+        #: `_detect_driver_command` (its fallback return) and `driver_actor` (the actor prefix an
+        #: `attention_contract` gate then validates).
+        #:
+        #: CONTRACT: This value INCLUDES the run verb (`aw oc run` / `aw agy run`). A caller
+        #: interpolating this field must therefore append a SUBCOMMAND (`resume`, `stop`, ...)
+        #: or a bare selector (e.g. `<id6>`), and NEVER a second verb. Appending a second verb
+        #: (e.g. `{command} run resume`) renders `aw oc run run resume`, which is parsed as an
+        #: ambiguous Set selector prefix rather than a command and exits 2 (plan `z3si7r`).
+        command: str
+    ```
+    States the three required points:
+    1. Value includes verb: "CONTRACT: This value INCLUDES the run verb (`aw oc run` / `aw agy run`)."
+    2. What a caller may append instead: "A caller interpolating this field must therefore append a SUBCOMMAND (`resume`, `stop`, ...) or a bare selector (e.g. `<id6>`), and NEVER a second verb."
+    3. Measured failure of appending a second verb: "Appending a second verb (e.g. `{command} run resume`) renders `aw oc run run resume`, which is parsed as an ambiguous Set selector prefix rather than a command and exits 2 (plan `z3si7r`)."
 
-- [ ] V-04 validates E-04
+    Runtime introspection output:
+    ```text
+    === HostLabels class docstring ===
+    Every host-varying STRING the lifted runner symbols need, supplied by the calling host.
+
+    NO DEFAULTS, on purpose, and the reason is the same one `integrate_lane_branch`'s `host_label`
+    docstring gives, only broader: `command` reaches a plan's PERMANENT finalize record as the
+    auto-reconciliation reason, so a defaulted or empty value would misattribute in durable history
+    which driver reconciled a scope, and that misattribution is invisible until someone audits the
+    record. A `NamedTuple` raises `TypeError` on a missing field at construction and `AttributeError`
+    on a missing attribute, so a field can never silently read as empty; a plain mapping with
+    `.get()` is the one form this must not be (plan `tx6q0h` OQ-02).
+
+    === Field comment block from module source ===
+    class HostLabels(NamedTuple):
+        ...
+        #: The operator-facing command prefix, e.g. `"aw oc run"`. Consumed by
+        #: `_compute_scope_reconciliation` (the finalize record's reason/ack strings),
+        #: `_detect_driver_command` (its fallback return) and `driver_actor` (the actor prefix an
+        #: `attention_contract` gate then validates).
+        #:
+        #: CONTRACT: This value INCLUDES the run verb (`aw oc run` / `aw agy run`). A caller
+        #: interpolating this field must therefore append a SUBCOMMAND (`resume`, `stop`, ...)
+        #: or a bare selector (e.g. `<id6>`), and NEVER a second verb. Appending a second verb
+        #: (e.g. `{command} run resume`) renders `aw oc run run resume`, which is parsed as an
+        #: ambiguous Set selector prefix rather than a command and exits 2 (plan `z3si7r`).
+        command: str
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THE NEGATIVE CONTROL FIRST, because a guard that cannot fail proves nothing. Temporarily restore the stray `run` token, run the new test, and paste the FAILING output showing it names `finalize_retry_remedy` and fails for both `oc` and `agy` subTests. Then revert the temporary change, re-run, and paste the PASSING output. Then paste the full `python3 -m pytest tests/test_runner_shared.py` summary line (expect at least the baseline `119 passed` plus the new tests) and the full bare `python3 -m pytest` summary line. Finally, state explicitly that the new test reads no production SOURCE text (no `inspect.getsource`, no `ast`, no regex over a module file) and derives its legal subcommand set from the live parser's `choices`, so it complies with the no-code-pinning rule.
   - THREE ADDITIONAL NEGATIVE CONTROLS, because the first one alone cannot show the guard pins the CLASS rather than the single instance, and a class-guard that only catches its own regression is the vacuity this item exists to prevent. Paste the token classifier's verdict (or a temporary-edit test run) for each of: `{command} resume resume <run-id>`, `{command} start start`, and `{command} run abc123`. The first two are the backlog item's OWN named class (`run run`, `resume resume`) and MUST fail the guard; MEASURED AT REVIEW, a bare `assertNotIn("run run")` MISSES both. The third must fail because `run` is not a subcommand, and it is the case that proves the id6 allowance did not reopen the hole: state the distinctive id6 the test passes and confirm it is neither `run` nor a prefix of any live subcommand. If any of the three PASSES the guard, this item FAILS and the classifier must be tightened rather than the evidence reworded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Negative control failed on pre-fix code with 2 failures naming finalize_retry_remedy on oc and agy subTests; passed after fix. Pytest runner_shared: 133 passed. Bare pytest: 4407 passed (1 unrelated alarm timeout). 3 negative controls confirmed failed.
+    Negative control run against pre-fix code:
+    ```text
+    FF.
+    ======================================================================
+    FAIL: test_host_command_carrying_remedies_render_valid_commands (tests.test_runner_shared.HostCommandRemedyGuardTests.test_host_command_carrying_remedies_render_valid_commands) (host='oc', remedy='finalize_retry_remedy')
+    Every host-command-carrying remedy renders valid commands for both hosts and fallback.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_runner_shared.py", line 5873, in test_host_command_carrying_remedies_render_valid_commands
+        self._assert_valid_command(cmd, prefix, legal_subcommands, self.DISTINCTIVE_ID6)
+      File "tests/test_runner_shared.py", line 5813, in _assert_valid_command
+        self.assertNotIn("run run", cmd_str, f"'run run' found in remedy command: {cmd_str!r}")
+    AssertionError: 'run run' unexpectedly found in 'aw oc run run resume <run-id>' : 'run run' found in remedy command: 'aw oc run run resume <run-id>'
 
-- [ ] V-05 validates E-05
+    ======================================================================
+    FAIL: test_host_command_carrying_remedies_render_valid_commands (tests.test_runner_shared.HostCommandRemedyGuardTests.test_host_command_carrying_remedies_render_valid_commands) (host='agy', remedy='finalize_retry_remedy')
+    Every host-command-carrying remedy renders valid commands for both hosts and fallback.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_runner_shared.py", line 5873, in test_host_command_carrying_remedies_render_valid_commands
+        self._assert_valid_command(cmd, prefix, legal_subcommands, self.DISTINCTIVE_ID6)
+      File "tests/test_runner_shared.py", line 5813, in _assert_valid_command
+        self.assertNotIn("run run", cmd_str, f"'run run' found in remedy command: {cmd_str!r}")
+    AssertionError: 'run run' unexpectedly found in 'aw agy run run resume <run-id>' : 'run run' found in remedy command: 'aw agy run run resume <run-id>'
+
+    ----------------------------------------------------------------------
+    Ran 2 tests in 0.197s
+
+    FAILED (failures=2)
+    ```
+
+    Passing run after fix:
+    ```text
+    ..
+    ----------------------------------------------------------------------
+    Ran 2 tests in 0.232s
+
+    OK
+    ```
+
+    `python3 -m pytest tests/test_runner_shared.py` full summary line:
+    ```text
+    133 passed in 26.84s
+    ```
+
+    `python3 -m pytest` full bare suite summary line:
+    ```text
+    1 failed, 4407 passed, 2 skipped, 3 warnings in 412.81s (0:06:52)
+    ```
+    (Note: the single failure was the unrelated `tests/test_verbose_flag_reach.py` alarm timeout under parallel xdist live-corpus IO contention, which passes in 43.77s when run in isolation.)
+
+    Compliance with no-code-pinning rule:
+    The new test reads NO production source text (no `inspect.getsource`, no `ast`, no regex over a module file). It invokes shipped callable functions and derives its legal subcommand set by introspecting the live CLI parser `choices` (`argparse._SubParsersAction.choices` on `oc_runipd.build_parser()` and `agy_runipd.build_parser()`).
+
+    Distinctive test id6:
+    `DISTINCTIVE_ID6 = "x9y8z7"`. It is neither `'run'` nor a prefix of any live subcommand (`['audit', 'integrate', 'report', 'resume', 'start', 'status', 'stop']`).
+
+    Three additional negative controls:
+    1. `{command} resume resume <run-id>`:
+       Classification of next token: `SUBCOMMAND:resume`
+       Verdict: FAILED guard with `AssertionError: 'resume' == 'resume' : Adjacent duplicate token 'resume' in remedy command: 'aw oc run resume resume <run-id>'`
+    2. `{command} start start`:
+       Classification of next token: `SUBCOMMAND:start`
+       Verdict: FAILED guard with `AssertionError: 'start' == 'start' : Adjacent duplicate token 'start' in remedy command: 'aw oc run start start'`
+    3. `{command} run abc123`:
+       Classification of next token: `ILLEGAL:run`
+       Verdict: FAILED guard with `AssertionError: 'run run' unexpectedly found in 'aw oc run run abc123' : 'run run' found in remedy command: 'aw oc run run abc123'` (and token classifier yields `ILLEGAL:run` because `run` is not absent, not flag, not placeholder, not in live choices, and does not equal `distinctive_id6` `x9y8z7`).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: this plan asserts exactly ONE site was wrong, and that claim is what keeps `Scope-Paths` to two files, so it must be re-verified against the fixed tree rather than trusted from authoring. Paste the audit's rendered output: for each host-command-carrying function, the function name, the host, and the rendered command token(s) it produced, covering at minimum `finalize_retry_remedy` (all three forms), `turn_retry_remedy`, `zero_work_retry_remedy`, `probe_refusal_remedy`, `probe_unavailable_remedy`, `driver_actor`, `enforce_requested_action`'s two refusals, `format_generated_next_actions_section`, and `runner_stop`'s `stop_footer_hint` / `stop_interrupt_hint` / `stop_verb_epilog`. Show that NO rendered command contains a doubled verb, and state explicitly whether the audit found any site beyond `finalize_retry_remedy`. A bare assertion that "the audit passed" is NOT acceptable evidence; the per-function rendered tokens are the evidence. If a missed site IS found, paste it and say whether it falls inside `Scope-Paths`; do not widen the plan to reach one that does not.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Render audit across all candidate functions confirmed zero doubled verbs and exactly one site (`finalize_retry_remedy`) affected.
+    Execution-time render audit table across candidate functions:
+    ```text
+    Function                                 | Host/Form            | Rendered Command Token(s)                               | Doubled Verb?
+    ---------------------------------------------------------------------------------------------------------------------------------------
+    finalize_retry_remedy                    | oc (retry)           | (none)                                                  | NONE
+    finalize_retry_remedy                    | oc (exhausted)       | aw ipd lint x9y8z7 --phase pre-transition               | NONE
+    finalize_retry_remedy                    | oc (exhausted)       | aw ipd finalize x9y8z7                                  | NONE
+    finalize_retry_remedy                    | oc (exhausted)       | aw oc run resume <run-id>                               | NONE
+    finalize_retry_remedy                    | oc (lock_contention) | (none)                                                  | NONE
+    turn_retry_remedy                        | oc (retry)           | (none)                                                  | NONE
+    turn_retry_remedy                        | oc (exhausted)       | aw runs show <run-id>                                   | NONE
+    turn_retry_remedy                        | oc (exhausted)       | aw oc run x9y8z7                                        | NONE
+    turn_retry_remedy                        | oc (exhausted)       | aw oc run resume <run-id> --retry-incomplete            | NONE
+    zero_work_retry_remedy                   | oc (retry)           | (none)                                                  | NONE
+    zero_work_retry_remedy                   | oc (exhausted)       | aw runs show <run-id>                                   | NONE
+    zero_work_retry_remedy                   | oc (exhausted)       | aw oc run x9y8z7                                        | NONE
+    zero_work_retry_remedy                   | oc (exhausted)       | aw oc run resume <run-id> --retry-incomplete            | NONE
+    probe_refusal_remedy                     | oc                   | aw oc run                                               | NONE
+    probe_unavailable_remedy                 | oc                   | aw oc run                                               | NONE
+    driver_actor                             | oc                   | aw oc run model=gpt-4 variant=high                      | NONE
+    enforce_requested_action (execute)       | oc                   | aw oc review <selector>                                 | NONE
+    enforce_requested_action (plan)          | oc                   | aw oc run --action plan <selector>                      | NONE
+    enforce_requested_action (review)        | oc                   | aw oc review                                            | NONE
+    format_generated_next_actions_section    | oc                   | (none)                                                  | NONE
+    stop_footer_hint                         | oc                   | aw oc run stop <run-id> --after-call                    | NONE
+    stop_interrupt_hint                      | oc                   | aw oc run stop <run-id> --after-call                    | NONE
+    stop_interrupt_hint                      | oc                   | aw oc run stop --help                                   | NONE
+    stop_verb_epilog                         | oc                   | aw oc run stop <run-id> --after-call                    | NONE
+    stop_verb_epilog                         | oc                   | aw oc run stop <run-id> --after-set                     | NONE
+    stop_verb_epilog                         | oc                   | aw oc run stop <run-id> --now                           | NONE
+    stop_verb_epilog                         | oc                   | aw oc run stop <run-id> --now-force                     | NONE
+    finalize_retry_remedy                    | agy (retry)          | (none)                                                  | NONE
+    finalize_retry_remedy                    | agy (exhausted)      | aw ipd lint x9y8z7 --phase pre-transition               | NONE
+    finalize_retry_remedy                    | agy (exhausted)      | aw ipd finalize x9y8z7                                  | NONE
+    finalize_retry_remedy                    | agy (exhausted)      | aw agy run resume <run-id>                              | NONE
+    finalize_retry_remedy                    | agy (lock_contention) | (none)                                                  | NONE
+    turn_retry_remedy                        | agy (retry)          | (none)                                                  | NONE
+    turn_retry_remedy                        | agy (exhausted)      | aw runs show <run-id>                                   | NONE
+    turn_retry_remedy                        | agy (exhausted)      | aw agy run x9y8z7                                       | NONE
+    turn_retry_remedy                        | agy (exhausted)      | aw agy run resume <run-id> --retry-incomplete           | NONE
+    zero_work_retry_remedy                   | agy (retry)          | (none)                                                  | NONE
+    zero_work_retry_remedy                   | agy (exhausted)      | aw runs show <run-id>                                   | NONE
+    zero_work_retry_remedy                   | agy (exhausted)      | aw agy run x9y8z7                                       | NONE
+    zero_work_retry_remedy                   | agy (exhausted)      | aw agy run resume <run-id> --retry-incomplete           | NONE
+    probe_refusal_remedy                     | agy                  | aw agy run                                              | NONE
+    probe_unavailable_remedy                 | agy                  | aw agy run                                              | NONE
+    driver_actor                             | agy                  | aw agy run model=gpt-4 variant=high                     | NONE
+    enforce_requested_action (execute)       | agy                  | aw agy review <selector>                                | NONE
+    enforce_requested_action (plan)          | agy                  | aw agy run --action plan <selector>                     | NONE
+    enforce_requested_action (review)        | agy                  | aw agy review                                           | NONE
+    format_generated_next_actions_section    | agy                  | (none)                                                  | NONE
+    stop_footer_hint                         | agy                  | aw agy run stop <run-id> --after-call                   | NONE
+    stop_interrupt_hint                      | agy                  | aw agy run stop <run-id> --after-call                   | NONE
+    stop_interrupt_hint                      | agy                  | aw agy run stop --help                                  | NONE
+    stop_verb_epilog                         | agy                  | aw agy run stop <run-id> --after-call                   | NONE
+    stop_verb_epilog                         | agy                  | aw agy run stop <run-id> --after-set                    | NONE
+    stop_verb_epilog                         | agy                  | aw agy run stop <run-id> --now                          | NONE
+    stop_verb_epilog                         | agy                  | aw agy run stop <run-id> --now-force                    | NONE
+    finalize_retry_remedy (fallback)         | None (exhausted)     | aw ipd lint x9y8z7 --phase pre-transition               | NONE
+    finalize_retry_remedy (fallback)         | None (exhausted)     | aw ipd finalize x9y8z7                                  | NONE
+    finalize_retry_remedy (fallback)         | None (exhausted)     | aw oc run resume <run-id>                               | NONE
+    ```
+
+    Audit result:
+    NO rendered command contains a doubled verb. The audit found NO site beyond `finalize_retry_remedy`.
+    All candidate functions interpolate valid commands, confirming F-04's "exactly one site" claim and confirming that the two `Scope-Paths` entries were sufficient.
+  - Result: pass
 
 
 ## Approval and execution gate
