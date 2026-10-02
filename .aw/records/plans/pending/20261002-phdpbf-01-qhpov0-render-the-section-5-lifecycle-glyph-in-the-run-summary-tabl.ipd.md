@@ -3,22 +3,24 @@
 - Date: 2026-10-02
 - Kind: child
 - Concern: Align `render_run_summary_table`'s `Status` cell with its five sibling lifecycle surfaces by rendering the spec `uonrjg` Section 5 glyph ahead of the native status word, resolving backlog `phdpbf` / plan `4taj2e` OQ-01 in the affirmative.
-- Scope: `render_stream.render_run_summary_table`'s `Status` cell and the column-width computation feeding it, the `use_unicode` wiring at the six driver call sites that reach it, and the tests pinning both.
-- Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_run_summary_lifecycle_glyph.py, tests/test_run_summary_malformed_entry.py
+- Scope: `render_stream.render_run_summary_table`'s `Status` cell and the column-width computation feeding it, the two remaining Unicode leaks in that function's ASCII mode (banner `│` separators, progress bar), the `use_unicode` wiring at the seven driver call sites that reach it, and the tests pinning all of it.
+- Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_run_summary_lifecycle_glyph.py, tests/test_run_summary_malformed_entry.py, tests/test_zero_dispatch_outcome.py, tests/test_zero_dispatch_progress_denominator.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: phdpbf
 - From-Spec: uonrjg
 - Set: phdpbf
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: agent
 - Id: qhpov0
 
 ## Workflow history
-
+- 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002, PR-003, PR-004, PR-005 (MEDIUM, fixed), PR-006, PR-007 (LOW, fixed). A review prototype of E-01..E-03 (reverted) broke 6 tests in 3 files, not 1, and failed the mypy gate; the table's ASCII mode still leaks `│`/`█` (new E-06); all seven call sites omit `use_unicode`. Full record: `.aw/records/reviews/20261002-phdpbf-01-qhpov0-render-the-section-5-lifecycle-glyph-in-the-run-summary-tabl.review.md`.
+- 2026-10-02 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 - 2026-10-02 draft (agent): created.
 - 2026-10-02 to-review (agent): authored from backlog item `phdpbf`; decision question resolved from repository evidence (see Findings F-01 and OQ-01).
 
@@ -55,7 +57,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       columns by `Term.format_lifecycle_marker(resolved, width=2, style=<color>)`, following the
       `attention.py` / `ipd_lint.py` form (glyph, then the status word) so the column COUNT and
       ORDER are unchanged and only the `Status` column widens. Pass `style=False` when `color` is
-      false so no escape is emitted on a `NO_COLOR` / piped stream.
+      false so no escape is emitted on a `NO_COLOR` / piped stream. Concatenate `str(st_val)`, not
+      the bare `it["status"]`: `items_data` values are inferred as a union, and `glyph + st_val`
+      fails the shipped mypy gate (`tests/test_typecheck_gate.py`; measured at review as
+      `Unsupported operand types for + ("str" and "bool")` / `("str" and "None")`).
   - Depends on: E-01
   - Expected outcome: a `blocked` row's `Status` cell reads `⚠︎ blocked` (ASCII: `! blocked`); the
     header stays `Status`; `headers` and `aligns` are unmodified.
@@ -69,21 +74,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       a compensating constant.
   - Depends on: E-02
   - Expected outcome: every rendered line has one identical visible width; no `+ 2` fudge constant
-    exists anywhere in the width computation.
+    exists anywhere in the width computation. The raw cell uses the UNSTYLED marker
+    (`style=False`) so `col_widths` never measures an escape.
   - Execution state: pending
 
 ### Task group 3: thread the capability decision from the drivers
 
-- [ ] E-04 At the six `render_run_summary_table` call sites that do not pass the stream's Unicode
-      capability (`oc_runipd` lines near the three `driver_label="opencode"` calls, `agy_runipd`
-      near the three `driver_label="antigravity"` calls, and `runner_shared.print_status`), pass
+- [ ] E-04 At ALL SEVEN production `render_run_summary_table` call sites, none of which passes the
+      stream's Unicode capability today (`oc_runipd`: the end-of-`run_queue` summary print and the
+      two `_summary_table_printed` fallback prints in `main`'s interrupt and `DriverError` handlers;
+      `agy_runipd`: the same three; and `runner_shared.print_status`), pass
       `use_unicode=should_unicode(sys.stdout)` and construct the `Palette` with the same value, as
       `oc_runipd`'s `Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))`
-      site already does. Do not change any other argument.
+      site already does. Do not change any other argument. `runner_shared` has no `should_unicode`
+      binding: import it FUNCTION-LOCALLY inside `print_status` (`from agent_workflows.term import
+      should_unicode`), because a module-level first-party import there is refused by the shipped
+      guard `test_no_new_module_level_first_party_import_in_runner_shared` (recorded in
+      `tests/test_lost_guard_census.py`) and the function-local form is that module's convention
+      (e.g. the `from agent_workflows import term` inside `runner_shared.should_color`).
   - Depends on: E-01
-  - Expected outcome: a run whose stdout cannot encode the glyph prints the ASCII fallback instead
-    of a replacement character or a `UnicodeEncodeError`; `should_unicode` is imported/visible at
-    each site (it is already re-exported in both runners).
+  - Expected outcome: every production call site passes `use_unicode=` and constructs its `Palette`
+    with the same value; `should_unicode` is in scope at each site (re-exported in both runners,
+    function-local in `runner_shared.print_status`). Together with E-06 this makes a stream that
+    cannot encode Unicode receive an all-ASCII table.
+  - Execution state: pending
+
+### Task group 3b: close the two remaining ASCII-mode Unicode leaks in this table
+
+- [ ] E-06 In `render_run_summary_table`, make `use_unicode=False` produce an all-ASCII table: pass
+      `use_unicode=use_unicode` to the `format_progress_bar(completed_count, display_total, width=10)`
+      call (which today always draws `█` blocks), and replace the hardcoded `│` separators in the
+      banner's `Tokens: ... (In: ... │ Out: ... │ Cache: ...)` literal with the function's own `vl`
+      character. Do not change the Unicode-mode bytes.
+  - Depends on: none
+  - Expected outcome: with `use_unicode=False`, the rendered string contains no code point above
+    U+007F (measured at review: today it contains U+2502 `│` and U+2588 `█` even in ASCII mode, and
+    `runner_shared.print_status` raises `UnicodeEncodeError` on a `PYTHONIOENCODING=ascii` stdout);
+    with `use_unicode=True` the output is byte-identical to before this item.
   - Execution state: pending
 
 ### Task group 4: tests
@@ -93,15 +120,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       `blocked` (`⚠︎`, the U+FE0E-bearing grapheme) and for a settled `executed` row; (b) the ASCII
       mode emits the exact Section 5 fallback and NO Unicode grapheme; (c) the table is rectangular
       (one distinct visible width) in unstyled, styled, and ASCII-box modes with a VS-bearing glyph
-      present, reusing the box-width helper style of `tests/test_run_summary_visible_width.py`;
-      (d) `Palette(False)` output contains no ANSI escape; (e) the malformed-entry row renders the
-      `unknown` glyph (`?`) rather than crashing. Then update
-      `tests/test_run_summary_malformed_entry.py`, whose `row[5] == MALFORMED_ENTRY_TOKEN` assertion
-      becomes false once the glyph precedes the word, to assert the cell CONTAINS the token and
-      carries the `unknown` glyph.
-  - Depends on: E-03, E-04
-  - Expected outcome: the new module fails against the pre-E-02 code and passes after; the full
-    suite is green with no other test edited.
+      present in the Unicode modes (in ASCII mode the glyph is the Section 5 fallback, so (c) there
+      proves the widened column, not the VS), reusing the box-width helper style of
+      `tests/test_run_summary_visible_width.py`; (d) `Palette(False)` output contains no ANSI escape;
+      (e) the malformed-entry row renders the `unknown` glyph (`?`) rather than crashing; (f) a
+      `use_unicode=False` render whose queue has a completed item (so the progress bar is non-empty)
+      contains NO code point above U+007F at all (E-06). Then update the existing tests the
+      review's prototype measured as broken by this change, each a deliberate human-snapshot update
+      that spec `uonrjg` Section 12 anticipates ("Human snapshot changes are expected where the new
+      marker is introduced"): `tests/test_run_summary_malformed_entry.py` (every `r[5]`/`row[5]`
+      equality against a bare status word, which became `<glyph> <word>`: the malformed-token
+      assertions, `w_row[5] == "executed"` and `r[5] == "reviewed"`; assert the exact
+      `<glyph> <word>` cell, e.g. `"? malformed-entry"`, rather than weakening to containment), and
+      the byte-pinned per-artifact row AND progress line in
+      `tests/test_zero_dispatch_outcome.py::ZeroDispatchOutcomeRegressionFenceTests::test_changed_shape_byte_identity`
+      and
+      `tests/test_zero_dispatch_progress_denominator.py::ZeroDispatchProgressDenominatorTests::test_single_reviewed_shape_byte_identical_to_pinned_output`
+      (the progress and totals lines move because the widened `Status` column widens the box).
+      Re-derive the set of broken tests at execution time by running the bare suite after E-03; the
+      list above is the review-time measurement, not the bar.
+  - Depends on: E-03, E-04, E-06
+  - Expected outcome: the new module fails against the pre-change code and passes after; the full
+    suite is green, and every existing test edited is one whose failure is a direct consequence of
+    the new `Status` cell text or box width (no assertion is loosened beyond the new exact text).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -140,8 +181,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-02 | **FIVE SIBLING SURFACES ALREADY RENDER THE MARKER INTO A STATUS COLUMN, so the form is established and this table is the odd one out.** This is the measurement the backlog item asserts, re-verified. | `term.format_lifecycle_marker` call sites: `attention.py` (two, incl. the row builder), `run_viewer.py`, `ipd_lint.py` (two), `status_set.py`, `cli.py` (two), plus `term.format_lifecycle_row` itself; `runner_shared` reaches the same glyph via `pal.lifecycle_glyph(finish_resolved, width=2)` |
 | F-03 | **THE NAIVE CHANGE BREAKS THE BOX, and this is the finding that makes the plan more than a one-liner.** `col_widths` is computed from `raw_rows` (`for row in raw_rows: ... max(col_widths[idx], _T.visible_width(str(cell)))`), while the row printer pads the STYLED cell (`raw_len = _T.visible_width(str(cell)); pad = w - raw_len`). Adding the glyph to the styled cell only leaves the `Status` width 2 columns short and the pad NEGATIVE. Measured: raw `blocked` is 7 visible columns, `⚠︎ blocked` is 9, and a column width of 7 yields a pad of -2. E-03 fixes it by putting the glyph in the raw cell too, so the measured text IS the printed text. | the two quoted loops in `render_run_summary_table`; measured `visible_width` values 7 and 9 |
 | F-04 | **THE GLYPH'S UNICODE CHOICE AND THE BOX'S UNICODE CHOICE COME FROM DIFFERENT SOURCES TODAY, so sourcing the glyph from `pal` would produce a mixed table.** `render_run_summary_table` takes its own `use_unicode` parameter for the box characters, while `Palette` carries an INDEPENDENT `use_unicode` defaulting to `True`. The repository's own ASCII-box test passes `pal=Palette(False)` (so `pal.use_unicode` is `True`) together with `use_unicode=False`, which would render a UNICODE lifecycle glyph inside an ASCII `+`/`-` box. Verified: `Palette(False).lifecycle_glyph(...)` returns `'⚠︎ '` while `Palette(False, use_unicode=False)` returns `'! '`. | `test_run_summary_visible_width.test_cell_variation_selector_is_rectangular_ascii_box` passing `Palette(False)` with `use_unicode=False`; `Palette.__init__(self, enabled, *, use_unicode: bool = True)`; the two measured glyph values |
-| F-05 | **SIX OF THE SEVEN PRODUCTION CALL SITES NEVER PASS THE STREAM'S UNICODE CAPABILITY,** so after this change they would emit a Unicode glyph onto a stream the repository already has a helper for declining. Both runners already import `should_unicode` and one site in each already pairs it with `Palette`, so E-04 is applying an existing local pattern, not inventing one. | `oc_runipd` 3 sites and `agy_runipd` 3 sites calling `render_run_summary_table(state, run_dir, ... pal=pal, ...)` with no `use_unicode`; `runner_shared.print_status` likewise; contrast `oc_runipd`'s `Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))` and `agy_runipd`'s identical line; `should_unicode as should_unicode` re-exported in both runners |
-| F-06 | **ONE EXISTING TEST WILL FAIL AND MUST BE UPDATED DELIBERATELY, not discovered during execution.** `test_run_summary_malformed_entry` asserts `row[5] == MALFORMED_ENTRY_TOKEN` on the exact cell this plan changes. The malformed token resolves to the `unknown` stage, whose glyph is `?` in BOTH modes, so that row gains `? ` and the equality breaks while the containment holds. | the quoted assertion and its `# Row layout:` comment; measured `resolve_item_lifecycle('malformed-entry').stage == 'unknown'` and `glyph_for('unknown')` = `?` for both `unicode=True` and `False` |
+| F-05 | **NONE OF THE SEVEN PRODUCTION CALL SITES PASSES THE STREAM'S UNICODE CAPABILITY** (corrected at review from "six of the seven": the cited contrast site is a per-item `Palette` in each runner's attempt path, not a `render_run_summary_table` call), so after this change they would emit a Unicode glyph onto a stream the repository already has a helper for declining. Both runners already import `should_unicode` and one site in each already pairs it with `Palette`, so E-04 is applying an existing local pattern, not inventing one. | `oc_runipd` 3 sites and `agy_runipd` 3 sites calling `render_run_summary_table(state, run_dir, ... pal=pal, ...)` with no `use_unicode`; `runner_shared.print_status` likewise; contrast `oc_runipd`'s `Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))` and `agy_runipd`'s identical line; `should_unicode as should_unicode` re-exported in both runners |
+| F-06 | **SIX EXISTING TESTS IN THREE FILES FAIL AND MUST BE UPDATED DELIBERATELY** (corrected at review from "one existing test"). `test_run_summary_malformed_entry` asserts `row[5]`/`r[5]` equality against bare words (`MALFORMED_ENTRY_TOKEN`, `"executed"`, `"reviewed"`) on the exact cell this plan changes; the malformed token resolves to the `unknown` stage, whose glyph is `?` in BOTH modes. Two further tests BYTE-PIN a rendered row, progress line and totals line, which move because the widened `Status` column widens the box. | review prototype of E-01..E-03 run through the bare suite: `FAILED` for `test_run_summary_malformed_entry` (4 tests), `test_zero_dispatch_outcome::...::test_changed_shape_byte_identity`, `test_zero_dispatch_progress_denominator::...::test_single_reviewed_shape_byte_identical_to_pinned_output`; prototype then reverted; measured `resolve_item_lifecycle('malformed-entry').stage == 'unknown'` and `glyph_for('unknown')` = `?` for both modes |
+| F-09 | **THE TABLE'S ASCII MODE IS NOT ASCII TODAY, so E-04's capability wiring alone cannot deliver an encodable table.** With `use_unicode=False` the banner still emits literal `│` separators and the progress bar still emits `█`, because `format_progress_bar` is called without its `use_unicode` argument. Driver entry points mask this with `term.ensure_encodable_stdio` (replacement characters), but a direct `runner_shared.print_status` on an ASCII stream crashes. E-06 closes it in the same function. | `format_progress_bar(completed_count, display_total, width=10)` and the banner literal `(In: {tot_in_str} │ Out: ...` in `render_run_summary_table`; measured code points `U+2502`, `U+2588` in a `use_unicode=False` render; `PYTHONIOENCODING=ascii` direct `print_status` -> `UnicodeEncodeError: 'ascii' codec can't encode characters` |
 | F-07 | **NO MACHINE SURFACE IS AFFECTED, so Section 9.5 is not engaged.** `render_run_summary_table` is reached only from the two runners' human summary prints and `runner_shared.print_status`; there is no `--agent` or `--json` caller, and the function has no JSON output path. | `render_run_summary_table(` call sites are exactly `oc_runipd` (3), `agy_runipd` (3), `runner_shared.print_status` (1), plus tests; no occurrence in `cli.py` or `run_viewer.py` |
 | F-08 | **THE AMBIGUOUS-WIDTH CAVEAT IS UNCHANGED AND MUST NOT BE OVERSTATED.** Two Section 5 glyphs this change can place in the cell are East Asian Width `A` (`▶` U+25B6 for `executing`, `◇` U+25C7 for `parked`), and the box-drawing characters are themselves Ambiguous, so a CJK-configured terminal already scales the box. This plan closes no part of that; it must not add a comment implying the table is now width-perfect. | spec `uonrjg` Section 9.4's prior-art note naming `▶` and `◇`; the existing `WHAT IS NOT FIXED` comment in `render_run_summary_table` |
 
@@ -150,8 +192,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 1. E-01: single-source the glyph's Unicode choice onto the function's `use_unicode` argument (F-04).
 2. E-02: render the marker ahead of the native word in the `Status` cell, unstyled when color is off (F-01, F-02).
 3. E-03: carry the glyph in the raw cell so `col_widths` measures the printed text (F-03).
-4. E-04: thread `should_unicode(sys.stdout)` at the six call sites that omit it (F-05).
-5. E-05: add the new behavioral test module and update the one assertion F-06 identifies.
+4. E-04: thread `should_unicode(sys.stdout)` at all seven call sites (F-05).
+5. E-06: make the table's ASCII mode fully ASCII (banner separators, progress bar) (F-09).
+6. E-05: add the new behavioral test module and update the existing tests F-06 identifies.
 
 ## Deferred / out of scope (with reason)
 
@@ -196,13 +239,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Over-scope: none. The three production modules named in `Scope-Paths` are exactly the renderer and
   the two runners holding the call sites F-05 measures; `runner_shared.py` is in scope solely for
   `print_status`'s one call.
-- Under-scope: `tests/test_run_summary_malformed_entry.py` is listed because F-06 proves one of its
-  assertions must change; no other existing test asserts on the `Status` cell's exact text
-  (`test_run_summary_visible_width` asserts only rectangularity, which E-03 preserves).
+- Under-scope (corrected at review): `tests/test_run_summary_malformed_entry.py`,
+  `tests/test_zero_dispatch_outcome.py` and `tests/test_zero_dispatch_progress_denominator.py` are
+  listed because F-06's prototype proves their assertions must change;
+  `test_run_summary_visible_width` asserts only rectangularity, which E-03 preserves. E-06 is in
+  scope because without it E-04's ASCII wiring yields a table that is still not encodable (F-09).
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_run_summary_lifecycle_glyph.py tests/test_run_summary_malformed_entry.py tests/test_run_summary_visible_width.py` green.
+- `python3 -m pytest tests/test_run_summary_lifecycle_glyph.py tests/test_run_summary_malformed_entry.py tests/test_run_summary_visible_width.py tests/test_zero_dispatch_outcome.py tests/test_zero_dispatch_progress_denominator.py tests/test_typecheck_gate.py` green.
 - Full `python3 -m pytest` green (bare, per AGENTS.md: the configured `addopts` already supply `-q -n auto`).
 - `aw sanitize --agent` clean.
 
@@ -273,23 +318,40 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     agent_workflows/agy_runipd.py agent_workflows/runner_shared.py` output and confirm by reading it
     that ALL SEVEN production call sites now pass `use_unicode=`, naming each by its enclosing
     function. Paste the `Palette(...)` construction line at each changed site showing it carries the
-    same `should_unicode(sys.stdout)` value. Then paste an actual run of
-    `aw oc run --help`-adjacent status path or a direct `runner_shared.print_status` invocation
-    against a real run directory under an `AW_ASCII_ONLY=1` environment, showing ASCII glyphs and no
-    `UnicodeEncodeError` and no replacement character.
+    same `should_unicode(sys.stdout)` value. Then write a minimal `state.json` (one `blocked` item)
+    into a temporary run directory and paste a direct `runner_shared.print_status(<dir>,
+    driver_label="opencode")` invocation run with `PYTHONIOENCODING=ascii`, showing exit 0, the
+    `! blocked` cell, and no `UnicodeEncodeError` (review measured this exact invocation raising
+    `UnicodeEncodeError` before the change). Also paste the same invocation under `AW_ASCII_ONLY=1`
+    on a UTF-8 stdout, showing the ASCII glyph.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
   - Required evidence: paste the new test module's full `python3 -m pytest
     tests/test_run_summary_lifecycle_glyph.py` output with its `N passed` line, and paste the output
-    of running that module against the PRE-CHANGE renderer (e.g. via `git stash` of the production
-    hunks) showing it FAILS, which is what proves it tests behavior rather than restating the
+    of running that module against the PRE-CHANGE renderer showing it FAILS (record `<base>` =
+    `git rev-parse HEAD` before E-01; run it in a detached temporary worktree, `git worktree add
+    --detach <tmp> <base>`, with the new test file copied in, then `git worktree remove <tmp>`; do
+    NOT use `git stash`, which can sweep a co-worker's changes), which is what proves it tests behavior rather than restating the
     implementation. Confirm by reading the committed test file that it drives
     `render_run_summary_table` and asserts on the returned STRING, and that it uses no `inspect`,
     `ast`, or source-reading of production code (AGENTS.md: no code-pinning tests). Paste the
-    updated `test_run_summary_malformed_entry` assertion and the full bare `python3 -m pytest`
-    summary line showing the whole suite green. Paste `aw sanitize --agent` clean.
+    diff of every pre-existing test edited (at least the three files F-06 names) and, for each, the
+    name of the failing test that forced it, re-derived by running the bare suite after E-03; confirm
+    by reading that no edited assertion was loosened beyond the new exact cell text. Paste the full
+    bare `python3 -m pytest` summary line showing the whole suite green. Paste `aw sanitize --agent` clean.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste a Python snippet and its ACTUAL output rendering a queue with one
+    completed `executed` item (so the progress bar is non-empty) and one `blocked` item with
+    `pal=Palette(False, use_unicode=False), use_unicode=False`, printing the sorted set of code
+    points above U+007F in the result and showing it is EMPTY. Paste the same render with
+    `use_unicode=True` before and after the change (via the `<base>` worktree from V-05) showing the
+    banner and progress lines are byte-identical. Paste the committed hunk and confirm by reading it
+    that the progress bar receives `use_unicode=` and the banner separators use `vl`.
   - Observed evidence:
   - Result: pending
 
@@ -298,12 +360,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Execution contract: commit only the paths named in `Scope-Paths`, through `aw commit <plan> --
-<paths>`, never `git add -A` and never pushing. Paste ACTUAL runner output for every test claim.
-Run the suite BARE as `python3 -m pytest`.
+Execution contract: all open questions are resolved (OQ-01). `Scope-Paths` is a declaration: an
+edit outside it is made and then justified at finalize (`--scope-reason`), not a reason to stop.
+Commit only the paths you changed, through `aw commit <plan> -- <paths>`, never `git add -A` and
+never pushing. You MUST paste the ACTUAL runner output for every test claim; never claim a pass you
+did not run. Run the suite BARE as `python3 -m pytest`.
 
 This plan is authoring-complete and carries NO `Readiness:` field: that field is an output of
 `/plan-review` and writing it here would forge an attestation. Execution requires human approval
 (`aw ipd set approved <plan>`) first. After every `V-*` reports `pass` with pasted evidence and
-`aw ipd lint --phase pre-transition` conforms, move the plan to `.aw/records/plans/executed/`
-through the tooled transition; backlog item `phdpbf` is set `graduated`, not `done`, by the runner.
+`aw ipd lint --phase pre-transition` conforms, the plan moves to `.aw/records/plans/executed/`
+through the tooled transition: under `aw oc run` / `aw agy run` the RUNNER performs `aw ipd
+finalize`; when executing by hand, the executor runs `aw ipd finalize` itself. Never hand-`git mv`
+the plan. Backlog item `phdpbf` is already `graduated`; closing it `done` follows execution.
