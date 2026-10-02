@@ -6,7 +6,7 @@
 - Scope: Make the corroboration verdict a RECORDED, RENDERED FACT and nothing more. Call Order 08's verdict function once, at the single existing verifier-outcome consumption site in `runner_shared.execute_item_core`, store the verdict plus its reason code and counts on the attempt and item records, and render it beside the evidence already shown in `execution-report.md` and `aw runs`. EXPLICITLY NOT INCLUDED, AND THIS IS THE PLAN'S CENTRAL DELIBERATE LIMIT: no refusal, no downgrade, no disposition change, no effect on `verify_disp`, and no effect on `integration_is_earned`. An `uncorroborated` turn integrates exactly as it does today; the ONLY change is that a human and a machine consumer can now see the discrepancy. OQ-01 carries the refusal question to the maintainer rather than deciding it by implementation.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_verifier_corroboration.py
 - Item-Dependencies: executed:bjx20r
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -15,10 +15,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: btak7a
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 - From-Backlog: 5xgllt
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: btak7a verified (set runverdict, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-409. EVERY STRUCTURAL CLAIM RE-DROVE CORRECTLY AT HEAD `eef2a03e`: the verifier-outcome block in `runner_shared.execute_item_core` is singular and shared and already holds `attempt["verify_log"]`, `v_data`, `map_verdict` and `has_verifier_test_evidence` exactly as F-1 describes; F-2's two literal-matching `run_viewer` sites quote verbatim, including the `else: v_disp = "-"` fallthrough; `format_verifier_evidence_section`'s byte-identical-when-empty docstring is verbatim; both hosts' `write_report` are one-line wrappers over the one shared function, so F-3 holds; `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS` and its driver-only comment listing `verify_log` are verbatim; `tests/test_verifier_evidence.py`'s named-but-simulated test is exactly the flaw F-5 records; and `runner_shared` has precisely TWO module-level first-party imports. THREE CORRECTIONS MATTER. FIRST, THE PLAN'S CENTRAL SAFETY PRECEDENT DOES NOT EXIST: `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline`, which E-05 is told to copy and F-4 calls 'the shipped outcome-equality precedent', was DELETED in `19313eed` (1020 lines), the same trim this plan cites elsewhere; two `runner_shared` comments still cite it, so the plan inherited a dangling citation rather than inventing one. E-05 must now author the shape from the description rather than copy a file, and must not cite the deleted test as though a reader could open it. SECOND, E-01's PLACEMENT INSTRUCTION IS UNSAFE AS WRITTEN: `v_data` is bound only in the try's else-path, and the existing `v_has_evidence` guard is what keeps the unreadable arm from a `NameError` via `not v_unreadable` short-circuit; E-01 says to compute 'immediately after `v_has_evidence`' AND to yield a verdict 'for every path including the unreadable-verdict arm', which at the outer level touches unbound `v_data` and would be silently converted into `indeterminate` by the plan's own exception guard, so the guard would MASK the defect rather than reveal it. THIRD, E-01 SAYS 'Call Order 08's verdict function' AND NEITHER PLAN NAMES IT: `bjx20r` describes the function in prose and declares no symbol, so there is no citable name at authoring time; E-01 now requires reading the shipped module and reporting the symbol rather than assuming one. Baseline re-measured: `3523 passed, 2 skipped, 3 warnings in 154.35s`, 208 deselected; targeted `53 passed`.
