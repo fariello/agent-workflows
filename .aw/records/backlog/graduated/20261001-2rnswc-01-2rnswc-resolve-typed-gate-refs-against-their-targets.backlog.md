@@ -1,11 +1,13 @@
 - Id: 2rnswc
-- Status: open
+- Status: graduated
+- Graduated-To: gateresolve
 - Set: 2rnswc
 - Priority: low
 - Work-Kind: feature
 - Summary: Decide whether a typed Gate-Ref should be resolved against its target rather than only shape-checked, since artifact, decision and todo refs all validate today while pointing at nothing
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: jdaozp
 - 2026-10-01 created (aw backlog): Decide whether a typed Gate-Ref should be resolved against its target rather than only shape-checked, since artifact, decision and todo refs all validate today while pointing at nothing
 
 SCOPE. This is the GENERAL question deliberately left out of the ruling-carrier work (plan graduated from backlog 0szu1p), which fixes only the decision kind's GRAMMAR. Three gate kinds accept a ref that resolves to nothing: artifact is regex-shape-only (measured and recorded in two deferred specs whose Gate-Ref: TODO.md still validates after the awaited content was migrated away), decision accepts any D-number (driven: validate_gate_ref('decision','D99999') returns True while DECISIONS.md stops at D156), and todo accepts any _TODO_ID_RE token. So a gate can be repointed or outlived and nothing detects it.
