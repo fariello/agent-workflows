@@ -6,7 +6,7 @@
 - Scope: IN: correct the plan's malformed `- Date:` to the parseable `2026-07-23` so the tooled rename can read it (measured mandatory, F-04); rename the record to `20260723-instsafe-07-qrokie-...` through `aw group plans --rename --apply`; rewrite the FOUR tool-reachable live citations the preview names; HAND-correct the THREE citations the rewriter structurally cannot reach (F-06); (REVIEW 2026-10-02: the fixture entry no longer needs re-keying, because `rlcq7g` EXECUTED and the fixture is now keyed by id6 (`"qrokie": "executed"`), so a rename cannot drop it; and the tooled `aw group plans --rename` route NO LONGER EXISTS, because `949enf` EXECUTED and its filename-first `plans_refs._preserved_date` reproduces `20260101` from the current name. The rename is therefore a `git mv` plus the shipped rewriter `artifact_refs.plan_reference_rewrites_with_warnings`/`apply_reference_rewrites` driven from Python, per OQ-03's pre-authorized fallback.) OUT: every code path (`plans_refs._plan_date` is `949enf`; `plans_archive._plan_date` is `dkfthf`; the lint gap is `fqcax0`/`5h8u3z`; filename-versus-metadata detection is `mt6j1p`); the facet-less-stem blindness in `artifact_refs` this plan WORKS AROUND BY HAND rather than fixes (F-06, OQ-02); any other record's name, date, or body; the `20260101` constant itself; and every citation this plan classifies LEAVE (fenced evidence transcripts and historical `.agents/` paths).
 - Scope-Paths: .aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, .aw/records/plans/executed/20260723-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md, DECISIONS.md, .aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md, .aw/records/research/20260726-0054-aw-delivery-and-clean-delta-research/README.md, .aw/records/backlog/done/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: j7dsci
 
 ## Workflow history
+- 2026-10-02 reviewed (aw set): status set to reviewed
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: `949enf` executed, so no CLI verb renames this file even after the Date fix; route switched to `git mv` + `artifact_refs` rewriter per OQ-03's fallback, F-11), PR-002 (HIGH, fixed: KEEP/LEAVE re-derived on the current 10-file rewrite set; executed `949enf`/`fqcax0` are LEAVE; only-KEEP apply removes the restore step), PR-003 (MEDIUM, fixed: E-06 now confirms the id6-keyed fixture needs no edit, `rlcq7g` executed), PR-004 (MEDIUM, fixed: Scope-Paths repaired, two backlog paths had moved, new target path added, fixture removed), PR-005 (LOW, fixed: census counts made context; dead-citation census added), PR-006 (LOW, fixed: finalize ownership). Record: `.aw/records/reviews/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.review.md`.
 - 2026-10-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
