@@ -61,7 +61,11 @@ _SECTION_BODY = {
     S.H_SCOPE_CHECK: "- Over-scope: none.\n- Under-scope: TODO.",
     S.H_REQUIRED_TESTS: "TODO: how the executed plan is verified.",
     S.H_SPEC_SYNC: "TODO: specs/docs to update, or 'N/A with reason'.",
-    S.H_CHILD_IPDS: "TODO: child IPD table (Order | File | What it does | Depends on).",
+    S.H_CHILD_IPDS: (
+        "| Order | Id | File | What it does | Depends on |\n"
+        "|---|---|---|---|---|\n"
+        "| 01 | `c0ch01` | TODO child plan filename | TODO what it does. | none |"
+    ),
     S.H_COMPLETION: "- TODO: whole-Set completion criteria.",
     S.H_CROSS_IPD: "- TODO: cross-IPD consistency / no-drift / dependency checks.",
 }
@@ -84,12 +88,17 @@ _VALID_INTRO = (
 )
 
 
-def _exec_placeholder_leaf() -> str:
+def _exec_placeholder_leaf(kind: str = "child") -> str:
     # A fresh scaffold ships one already-assigned E-01 leaf (watermark 01) so it lints conforming
     # immediately. Authors add further work as `E-NEW` leaves and run `aw ipd sync` to assign them.
+    # An orchestrator emits a conforming typed child-tracking row (plan zojfn6 E-02).
+    if kind == S.KIND_ORCHESTRATOR:
+        action_line = "- [ ] E-01 CONFIRM c0ch01 REACHED executed"
+    else:
+        action_line = "- [ ] E-01 TODO one observable action."
     return (
         "### Task group 1: TODO\n\n"
-        "- [ ] E-01 TODO one observable action.\n"
+        f"{action_line}\n"
         "  - Depends on: none\n"
         "  - Expected outcome: TODO observable result.\n"
         "  - Execution state: pending\n\n"
@@ -291,7 +300,7 @@ def build_skeleton(
         if h == S.H_EXECUTION:
             lines.append(_EXEC_INTRO)
             lines.append("")
-            lines.append(_exec_placeholder_leaf())
+            lines.append(_exec_placeholder_leaf(kind=kind))
         elif h in (S.H_VALIDATION_CHILD, S.H_VALIDATION_ORCH):
             lines.append(_VALID_INTRO)
             lines.append("")

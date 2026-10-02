@@ -1837,9 +1837,9 @@ def orchestrator_row_conformance(
 
 
 # THE PHASES AT WHICH THE ROW RULE BLOCKS A LINT. Every inclusion and every exclusion below is a
-# MEASUREMENT taken 2026-09-22, not a preference, because this constant is where the rule's blast
-# radius is decided and a wrong value here either mass-refuses other agents' approved plans or ships a
-# rule that never fires.
+# MEASUREMENT, not a preference, because this constant is where the rule's blast radius is decided
+# and a wrong value here either mass-refuses other agents' approved plans or ships a rule that never
+# fires.
 #
 # `review-finalize` IS THE PRIMARY GATE, because it is where R5's bounded repair loop lives. A
 # violation found at review costs a revision; found anywhere later it costs a dead end.
@@ -1849,37 +1849,25 @@ def orchestrator_row_conformance(
 # pass through it (`ipd_lifecycle.ROLLUP_OMITTED_GATES["pre-transition-ev-checkpoint"]`), so this does
 # not block a legitimate retirement.
 #
-# `author` IS EXCLUDED ON A CORPUS MEASUREMENT. The grammar is NEW, so nothing authored before it
-# conforms by accident: 11 of the 12 live pending orchestrators do not conform (the twelfth, `d1u4sy`,
-# is written in the grammar on purpose) and 6 of the 12 additionally declare no `Id` column at all.
-# `aw check plans` sweeps at `author` (`check_engine._IPD_LINT_SWEEP_CHECKPOINT`), so firing here
-# would turn `aw ipd lint --all` and `aw check` red on eleven other agents' APPROVED plans before the
-# migration that fixes them (child `68uhp0`) has run. Spec `25kzda` 2.5b records where that leads: mass
-# false-refusal "would teach agents to DELETE the child checklist", the exact failure R2/R7 prevent.
+# `author` IS EXCLUDED ON A CORPUS AND SCOPE MEASUREMENT. `aw check plans` sweeps at `author`
+# (`check_engine._IPD_LINT_SWEEP_CHECKPOINT`), and that sweep is pending-lane only
+# (`check_engine.check_ipd_lint_reach` skips non-pending paths), so the terminal corpus is outside its
+# reach by construction. Widening `author` is a separate decision that requires its own measurement of
+# the sweep's blast radius across live drafting workflows; spec `25kzda` 2.5b records that mass
+# false-refusal at authoring "would teach agents to DELETE the child checklist", the exact failure
+# R2/R7 prevent.
 #
 # `post-transition` IS EXCLUDED MECHANICALLY: it runs on the ALREADY-COMMITTED plan, so a finding there
 # cannot refuse anything and would only leave a completed transition `committed-incomplete`.
 #
-# `pre-execution` IS EXCLUDED, AND THIS ONE WAS LEARNED BY BREAKING A TEST RATHER THAN BY REASONING.
-# It was included first, on the reasoning that it is the ready-to-execute gate. That made
-# `tests/test_orchestrator_retirement.py::TheHumanFacingGateIsUNCHANGED::
-# test_the_ordinary_finalize_still_refuses_an_orchestrator` fail, and the failure was CORRECT: that
-# test mints a real begin receipt via `ipd_lifecycle.begin`, which gates on the `pre-execution` lint,
-# and its fixture is built from the REAL `aw ipd scaffold` skeleton. Measured directly:
-# `ipd_authoring.build_skeleton(kind="orchestrator", ...)` emits the row `- [ ] E-01 TODO one
-# observable action.` and the prose placeholder `TODO: child IPD table (Order | File | What it does |
-# Depends on).` in place of a table, so THE SHIPPED SCAFFOLD IS NOT CONFORMING and `aw ipd begin`
-# would refuse every freshly scaffolded orchestrator before its author could fill it in. Blocking at
-# `begin` is therefore blocking the wrong end of the lifecycle: an orchestrator is authored, reviewed
-# and repaired BEFORE it is begun, and `review-finalize` already covers that. Teaching the scaffold to
-# emit a conforming skeleton is the right fix and is spec OQ-01's own proposed direction, but
-# `ipd_authoring.py` is NOT in this plan's `- Scope-Paths:`, so it is reported as a finding (backlog
-# filed) rather than done here. If a later plan makes the scaffold conforming, adding `pre-execution`
-# back becomes a one-line change with this test as its proof.
-#
-# THE ROUTE FOR THE PRE-EXISTING CORPUS IS CHILD `68uhp0`'s TO CHOOSE (spec criterion 12), and this
-# constant does not pre-empt it: a migrate-all route leaves it untouched.
-_ORCH_ROW_BLOCKING_CHECKPOINTS = frozenset(("review-finalize", "pre-transition"))
+# `pre-execution` IS INCLUDED (plan zojfn6): it is the ready-to-execute gate for `aw ipd begin`, and it
+# also arms the runners' pre-queue pre-flight for `approved`/`auto-approved` plans. It was originally
+# excluded because the scaffold itself emitted untyped rows; now that `ipd_authoring.build_skeleton`
+# emits a conforming skeleton with a typed row and child table, `pre-execution` blocks untyped
+# orchestrators at `begin` and queue build without refusing a freshly scaffolded plan.
+_ORCH_ROW_BLOCKING_CHECKPOINTS = frozenset(
+    ("review-finalize", "pre-execution", "pre-transition")
+)
 
 
 def check_orchestrator_rows(
