@@ -1,11 +1,13 @@
 - Id: woxgyo
-- Status: open
+- Status: graduated
+- Graduated-To: woxgyo
 - Set: woxgyo
 - Priority: low
 - Work-Kind: chore
 - Summary: runner_shared RUN_POLICY_FLAGS doc-comment lost its final two lines to a mangled merge in 7dd1c486c, which also double-prefixed an ON_CONFLICT comment
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 57v89t
 - 2026-10-01 created (aw backlog): Found while measuring rcp8c4's seven stale test_run_flag_surface citations: the same doc-comment block carries a separate, unrelated defect
 
 MEASURED at HEAD `af30ba67f`. The `#:` doc-comment block immediately above `agent_workflows/runner_shared.RUN_POLICY_FLAGS` ends mid-sentence. Its last line reads:
