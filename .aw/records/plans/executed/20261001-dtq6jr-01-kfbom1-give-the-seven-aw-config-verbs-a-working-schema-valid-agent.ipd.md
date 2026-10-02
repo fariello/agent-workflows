@@ -6,7 +6,7 @@
 - Scope: IN: replacing all eight dead `--agent` branches in the seven `cli._run_config_*` handlers with an emitter that actually exists and produces a VALIDATED `aw.agent/v1` record; fixing the two independent payload defects the measurement found (the invalid `outcome="not_found"` at two sites, and the unsanitized absolute `config_file`/`repos.*` paths that `agent_schema` refuses outright); giving the thirteen `--agent`-blind refusal paths in those handlers a machine-readable `error` record instead of a human `FAIL` line on stdout; and a DEFAULT-COLLECTED test file driving ALL SEVEN verbs plus both not-found paths and a refusal path, asserting a schema-valid record with exit parity, because the total absence of such a test is exactly what let a never-working branch ship. OUT (each with a reason): `config exclude {add,list,rm}`, which is a different handler (`cli._run_config_exclude`) and is measurably unaffected (`config exclude list --agent` exits 0), so touching it would widen scope with no defect to justify it; the `--json` branches of these same handlers, which measurably WORK (they call `json.dumps` directly) and whose payload shape is a published surface a consumer may already parse, so changing them would be a breaking change dressed as a fix; ANY change to `agent_workflows/agent_schema.py`, including adding `not_found` to `VALID_OUTCOMES`, since the schema is a published contract shared by every verb and widening it to accommodate two call sites inverts the fix; the agent-surface conformance SWEEP and the `conformance_matrix.py` harness, owned by pending plan `f36de0` (Set `agentemitswp`), whose E-02 registers this family as `known_broken` citing this very item, so building a sweep here would duplicate an approved plan; the identical unsanitized-echo defect in `attention`/`runs`/`partition`, owned by open backlog `enygec`; and the mutation-leaf sweep gap owned by open backlog `w78faq`.
 - Scope-Paths: agent_workflows/cli.py, tests/test_config_agent_surface.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: kfbom1
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: kfbom1 verified (set dtq6jr, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-012 all FIXED, zero deferred, zero open. Findings and four Decisions rows in .aw/records/reviews/20261001-dtq6jr-01-kfbom1-give-the-seven-aw-config-verbs-a-working-schema-valid-agent.review.md. Readiness go-pending-approval; human approval still required before execution.
 
