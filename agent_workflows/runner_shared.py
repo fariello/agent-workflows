@@ -21187,11 +21187,24 @@ def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
         lines.append(f"- `{item.get('id6')}` (position {item.get('position')}):")
         deps = record.get("unsatisfied_dependencies") or []
         why = record.get("unsatisfied_dependency_reasons") or {}
+        from agent_workflows.run_selection_policy import (
+            strip_dependency_reason_prefix,
+        )
+
         for dep in deps:
-            lines.append(f"  - `{dep}`: {why.get(dep) or 'dependency not satisfied'}")
+            raw_reason = why.get(dep)
+            dep_reason = (
+                strip_dependency_reason_prefix(dep, raw_reason)
+                if raw_reason
+                else "dependency not satisfied"
+            )
+            lines.append(f"  - `{dep}`: {dep_reason}")
         detail = record.get("detail")
         if detail:
-            lines.append(f"  - Why this is not terminal: {detail}")
+            clean_detail = str(detail)
+            for dep in deps:
+                clean_detail = strip_dependency_reason_prefix(dep, clean_detail)
+            lines.append(f"  - Why this is not terminal: {clean_detail}")
         hint = record.get("recovery")
         if hint:
             lines.append(f"  - Recovery: {hint}")
@@ -27640,6 +27653,10 @@ def write_report(
         )
     ]
     if blocked:
+        from agent_workflows.run_selection_policy import (
+            strip_dependency_reason_prefix,
+        )
+
         lines.extend(["", "## Dependency blocks (why)", ""])
         for item in blocked:
             if not isinstance(item, Mapping):
@@ -27647,7 +27664,12 @@ def write_report(
             reasons = item.get("unsatisfied_dependency_reasons") or {}
             lines.append(f"- `{item['id6']}` (position {item['position']}):")
             for dep in item.get("unsatisfied_dependencies") or []:
-                detail = reasons.get(dep) or "dependency not satisfied"
+                raw_detail = reasons.get(dep)
+                detail = (
+                    strip_dependency_reason_prefix(dep, raw_detail)
+                    if raw_detail
+                    else "dependency not satisfied"
+                )
                 lines.append(f"  - `{dep}`: {detail}")
             hint = item.get("dependency_block_recovery")
             if hint:

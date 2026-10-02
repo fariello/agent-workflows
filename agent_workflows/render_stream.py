@@ -3636,7 +3636,9 @@ def render_run_summary_table(
             # and no map existed, preventing a double parenthetical such as "... (blocked)".
             dep_msg = (
                 ", ".join(
-                    f"{d} ({reasons[d]})" if d in reasons else str(d)  # type: ignore[operator]  # checker-limitation: reasons resolved as union operand for in
+                    f"{d} ({run_selection_policy.strip_dependency_reason_prefix(d, reasons[d])})"
+                    if d in reasons
+                    else str(d)  # type: ignore[operator]  # checker-limitation: reasons resolved as union operand for in
                     for d in deps
                 )
                 if deps
