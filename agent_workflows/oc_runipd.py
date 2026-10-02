@@ -652,6 +652,9 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     should_color as should_color,
 )
+from agent_workflows.term import (
+    should_unicode as should_unicode,
+)
 from agent_workflows.runner_shared import (
     state_root as state_root,
 )
@@ -2807,7 +2810,7 @@ def run_opencode(
     # streamfmt (mm6wuz) E-05: read from the FROZEN run options (not from `args`), which is the same
     # path `output_mode` takes, so a resume honors the tier the run was created or resumed with.
     verbosity = int(options.get("verbosity") or 0)
-    pal = Palette(should_color(sys.stdout))
+    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
