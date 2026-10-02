@@ -1,11 +1,13 @@
 - Id: f9nf0e
-- Status: open
+- Status: graduated
+- Graduated-To: f9nf0e
 - Set: f9nf0e
 - Priority: low
 - Work-Kind: chore
 - Summary: check_engine._receipt_is_live's terminal-plan branch is unreachable from its only caller: _iter_type_files filters a terminal plan out before its receipt is read
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: s2e2um
 - 2026-09-30 created (aw backlog): Filed by /plan-review of plan qqg41f 2026-09-30 from a measured finding (F-09).
 
 MEASURED 2026-09-30 while reviewing plan `qqg41f` (restoring check.scope-drift behavioral coverage).
