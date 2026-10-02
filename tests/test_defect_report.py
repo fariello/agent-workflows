@@ -109,6 +109,8 @@ class PromptDemandTests(unittest.TestCase):
             self.assertIn('"incomplete_requirements": [],', prompt)
             start = prompt.find(RC.REPORTING_SECTION_TITLE)
             self.assertGreater(start, -1, mod.__name__)
+            # plan tr8ugt (secbound Order 02): unbounded tail slice is load-bearing;
+            # this asserts that the reporting contract is strictly the last element in prompt.
             self.assertEqual(
                 prompt[start:].strip("\n"),
                 RC.contract_text().strip("\n"),
