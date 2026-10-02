@@ -1,5 +1,5 @@
 - Id: csjq81
-- Status: graduated
+- Status: done
 - Graduated-To: csjq81
 - Set: csjq81
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: The dependency diagnostics line prints the dependency token twice, because dependency_status_detailed's reason strings already begin with the token the renderer parenthesizes them after
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD p22nrx executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-csjq81-01-p22nrx-print-each-unmet-dependency-s-reason-once-by-stripping-the-r.ipd.md); evidence .aw/records/plans/executed/20260930-csjq81-01-p22nrx-print-each-unmet-dependency-s-reason-once-by-stripping-the-r.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: p22nrx
 - 2026-09-28 created (aw backlog): Filed at /plan-review of plan 5o1jye.
 

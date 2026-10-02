@@ -1635,6 +1635,52 @@ DISPOSITION_MALFORMED_ENTRY = "malformed_entry"
 DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
 
 
+def strip_dependency_reason_prefix(token: object, reason: object) -> str:
+    """Return reason with a leading self-referential token prefix removed, else unchanged.
+
+    Strips at most ONE of:
+      1. `<token>:`
+      2. `<token's CANONICAL rewrite>:` (derived without parser import by matching
+         the reason's leading run when it ends in ':' and its last colon field equals
+         token's last colon field)
+      3. `<token's last colon-separated field>:`
+    Matching only at position 0.
+    """
+    if reason is None:
+        return ""
+    r_str = str(reason)
+    if token is None:
+        return r_str
+    tok_str = str(token).strip()
+    if not tok_str or not r_str:
+        return r_str
+
+    token_target = tok_str.split(":")[-1].strip()
+    if not token_target:
+        return r_str
+
+    cand1 = f"{tok_str}:"
+
+    # Candidate 2: Canonical rewrite derived from reason's leading non-whitespace run
+    # without importing a parser (PR-001, Decision D-1).
+    cand2: Optional[str] = None
+    parts = r_str.split(None, 1)
+    if parts:
+        first_word = parts[0]
+        if first_word.endswith(":") and len(first_word) > 1:
+            candidate_target = first_word[:-1].split(":")[-1].strip()
+            if candidate_target and candidate_target == token_target:
+                cand2 = first_word
+
+    cand3 = f"{token_target}:"
+
+    for cand in (cand1, cand2, cand3):
+        if cand and r_str.startswith(cand):
+            return r_str[len(cand) :].lstrip(" ")
+
+    return r_str
+
+
 def derive_item_disposition(
     entry: Mapping[str, object],
     refusal_reader: Optional[Callable[..., object]] = None,
@@ -1722,7 +1768,10 @@ def derive_item_disposition(
         # shape (`reasons.get(d, "blocked")`) and the same wart; that block is outside this
         # plan's fence, so the divergence is REPORTED rather than edited here.
         named = ", ".join(
-            "{0} ({1})".format(d, why[d]) if d in why else str(d) for d in deps
+            "{0} ({1})".format(d, strip_dependency_reason_prefix(d, why[d]))
+            if d in why
+            else str(d)
+            for d in deps
         )
         if in_queue_id6s is not None:
             # Function-local import to avoid import cycle (F-07).
