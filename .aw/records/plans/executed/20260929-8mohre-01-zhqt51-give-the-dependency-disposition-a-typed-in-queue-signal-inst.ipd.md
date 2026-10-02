@@ -6,7 +6,7 @@
 - Scope: IN: (a) an OPTIONAL, explicit queue-membership signal on `run_selection_policy.derive_item_disposition` plus the three renderers that call it, which OVERRIDES the substring match when supplied and leaves it standing when not; (b) both hosts passing that signal from the queue they already hold, so a real run gets the true code; (c) stopping `runner_shared.edge_satisfied` asserting the word `external` and the clause `it is not in this run` about a target whose queue membership it never checked, replacing them with wording true of every target it can actually resolve; (d) regression tests for the in-queue and genuinely-external cases and for the unparseable-token trap. OUT: changing what `edge_satisfied` DECIDES (the maintainer's 2026-09-19 one-authority ruling stands; `by_id` stays unread by the satisfaction decision), the token-prefix verbosity of the drain path's reason strings (backlog `csjq81`), and the `dependency_not_met` / `dependency_not_met_external` NAMES, which spec `25kzda` 5.4 owns.
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/render_stream.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zhqt51
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zhqt51 verified (set 8mohre, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (aw set): status set to reviewed
 
