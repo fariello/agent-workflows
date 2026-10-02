@@ -1,5 +1,5 @@
 - Id: byazcp
-- Status: graduated
+- Status: done
 - Graduated-To: byazcp
 - Blocks-Release: next
 - Set: byazcp
@@ -8,6 +8,7 @@
 - Summary: oc run silently resolves a contradictory verification flag pair by argparse last-wins, where agy refuses it
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD zdgc6t executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-byazcp-01-zdgc6t-refuse-a-contradictory-verification-flag-pair-on-oc-run-as-a.ipd.md); evidence .aw/records/plans/executed/20260929-byazcp-01-zdgc6t-refuse-a-contradictory-verification-flag-pair-on-oc-run-as-a.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: zdgc6t
 - 2026-09-28 created (aw backlog): Filed while authoring plan 7dz3wv (graduating xdgorn); measured at HEAD beb37773.
 
