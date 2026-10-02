@@ -9,7 +9,7 @@
 - Scope: Make `plans_refs.run_mv` and `plans_refs.plan_set_assign` resolve their selector through `selectors.resolve_for_mutation` (the same call `artifact_rename.run_rename_generic` makes), so the plans tree accepts the same selector vocabulary as every other type and every reader, AND read the target's `id6` from the RESOLVED FILE'S FRONT MATTER rather than reusing the selector string, which is the load-bearing correctness half. Add the outcome tests these verbs have none of. EXCLUDES: `aw archive plans`, which uses its own separate matcher (`plans_archive._find_targets`) and whose defects are carried separately; changing `selectors.py` (Order 01's fence); `artifact_rename.py`; and making the plans backend honor `--to-id6`, which it silently ignores today (recorded in OQ-03 as pre-existing and out of fence).
 - Scope-Paths: agent_workflows/plans_refs.py, tests/test_plans_rename_selectors.py
 - Item-Dependencies: executed:eby93o
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,9 +20,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 87m438
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 87m438 verified (set awrenamesel, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-bxnhdj-01-bxnhdj-reconcile-test-must-not-refuse-matrix-in-test-sele.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
