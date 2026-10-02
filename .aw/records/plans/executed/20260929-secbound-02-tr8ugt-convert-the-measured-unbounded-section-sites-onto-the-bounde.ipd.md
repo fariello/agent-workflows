@@ -6,7 +6,7 @@
 - Scope: Convert the measured sites onto `support.section` / `support.final_section` / `support.section_lines`, each conversion behavior-preserving and individually justified, and record at each excluded site WHY it is excluded. IN: the 8 unbounded-tail sites, the 4 `split(MARKER)[0]` head sites whose marker is a section heading (3 enumerated at authoring plus the `tests/test_orchestrator_retirement.py` site review found in an already-declared path, F-14/E-08), and the one `enumerate`/`break` walk that is the same defect spelled with a loop. EXCLUDES `tests/test_defect_report.py`'s `prompt[start:]`, where the unboundedness IS the assertion (it compares the tail EQUAL to `reporting_contract.contract_text()` to prove nothing follows the contract) and converting it would delete the property. EXCLUDES the 9 `split(SEP)[0]` sites whose separator is not a section heading (`":"`, `"."`, a literal id6), which are field parses and not section reads. EXCLUDES adding any author-time guard against a NEW unbounded slice, which needs its own design and is filed as a follow-up here. EXCLUDES every production module: this plan touches only files under `tests/`.
 - Scope-Paths: tests/test_backlog.py, tests/test_research_index.py, tests/test_project_layout.py, tests/test_plans_board.py, tests/test_oc_runipd.py, tests/test_lifecycle_style.py, tests/test_completion.py, tests/test_plan_review_feasibility_rule.py, tests/test_orchestrator_retirement.py, tests/test_merge_conflict_sendback.py, tests/test_status_set.py, tests/test_defect_report.py
 - Item-Dependencies: executed:78rxzc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: tr8ugt
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: tr8ugt verified (set secbound, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261002-2rm0gz-01-2rm0gz-typecheck-gate-error-in-render-stream-py-due-to-op.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set; /plan-review by opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-D01 (HIGH, fixed), PR-D02 (MEDIUM, fixed), PR-D03 (MEDIUM, fixed), PR-D04 (LOW, fixed), PR-D05 (LOW, fixed). Every authored finding F-01..F-09 was re-driven; the three live defects (F-01 backlog 4-vs-2, F-02 research-index 3-vs-2, F-03 D130 3-of-5-topics) reproduce exactly against real producers. Five NEW findings: F-14 (a DECLARED scope path, tests/test_orchestrator_retirement.py, carried an unconverted in-class head split no E-item named; closed by new E-08/V-08), F-10 (E-05(a)'s 22-vs-118 counted raw pipe lines; parsed rows are 20 vs 20, so that site has no present miscount), F-11 (E-06(c)'s stated reason for anchored=False is false; the marker IS at a line start and the real obstacle is case), F-12 (E-03 said 71,763 where F-03/V-03 said 73,887; measured 73,887), F-13 (the anchoring corpus grew from 33-of-1806 to 98-of-2693). The load-bearing dependency verified both ways: support.py exposes none of the four helpers, and the runner's edge evaluator refuses the item. Declared files green at review: 306 passed. Suite: 3387 passed, 2 skipped.
 
