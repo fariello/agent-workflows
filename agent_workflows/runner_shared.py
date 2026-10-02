@@ -20866,8 +20866,7 @@ def dispatch_orchestrator_item(
 #   * A CYCLE among queued items. Structurally unsatisfiable, and already reported by the static
 #     evaluator through `preflight_dependency_findings`, so downgrading it here would contradict a
 #     finding the run already emitted.
-#   * A DANGLING or UNSATISFIABLE EXTERNAL edge (a target not in this run). `edge_satisfied`'s own
-#     reason text says it: "it is not in this run, so it cannot become satisfied here". There is no
+#   * A DANGLING or UNSATISFIABLE EXTERNAL edge (a target not in this run). There is no
 #     `--with-dependencies` closure inside a frozen run, so waiting cannot pay off.
 #   * ANY terminal-non-success prerequisite. The cascade normally labels these BEFORE the drain is
 #     reached, but this predicate must agree with it rather than assume it ran, or the two functions
@@ -20991,8 +20990,8 @@ def classify_drain_block(
             continue
         entry = by_id.get(str(getattr(edge, "id6", "")))
         if entry is None:
-            # EXTERNAL target: not in this run at all. `edge_satisfied` already says why, so reuse its
-            # recorded reason rather than inventing a second wording for one fact.
+            # EXTERNAL target: not in this run at all. Reuse `edge_satisfied`'s recorded refusal when
+            # available rather than inventing a second wording for one fact.
             permanent_causes.append(
                 reasons.get(tok)
                 or f"{tok}: target is not in this run, so it cannot become satisfied here"
@@ -37175,9 +37174,8 @@ def edge_satisfied(
             effective = field
         if effective not in allowed:
             return False, (
-                f"{tok}: external target {edge.id6} is {effective!r} "
-                f"(directory {bucket!r}), needs one of {list(allowed)} "
-                "(it is not in this run, so it cannot become satisfied here)"
+                f"{tok}: target {edge.id6} is {effective!r} "
+                f"(directory {bucket!r}), needs one of {list(allowed)}"
             )
         return True, ""
 

@@ -2336,8 +2336,11 @@ def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
     """
     if not queue:
         return False
+    in_queue_id6s = [
+        str(it["id6"]) for it in queue if isinstance(it, Mapping) and it.get("id6")
+    ]
     rows = run_selection_policy.summarize_dispositions(
-        queue, refusal_reader=refusal_of_item
+        queue, refusal_reader=refusal_of_item, in_queue_id6s=in_queue_id6s
     )
     if not rows:
         return False

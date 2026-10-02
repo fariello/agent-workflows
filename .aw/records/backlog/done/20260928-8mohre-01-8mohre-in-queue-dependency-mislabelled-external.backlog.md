@@ -1,5 +1,5 @@
 - Id: 8mohre
-- Status: graduated
+- Status: done
 - Graduated-To: 8mohre
 - Blocks-Release: next
 - Set: 8mohre
@@ -8,6 +8,7 @@
 - Summary: derive_item_disposition labels an IN-QUEUE unmet dependency 'dependency_not_met_external', telling the operator it is outside this run's queue when it is not
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD zhqt51 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-8mohre-01-zhqt51-give-the-dependency-disposition-a-typed-in-queue-signal-inst.ipd.md); evidence .aw/records/plans/executed/20260929-8mohre-01-zhqt51-give-the-dependency-disposition-a-typed-in-queue-signal-inst.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: zhqt51
 - 2026-09-28 created (aw backlog): Filed at /plan-review of plan 5o1jye.
 

@@ -3436,8 +3436,15 @@ def run_queue(
     # come from the pure `run_selection_policy` module (imported DIRECTLY by this host, never through
     # `oc_runipd`), and `refusal_of_item` is `orchprobe` `r2i1b1`'s ONE reader. See the longer note at
     # the oc call site for the measurement and for why only this exit path carries the block.
+    in_queue_id6s = [
+        str(it["id6"])
+        for it in state.get("queue", [])
+        if isinstance(it, dict) and it.get("id6")
+    ]
     for _disposition_line in render_queue_dispositions(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_disposition_line)
     # specvis st5klo E-03: the PRIMARY end-of-run site for this host, from the SAME shared
@@ -3455,7 +3462,9 @@ def run_queue(
     # `run_selection_policy` module, imported DIRECTLY by this host, and `refusal_of_item` is
     # `orchprobe` `r2i1b1`'s ONE reader, so a recorded refusal's own remedy is SOURCED, not copied.
     for _summary_line in render_disposition_summary(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_summary_line)
     hint = render_continuation_hint(state, run_dir)
