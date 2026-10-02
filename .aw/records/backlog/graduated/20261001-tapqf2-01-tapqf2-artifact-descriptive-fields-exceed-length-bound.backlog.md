@@ -1,11 +1,13 @@
 - Id: tapqf2
-- Status: open
+- Status: graduated
+- Graduated-To: tapqf2
 - Set: tapqf2
 - Priority: low
 - Work-Kind: chore
 - Summary: 883 of 2820 artifact descriptive fields exceed the Section 8.8 length bound, so MAX_DESCRIPTIVE_LEN is corpus-violating at the attention renderer's input set
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: pl1lbb
 - 2026-10-01 created (aw backlog): 883 of 2820 artifact descriptive fields exceed the Section 8.8 length bound, so MAX_DESCRIPTIVE_LEN is corpus-violating at the attention renderer's input set
 
 FILED AS THE CARRIER for the over-length deferred row in plan `qpw45x` (Set `llnvwj`), which escapes Markdown metacharacters at the attention board and deliberately changes no length bound.
