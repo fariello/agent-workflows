@@ -1,5 +1,5 @@
 - Id: xvp5vx
-- Status: graduated
+- Status: done
 - Graduated-To: xvp5vx
 - Set: xvp5vx
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: audit what properties lost their only guard in the 19313eed suite trim
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD oyh28b executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-xvp5vx-01-oyh28b-build-a-reproducible-lost-guard-census-over-the-two-suite-tr.ipd.md); evidence .aw/records/plans/executed/20260930-xvp5vx-01-oyh28b-build-a-reproducible-lost-guard-census-over-the-two-suite-tr.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: oyh28b
 - 2026-09-28 note (aw backlog): Maintainer ruling: We test outcomes and functionality, never code structure or text in a script. Zero tests that pin code. Any audit of deleted tests must strictly ignore tests that pinned code, AST, or text, and must never propose restoring them; only genuine behavioral outcomes lacking coverage may be triaged.
 - 2026-09-28 set (aw backlog): Second measured instance, found while authoring plan 7dz3wv (backlog xdgorn) at HEAD beb37773: the per-host VERIFICATION FLAG dest table lost its only guard in the same trim. 7ebc2964 moved TheVerificationDestAsymmetryIsPinnedPerHost out of test_rununify_build_parser_characterization.py into test_rununify_build_parser.py, then 19313eed deleted that file too, along with test_run_flag_surface.py. Measured green-under-mutation on a full bare suite (2937 passed, 2 skipped): adding a verification flag to agy's resume parser, and removing --verify/--audit from oc's RESUME parser. Note the half-coverage shape, which is what makes this class of loss hard to see: the same removal on oc's START parser DOES fail one surviving test (test_oc_runipd.py::VerifierPromptTests::test_audit_flag_options), so a spot check on one subcommand reads as covered while the other is bare. Plan 7dz3wv closes this instance; the general audit remains open.
