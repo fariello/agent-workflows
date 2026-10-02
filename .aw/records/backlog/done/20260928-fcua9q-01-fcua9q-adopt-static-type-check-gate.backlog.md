@@ -1,5 +1,5 @@
 - Id: fcua9q
-- Status: graduated
+- Status: done
 - Graduated-To: fcua9q
 - Set: fcua9q
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: No static type checker in the toolchain, so annotation defects like g321ny fail open
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD m7fllj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-fcua9q-01-m7fllj-adopt-mypy-as-a-narrowed-high-signal-static-type-gate-in-ci.ipd.md); evidence .aw/records/plans/executed/20260930-fcua9q-01-m7fllj-adopt-mypy-as-a-narrowed-high-signal-static-type-gate-in-ci.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: m7fllj
 - 2026-09-28 created (aw backlog): Filed as the named carrier for plan yifr0h's deferred toolchain decision (backlog g321ny).
 
