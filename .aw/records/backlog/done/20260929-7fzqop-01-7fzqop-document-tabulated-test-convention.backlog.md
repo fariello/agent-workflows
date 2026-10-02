@@ -1,5 +1,5 @@
 - Id: 7fzqop
-- Status: graduated
+- Status: done
 - Graduated-To: 7fzqop
 - Set: 7fzqop
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Document the table-driven (tabulated) test convention: row shape, the why column, and when to tabulate
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD prj0vm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-7fzqop-01-prj0vm-document-the-table-driven-test-convention-as-the-measured-ho.ipd.md); evidence .aw/records/plans/executed/20261001-7fzqop-01-prj0vm-document-the-table-driven-test-convention-as-the-measured-ho.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: prj0vm
 - 2026-09-29 created (aw backlog): Document the table-driven (tabulated) test convention: row shape, the why column, and when to tabulate
 
