@@ -1,5 +1,5 @@
 - Id: 5gmi12
-- Status: graduated
+- Status: done
 - Graduated-To: ci9kx2
 - Blocks-Release: next
 - Set: ci9kx2
@@ -8,6 +8,7 @@
 - Summary: aw attention --dir <a SUBDIRECTORY of a real AW project> silently under-reports: 0 artifacts shown and exit 0 where the project root reports its real items
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD lmyeas executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-ci9kx2-02-lmyeas-decide-and-implement-explicit-dir-resolution-semantics-for-a.ipd.md); evidence .aw/records/plans/executed/20260930-ci9kx2-02-lmyeas-decide-and-implement-explicit-dir-resolution-semantics-for-a.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: lmyeas
 - 2026-09-29 note (aw backlog): NARROWED at review of plan bjgqez (/plan-review, PR-701). Plan bjgqez drops the 'not explicit_dir' guard at attention.run and cli._run_plans, and because is_project_dir(<root>/src/deep) is False (measured at review), that change ALSO catches this item's input: once bjgqez executes, 'aw attention --dir <subdir>' stops printing '0 artifacts shown' at exit 0 and reports cannot-run at 3 (human) / 2 (machine). So the SILENT WRONG ANSWER half of this item is fixed by bjgqez, not by this item, and bjgqez now covers the input in its regression matrix (E-05) and its V-02 evidence. WHAT REMAINS OWED HERE is the resolution-semantics decision this item was really about: whether a refusal is the right final answer, or whether an explicit --dir should CLIMB to the project root the way a bare invocation does. That contradicts resolve_verb_repo_root's documented 'honored verbatim (resolved, no climb)' rule and affects every call site, so it stays a separate decision. Re-measured at review before any change: --dir <root> reports '1 artifact shown', --dir <root>/src/deep reports '0 artifacts shown', and no --dir from inside <root>/src/deep climbs and correctly reports '1 artifact shown', all three at exit 0. Status left 'open' and the release gate untouched; only the scope description is narrowed.
 - 2026-09-29 created (aw backlog): aw attention --dir <a SUBDIRECTORY of a real AW project> silently under-reports: 0 artifacts shown and exit 0 where the project root reports its real items
