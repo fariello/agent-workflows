@@ -25854,6 +25854,8 @@ def write_prompt(
     analytics do parse - see `attempt_log_path`). The consequence is bounded and stated: an antigravity
     run started after this change writes a verifier prompt under the oc name, and an operator reading
     an OLD run directory still sees the old name, because nothing renames history.
+
+    This function guarantees that `prompts/` exists rather than requiring the caller to have created it.
     """
     prefix = suffix or ("review" if item.get("action") == "review" else "exec")
     path = (
@@ -25861,6 +25863,7 @@ def write_prompt(
         / "prompts"
         / f"{item['position']:02d}-{item['id6']}-{prefix}-attempt-{attempt_no}.md"
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(prompt, encoding="utf-8")
     return path
 

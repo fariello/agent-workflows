@@ -2368,6 +2368,7 @@ def run_agy_turn(
     verbosity = int(options.get("verbosity") or 0)
     pal = Palette(should_color(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     popen_kwargs: dict[str, Any] = {
         "cwd": agent_dir,
