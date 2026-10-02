@@ -6,7 +6,7 @@
 - Scope: Correct the `## Token control` section of `docs/cli-agent-protocol.md` so its introductory count matches its own bullet list, and add a `--limit` bullet whose wording is TRUE of the measured per-verb behavior rather than promising a uniform bound the repository does not deliver. Add a behavioral guard (`tests/test_cli_agent_protocol_doc.py`) that reads the shipped document and fails if the stated hatch count disagrees with the number of hatch bullets the section actually lists, so this class of drift is caught mechanically instead of by a reader. Does NOT change any production code, does NOT wire `--limit` into any verb that currently ignores it (that is backlog `4uw9gy`'s work and needs a per-verb design decision), does NOT touch `docs/cli-output-contract.md` (already correct), does NOT touch `docs/cli-human-guide.md`, and does NOT alter any record schema, flag, or exit code.
 - Scope-Paths: docs/cli-agent-protocol.md, tests/test_cli_agent_protocol_doc.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: moegsl
 
 ## Workflow history
+- 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; readiness go-pending-approval
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Readiness go-pending-approval. Re-checked at HEAD `0f8de354f`: `## Token control` still says `Two` with two bullets; contract Section 6 still lists three; `4uw9gy` now `graduated` to `2zvxhx`.
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
