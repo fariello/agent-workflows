@@ -5752,5 +5752,220 @@ class DanglingCommitSearchTests(unittest.TestCase):
         )
 
 
+class HostCommandRemedyGuardTests(unittest.TestCase):
+    """Guard against doubled verbs and malformed subcommands in host remedies.
+
+    Pins the whole class of doubled-verb bugs (e.g. `run run`, `resume resume`)
+    by ensuring that every host-command-carrying remedy produces only commands
+    whose token immediately following the host prefix is either absent, a flag,
+    a placeholder, a member of the host parser live subcommand choices, or the
+    distinctive id6 passed to the remedy.
+    """
+
+    DISTINCTIVE_ID6 = "x9y8z7"
+
+    @staticmethod
+    def _get_live_subcommands(host_id: str) -> set[str]:
+        mod = oc_runipd if host_id in ("oc", "fallback") else agy_runipd
+        parser = mod.build_parser()
+        choices: set[str] = set()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                choices.update(action.choices.keys())
+        return choices
+
+    def _classify_next_token(
+        self,
+        cmd_str: str,
+        command_prefix: str,
+        legal_subcommands: set[str],
+        distinctive_id6: str,
+    ) -> str:
+        """Classify the token following command_prefix in cmd_str into one of five closed classes."""
+        self.assertTrue(
+            cmd_str.startswith(command_prefix),
+            f"Command {cmd_str!r} does not start with prefix {command_prefix!r}",
+        )
+        remainder = cmd_str[len(command_prefix) :].strip()
+        tokens = remainder.split()
+        if not tokens:
+            return "ABSENT"
+        next_token = tokens[0]
+        if next_token.startswith("-"):
+            return f"FLAG:{next_token}"
+        if next_token.startswith("<"):
+            return f"PLACEHOLDER:{next_token}"
+        if next_token in legal_subcommands:
+            return f"SUBCOMMAND:{next_token}"
+        if next_token == distinctive_id6:
+            return f"ID6:{next_token}"
+        return f"ILLEGAL:{next_token}"
+
+    def _assert_valid_command(
+        self,
+        cmd_str: str,
+        command_prefix: str,
+        legal_subcommands: set[str],
+        distinctive_id6: str,
+    ) -> None:
+        """Assert that cmd_str has no doubled verb, no adjacent duplicate tokens, and a legal next token."""
+        # Direct regression pin for F-01
+        self.assertNotIn(
+            "run run",
+            cmd_str,
+            f"'run run' found in remedy command: {cmd_str!r}",
+        )
+
+        # Generalized adjacent duplicate token check (pins resume resume, start start, etc.)
+        tokens = cmd_str.split()
+        for i in range(len(tokens) - 1):
+            self.assertNotEqual(
+                tokens[i],
+                tokens[i + 1],
+                f"Adjacent duplicate token {tokens[i]!r} in remedy command: {cmd_str!r}",
+            )
+
+        # Classify next token after host command prefix
+        classification = self._classify_next_token(
+            cmd_str,
+            command_prefix,
+            legal_subcommands,
+            distinctive_id6,
+        )
+        self.assertFalse(
+            classification.startswith("ILLEGAL:"),
+            f"Illegal token following command prefix {command_prefix!r} in {cmd_str!r}: {classification}",
+        )
+
+    def test_host_command_carrying_remedies_render_valid_commands(self):
+        """Every host-command-carrying remedy renders valid commands for both hosts and fallback."""
+        cases = [
+            ("oc", runner_shared.OC_HOST_LABELS, runner_shared.OC_HOST_LABELS.command),
+            (
+                "agy",
+                runner_shared.AGY_HOST_LABELS,
+                runner_shared.AGY_HOST_LABELS.command,
+            ),
+            ("fallback", None, "aw oc run"),
+        ]
+
+        for host_id, labels, prefix in cases:
+            legal_subcommands = self._get_live_subcommands(host_id)
+
+            remedies: list[tuple[str, str]] = [
+                (
+                    "finalize_retry_remedy(retry=True)",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, True
+                    ),
+                ),
+                (
+                    "finalize_retry_remedy",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+                (
+                    "finalize_retry_remedy(lock_contention=True)",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False, lock_contention=True
+                    ),
+                ),
+                (
+                    "turn_retry_remedy(retry=True)",
+                    runner_shared.turn_retry_remedy(labels, self.DISTINCTIVE_ID6, True),
+                ),
+                (
+                    "turn_retry_remedy",
+                    runner_shared.turn_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+                (
+                    "zero_work_retry_remedy(retry=True)",
+                    runner_shared.zero_work_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, True
+                    ),
+                ),
+                (
+                    "zero_work_retry_remedy",
+                    runner_shared.zero_work_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+            ]
+            if labels is not None:
+                remedies.extend(
+                    [
+                        (
+                            "probe_refusal_remedy",
+                            runner_shared.probe_refusal_remedy(
+                                labels, self.DISTINCTIVE_ID6
+                            ),
+                        ),
+                        (
+                            "probe_unavailable_remedy",
+                            runner_shared.probe_unavailable_remedy(labels),
+                        ),
+                    ]
+                )
+
+            for remedy_name, text in remedies:
+                with self.subTest(host=host_id, remedy=remedy_name):
+                    cmds = [
+                        c
+                        for c in re.findall(r"`([^`]+)`", text)
+                        if c.startswith(prefix)
+                    ]
+                    for cmd in cmds:
+                        self._assert_valid_command(
+                            cmd,
+                            prefix,
+                            legal_subcommands,
+                            self.DISTINCTIVE_ID6,
+                        )
+
+    def test_negative_controls_class_doubling_and_invalid_tokens(self):
+        """Negative controls: guard must catch adjacent duplicates and non-subcommand tokens."""
+        legal_subcommands = self._get_live_subcommands("oc")
+        prefix = "aw oc run"
+
+        # Control 1: F-01 regression string
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} run resume <run-id>",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 2: resume resume
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} resume resume <run-id>",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 3: start start
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} start start",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 4: run abc123 (verifying id6 allowance does not accept non-matching token)
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} run abc123",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
