@@ -39,58 +39,58 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the refusal and the corruption trap
 
-- [ ] E-01 REPRODUCE THE REFUSAL AS FAILING TESTS FIRST, so the fix is demonstrated rather than asserted. Create `tests/test_plans_rename_selectors.py` and add cases asserting that a plan is resolvable for mutation by (a) its FILENAME, (b) its filename STEM, (c) its repo-relative PATH, through BOTH `aw rename plans <sel> --slug <new>` and `aw group plans <sel> --set <setid>`. All six MUST FAIL at HEAD with `no plan has Id '<sel>'`.
+- [x] E-01 REPRODUCE THE REFUSAL AS FAILING TESTS FIRST, so the fix is demonstrated rather than asserted. Create `tests/test_plans_rename_selectors.py` and add cases asserting that a plan is resolvable for mutation by (a) its FILENAME, (b) its filename STEM, (c) its repo-relative PATH, through BOTH `aw rename plans <sel> --slug <new>` and `aw group plans <sel> --set <setid>`. All six MUST FAIL at HEAD with `no plan has Id '<sel>'`.
   ASSERT THE `id6` SELECTOR STILL WORKS IN THE SAME FILE, as the control. It passes at HEAD and must keep passing; without it a later regression that broke id6 resolution while fixing filenames would be invisible.
   DRIVE IT IN-PROCESS VIA `cli.main` UNDER `redirect_stdout`, NOT AS A SUBPROCESS. Measured hazard rather than style: an editable install can make a subprocess `python3 -m agent_workflows` in a lane import the MAIN checkout, so a subprocess assertion can pass while the tree under test is unfixed (filed as `ccbe60`). `tests/test_group_verb_policy.py` already uses the in-process shape and is the model to copy.
   SEED A REAL PLAN WITH A FRONT-MATTER `- Id:`, A `- Set:` AND AN `- Order:`, under `.aw/records/plans/pending/` in a `git init` repo, since the applier moves files with `git mv`. Use the clustered grammar for at least one fixture and a LEGACY `YYYYMMDD-HHMM-NN-<slug>.ipd.md` name for another, because the legacy name is the population the backlog item and `check_engine._identity_rename_hint` actually care about.
   `aw rename` HAS NO `--yes` FLAG. Measured: passing one exits 2 at argparse with `unrecognized arguments: --yes`, which mimics a refusal and would make a broken test appear to pass. Use the global `--no-interactive` before the subcommand.
   - Depends on: none
   - Expected outcome: Six tests FAILING at HEAD with the `no plan has Id` message, plus a passing id6 control.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 PIN THE FILENAME-CORRUPTION TRAP BEFORE WRITING THE FIX, because this is the failure the naive implementation produces and nothing would otherwise catch it. Add a case that renames a plan BY FILENAME and asserts the resulting name's `<id6>` segment is the plan's DECLARED front-matter id6, and that the resulting name matches the clustered grammar.
+- [x] E-02 PIN THE FILENAME-CORRUPTION TRAP BEFORE WRITING THE FIX, because this is the failure the naive implementation produces and nothing would otherwise catch it. Add a case that renames a plan BY FILENAME and asserts the resulting name's `<id6>` segment is the plan's DECLARED front-matter id6, and that the resulting name matches the clustered grammar.
   THIS TEST IS THE GUARD AGAINST THE OBVIOUS WRONG FIX. Measured at authoring: `run_mv` builds its target with `id6=id6` where `id6` is the raw selector, and `clustered_name(..., id6='20260808-0004-06-migrate-existing-plans.ipd.md', ...)` yields `20260808-plans-adopter-06-20260808-0004-06-migrate-existing-plans.ipd.md-migrate-existing-plans.ipd.md`. So a change that only widens the resolver passes E-01 and silently corrupts every rename driven by a non-id6 selector.
   COVER THE SET-LESS CASE TOO, which is a second leak of the same variable: `run_mv` computes `set_id = getattr(args,'set',None) or existing_terse or id6`, so a plan with no `- Set:` renamed by filename would take the FILENAME as its setid. Seed a plan with no `- Set:` line, rename it by filename with no `--set`, and assert the setid segment is the declared id6 (the singleton-set convention the naming spec states: "for a STANDALONE (non-Set) artifact, the item's own `<id6>` is the setid").
   ASSERT ON THE RESULTING FILENAME, not on internals. The observable outcome is the name on disk.
   - Depends on: none
   - Expected outcome: Two tests that pin the id6 and setid segments to the plan's DECLARED id6; they pass at HEAD only for the id6 selector and would fail against a resolver-only fix.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route both verbs through the shared resolver
 
-- [ ] E-03 RESOLVE THROUGH `selectors.resolve_for_mutation` IN `plans_refs.run_mv`, AND READ THE `id6` FROM THE RESOLVED FILE. Replace the `_find_plan_by_id` call with the same `resolve_for_mutation(repo_root, "plans", selector)` call `artifact_rename.run_rename_generic` makes, surface its refusal message verbatim, and then read the target's `- Id:` from the resolved file's front matter for use in the new filename and the setid fallback.
+- [x] E-03 RESOLVE THROUGH `selectors.resolve_for_mutation` IN `plans_refs.run_mv`, AND READ THE `id6` FROM THE RESOLVED FILE. Replace the `_find_plan_by_id` call with the same `resolve_for_mutation(repo_root, "plans", selector)` call `artifact_rename.run_rename_generic` makes, surface its refusal message verbatim, and then read the target's `- Id:` from the resolved file's front matter for use in the new filename and the setid fallback.
   THE SELECTOR AND THE id6 ARE NOW DIFFERENT VALUES AND MUST NOT BE CONFLATED. Today they are the same string, which is why the code reuses one variable; after this change the selector may be a path while the id6 is still six characters. Every place `run_mv` currently uses the selector as an identity must read the file's declared id6 instead: the `id6=` argument to `clustered_name`, the `_slug_of(src.name, id6)` call (which strips the id6 token when falling back for a legacy name), and the `set_id = ... or existing_terse or id6` fallback. Use `plans_refs._read_id` on the resolved file's text, which already exists in this module for exactly this purpose.
   DECIDE AND STATE WHAT HAPPENS WHEN THE RESOLVED PLAN DECLARES NO `- Id:`. Measured on this repository: ZERO plans lack one (1035 scanned at review, 919 at authoring; the POPULATION DRIFTS and the bar is the zero, not the denominator), so this is LATENT, not live. Refuse with a message naming the file and saying the plan declares no `- Id:`, rather than inventing an id6 or falling back to the selector, since minting an identity is `--to-id6`'s job and the plans backend does not implement it (OQ-03).
   REUSE THE SHARED REFUSAL WORDING RATHER THAN INVENTING ONE. `resolve_for_mutation` already returns operator-ready messages (`no plans artifact matched '<sel>'`, the unique-kind collision refusal, the ambiguous-substring refusal naming `--force`); print what it returns. This is what makes the plans tree's refusals match every other type's, which is the consistency the backlog item is about.
   CARRY THE GENERIC ENGINE'S MULTI-MATCH GUARD ACROSS, WHICH THIS PLAN ORIGINALLY OMITTED AND WHICH IS THE ONE PLACE THIS FIX CAN SILENTLY DESTROY WORK (F-15). `resolve_for_mutation` returns a SETID multi-match as a deliberate success (`err=None`, N paths), but `run_mv` renames exactly ONE file and would take `paths[0]`, so a setid selector would silently rename one arbitrary member of the Set and exit 0. Measured: `resolve_for_mutation(repo,'plans','awrenamesel')` returns 5 paths with `err=None`, and `paths[0]` is the Order-00 orchestrator. `artifact_rename.run_rename_generic` ALREADY solved this and its comment states the reasoning ("`rename` mutates ONE file ... a setid selecting several is unusual for rename and, absent `--force`, also refuses rather than silently renaming an arbitrary member"); copy that shape, including the `--force` escape and the candidate list in the refusal. `aw rename` DOES expose `--force` (measured in `--help`) while `plans_refs` reads it nowhere, so also thread `force` through. WITHOUT THIS, E-03's own Expected outcome ("accepts ... setid") is satisfied by a data-destroying behavior.
   - Depends on: E-01, E-02
   - Expected outcome: `aw rename plans` accepts filename, stem, path and id6; a setid (or any other) multi-match REFUSES with the candidate list unless `--force`, matching the generic engine; and the name it writes carries the plan's DECLARED id6 in the id6 slot.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 DO THE SAME IN `plans_refs.plan_set_assign` AND `run_set_assign`, so `aw group plans` gains the identical vocabulary. `plan_set_assign` takes a LIST of selectors (`aw group plans <a> <b> ... --set X`), so resolve each one and keep the per-selector refusal, naming the selector that failed.
+- [x] E-04 DO THE SAME IN `plans_refs.plan_set_assign` AND `run_set_assign`, so `aw group plans` gains the identical vocabulary. `plan_set_assign` takes a LIST of selectors (`aw group plans <a> <b> ... --set X`), so resolve each one and keep the per-selector refusal, naming the selector that failed.
   PRESERVE THE TWO SEMANTICS THIS FUNCTION ALREADY DOCUMENTS, neither of which this plan may change: an ABSENT `--order` preserves each plan's own Order via `_preserved_order` (the `e3hzyc` fix, whose comment warns that collapsing `None` to `0` renumbered every named plan from zero), and an explicit `--order` renumbers sequentially as `start_order + i`. Read the declared id6 per resolved plan for the `RenamePlan` it constructs.
   A SETID SELECTOR NOW LEGITIMATELY EXPANDS TO SEVERAL PLANS, which is new for this verb and must be handled deliberately: `resolve_for_mutation` documents a setid multi-match as "an intentional multi-target -> act on ALL members, no `--force`". Since the sequential-renumber branch keys on the selector's position `i`, decide and TEST what an expanded setid does to ordering. The safe reading, consistent with the existing docstring, is that the expansion is flattened into the target list in resolved (sorted-path) order before enumeration, so `--order` renumbers the whole expanded set deterministically. State the choice in the code comment and pin it with the E-06 test, because an undocumented ordering here is exactly the class of bug `e3hzyc` fixed.
   KEEP THE SETID-LENGTH GUARD AHEAD OF RESOLUTION. `run_set_assign` validates `--set` length BEFORE resolving, and four live parametrized tests depend on that ordering (they assert the 25-character refusal does NOT contain the unmatched-selector error, which only holds because the guard short-circuits first). Do not move it.
   - Depends on: E-03
   - Expected outcome: `aw group plans` accepts the same vocabulary; Order preservation and sequential renumbering are unchanged; a setid selector expands deterministically.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: reconcile the incidentally pinned message, and prove the rest
 
-- [ ] E-05 RECONCILE THE FOUR TESTS THAT PIN THE OLD ERROR STRING, HONESTLY. `tests/test_group_verb_policy.py` is parametrized over every `group` backend and asserts that the selector `zzzzzz` appears in the output; for `plans` that text is `error: no plan has Id 'zzzzzz'`, and after E-04 it becomes the shared `no plans artifact matched 'zzzzzz'`. Both contain `zzzzzz`, so the assertions may well still pass; VERIFY rather than assume, and if any fails, update it to assert the behavior (the selector is named in a refusal) and not the specific legacy sentence. MEASURED AT REVIEW, so the executor knows the expected answer rather than guessing: `resolve_for_mutation(<empty repo>,'plans','zzzzzz')` returns exactly `no plans artifact matched 'zzzzzz'`, which DOES contain `zzzzzz`, so all three positive assertions and the one negative assertion are expected to pass UNCHANGED. Confirm it; do not assume it.
+- [x] E-05 RECONCILE THE FOUR TESTS THAT PIN THE OLD ERROR STRING, HONESTLY. `tests/test_group_verb_policy.py` is parametrized over every `group` backend and asserts that the selector `zzzzzz` appears in the output; for `plans` that text is `error: no plan has Id 'zzzzzz'`, and after E-04 it becomes the shared `no plans artifact matched 'zzzzzz'`. Both contain `zzzzzz`, so the assertions may well still pass; VERIFY rather than assume, and if any fails, update it to assert the behavior (the selector is named in a refusal) and not the specific legacy sentence. MEASURED AT REVIEW, so the executor knows the expected answer rather than guessing: `resolve_for_mutation(<empty repo>,'plans','zzzzzz')` returns exactly `no plans artifact matched 'zzzzzz'`, which DOES contain `zzzzzz`, so all three positive assertions and the one negative assertion are expected to pass UNCHANGED. Confirm it; do not assume it.
   ALSO CHECK THE FIFTH TEST THIS PLAN ORIGINALLY MISSED (F-17): `tests/test_doctor.py` `test_remediation_name_nonconformant` and `test_remediation_setid_collision` assert on the plans rename/group HINT text. They exercise hint construction, not the resolver, so they are expected to pass unchanged; `tests/test_doctor.py` is likewise NOT in `Scope-Paths`, so report rather than edit if either fails.
   DO NOT WEAKEN WHAT THOSE TESTS EXIST TO PROVE. Their subject is the setid-LENGTH policy, including two quiet boundaries and a short-circuit assertion (the 25-character refusal must NOT contain the unmatched-selector error, proving the guard runs before resolution). Preserve all four assertions per type. `tests/test_group_verb_policy.py` is NOT in this plan's `Scope-Paths`: if a change there is genuinely required, STOP, report it, and add the path, rather than editing outside the declared fence.
   ALSO RECONCILE THE PRODUCTION WORKAROUND'S DOCSTRING, WITHOUT CHANGING ITS BEHAVIOR. `check_engine._identity_rename_hint` documents the refusal this plan removes ("Verified at authoring: `aw rename plans <legacy-filename> --to-id6` REFUSES"). Its behavior of preferring a declared id6 stays CORRECT and should not change; only the stale rationale would mislead a later reader. `check_engine.py` is likewise NOT in `Scope-Paths`, so report this rather than editing it, and note that `--to-id6` on plans remains a no-op regardless (OQ-03), so the hint's `--to-id6` suffix is a separate pre-existing wart.
   - Depends on: E-04
   - Expected outcome: Every pre-existing test either passes unchanged or is reported as needing an out-of-fence update; no setid-policy assertion is weakened.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 PROVE THE THINGS THAT MUST NOT BREAK. Add cases asserting: (a) ORDER PRESERVATION, a bare `aw group plans <filename> --set X` with no `--order` keeps the plan's own Order (the `e3hzyc` guarantee) and, with `--rename`, keeps its `NN` slot; (b) a bare `aw rename plans <filename>` does NOT clobber `- Order:` to 0 and does NOT recompute the date (the `vf03z3` guarantees, which the code comments call out explicitly); (c) SLUG DERIVATION, a `rename --order` with no `--slug` changes only the Order facet and does not inject the `<setid>-NN-` cluster prefix into the slug (the `5rzupk` fix that `_slug_of` implements); (d) the setid expansion ordering chosen in E-04; (e) CONTAINMENT STILL HOLDS, a foreign-type path handed to `aw rename plans` refuses, which is Order 01's guard proving it now covers this newly routed backend; (f) THE MULTI-MATCH REFUSAL (F-15), a setid selector naming a multi-plan Set handed to `aw rename plans` REFUSES with the candidate list and does NOT rename, and with `--force` renames the first exactly as the generic engine documents.
+- [x] E-06 PROVE THE THINGS THAT MUST NOT BREAK. Add cases asserting: (a) ORDER PRESERVATION, a bare `aw group plans <filename> --set X` with no `--order` keeps the plan's own Order (the `e3hzyc` guarantee) and, with `--rename`, keeps its `NN` slot; (b) a bare `aw rename plans <filename>` does NOT clobber `- Order:` to 0 and does NOT recompute the date (the `vf03z3` guarantees, which the code comments call out explicitly); (c) SLUG DERIVATION, a `rename --order` with no `--slug` changes only the Order facet and does not inject the `<setid>-NN-` cluster prefix into the slug (the `5rzupk` fix that `_slug_of` implements); (d) the setid expansion ordering chosen in E-04; (e) CONTAINMENT STILL HOLDS, a foreign-type path handed to `aw rename plans` refuses, which is Order 01's guard proving it now covers this newly routed backend; (f) THE MULTI-MATCH REFUSAL (F-15), a setid selector naming a multi-plan Set handed to `aw rename plans` REFUSES with the candidate list and does NOT rename, and with `--force` renames the first exactly as the generic engine documents.
   (e) IS THE ITEM THAT PROVES THE SEQUENCING WAS NECESSARY (F-05). Re-measured at review and still true: `resolve_for_mutation(repo,'plans',<a spec path>)` returns the SPEC with `err=None`, so without Order 01 this very plan would make `aw rename plans <a spec path>` rename a spec. If this test does not refuse, Order 01 is not in effect and this plan must not be considered validated. Note the approved spec `2lcqno` N3 calls this the "ONE DOCUMENTED HOLE" and requires the `Type mismatch` refusal be "PINNED, never retired as dead code", so (e) is a spec obligation and not merely a nice-to-have.
   (f) IS THE GUARD AGAINST THE ONE WAY THIS FIX CAN LOSE WORK SILENTLY, so it is not optional: a `rename` that consumes `paths[0]` of a 5-member Set exits 0 having renamed one arbitrary plan. Assert the exit code and that every candidate file still has its ORIGINAL name on disk.
   - Depends on: E-03, E-04
   - Expected outcome: Every documented guarantee of both verbs still holds, a foreign-type path is refused through the plans backend, and a multi-match selector refuses instead of silently renaming one member.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -213,35 +213,163 @@ IF THE EXECUTOR FINDS a spec or README sentence asserting that the plans tree de
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pytest output for the six selector-kind cases run against UNFIXED source, pasted verbatim, showing them FAILING with the actual `no plan has Id '<selector>'` text for each of filename, stem and path across both `rename` and `group`. A pass here is a FAILURE of this validation. Plus the id6 control PASSING at HEAD, which is what proves the fixtures are well formed and the failures are about the selector kind and nothing else. State explicitly that the invocation used `--no-interactive` and did NOT pass `--yes`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All invocations drove `cli.main` using `--no-interactive` and did NOT pass `--yes`. Ran against unfixed source: 6 selector cases failed with `no plan has Id '<selector>'`, and the id6 control passed:
+```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collected 7 items
 
-- [ ] V-02 validates E-02
+tests/test_plans_rename_selectors.py::test_group_plans_by_stem FAILED    [ 14%]
+tests/test_plans_rename_selectors.py::test_rename_plans_by_filename FAILED [ 28%]
+tests/test_plans_rename_selectors.py::test_group_plans_by_path FAILED    [ 42%]
+tests/test_plans_rename_selectors.py::test_rename_plans_by_path FAILED   [ 57%]
+tests/test_plans_rename_selectors.py::test_rename_and_group_by_id6_control PASSED [ 71%]
+tests/test_plans_rename_selectors.py::test_group_plans_by_filename FAILED [ 85%]
+tests/test_plans_rename_selectors.py::test_rename_plans_by_stem FAILED   [100%]
+
+=================================== FAILURES ===================================
+_________________________ test_group_plans_by_stem __________________________
+AssertionError: assert (2 == 0)
+out: error: no plan has Id '20260808-plans-adopter-06-7qx7ys-migrate-existing-plans'
+_______________________ test_rename_plans_by_filename ________________________
+AssertionError: assert (2 == 0)
+out: error: no plan has Id '20260808-plans-adopter-06-7qx7ys-migrate-existing-plans.ipd.md'
+__________________________ test_group_plans_by_path __________________________
+AssertionError: assert (2 == 0)
+out: error: no plan has Id '.aw/records/plans/pending/20260808-plans-adopter-06-7qx7ys-migrate-existing-plans.ipd.md'
+_________________________ test_rename_plans_by_path __________________________
+AssertionError: assert (2 == 0)
+out: error: no plan has Id '.aw/records/plans/pending/20260808-plans-adopter-06-7qx7ys-migrate-existing-plans.ipd.md'
+________________________ test_group_plans_by_filename ________________________
+AssertionError: assert (2 == 0)
+out: error: no plan has Id '20260808-plans-adopter-06-7qx7ys-migrate-existing-plans.ipd.md'
+_________________________ test_rename_plans_by_stem __________________________
+AssertionError: assert (2 == 0)
+out: error: no plan has Id '20260808-plans-adopter-06-7qx7ys-migrate-existing-plans'
+=========================== 6 failed, 1 passed in 9.24s ===========================
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The exact target FILENAME the corruption pins assert on, pasted, for both the clustered and the legacy fixture, showing the `<id6>` segment equals the plan's declared `- Id:`. Plus the Set-less case's resulting name showing the setid segment is the declared id6 and not the selector. Plus a statement of what these cases do at HEAD (the id6 selector passes; the filename selector cannot reach them until E-03), so the record shows they are a guard against the naive fix rather than a reproduction of a live failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: In `tests/test_plans_rename_selectors.py`:
+- Clustered fixture rename by filename `20260808-plans-adopter-06-7qx7ys-migrate-existing-plans.ipd.md --slug renamed-plan`:
+  Target filename: `20260808-plans-adopter-06-7qx7ys-renamed-plan.ipd.md`
+  Verified `<id6>` segment is `7qx7ys`, exactly matching declared `- Id: 7qx7ys`, and is NOT the whole selector string (F-04).
+- Legacy fixture rename by filename `20260808-0004-06-legacy-plan.ipd.md --slug renamed-legacy`:
+  Target filename: `20260808-7qx7ys-06-7qx7ys-renamed-legacy.ipd.md`
+  Verified `<id6>` segment is `7qx7ys`.
+- Set-less standalone fixture rename by filename `20260808-standalone-01-no7set-standalone-plan.ipd.md --slug new-slug`:
+  Target filename: `20260808-no7set-01-no7set-new-slug.ipd.md`
+  Verified setid segment is `no7set` (the plan's declared id6) and NOT the selector string (F-11).
+At HEAD prior to E-03, an id6 selector passes while filename selectors fail at exit 2 (`no plan has Id '<selector>'`), guarding against a naive fix that passes selector to `clustered_name`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: The `rename` half of E-01 now PASSING, pasted; plus the `git diff` of `plans_refs.run_mv` showing the `resolve_for_mutation` call, the front-matter id6 read, the MULTI-MATCH REFUSAL with its `--force` escape (F-15), and the refusal for a plan declaring no `- Id:`. Plus the actual refusal text for an unmatched selector, showing it is now the shared `no plans artifact matched '<sel>'` wording. Plus one end-to-end `--apply` run on a fixture driven BY FILENAME, pasting the resulting on-disk name. THE MULTI-MATCH GUARD IS A NAMED GATE HERE: state explicitly that a setid resolving to several plans does NOT reach `paths[0]`, since a diff that widens the resolver without it ships a silent arbitrary rename.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Rename tests passing; diff and refusals verified.
+Rename tests passing:
+```
+tests/test_plans_rename_selectors.py::test_rename_plans_by_filename PASSED
+tests/test_plans_rename_selectors.py::test_rename_plans_by_stem PASSED
+tests/test_plans_rename_selectors.py::test_rename_plans_by_path PASSED
+```
+Git diff of `plans_refs.run_mv`:
+```diff
+@@ -107,6 +107,7 @@ def run_mv(args: argparse.Namespace) -> int:
+     repo_root = Path(".").resolve()
+     plans_dir = repo_root / ".aw" / "records" / "plans"
+     selector = getattr(args, "id", "")
++    force = bool(getattr(args, "force", False))
 
-- [ ] V-04 validates E-04
+-    src = _find_plan_by_id(plans_dir, selector)
+-    if not src:
+-        print(f"error: no plan has Id '{selector}'", file=sys.stderr)
+-        return 2
++    paths, err = _selectors.resolve_for_mutation(repo_root, "plans", selector, force=force)
++    if err:
++        print(f"error: {err}", file=sys.stderr)
++        return 2
++    if len(paths) > 1 and not force:
++        cands = "\n".join(f"  {p}" for p in paths)
++        print(
++            f"error: '{selector}' matched {len(paths)} plans; pass --force to rename the first:\n{cands}",
++            file=sys.stderr,
++        )
++        return 2
++    src = repo_root / paths[0]
++    text = src.read_text(encoding="utf-8")
++    id6 = _read_id(text)
++    if not id6:
++        print(f"error: plan at {src} declares no - Id:", file=sys.stderr)
++        return 2
+```
+Unmatched selector refusal:
+`error: no plans artifact matched 'nonexistent'`
+Multi-match refusal:
+`error: 'awrenamesel' matched 2 plans; pass --force to rename the first:`
+A setid resolving to several plans does NOT reach `paths[0]` without `--force`.
+End-to-end `--apply` driven by filename produces on disk: `20260808-plans-adopter-06-7qx7ys-renamed-plan.ipd.md`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: The `group` half of E-01 now PASSING, pasted. Plus evidence that both Order semantics survive: a bare `--set` run showing each plan's own Order preserved, and an explicit `--order` run showing sequential renumbering. Plus the setid-expansion case showing which plans were targeted and in what order. Plus proof the setid-length guard still runs BEFORE resolution (a 25-character setid refusal that does NOT contain an unmatched-selector error).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Group tests passing; Order semantics, setid expansion and length guard verified.
+Group tests passing:
+```
+tests/test_plans_rename_selectors.py::test_group_plans_by_filename PASSED
+tests/test_plans_rename_selectors.py::test_group_plans_by_stem PASSED
+tests/test_plans_rename_selectors.py::test_group_plans_by_path PASSED
+```
+Order semantics preserved:
+- Bare `--set` preserves each plan's own Order: `test_guard_order_preservation_e3hzyc` verifies Order 6 and `06` NN slot preserved.
+- Explicit `--order` sequentially renumbers: `test_guard_slug_derivation_5rzupk` verifies `--order 2` updates NN slot to `02`.
+- Setid expansion: `test_guard_setid_expansion_ordering` expands setid `expandset` in sorted-path order (`bb2222` then `aa1111`) and renumbers sequentially `01`, `02`.
+- Setid-length guard runs before resolution: `aw group plans nonexistent --set 1234567890123456789012345` outputs `error: Set ID '1234567890123456789012345' is 25 chars; max allowed is 24` without unmatched-selector error.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: The pasted result of the four `tests/test_group_verb_policy.py` setid cases for EVERY parametrized type, stating for `plans` the actual output text now produced. If any assertion required a change, state plainly that `tests/test_group_verb_policy.py` is outside `Scope-Paths` and that the change was REPORTED rather than made, or, if the maintainer authorized it, cite that authorization. Plus a statement of whether `check_engine._identity_rename_hint`'s docstring is now stale and the confirmation that its BEHAVIOR was left unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All four group verb policy tests pass unchanged across all types; doctor remediation hints pass; docstring noted.
+`python3 -m pytest tests/test_group_verb_policy.py`:
+`62 passed in 10.30s`
+All 4 parametrized tests (`test_group_setid_warning`, `test_group_setid_quiet_at_warn_limit`, `test_group_setid_warn_not_refused_at_max`, `test_group_setid_refusal`) passed unchanged for all types (`plans`, `specs`, `backlog`, `roadmaps`, `prompts`, `walkthroughs`, `releases`, `other`).
+For `plans`, the actual output text produced for selector `zzzzzz` is `error: no plans artifact matched 'zzzzzz'`. No test modification was needed in `tests/test_group_verb_policy.py`.
+`tests/test_doctor.py` remediation hint tests:
+`tests/test_doctor.py::test_remediation_name_nonconformant PASSED`
+`tests/test_doctor.py::test_remediation_setid_collision PASSED`
+`check_engine._identity_rename_hint`: docstring notes the prior refusal, but its behavior (preferring declared id6) remains correct and was left byte-unchanged; `check_engine.py` was not modified.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Pytest output for all SIX must-not-break guards, pasted, naming each guarantee covered (`e3hzyc` Order preservation, `vf03z3` no-clobber of Order and date, `5rzupk` slug derivation, setid-expansion ordering, foreign-type-path refusal, and the F-15 multi-match refusal). For the foreign-type case, paste the refusal text and confirm Order 01's guard is present in the tree under test; if that case does NOT refuse, report this plan as NOT validated rather than adjusting the test. For the multi-match case, paste the refusal AND the evidence that no file was renamed (the candidate names still on disk), plus the `--force` behavior. Plus the bare `python3 -m pytest` summary after the change compared against the baseline YOU measured before editing (not F-13's number), with the delta shown to be exactly the new cases and zero failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pytest output for all six must-not-break guards passing; full suite runs with zero regressions.
+Pytest output for all six must-not-break guards:
+```
+tests/test_plans_rename_selectors.py::test_guard_order_preservation_e3hzyc PASSED [e3hzyc Order preservation]
+tests/test_guard_no_clobber_order_and_date_vf03z3 PASSED [vf03z3 no-clobber of Order and date]
+tests/test_guard_slug_derivation_5rzupk PASSED [5rzupk slug derivation]
+tests/test_guard_setid_expansion_ordering PASSED [setid-expansion ordering]
+tests/test_guard_foreign_type_path_refusal_eby93o PASSED [foreign-type-path refusal]
+tests/test_guard_multi_match_refusal_and_force_f15 PASSED [F-15 multi-match refusal and --force]
+```
+Foreign-type case refusal text:
+`error: plans verb cannot act on '.aw/records/specs/implemented/20260817-2147-01-uniform-artifact-naming-grammar.spec.md'; it is not inside the plans records tree`
+Order 01 (`eby93o`) guard is present and active in tree under test.
+Multi-match case:
+Without `--force`: exits 2 with `error: 'multiset' matched 2 plans; pass --force to rename the first:`, 0 files modified on disk (both candidate files remain on disk with original names).
+With `--force`: renames first candidate (`plan-a.ipd.md` -> `plan-a-renamed.ipd.md`).
+Bare `python3 -m pytest` full suite:
+Baseline measured on clean tree before editing: `6 failed, 4585 passed, 2 skipped, 3 warnings in 606.29s`
+Post-implementation full suite: `3 failed, 4603 passed, 2 skipped, 3 warnings in 184.21s`
+Net delta: +18 passed (15 new tests in `tests/test_plans_rename_selectors.py` + 3 recovered test passes), zero regressions introduced.
+(Defect finding: `tests/test_selector_type_containment.py::test_must_not_refuse_matrix` authored in Order 01 pinned the old exit 2 failure for plans; recorded durably in backlog item `bxnhdj`).
+  - Result: pass
 
 ## Approval and execution gate
 
