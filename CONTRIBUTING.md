@@ -214,6 +214,9 @@ The gate has five honest limits:
 - Tests depending on the live checkout or environment: follow the canonical decision
   rule in `GUIDING_PRINCIPLES.md` P16 ("When tests depend on the live checkout or
   environment").
+- Tests assert behavior, never code structure: follow `GUIDING_PRINCIPLES.md` P16
+  ("Test outcomes and behavior, never code structure or text"); the mechanical guard
+  in `tests/test_no_code_structure_pins.py` refuses new production-source reads in tests.
 
 ## Adding a CLI command: the output-contract checklist
 
