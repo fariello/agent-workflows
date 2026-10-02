@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/prompts.py, agent_workflows/command_surface.py, tests/test_status_set.py, tests/test_exit_contract_conformance.py, tests/test_prompts_set_surface.py, tests/test_status_set_descriptive_safety.py, docs/artifact-lifecycles.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: um8ikz
