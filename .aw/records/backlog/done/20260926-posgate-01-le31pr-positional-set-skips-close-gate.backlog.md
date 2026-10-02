@@ -1,5 +1,5 @@
 - Id: le31pr
-- Status: graduated
+- Status: done
 - Graduated-To: posgate
 - Blocks-Release: next
 - Set: posgate
@@ -8,6 +8,7 @@
 - Summary: aw backlog set done <id> (positional) skips the release-gate close predicate
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 2misq5 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-posgate-01-2misq5-close-the-residue-plan-47ttnv-leaves-when-it-gates-the-posit.ipd.md); evidence .aw/records/plans/executed/20260929-posgate-01-2misq5-close-the-residue-plan-47ttnv-leaves-when-it-gates-the-posit.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260929T021205Z-3914774: 2misq5
 - 2026-09-26 created (aw backlog): aw backlog set done <id> (positional) skips the release-gate close predicate
 
