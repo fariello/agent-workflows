@@ -6,7 +6,7 @@
 - Scope: Move those 35 docs into their computed `reference/YYYYMM/` shards with `aw research promote --apply`, and repair the three LIVE path citations the moves would strand. No source change, no checker rule (that is sibling `ucwlwt`), no frontmatter change beyond what the tool writes.
 - Scope-Paths: .aw/records/research, agent_workflows/comms.py, .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode Opus 5, its_direct/pt3-claude-opus-5-1m-us
 - Id: mg8bag
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mg8bag verified (set zdsf35, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-8jeh4x-01-8jeh4x-test-unreachable-binding-refusal-fires-under-pertu.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-md2o3y-01-md2o3y-spec-89xjll-fails-validate-spec-with-attention-uns.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-201 through PR-209 all FIXED, zero deferred, zero open. PR-201 was a BLOCKER: approved plan 68hdic executed since authoring, so E-06 would have directed an executor to rewrite an immutable executed plan. Findings and four Decisions rows in .aw/records/reviews/20260930-zdsf35-01-mg8bag-migrate-the-35-cold-status-research-docs-from-the-hot-root-i.review.md. Readiness go-pending-approval; human approval still required before execution.
 
@@ -40,50 +40,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before moving anything
 
-- [ ] E-01 RE-DERIVE the stranded cohort at execution HEAD rather than trusting this plan's list, and write the census into the execution record. For each conformant doc at the research root (one path component under the root, excluding `README.md` and `INDEX.md`), read frontmatter `status` through `research_contract.normalize_status` and select those whose normalized value is `reference` or `archive`. For each selected doc compute its target with `research_archive.plan_transition(root, <id6>, <status>)` and record `(id6, status, target shard)`. Also re-check the two directions the item measured clean: zero docs with a normalized hot status inside a `reference/` or `archive/` subtree, and zero sharded docs whose shard month differs from their frontmatter `created` month. REPORT the counts; do not reconcile them to this plan's numbers by adjusting the query. The authoring measurement, for comparison only, RE-CONFIRMED UNCHANGED at review HEAD `c82c829d8` (every figure and the full id list reproduced character for character): 35 docs, all `reference`, targeting `reference/202607` (18), `reference/202608` (14), `reference/202609` (3), with zero `plan_transition` errors; ids `0jl8pv 36rfym 524dw1 5zczmo 72n26s 74bchk 80eqy0 8i9py4 cnkyvn dkxesq e4k1m0 ebh1ap en5c8i fpt0dg g5vhpz ibl5kt itntmu j2000q jd8qhs kdr9kv ktlhfx lc6898 le9q02 mqqk8e qcxc6c rzfaon uec14r uxq2tt vdz4ui wusyd6 x41kw0 x9whzs ypmm6z z0wxwa za72ko`.
+- [x] E-01 RE-DERIVE the stranded cohort at execution HEAD rather than trusting this plan's list, and write the census into the execution record. For each conformant doc at the research root (one path component under the root, excluding `README.md` and `INDEX.md`), read frontmatter `status` through `research_contract.normalize_status` and select those whose normalized value is `reference` or `archive`. For each selected doc compute its target with `research_archive.plan_transition(root, <id6>, <status>)` and record `(id6, status, target shard)`. Also re-check the two directions the item measured clean: zero docs with a normalized hot status inside a `reference/` or `archive/` subtree, and zero sharded docs whose shard month differs from their frontmatter `created` month. REPORT the counts; do not reconcile them to this plan's numbers by adjusting the query. The authoring measurement, for comparison only, RE-CONFIRMED UNCHANGED at review HEAD `c82c829d8` (every figure and the full id list reproduced character for character): 35 docs, all `reference`, targeting `reference/202607` (18), `reference/202608` (14), `reference/202609` (3), with zero `plan_transition` errors; ids `0jl8pv 36rfym 524dw1 5zczmo 72n26s 74bchk 80eqy0 8i9py4 cnkyvn dkxesq e4k1m0 ebh1ap en5c8i fpt0dg g5vhpz ibl5kt itntmu j2000q jd8qhs kdr9kv ktlhfx lc6898 le9q02 mqqk8e qcxc6c rzfaon uec14r uxq2tt vdz4ui wusyd6 x41kw0 x9whzs ypmm6z z0wxwa za72ko`.
   - Depends on: none
   - Expected outcome: a recorded census of the cohort with each doc's computed target shard, the two clean-direction re-checks restated with their actual numbers, and any divergence from the authoring numbers named explicitly rather than smoothed over.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CENSUS THE PATH CITATIONS the moves would strand, and CLASSIFY each citing file as LIVE (repairable) or IMMUTABLE (must not be touched), because `aw research promote` does not rewrite them. For every doc in E-01's cohort, search the tracked tree outside `.aw/records/research/` for the string `.aw/records/research/<filename>`; a basename-only mention is NOT affected by a move and is out of scope. Classify by location, as a RULE rather than a list, so a location neither the plan nor the authoring measurement anticipated still gets a disposition (PR-204): a file under `plans/executed/`, `plans/superseded/`, `plans/not-executed/`, `reviews/`, or `backlog/done/` is IMMUTABLE under the execution contract's rule that an executed plan's record must not be rewritten and a citation correct when written must not be falsified; EVERYTHING ELSE is LIVE, which includes `plans/pending/`, `backlog/` in any non-`done/` state (`open/`, `graduated/`, `blocked/`, `parked/`), `specs/` in any state, and source. If a citing file's location fits neither clause cleanly, classify it IMMUTABLE and report it rather than guessing, since a wrongly-live classification risks falsifying a record while a wrongly-immutable one only leaves a stale pointer this plan did not create.
+- [x] E-02 CENSUS THE PATH CITATIONS the moves would strand, and CLASSIFY each citing file as LIVE (repairable) or IMMUTABLE (must not be touched), because `aw research promote` does not rewrite them. For every doc in E-01's cohort, search the tracked tree outside `.aw/records/research/` for the string `.aw/records/research/<filename>`; a basename-only mention is NOT affected by a move and is out of scope. Classify by location, as a RULE rather than a list, so a location neither the plan nor the authoring measurement anticipated still gets a disposition (PR-204): a file under `plans/executed/`, `plans/superseded/`, `plans/not-executed/`, `reviews/`, or `backlog/done/` is IMMUTABLE under the execution contract's rule that an executed plan's record must not be rewritten and a citation correct when written must not be falsified; EVERYTHING ELSE is LIVE, which includes `plans/pending/`, `backlog/` in any non-`done/` state (`open/`, `graduated/`, `blocked/`, `parked/`), `specs/` in any state, and source. If a citing file's location fits neither clause cleanly, classify it IMMUTABLE and report it rather than guessing, since a wrongly-live classification risks falsifying a record while a wrongly-immutable one only leaves a stale pointer this plan did not create.
   DO NOT RECONCILE TO THE AUTHORING NUMBERS; THEY HAVE ALREADY MOVED ONCE (PR-202). Re-measured at review HEAD `c82c829d8`: 7 cohort docs are cited by full path across 12 files holding 24 occurrences, of which TEN files are IMMUTABLE (9 executed plans plus 1 review) and exactly TWO are LIVE: `agent_workflows/comms.py` (`j2000q`, 1 occurrence) and pending `h8e3sm` (`en5c8i`, 1 occurrence). The authoring measurement read 11 files / 8-plus-1 immutable / 2 live pending, and the difference is NOT an authoring error: approved plan `68hdic` EXECUTED in between (commit `a7f0ce4f1`), which moved it from the live set to the immutable set and added its review record to the census. Report the numbers YOU measure, name any divergence from both prior measurements, and expect the live set to be small. Note also that `comms.py` no longer cites the RETIRED `.agents/docs/research/` path at all (zero occurrences at review); `68hdic` already repointed it to the current root path, so it is a LIVE, currently-RESOLVING citation that this plan's moves will strand.
   - Depends on: E-01
   - Expected outcome: a per-file classification table naming every citing file, its occurrence count, and its LIVE/IMMUTABLE disposition with the reason, so the subsequent repairs are bounded by evidence rather than by a sweep.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: perform the migration
 
-- [ ] E-03 PREVIEW the whole cohort with `aw research promote <id6> --to <status>` (no `--apply`) for every doc E-01 selected, and confirm each preview line names the shard E-01 computed. A promote whose preview errors or names a different target is a STOP for that doc: record it and exclude it rather than forcing it, because a mismatch means the doc's `created` disagrees with what this plan measured. Note that the shard follows frontmatter `created`, NOT the filename date (`research_archive._shard_subpath` passes `created` to `research_contract.shard_for_date`); 11 of the 35 have a `created` month that differs from their filename month, so a target like `reference/202608` for a `20260731-` file is CORRECT and must not be "fixed".
+- [x] E-03 PREVIEW the whole cohort with `aw research promote <id6> --to <status>` (no `--apply`) for every doc E-01 selected, and confirm each preview line names the shard E-01 computed. A promote whose preview errors or names a different target is a STOP for that doc: record it and exclude it rather than forcing it, because a mismatch means the doc's `created` disagrees with what this plan measured. Note that the shard follows frontmatter `created`, NOT the filename date (`research_archive._shard_subpath` passes `created` to `research_contract.shard_for_date`); 11 of the 35 have a `created` month that differs from their filename month, so a target like `reference/202608` for a `20260731-` file is CORRECT and must not be "fixed".
   - Depends on: E-01
   - Expected outcome: a preview line per doc, each matching E-01's computed target, with any erroring or diverging doc named and excluded rather than forced.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 APPLY the moves with `aw research promote <id6> --to <status> --apply` for each doc E-03 previewed clean. The verb rewrites frontmatter `status` in place, performs the move as a tracked `git mv`, and refreshes the local manifest; the manifest is GITIGNORED and must NOT be committed (`research_archive.apply_moves` deliberately omits `INDEX.json`/`INDEX.md` from its returned touched list for exactly this reason). Do NOT hand-move a file with `git mv` and do NOT hand-edit a `status:` line: the tool owns both halves of the transition and splitting them is what produces the mirror-image drift this Set exists to remove. Commit the moves with `aw commit` on the research paths. Confirm the hot root afterwards contains no doc with a cold normalized status.
+- [x] E-04 APPLY the moves with `aw research promote <id6> --to <status> --apply` for each doc E-03 previewed clean. The verb rewrites frontmatter `status` in place, performs the move as a tracked `git mv`, and refreshes the local manifest; the manifest is GITIGNORED and must NOT be committed (`research_archive.apply_moves` deliberately omits `INDEX.json`/`INDEX.md` from its returned touched list for exactly this reason). Do NOT hand-move a file with `git mv` and do NOT hand-edit a `status:` line: the tool owns both halves of the transition and splitting them is what produces the mirror-image drift this Set exists to remove. Commit the moves with `aw commit` on the research paths. Confirm the hot root afterwards contains no doc with a cold normalized status.
   - Depends on: E-03
   - Expected outcome: every previewed doc lives in its shard with frontmatter `status` unchanged in value (it was already cold) and a tracked rename in `git status`, the hot root holds zero cold-status docs, and no `INDEX.json`/`INDEX.md` is staged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: repair only the live citations the moves strand
 
-- [ ] E-05 RE-POINT `agent_workflows/comms.py`'s module docstring citation at `j2000q`'s POST-MOVE path. `j2000q` is in the cohort, so its correct target after E-04 is the shard path. Write the path E-01/E-04 actually produced, re-read from disk rather than copied from this plan. This is a docstring; change no code path.
+- [x] E-05 RE-POINT `agent_workflows/comms.py`'s module docstring citation at `j2000q`'s POST-MOVE path. `j2000q` is in the cohort, so its correct target after E-04 is the shard path. Write the path E-01/E-04 actually produced, re-read from disk rather than copied from this plan. This is a docstring; change no code path.
   THE `68hdic` ORDERING IS SETTLED, NOT OPEN, corrected at review (PR-201, PR-203). `68hdic` HAS EXECUTED (commit `a7f0ce4f1`, now in `.aw/records/plans/executed/`) and already performed its own E-05, so THIS IS THE "RAN FIRST" CASE OQ-01 anticipated and this item is a one-line correction of the ROOT PATH that plan wrote. Two consequences for the executor. FIRST, the authored description of this line is STALE: it no longer reads `.agents/docs/research/...` and the retired `.agents/` form is ALREADY GONE (measured at review: zero occurrences of `.agents/docs/research` in `comms.py`); the line now names `j2000q`'s current ROOT path, which RESOLVES on disk today, so this edit converts a working citation into a still-working one rather than fixing a dangling one. SECOND, do NOT look for `68hdic` in `plans/pending/` and do NOT edit it: it is immutable, and it has been removed from `- Scope-Paths:` for that reason (PR-206). RE-READ the line from the file before editing rather than trusting any path quoted in this plan, since that is exactly the assumption that went stale here.
   - Depends on: E-04
   - Expected outcome: `comms.py` names a path that resolves on disk, verified by an existence check on the exact string now in the file, with no executable line altered and no edit to any executed plan.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 CORRECT the stale root path in the ONE remaining LIVE PENDING plan so a later executor does not act on a path this plan invalidated, and leave every IMMUTABLE citation E-02 classified untouched. In `h8e3sm` (1 occurrence of `en5c8i`'s root path in its F-15 row), replace the root path with the post-move shard path. It is an APPROVED plan, so this is the minimum edit that keeps an approved instruction executable; do not restructure it, do not touch its `- Status:`, and append nothing to its workflow history beyond what the lifecycle tooling writes. Note `h8e3sm`'s F-15 concerns a COMMIT-PINNED GitHub permalink that must survive untouched; only the in-repo path on that row is edited.
+- [x] E-06 CORRECT the stale root path in the ONE remaining LIVE PENDING plan so a later executor does not act on a path this plan invalidated, and leave every IMMUTABLE citation E-02 classified untouched. In `h8e3sm` (1 occurrence of `en5c8i`'s root path in its F-15 row), replace the root path with the post-move shard path. It is an APPROVED plan, so this is the minimum edit that keeps an approved instruction executable; do not restructure it, do not touch its `- Status:`, and append nothing to its workflow history beyond what the lifecycle tooling writes. Note `h8e3sm`'s F-15 concerns a COMMIT-PINNED GitHub permalink that must survive untouched; only the in-repo path on that row is edited.
   `68hdic` IS NO LONGER IN THIS ITEM AND MUST NOT BE EDITED, corrected at review (PR-201). The authored text named it as the second live pending plan with 3 occurrences; it EXECUTED before this plan was reviewed (commit `a7f0ce4f1`) and is now an immutable record in `.aw/records/plans/executed/`. Editing it would be exactly the violation the next paragraph forbids, and its path has been removed from `- Scope-Paths:` so the finalize scope gate refuses the attempt (PR-206).
   DO NOT REWRITE THE IMMUTABLE CITATIONS. Re-measured at review: TEN immutable files hold full-path citations to cohort docs (NINE executed plans plus ONE review record), not the 8-plus-1 the authoring measurement recorded, and the whole full-path citation census is 7 cohort docs across 12 files totalling 24 occurrences (PR-202). Those citations were correct when written and the execution contract forbids changing what an executed plan records. Derive the immutable set from E-02's own re-measurement, never from these numbers.
   - Depends on: E-04
   - Expected outcome: `h8e3sm` cites a path that resolves, the pinned permalink is byte-identical, and a diff restricted to the immutable set shows zero changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove the tree is no worse than it was
 
-- [ ] E-07 ESTABLISH the before/after comparison that shows this migration introduced no new finding, since the gate is ALREADY failing and so a bare exit code proves nothing. Before E-04, capture `aw research index --check` findings grouped by rule; after E-04 and the repairs, capture them again and diff the GROUPED COUNTS. THE BAR IS THE DELTA BETWEEN YOUR OWN TWO MEASUREMENTS, NEVER A NUMBER QUOTED HERE (PR-205). Capture the BEFORE baseline yourself, in the same session as the AFTER, and compare per-rule counts to each other; the finding population is LIVE and drifts with every unrelated commit, so an authoring figure cannot be a bar. Demonstrated: the authoring baseline recorded 61 `dangling-citation`, and at review HEAD `c82c829d8` the same command reports 70, while `adopted-without-consumer` (35) and `stale-state-to-promote` (17) reproduced exactly. Quoted for orientation only, and explicitly NOT as a target: exit 1 with 70 `dangling-citation`, 35 `adopted-without-consumer`, 17 `stale-state-to-promote` at review; the authoring run additionally recorded 2 `check.stale-index-missing` at `info`, which `artifact_core.drift_exit_code` exempts and which did not appear at review. Expect the DELTA to be zero: the moves alter neither citation resolution (resolution is by `<id6>`, not by path) nor `consumed-by`. A nonzero delta is a STOP to investigate; a before-count that differs from these figures is NOT, and must simply be reported. Also run the bare suite (`python3 -m pytest`) and paste its actual summary line.
+- [x] E-07 ESTABLISH the before/after comparison that shows this migration introduced no new finding, since the gate is ALREADY failing and so a bare exit code proves nothing. Before E-04, capture `aw research index --check` findings grouped by rule; after E-04 and the repairs, capture them again and diff the GROUPED COUNTS. THE BAR IS THE DELTA BETWEEN YOUR OWN TWO MEASUREMENTS, NEVER A NUMBER QUOTED HERE (PR-205). Capture the BEFORE baseline yourself, in the same session as the AFTER, and compare per-rule counts to each other; the finding population is LIVE and drifts with every unrelated commit, so an authoring figure cannot be a bar. Demonstrated: the authoring baseline recorded 61 `dangling-citation`, and at review HEAD `c82c829d8` the same command reports 70, while `adopted-without-consumer` (35) and `stale-state-to-promote` (17) reproduced exactly. Quoted for orientation only, and explicitly NOT as a target: exit 1 with 70 `dangling-citation`, 35 `adopted-without-consumer`, 17 `stale-state-to-promote` at review; the authoring run additionally recorded 2 `check.stale-index-missing` at `info`, which `artifact_core.drift_exit_code` exempts and which did not appear at review. Expect the DELTA to be zero: the moves alter neither citation resolution (resolution is by `<id6>`, not by path) nor `consumed-by`. A nonzero delta is a STOP to investigate; a before-count that differs from these figures is NOT, and must simply be reported. Also run the bare suite (`python3 -m pytest`) and paste its actual summary line.
   - Depends on: E-06
   - Expected outcome: grouped finding counts before and after with an explicit statement that the delta is zero (or the investigated reason it is not), plus the pasted bare-suite summary.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -164,40 +164,251 @@ N/A with reason. No spec or README amendment is required, because this plan brin
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted census output listing every selected doc with its id6, normalized status, and computed target shard, plus the two clean-direction counts stated as actual numbers (hot-status-in-cold-shard, and sharded-doc-month-mismatch). State whether the cohort size matches 35 and whether all are `reference`; if either differs from the authoring measurement, name the difference and the reason rather than restating this plan's numbers.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Census derivation at execution HEAD:
+    ```
+    0jl8pv: status=reference, target=reference/202607/20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md
+    36rfym: status=reference, target=reference/202607/20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md
+    524dw1: status=reference, target=reference/202609/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md
+    5zczmo: status=reference, target=reference/202608/20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md
+    72n26s: status=reference, target=reference/202608/20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md
+    74bchk: status=reference, target=reference/202607/20260712-agent-instruction-file-discovery-survey-00-74bchk-agent-instruction-file-discovery-survey.survey.md
+    80eqy0: status=reference, target=reference/202608/20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md
+    8i9py4: status=reference, target=reference/202607/20260726-hostprobe-01-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md
+    cnkyvn: status=reference, target=reference/202607/20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md
+    dkxesq: status=reference, target=reference/202607/20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md
+    e4k1m0: status=reference, target=reference/202608/20260731-chkplace-01-e4k1m0-checklist-placement-and-instruction-audit-report.gemini31pro.research-report.md
+    ebh1ap: status=reference, target=reference/202609/20260924-lane-branch-triage-00-ebh1ap-lane-branch-triage.findings.md
+    en5c8i: status=reference, target=reference/202608/20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md
+    fpt0dg: status=reference, target=reference/202608/20260731-chkplace-06-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md
+    g5vhpz: status=reference, target=reference/202607/20260712-agent-instruction-file-discovery-survey-prompt-00-g5vhpz-agent-instruction-file-discovery-survey-prompt.research-prompt.md
+    ibl5kt: status=reference, target=reference/202607/20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md
+    itntmu: status=reference, target=reference/202607/20260712-gpt56-generic-agents-source-draft-00-itntmu-gpt56-generic-agents-source-draft.gpt56.source-draft.md
+    j2000q: status=reference, target=reference/202607/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md
+    jd8qhs: status=reference, target=reference/202607/20260712-agent-instruction-file-discovery-prompt-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md
+    kdr9kv: status=reference, target=reference/202608/20260731-chkplace-05-kdr9kv-ipd-structure-and-linting.reference-research.md
+    ktlhfx: status=reference, target=reference/202608/20260726-skills-04-ktlhfx-suggested-future-skill-usage.sonnet5.research-report.md
+    lc6898: status=reference, target=reference/202607/20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md
+    le9q02: status=reference, target=reference/202609/20260924-hostdedup-00-le9q02-third-host-descriptor-contract-and-gap-analysis.findings.md
+    mqqk8e: status=reference, target=reference/202608/20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md
+    qcxc6c: status=reference, target=reference/202608/20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md
+    rzfaon: status=reference, target=reference/202608/20260731-chkplace-00-rzfaon-multi-agent-research-results-synthesis.research-prompt.md
+    uec14r: status=reference, target=reference/202608/20260726-skills-03-uec14r-suggested-future-skill-usage.gpt56.reconciliation-report.md
+    uxq2tt: status=reference, target=reference/202607/20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md
+    vdz4ui: status=reference, target=reference/202607/20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md
+    wusyd6: status=reference, target=reference/202608/20260802-durable-record-discretion-and-non-amplification-00-wusyd6-durable-record-discretion-and-non-amplification.requirements.md
+    x41kw0: status=reference, target=reference/202607/20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md
+    x9whzs: status=reference, target=reference/202608/20260726-skills-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md
+    ypmm6z: status=reference, target=reference/202607/20260726-awdeliv-01-ypmm6z-aw-delivery-and-clean-delta.gemini36flash.research-report.md
+    z0wxwa: status=reference, target=reference/202607/20260726-awdeliv-02-z0wxwa-aw-delivery-and-clean-delta.gemini31pro.research-report.md
+    za72ko: status=reference, target=reference/202607/20260726-hostprobe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md
+    ```
+    Cohort count matches exactly 35; all 35 carry normalized status `reference` (0 archive).
+    Target shard distribution: `reference/202607` (18), `reference/202608` (14), `reference/202609` (3).
+    Clean-direction counts:
+    - hot-status-in-cold-shard: 0
+    - sharded-doc-month-mismatch: 0
+    Zero divergence from review HEAD measurement.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted classification table: every citing file, its occurrence count, and LIVE or IMMUTABLE with the reason. Confirm the LIVE set is exactly the files this plan will edit at E-05/E-06, and that every file under `plans/executed/`, `reviews/`, `plans/superseded/`, `plans/not-executed/`, or `backlog/done/` is classified IMMUTABLE.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Citation classification census across git tracked tree outside `.aw/records/research/`:
+    Total citing files: 12, total occurrences: 24, citing 7 distinct cohort docs (`524dw1`, `e4k1m0`, `ebh1ap`, `en5c8i`, `j2000q`, `le9q02`, `mqqk8e`).
+    IMMUTABLE files (10 files, 22 occurrences):
+    - `.aw/records/plans/executed/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md` (2 occurrences, `mqqk8e`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260917-hostdedup-03-xdvglg-prove-the-descriptor-seam-by-adding-a-third-host-with-no-new.ipd.md` (3 occurrences, `le9q02`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260917-laneorph-02-ut0vzr-triage-the-fourteen-lane-branches-holding-unmerged-commits.ipd.md` (3 occurrences, `ebh1ap`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260921-hostdedup-04-04vf1h-verify-the-hostdedup-set-against-all-six-completion-criteria.ipd.md` (1 occurrence, `le9q02`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260921-laneorph-03-k311gw-verify-the-laneorph-set-s-combined-outcome-from-the-main-che.ipd.md` (2 occurrences, `ebh1ap`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260926-fencegate-02-ahq0mq-bound-check-engine-status-reads-and-is-retired-to-the-metada.ipd.md` (1 occurrence, `ebh1ap`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260926-researchsel-01-me227c-route-the-research-mutating-verbs-through-the-one-selector-r.ipd.md` (1 occurrence, `e4k1m0`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260928-sxlvlu-01-r0iob3-make-a-cross-tree-or-zero-output-opencode-turn-observable-in.ipd.md` (3 occurrences, `524dw1`) [rule: executed plan is immutable]
+    - `.aw/records/plans/executed/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.ipd.md` (4 occurrences, `j2000q`) [rule: executed plan is immutable]
+    - `.aw/records/reviews/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.review.md` (2 occurrences, `j2000q`) [rule: review record is immutable]
+    LIVE files (2 files, 2 occurrences):
+    - `.aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md` (1 occurrence, `en5c8i`) [rule: pending plan is live and repairable]
+    - `agent_workflows/comms.py` (1 occurrence, `j2000q`) [rule: source code docstring is live and repairable]
+    Confirmed: LIVE set is exactly the two files edited in E-05 and E-06; all 10 historical records under `plans/executed/` and `reviews/` classified IMMUTABLE.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: the pasted preview lines (`would set <id6> status=... and move to <shard>/...`), one per doc, with a statement that each matches V-01's computed target. Name any doc whose preview errored or diverged and confirm it was EXCLUDED rather than forced. Explicitly confirm that the docs whose `created` month differs from their filename month (expected: 11) previewed to the `created`-derived shard and were NOT adjusted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Preview output via `aw research promote <id6> --to reference`:
+    ```
+    --- would set 0jl8pv status=reference and move to reference/202607/20260722-token-efficient-managed-sections-in-agent-instruction-files-00-0jl8pv-token-efficient-managed-sections-in-agent-instruction-files.gpt56.findings.md ---
+    --- would set 36rfym status=reference and move to reference/202607/20260726-hostprobe-04-36rfym-external-delivery-host-probe.reconciliation.reconciliation-report.md ---
+    --- would set 524dw1 status=reference and move to reference/202609/20260928-opencode-crosstree-silent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md ---
+    --- would set 5zczmo status=reference and move to reference/202608/20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md ---
+    --- would set 72n26s status=reference and move to reference/202608/20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md ---
+    --- would set 74bchk status=reference and move to reference/202607/20260712-agent-instruction-file-discovery-survey-00-74bchk-agent-instruction-file-discovery-survey.survey.md ---
+    --- would set 80eqy0 status=reference and move to reference/202608/20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md ---
+    --- would set 8i9py4 status=reference and move to reference/202607/20260726-hostprobe-01-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md ---
+    --- would set cnkyvn status=reference and move to reference/202607/20260726-awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md ---
+    --- would set dkxesq status=reference and move to reference/202607/20260726-hostprobe-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md ---
+    --- would set e4k1m0 status=reference and move to reference/202608/20260731-chkplace-01-e4k1m0-checklist-placement-and-instruction-audit-report.gemini31pro.research-report.md ---
+    --- would set ebh1ap status=reference and move to reference/202609/20260924-lane-branch-triage-00-ebh1ap-lane-branch-triage.findings.md ---
+    --- would set en5c8i status=reference and move to reference/202608/20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md ---
+    --- would set fpt0dg status=reference and move to reference/202608/20260731-chkplace-06-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md ---
+    --- would set g5vhpz status=reference and move to reference/202607/20260712-agent-instruction-file-discovery-survey-prompt-00-g5vhpz-agent-instruction-file-discovery-survey-prompt.research-prompt.md ---
+    --- would set ibl5kt status=reference and move to reference/202607/20260726-hostprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md ---
+    --- would set itntmu status=reference and move to reference/202607/20260712-gpt56-generic-agents-source-draft-00-itntmu-gpt56-generic-agents-source-draft.gpt56.source-draft.md ---
+    --- would set j2000q status=reference and move to reference/202607/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md ---
+    --- would set jd8qhs status=reference and move to reference/202607/20260712-agent-instruction-file-discovery-prompt-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md ---
+    --- would set kdr9kv status=reference and move to reference/202608/20260731-chkplace-05-kdr9kv-ipd-structure-and-linting.reference-research.md ---
+    --- would set ktlhfx status=reference and move to reference/202608/20260726-skills-04-ktlhfx-suggested-future-skill-usage.sonnet5.research-report.md ---
+    --- would set lc6898 status=reference and move to reference/202607/20260726-awdeliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md ---
+    --- would set le9q02 status=reference and move to reference/202609/20260924-hostdedup-00-le9q02-third-host-descriptor-contract-and-gap-analysis.findings.md ---
+    --- would set mqqk8e status=reference and move to reference/202608/20260823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md ---
+    --- would set qcxc6c status=reference and move to reference/202608/20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md ---
+    --- would set rzfaon status=reference and move to reference/202608/20260731-chkplace-00-rzfaon-multi-agent-research-results-synthesis.research-prompt.md ---
+    --- would set uec14r status=reference and move to reference/202608/20260726-skills-03-uec14r-suggested-future-skill-usage.gpt56.reconciliation-report.md ---
+    --- would set uxq2tt status=reference and move to reference/202607/20260726-awdeliv-04-uxq2tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md ---
+    --- would set vdz4ui status=reference and move to reference/202607/20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md ---
+    --- would set wusyd6 status=reference and move to reference/202608/20260802-durable-record-discretion-and-non-amplification-00-wusyd6-durable-record-discretion-and-non-amplification.requirements.md ---
+    --- would set x41kw0 status=reference and move to reference/202607/20260722-agent-coding-system-file-discovery-and-write-safety-00-x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md ---
+    --- would set x9whzs status=reference and move to reference/202608/20260726-skills-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md ---
+    --- would set ypmm6z status=reference and move to reference/202607/20260726-awdeliv-01-ypmm6z-aw-delivery-and-clean-delta.gemini36flash.research-report.md ---
+    --- would set z0wxwa status=reference and move to reference/202607/20260726-awdeliv-02-z0wxwa-aw-delivery-and-clean-delta.gemini31pro.research-report.md ---
+    --- would set za72ko status=reference and move to reference/202607/20260726-hostprobe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md ---
+    ```
+    Every preview line matches V-01 computed target (35 previews, 0 errors, 0 mismatches).
+    Confirmed: all 11 docs with `created: 20260802` (`x9whzs`, `en5c8i`, `uec14r`, `ktlhfx`, `rzfaon`, `e4k1m0`, `72n26s`, `80eqy0`, `5zczmo`, `kdr9kv`, `fpt0dg`) previewed to `reference/202608` and were not adjusted.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `git status --porcelain` (or `git log --stat` for the commit) showing the moves as tracked renames `R`, a re-run of V-01's query proving the hot root now holds ZERO cold-status docs, and `git diff --cached --name-only` for the commit proving no `INDEX.json` or `INDEX.md` was staged. Also paste one moved file's frontmatter `status:` line to show it is intact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git log -1 --stat` for migration commit `00bddcc8aed79e9a5b1f91e8199b6cfd50960197`:
+    ```
+    commit 00bddcc8aed79e9a5b1f91e8199b6cfd50960197 (HEAD -> aw/lane/mg8bag)
+    Author: aw-upgrade-test <aw-upgrade-test@invalid.localhost>
+    Date:   Thu Oct 1 21:10:03 2026 -0400
 
-- [ ] V-05 validates E-05
+        chore(research): migrate 35 cold-status docs into monthly shards
+
+        AW-Run: run-20261001T154752Z-3669000
+        AW-Item: mg8bag
+
+     ...t-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md | 0
+     ...ery-survey-00-74bchk-agent-instruction-file-discovery-survey.survey.md | 0
+     ...vhpz-agent-instruction-file-discovery-survey-prompt.research-prompt.md | 0
+     ...raft-00-itntmu-gpt56-generic-agents-source-draft.gpt56.source-draft.md | 0
+     ...chanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md | 0
+     ...x41kw0-agent-coding-system-file-discovery-and-write-safety.findings.md | 0
+     ...fficient-managed-sections-in-agent-instruction-files.gpt56.findings.md | 0
+     ...awdeliv-00-cnkyvn-aw-delivery-and-clean-delta.gpt56.research-report.md | 0
+     ...01-ypmm6z-aw-delivery-and-clean-delta.gemini36flash.research-report.md | 0
+     ...v-02-z0wxwa-aw-delivery-and-clean-delta.gemini31pro.research-report.md | 0
+     ...deliv-03-lc6898-aw-delivery-and-clean-delta.sonnet5.research-report.md | 0
+     ...tt-aw-delivery-and-clean-delta.reconciliation.reconciliation-report.md | 0
+     ...tprobe-00-ibl5kt-external-delivery-host-probe.gpt56.research-report.md | 0
+     ...1-8i9py4-external-delivery-host-probe.gemini36flash.research-report.md | 0
+     ...-02-dkxesq-external-delivery-host-probe.gemini31pro.research-report.md | 0
+     ...robe-03-za72ko-external-delivery-host-probe.sonnet5.research-report.md | 0
+     ...m-external-delivery-host-probe.reconciliation.reconciliation-report.md | 0
+     .../202607}/20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md         | 0
+     ...-01-x9whzs-suggested-future-skill-usage.gemini31pro.research-report.md | 0
+     ...skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md | 0
+     ...-03-uec14r-suggested-future-skill-usage.gpt56.reconciliation-report.md | 0
+     ...ills-04-ktlhfx-suggested-future-skill-usage.sonnet5.research-report.md | 0
+     ...ce-00-rzfaon-multi-agent-research-results-synthesis.research-prompt.md | 0
+     ...-placement-and-instruction-audit-report.gemini31pro.research-report.md | 0
+     ...-placement-and-instruction-audit-report.gpt56medium.research-report.md | 0
+     ...list-placement-and-instruction-audit-report.sonnet5.research-report.md | 0
+     ...kplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md | 0
+     ...731-chkplace-05-kdr9kv-ipd-structure-and-linting.reference-research.md | 0
+     ...6-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md | 0
+     ...wusyd6-durable-record-discretion-and-non-amplification.requirements.md | 0
+     .../202608}/20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md       | 0
+     ...60823-execset-00-mqqk8e-exec-set-architecture.gpt56.research-report.md | 0
+     ...-00-le9q02-third-host-descriptor-contract-and-gap-analysis.findings.md | 0
+     .../20260924-lane-branch-triage-00-ebh1ap-lane-branch-triage.findings.md  | 0
+     ...ilent-turn-00-524dw1-opencode-crosstree-silent-turn.research-report.md | 0
+     35 files changed, 0 insertions(+), 0 deletions(-)
+    ```
+    Re-run of V-01 query on hot root:
+    ```
+    Cold status docs remaining at root: 0
+    ```
+    Git diff cached during commit:
+    ```
+    No INDEX files staged
+    ```
+    Pasted frontmatter `status:` line for moved file `jd8qhs` (`.aw/records/research/reference/202607/20260712-agent-instruction-file-discovery-prompt-00-jd8qhs-agent-instruction-file-discovery-prompt.research-prompt.md`):
+    ```yaml
+    status: reference
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the one-line diff of `agent_workflows/comms.py`, plus a test that the path string now in the file EXISTS on disk (for example an `ls` of that exact path succeeding). Confirm no executable line changed (the diff touches the module docstring only). The `68hdic` ordering case is SETTLED and need not be determined: it ran first (PR-203), so the expected diff replaces a ROOT path with a SHARD path. State that the pre-edit line was the root-path form and NOT the retired `.agents/docs/research/...` form, since `68hdic` already removed the latter (measured zero occurrences at review); if the `.agents/` form is somehow present, STOP and report, because that would mean the tree is older than this review assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: One-line diff of `agent_workflows/comms.py`:
+    ```diff
+    @@ -17,7 +17,7 @@ functions here are pure: they parse/validate in-memory values and never touch th
+     only (zero runtime deps, D46).
 
-- [ ] V-06 validates E-06
+     See ``.agents/docs/specs/`` (the agent-comms-convention spec) and
+    -``.aw/records/research/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`` for the design.
+    +``.aw/records/research/reference/202607/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`` for the design.
+     """
+
+     from __future__ import annotations
+    ```
+    Pre-edit line confirmed to be the root-path form and NOT `.agents/docs/research/...` (0 occurrences of retired prefix).
+    Existence check:
+    ```
+    $ test -f .aw/records/research/reference/202607/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md && echo "EXISTS"
+    EXISTS
+    ```
+    No executable code line was touched; only the module docstring was updated.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the diff for `h8e3sm` showing root path replaced by shard path (expected ONE occurrence, corrected at review from the authored "3 in `68hdic`, 1 in `h8e3sm`" because `68hdic` has executed and is out of scope; PR-201, PR-208), an existence check on the new path, and a grep proving the `blob/<sha>/` permalink on `h8e3sm`'s F-15 row is byte-identical. Also paste `git diff --name-only` restricted to the IMMUTABLE set from V-02 showing EMPTY output, which MUST include `.aw/records/plans/executed/20260929-zftbta-01-68hdic-...ipd.md` and its review record, and confirm `h8e3sm`'s `- Status:` line did not change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Diff for `.aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md`:
+    ```diff
+    @@ -129,7 +129,7 @@
+     | F-12 | BOTH LEGACY PREFIXES ARE UNIQUE, so no short-handle rewrite is skipped for ambiguity and the KEEP set is fully rewritable in principle. | `artifact_refs.count_legacy_prefix_records` returns 1 for `20260725-0957-01` and 1 for `20260726-1239-01`. |
+     | F-13 | THE KEEP SET IS NOT EMPTY AND INCLUDES LIVE ARTIFACTS, which is the material difference from `iyi4hc`, whose KEEP set was measured empty and which could therefore rename and change nothing. | Preview classification: live KEEP citers include `DECISIONS.md`, `.aw/records/backlog/open/...tf4jz5...`, `.aw/records/backlog/parked/...m15n3k...`, and pending plan `.aw/records/plans/pending/...j84jg3...`. Verified that the `tf4jz5` and `j84jg3` hits name the SPEC (`20260726-1239-01-clean-delta-and-tracking-modes.spec.md`) and not the similarly-named plan `qrokie`. |
+     | F-14 | THE SECOND SPEC CITES THE FIRST, so the two conversions are ordered and must be re-previewed between. | `.aw/records/specs/deferred/20260726-1239-01-clean-delta-and-tracking-modes.spec.md` carries `- Supersedes/extends: '.agents/docs/specs/20260725-0957-01-external-delivery-and-skills.spec.md'`, which is itself a LEAVE-class historical path AND one of spec one's 11 blockers. |
+    -| F-15 | A COMMIT-PINNED PERMALINK CITES SPEC ONE AND MUST SURVIVE. The tool already skips pinned permalinks in both the guard and the rewriter; the hand sweep must too. | `.aw/records/research/20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md` cites the spec through a `https://github.com/fariello/agent-workflows/blob/<sha>/...` URL. `_PINNED_PERMALINK_RE` is applied in `find_unrewritable_path_citations` and in the rewriter's masking. |
+    +| F-15 | A COMMIT-PINNED PERMALINK CITES SPEC ONE AND MUST SURVIVE. The tool already skips pinned permalinks in both the guard and the rewriter; the hand sweep must too. | `.aw/records/research/reference/202608/20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md` cites the spec through a `https://github.com/fariello/agent-workflows/blob/<sha>/...` URL. `_PINNED_PERMALINK_RE` is applied in `find_unrewritable_path_citations` and in the rewriter's masking. |
+     | F-16 | NO PENDING PLAN CONTENDS FOR THESE TWO SPEC FILES, so this plan can execute independently. The pending plans that mention `--to-id6` work on the rename CLI's selector and reporting surfaces, not on these artifacts. | `grep -l 'to-id6\|external-delivery-and-skills\|clean-delta-and-tracking'` over `.aw/records/plans/pending/*.ipd.md` returns the `awrenamesel` Set (`95jk4s`, `87m438`, `3qxuw1`), `j84jg3`, `zosxj4`, and `68hdic`; none declares either spec file in its scope, and `j84jg3` only CITES spec two as evidence about a plan date. |
+    ```
+    Existence check:
+    ```
+    $ test -f .aw/records/research/reference/202608/20260726-skills-02-en5c8i-suggested-future-skill-usage.gpt56.research-report.md && echo "EXISTS"
+    EXISTS
+    ```
+    Pinned permalink on F-15 row verified byte-identical: `https://github.com/fariello/agent-workflows/blob/<sha>/...`.
+    Status check on `h8e3sm`: `- Status: approved` unchanged.
+    Diff restricted to immutable set from V-02:
+    ```
+    $ git diff --name-only -- .aw/records/plans/executed/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md .aw/records/plans/executed/20260917-hostdedup-03-xdvglg-prove-the-descriptor-seam-by-adding-a-third-host-with-no-new.ipd.md .aw/records/plans/executed/20260917-laneorph-02-ut0vzr-triage-the-fourteen-lane-branches-holding-unmerged-commits.ipd.md .aw/records/plans/executed/20260921-hostdedup-04-04vf1h-verify-the-hostdedup-set-against-all-six-completion-criteria.ipd.md .aw/records/plans/executed/20260921-laneorph-03-k311gw-verify-the-laneorph-set-s-combined-outcome-from-the-main-che.ipd.md .aw/records/plans/executed/20260926-fencegate-02-ahq0mq-bound-check-engine-status-reads-and-is-retired-to-the-metada.ipd.md .aw/records/plans/executed/20260926-researchsel-01-me227c-route-the-research-mutating-verbs-through-the-one-selector-r.ipd.md .aw/records/plans/executed/20260928-sxlvlu-01-r0iob3-make-a-cross-tree-or-zero-output-opencode-turn-observable-in.ipd.md .aw/records/plans/executed/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.ipd.md .aw/records/reviews/20260929-zftbta-01-68hdic-report-a-dangling-record-citation-in-packaged-source-as-a-ch.review.md
+    (empty output)
+    ```
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: the before and after `aw research index --check` findings GROUPED BY RULE with counts side by side, and an explicit statement that the per-rule delta is zero (or, if not, the investigated cause). Note the exit code remains 1 both times and say so, so a reader does not mistake a failing gate for a regression this plan caused. Plus the actual bare `python3 -m pytest` summary line pasted verbatim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Grouped counts for `aw research index --check` before and after:
+    | Rule | Before | After | Delta |
+    |---|---|---|---|
+    | adopted-without-consumer | 35 | 35 | 0 |
+    | dangling-citation | 76 | 76 | 0 |
+    | frontmatter-invalid | 1 | 1 | 0 |
+    | stale-state-to-promote | 19 | 19 | 0 |
+    | check.stale-index-missing | 2 | 0 | -2 (cleared by index refresh) |
+    Exit code: 1 before and 1 after (failing on pre-existing findings).
+    Net delta across all checking rules is zero (0 new findings).
+    Bare `python3 -m pytest` summary line:
+    ```
+    4 failed, 4459 passed, 2 skipped, 3 warnings in 407.75s (0:06:47)
+    ```
+    Note on the 4 failures: 2 are timeouts under heavy parallel xdist load (`test_box_renderer_invariants_across_swept_inputs`, `test_verbose_flag_end_to_end_observable_difference`) which pass in isolation (2 passed in 19.14s); 2 are pre-existing defects in adjacent main branch code/corpus (`test_every_real_spec_in_this_repository_still_conforms` due to spec `89xjll`, and `test_unreachable_binding_refusal_fires_under_perturbation` due to `LeaseTable.claim` becoming reachable). Filed backlog items `8jeh4x` and `md2o3y`.
+  - Result: pass
+
 
 ## Approval and execution gate
 
