@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -2299,6 +2300,58 @@ def setup_needed(repo_root: Path) -> bool:
         return False
 
 
+_INBOX_BOOKKEEPING_NAMES = frozenset({"README.md", ".gitkeep"})
+
+
+def inbox_waiting(repo_root: Path) -> int:
+    """awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): how many RAW drops are waiting in `<repo>/.aw/inbox/`.
+
+    Structural twin of `setup_needed` above: DERIVED on demand, read-only, swallows its own
+    exceptions, NEVER creates anything (in particular it must not create `.aw/inbox/` by looking
+    for it), and feeds one advisory footer nudge that touches neither the item list nor the exit
+    code.
+
+    LISTS DIRECTORY ENTRIES ONLY; OPENS NO FILE, EVER. Inbox drops are VISIBLE AS FILES here and
+    are NEVER INTERPRETED AS RECORDS, and that distinction is the whole safety property of this
+    function rather than a style preference. `.aw/inbox/` holds unvetted third-party text, and
+    `selectors._ID_RE` is position-unanchored (`(?m)^- Id:\\s*([0-9a-z]{6})\\s*$` applied with
+    `.search()` over a whole body), so a `- Id:` line anywhere in a drop - INCLUDING one merely
+    QUOTED inside an external report as an example - is harvested as an identity claim and can
+    collide with a real artifact's id6, making that artifact unresolvable to `aw set`/`aw show`
+    (see `.aw/.gitignore`, which records exactly this hazard as the reason the inbox sits OUTSIDE
+    `.aw/records/`). Listing a directory cannot forge an identity; parsing a drop can. So do NOT
+    "improve" this by reading front matter, sniffing a body, or classifying a drop by type: use
+    `os.scandir`, which yields names without opening anything.
+
+    A MISSING DIRECTORY MEANS ZERO. `.aw/inbox/` is gitignored and therefore per-checkout, so it
+    is simply absent in a fresh worktree; absent must not raise, and the caller must print nothing
+    for zero, because a nudge that fires when there is nothing to nudge about is noise that trains
+    readers to ignore it.
+
+    ONE ANCHORED PATH, NEVER A SEARCH BY NAME. Resolves exactly `<repo>/.aw/inbox/` and never looks
+    for directories called `inbox` anywhere else: `.aw/records/comms/*/inbox/` is the TRACKED
+    inter-agent comms lane and is unrelated (an unanchored `inbox/` gitignore pattern once
+    threatened exactly that path and would have broken `aw install`).
+
+    A NESTED DIRECTORY COUNTS AS ONE ENTRY AND IS NOT WALKED (OQ-02). The number's job is to be
+    nonzero and roughly right, not exact; counting a directory as one entry keeps the whole
+    operation a single shallow `scandir` that cannot recurse unboundedly.
+
+    BUT THE TREE'S OWN BOOKKEEPING FILES ARE EXCLUDED (`README.md`, `.gitkeep`), because they are
+    not waiting for anyone. `.aw/inbox/README.md` is committed scaffolding that documents the lane
+    (`git ls-files .aw/inbox` shows it tracked), so counting it would make this nudge fire FOREVER
+    on a fully drained inbox on every machine, defeating the silent-when-empty rule above. Every
+    other entry counts, including hidden files and non-`.md` drops: a genuine hidden drop (say
+    `.report.md`) must not be missed.
+    """
+    try:
+        inbox = Path(repo_root) / ".aw" / "inbox"
+        with os.scandir(inbox) as entries:
+            return sum(1 for e in entries if e.name not in _INBOX_BOOKKEEPING_NAMES)
+    except Exception:
+        return 0
+
+
 def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
     """awdoctor Order 02: items carrying a `- Blocks-Release: next|<id6>` field that are still LIVE.
     Reads the field from each item's file (the awrelease Set defines it). Returns the blocking items.
@@ -4567,6 +4620,26 @@ def run(args) -> int:
         if needs_setup:
             # The --all hint lives on the count line now; do not repeat it here.
             footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
+
+        # awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): the waiting-inbox-drops nudge.
+        # AN INDEPENDENT `if` appending to `footer_lines`, composing with today's single-`if`
+        # `setup_needed` notice above rather than competing with it. Do NOT convert either into
+        # an `elif`: a dropped-and-forgotten file is especially likely on a fresh checkout that
+        # also needs setup, so both lines must render when both conditions hold.
+        # ADVISORY ONLY, exactly like the `order_notices` and `release-gate-warnings` sections above:
+        # it constructs no `Drift` and therefore CANNOT affect the exit code (owned solely by
+        # `core.drift_exit_code(drift)`), invents no status, and creates no `Item` - a waiting local
+        # drop in a gitignored directory is not a repository defect, and failing `--check` on a file
+        # no other machine can even see would be wrong. It shows ALWAYS, not only under `--all`,
+        # because `--all` reveals hidden done/parked ARTIFACTS and an un-adopted drop is not one:
+        # it is outstanding work, which is what a nudge is for. It carries no mtime or other
+        # time-derived value, preserving the spec's byte-determinism invariant.
+        waiting = inbox_waiting(repo_root)
+        if waiting:
+            noun = "file" if waiting == 1 else "files"
+            footer_lines.append(
+                f"TODO: {waiting} {noun} waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one."
+            )
 
         if footer_lines:
             board = board.rstrip("\n") + "\n" + "\n".join(footer_lines) + "\n"
