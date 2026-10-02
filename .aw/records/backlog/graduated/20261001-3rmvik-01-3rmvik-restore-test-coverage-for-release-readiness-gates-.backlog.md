@@ -1,11 +1,13 @@
 - Id: 3rmvik
-- Status: open
+- Status: graduated
+- Graduated-To: 3rmvik
 - Set: 3rmvik
 - Priority: medium
 - Work-Kind: chore
 - Summary: Restore test coverage for release readiness gates and report aggregation
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: dyiasf
 - 2026-10-01 created (aw backlog): Restore test coverage for release readiness gates and report aggregation
 
 Measured at execution HEAD (4e6cae0959d870fdd6cc0568f89a4dac57029f74):
