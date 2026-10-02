@@ -30,13 +30,24 @@ was never run is NOT satisfied, regardless of the `E-*` checkbox.
 An item whose evidence reports the demand itself as unsatisfiable is classified `done` only if the
 evidence satisfies a three-part bar: it states why the demand cannot be met, proves the impossibility
 with an empirical measurement rather than an argument from prose, and evidences the satisfiable
-counterpart that does exist. Absent any of the three, the requirement is not satisfied; a bare
-assertion of impossibility without a measurement is rejected as an unsupported excuse. Calibrated
-passing example: `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as
-unsatisfiable under the plan's ordering, pasted the ancestry result showing the commit is not
-reachable from the branch (`is the abandoned commit an ancestor of HEAD: False`, beside
-`classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced the
-real post-commit incomplete case from E-07.
+counterpart that does exist. This route is explicitly available to an EXECUTOR who encounters an
+unsatisfiable demand mid-run: rather than fabricating evidence or implementing out-of-scope code to
+force a demonstration, the executor may take this honest route by discharging the same three
+obligations in the item's `Observed evidence:`. Absent any of the three, the requirement is not
+satisfied; a bare assertion of impossibility without a measurement is rejected as an unsupported
+excuse. Calibrated passing examples:
+- `u23gbn` V-02, which reported the demand for `PHASE_COMMITTED_INCOMPLETE` as unsatisfiable under
+  the plan's ordering, pasted the ancestry result showing the commit is not reachable from the
+  branch (`is the abandoned commit an ancestor of HEAD: False`, beside
+  `classification: refused-would-overwrite`, `git rc: 1`, and `HEAD unmoved: True`), and evidenced
+  the real post-commit incomplete case from E-07.
+- `akzy45` V-03, which reported the demand for intra-run requeuing as unsatisfiable under both runner
+  architectures (`THE PLAN'S LITERAL DEMONSTRATION IS NOT ACHIEVABLE AS WRITTEN, AND THAT IS A
+  MEASUREMENT, NOT A SHORTFALL I CHOSE`), pasted the AST measurement showing `requeue_interrupted`
+  and the `if retry_incomplete:` branch sit outside the dispatch loop in both `oc_runipd.run_queue`
+  and `agy_runipd.run_queue` with zero requeue calls inside either loop, evidenced the satisfiable
+  counterpart (transience scoped across invocations, where a bare `resume` re-queues an item with no
+  flag), and recorded the judgement as a numbered decision flagged for human review.
 
 The **tabulation substitution** is a named instance of this three-part bar. When an approved plan's
 demand named a test function or asserted a collected count that has since been tabulated into a

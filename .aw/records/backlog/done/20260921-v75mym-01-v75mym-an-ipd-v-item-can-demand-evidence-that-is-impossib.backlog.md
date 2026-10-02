@@ -1,5 +1,5 @@
 - Id: v75mym
-- Status: graduated
+- Status: done
 - Graduated-To: vreach
 - Set: v75mym
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: An IPD V-item can demand evidence that is impossible to produce, and nothing catches it before execution
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 9aprci executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-vreach-01-9aprci-catch-a-v-item-whose-demanded-runtime-demonstration-no-code.ipd.md); evidence .aw/records/plans/executed/20260929-vreach-01-9aprci-catch-a-v-item-whose-demanded-runtime-demonstration-no-code.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 9aprci
 - 2026-09-21 created (aw backlog): Found while executing akzy45.
 
