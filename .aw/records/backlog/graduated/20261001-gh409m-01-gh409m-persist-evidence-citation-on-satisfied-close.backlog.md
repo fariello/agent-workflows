@@ -1,11 +1,13 @@
 - Id: gh409m
-- Status: open
+- Status: graduated
+- Graduated-To: gh409m
 - Set: gh409m
 - Priority: medium
 - Work-Kind: chore
 - Summary: Persist the --evidence citation on a backlog item when it closes via the SATISFIED path, so a later audit can distinguish a legitimately evidenced close from an ungated one
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: byzkr7
 - 2026-10-01 created (aw backlog): Persist the --evidence citation on a backlog item when it closes via the SATISFIED path, so a later audit can distinguish a legitimately evidenced close from an ungated one
 
 Filed while authoring plan 1hrlp3 (backlog mbjuv5), which deferred this row and needs a durable carrier for it.
