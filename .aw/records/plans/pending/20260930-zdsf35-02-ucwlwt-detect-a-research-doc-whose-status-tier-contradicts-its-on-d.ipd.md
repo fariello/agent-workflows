@@ -116,6 +116,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE CORPUS MIGRATION. Owned by sibling `mg8bag` (Order 01), which this plan declares a hard `executed:` edge on. Shipping detection before the migration would report 35 findings on real documents, which is the item's stated reason for the ordering.
   - Carrier: mg8bag
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-zdsf35-01-mg8bag-migrate-the-35-cold-status-research-docs-from-the-hot-root-i.ipd.md
 - SHARD-MONTH VALIDATION (is a sharded doc in the month its `created` implies?). Out of scope: measured clean in both plans (64 of 64 sharded docs match their `created` month, 0 mismatches), so there is no defect to detect, and bundling a second predicate into this rule would make a single finding ambiguous between tier and month.
   - Carrier-Declined: Nothing is owed. A carrier would assert there is work to do on a direction measured clean twice; if a month mismatch ever appears, the honest trigger is that measurement, not a standing obligation filed now.
 - WIRING THE RULE INTO A PRE-COMMIT HOOK. Out of scope: the rule surfaces through `aw research index --check` and `aw check research` (and so through CI), which the item asks for. A local hook is skippable with `--no-verify` and is not cloned, so it would add a weaker surface rather than a stronger one.
