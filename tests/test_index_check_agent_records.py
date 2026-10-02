@@ -14,6 +14,7 @@ no AST checks, no source code regex, no caller census, and no symbol-existence t
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,7 +23,7 @@ from agent_workflows import agent_schema
 
 # Reuses tests.conformance_matrix.run_cli (which passes cwd and pins NO_COLOR/COLUMNS)
 # rather than forking a subprocess harness.
-from tests.conformance_matrix import run_cli
+from tests.conformance_matrix import REPO_ROOT, run_cli
 
 
 def _create_fixture_repo(root: Path, *, mode: str = "missing") -> None:
@@ -126,9 +127,20 @@ class IndexCheckSubprocessTests(unittest.TestCase):
     def setUp(self):
         self._temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self._temp_dir.name)
+        # Guarantee tree-relative import root in subprocesses under both pytest and unittest
+        _current_pp = os.environ.get("PYTHONPATH", "")
+        if str(REPO_ROOT) not in _current_pp.split(os.pathsep):
+            self._old_pp = _current_pp
+            os.environ["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{_current_pp}".rstrip(
+                os.pathsep
+            )
+        else:
+            self._old_pp = None
 
     def tearDown(self):
         self._temp_dir.cleanup()
+        if self._old_pp is not None:
+            os.environ["PYTHONPATH"] = self._old_pp
 
     # ----------------------------------------------------------------------------------
     # Human audience assertions: must pass at base commit and remain unchanged
