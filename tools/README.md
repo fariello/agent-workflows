@@ -272,3 +272,31 @@ aw oc runipd resume --repo /path/to/repo <run-id>
 ```bash
 python3 tools/ipdrunner/runipd.py status --repo /path/to/repo <run-id>
 ```
+
+## `lost_guard_census.py`
+
+`tools/lost_guard_census.py` is a reproducible scanner that audits test suite trims (defaulting to commits `80db6750c` and `19313eed`) to identify properties that lost test coverage and dangling test references in live code comments and documentation.
+
+The tool provides an audit that distinguishes between deliberate code-pin test retirements (tests pinning AST or internal implementation details, which must never be restored per GUIDING_PRINCIPLES P16) and genuine behavioral coverage gaps. It measures test removals across both deleted and modified files using multiset difference, computes reach bounds, and cross-references live backlog items to deduplicate known issues.
+
+### Usage
+
+```bash
+# Print summary table with counting rules and reach bounds:
+python3 tools/lost_guard_census.py --summary
+
+# Run Axis A (dangling test file path citations) and show attribution:
+python3 tools/lost_guard_census.py --axis a
+
+# Run Axis B (dangling ::Symbol test citations):
+python3 tools/lost_guard_census.py --axis b
+
+# Run code-pin classifier report:
+python3 tools/lost_guard_census.py --classifier
+
+# Run backlog deduplication and candidate triage:
+python3 tools/lost_guard_census.py --dedupe
+
+# Run all sections:
+python3 tools/lost_guard_census.py --all
+```
