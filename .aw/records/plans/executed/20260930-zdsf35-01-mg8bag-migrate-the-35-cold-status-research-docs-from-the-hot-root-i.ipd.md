@@ -6,7 +6,7 @@
 - Scope: Move those 35 docs into their computed `reference/YYYYMM/` shards with `aw research promote --apply`, and repair the three LIVE path citations the moves would strand. No source change, no checker rule (that is sibling `ucwlwt`), no frontmatter change beyond what the tool writes.
 - Scope-Paths: .aw/records/research, agent_workflows/comms.py, .aw/records/plans/pending/20260929-sklbrt-01-h8e3sm-mint-an-id6-for-the-two-live-legacy-specs-so-they-are-reacha.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode Opus 5, its_direct/pt3-claude-opus-5-1m-us
 - Id: mg8bag
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: mg8bag verified (set zdsf35, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-8jeh4x-01-8jeh4x-test-unreachable-binding-refusal-fires-under-pertu.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-md2o3y-01-md2o3y-spec-89xjll-fails-validate-spec-with-attention-uns.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-201 through PR-209 all FIXED, zero deferred, zero open. PR-201 was a BLOCKER: approved plan 68hdic executed since authoring, so E-06 would have directed an executor to rewrite an immutable executed plan. Findings and four Decisions rows in .aw/records/reviews/20260930-zdsf35-01-mg8bag-migrate-the-35-cold-status-research-docs-from-the-hot-root-i.review.md. Readiness go-pending-approval; human approval still required before execution.
 
