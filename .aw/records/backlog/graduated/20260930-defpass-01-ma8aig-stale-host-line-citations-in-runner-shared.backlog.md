@@ -1,11 +1,13 @@
 - Id: ma8aig
-- Status: open
+- Status: graduated
+- Graduated-To: hostcite
 - Set: defpass
 - Priority: low
 - Work-Kind: chore
 - Summary: Four stale oc_runipd/agy_runipd line citations survive in runner_shared comments, four past EOF
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: fnbtta
 - 2026-09-30 created (aw backlog): Four stale oc_runipd/agy_runipd line citations survive in runner_shared comments, four past EOF
 
 MEASURED 2026-09-30 at review of IPD gyam7x (F-08), every offset re-resolved independently against the host files at HEAD `f2326296`.
