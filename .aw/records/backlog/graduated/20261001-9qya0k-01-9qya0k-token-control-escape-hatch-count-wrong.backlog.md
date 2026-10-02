@@ -1,11 +1,13 @@
 - Id: 9qya0k
-- Status: open
+- Status: graduated
+- Graduated-To: 9qya0k
 - Set: 9qya0k
 - Priority: low
 - Work-Kind: chore
 - Summary: docs/cli-agent-protocol.md Token control section says 'Two escape hatches' while its own surface has three
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: moegsl
 - 2026-10-01 created (aw backlog): Filed while authoring plan c4btis (backlog qm04zi) as the carrier for a documentation wart that plan deliberately did not fix.
 
 MEASURED 2026-10-01 while authoring plan `c4btis` from backlog item `qm04zi`.
