@@ -1,5 +1,6 @@
 - Id: kinyxf
-- Status: open
+- Status: graduated
+- Graduated-To: brokenpipe
 - Blocks-Release: next
 - Set: brokenpipe
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw find, aw paths and human output dump a BrokenPipeError traceback on a closed pipe, contradicting the output contract's clean-exit promise
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: 63p8y2
 - 2026-10-01 created (aw backlog): aw find, aw paths and human output dump a BrokenPipeError traceback on a closed pipe, contradicting the output contract's clean-exit promise
 
 MEASURED 2026-10-01 at HEAD 74b301435 while authoring plan okiso1 from backlog item wdazvp.
