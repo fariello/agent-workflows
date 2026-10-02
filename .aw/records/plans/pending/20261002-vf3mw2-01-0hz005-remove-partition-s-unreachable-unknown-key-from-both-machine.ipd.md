@@ -6,7 +6,8 @@
 - Scope: Delete the dead field and the dead plumbing that feeds it. IN: `collect`'s return type narrows from `Tuple[List[_att.Item], List[str]]` to `List[_att.Item]` and its one `return` drops the literal `[]`; `run_partition`'s single call site stops unpacking a two-tuple; the `"unknown"` entry is removed from the `is_agent` record and from the `is_json` payload; the six unpacking test call sites stop unpacking and the one assertion pinning the key's presence is INVERTED to assert its absence, so the removal is guarded rather than merely performed; a `Changed` CHANGELOG entry records the surface change. OUT: every other output key (`shards`, `commands`, `split_components`, `cycles`) is untouched in name, order and value; no selector, filter, ordering, packing or formatting behavior changes; the eleven `ValueError` raise sites and their messages are untouched, including both "unknown selector" messages, which are the refusal path and are NOT this key; `partition`'s unredacted `commands` leak is `z7ci8k`'s work and is not touched here; and `partition`'s total non-support for `--fields` projection is a separate pre-existing gap recorded in Deferred.
 - Scope-Paths: agent_workflows/partition.py, tests/test_partition.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: vf3mw2
@@ -17,7 +18,9 @@
 - Id: 0hz005
 
 ## Workflow history
+- 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 
+- 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. All load-bearing claims re-measured at HEAD `45529f342` and hold (one return in `collect`, five `unknown` hits, exit 2 with no record, no tag contains `309bc7909`, 22 tests pass, mypy clean). Fixed: wrong helper name for the `Tuple` use, a grep classification that named a producer the grep cannot see, a no-op en/em dash grep, an unconditional begin/finalize instruction, a test count used as a bar, and two self-resolved questions with `Owner: none`.
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `vf3mw2` (graduating it). Re-measured every claim in the item at HEAD `96c6d153d` and both hold: `collect` has exactly one return statement returning a literal `[]` for the unknown list, and an unknown selector raises instead. Resolved the item's one real obstacle, the "a consumer may read the key's presence" objection, from repository evidence rather than deferring it to the maintainer: `aw partition` has NEVER shipped in a tagged release (F-05), so the published-contract concern it rests on does not apply, and the key's removal is additive-safe under the `aw.agent/v1` evolution contract it would otherwise collide with. Found and recorded that the dead key is a REGRESSION from a deliberate policy change (F-02) rather than an original design, which is what makes removal the honest fix rather than re-populating it.
 
@@ -31,14 +34,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-derive the two facts this plan rests on at the execution lane's HEAD, BEFORE any edit, and keep the output for V-01. Run `aw partition -t plans -s to-review --max 2 --json` and `--agent` and record each surface's key list and the `unknown` value. Run `aw partition -t plans nosuchid99 --agent` and record its exit code, its stderr and the fact that it emits NO record. Confirm by reading `partition.collect` that its body still contains exactly one `return` statement and that the statement still constructs a literal `[]` (the two `return`s at the top of the function belong to the nested `_is_runnable` helper, NOT to `collect`; count accordingly or the measurement is wrong). Confirm `grep -rn 'unknown' agent_workflows/partition.py` still reports exactly five hits and classify each as refusal-message, producer, binding or emission. If ANY of these has changed, STOP and record it as a finding rather than proceeding: the plan's premise would be stale.
+- [ ] E-01 Re-derive the two facts this plan rests on at the execution lane's HEAD, BEFORE any edit, and keep the output for V-01. Run `aw partition -t plans -s to-review --max 2 --json` and `--agent` and record each surface's key list and the `unknown` value. Run `aw partition -t plans nosuchid99 --agent` and record its exit code, its stderr and the fact that it emits NO record. Confirm by reading `partition.collect` that its body still contains exactly one `return` statement and that the statement still constructs a literal `[]` (the two `return`s at the top of the function belong to the nested `_is_runnable` helper, NOT to `collect`; count accordingly or the measurement is wrong). Confirm `grep -rn 'unknown' agent_workflows/partition.py` still reports exactly five hits and classify each: two refusal messages inside `collect`, one binding (the `run_partition` call site), and two emissions (the `is_agent` and `is_json` dict entries). The literal `[]` producer in `return candidates, []` does NOT contain the token and is confirmed by reading, not by this grep. If ANY of these has changed, STOP and record it as a finding rather than proceeding: the plan's premise would be stale.
   - Depends on: none
   - Expected outcome: Written measurement confirming five keys on both machine surfaces with `unknown` empty, exit 2 with no record on an unknown selector, one `return` in `collect`, and the five `unknown` hits classified. No file is modified by this item.
   - Execution state: pending
 
 ### Task group 2: remove the dead field and its plumbing
 
-- [ ] E-02 Narrow `partition.collect`'s contract to what it actually produces. Change its return annotation from `Tuple[List[_att.Item], List[str]]` to `List[_att.Item]`, change its one `return candidates, []` to `return candidates`, and extend its one-line docstring to state that it RAISES `ValueError` on an unknown, ambiguous, wrong-type or ineligible selector rather than returning it, so the next reader learns the refusal policy from the function instead of inferring it from eleven raise sites. Leave every raise site, message and filter untouched. Check whether `Tuple` is still referenced elsewhere in the module before touching the `typing` import: it IS (the `_component_sort_key` return annotation, the `SplitNote.cut_edges` field and a local annotation in the packing loop all use it), so the import MUST stay and removing it would break the module.
+- [ ] E-02 Narrow `partition.collect`'s contract to what it actually produces. Change its return annotation from `Tuple[List[_att.Item], List[str]]` to `List[_att.Item]`, change its one `return candidates, []` to `return candidates`, and extend its one-line docstring to state that it RAISES `ValueError` on an unknown, ambiguous, wrong-type or ineligible selector rather than returning it, so the next reader learns the refusal policy from the function instead of inferring it from eleven raise sites. Leave every raise site, message and filter untouched. Check whether `Tuple` is still referenced elsewhere in the module before touching the `typing` import: it IS (the `item_sort_key` return annotation, the `SplitNote.cut_edges` field and a local annotation in the packing loop all use it), so the import MUST stay and removing it would break the module.
   - Depends on: E-01
   - Expected outcome: `collect` is annotated and documented as returning a plain list; `python3 -c "import agent_workflows.partition"` succeeds; `make typecheck` reports no NEW error attributable to this file.
   - Execution state: pending
@@ -67,7 +70,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Per AGENTS.md, user-facing prose (`CHANGELOG.md` among the named examples) must carry no em or en dashes; internal artifacts such as this plan are explicitly exempt.
 - Per `GUIDING_PRINCIPLES` P16, a test must assert observable behavior, never code structure. E-04's assertions read a parsed JSON payload and a parsed record from a live CLI invocation, which is observable output; this plan adds no test that greps production source.
 - The repository runs a static type gate (`make typecheck`, `python3 -m mypy agent_workflows`) whose clean baseline is reproducible only in the pinned environment (mypy 2.3.1). E-02 changes a public return annotation, so this gate is a required check and not an optional one.
-- `partition.py` still needs its `Tuple` import after E-02: `_component_sort_key`'s annotation, `SplitNote.cut_edges` and a local in the packing loop all use it. Removing the import as apparent cleanup would break the module.
+- `partition.py` still needs its `Tuple` import after E-02: `item_sort_key`'s return annotation, `SplitNote.cut_edges` and a local in the packing loop all use it. Removing the import as apparent cleanup would break the module.
 
 ## Findings
 
@@ -103,7 +106,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Scope check
 
-- Over-scope: none. Three paths and four E-items, each confined to the dead field and its plumbing.
+- Over-scope: none. Three paths and five E-items (one measurement, four edits), each confined to the dead field and its plumbing.
 - Under-scope: the `commands` leak (deferred to `z7ci8k`, which already owns it), `--fields` projection (deferred, pre-existing), and the absent documentation of partition's output schema (deferred, nothing to amend). The two "unknown selector" refusal messages and all eleven raise sites are deliberately left exactly as they are: they are the behavior that REPLACED the key, and changing them would remove the guard on the refusal path this plan relies on.
 
 ## Required tests / validation
@@ -131,14 +134,14 @@ The two executed plan records that document the key list (`xu3yxw` and `jfza7e`)
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: NO, a plain `Changed` entry. Resolved from repository evidence rather than deferred to the maintainer. The question only has force if the key was ever published, and F-05 measures that it was not: the command was introduced on 2026-09-26, the newest tag `v1.3.0-rc.1` predates it by two months, a per-tag ancestry check reports that none of the four tags contains the introducing commit, and the sole release record (`f33nrj`, 2.0.0, `Status: planned`) states nothing has shipped since before the `.aw/` migration. So no user can have consumed the key from a release, the `aw.agent/v1` version-bump trigger is not reached, and marking it BREAKING would overstate the impact and imply a published contract changed. The entry still names the removal plainly, because the key exists on `main` today and a reader tracking the unreleased line deserves to see it go.
 
 ### OQ-02: Should `collect` keep returning a two-tuple for call-site stability?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: NO, narrow it to a list. The alternative keeps a tuple whose second element is permanently empty, which is the same dead weight one layer down and would leave the next reader asking this question again. The cost of narrowing is bounded and fully enumerated: one production call site and eight test call sites, all nine of which already discard the element (F-03), so nothing loses information. `collect` is not re-exported (the module declares no `__all__`) and has no caller outside this repository's own `run_partition` and tests, so no external contract constrains it.
 
 ## Validation and cross-check (verify before reporting done)
@@ -146,7 +149,7 @@ The two executed plan records that document the key list (`xu3yxw` and `jfza7e`)
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: Paste the BEFORE output of `aw partition -t plans -s to-review --max 2 --json` and the same with `--agent`, each showing FIVE payload keys with `"unknown": []`. Paste `aw partition -t plans nosuchid99 --agent` showing exit 2, a one-line stderr naming the unknown selector, and NO record on stdout. Paste `grep -n 'unknown' agent_workflows/partition.py` showing exactly five hits and state in one line which is the producer, which is the binding and which two are emissions. State explicitly that `collect`'s body has one `return` and that the other two in its line range belong to `_is_runnable`. If any measurement differs from F-01, say so and stop rather than proceeding.
+  - Required evidence: Paste the BEFORE output of `aw partition -t plans -s to-review --max 2 --json` and the same with `--agent`, each showing FIVE payload keys with `"unknown": []`. Paste `aw partition -t plans nosuchid99 --agent` showing exit 2, a one-line stderr naming the unknown selector, and NO record on stdout. Paste `grep -n 'unknown' agent_workflows/partition.py` showing exactly five hits and state in one line which two are refusal messages, which is the binding and which two are emissions (the literal `[]` producer carries no `unknown` token and is evidenced by the `collect` read instead). State explicitly that `collect`'s body has one `return` and that the other two in its line range belong to `_is_runnable`. If any measurement differs from F-01, say so and stop rather than proceeding.
   - Observed evidence:
   - Result: pending
 
@@ -161,12 +164,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: Paste `python3 -m pytest tests/test_partition.py -o addopts=""` with its per-test summary (authoring baseline: 22 passed). Paste the `git diff` of the test file and confirm: the json test asserts `"unknown" not in payload` AND an exact key set; the agent test carries the mirror absence assertion; the six unpacking `collect` call sites no longer unpack and the two inside `pytest.raises` still raise; and the three "unknown selector" message assertions are unchanged. Demonstrate the new guards actually BITE by temporarily re-adding the `"unknown": []` entry to each surface in turn and pasting the resulting FAILURE for each (two separate failures, one per surface), then reverting; a guard that passes both with and without the key is not a guard. Confirm in one sentence that every assertion reads observable CLI output and that none inspects production source, per P16.
+  - Required evidence: Paste `python3 -m pytest tests/test_partition.py -o addopts=""` with its summary showing zero failures and zero errors (the authoring count of 22 passed is context only, not the bar; the bar is the behaviors pinned by the assertions below). Paste the `git diff` of the test file and confirm: the json test asserts `"unknown" not in payload` AND an exact key set; the agent test carries the mirror absence assertion; the six unpacking `collect` call sites no longer unpack and the two inside `pytest.raises` still raise; and the three "unknown selector" message assertions are unchanged. Demonstrate the new guards actually BITE by temporarily re-adding the `"unknown": []` entry to each surface in turn and pasting the resulting FAILURE for each (two separate failures, one per surface), then reverting; a guard that passes both with and without the key is not a guard. Confirm in one sentence that every assertion reads observable CLI output and that none inspects production source, per P16.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Paste the `git diff` of `CHANGELOG.md` and confirm the entry is under 2.0.0 (pending), names the removed key, states it was always empty, states the exit-2 refusal is unchanged, and is NOT marked BREAKING. Paste a check that the added line contains no em or en dash (for example `grep -n '[\u2013\u2014]' CHANGELOG.md` scoped to the added line, or an equivalent that prints nothing).
+  - Required evidence: Paste the `git diff` of `CHANGELOG.md` and confirm the entry is under 2.0.0 (pending), names the removed key, states it was always empty, states the exit-2 refusal is unchanged, and is NOT marked BREAKING. Paste a check that the added line contains no em or en dash, using a form that actually matches the code points: `git diff -U0 CHANGELOG.md | grep '^+[^+]' | grep -P '[\x{2013}\x{2014}]'` printing nothing (exit 1). Do NOT use `grep '[\u2013\u2014]'`: basic grep does not interpret `\u` escapes and matches the literal characters `u`, `2`, `0`, `1`, `3`, `4`, so it gives false hits and false clears.
 
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION AND COMMIT-HYGIENE EVIDENCE HERE, as the last item before commit, since it belongs to no single E-item. Paste `python3 -m pytest tests/test_agent_surface_conformance.py tests/test_options_anywhere.py tests/test_exit_contract_conformance.py -o addopts=""` with its summary, covering the three other suites that exercise this command. Paste the BARE `python3 -m pytest` output including its `N passed` line, and reconcile against a baseline RE-DERIVED in the execution lane by comparing failing NODE IDS, not totals (F-09 records `3 failed, 4624 passed, 2 skipped` at authoring HEAD `96c6d153d` with the three node ids named, as context only; the total moves daily and is not the bar). Any failure must be explained against a named E-item or shown pre-existing in the lane baseline. Paste `aw ipd lint --phase pre-transition` on this plan reporting conforming, `aw check`, and `aw sanitize --agent` clean. Paste `git diff --cached --name-only` immediately before committing, which must list EXACTLY the three `- Scope-Paths:` entries plus this plan and nothing else; if another path appears, unstage it with `git restore --staged <path>` and re-verify, since this is a shared checkout and another party's work must never enter this commit.
   - Observed evidence:
@@ -177,10 +180,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is `- Status: to-review` and carries NO `- Readiness:` field: that field is an output of `/plan-review` and writing it here would forge a review that has not happened. Execution requires explicit human approval recorded with `aw ipd set approved 0hz005 --by-human`.
+This plan was authored `- Status: to-review` with NO `- Readiness:` field; the `- Readiness:` value now present was written by `/plan-review` on 2026-10-02 (see Workflow history), which is the role that owns it. Execution requires explicit human approval recorded with `aw ipd set approved 0hz005 --by-human`.
 
 Execution contract: commit only the three paths named in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- agent_workflows/partition.py tests/test_partition.py CHANGELOG.md`, never `git add -A`, never `--no-verify`, and never push. Verify the staged set with `git diff --cached --name-only` before committing and unstage anything that is not yours. Run the suite BARE (`python3 -m pytest`) and paste the ACTUAL runner output; a claim of passing tests without pasted output is a contract violation. Do not mark any `V-*` item complete from the matching `E-*` checkmark; inspect the evidence in a separate pass. V-04's mutation demonstration is REQUIRED and not optional: the whole value of this plan's test change is that it fails when the key returns, and that must be shown twice, once per surface.
 
-Execute through `aw ipd begin` before any edit and `aw ipd finalize` for the terminal transition; never hand-roll the lifecycle move and never `git mv` this plan into `executed/`.
+Lifecycle ownership is conditional. In a managed runner lane (`aw oc run` / `aw agy run`, `AW_EXECUTION_ROLE=worker`) the RUNNER owns `begin` and `finalize` and refuses an agent attempt with `AW-LIFECYCLE-ROLE-001`, so the executor performs the E-items, records the V-evidence, commits, and leaves the transition to the runner. When executing BY HAND outside a runner, the executor runs `aw ipd begin` before any edit and `aw ipd finalize` for the terminal transition. In neither case hand-roll the lifecycle move or `git mv` this plan into `executed/`.
 
 Post-gate lifecycle: when every `E-*` item is performed and every `V-*` item carries pasted evidence, run `aw ipd lint --phase pre-transition`, confirm it reports conforming, and only then move this plan to `.aw/records/plans/executed/` through the tooled transition. Backlog item `vf3mw2` is set to `graduated` (not `done`) when this plan is authored; it reaches `done` only once this plan is executed. The item carries no `- Blocks-Release:` gate and this plan correctly invents none: it is a `chore` whose user-perceptible impact is nil, since the removed field carried no information in the first place.
