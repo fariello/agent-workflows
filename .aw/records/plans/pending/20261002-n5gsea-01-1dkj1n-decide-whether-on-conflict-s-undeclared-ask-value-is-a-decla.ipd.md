@@ -11,7 +11,7 @@
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, agent_workflows/runner_shared.py, agent_workflows/config.py, tests/test_runner_active_conflict.py
 - Item-Dependencies: none
 - Readiness: no-go
-- Status: to-review
+- Status: reviewed
 - From-Spec: 25kzda
 - Work-Kind: chore
 - Priority: low
@@ -23,6 +23,7 @@
 - Id: 1dkj1n
 
 ## Workflow history
+- 2026-10-02 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; OQ-01 blocking, awaiting maintainer; PR-001..PR-005 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001, PR-002, PR-003, PR-004, PR-005. Every measured claim reproduced in the review lane: both tuples, both hosts parse `--on-conflict ask` to `ask` and exit 2 on `maybe`, the identical eleven-spelling `on_conflict` set on both hosts, `resolve_on_conflict('ask')` -> `prompt`, the `config.policy_on_conflict` ask branch and docstring, the spec 2.1 fence and bullet text, the 5.3a same-change rule, and `--help` rendering `{drop,refuse,force,prompt,ask}`. OPEN: OQ-01 (DECLARE vs REMOVE) is the maintainer's and remains unanswered; reclassified to `Blocking: yes` because an unattended run cannot ask and would strand E-03..E-06 (PR-001). Fixed: E-02 now records a pre-answered OQ-01; invariant test reads accepted values from the live parser and perturbs the RunPolicyFlag row (a tuple patch does not reach the parser, demonstrated); REMOVE also corrects `resolve_on_conflict`'s docstring; the 2.1 alias list must distinguish value-taking `--conflict` from zero-arg switches; finding-count wording.
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `n5gsea` in lane worktree `n5gsea` at HEAD `725817cf2`. EVERY CLAIM IN THE ITEM WAS INDEPENDENTLY REPRODUCED AND ALL HELD: the spec fence declares four values, the shipped `choices` tuple holds five, both hosts' parsers accept `--on-conflict ask` and return it unexited, the help string names the flag's choice set to an operator, and `resolve_on_conflict('ask')` returns `'prompt'`. GATE NOTE: the item carries no `- Blocks-Release:`, so this plan inherits none; `- Work-Kind: chore` and `- Priority: low` are INHERITED and both re-verified correct, because nothing computes a wrong answer and no operator waits on a slow path (the AGENTS.md perceptibility test for `bug` is not met).
