@@ -1,11 +1,13 @@
 - Id: nzqj6m
-- Status: open
+- Status: graduated
+- Graduated-To: uonrjgcite
 - Set: nzqj6m
 - Priority: low
 - Work-Kind: chore
 - Summary: Sweep the uonrjg color-axis criteria and renderers for other dangling test citations and unconverted lifecycle surfaces
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: xtensb
 - 2026-09-30 created (aw backlog): Sweep the uonrjg color-axis criteria and renderers for other dangling test citations and unconverted lifecycle surfaces
 
 RAISED BY plan nw088c (backlog p5qx91), which deliberately fixed one criterion's cell and left the rest.
