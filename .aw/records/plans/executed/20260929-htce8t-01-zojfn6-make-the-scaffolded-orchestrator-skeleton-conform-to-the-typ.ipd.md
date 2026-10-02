@@ -6,7 +6,7 @@
 - Scope: IN: make `ipd_authoring.build_skeleton` emit a CONFORMING orchestrator skeleton (a typed `CONFIRM <child-id6> REACHED <status>` row plus a child table carrying an `Id` column); regenerate the byte-pinned orchestrator template from it; move the coupled scaffold-anchor fixtures in `tests/test_orchestrator_retirement.py` in lockstep; add `pre-execution` back to `ipd_lint._ORCH_ROW_BLOCKING_CHECKPOINTS` so `aw ipd begin` is gated; and update the stale comment block that documents the exclusion. OUT: the `child` skeleton, which has no child table and no orchestrator rows and is deliberately untouched; the rule logic in `orchestrator_row_conformance`, which is correct and is only being satisfied rather than changed; the `/plan-review` repair loop and both runners' pre-queue gate, which already call the shared function and need no edit; spec `r07vma` OQ-01's full "render the instructions from the grammar" direction, which is explicitly non-blocking and larger than this defect; and any migration of the pre-existing orchestrator corpus, which E-01's census shows is already unnecessary.
 - Scope-Paths: agent_workflows/ipd_authoring.py, agent_workflows/ipd_lint.py, .aw/system/workflows/assess/templates/orchestrator-ipd.md, tests/test_orchestrator_retirement.py, tests/test_ipd_authoring.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: zojfn6
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zojfn6 verified (set htce8t, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-911 (MEDIUM, fixed), PR-912 (MEDIUM, fixed), PR-913 (MEDIUM, fixed), PR-914 (LOW, fixed), PR-915 (LOW, fixed). All eight authored findings RE-DRIVEN at HEAD `03e53ab7` and all eight reproduce, including a full re-run of F-5's prototype (6 failures with the same six test identities; anchor repair reaches exactly 1). Two new findings DRIVEN at review: F-9 (the `pre-execution` gate also reaches the runners' pre-queue pre-flight for `approved` plans, which is the wider half of E-06's blast radius) and F-10 (the `author` exclusion's recorded corpus reason is now as stale as the `pre-execution` one it sits beside: 7 live pending orchestrators, 0 non-conforming, where the comment says 11 of 12). E-06 narrowed to refresh those figures WITHOUT changing the `author` exclusion. Four authored figures re-derived as drifted live counts (pending census 3/3 to 7/7, suite 3246 to 3387, `aw check all` 33 to 61, tracked ids 1801 to 1885), each restated as a property. Full findings and decisions: `.aw/records/reviews/20260930-htce8t-01-zojfn6-make-the-scaffolded-orchestrator-skeleton-conform-to-the-typ.review.md`.
 - 2026-09-30 reviewed (aw set): status set to reviewed
