@@ -4227,8 +4227,15 @@ def run_queue(
     # driver, and both hosts import that module directly rather than one host importing from the
     # other. `refusal_of_item` is `r2i1b1`'s ONE reader, passed in so a recorded refusal reaches this
     # line through that plan's seam instead of a second read of the same key.
+    in_queue_id6s = [
+        str(it["id6"])
+        for it in state.get("queue", [])
+        if isinstance(it, dict) and it.get("id6")
+    ]
     for _disposition_line in render_queue_dispositions(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_disposition_line)
     # specvis st5klo E-03: the PRIMARY end-of-run site. Sited with the summary table rather than on a
@@ -4259,7 +4266,9 @@ def run_queue(
     # in the pure `run_selection_policy` module, never in a driver, and `refusal_of_item` is
     # `r2i1b1`'s ONE reader, so a recorded refusal's own remedy is SOURCED rather than duplicated here.
     for _summary_line in render_disposition_summary(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_summary_line)
     print(render_continuation_hint(state, run_dir))

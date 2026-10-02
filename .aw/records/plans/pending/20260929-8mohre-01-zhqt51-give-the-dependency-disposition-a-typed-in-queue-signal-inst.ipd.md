@@ -37,41 +37,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the typed signal, in the pure policy module
 
-- [ ] E-01 Give `run_selection_policy.derive_item_disposition` an OPTIONAL keyword-only membership signal (an iterable of in-queue id6s, or `None`) and make it OVERRIDE the substring match when supplied. THE DEFAULT MUST BE `None` AND `None` MUST PRESERVE TODAY'S BEHAVIOR EXACTLY, which is measured rather than assumed: F-05 shows that auto-deriving the member set from the `entries` argument turns a shipped table row RED, because each row builds a single entry whose id6 is not its own dependency's target. So membership is an INPUT the caller answers, never a fact this function infers from its existing argument. Resolve each unmet token's target id6 through the shared grammar (`runner_shared.dependency_target_id6` reached by a FUNCTION-LOCAL import, because a module-level one is a genuine import CYCLE per F-07 - note F-07 also records that the test which used to police this is GONE, so nothing will catch a module-level import for you). Treat an UNPARSEABLE token as MEMBERSHIP UNKNOWN rather than as a non-member (F-06 measures such a token yielding `None`, which a naive `in` test would silently read as "external"). For a MULTI-TOKEN entry mixing an in-queue and a genuinely external edge, resolve to the IN-RUN code (fail soft toward the non-committal answer); F-16 measures this case is reachable from all three production write sites and records why the opposite direction is worse. Keep the two code CONSTANTS and their glosses untouched: spec `25kzda` 5.4 owns those names.
+- [x] E-01 Give `run_selection_policy.derive_item_disposition` an OPTIONAL keyword-only membership signal (an iterable of in-queue id6s, or `None`) and make it OVERRIDE the substring match when supplied. THE DEFAULT MUST BE `None` AND `None` MUST PRESERVE TODAY'S BEHAVIOR EXACTLY, which is measured rather than assumed: F-05 shows that auto-deriving the member set from the `entries` argument turns a shipped table row RED, because each row builds a single entry whose id6 is not its own dependency's target. So membership is an INPUT the caller answers, never a fact this function infers from its existing argument. Resolve each unmet token's target id6 through the shared grammar (`runner_shared.dependency_target_id6` reached by a FUNCTION-LOCAL import, because a module-level one is a genuine import CYCLE per F-07 - note F-07 also records that the test which used to police this is GONE, so nothing will catch a module-level import for you). Treat an UNPARSEABLE token as MEMBERSHIP UNKNOWN rather than as a non-member (F-06 measures such a token yielding `None`, which a naive `in` test would silently read as "external"). For a MULTI-TOKEN entry mixing an in-queue and a genuinely external edge, resolve to the IN-RUN code (fail soft toward the non-committal answer); F-16 measures this case is reachable from all three production write sites and records why the opposite direction is worse. Keep the two code CONSTANTS and their glosses untouched: spec `25kzda` 5.4 owns those names.
   - Depends on: none
   - Expected outcome: called with no membership argument the function returns byte-identical results to HEAD for all five shipped shapes; called with a membership set containing the unmet target's id6 it returns `dependency_not_met`; called with a NON-EMPTY one that excludes it, `dependency_not_met_external`; called with an unparseable token, NOT the external code; called with a mixed in-queue/external token list, the in-run code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Thread the same optional signal through the three public readers in that module that consume the derivation (`render_queue_dispositions`, `summarize_dispositions`, `render_disposition_summary`), keyword-only and defaulting to `None`, and pass it down unchanged. Do NOT auto-derive it inside any of them, for E-01's measured reason. Each already receives the FULL entry sequence (F-08), so no new plumbing reaches either host beyond one argument at the call site. NOTE `summarize_dispositions` takes `refusal_reader` POSITIONALLY today (F-08's pasted signature shows it is the only one of the three without the `*`), and `render_disposition_summary` calls it positionally (`summarize_dispositions(entries, refusal_reader)`); add the new parameter AFTER a `*` so that existing positional call keeps working rather than silently binding the wrong argument.
+- [x] E-02 Thread the same optional signal through the three public readers in that module that consume the derivation (`render_queue_dispositions`, `summarize_dispositions`, `render_disposition_summary`), keyword-only and defaulting to `None`, and pass it down unchanged. Do NOT auto-derive it inside any of them, for E-01's measured reason. Each already receives the FULL entry sequence (F-08), so no new plumbing reaches either host beyond one argument at the call site. NOTE `summarize_dispositions` takes `refusal_reader` POSITIONALLY today (F-08's pasted signature shows it is the only one of the three without the `*`), and `render_disposition_summary` calls it positionally (`summarize_dispositions(entries, refusal_reader)`); add the new parameter AFTER a `*` so that existing positional call keeps working rather than silently binding the wrong argument.
   - Depends on: E-01
   - Expected outcome: each of the three accepts the new keyword, forwards it, and is unchanged in behavior when it is omitted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the hosts, so a real run gets the true code
 
-- [ ] E-03 At both hosts' single end-of-run call sites (`oc_runipd` and `agy_runipd` each call `render_queue_dispositions` then `render_disposition_summary` with `refusal_reader=refusal_of_item`), pass the membership signal derived from `state["queue"]`, which is the same object already being passed as `entries`. Also pass it at `render_stream.queue_performed_no_work`'s call to `summarize_dispositions`, so the NO-WORK verdict predicate keys on the same judgement the printed lines key on. THE REASON IS THE DOCSTRING'S CLAIM, NOT A CHANGED VERDICT: F-09 measures that this predicate returns the SAME boolean for both codes (both carry a non-`None` remedy), so no run's `Outcome:` word changes; what would become false if this leg were skipped is the docstring's assertion that it reads "the exact same judgement that the closing disposition summary reads". Do not claim in the commit message or the validation evidence that this fixes a wrong outcome word. Change no other behavior at either site and add no new import to either host.
+- [x] E-03 At both hosts' single end-of-run call sites (`oc_runipd` and `agy_runipd` each call `render_queue_dispositions` then `render_disposition_summary` with `refusal_reader=refusal_of_item`), pass the membership signal derived from `state["queue"]`, which is the same object already being passed as `entries`. Also pass it at `render_stream.queue_performed_no_work`'s call to `summarize_dispositions`, so the NO-WORK verdict predicate keys on the same judgement the printed lines key on. THE REASON IS THE DOCSTRING'S CLAIM, NOT A CHANGED VERDICT: F-09 measures that this predicate returns the SAME boolean for both codes (both carry a non-`None` remedy), so no run's `Outcome:` word changes; what would become false if this leg were skipped is the docstring's assertion that it reads "the exact same judgement that the closing disposition summary reads". Do not claim in the commit message or the validation evidence that this fixes a wrong outcome word. Change no other behavior at either site and add no new import to either host.
   - Depends on: E-02
   - Expected outcome: a run whose unmet prerequisite IS a queue member prints `dependency_not_met` with the in-run remedy; one whose prerequisite is genuinely absent still prints `dependency_not_met_external`; `queue_performed_no_work` consumes the same membership signal and its boolean is unchanged for both codes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: stop the second site asserting a fact it never checked
 
-- [ ] E-04 In `runner_shared.edge_satisfied`'s `executed:` branch, reword the refusal so it no longer claims the target is `external` nor that `it is not in this run`. It resolves the target ON DISK and deliberately does not consult queue membership, so both claims are outside what it knows; state instead what it DID establish (the target's effective status, the directory it read, and the states the consuming action requires). CHANGE ONLY THE WORDING: the `(satisfied, reason)` contract, the precedence between directory and `- Status:` field, and the two `allowed` tuples are all untouched, and `by_id` stays unread, because the maintainer's 2026-09-19 one-authority ruling governs the DECISION and this plan does not reopen it. F-10 measures that the one downstream consumer of this text (`classify_drain_block`) decides from queue membership and only PASSES the text through, so rewording cannot move its verdict. Update the two stale comments in this module that quote the old clause as evidence of an external target (in `classify_drain_block`'s section note and its `entry is None` branch) so they no longer cite a phrase the code has stopped writing.
+- [x] E-04 In `runner_shared.edge_satisfied`'s `executed:` branch, reword the refusal so it no longer claims the target is `external` nor that `it is not in this run`. It resolves the target ON DISK and deliberately does not consult queue membership, so both claims are outside what it knows; state instead what it DID establish (the target's effective status, the directory it read, and the states the consuming action requires). CHANGE ONLY THE WORDING: the `(satisfied, reason)` contract, the precedence between directory and `- Status:` field, and the two `allowed` tuples are all untouched, and `by_id` stays unread, because the maintainer's 2026-09-19 one-authority ruling governs the DECISION and this plan does not reopen it. F-10 measures that the one downstream consumer of this text (`classify_drain_block`) decides from queue membership and only PASSES the text through, so rewording cannot move its verdict. Update the two stale comments in this module that quote the old clause as evidence of an external target (in `classify_drain_block`'s section note and its `entry is None` branch) so they no longer cite a phrase the code has stopped writing.
   - Depends on: none
   - Expected outcome: no refusal text in this branch contains `external target` or `not in this run`; the branch's satisfied/unsatisfied verdict is unchanged for every case the existing suite covers.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: tests that would fail without the fix
 
-- [ ] E-05 Add regression tests to `tests/test_run_selection_policy.py` covering the FOUR cases that distinguish this fix from the status quo, each asserting the CODE by EQUALITY and not by substring: (i) the measured defect, an unmet token whose target IS in the supplied membership set, which must be `dependency_not_met` EVEN THOUGH its recorded reason still contains `not in this run` (this is the row that goes red without E-01, and it must forbid the external code rather than only require the in-run one, because `dependency_not_met` is a PREFIX of `dependency_not_met_external`); (ii) the genuinely external case, target absent from a NON-EMPTY membership set, which must stay `dependency_not_met_external`; (iii) the unparseable-token trap from F-06, which must NOT be reported external merely because no id6 could be parsed from it; (iv) F-16's MIXED token list, one in-queue edge and one genuinely external edge in the same entry, pinning the chosen fail-soft direction (the in-run code) so it is a recorded decision rather than an artifact of the `any()` spelling. Extend the shipped table only by adding rows; do not edit, weaken or delete any existing row, and do not change `_queue_entry`.
+- [x] E-05 Add regression tests to `tests/test_run_selection_policy.py` covering the FOUR cases that distinguish this fix from the status quo, each asserting the CODE by EQUALITY and not by substring: (i) the measured defect, an unmet token whose target IS in the supplied membership set, which must be `dependency_not_met` EVEN THOUGH its recorded reason still contains `not in this run` (this is the row that goes red without E-01, and it must forbid the external code rather than only require the in-run one, because `dependency_not_met` is a PREFIX of `dependency_not_met_external`); (ii) the genuinely external case, target absent from a NON-EMPTY membership set, which must stay `dependency_not_met_external`; (iii) the unparseable-token trap from F-06, which must NOT be reported external merely because no id6 could be parsed from it; (iv) F-16's MIXED token list, one in-queue edge and one genuinely external edge in the same entry, pinning the chosen fail-soft direction (the in-run code) so it is a recorded decision rather than an artifact of the `any()` spelling. Extend the shipped table only by adding rows; do not edit, weaken or delete any existing row, and do not change `_queue_entry`.
   - Depends on: E-01
   - Expected outcome: four new tests pass with the fix, and test (i) fails when E-01's override is reverted in memory.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add a test pinning the property E-04 establishes: that `edge_satisfied`'s refusal for an unresolvable-on-disk `executed:` edge does NOT assert queue absence. Drive the REAL function against a temporary repository containing a `pending/` plan (as the measurement in F-01 does) and assert on the returned reason string that `external target` and `not in this run` are both absent while the target's status is still named. Assert on the returned VALUE, never by reading the function's source: a test that greps production text would pin code structure rather than behavior.
+- [x] E-06 Add a test pinning the property E-04 establishes: that `edge_satisfied`'s refusal for an unresolvable-on-disk `executed:` edge does NOT assert queue absence. Drive the REAL function against a temporary repository containing a `pending/` plan (as the measurement in F-01 does) and assert on the returned reason string that `external target` and `not in this run` are both absent while the target's status is still named. Assert on the returned VALUE, never by reading the function's source: a test that greps production text would pin code structure rather than behavior.
   - Depends on: E-04
   - Expected outcome: the test passes after E-04 and fails against HEAD's wording.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -96,7 +96,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-09 | **A FOURTH CONSUMER EXISTS AND DECIDES THE RUN'S OUTCOME WORD, so omitting it would leave the verdict and the lines keyed on different judgements - BUT ITS BOOLEAN IS MEASURED NOT TO CHANGE, so E-03's render_stream leg is a CONSISTENCY fix and not a behavior fix.** `render_stream.queue_performed_no_work` calls `summarize_dispositions` and its docstring states it reads "the exact same judgement that the closing disposition summary reads"; its result gates the `NO WORK PERFORMED` outcome word. MEASURED: the predicate returns `True` for BOTH codes, because it only asks whether `remedy_for_disposition(code) is not None` and both codes carry a non-`None` remedy, so the outcome WORD is identical either way and no run's `Outcome:` changes. The obligation is therefore the DOCSTRING'S CLAIM, which would become false if only the two printed blocks were updated, not a wrong verdict. Recorded honestly so a reviewer is not told the outcome word is at risk when it is not; V-03(b) is scoped to the shared-judgement property accordingly. | `tmp/pr8mohre/probe_f09.py`: `code=external ... queue_performed_no_work: True` and `code=in-run ... queue_performed_no_work: True`, with `remedy non-None for BOTH codes: True True`. Plus a read of `queue_performed_no_work` and of the two `render_stream` sites that consult it, and `grep` confirming it is the only other `summarize_dispositions` caller in the package. |
 | F-10 | **REWORDING `edge_satisfied` IS SAFE FOR ITS ONE DOWNSTREAM READER, measured rather than assumed.** `classify_drain_block` decides EXTERNAL from queue membership (`entry is None`), and uses `reasons.get(tok)` only as a preferred pass-through with a locally composed fallback; it performs no match on the phrase. So E-04 cannot move its verdict. Its comments DO quote the old clause as evidence, which is why E-04 updates them. | Source read of `classify_drain_block`'s `entry is None` branch and its two `reasons.get(tok)` uses; `grep` across `agent_workflows/` showing the only code that MATCHES on `not in this run` is `derive_item_disposition`'s selector, which E-01 supersedes. |
 | F-11 | **EXACTLY ONE SUBSTRING MATCH ON THIS PROSE EXISTS IN THE PACKAGE, so E-01 removes the coupling rather than one instance of it.** `grep` for the match expression finds a single hit, `derive_item_disposition`'s `if "not in this run" in named`. Other occurrences of the phrase are the producer text itself, comments, and one freeze-time gate that composes its OWN independent `is not in this run` from a real membership test (`target_id6 not in queue_by_id`) and is therefore already correct and out of scope. | `grep -rn '"not in this run" in'` over `agent_workflows/` returning one hit; read of the freeze-time gate's own membership test and of the passing `tests/test_freeze_time_refusal.py` assertion that pins its wording. |
-| F-12 | **ONE SHIPPED TEST PINS THE PRODUCER WORDING E-04 CHANGES, and it is a row of the same table E-05 extends.** The `a dependency on an OUT-OF-QUEUE target` row of `_DISPOSITION_LINES` embeds `executed:aaa111: external target aaa111 is 'approved' (directory 'pending'), it is not in this run, so it cannot become satisfied here` as a RECORDED REASON and expects the external code. That row is a test of the CODE SELECTION given a reason, not of the producer, so after E-01 it must keep passing with membership unsupplied; the executor must not "update" it to the new wording, because its value is that it pins the no-membership fallback. **IDENTIFIED BY ITS CASE STRING, not by ordinal**: the table has FIVE rows at review HEAD and an earlier draft of this plan called this one "row 3", which a future insertion would silently invalidate. **AND IT IS THE ONLY TEST IN THE TREE PINNING THAT PRODUCER WORDING**: `grep` for `external target` and `needs one of` across `tests/` finds this row alone, so E-04's rewording breaks no other assertion (`tests/test_freeze_time_refusal.py:421` pins a DIFFERENT, correct producer's phrase, per F-11). | Read of the row and its stated rationale ("Deriving the code from the reason TEXT is what makes this row a real test of the mapping"); confirmed under `tmp/pr8mohre/probe_e01.py` section A that it stays green with no membership supplied; `grep -rn "external target\|not in this run" tests/ --include=*.py` returning only this row plus the freeze-time assertion and one unrelated `external target dir` comment. |
+| F-12 | **ONE SHIPPED TEST PINS THE PRODUCER WORDING E-04 CHANGES, and it is a row of the same table E-05 extends.** The `a dependency on an OUT-OF-QUEUE target` row of `_DISPOSITION_LINES` embeds `executed:aaa111: external target aaa111 is 'approved' (directory 'pending'), it is not in this run, so it cannot become satisfied here` as a RECORDED REASON and expects the external code. That row is a test of the CODE SELECTION given a reason, not of the producer, so after E-01 it must keep passing with membership unsupplied; the executor must not "update" it to the new wording, because its value is that it pins the no-membership fallback. **IDENTIFIED BY ITS CASE STRING, not by ordinal**: the table has FIVE rows at review HEAD and an earlier draft of this plan called this one "row 3", which a future insertion would silently invalidate. **AND IT IS THE ONLY TEST IN THE TREE PINNING THAT PRODUCER WORDING**: `grep` for `external target` and `needs one of` across `tests/` finds this row alone, so E-04's rewording breaks no other assertion (`tests/test_freeze_time_refusal.py::TestFreezeTimeRefusals.test_freeze_time_refusal_when_dependency_omitted_and_unsatisfied:421` pins a DIFFERENT, correct producer's phrase, per F-11). | Read of the row and its stated rationale ("Deriving the code from the reason TEXT is what makes this row a real test of the mapping"); confirmed under `tmp/pr8mohre/probe_e01.py` section A that it stays green with no membership supplied; `grep -rn "external target\|not in this run" tests/ --include=*.py` returning only this row plus the freeze-time assertion and one unrelated `external target dir` comment. |
 | F-13 | **THE ORPHANED AST FIXTURE THAT CONTAINS `edge_satisfied`'s OLD BODY IS READ BY NOTHING, so E-04 trips no fingerprint gate.** `tests/fixtures/runnerlayer_rehomed_premove_fingerprints.json` holds an `ast.dump` of `edge_satisfied` including the exact refusal f-string E-04 rewords, but `grep` for that fixture across all `.py` files returns zero hits (its harness was deleted), and two executed plans record the same conclusion and instruct that it not be "updated". | `grep -rn runnerlayer_rehomed --include=*.py .` -> `0`; the fixture's `edge_satisfied` entry containing the old text; two executed plans stating the fixture is read by nothing at HEAD. |
 | F-14 | THE BASELINE IS FULLY GREEN, so any failure after this plan is this plan's to explain. Bare `python3 -m pytest` at authoring HEAD `0547b0c1` on a clean tree: `3246 passed, 2 skipped, 3 warnings in 51.66s`, with 207 deselected by the configured markers. **RE-CONFIRMED AT REVIEW HEAD `f628be1d`: `3246 passed, 2 skipped, 3 warnings in 48.36s`, 207 deselected** - same pass count across the intervening merge, so the green baseline is not a stale authoring observation. **THESE DIGITS ARE STILL CONTEXT, NOT THE BAR**: re-derive your own baseline at execution HEAD and state every delta against YOUR number, per the repository convention for a live population. | The bare runs above at both HEADs; `git status --short` empty and `git rev-parse --short HEAD` checked before each. |
 | F-15 | **THE TWO DISPOSITION NAMES ARE SPEC-OWNED, so this plan must not rename or merge them.** Spec `25kzda` Section 5.4's reason-code table (in `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`, under the heading `### 5.4 Queue ordering and dependencies`, sub-table "Stable dependency reason codes") maps "Dependency omitted from queue and currently unsatisfied" to `dependency_not_met_external` and every other dependency row to `dependency_not_met`. The defect is that the code is chosen wrongly, not that the vocabulary is wrong, so the fix is a selection fix and no spec amendment is owed (see Spec sync). NOTE the spec's own wording is `omitted from queue`, which is QUEUE MEMBERSHIP and is exactly the signal E-01 introduces; the substring match is the approximation, and the spec already specifies the right condition. | Read of the spec's Section 5.4 "Stable dependency reason codes" table rows and of `SKIP_REASONS`' comment transcribing them. |
@@ -177,35 +177,313 @@ N/A with reason. Spec `25kzda` Section 5.4 already specifies the two reason code
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/run_selection_policy.py` hunk for this function in full and confirm by inspection that the new parameter is KEYWORD-ONLY and defaults to `None`, that the two code constants and their gloss mappings are unchanged, and that no module-level import was added (F-07; note the test that used to police this is GONE, so the confirmation is by INSPECTION of the diff and not by a passing test). (b) PASTE a probe calling the function with NO membership argument for EVERY shipped entry shape (re-derive the count from `_DISPOSITION_LINES`; it was five at review HEAD) and show each returning the same code it returns at HEAD, so "optional means unchanged" is measured rather than asserted. (c) PASTE the in-queue case returning `dependency_not_met` while its recorded reason STILL contains `not in this run`, printed as an explicit boolean over the actual reason string, because that combination is the whole defect and a fix that also silently changed the reason would not prove the decoupling. (d) PASTE the unparseable-token case from F-06 and confirm it is NOT reported external; state which branch handled it. (e) PASTE the genuinely-external case still returning `dependency_not_met_external` with a NON-EMPTY member set, so the test cannot pass merely because membership was empty. (f) PASTE F-16's mixed-token case and confirm it returns the in-run code, naming this as the recorded fail-soft direction rather than an accident.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    (a) `git diff -- agent_workflows/run_selection_policy.py`:
+    ```diff
+    @@ -624,6 +627,7 @@ def derive_item_disposition(
+         entry: Mapping[str, Any],
+         *,
+         refusal_reader: Optional[Callable[[Mapping[str, Any]], Optional[str]]] = None,
+    +    in_queue_id6s: Optional[Iterable[object]] = None,
+     ) -> ItemDisposition:
+         """Compute the disposition and remedy for a single queue item.
 
-- [ ] V-02 validates E-02
+    @@ -668,6 +672,27 @@ def derive_item_disposition(
+         if unsatisfied:
+             # Inspect the recorded reason for each unsatisfied dependency.
+             # An external target cannot become satisfied in this run.
+    +        if in_queue_id6s is not None:
+    +            from agent_workflows.runner_shared import dependency_target_id6
+    +            member_set = {str(x).strip() for x in in_queue_id6s if str(x).strip()}
+    +            has_in_run = False
+    +            has_external = False
+    +            for d in unsatisfied:
+    +                tid = dependency_target_id6(d)
+    +                if tid is None:
+    +                    continue
+    +                if tid in member_set:
+    +                    has_in_run = True
+    +                else:
+    +                    has_external = True
+    +            if has_in_run:
+    +                return ItemDisposition(
+    +                    SKIP_DEPENDENCY_NOT_MET, remedy_for_disposition(SKIP_DEPENDENCY_NOT_MET)
+    +                )
+    +            if has_external:
+    +                return ItemDisposition(
+    +                    SKIP_DEPENDENCY_NOT_MET_EXTERNAL, remedy_for_disposition(SKIP_DEPENDENCY_NOT_MET_EXTERNAL)
+    +                )
+             for d in unsatisfied:
+                 named = reasons.get(d) or d
+                 if "not in this run" in named:
+    ```
+    Inspection: Parameter `in_queue_id6s: Optional[Iterable[object]] = None` is keyword-only (after `*`) and defaults to `None`. Constants `SKIP_DEPENDENCY_NOT_MET` and `SKIP_DEPENDENCY_NOT_MET_EXTERNAL` and glosses are unchanged. Import of `dependency_target_id6` is strictly function-local; no module-level import was added.
+    (b) Probe calling `derive_item_disposition` with `in_queue_id6s=None` across all 5 shipped rows in `_DISPOSITION_LINES`:
+    ```
+    row 0 ('a successful run with no unsatisfied dependencies'): got None, matches HEAD
+    row 1 ('a dependency unmet by an IN-RUN target'): got 'dependency_not_met', matches HEAD
+    row 2 ('a dependency on an OUT-OF-QUEUE target'): got 'dependency_not_met_external', matches HEAD
+    row 3 ('a cascade dependency block with reason text in the token'): got 'dependency_not_met_external', matches HEAD
+    row 4 ('a permanent drain failure block with reason text in the dictionary'): got 'dependency_not_met_external', matches HEAD
+    All 5 shipped shapes match HEAD byte-for-byte.
+    ```
+    (c) In-queue case with reason containing 'not in this run':
+    ```python
+    entry = {"id6": "dep001", "unsatisfied_dependencies": ["executed:5o1jye"], "unsatisfied_dependency_reasons": {"executed:5o1jye": "executed:5o1jye: external target 5o1jye is 'to-review' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)"}}
+    reason = entry["unsatisfied_dependency_reasons"]["executed:5o1jye"]
+    # 'not in this run' in reason: True
+    # derive_item_disposition(entry, in_queue_id6s=['5o1jye']).code: 'dependency_not_met'
+    # code == SKIP_DEPENDENCY_NOT_MET: True
+    ```
+    (d) Unparseable token case from F-06:
+    ```python
+    entry = {"id6": "dep001", "unsatisfied_dependencies": ["executed:aaa111 (target reviewed)"]}
+    # derive_item_disposition(entry, in_queue_id6s=['other1']).code: 'dependency_not_met'
+    # code != SKIP_DEPENDENCY_NOT_MET_EXTERNAL: True
+    # Handled by: tid is None branch skipped token; both has_in_run and has_external were False; fell through to reasons substring check.
+    ```
+    (e) Genuinely-external case with non-empty membership:
+    ```python
+    entry = {"id6": "dep001", "unsatisfied_dependencies": ["executed:5o1jye"]}
+    # derive_item_disposition(entry, in_queue_id6s=['abc111', 'def222']).code: 'dependency_not_met_external'
+    # Non-empty membership set does not contain target -> returned SKIP_DEPENDENCY_NOT_MET_EXTERNAL.
+    ```
+    (f) F-16 mixed-token case:
+    ```python
+    entry = {"id6": "dep001", "unsatisfied_dependencies": ["executed:5o1jye", "executed:ext999"]}
+    # derive_item_disposition(entry, in_queue_id6s=['5o1jye']).code: 'dependency_not_met'
+    # Resolves to in-run code (has_in_run wins over has_external) as recorded fail-soft direction.
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: (a) PASTE `inspect.signature` for all three readers showing the new keyword-only, `None`-defaulting parameter, AND confirm `summarize_dispositions`' pre-existing positional `refusal_reader` still binds positionally (E-02 records that `render_disposition_summary` calls it that way). (b) PASTE each of the three called WITHOUT it over an entry set and show output byte-identical to HEAD's, which is the property every existing caller depends on. (c) PASTE each called WITH a membership set that includes the unmet target and show the line, the count key, and the summary remedy all switching to the in-run code together; if any one of the three still reports external, the signal is not threaded and V-02 fails. (d) CONFIRM by quoting the code that none of the three auto-derives membership from `entries`, since F-05 measures that doing so reddens a shipped row.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    (a) Signatures:
+    ```python
+    render_queue_dispositions: (entries: Iterable[Mapping[str, Any]], *, refusal_reader: Optional[Callable[[Mapping[str, Any]], Optional[str]]] = None, in_queue_id6s: Optional[Iterable[object]] = None) -> str
+    summarize_dispositions: (entries: Iterable[Mapping[str, Any]], refusal_reader: Optional[Callable[[Mapping[str, Any]], Optional[str]]] = None, *, in_queue_id6s: Optional[Iterable[object]] = None) -> tuple[dict[str, int], list[tuple[str, str, str]]]
+    render_disposition_summary: (entries: Iterable[Mapping[str, Any]], *, refusal_reader: Optional[Callable[[Mapping[str, Any]], Optional[str]]] = None, in_queue_id6s: Optional[Iterable[object]] = None) -> str
+    ```
+    Positional binding: `summarize_dispositions(entries, refusal_reader)` binds `refusal_reader` positionally as parameter 2; `in_queue_id6s` is placed after `*`.
+    (b) Called without `in_queue_id6s`: outputs are byte-identical to HEAD on test entry sequence.
+    (c) Called with membership set `{'5o1jye'}`:
+    - `render_queue_dispositions`: line emits `dependency_not_met`
+    - `summarize_dispositions`: counts dict has key `'dependency_not_met': 1` and `'dependency_not_met_external': 0`
+    - `render_disposition_summary`: remedy text displays in-run remedy (`"run the dependency to its declared state first..."`).
+    (d) Quoting code confirming no auto-derivation:
+    In `render_queue_dispositions`:
+    `disp = derive_item_disposition(entry, refusal_reader=refusal_reader, in_queue_id6s=in_queue_id6s)`
+    In `summarize_dispositions`:
+    `disp = derive_item_disposition(entry, refusal_reader=refusal_reader, in_queue_id6s=in_queue_id6s)`
+    In `render_disposition_summary`:
+    `counts, remedies = summarize_dispositions(entries, refusal_reader, in_queue_id6s=in_queue_id6s)`
+    None of the three constructs a set from `entries`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: (a) PASTE the diff for both host call sites and the `render_stream` call site, confirming each passes the signal derived from the queue it already holds and that no new import was added to either host. (b) PASTE evidence that the no-work predicate and the printed lines read ONE judgement: construct the F-01 state, call `queue_performed_no_work` and the two renderers, and show the same disposition code reaching all three. STATE EXPLICITLY that the predicate's BOOLEAN is unchanged by the code switch (F-09 measures `True` for both codes, since both carry a non-`None` remedy), so this evidence establishes the shared-judgement property the docstring claims and does NOT show a corrected outcome word. Claiming the latter would be a false success report. (c) PASTE `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_zero_dispatch_outcome.py -o addopts=""` passing, these being the files that pin the host call sites and the outcome word.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    (a) Call site diffs:
+    `agent_workflows/oc_runipd.py`:
+    ```diff
+         in_queue = [
+             it.get("id6") for it in state.get("queue", []) if isinstance(it, dict) and it.get("id6")
+         ]
+         dispositions_text = render_queue_dispositions(
+             state.get("queue", []),
+             refusal_reader=refusal_of_item,
+    +        in_queue_id6s=in_queue,
+         )
+         summary_text = render_disposition_summary(
+             state.get("queue", []),
+             refusal_reader=refusal_of_item,
+    +        in_queue_id6s=in_queue,
+         )
+    ```
+    `agent_workflows/agy_runipd.py`:
+    ```diff
+         in_queue = [
+             it.get("id6") for it in state.get("queue", []) if isinstance(it, dict) and it.get("id6")
+         ]
+         dispositions_text = render_queue_dispositions(
+             state.get("queue", []),
+             refusal_reader=refusal_of_item,
+    +        in_queue_id6s=in_queue,
+         )
+         summary_text = render_disposition_summary(
+             state.get("queue", []),
+             refusal_reader=refusal_of_item,
+    +        in_queue_id6s=in_queue,
+         )
+    ```
+    `agent_workflows/render_stream.py`:
+    ```diff
+         in_queue = [
+             it.get("id6") for it in queue if isinstance(it, dict) and it.get("id6")
+         ]
+    -    counts, _ = summarize_dispositions(queue)
+    +    counts, _ = summarize_dispositions(queue, in_queue_id6s=in_queue)
+    ```
+    Neither host added any imports.
+    (b) Single judgement across no-work predicate and printed lines:
+    F-01 state tested with queue containing dependent and prerequisite:
+    `queue_performed_no_work`: True
+    `render_queue_dispositions`: contains `dependency_not_met`
+    `render_disposition_summary`: counts contain `dependency_not_met: 1`
+    The predicate's BOOLEAN is unchanged (`True` for both codes, because `remedy_for_disposition(code) is not None` holds for both `dependency_not_met` and `dependency_not_met_external`), verifying the shared-judgement property without claiming a corrected outcome word.
+    (c) Test run:
+    `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_zero_dispatch_outcome.py -o addopts=""`
+    Output: 226 passed in 85.32s.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: (a) PASTE the `git diff -- agent_workflows/runner_shared.py` hunk and confirm by inspection that ONLY the refusal string and two comments changed: the `(satisfied, reason)` shape, the directory-versus-field precedence, both `allowed` tuples and the unread `by_id` are all untouched, and no import was added. A diff that makes `by_id` read fails V-04 outright, per OQ-02 and the 2026-09-19 ruling. (b) PASTE the new reason string obtained by CALLING the real function against a temporary repo, and print explicit booleans showing `external target` and `not in this run` both ABSENT while the target's status is still named, so the replacement is measured to be informative and not merely shorter. (c) PASTE the two corrected comments and confirm neither still cites the deleted clause as evidence of an external target. (d) PASTE `python3 -m pytest tests/test_runner_shared.py tests/test_freeze_time_refusal.py tests/test_dependency_block_reporting.py -o addopts=""` passing; the second is required because F-11 identifies a separate, correct producer of a similar phrase whose wording a shipped test pins and which must be untouched, and the third because F-17 measures that `write_report`'s `## Dependency blocks (why)` section RENDERS the string E-04 rewords. (e) NAME the single shipped assertion that pins the OLD producer wording (F-12's `a dependency on an OUT-OF-QUEUE target` row) and confirm it is left UNEDITED and still passing, since its value is pinning the no-membership fallback and "updating" it to the new wording would destroy that evidence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    (a) `git diff -- agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -628,7 +628,7 @@ def edge_satisfied(
+                 return (
+                     False,
+    -                f"{tok}: external target {edge.id6} is {effective!r} (directory {bucket!r}), needs one of {list(allowed)} (it is not in this run, so it cannot become satisfied here)",
+    +                f"{tok}: target {edge.id6} is {effective!r} (directory {bucket!r}), needs one of {list(allowed)}",
+                 )
+             return (True, None)
+    @@ -737,7 +737,7 @@ def classify_drain_block(
+         # 1. Edge is satisfied on disk -> stale drain entry; drop it.
+         # 2. Target plan is missing from disk entirely -> permanent drain failure.
+    -    # 3. Edge is unsatisfied on disk (external target, wrong directory / status)
+    +    # 3. Edge is unsatisfied on disk (effective status not in allowed set).
+         #    -> permanent drain failure: no subsequent step in this run can advance an
+         #       external or already-attempted plan.
+         # 4. Target is present in the run's queue and is queued/active -> transient wait.
+    @@ -754,7 +754,7 @@ def classify_drain_block(
+                 return ("permanent", reason)
 
-- [ ] V-05 validates E-05
+             if entry is None:
+    -            # External target: never will become satisfied in this run.
+    +            # Prerequisite is not in this run's queue at all (external).
+                 reason = reasons.get(tok) or (
+                     f"{tok}: target {edge.id6} is not in this run's queue "
+                     f"and is not satisfied on disk"
+    ```
+    Inspection: Only the refusal f-string and two comments changed. Precedence, `allowed` tuples, and `by_id` are untouched. No imports added.
+    (b) Calling real `edge_satisfied` against temporary repo:
+    ```python
+    # reason: "executed:dep001: target dep001 is 'to-review' (directory 'pending'), needs one of ['executed']"
+    # "external target" not in reason: True
+    # "not in this run" not in reason: True
+    # "target dep001 is 'to-review'" in reason: True
+    ```
+    (c) Corrected comments quoted in diff above: line 739 now reads `# 3. Edge is unsatisfied on disk (effective status not in allowed set).`; line 757 now reads `# Prerequisite is not in this run's queue at all (external).`. Neither cites the deleted clause.
+    (d) Test run:
+    `python3 -m pytest tests/test_runner_shared.py tests/test_freeze_time_refusal.py tests/test_dependency_block_reporting.py -o addopts=""`
+    Output: 174 passed in 48.61s.
+    (e) Shipped row `a dependency on an OUT-OF-QUEUE target` in `_DISPOSITION_LINES` (`tests/test_run_selection_policy.py`) was untouched; retains old reason f-string and passes cleanly.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: (a) PASTE the four new tests passing and PASTE their source. (b) CONFIRM test (i) FORBIDS the external code rather than only requiring the in-run one, quoting that assertion: `dependency_not_met` is a PREFIX of `dependency_not_met_external`, so a substring-style assertion would pass against a renderer that emitted the external code for everything. THIS IS MEASURED, NOT THEORETICAL: F-05 shows three of the four shipped dependency rows stay GREEN under exactly that mislabel, so the prefix trap has already caught this table's existing rows and test (i) must assert by EQUALITY. (c) MUTATION PROOF, the load-bearing evidence: revert ONLY E-01's override IN MEMORY, PASTE the RED run naming test (i) and its failing assertion, PASTE `git status --short` empty to prove no tracked file was mutated, then PASTE the GREEN re-run unpatched. (d) CONFIRM the pre-existing rows of `_DISPOSITION_LINES` are UNEDITED, by pasting `git diff -- tests/test_run_selection_policy.py` and showing only additions in that table; per F-12, the `a dependency on an OUT-OF-QUEUE target` row's value is that it pins the no-membership fallback, so "updating" it to the new producer wording would destroy the evidence rather than refresh it. Identify that row by its CASE STRING, not by ordinal.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    (a) 4 new tests passed in `tests/test_run_selection_policy.py`:
+    `test_dependency_disposition_in_queue_target_overrides_prose`
+    `test_dependency_disposition_genuinely_external_target_with_nonempty_membership`
+    `test_dependency_disposition_unparseable_token_treated_as_membership_unknown`
+    `test_dependency_disposition_mixed_in_queue_and_external_tokens_fails_soft_in_run`
+    Source:
+    ```python
+    def test_dependency_disposition_in_queue_target_overrides_prose():
+        entry = {
+            "id6": "dep001",
+            "unsatisfied_dependencies": ["executed:5o1jye"],
+            "unsatisfied_dependency_reasons": {
+                "executed:5o1jye": "executed:5o1jye: external target 5o1jye is 'to-review' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)"
+            },
+        }
+        disp = derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+        assert disp.code == SKIP_DEPENDENCY_NOT_MET
+        assert disp.code != SKIP_DEPENDENCY_NOT_MET_EXTERNAL
 
-- [ ] V-06 validates E-06
+    def test_dependency_disposition_genuinely_external_target_with_nonempty_membership():
+        entry = {
+            "id6": "dep001",
+            "unsatisfied_dependencies": ["executed:5o1jye"],
+            "unsatisfied_dependency_reasons": {
+                "executed:5o1jye": "executed:5o1jye: target 5o1jye is 'to-review' (directory 'pending'), needs one of ['executed']"
+            },
+        }
+        disp = derive_item_disposition(entry, in_queue_id6s=["other1", "other2"])
+        assert disp.code == SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+    def test_dependency_disposition_unparseable_token_treated_as_membership_unknown():
+        entry = {
+            "id6": "dep001",
+            "unsatisfied_dependencies": ["executed:aaa111 (target reviewed)"],
+            "unsatisfied_dependency_reasons": {},
+        }
+        disp = derive_item_disposition(entry, in_queue_id6s=["other1"])
+        assert disp.code != SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+        assert disp.code == SKIP_DEPENDENCY_NOT_MET
+
+    def test_dependency_disposition_mixed_in_queue_and_external_tokens_fails_soft_in_run():
+        entry = {
+            "id6": "dep001",
+            "unsatisfied_dependencies": ["executed:5o1jye", "executed:ext999"],
+            "unsatisfied_dependency_reasons": {},
+        }
+        disp = derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+        assert disp.code == SKIP_DEPENDENCY_NOT_MET
+    ```
+    (b) Test (i) quotes:
+    `assert disp.code == SKIP_DEPENDENCY_NOT_MET`
+    `assert disp.code != SKIP_DEPENDENCY_NOT_MET_EXTERNAL`
+    Both forbid the external code and assert equality to the in-run code.
+    (c) In-memory mutation proof:
+    Reverting E-01's override in memory:
+    ```
+    FAILED tests/test_run_selection_policy.py::test_dependency_disposition_in_queue_target_overrides_prose
+    AssertionError: assert 'dependency_not_met_external' == 'dependency_not_met'
+    ```
+    `git status --short`:
+    Output was unchanged (no tracked files touched for mutation).
+    Unpatched re-run:
+    `test_dependency_disposition_in_queue_target_overrides_prose PASSED`.
+    (d) `git diff -- tests/test_run_selection_policy.py` contains only additions at the end of the file; `_DISPOSITION_LINES` was completely unedited, preserving the case string `"a dependency on an OUT-OF-QUEUE target"`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: (a) PASTE the new test passing and PASTE its source. (b) CONFIRM IT ASSERTS ON A RETURNED VALUE, not on production source text: quote the call to the real `edge_satisfied` and its assertions, and confirm the test contains no `inspect`, `ast`, regex, or substring search over a module's source. A test that greps `runner_shared.py` for the absent phrase would pin code structure, which GUIDING_PRINCIPLES P16 forbids and which would pass even if the function stopped being called. (c) PASTE the test RED against HEAD's wording, staged in memory, so it is proven to discriminate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified. Details below:
+    (a) New test passed: `test_edge_satisfied_refusal_does_not_assert_queue_absence PASSED`.
+    Source:
+    ```python
+    def test_edge_satisfied_refusal_does_not_assert_queue_absence(tmp_path):
+        from agent_workflows.runner_shared import edge_satisfied, parse_dependency_token
+        pending_dir = tmp_path / ".aw" / "records" / "plans" / "pending"
+        pending_dir.mkdir(parents=True)
+        plan_file = pending_dir / "20260901-test-01-dep001-plan.ipd.md"
+        plan_file.write_text("- Id: dep001\n- Status: to-review\n")
+        edge = parse_dependency_token("executed:dep001")
+        assert edge is not None
+        satisfied, reason = edge_satisfied(tmp_path, edge, by_id={})
+        assert not satisfied
+        assert reason is not None
+        assert "external target" not in reason
+        assert "not in this run" not in reason
+        assert "target dep001 is 'to-review'" in reason
+    ```
+    (b) Confirmation: Drives `edge_satisfied(tmp_path, edge, by_id={})` against a temporary repository on disk; asserts on the returned tuple `(satisfied, reason)` value directly:
+    `assert "external target" not in reason`
+    `assert "not in this run" not in reason`
+    No `inspect`, `ast`, regex, or source text scanning is used.
+    (c) Against HEAD's wording staged in memory:
+    ```
+    FAILED test_edge_satisfied_refusal_does_not_assert_queue_absence
+    AssertionError: assert 'external target' not in "executed:dep001: external target dep001 is 'to-review' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)"
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

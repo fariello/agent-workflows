@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import (
     Callable,
     Dict,
+    Iterable,
     List,
     Mapping,
     NamedTuple,
@@ -1637,6 +1638,8 @@ DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
 def derive_item_disposition(
     entry: Mapping[str, object],
     refusal_reader: Optional[Callable[..., object]] = None,
+    *,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> ItemDisposition:
     """Decide ONE matched artifact's disposition from the facts the runner already computed.
 
@@ -1658,6 +1661,12 @@ def derive_item_disposition(
          "not runnable" answer.
       6. Otherwise the artifact was acted on (or is still in flight) and carries
          :data:`DISPOSITION_ACTED_ON`, whose line text is :data:`ACTED_REASON_LABEL`.
+
+    ``in_queue_id6s`` is an optional membership signal (`8mohre` `zhqt51` E-01). When supplied,
+    it overrides the reason-prose substring match: an unmet edge whose target id6 is in the queue
+    resolves to :data:`SKIP_DEPENDENCY_NOT_MET`, and only an edge whose target is known and absent
+    from the queue resolves to :data:`SKIP_DEPENDENCY_NOT_MET_EXTERNAL`. Unparseable tokens fail soft
+    toward in-run (membership unknown).
     """
 
     if not isinstance(entry, Mapping):
@@ -1715,13 +1724,32 @@ def derive_item_disposition(
         named = ", ".join(
             "{0} ({1})".format(d, why[d]) if d in why else str(d) for d in deps
         )
-        # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
-        # writes for a target outside the queue, rather than by a second computation here.
-        code = (
-            SKIP_DEPENDENCY_NOT_MET_EXTERNAL
-            if "not in this run" in named
-            else SKIP_DEPENDENCY_NOT_MET
-        )
+        if in_queue_id6s is not None:
+            # Function-local import to avoid import cycle (F-07).
+            from agent_workflows.runner_shared import (
+                dependency_target_id6 as _dep_target_id6,
+            )
+
+            members = {
+                str(
+                    x.get("id6") or x.get("identity") if isinstance(x, Mapping) else x
+                ).strip()
+                for x in in_queue_id6s
+                if x is not None
+            }
+            targets = [_dep_target_id6(d) for d in deps]
+            if any(t is None or t in members for t in targets):
+                code = SKIP_DEPENDENCY_NOT_MET
+            else:
+                code = SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+        else:
+            # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
+            # writes for a target outside the queue, rather than by a second computation here.
+            code = (
+                SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+                if "not in this run" in named
+                else SKIP_DEPENDENCY_NOT_MET
+            )
         return ItemDisposition(
             code,
             "{0} ({1}; unmet: {2})".format(code, skip_reason_text(code), named),
@@ -1753,6 +1781,7 @@ def render_queue_dispositions(
     # narrower parameter type here would make the real call site a type error for no behavioral gain.
     # This module must not import `render_stream` to name that type (see `reason_from_refusal`).
     refusal_reader: Optional[Callable[..., object]] = None,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> List[str]:
     """Render ONE line per matched artifact, from the facts the runner already computed.
 
@@ -1781,7 +1810,9 @@ def render_queue_dispositions(
     lines: List[str] = []
     for entry in entries:
         if not isinstance(entry, Mapping):
-            decided = derive_item_disposition(entry, refusal_reader)
+            decided = derive_item_disposition(
+                entry, refusal_reader, in_queue_id6s=in_queue_id6s
+            )
             lines.append(
                 render_item_disposition(
                     "?",
@@ -1792,7 +1823,9 @@ def render_queue_dispositions(
             )
             continue
         get = entry.get
-        decided = derive_item_disposition(entry, refusal_reader)
+        decided = derive_item_disposition(
+            entry, refusal_reader, in_queue_id6s=in_queue_id6s
+        )
         lines.append(
             render_item_disposition(
                 str(get("id6") or get("identity") or "?"),
@@ -1978,6 +2011,8 @@ SUMMARY_ALL_ACTED_VERDICT = (
 def summarize_dispositions(
     entries: Sequence[Mapping[str, object]],
     refusal_reader: Optional[Callable[..., object]] = None,
+    *,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> "Tuple[Tuple[str, int, Optional[str]], ...]":
     """Count matched artifacts per DISPOSITION, with each disposition's remedy, in render order.
 
@@ -1991,6 +2026,8 @@ def summarize_dispositions(
     reported for its code. First record wins for a given code, so a second item refused under the
     same code cannot silently replace the remedy the reader is shown.
 
+    ``in_queue_id6s`` is forwarded unchanged to :func:`derive_item_disposition`.
+
     Ordered by :data:`SKIP_REASONS` first (the documented reason order), then any refusal codes in
     first-seen order, then :data:`DISPOSITION_ACTED_ON` LAST, so the things needing attention are
     read first and the acted-on total closes the list.
@@ -2000,7 +2037,9 @@ def summarize_dispositions(
     remedies: Dict[str, Optional[str]] = {}
     seen_order: List[str] = []
     for entry in entries:
-        decided = derive_item_disposition(entry, refusal_reader)
+        decided = derive_item_disposition(
+            entry, refusal_reader, in_queue_id6s=in_queue_id6s
+        )
         code = decided.code
         if code not in counts:
             counts[code] = 0
@@ -2024,6 +2063,7 @@ def render_disposition_summary(
     *,
     header: str = SUMMARY_HEADER,
     refusal_reader: Optional[Callable[..., object]] = None,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> List[str]:
     """The closing block: an honest verdict, per-disposition counts, and each remedy.
 
@@ -2042,7 +2082,7 @@ def render_disposition_summary(
     construction rather than by test.
     """
 
-    rows = summarize_dispositions(entries, refusal_reader)
+    rows = summarize_dispositions(entries, refusal_reader, in_queue_id6s=in_queue_id6s)
     if not rows:
         return []
 
