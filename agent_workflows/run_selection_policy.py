@@ -840,7 +840,7 @@ def decide(
         response_or_flag: Optional[str],
         refuse: bool = False,
     ) -> Verdict:
-        return Verdict(
+        return Verdict(  # type: ignore[call-arg]  # checker-limitation: WAIVES class constant misread as NamedTuple field
             proceed=proceed,
             reason=reason,
             gate_applied=gate_applied,
@@ -1139,7 +1139,7 @@ def decide_draft_admission(
         preview: str = "",
         message: Optional[str] = None,
     ) -> DraftVerdict:
-        return DraftVerdict(
+        return DraftVerdict(  # type: ignore[call-arg]  # checker-limitation: WAIVES class constant misread as NamedTuple field
             admitted=admitted,
             excluded_complete=excluded,
             skipped_incomplete=incomplete,
@@ -1800,7 +1800,7 @@ def render_queue_dispositions(
                 str(get("status") or "").strip(),
                 decided.reason,
                 position=(
-                    int(get("position"))  # type: ignore[arg-type]
+                    int(get("position"))  # type: ignore[arg-type,call-overload]  # checker-limitation: get() returns object despite isinstance guard
                     if isinstance(get("position"), int)
                     else None
                 ),

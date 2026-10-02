@@ -3,7 +3,12 @@
 # Makefile), so `/verify` can find and run the self-tests here - the framework dogfooding
 # its own evidence layer.
 
-.PHONY: install-dev test test-all test-serial version version-file
+.PHONY: install-dev test test-all test-serial typecheck version version-file
+
+# Run the configured narrowed static type gate over agent_workflows/.
+# CI-only gate in default posture; see CONTRIBUTING.md for details.
+typecheck:
+	python3 -m mypy agent_workflows
 
 # Install everything needed to work on and test this repo (guarantees pytest-xdist is
 # present so the suite ALWAYS runs in parallel). Run this once after cloning.

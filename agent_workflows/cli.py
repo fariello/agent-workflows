@@ -751,7 +751,7 @@ class _AwArgumentParser(argparse.ArgumentParser):
             text = text.replace("__{LIFECYCLE_LEGEND}__", block)
         return text
 
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> None:  # type: ignore[override]  # checker-limitation: self.exit(2) terminates, typeshed declares Never
         self.print_usage(sys.stderr)
         prog = self.prog
         hint_cmd = prog.replace("agent-workflows", "aw")
@@ -11083,7 +11083,7 @@ def _run_show(
         hits.extend(selectors.resolve_selectors(repo_root, rt, [ref]))
     # de-dup preserving order
     seen: set = set()
-    unique = [p for p in hits if not (str(p) in seen or seen.add(str(p)))]
+    unique = [p for p in hits if not (str(p) in seen or seen.add(str(p)))]  # type: ignore[func-returns-value]  # idiom: set.add returns None in de-dup comprehension
     if unique:
         if ctx.is_agent or ctx.is_json:
             contents = {}
@@ -12941,7 +12941,7 @@ def _run_check(
             else f"{len(findings)} stale spec line-anchor citation finding(s) detected across source"
         )
 
-        lines: list[str] = []
+        lines: list[str] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
         for f in findings:
             try:
                 rel = f.file.relative_to(repo_root).as_posix()
@@ -13072,7 +13072,7 @@ def _run_check(
     # the Phase-0 catalog via the rule registry), observed-vs-required, the exact recovery command,
     # and the determinism tag under a policy schema_version. This rides in `data["findings"]` so the
     # existing Diagnostic/compact-agent shape stays byte-compatible for current consumers.
-    findings: list = []
+    findings: list = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     seen_fixes = set()
     err_cnt = 0
     warn_cnt = 0

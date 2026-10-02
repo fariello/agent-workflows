@@ -13788,7 +13788,7 @@ def expand_selectors(
         effective = tuple(
             resolve_run_types(types) if types is not None else RUN_TYPE_DEFAULT
         )
-        expanded: list[str] = []
+        expanded: list[str] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
         seen: set[str] = set()
         effective_repo = Path(repo) if repo is not None else Path(".")
 
@@ -27868,6 +27868,7 @@ def build_verify_and_continue_notice(repo: Path, decision: RecoveryDisposition) 
             "   and their evidence, not your conclusion.",
         ]
     )
+    return "\n".join(lines)
 
 
 def build_turn_budget_notice(state: dict[str, Any]) -> str:
@@ -30605,7 +30606,7 @@ def reconcile_disposition(
     # `--retry-incomplete` requeued the item (a branch `execute_item_core`'s own two scoring points cannot
     # reach), before falling through to the exit-code fallback below. Both stay HERE because they are this
     # caller's and not the precedence's.
-    outcome: dict[str, Any] | None = read_recorded_outcome(run_dir, item)
+    outcome: dict[str, Any] | None = read_recorded_outcome(run_dir, item)  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     try:
         current_plan = resolve_plan_path(
             repo, item.get("configured_file", ""), item["id6"]
@@ -31791,7 +31792,7 @@ def execute_item_core(
     )
 
     exec_model, exec_model_source = launch_model_for_role(options, role="execute")
-    attempt: dict[str, Any] = {
+    attempt: dict[str, Any] = {  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
         "number": attempt_no,
         "started_at": utc_now(),
         "starting_head": git_head(repo),
@@ -34199,15 +34200,15 @@ def execute_item_core(
                 )
 
             # Discover all newly produced plans in target_tree
-            new_produced_paths: list[Path] = []
-            new_produced_plans: list[tuple[str, Path]] = []
+            new_produced_paths: list[Path] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
+            new_produced_plans: list[tuple[str, Path]] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
             for p, text in _ce._iter_plan_ipds(target_tree):
                 p_id = _pc._extract_plan_id(p, text)
                 if p_id not in baseline_plan_ids:
                     new_produced_paths.append(p)
                     new_produced_plans.append((p_id, p))
 
-            findings: list[tuple[str, str, str]] = []
+            findings: list[tuple[str, str, str]] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
             if exit_code != 0:
                 findings.append(
                     (

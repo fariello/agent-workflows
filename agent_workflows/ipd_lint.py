@@ -1996,7 +1996,7 @@ def lint_text(
     if S.is_quarantined(doc.meta_fields) and not _is_terminal_dir(directory):
         return LintResult(S.DISPOSITION_QUARANTINED, [])
 
-    diags: List[Diagnostic] = []
+    diags: List[Diagnostic] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     diags += check_metadata(doc, directory)
     diags += check_readiness_attestation(doc)
     diags += check_headings(doc)

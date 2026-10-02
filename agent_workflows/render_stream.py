@@ -776,7 +776,7 @@ def strip_system_protocol_prefix(text: str) -> str:
     return s.strip()
 
 
-def render_event(
+def render_event(  # type: ignore[return]  # checker-limitation: intentional fallthrough returns None for unrendered events (PR-006)
     raw_line: str,
     pal: Palette,
     tracker: StreamTracker | None = None,
@@ -3617,7 +3617,8 @@ def render_run_summary_table(
             # and no map existed, preventing a double parenthetical such as "... (blocked)".
             dep_msg = (
                 ", ".join(
-                    f"{d} ({reasons[d]})" if d in reasons else str(d) for d in deps
+                    f"{d} ({reasons[d]})" if d in reasons else str(d)
+                    for d in deps  # type: ignore[operator]  # checker-limitation: reasons resolved as union operand for in
                 )
                 if deps
                 else "unmet dependencies"
