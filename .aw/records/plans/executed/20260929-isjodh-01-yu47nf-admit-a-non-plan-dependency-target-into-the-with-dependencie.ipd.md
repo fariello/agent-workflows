@@ -6,7 +6,7 @@
 - Scope: Make `--with-dependencies` handle a non-plan dependency target honestly on both hosts. THREE coordinated changes, because each alone leaves a worse state than the refusal: admit a non-plan target in `runner_shared.closure_target_admission` (skipping one whose edge is already met, and refusing one whose edge enqueuing provably CANNOT satisfy rather than enqueuing a no-op); credit an IN-QUEUE non-plan target in `enforce_freeze_time_refusal`'s `exists`/`state` branch, which today never sets `could_be_met` and so refuses even when the queue contains the very item that would satisfy the edge; and order an admitted non-plan target AHEAD of its dependent in `dependency_depth`, which today skips every `edge.target_type != "ipd"` edge and so returns depth 0 for the dependent, letting it dispatch first and consume a status its target has not reached. Restore the behavioral coverage of this flag, which commit `19313eed` deleted entirely. EXCLUDES extending `discover_plans` to walk the specs or backlog trees (unnecessary: `lookup_manifest_artifact` already resolves both lazily); EXCLUDES changing satisfaction semantics, which spec 2.6 fixes as unchanged; EXCLUDES `--follow-generated`; EXCLUDES making the closure transitive THROUGH a non-plan node (see Deferred).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_typed_queue_entries.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode model=pt3-claude-opus-5-1m-us
 - Id: yu47nf
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yu47nf verified (set isjodh, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-401..PR-407 all fixed
 
