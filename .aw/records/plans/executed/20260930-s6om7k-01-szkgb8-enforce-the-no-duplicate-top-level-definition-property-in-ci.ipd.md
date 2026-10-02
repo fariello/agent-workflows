@@ -6,7 +6,7 @@
 - Scope: Add ruff `F811` as a named fail-closed CI gate over `agent_workflows/`, `tests/` and `tools/`, configured (via a command-line `--config` override of `lint.dummy-variable-rgx`) so it also catches the leading-underscore symbols ruff exempts by default, and record in `GUIDING_PRINCIPLES` P16 that a linter detecting a real runtime defect is not the code-pinning shape P16 prohibits. NOT in scope: adopting ruff's other default findings, changing any persistent ruff configuration in `pyproject.toml`, adding any AST or source-reading test, or changing either runner.
 - Scope-Paths: .github/workflows/tests.yml, GUIDING_PRINCIPLES.md, .aw/records/plans/pending/20260930-s6om7k-01-szkgb8-enforce-the-no-duplicate-top-level-definition-property-in-ci.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: aw oc run
 - Id: szkgb8
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: szkgb8 verified (set s6om7k, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review verdict APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER) through PR-007 all fixed; readiness go-pending-approval
 - 2026-09-30 to-review (aw oc run): authored from backlog `s6om7k`; graduated with the item's suggested AST fix REPLACED by a ruff `F811` CI gate after measuring that the suggested instrument is prohibited by P16 and that the sanctioned one already detects the exact reconstructed defect.
