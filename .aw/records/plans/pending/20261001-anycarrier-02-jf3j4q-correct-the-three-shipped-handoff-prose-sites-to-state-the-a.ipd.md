@@ -6,7 +6,7 @@
 - Scope: IN: correct the HANDOFF carrier cardinality in the three shipped prose sites named above, and correct the one stale SATISFIED parenthetical in the site (ii) docstring; add behavior-level test coverage that the INSTALLED pre-commit config and the two `--help`/docstring surfaces state the rule the predicate actually applies, driven through `engine.create_backlog_close_gate_hook` and the CLI rather than by reading source. OUT: any change to `check_engine.evaluate_blocking_close` or to any other predicate (the code is correct; this plan makes the prose match it); the residual ungated-sibling divergence (`2o5wka` OQ-02); the positional-spelling bypass (`47ttnv`/`2misq5`); the repo-local `AGENTS.md` close-legitimacy paragraph and `.aw/records/backlog/README.md`, both already corrected by `2o5wka` E-06; the hook's "honest limits" sentences about `--no-verify` and opt-in status, which remain accurate.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/hooks/backlog_blocking_close_gate.py, agent_workflows/cli.py, tests/test_backlog_close_gate_prose.py
 - Item-Dependencies: executed:2o5wka
-- Status: to-review
+- Status: reviewed
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: d1ldvk
@@ -17,6 +17,7 @@
 - Id: jf3j4q
 
 ## Workflow history
+- 2026-10-02 reviewed (aw set): plan-review complete; APPROVE WITH REVISIONS APPLIED
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed), PR-002 (MEDIUM, fixed), PR-003 (LOW, fixed), PR-004 (MEDIUM, fixed). Re-verified at lane HEAD `c31cb89b1`: the HANDOFF arm is `if same_gate_carriers and all(_carrier_eval(_c) ...)`; the grep returns exactly the three sites (cli.py:627, engine.py:5598 and :5614); the hook docstring still carries `it does not today`; `--help` renders the singular parenthetical at exit 0; `2o5wka` is executed. Changed: the module `__doc__` test case was dropped as a docstring pin forbidden by AGENTS.md, since the docstring reaches no operator surface; this overrules OQ-01 via its own named fallback (PR-001). The help assertion must set COLUMNS and normalize wrapping, because argparse already splits `DE-`/`GATED` (PR-002). The gate gained a scope fence and conditional runner ownership (PR-003). The suite baseline moved to E-01, before any edit (PR-004). Record: `.aw/records/reviews/20261001-anycarrier-02-jf3j4q-correct-the-three-shipped-handoff-prose-sites-to-state-the-a.review.md`.
 - 2026-10-02 same-status (aw set): the ALL-carrier predicate this plan's prose describes ships in 2o5wka; describing it earlier would state a rule the code lacks (backlog d1ldvk DEPENDENCY note)
 
