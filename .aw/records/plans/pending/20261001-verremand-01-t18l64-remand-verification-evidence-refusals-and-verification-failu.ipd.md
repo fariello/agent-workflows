@@ -39,41 +39,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: verification retry decision and accounting
 
-- [ ] E-01 Add the PURE verification retry classification and decision to `agent_workflows/runner_shared.py`, sited beside `turn_retry_decision`. Define `VERIFICATION_RETRY_COUNT_KEY = "verification_retry_attempts"` (a SEPARATE counter, per spec 5.5 "separately for each action", exactly as `FINALIZE_RETRY_COUNT_KEY` and `TURN_RETRY_COUNT_KEY` are separate), `VERIFICATION_RETRY_KEYS_KEY = "verification_retry_keys"`, `VERIFICATION_RETRY_EXHAUSTED_STATUS = "fail-verify"` (REUSED, never a new status, because `runner_shutdown.KNOWN_ITEM_STATUSES` is a closed vocabulary), `VERIFICATION_REFUSED_KEY = "verification_refused"`, and `VERIFICATION_RETRYABLE_REFUSAL_CODES = frozenset({VERIFY_REFUSAL_CODE_UNEVIDENCED, VERDICT_REFUSAL_CODE_UNREADABLE, VERIFY_ABSENCE_NO_OUTCOME_FILE})` PLUS a recognized-rejection arm keyed on the verdict MAPPING, not on the code string: `VERDICT_REFUSAL_CODE_DECLINED` is retryable ONLY when the recorded `verify_disp` is `VERIFY_DISP_UNVERIFIED` (a `CORRECTION_REQUIRED` rejection), and is NOT retryable when it is `VERIFY_DISP_BLOCKED` (`BLOCKED`/`NOT CONFORMING`), because `verdict_refusal_text` returns the same `verifier-declined` code for both and only the disposition distinguishes them. Implement `verification_retry_attempts(item) -> int` (never negative, bool-safe, mirroring `turn_retry_attempts`), `verification_failure_is_retryable(item, refusal_code, verify_disp) -> tuple[bool, str]` (FAIL-CLOSED allowlist; refuses a `stopped` record with `stopped_deliberately`, refuses an item carrying `finalize_refusal`, refuses any code not in the allowlist with a reason naming it), and `verification_retry_decision(item, state, refusal_code, verify_disp, attempt_no) -> VerificationRetryDecision`, a `NamedTuple` (matching `TurnRetryDecision`, not a dataclass) with `retry`, `exhausted`, `reason`, `attempts`, `budget`, `key`. The key is `f"{id6}:verify-attempt-{attempt_no}"` and an already-spent key returns neither retry nor exhausted (idempotency, as `turn_retry_key_already_spent`). Budget is read ONLY through `frozen_retry_budget(state)`; `used >= budget` is exhausted, so budget `0` exhausts on the first refusal.
+- [x] E-01 Add the PURE verification retry classification and decision to `agent_workflows/runner_shared.py`, sited beside `turn_retry_decision`. Define `VERIFICATION_RETRY_COUNT_KEY = "verification_retry_attempts"` (a SEPARATE counter, per spec 5.5 "separately for each action", exactly as `FINALIZE_RETRY_COUNT_KEY` and `TURN_RETRY_COUNT_KEY` are separate), `VERIFICATION_RETRY_KEYS_KEY = "verification_retry_keys"`, `VERIFICATION_RETRY_EXHAUSTED_STATUS = "fail-verify"` (REUSED, never a new status, because `runner_shutdown.KNOWN_ITEM_STATUSES` is a closed vocabulary), `VERIFICATION_REFUSED_KEY = "verification_refused"`, and `VERIFICATION_RETRYABLE_REFUSAL_CODES = frozenset({VERIFY_REFUSAL_CODE_UNEVIDENCED, VERDICT_REFUSAL_CODE_UNREADABLE, VERIFY_ABSENCE_NO_OUTCOME_FILE})` PLUS a recognized-rejection arm keyed on the verdict MAPPING, not on the code string: `VERDICT_REFUSAL_CODE_DECLINED` is retryable ONLY when the recorded `verify_disp` is `VERIFY_DISP_UNVERIFIED` (a `CORRECTION_REQUIRED` rejection), and is NOT retryable when it is `VERIFY_DISP_BLOCKED` (`BLOCKED`/`NOT CONFORMING`), because `verdict_refusal_text` returns the same `verifier-declined` code for both and only the disposition distinguishes them. Implement `verification_retry_attempts(item) -> int` (never negative, bool-safe, mirroring `turn_retry_attempts`), `verification_failure_is_retryable(item, refusal_code, verify_disp) -> tuple[bool, str]` (FAIL-CLOSED allowlist; refuses a `stopped` record with `stopped_deliberately`, refuses an item carrying `finalize_refusal`, refuses any code not in the allowlist with a reason naming it), and `verification_retry_decision(item, state, refusal_code, verify_disp, attempt_no) -> VerificationRetryDecision`, a `NamedTuple` (matching `TurnRetryDecision`, not a dataclass) with `retry`, `exhausted`, `reason`, `attempts`, `budget`, `key`. The key is `f"{id6}:verify-attempt-{attempt_no}"` and an already-spent key returns neither retry nor exhausted (idempotency, as `turn_retry_key_already_spent`). Budget is read ONLY through `frozen_retry_budget(state)`; `used >= budget` is exhausted, so budget `0` exhausts on the first refusal.
   - Depends on: none
   - Expected outcome: a pure, side-effect-free decision whose three outcomes (retry, exhausted, neither) are determined by the refusal class, the recorded `verify_disp`, the separate counter, the idempotency key, and the frozen budget, and which classifies `BLOCKED` as not retryable while classifying `CORRECTION_REQUIRED` as retryable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: verification failure routing and remand mechanism
 
-- [ ] E-02 Make every NON-retry-performing verifier failure arm inside `_run_verifier_turn` RECORD which refusal occurred, without changing its disposition: at the no-evidence arm (`verify_disp == VERIFY_DISP_VERIFIED and not v_has_evidence`), the non-verified verdict arm (`verify_disp != VERIFY_DISP_VERIFIED`, both the recognized and the unreadable sub-case), and the no-outcome-file arm, write `attempt[VERIFICATION_REFUSED_KEY] = {"code": v_code, "reason": v_reason, "remedy": v_remedy, "verify_disp": verify_disp}` beside the existing `record_refusal` call. These arms keep setting `disposition = "fail-verify"` exactly as today. Leave the `StallTimeout` arm and the `DriverError` plan-unresolvable arm untouched (they write `partial` and are non-goals). Then, BEFORE the verifier is spawned (immediately after `v_outcome_file` is computed and before `spawn_verifier` is called), delete a pre-existing outcome file with `v_outcome_file.unlink(missing_ok=True)` so a re-verification cannot re-read the PREVIOUS attempt's verdict when the new verifier writes nothing (the verifier writes to a fixed `NN-<id6>-verification.json` that nothing else clears).
+- [x] E-02 Make every NON-retry-performing verifier failure arm inside `_run_verifier_turn` RECORD which refusal occurred, without changing its disposition: at the no-evidence arm (`verify_disp == VERIFY_DISP_VERIFIED and not v_has_evidence`), the non-verified verdict arm (`verify_disp != VERIFY_DISP_VERIFIED`, both the recognized and the unreadable sub-case), and the no-outcome-file arm, write `attempt[VERIFICATION_REFUSED_KEY] = {"code": v_code, "reason": v_reason, "remedy": v_remedy, "verify_disp": verify_disp}` beside the existing `record_refusal` call. These arms keep setting `disposition = "fail-verify"` exactly as today. Leave the `StallTimeout` arm and the `DriverError` plan-unresolvable arm untouched (they write `partial` and are non-goals). Then, BEFORE the verifier is spawned (immediately after `v_outcome_file` is computed and before `spawn_verifier` is called), delete a pre-existing outcome file with `v_outcome_file.unlink(missing_ok=True)` so a re-verification cannot re-read the PREVIOUS attempt's verdict when the new verifier writes nothing (the verifier writes to a fixed `NN-<id6>-verification.json` that nothing else clears).
   - Depends on: E-01
   - Expected outcome: every retryable verification failure leaves a structured `verification_refused` record on the CURRENT attempt naming its code, reason, remedy and `verify_disp`; no disposition changes inside `_run_verifier_turn`; and a re-run verifier that writes nothing is classified `verification-never-recorded` rather than inheriting a stale verdict.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Implement `handle_verification_refusal(*, run_dir, state, item, attempt, attempt_no, disposition, host_labels, save_state, append_jsonl) -> str` in `agent_workflows/runner_shared.py`, mirroring `handle_turn_failure_retry`, and call it EXACTLY ONCE in `execute_item_core`: AFTER the reaskscore rescore block (so it sees the FINAL `_run_verifier_turn` result even when the verifier ran twice) and BEFORE the `turn_attempted_nothing` silent-turn block and the `integration_gate_relevant` computation, guarded by `not is_review and not is_production and disposition == "fail-verify" and attempt.get(VERIFICATION_REFUSED_KEY)`. Its returned disposition must be assigned to the local `disposition` AND to `attempt["disposition"]` and `item["status"]`, so the later unconditional `item["status"] = disposition` cannot erase it. Behavior: on `decision.retry`, increment `item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts + 1`, append the key to `item[VERIFICATION_RETRY_KEYS_KEY]`, call `invalidate_turn_evidence(item, attempt_no, decision.reason)` (spec 5.5: "invalidates stale evidence from earlier attempts"), set `item["status"] = "queued"`, `item["recovery_next"] = True`, `item["requeue_from_status"] = "fail-verify"`, record a `Refusal` through `record_refusal` with code `verification-sent-back` and a remedy saying no action is needed yet, `save_state`, append event `verification-sent-back` carrying `id6`, `refusal_code`, `retry_attempts_used`, `retry_budget`, `idempotency_key`, and return `"queued"`. On `decision.exhausted`, keep `item["status"] = "fail-verify"`, pop `recovery_next`, record a `Refusal` with code `verification-retry-exhausted` whose remedy names `aw runs show <run-id>` and the preserved lane, append event `verification-retry-exhausted`, and return `"fail-verify"`. On neither, record `attempt["verification_retry_skipped"] = decision.reason` and return `disposition` UNCHANGED (the existing `Refusal` from the verifier arm stays). The remanded `queued` item then flows through the existing gates as follows, which the executor must confirm rather than re-derive: `turn_attempted_nothing` is not entered for `queued`; `integration_gate_relevant` is False because `queued` is not in its disposition tuple; the lane-preservation block runs because `item["status"] != "executed"`, so the lane is recorded preserved and the recovery turn's `route_recovery_turn` / `build_verify_and_continue_notice` points the agent at it; and `handle_turn_failure_retry` sees `queued`, classifies it not retryable, and returns it unchanged, so no double spend.
+- [x] E-03 Implement `handle_verification_refusal(*, run_dir, state, item, attempt, attempt_no, disposition, host_labels, save_state, append_jsonl) -> str` in `agent_workflows/runner_shared.py`, mirroring `handle_turn_failure_retry`, and call it EXACTLY ONCE in `execute_item_core`: AFTER the reaskscore rescore block (so it sees the FINAL `_run_verifier_turn` result even when the verifier ran twice) and BEFORE the `turn_attempted_nothing` silent-turn block and the `integration_gate_relevant` computation, guarded by `not is_review and not is_production and disposition == "fail-verify" and attempt.get(VERIFICATION_REFUSED_KEY)`. Its returned disposition must be assigned to the local `disposition` AND to `attempt["disposition"]` and `item["status"]`, so the later unconditional `item["status"] = disposition` cannot erase it. Behavior: on `decision.retry`, increment `item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts + 1`, append the key to `item[VERIFICATION_RETRY_KEYS_KEY]`, call `invalidate_turn_evidence(item, attempt_no, decision.reason)` (spec 5.5: "invalidates stale evidence from earlier attempts"), set `item["status"] = "queued"`, `item["recovery_next"] = True`, `item["requeue_from_status"] = "fail-verify"`, record a `Refusal` through `record_refusal` with code `verification-sent-back` and a remedy saying no action is needed yet, `save_state`, append event `verification-sent-back` carrying `id6`, `refusal_code`, `retry_attempts_used`, `retry_budget`, `idempotency_key`, and return `"queued"`. On `decision.exhausted`, keep `item["status"] = "fail-verify"`, pop `recovery_next`, record a `Refusal` with code `verification-retry-exhausted` whose remedy names `aw runs show <run-id>` and the preserved lane, append event `verification-retry-exhausted`, and return `"fail-verify"`. On neither, record `attempt["verification_retry_skipped"] = decision.reason` and return `disposition` UNCHANGED (the existing `Refusal` from the verifier arm stays). The remanded `queued` item then flows through the existing gates as follows, which the executor must confirm rather than re-derive: `turn_attempted_nothing` is not entered for `queued`; `integration_gate_relevant` is False because `queued` is not in its disposition tuple; the lane-preservation block runs because `item["status"] != "executed"`, so the lane is recorded preserved and the recovery turn's `route_recovery_turn` / `build_verify_and_continue_notice` points the agent at it; and `handle_turn_failure_retry` sees `queued`, classifies it not retryable, and returns it unchanged, so no double spend.
   - Depends on: E-01, E-02
   - Expected outcome: a retryable verification refusal with budget remaining leaves the item `queued` with `recovery_next = True` after `execute_item_core` returns, on both hosts; an exhausted or non-retryable refusal leaves it `fail-verify` with today's `Refusal`; the counter never exceeds the frozen budget, and a verifier run twice in one attempt (rescore path) spends at most one unit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: recovery prompt context and lane containment
 
-- [ ] E-04 Deliver the verification refusal to the recovery turn through a DEDICATED notice, `build_verification_refusal_notice(item, recovery) -> str` in `agent_workflows/runner_shared.py`, concatenated into `build_prompt`'s `correction_notice` beside `build_correction_notice` and `build_stale_receipt_notice`. It returns `""` unless `recovery` is True AND the LAST attempt carries a `verification_refused` mapping, so every first-attempt prompt and every other recovery prompt is byte-identical to before. The block states: the verifier refusal code, the reason and the remedy (each passed through `render_stream._redact_absolute_paths` or the equivalent redaction `record_refusal` applies, so no absolute host path reaches the worker); that this is correction attempt N of M; that the lane already holds the prior work, so the agent must FIX the cause rather than re-implement; and, for `verifier-no-test-evidence`, that `tests_run` entries must be the COMMAND STRINGS that were run (for example `python3 -m pytest tests/test_x.py`), not test nodeids. Additionally add `"verification_refused"` to `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS` with a one-line comment that it carries only code/reason/remedy/verify_disp text already redacted by `record_refusal`'s rule, so the `Prior attempt:` JSON also carries it in isolated lanes.
+- [x] E-04 Deliver the verification refusal to the recovery turn through a DEDICATED notice, `build_verification_refusal_notice(item, recovery) -> str` in `agent_workflows/runner_shared.py`, concatenated into `build_prompt`'s `correction_notice` beside `build_correction_notice` and `build_stale_receipt_notice`. It returns `""` unless `recovery` is True AND the LAST attempt carries a `verification_refused` mapping, so every first-attempt prompt and every other recovery prompt is byte-identical to before. The block states: the verifier refusal code, the reason and the remedy (each passed through `render_stream._redact_absolute_paths` or the equivalent redaction `record_refusal` applies, so no absolute host path reaches the worker); that this is correction attempt N of M; that the lane already holds the prior work, so the agent must FIX the cause rather than re-implement; and, for `verifier-no-test-evidence`, that `tests_run` entries must be the COMMAND STRINGS that were run (for example `python3 -m pytest tests/test_x.py`), not test nodeids. Additionally add `"verification_refused"` to `lane_containment._PRIOR_ATTEMPT_SAFE_KEYS` with a one-line comment that it carries only code/reason/remedy/verify_disp text already redacted by `record_refusal`'s rule, so the `Prior attempt:` JSON also carries it in isolated lanes.
   - Depends on: E-02
   - Expected outcome: a recovery prompt rendered for an isolated lane (`lane_root` set) after a verification remand contains the refusal code, reason, remedy and the attempt bound, and contains no absolute path outside the lane; first-attempt prompts are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: test coverage, spec sync, and regression fence
 
-- [ ] E-05 Author outcome tests in `tests/test_verification_sendback.py` and reconcile the shipped tests that pin the old behavior. New tests, each driving real functions and asserting returned values or resulting state: (1) `verification_retry_decision` returns `retry=True` below budget, `exhausted=True` at budget, `exhausted=True` on the first refusal when budget is `0`, neither for a `verifier-declined` refusal with `verify_disp="blocked"`, `retry=True` for `verifier-declined` with `verify_disp="unverified"`, neither for an already-spent key, and neither when the item carries a deliberate `stopped` record; (2) END-TO-END on BOTH hosts (`oc_runipd` with `run_opencode`, `agy_runipd` with `run_agy_turn`, following the `_HOSTS` pattern in `tests/test_inlane_retirement_lands.py`), driving `execute_item` with a committed lane change and a verification outcome of `{"verdict": "VERIFIED", "tests_run": ["tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_a"]}` under `retry_budget` 2: the item ends `queued` with `recovery_next` True, `verification_retry_attempts == 1`, `events.jsonl` contains one `verification-sent-back` event, and `driver_finalize` was not called; (3) the same drive under `retry_budget` 0 ends `fail-verify` with the `verifier-no-test-evidence` refusal recorded; (4) the same drive with `CORRECTION_REQUIRED` remands, and with `BLOCKED` ends `fail-verify` with no `verification-sent-back` event; (5) a stale-verdict case: a pre-existing `VERIFIED` verification outcome file plus a verifier that writes nothing yields `verification-never-recorded`, not `verified`; (6) a rendered recovery prompt (`build_prompt(..., recovery=True, lane_root=<lane>)`) for both host label sets contains the refusal code, the remedy and the command-string guidance, and `lane_containment.prior_attempt_summary(attempt, lane_root)` retains `verification_refused`. Reconcile: in `tests/test_oc_runipd.py` (`test_verifier_gate`, `test_an_unreadable_verdict_file_fails_closed_end_to_end`), `tests/test_defect_report.py` (the rescore controls asserting `fail-verify`), and `tests/test_inlane_retirement_lands.py` (`test_unverified_retirement_does_not_land`), pin `"retry_budget": 0` in the test state's `options` where the test's subject is the terminal refusal (so it keeps asserting today's terminal behavior), and do NOT weaken any finalize-not-called or not-landed assertion. Re-derive at execution which of these tests actually break rather than trusting this list; a test that does not break needs no edit and its path is `--scope-ack`ed.
+- [x] E-05 Author outcome tests in `tests/test_verification_sendback.py` and reconcile the shipped tests that pin the old behavior. New tests, each driving real functions and asserting returned values or resulting state: (1) `verification_retry_decision` returns `retry=True` below budget, `exhausted=True` at budget, `exhausted=True` on the first refusal when budget is `0`, neither for a `verifier-declined` refusal with `verify_disp="blocked"`, `retry=True` for `verifier-declined` with `verify_disp="unverified"`, neither for an already-spent key, and neither when the item carries a deliberate `stopped` record; (2) END-TO-END on BOTH hosts (`oc_runipd` with `run_opencode`, `agy_runipd` with `run_agy_turn`, following the `_HOSTS` pattern in `tests/test_inlane_retirement_lands.py`), driving `execute_item` with a committed lane change and a verification outcome of `{"verdict": "VERIFIED", "tests_run": ["tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_a"]}` under `retry_budget` 2: the item ends `queued` with `recovery_next` True, `verification_retry_attempts == 1`, `events.jsonl` contains one `verification-sent-back` event, and `driver_finalize` was not called; (3) the same drive under `retry_budget` 0 ends `fail-verify` with the `verifier-no-test-evidence` refusal recorded; (4) the same drive with `CORRECTION_REQUIRED` remands, and with `BLOCKED` ends `fail-verify` with no `verification-sent-back` event; (5) a stale-verdict case: a pre-existing `VERIFIED` verification outcome file plus a verifier that writes nothing yields `verification-never-recorded`, not `verified`; (6) a rendered recovery prompt (`build_prompt(..., recovery=True, lane_root=<lane>)`) for both host label sets contains the refusal code, the remedy and the command-string guidance, and `lane_containment.prior_attempt_summary(attempt, lane_root)` retains `verification_refused`. Reconcile: in `tests/test_oc_runipd.py` (`test_verifier_gate`, `test_an_unreadable_verdict_file_fails_closed_end_to_end`), `tests/test_defect_report.py` (the rescore controls asserting `fail-verify`), and `tests/test_inlane_retirement_lands.py` (`test_unverified_retirement_does_not_land`), pin `"retry_budget": 0` in the test state's `options` where the test's subject is the terminal refusal (so it keeps asserting today's terminal behavior), and do NOT weaken any finalize-not-called or not-landed assertion. Re-derive at execution which of these tests actually break rather than trusting this list; a test that does not break needs no edit and its path is `--scope-ack`ed.
   - Depends on: E-03, E-04
   - Expected outcome: a new test module whose cases fail if the remand, the BLOCKED exclusion, the zero budget, the stale-file clearing, or the prompt delivery is removed; and the reconciled shipped tests still assert the terminal refusal under an explicit zero budget.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Amend spec 25kzda Section 5.5 and run the validation. In `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 5.5: add a third bullet to "The runner provides two distinct classification surfaces" (renaming it "three") for `verification_retry_decision`, which classifies a refused independent verification by its refusal code and recorded verdict disposition; and change the `missing or stale validation evidence` table row so its Classification Surface names both `finalize_retry_decision` (at finalize) and `verification_retry_decision` (at verification, disposition `fail-verify`), with a note that a `BLOCKED` verdict is not retried. Do NOT change the normative bound sentence (`must be an integer from 0 through 10 inclusive`), which `tests/test_retry_budget_citation.py` anchors. Then run `python3 -m pytest tests/test_verification_sendback.py tests/test_verifier_evidence.py tests/test_finalize_sendback.py tests/test_retry_class_mapping.py tests/test_retry_budget_citation.py tests/test_oc_runipd.py tests/test_defect_report.py tests/test_inlane_retirement_lands.py`, then the BARE suite `python3 -m pytest`, then `aw sanitize --agent`, then `aw ipd lint --phase pre-transition --agent <this plan>`.
+- [x] E-06 Amend spec 25kzda Section 5.5 and run the validation. In `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md` Section 5.5: add a third bullet to "The runner provides two distinct classification surfaces" (renaming it "three") for `verification_retry_decision`, which classifies a refused independent verification by its refusal code and recorded verdict disposition; and change the `missing or stale validation evidence` table row so its Classification Surface names both `finalize_retry_decision` (at finalize) and `verification_retry_decision` (at verification, disposition `fail-verify`), with a note that a `BLOCKED` verdict is not retried. Do NOT change the normative bound sentence (`must be an integer from 0 through 10 inclusive`), which `tests/test_retry_budget_citation.py` anchors. Then run `python3 -m pytest tests/test_verification_sendback.py tests/test_verifier_evidence.py tests/test_finalize_sendback.py tests/test_retry_class_mapping.py tests/test_retry_budget_citation.py tests/test_oc_runipd.py tests/test_defect_report.py tests/test_inlane_retirement_lands.py`, then the BARE suite `python3 -m pytest`, then `aw sanitize --agent`, then `aw ipd lint --phase pre-transition --agent <this plan>`.
   - Depends on: E-05
   - Expected outcome: spec 5.5 names the new classification surface and still contains the anchored bound sentence exactly once; every named module and the bare suite pass; the sanitizer exits 0; and pre-transition lint conforms.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,35 +161,609 @@ Spec `25kzda` Section 5.5 already lists `missing or stale validation evidence` a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff adding `VerificationRetryDecision`, `verification_retry_attempts`, `verification_failure_is_retryable`, `verification_retry_decision` and the constants. Paste test output from `tests/test_verification_sendback.py` for the decision cases: retry below budget, exhausted at budget, exhausted on first refusal at budget 0, BLOCKED (`verify_disp="blocked"`) neither retried nor exhausted, CORRECTION_REQUIRED (`verify_disp="unverified"`) retried, already-spent key neither, deliberate stop refused. Paste a direct-call transcript showing `verification_retry_decision` returns each of the three outcome shapes for a concrete item and state.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added VerificationRetryDecision, helpers, constants to runner_shared.py; test_decision_cases passed; direct call transcript verified.
+    Added constants and helper functions to `agent_workflows/runner_shared.py`:
+    ```diff
+    +#: Separate counter key for verification retry attempts.
+    +VERIFICATION_RETRY_COUNT_KEY: str = "verification_retry_attempts"
+    +
+    +#: Idempotency keys spent for verification retries.
+    +VERIFICATION_RETRY_KEYS_KEY: str = "verification_retry_keys"
+    +
+    +#: Terminal status reached when verification retry budget is exhausted.
+    +VERIFICATION_RETRY_EXHAUSTED_STATUS: str = "fail-verify"
+    +
+    +#: Attempt-level key recording the structured verification refusal.
+    +VERIFICATION_REFUSED_KEY: str = "verification_refused"
+    +
+    +#: Refusal code recorded on verification sendback.
+    +VERIFICATION_RETRY_REFUSAL_CODE: str = "verification-sent-back"
+    +
+    +#: Refusal code recorded when verification retry budget is exhausted.
+    +VERIFICATION_RETRY_EXHAUSTED_CODE: str = "verification-retry-exhausted"
+    +
+    +#: Retryable verification refusal codes.
+    +VERIFICATION_RETRYABLE_REFUSAL_CODES: frozenset[str] = frozenset(
+    +    {
+    +        VERIFY_REFUSAL_CODE_UNEVIDENCED,
+    +        VERDICT_REFUSAL_CODE_UNREADABLE,
+    +        VERIFY_ABSENCE_NO_OUTCOME_FILE,
+    +    }
+    +)
+    +
+    +
+    +def verification_retry_attempts(item: Mapping[str, Any]) -> int:
+    +    """How many VERIFICATION corrections this item has already consumed. Never negative."""
+    +    raw = item.get(VERIFICATION_RETRY_COUNT_KEY)
+    +    if isinstance(raw, bool) or not isinstance(raw, int):
+    +        return 0
+    +    return max(0, raw)
+    +
+    +
+    +def verification_retry_idempotency_key(
+    +    item: Mapping[str, Any], attempt_no: int
+    +) -> str:
+    +    """The key identifying ONE verification correction, so a repeated decision cannot double-spend."""
+    +    return f"{item.get('id6') or '?'}:verify-attempt-{int(attempt_no)}"
+    +
+    +
+    +def verification_retry_key_already_spent(item: Mapping[str, Any], key: str) -> bool:
+    +    """Has this exact verification correction already been recorded?"""
+    +    recorded = item.get(VERIFICATION_RETRY_KEYS_KEY)
+    +    return isinstance(recorded, list) and key in recorded
+    +
+    +
+    +def verification_failure_is_retryable(
+    +    item: Mapping[str, Any], refusal_code: str, verify_disp: str | None = None
+    +) -> tuple[bool, str]:
+    +    """Is this verification refusal in the retryable class? Returns (retryable, why)."""
+    +    stopped = item.get("stopped")
+    +    if isinstance(stopped, Mapping) and stopped.get("stopped_deliberately"):
+    +        return (
+    +            False,
+    +            "the turn ended in a DELIBERATE OPERATOR STOP, which is an intent and not a failure; "
+    +            "retrying it would spend paid model turns fighting the operator",
+    +        )
+    +    if item.get("finalize_refusal"):
+    +        return (
+    +            False,
+    +            "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already "
+    +            "classifies and already spends correction budget on (see `finalize_retry_decision`)",
+    +        )
+    +    code = (refusal_code or "").strip()
+    +    disp = (verify_disp or "").strip() if verify_disp else None
+    +    if code in VERIFICATION_RETRYABLE_REFUSAL_CODES:
+    +        return (
+    +            True,
+    +            f"verification refusal code {code!r} is in spec 5.5's retryable validation-evidence class",
+    +        )
+    +    if code == VERDICT_REFUSAL_CODE_DECLINED:
+    +        if disp == VERIFY_DISP_UNVERIFIED:
+    +            return (
+    +                True,
+    +                f"verification refusal code {code!r} with verify_disp {disp!r} (CORRECTION_REQUIRED) "
+    +                "is in spec 5.5's retryable validation-evidence class",
+    +            )
+    +        if disp == VERIFY_DISP_BLOCKED:
+    +            return (
+    +                False,
+    +                f"verification refusal code {code!r} with verify_disp {disp!r} (BLOCKED/NOT CONFORMING) "
+    +                "is not retryable: the verifier could not complete (environment/tooling obstacle)",
+    +            )
+    +        return (
+    +            False,
+    +            f"verification refusal code {code!r} with verify_disp {disp!r} is not retryable",
+    +        )
+    +    return (
+    +        False,
+    +        f"verification refusal code {code!r} is not in the retryable allowlist",
+    +    )
+    +
+    +
+    +class VerificationRetryDecision(NamedTuple):
+    +    """What to do about ONE failed verification. DECIDES ONLY: no state write, no print, no dispatch."""
+    +
+    +    retry: bool
+    +    exhausted: bool
+    +    reason: str
+    +    attempts: int
+    +    budget: int
+    +    key: str
+    +
+    +
+    +def verification_retry_decision(
+    +    item: Mapping[str, Any],
+    +    state: Mapping[str, Any],
+    +    refusal_code: str,
+    +    verify_disp: str | None,
+    +    attempt_no: int,
+    +) -> VerificationRetryDecision:
+    +    """Decide RETRY / FAIL-ITEM / LEAVE-ALONE for one failed verification."""
+    +    used = verification_retry_attempts(item)
+    +    budget = frozen_retry_budget(state)
+    +    key = verification_retry_idempotency_key(item, attempt_no)
+    +    retryable, why = verification_failure_is_retryable(item, refusal_code, verify_disp)
+    +    if not retryable:
+    +        return VerificationRetryDecision(
+    +            retry=False,
+    +            exhausted=False,
+    +            reason=why,
+    +            attempts=used,
+    +            budget=budget,
+    +            key=key,
+    +        )
+    +    if verification_retry_key_already_spent(item, key):
+    +        return VerificationRetryDecision(
+    +            retry=False,
+    +            exhausted=False,
+    +            reason=(
+    +                f"verification correction {key} was ALREADY recorded for this item, so this decision spends "
+    +                f"nothing (idempotency, as `plan_retry` guarantees for a repeated key)"
+    +            ),
+    +            attempts=used,
+    +            budget=budget,
+    +            key=key,
+    +        )
+    +    if used >= budget:
+    +        return VerificationRetryDecision(
+    +            retry=False,
+    +            exhausted=True,
+    +            reason=(
+    +                f"verification failed ({refusal_code}) in a retryable class and the run's correction "
+    +                f"budget is exhausted ({used} of {budget} correction attempt"
+    +                f"{'' if budget == 1 else 's'} spent), so the item is FAILED rather than re-dispatched"
+    +            ),
+    +            attempts=used,
+    +            budget=budget,
+    +            key=key,
+    +        )
+    +    return VerificationRetryDecision(
+    +        retry=True,
+    +        exhausted=False,
+    +        reason=(
+    +            f"verification failed ({refusal_code}) in a retryable class, so the item is being handed back "
+    +            f"for a bounded correction turn; correction attempt {used + 1} of {budget}"
+    +        ),
+    +        attempts=used,
+    +        budget=budget,
+    +        key=key,
+    +    )
+    ```
+    Output from `python3 -m pytest -o addopts="" -v tests/test_verification_sendback.py -k test_decision_cases`:
+    ```
+    tests/test_verification_sendback.py::VerificationRetryDecisionUnitTests::test_decision_cases PASSED [100%]
+    ======================= 1 passed, 5 deselected in 0.45s ========================
+    ```
+    Direct-call transcript demonstrating the three outcome shapes:
+    ```
+    >>> from agent_workflows import runner_shared
+    >>> # 1. retry below budget:
+    >>> item1 = {'id6': 'abc123', 'verification_retry_attempts': 0}
+    >>> state = {'options': {'retry_budget': 2}}
+    >>> d1 = runner_shared.verification_retry_decision(item1, state, runner_shared.VERIFY_REFUSAL_CODE_UNEVIDENCED, None, attempt_no=1)
+    >>> print('Case 1 (retry):', d1)
+    Case 1 (retry): VerificationRetryDecision(retry=True, exhausted=False, reason='verification failed (verifier-no-test-evidence) in a retryable class, so the item is being handed back for a bounded correction turn; correction attempt 1 of 2', attempts=0, budget=2, key='abc123:verify-attempt-1')
+    >>> # 2. exhausted at budget:
+    >>> item2 = {'id6': 'abc123', 'verification_retry_attempts': 2}
+    >>> d2 = runner_shared.verification_retry_decision(item2, state, runner_shared.VERIFY_REFUSAL_CODE_UNEVIDENCED, None, attempt_no=3)
+    >>> print('Case 2 (exhausted):', d2)
+    Case 2 (exhausted): VerificationRetryDecision(retry=False, exhausted=True, reason="verification failed (verifier-no-test-evidence) in a retryable class and the run's correction budget is exhausted (2 of 2 correction attempts spent), so the item is FAILED rather than re-dispatched", attempts=2, budget=2, key='abc123:verify-attempt-3')
+    >>> # 3. neither (blocked / non-retryable):
+    >>> item3 = {'id6': 'abc123', 'verification_retry_attempts': 0}
+    >>> d3 = runner_shared.verification_retry_decision(item3, state, runner_shared.VERDICT_REFUSAL_CODE_DECLINED, runner_shared.VERIFY_DISP_BLOCKED, attempt_no=1)
+    >>> print('Case 3 (neither):', d3)
+    Case 3 (neither): VerificationRetryDecision(retry=False, exhausted=False, reason="verification refusal code 'verifier-declined' with verify_disp 'blocked' (BLOCKED/NOT CONFORMING) is not retryable: the verifier could not complete (environment/tooling obstacle)", attempts=0, budget=2, key='abc123:verify-attempt-1')
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the three `_run_verifier_turn` arms showing `attempt["verification_refused"]` written beside the existing `record_refusal` and `disposition = "fail-verify"` unchanged, and the `unlink(missing_ok=True)` placed before `spawn_verifier`. Paste test output for the stale-verdict case: a pre-existing `VERIFIED` verification file plus a verifier that writes nothing yields refusal code `verification-never-recorded` and `verification_status` not `verified`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Added verification_refused to 3 arms, unlink before spawn; test_stale_verdict_clearing passed (1 passed).
+    Diff in `agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -32947,6 +33276,12 @@ def execute_item_core(
+                             ),
+                             flush=True,
+                         )
+    +                    v_outcome_file = (
+    +                        run_dir
+    +                        / "outcomes"
+    +                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+    +                    )
+    +                    v_outcome_file.unlink(missing_ok=True)
+                         try:
+                             v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
+                                 v_prompt_file,
+    @@ -33102,6 +33432,12 @@ def execute_item_core(
+                                     record_refusal(
+                                         item, code=v_code, reason=v_reason, remedy=v_remedy
+                                     )
+    +                                attempt[VERIFICATION_REFUSED_KEY] = {
+    +                                    "code": v_code,
+    +                                    "reason": v_reason,
+    +                                    "remedy": v_remedy,
+    +                                    "verify_disp": verify_disp,
+    +                                }
+                                     print(
+                                         pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                         file=sys.stderr,
+    @@ -33122,6 +33458,12 @@ def execute_item_core(
+                                     record_refusal(
+                                         item, code=v_code, reason=v_reason, remedy=v_remedy
+                                     )
+    +                                attempt[VERIFICATION_REFUSED_KEY] = {
+    +                                    "code": v_code,
+    +                                    "reason": v_reason,
+    +                                    "remedy": v_remedy,
+    +                                    "verify_disp": verify_disp,
+    +                                }
+                                     print(
+                                         pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
+                                         file=sys.stderr,
+    @@ -33169,16 +33511,23 @@ def execute_item_core(
+                                 v_reason, v_remedy = verify_absence_text(
+                                     VERIFY_ABSENCE_NO_OUTCOME_FILE
+                                 )
+    +                            v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                                 record_refusal(
+                                     item,
+    -                                code=VERIFY_ABSENCE_NO_OUTCOME_FILE,
+    +                                code=v_code,
+                                     reason=v_reason,
+                                     remedy=v_remedy,
+                                 )
+    -                            attempt["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
+    -                            item["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
+    +                            attempt["verify_absence"] = v_code
+    +                            item["verify_absence"] = v_code
+                                 verify_disp = VERIFY_DISP_UNVERIFIED
+                                 disposition = "fail-verify"
+    +                            attempt[VERIFICATION_REFUSED_KEY] = {
+    +                                "code": v_code,
+    +                                "reason": v_reason,
+    +                                "remedy": v_remedy,
+    +                                "verify_disp": verify_disp,
+    +                            }
+    ```
+    Output from `python3 -m pytest -o addopts="" -v tests/test_verification_sendback.py -k test_stale_verdict_clearing`:
+    ```
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_stale_verdict_clearing PASSED [100%]
+    ======================= 1 passed, 5 deselected in 2.59s ========================
+    ```
+    Pre-existing `VERIFIED` outcome file is unlinked before `spawn_verifier`; when verifier writes nothing, refusal code is `verification-never-recorded` and `item["verification_status"]` is not `verified`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the source of `handle_verification_refusal` and the single call site in `execute_item_core`, showing it sits after the rescore block and before `turn_attempted_nothing`, and that its return is assigned to `disposition`, `attempt["disposition"]` and `item["status"]`. Paste end-to-end test output for BOTH hosts showing, for a `verifier-no-test-evidence` drive at `retry_budget` 2: final `item["status"] == "queued"`, `item["recovery_next"] is True`, `item["verification_retry_attempts"] == 1`, exactly one `verification-sent-back` event in `events.jsonl`, and `driver_finalize` not called; and at `retry_budget` 0: final status `fail-verify`. Paste the item's `attempts[-1]["turn_retry_skipped"]` showing `handle_turn_failure_retry` saw `queued` and did not spend the turn counter.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: handle_verification_refusal placed after rescore before turn_attempted_nothing; test_unevidenced_verification passed on both hosts (2 passed); turn_retry_skipped verified.
+    Source of `handle_verification_refusal`:
+    ```python
+    def handle_verification_refusal(
+        *,
+        run_dir: Path,
+        state: MutableMapping[str, Any],
+        item: dict[str, Any],
+        attempt: MutableMapping[str, Any],
+        attempt_no: int,
+        disposition: str,
+        host_labels: "HostLabels | None",
+        save_state: Callable[[Path, Any], Any],
+        append_jsonl: Callable[..., Any],
+    ) -> str:
+        """PERFORM the outcome of one refused verification. Returns the item's disposition."""
+        refused_data = attempt.get(VERIFICATION_REFUSED_KEY) or {}
+        refusal_code = str(refused_data.get("code") or "")
+        verify_disp = refused_data.get("verify_disp")
 
-- [ ] V-04 validates E-04
+        decision = verification_retry_decision(
+            item, state, refusal_code, verify_disp, attempt_no
+        )
+        if not (decision.retry or decision.exhausted):
+            attempt["verification_retry_skipped"] = decision.reason
+            return disposition
+
+        pal = Palette(should_color(sys.stdout))
+        command = getattr(host_labels, "command", None) or "aw oc run"
+        if decision.retry:
+            item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts + 1
+            item.setdefault(VERIFICATION_RETRY_KEYS_KEY, []).append(decision.key)
+            attempt[VERIFICATION_REFUSED_KEY]["attempt"] = decision.attempts + 1
+            attempt[VERIFICATION_REFUSED_KEY]["budget"] = decision.budget
+            invalidate_turn_evidence(item, attempt_no, decision.reason)
+            item["status"] = "queued"
+            item["recovery_next"] = True
+            item["requeue_from_status"] = "fail-verify"
+            record_refusal(
+                item,
+                code=VERIFICATION_RETRY_REFUSAL_CODE,
+                reason=decision.reason,
+                remedy=(
+                    "no action needed yet: the run is handing this item back for a bounded correction turn "
+                    "in this same run to address verification issues. Its work is preserved on its lane and "
+                    "nothing was forced"
+                ),
+            )
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "verification-sent-back",
+                    "id6": item["id6"],
+                    "refusal_code": refusal_code,
+                    "retry_attempts_used": decision.attempts + 1,
+                    "retry_budget": decision.budget,
+                    "idempotency_key": decision.key,
+                },
+            )
+            print(
+                pal(
+                    f"  -> IPD {item['id6']} verification failed ({refusal_code}); handing it back for a bounded "
+                    f"correction (attempt {decision.attempts + 1} of {decision.budget})",
+                    "cyan",
+                ),
+                file=sys.stderr,
+            )
+            return "queued"
+        else:
+            item["status"] = "fail-verify"
+            record_refusal(
+                item,
+                code=VERIFICATION_RETRY_EXHAUSTED_CODE,
+                reason=decision.reason,
+                remedy=(
+                    f"read the failed attempts before re-running: verification correction budget was spent "
+                    f"without success ({decision.attempts} of {decision.budget} attempts spent). "
+                    f"Inspect them with `aw runs show <run-id>`, correct the plan or tests, then "
+                    f"re-run with `{command} {item['id6']}` (or `{command} resume <run-id> --retry-incomplete`). "
+                    f"Do NOT discard the lane: the partial work is preserved there"
+                ),
+            )
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "verification-retry-exhausted",
+                    "id6": item["id6"],
+                    "refusal_code": refusal_code,
+                    "retry_attempts_used": decision.attempts,
+                    "retry_budget": decision.budget,
+                    "idempotency_key": decision.key,
+                },
+            )
+            print(
+                pal(
+                    f"  ! IPD {item['id6']} verification FAILED: correction budget exhausted "
+                    f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return "fail-verify"
+    ```
+    Single call site in `execute_item_core`:
+    ```python
+            # verremand (t18l64) E-03: Remand retryable verification failures back to the agent in its lane
+            # under the frozen retry budget, called ONCE after the rescore and before silent-turn / integration gates.
+            if (
+                not is_review
+                and not is_production
+                and disposition == "fail-verify"
+                and attempt.get(VERIFICATION_REFUSED_KEY)
+            ):
+                disposition = handle_verification_refusal(
+                    run_dir=run_dir,
+                    state=state,
+                    item=item,
+                    attempt=attempt,
+                    attempt_no=attempt_no,
+                    disposition=disposition,
+                    host_labels=host_labels,
+                    save_state=save_state,
+                    append_jsonl=append_jsonl,
+                )
+                attempt["disposition"] = disposition
+                item["status"] = disposition
+
+            # r0iob3 E-02: consult turn_attempted_nothing on the completion path.
+            # Option (b): reuse existing non-retryable disposition "fail-gate" at the shared in-core seam.
+            outcome_written, lane = read_zero_work_evidence(repo, run_dir, item, attempt)
+    ```
+    Output from `python3 -m pytest -o addopts="" -v tests/test_verification_sendback.py -k test_unevidenced_verification`:
+    ```
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_unevidenced_verification_remands_end_to_end_on_both_hosts PASSED [ 50%]
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_unevidenced_verification_exhausts_at_budget_zero PASSED [100%]
+    ======================= 2 passed, 4 deselected in 5.43s ========================
+    ```
+    On both `oc` and `agy` hosts:
+    - At `retry_budget` 2: `item["status"] == "queued"`, `item["recovery_next"] is True`, `item["verification_retry_attempts"] == 1`, exactly 1 `verification-sent-back` event in `events.jsonl`, `finalize_calls == []`.
+    - At `retry_budget` 0: `item["status"] == "fail-verify"`, 0 `verification-sent-back` events.
+    - `attempt["turn_retry_skipped"]`: "the item was REQUEUED for another attempt in this run, so turn failure retry spends nothing on this attempt".
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the source of `build_verification_refusal_notice`, its concatenation in `build_prompt`, and the modified `_PRIOR_ATTEMPT_SAFE_KEYS`. Paste test output showing a recovery prompt rendered with `lane_root` set, for both `OC_HOST_LABELS` and `AGY_HOST_LABELS`, contains the refusal code, the remedy, the attempt bound and the command-string guidance, and that `lane_containment.absolute_paths_outside_lane(prompt, lane_root)` returns `[]` for it (the shipped R1.1 property helper); and that a first-attempt prompt contains none of the notice text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: build_verification_refusal_notice added and concatenated into prompt; safe key added; test_recovery_prompt_delivery passed (1 passed).
+    Source of `build_verification_refusal_notice` in `agent_workflows/runner_shared.py`:
+    ```python
+    def build_verification_refusal_notice(item: Mapping[str, Any], recovery: bool) -> str:
+        """Render the pending verification refusal notice into the recovery prompt, or "" when none."""
+        if not recovery:
+            return ""
+        attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+        if not attempts:
+            return ""
+        refused = attempts[-1].get(VERIFICATION_REFUSED_KEY)
+        if not isinstance(refused, Mapping):
+            return ""
+        from agent_workflows.render_stream import _redact_absolute_paths
 
-- [ ] V-05 validates E-05
+        v_code = _redact_absolute_paths(str(refused.get("code") or ""))
+        v_reason = _redact_absolute_paths(str(refused.get("reason") or ""))
+        v_remedy = _redact_absolute_paths(str(refused.get("remedy") or ""))
+        att_num = refused.get("attempt") or (verification_retry_attempts(item) + 1)
+        budget = refused.get("budget") or 2
+
+        lines = [
+            "",
+            "",
+            f"## Verification failed on the prior attempt ({v_code})",
+            "",
+            f"This is verification correction attempt {att_num} of {budget}.",
+            "The previous attempt passed turn execution but independent verification was refused:",
+            "",
+            f"  - Refusal code: {v_code}",
+            f"  - Reason: {v_reason}",
+            f"  - Remedy: {v_remedy}",
+            "",
+            "The lane already holds your prior work, so you must FIX the cause rather than re-implementing "
+            "from scratch.",
+        ]
+        if v_code == VERIFY_REFUSAL_CODE_UNEVIDENCED:
+            lines.extend(
+                [
+                    "",
+                    "IMPORTANT: `tests_run` entries in the outcome file must be the COMMAND STRINGS that were run "
+                    "(for example `python3 -m pytest tests/test_x.py`), not test nodeids or module paths.",
+                ]
+            )
+        return "\n".join(lines)
+    ```
+    Concatenation in `build_prompt`:
+    ```python
+        correction_notice = (
+            build_correction_notice(item, recovery)
+            + build_stale_receipt_notice(item, recovery)
+            + build_verification_refusal_notice(item, recovery)
+        )
+    ```
+    Allowlist addition in `agent_workflows/lane_containment.py`:
+    ```diff
+     _PRIOR_ATTEMPT_SAFE_KEYS = (
+         "integration_detail",
+         "finalize_refused",
+         "begin_refused",
+    +    # verification_refused carries only code/reason/remedy/verify_disp text already redacted by record_refusal's rule.
+    +    "verification_refused",
+         "cost",
+         "tokens",
+    ```
+    Output from `python3 -m pytest -o addopts="" -v tests/test_verification_sendback.py -k test_recovery_prompt_delivery`:
+    ```
+    tests/test_verification_sendback.py::RecoveryPromptNoticeTests::test_recovery_prompt_delivery PASSED [100%]
+    ======================= 1 passed, 5 deselected in 0.46s ========================
+    ```
+    Tested:
+    - First-attempt prompt has no refusal notice text.
+    - Recovery prompt for both `OC_HOST_LABELS` and `AGY_HOST_LABELS` contains refusal code (`verifier-no-test-evidence`), remedy (`record actual commands run`), attempt bound (`attempt 1 of 2`), and command-string guidance (`must be the COMMAND STRINGS that were run`).
+    - `lane_containment.absolute_paths_outside_lane(rec_prompt, lane_dir)` returned `[]`.
+    - `lane_containment.prior_attempt_summary` retains `verification_refused`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the actual output of `python3 -m pytest tests/test_verification_sendback.py` showing all tests passing, including the end-to-end cases run for BOTH the `oc` and `agy` hosts. For each shipped test edited in `tests/test_oc_runipd.py`, `tests/test_defect_report.py` and `tests/test_inlane_retirement_lands.py`, paste its diff showing the only change is the explicit `retry_budget: 0` (no assertion weakened) and its passing output; for each declared test path NOT edited, state that it did not break and paste its passing output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: test_verification_sendback.py passed (6 passed); test_oc_runipd.py passed (182 passed); test_defect_report.py and test_inlane_retirement_lands.py unedited and passed (32 passed).
+    Output from `python3 -m pytest -o addopts="" -v tests/test_verification_sendback.py`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2262665681
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
 
-- [ ] V-06 validates E-06
+    tests/test_verification_sendback.py::RecoveryPromptNoticeTests::test_recovery_prompt_delivery PASSED [ 16%]
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_unevidenced_verification_exhausts_at_budget_zero PASSED [ 33%]
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_correction_required_remands_and_blocked_fails PASSED [ 50%]
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_stale_verdict_clearing PASSED [ 66%]
+    tests/test_verification_sendback.py::VerificationSendbackEndToEndTests::test_unevidenced_verification_remands_end_to_end_on_both_hosts PASSED [ 83%]
+    tests/test_verification_sendback.py::VerificationRetryDecisionUnitTests::test_decision_cases PASSED [100%]
+
+    ============================== 6 passed in 10.37s ==============================
+    ```
+    Diff for shipped tests edited in `tests/test_oc_runipd.py`:
+    ```diff
+    @@ -6853,6 +6880,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
+                         "self_finalize": True,
+                         "isolate_worktree": True,
+                         "no_audit": False,
+    +                    "retry_budget": 0,
+                     },
+                 }
+
+    @@ -6950,6 +6981,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
+                         "self_finalize": True,
+                         "isolate_worktree": True,
+                         "no_audit": False,
+    +                    "retry_budget": 0,
+                     },
+                 }
+    ```
+    Output from `python3 -m pytest -o addopts="" tests/test_oc_runipd.py`:
+    182 passed in 58.74s.
+    Declared test paths `tests/test_defect_report.py` and `tests/test_inlane_retirement_lands.py` did not break and were not edited; passing output:
+    ```
+    tests/test_inlane_retirement_lands.py .........                          [ 28%]
+    tests/test_defect_report.py .......................                      [100%]
+
+    ============================= 32 passed in 21.92s ==============================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the spec 25kzda Section 5.5 diff showing the third classification surface and the widened `missing or stale validation evidence` row, and paste `tests/test_retry_budget_citation.py` passing. Paste the actual output of the named-module command and of the bare `python3 -m pytest` with its `N passed` summary line, compared against the executor's own pre-E-01 baseline. Paste `aw sanitize --agent` output with exit 0. Paste `aw ipd lint --phase pre-transition --agent` output showing conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Spec 25kzda Section 5.5 amended and test_retry_budget_citation.py passed (1 passed); named modules passed (299 passed); bare suite passed (4630 passed, 0 regressions); sanitize passed clean.
+    Diff of spec 25kzda Section 5.5:
+    ```diff
+    @@ -1338,9 +1338,10 @@ It must never retry these classes regardless of budget:
+
+    -The runner provides two distinct classification surfaces that key on different evidence by design:
+    +The runner provides three distinct classification surfaces that key on different evidence by design:
+     - `turn_failure_is_retryable`: classifies a finished turn by its runner disposition.
+     - `finalize_retry_decision`: classifies a refused finalize by the gate's findings carried across the subprocess boundary. It keys primarily on shipped lint finding codes (`finalize_refusal_is_retryable`, `retryable_finalize_finding_codes`), retaining a prose fallback for findings without a lint code and for answerable checkpoint messages excluded from the code set.
+    +- `verification_retry_decision`: classifies a refused or unevidenced verification outcome before integration. It remands the lane to the executing agent under the shared `--retry-budget` with a separate action counter when verification evidence is missing (`verifier-no-test-evidence`), the verdict requires correction (`verifier-declined`), or the outcome file was unreadable/unrecorded (`verification-outcome-unreadable`, `verification-never-recorded`); environment obstacles (`BLOCKED`) are not retryable.
+
+     The normative mapping between the retry classes above and the runner's disposition vocabulary is declared in the following table:
+
+    @@ -1349,7 +1350,7 @@ The normative mapping between the retry classes above and the runner's dispositi
+     | host spawn failure | `failed-safely` | `turn_failure_is_retryable` | Yes | Host failed to spawn or crashed under driver supervision. Guarded against deliberate operator stop. Canonical token `failed` has no live producer and is classified non-retryable in code. |
+     | host nonzero exit that did not create an ambiguous side effect | `failed-safely` | `turn_failure_is_retryable` | Yes | Nonzero exit cleanly captured and contained in lane worktree. |
+     | missing expected artifact or failed deterministic check for which a bounded correction is safe | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate by finding codes; no distinct retryable turn disposition. |
+    -| missing or stale validation evidence | None (turn); findings (finalize) | `finalize_retry_decision` | Yes (at finalize) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`); turn disposition `substantially-complete` is not retryable at turn level to avoid double-spend. |
+    +| missing or stale validation evidence | None (turn); findings (finalize); refusal (verification) | `finalize_retry_decision`, `verification_retry_decision` | Yes (at finalize and verification) | Handled at finalize gate (`IPD-S401`, `IPD-S402`, `IPD-S403`) and verification gate (`verifier-no-test-evidence`, `verifier-declined`, `verification-outcome-unreadable`, `verification-never-recorded`; `BLOCKED` is not retried); turn disposition `substantially-complete` is not retryable at turn level to avoid double-spend. |
+    ```
+    Output from `python3 -m pytest -o addopts="" tests/test_retry_budget_citation.py`:
+    ```
+    tests/test_retry_budget_citation.py .                                    [100%]
+    ============================== 1 passed in 0.22s ===============================
+    ```
+    Named-module test command:
+    `python3 -m pytest -o addopts="" tests/test_verification_sendback.py tests/test_verifier_evidence.py tests/test_finalize_sendback.py tests/test_retry_class_mapping.py tests/test_retry_budget_citation.py tests/test_oc_runipd.py tests/test_defect_report.py tests/test_inlane_retirement_lands.py`
+    Output:
+    `======================= 299 passed in 110.29s (0:01:50) ========================`
+
+    Bare suite command `python3 -m pytest`:
+    Pre-E-01 baseline on main: 4621 passed, 3 failed, 2 skipped, 3 warnings in 238.12s.
+    Post-implementation run: 4630 passed, 3 failed, 2 skipped, 3 warnings in 252.60s.
+    The 3 failures are identical to the baseline failures on main (`test_selector_type_containment.py::test_must_not_refuse_matrix`, `test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`). Net +9 passing tests, 0 regressions.
+
+    Leak check:
+    `aw sanitize --agent`
+    Output:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+    Exited 0 (clean).
+
+    Pre-transition lint check:
+    `aw ipd lint --phase pre-transition --agent .aw/records/plans/pending/20261001-verremand-01-t18l64-remand-verification-evidence-refusals-and-verification-failu.ipd.md`
+    Conforming with 0 findings.
+  - Result: pass
 
 ## Approval and execution gate
 

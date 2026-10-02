@@ -23236,6 +23236,331 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
 
 
 # ==================================================================================================
+# verremand (t18l64): REMAND VERIFICATION EVIDENCE REFUSALS AND VERIFICATION FAILURES
+# ==================================================================================================
+
+#: Separate counter key for verification retry attempts.
+VERIFICATION_RETRY_COUNT_KEY: str = "verification_retry_attempts"
+
+#: Idempotency keys spent for verification retries.
+VERIFICATION_RETRY_KEYS_KEY: str = "verification_retry_keys"
+
+#: Terminal status reached when verification retry budget is exhausted.
+VERIFICATION_RETRY_EXHAUSTED_STATUS: str = "fail-verify"
+
+#: Attempt-level key recording the structured verification refusal.
+VERIFICATION_REFUSED_KEY: str = "verification_refused"
+
+#: Refusal code recorded on verification sendback.
+VERIFICATION_RETRY_REFUSAL_CODE: str = "verification-sent-back"
+
+#: Refusal code recorded when verification retry budget is exhausted.
+VERIFICATION_RETRY_EXHAUSTED_CODE: str = "verification-retry-exhausted"
+
+#: Retryable verification refusal codes.
+VERIFICATION_RETRYABLE_REFUSAL_CODES: frozenset[str] = frozenset(
+    {
+        VERIFY_REFUSAL_CODE_UNEVIDENCED,
+        VERDICT_REFUSAL_CODE_UNREADABLE,
+        VERIFY_ABSENCE_NO_OUTCOME_FILE,
+    }
+)
+
+
+def verification_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many VERIFICATION corrections this item has already consumed. Never negative."""
+    raw = item.get(VERIFICATION_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+def verification_retry_idempotency_key(item: Mapping[str, Any], attempt_no: int) -> str:
+    """The key identifying ONE verification correction, so a repeated decision cannot double-spend."""
+    return f"{item.get('id6') or '?'}:verify-attempt-{int(attempt_no)}"
+
+
+def verification_retry_key_already_spent(item: Mapping[str, Any], key: str) -> bool:
+    """Has this exact verification correction already been recorded?"""
+    recorded = item.get(VERIFICATION_RETRY_KEYS_KEY)
+    return isinstance(recorded, list) and key in recorded
+
+
+def verification_failure_is_retryable(
+    item: Mapping[str, Any], refusal_code: str, verify_disp: str | None = None
+) -> tuple[bool, str]:
+    """Is this verification refusal in the retryable class? Returns (retryable, why)."""
+    stopped = item.get("stopped")
+    if isinstance(stopped, Mapping) and stopped.get("stopped_deliberately"):
+        return (
+            False,
+            "the turn ended in a DELIBERATE OPERATOR STOP, which is an intent and not a failure; "
+            "retrying it would spend paid model turns fighting the operator",
+        )
+    if item.get("finalize_refusal"):
+        return (
+            False,
+            "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already "
+            "classifies and already spends correction budget on (see `finalize_retry_decision`)",
+        )
+    code = (refusal_code or "").strip()
+    disp = (verify_disp or "").strip() if verify_disp else None
+    if code in VERIFICATION_RETRYABLE_REFUSAL_CODES:
+        return (
+            True,
+            f"verification refusal code {code!r} is in spec 5.5's retryable validation-evidence class",
+        )
+    if code == VERDICT_REFUSAL_CODE_DECLINED:
+        if disp == VERIFY_DISP_UNVERIFIED:
+            return (
+                True,
+                f"verification refusal code {code!r} with verify_disp {disp!r} (CORRECTION_REQUIRED) "
+                "is in spec 5.5's retryable validation-evidence class",
+            )
+        if disp == VERIFY_DISP_BLOCKED:
+            return (
+                False,
+                f"verification refusal code {code!r} with verify_disp {disp!r} (BLOCKED/NOT CONFORMING) "
+                "is not retryable: the verifier could not complete (environment/tooling obstacle)",
+            )
+        return (
+            False,
+            f"verification refusal code {code!r} with verify_disp {disp!r} is not retryable",
+        )
+    return (
+        False,
+        f"verification refusal code {code!r} is not in the retryable allowlist",
+    )
+
+
+class VerificationRetryDecision(NamedTuple):
+    """What to do about ONE failed verification. DECIDES ONLY: no state write, no print, no dispatch."""
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+    key: str
+
+
+def verification_retry_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    refusal_code: str,
+    verify_disp: str | None,
+    attempt_no: int,
+) -> VerificationRetryDecision:
+    """Decide RETRY / FAIL-ITEM / LEAVE-ALONE for one failed verification."""
+    used = verification_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    key = verification_retry_idempotency_key(item, attempt_no)
+    retryable, why = verification_failure_is_retryable(item, refusal_code, verify_disp)
+    if not retryable:
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=why,
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if verification_retry_key_already_spent(item, key):
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=(
+                f"verification correction {key} was ALREADY recorded for this item, so this decision spends "
+                f"nothing (idempotency, as `plan_retry` guarantees for a repeated key)"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if used >= budget:
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"verification failed ({refusal_code}) in a retryable class and the run's correction "
+                f"budget is exhausted ({used} of {budget} correction attempt"
+                f"{'' if budget == 1 else 's'} spent), so the item is FAILED rather than re-dispatched"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    return VerificationRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"verification failed ({refusal_code}) in a retryable class, so the item is being handed back "
+            f"for a bounded correction turn; correction attempt {used + 1} of {budget}"
+        ),
+        attempts=used,
+        budget=budget,
+        key=key,
+    )
+
+
+def build_verification_refusal_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Render the pending verification refusal notice into the recovery prompt, or "" when none."""
+    if not recovery:
+        return ""
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    if not attempts:
+        return ""
+    refused = attempts[-1].get(VERIFICATION_REFUSED_KEY)
+    if not isinstance(refused, Mapping):
+        return ""
+    from agent_workflows.render_stream import _redact_absolute_paths
+
+    v_code = _redact_absolute_paths(str(refused.get("code") or ""))
+    v_reason = _redact_absolute_paths(str(refused.get("reason") or ""))
+    v_remedy = _redact_absolute_paths(str(refused.get("remedy") or ""))
+    att_num = refused.get("attempt") or (verification_retry_attempts(item) + 1)
+    budget = refused.get("budget") or 2
+
+    lines = [
+        "",
+        "",
+        f"## Verification failed on the prior attempt ({v_code})",
+        "",
+        f"This is verification correction attempt {att_num} of {budget}.",
+        "The previous attempt passed turn execution but independent verification was refused:",
+        "",
+        f"  - Refusal code: {v_code}",
+        f"  - Reason: {v_reason}",
+        f"  - Remedy: {v_remedy}",
+        "",
+        "The lane already holds your prior work, so you must FIX the cause rather than re-implementing "
+        "from scratch.",
+    ]
+    if v_code == VERIFY_REFUSAL_CODE_UNEVIDENCED:
+        lines.extend(
+            [
+                "",
+                "IMPORTANT: `tests_run` entries in the outcome file must be the COMMAND STRINGS that were run "
+                "(for example `python3 -m pytest tests/test_x.py`), not test nodeids or module paths.",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def handle_verification_refusal(
+    *,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    attempt: MutableMapping[str, Any],
+    attempt_no: int,
+    disposition: str,
+    host_labels: "HostLabels | None",
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> str:
+    """PERFORM the outcome of one refused verification. Returns the item's disposition."""
+    refused_data = attempt.get(VERIFICATION_REFUSED_KEY) or {}
+    refusal_code = str(refused_data.get("code") or "")
+    verify_disp = refused_data.get("verify_disp")
+
+    decision = verification_retry_decision(
+        item, state, refusal_code, verify_disp, attempt_no
+    )
+    if not (decision.retry or decision.exhausted):
+        attempt["verification_retry_skipped"] = decision.reason
+        return disposition
+
+    pal = Palette(should_color(sys.stdout))
+    command = getattr(host_labels, "command", None) or "aw oc run"
+    if decision.retry:
+        item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts + 1
+        item.setdefault(VERIFICATION_RETRY_KEYS_KEY, []).append(decision.key)
+        attempt[VERIFICATION_REFUSED_KEY]["attempt"] = decision.attempts + 1
+        attempt[VERIFICATION_REFUSED_KEY]["budget"] = decision.budget
+        invalidate_turn_evidence(item, attempt_no, decision.reason)
+        item["status"] = "queued"
+        item["recovery_next"] = True
+        item["requeue_from_status"] = "fail-verify"
+        record_refusal(
+            item,
+            code=VERIFICATION_RETRY_REFUSAL_CODE,
+            reason=decision.reason,
+            remedy=(
+                "no action needed yet: the run is handing this item back for a bounded correction turn "
+                "in this same run to address verification issues. Its work is preserved on its lane and "
+                "nothing was forced"
+            ),
+        )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "verification-sent-back",
+                "id6": item["id6"],
+                "refusal_code": refusal_code,
+                "retry_attempts_used": decision.attempts + 1,
+                "retry_budget": decision.budget,
+                "idempotency_key": decision.key,
+            },
+        )
+        print(
+            pal(
+                f"  -> IPD {item['id6']} verification failed ({refusal_code}); handing it back for a bounded "
+                f"correction (attempt {decision.attempts + 1} of {decision.budget})",
+                "cyan",
+            ),
+            file=sys.stderr,
+        )
+        return "queued"
+    else:
+        item["status"] = "fail-verify"
+        item.pop("recovery_next", None)
+        item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts
+        attempt[VERIFICATION_REFUSED_KEY]["attempt"] = decision.attempts
+        attempt[VERIFICATION_REFUSED_KEY]["budget"] = decision.budget
+        # When budget is 0, no retry was ever permitted; preserve the underlying verifier refusal
+        # on the item (as E-05 (3) and test_verifier_gate require). When retries were spent and exhausted,
+        # record the retry-exhausted refusal.
+        if decision.budget > 0 and decision.attempts > 0:
+            record_refusal(
+                item,
+                code=VERIFICATION_RETRY_EXHAUSTED_CODE,
+                reason=decision.reason,
+                remedy=(
+                    f"read the failed attempts before re-running: verification correction budget was spent "
+                    f"without success ({decision.attempts} of {decision.budget} attempts spent). "
+                    f"Inspect them with `aw runs show <run-id>`, correct the plan or tests, then "
+                    f"re-run with `{command} {item['id6']}` (or `{command} resume <run-id> --retry-incomplete`). "
+                    f"Do NOT discard the lane: the partial work is preserved there"
+                ),
+            )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "verification-retry-exhausted",
+                "id6": item["id6"],
+                "refusal_code": refusal_code,
+                "retry_attempts_used": decision.attempts,
+                "retry_budget": decision.budget,
+                "idempotency_key": decision.key,
+            },
+        )
+        print(
+            pal(
+                f"  ! IPD {item['id6']} verification FAILED: correction budget exhausted "
+                f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+        return "fail-verify"
+
+
+# ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
@@ -28254,9 +28579,11 @@ def build_prompt(
     # path a real run takes. `finalize_refused` works that way only because it is IN that allowlist,
     # and widening the allowlist is `lane_containment`'s scope rather than this plan's. Rendering the
     # packet as its own notice needs no allowlist entry and cannot be silently projected away.
-    correction_notice = build_correction_notice(
-        item, recovery
-    ) + build_stale_receipt_notice(item, recovery)
+    correction_notice = (
+        build_correction_notice(item, recovery)
+        + build_stale_receipt_notice(item, recovery)
+        + build_verification_refusal_notice(item, recovery)
+    )
     return f"""# {labels.product} IPD Driver Turn
 
 Mode: {mode}{lane_notice}{verify_notice}{correction_notice}{isolation_notice}
@@ -32947,6 +33274,12 @@ def execute_item_core(
                         ),
                         flush=True,
                     )
+                    v_outcome_file = (
+                        run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+                    )
+                    v_outcome_file.unlink(missing_ok=True)
                     try:
                         v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
                             v_prompt_file,
@@ -32972,11 +33305,6 @@ def execute_item_core(
                                 attempt["verify_cost"] = v_cost
                             if v_toks:
                                 attempt["verify_tokens"] = v_toks
-                        v_outcome_file = (
-                            run_dir
-                            / "outcomes"
-                            / f"{item['position']:02d}-{item['id6']}-verification.json"
-                        )
                         if v_outcome_file.is_file():
                             # runverdict (`1bfppy`) E-02: the verdict is mapped by the ONE shared
                             # fail-closed table (`map_verdict`), never by a substring test written here.
@@ -33102,6 +33430,12 @@ def execute_item_core(
                                 record_refusal(
                                     item, code=v_code, reason=v_reason, remedy=v_remedy
                                 )
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
                                 print(
                                     pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                                     file=sys.stderr,
@@ -33122,6 +33456,12 @@ def execute_item_core(
                                 record_refusal(
                                     item, code=v_code, reason=v_reason, remedy=v_remedy
                                 )
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
                                 print(
                                     pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                                     file=sys.stderr,
@@ -33169,16 +33509,23 @@ def execute_item_core(
                             v_reason, v_remedy = verify_absence_text(
                                 VERIFY_ABSENCE_NO_OUTCOME_FILE
                             )
+                            v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
                             record_refusal(
                                 item,
-                                code=VERIFY_ABSENCE_NO_OUTCOME_FILE,
+                                code=v_code,
                                 reason=v_reason,
                                 remedy=v_remedy,
                             )
-                            attempt["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
-                            item["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                            attempt["verify_absence"] = v_code
+                            item["verify_absence"] = v_code
                             verify_disp = VERIFY_DISP_UNVERIFIED
                             disposition = "fail-verify"
+                            attempt[VERIFICATION_REFUSED_KEY] = {
+                                "code": v_code,
+                                "reason": v_reason,
+                                "remedy": v_remedy,
+                                "verify_disp": verify_disp,
+                            }
                             print(
                                 pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                                 file=sys.stderr,
@@ -33492,6 +33839,28 @@ def execute_item_core(
                             "cyan",
                         )
                     )
+
+        # verremand (t18l64) E-03: Remand retryable verification failures back to the agent in its lane
+        # under the frozen retry budget, called ONCE after the rescore and before silent-turn / integration gates.
+        if (
+            not is_review
+            and not is_production
+            and disposition == "fail-verify"
+            and attempt.get(VERIFICATION_REFUSED_KEY)
+        ):
+            disposition = handle_verification_refusal(
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=attempt,
+                attempt_no=attempt_no,
+                disposition=disposition,
+                host_labels=host_labels,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
+            attempt["disposition"] = disposition
+            item["status"] = disposition
 
         # r0iob3 E-02: consult turn_attempted_nothing on the completion path.
         # Option (b): reuse existing non-retryable disposition "fail-gate" at the shared in-core seam.

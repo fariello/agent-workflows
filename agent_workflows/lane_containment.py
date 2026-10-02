@@ -227,6 +227,8 @@ _PRIOR_ATTEMPT_SAFE_KEYS = (
     "integration_detail",
     "finalize_refused",
     "begin_refused",
+    # verification_refused carries only code/reason/remedy/verify_disp text already redacted by record_refusal's rule.
+    "verification_refused",
     "cost",
     "tokens",
     # OQ-02: these describe the worker's OWN lane: two commit hashes it can `git show`
