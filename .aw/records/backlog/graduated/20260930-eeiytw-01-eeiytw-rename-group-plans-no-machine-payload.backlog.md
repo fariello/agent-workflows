@@ -1,5 +1,6 @@
 - Id: eeiytw
-- Status: open
+- Status: graduated
+- Graduated-To: eeiytw
 - Blocks-Release: next
 - Set: eeiytw
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw rename plans and aw group plans emit no aw.agent/v1 payload at all under --json/--agent, and print a nested index-refresh line onto stdout
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: gzb2rq, vfqjc0, x7unul, z2l43n
 - 2026-09-30 created (aw backlog): Filed by /plan-review of plan wgp0g3 2026-09-30 to carry that plan's F-12 deferral.
 
 MEASURED 2026-09-29 while authoring plan `wgp0g3` (recorded there as F-12) and re-derived at its review 2026-09-30.
