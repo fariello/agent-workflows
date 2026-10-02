@@ -5352,9 +5352,11 @@ class OrchestratorRetirementRowAuditAndHonestRecord(RollupTransitionCase):
             hasattr(LC, "ROLLUP_SUPERSEDED_STATEMENT"),
             "LC must define ROLLUP_SUPERSEDED_STATEMENT",
         )
-        checklist_section = dest_text.split(
-            "## Detailed Implementation Checklist (TODO)"
-        )[1].split("## Validation")[0]
+        checklist_section = support.section(
+            dest_text,
+            "## Detailed Implementation Checklist (TODO)",
+            "## Validation",
+        )
         self.assertIn(
             LC.ROLLUP_SUPERSEDED_STATEMENT,
             checklist_section,

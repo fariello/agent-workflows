@@ -259,7 +259,8 @@ class UnitConflictSendbackTests(unittest.TestCase):
         # Adjacency-only check
         self.assertIn("Conflict shape is adjacency-only", q_adj)
         self.assertIn("Keeping both sides in a sensible order is correct", q_adj)
-        self.assertNotIn("unknown", q_adj.lower().split("## conflict details")[0])
+        self.assertIn("## Conflict Details", q_adj)
+        self.assertNotIn("unknown", q_adj.split("## Conflict Details")[0].lower())
         self.assertIn("git commit --no-edit", q_adj)
         self.assertNotIn("git commit -- <", q_adj)
         self.assertNotIn("git commit -- ", q_adj)

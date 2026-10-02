@@ -974,12 +974,12 @@ class BacklogPreservationTests(unittest.TestCase):
             self.assertTrue(parked1.exists())
             self.assertTrue(parked2.exists())
 
-            meta1 = parked1.read_text(encoding="utf-8").split("\n## Workflow history")[
-                0
-            ]
-            meta2 = parked2.read_text(encoding="utf-8").split("\n## Workflow history")[
-                0
-            ]
+            t1 = parked1.read_text(encoding="utf-8")
+            t2 = parked2.read_text(encoding="utf-8")
+            self.assertIn("\n## Workflow history", t1)
+            self.assertIn("\n## Workflow history", t2)
+            meta1 = t1.split("\n## Workflow history")[0]
+            meta2 = t2.split("\n## Workflow history")[0]
 
             self.assertEqual(meta1, meta2)
             self.assertIn("- Blocks-Release: rel001", meta1)
@@ -1379,6 +1379,8 @@ class BacklogPreservationTests(unittest.TestCase):
                 t1,
             )
 
+            self.assertIn("\n## Workflow history", t1)
+            self.assertIn("\n## Workflow history", t2)
             head1 = t1.split("\n## Workflow history")[0]
             head2 = t2.split("\n## Workflow history")[0]
             self.assertEqual(head1, head2)

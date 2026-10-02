@@ -839,6 +839,7 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
         self.assertEqual(len(approval), 1, "exactly one Approval field expected")
         self.assertTrue(approval[0][len("- Approval:") :].strip(), "Approval non-empty")
         # It sits in the front matter (before the first H2), right after Id.
+        self.assertIn("\n## ", text)
         head = text.split("\n## ", 1)[0].splitlines()
         self.assertIn("- Approval:", "\n".join(head))
 
