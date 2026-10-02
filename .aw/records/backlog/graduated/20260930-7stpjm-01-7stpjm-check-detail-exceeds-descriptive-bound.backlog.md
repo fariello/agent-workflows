@@ -1,11 +1,13 @@
 - Id: 7stpjm
-- Status: open
+- Status: graduated
+- Graduated-To: 7stpjm
 - Set: 7stpjm
 - Priority: low
 - Work-Kind: chore
 - Summary: Twelve aw check findings carry a detail over the Section 8.8 descriptive bound, the longest at 942 characters
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: lxcexr
 - 2026-09-30 created (aw backlog): Twelve aw check findings carry a detail over the Section 8.8 descriptive bound, the longest at 942 characters
 
 FILED AS THE CARRIER for the deferred row in plan `mc6r92` (hv8zlg-01), which measured this while bounding the STRANDED-LANE detail and declined to fix it in scope.
