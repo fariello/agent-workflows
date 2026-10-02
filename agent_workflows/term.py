@@ -103,16 +103,29 @@ def visible_width(text: str) -> int:
     return sum(0 if is_zero_width(ch) else 1 for ch in strip_ansi(text))
 
 
-def _pad_visible(text: str, width: int) -> str:
-    """Left-align ``text`` to ``width`` VISIBLE columns (the ``str.ljust`` a styled cell needs).
+def pad_visible(text: str, width: int, *, align: str = "left") -> str:
+    """Pad ``text`` to ``width`` VISIBLE columns, alignment-aware.
 
-    ``str.ljust`` and ``len()`` both count escape bytes and zero-width marks as columns, so either
-    one leaves a styled or VS-bearing cell short. This is the one padding path lifecycle rendering
-    uses, which is what Section 9.4's fourth contract bullet asks for.
+    Measures with :func:`visible_width`, so styled ANSI text, variation selectors, and combining
+    accents pad to their rendered column count rather than byte or character length.
+
+    This helper pads only and never truncates; an input wider than ``width`` is returned unchanged.
+    For truncation without grapheme severing, see :func:`truncate_visible`.
+
+    ``align`` must be either ``"left"`` (text followed by padding) or ``"right"`` (padding
+    preceding text). Any other value raises :class:`ValueError`.
     """
+    pad = " " * max(0, width - visible_width(text))
+    if align == "left":
+        return text + pad
+    if align == "right":
+        return pad + text
+    raise ValueError(f"unknown align {align!r}; expected 'left' or 'right'")
 
-    pad = width - visible_width(text)
-    return text + (" " * pad) if pad > 0 else text
+
+def _pad_visible(text: str, width: int) -> str:
+    """Compatibility alias for :func:`pad_visible` (left-aligned)."""
+    return pad_visible(text, width)
 
 
 def _tokenize_ansi(text: str) -> List[Tuple[bool, str]]:
@@ -1220,18 +1233,18 @@ class Term:
         cells: List[str] = []
 
         if artifact_type:
-            cells.append(_pad_visible(artifact_type, type_width))
+            cells.append(pad_visible(artifact_type, type_width))
 
         cells.append(self.format_lifecycle_marker(resolved, width=marker_width))
 
         if id6:
             cells.append(
-                _pad_visible(self.style_lifecycle_text(id6, resolved), id6_width)
+                pad_visible(self.style_lifecycle_text(id6, resolved), id6_width)
             )
 
         word = lifecycle_word(resolved)
         cells.append(
-            _pad_visible(self.style_lifecycle_text(word, resolved), status_width)
+            pad_visible(self.style_lifecycle_text(word, resolved), status_width)
         )
 
         if title:
@@ -1272,12 +1285,11 @@ class Term:
                 stage=stage, style=style, family=lifecycle_style.FAMILY_PLANS
             )
             shown = style.unicode if self.unicode else style.ascii
-            marker = self.style_lifecycle_text(shown, resolved)
-            pad = " " * max(0, 2 - visible_width(shown))
+            marker = pad_visible(self.style_lifecycle_text(shown, resolved), 2)
             if both_forms and self.unicode:
-                rows.append(f"{marker}{pad} {style.ascii}  {stage}")
+                rows.append(f"{marker} {style.ascii}  {stage}")
             else:
-                rows.append(f"{marker}{pad} {stage}")
+                rows.append(f"{marker} {stage}")
         return "\n".join(rows)
 
     def severity_label(self, kind: str) -> str:

@@ -2505,9 +2505,8 @@ def run_lint(args: argparse.Namespace) -> int:
         status_padded = (
             status_marker
             + " "
-            + (
-                term.style_lifecycle_text(status_word, status_resolved)
-                + (" " * max(0, 12 - _T.visible_width(status_word)))
+            + _T.pad_visible(
+                term.style_lifecycle_text(status_word, status_resolved), 12
             )
         )
 

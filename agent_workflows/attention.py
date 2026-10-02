@@ -2445,7 +2445,7 @@ def _render_item_row(
         marker = term.format_lifecycle_marker(resolved, width=2)
         status_txt = term.style_lifecycle_text(status_word, resolved)
         # PADDED BY VISIBLE COLUMNS (Section 9.4), never by `len()` on styled text.
-        status_padded = status_txt + (" " * max(0, 12 - T.visible_width(status_word)))
+        status_padded = T.pad_visible(status_txt, 12)
         age = _age_marker(it.last_history_at, it.tree)
         gate_glyph = "#" if it.gate else ""
         rb_glyph = ">" if it.blocks_release else ""
@@ -2833,7 +2833,7 @@ def _render_table_row(
     # Status column's width grows from 8 to 10. `format_lifecycle_marker` pads by RENDERED width, so
     # `⚠︎` (2 code points, 1 column) occupies the same 2 columns as `◕` (1 and 1).
     st_marker = term.format_lifecycle_marker(resolved, width=2, style=colored)
-    st_col = st_marker + st_styled + (" " * (8 - T.visible_width(st_raw)))
+    st_col = st_marker + T.pad_visible(st_styled, 8)
 
     if runs_mode:
         run_raw = (run_state or "-")[:7]
@@ -2916,7 +2916,7 @@ def _render_table_row(
             rd_styled = term.color256(rd_raw, 244)
     else:
         rd_styled = rd_raw
-    rd_col = rd_styled + (" " * (9 - T.visible_width(rd_raw)))
+    rd_col = T.pad_visible(rd_styled, 9)
 
     oq_cnt = getattr(it, "oqs", 0) or 0
     rq_cnt = getattr(it, "rqs", 0) or 0

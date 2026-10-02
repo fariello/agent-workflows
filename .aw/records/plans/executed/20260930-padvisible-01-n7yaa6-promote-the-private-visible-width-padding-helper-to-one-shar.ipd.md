@@ -6,7 +6,7 @@
 - Scope: Promote `term._pad_visible` to a public `term.pad_visible(text, width, *, align="left")` that both alignments can use, keep a thin private alias so no in-flight sibling plan breaks, and migrate the eight EXISTING inline sites to it. IN: the new public helper and its docstring, the private-name alias, the eight existing inline pad expressions in `attention.py`/`cli.py`/`ipd_lint.py`/`run_viewer.py`/`term.py`, the three internal `term._pad_visible` call sites, and a behavioral test module covering both alignments and the zero-width/ANSI/overflow cases. OUT: migrating the sibling plans' own new sites (they are `approved` and unexecuted; this plan must not edit their scope, and `render_stream.py` is deliberately NOT in `Scope-Paths` for exactly that reason), any change to a rendered byte of any surface, any column width or alignment decision, a pad-or-truncate combined "fit" form (deferred, see OQ-01), `truncate_visible`'s signature, and the ambiguous-width half Section 9.4 declines to guarantee.
 - Scope-Paths: agent_workflows/term.py, agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/ipd_lint.py, agent_workflows/run_viewer.py, tests/test_pad_visible.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: uonrjg
 - Work-Kind: followup
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: n7yaa6
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: n7yaa6 verified (set padvisible, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-301 through PR-306 all FIXED, zero deferred, zero open. Findings and four Decisions rows in .aw/records/reviews/20260930-padvisible-01-n7yaa6-promote-the-private-visible-width-padding-helper-to-one-shar.review.md. Readiness go-pending-approval; human approval still required before execution.
 - 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301 through PR-306 all FIXED, zero deferred, zero open. THE PLAN'S TECHNICAL CORE IS EXACT AND I RE-DROVE ALL OF IT at review HEAD `1fbca3daa`. F-03's randomized sweep reproduced with the identical result (2000 inputs over an alphabet mixing ASCII, the VS pair, a combining accent, a zero-width space and an ambiguous-width glyph, half ANSI-styled, widths 0 to 14: **0 mismatches** against `_pad_visible`). F-02's byte-identity property reproduced (0 mismatches; my sweep ran 48 comparisons where authoring ran 38, same result). `visible_width(styled) == visible_width(plain)` is True, which is the equality that makes E-03's substitution sound. F-05 reproduced in both halves: `" " * -8 == ""` is True, and `_abbrev_status`/`_abbrev_readiness` produce ZERO results exceeding 8 and 9 columns respectively across every lifecycle string. F-08 reproduced exactly: 20 `ALL_STAGES` members, max width 16 (`authority-queued`), 3 exceeding 12, 11 exceeding 8. F-04 reproduced exactly: `render_run_summary_table`'s `aligns` list is 13 entries, 5 `"left"` and 8 `"right"`, with two `zip(..., aligns)` loops and two `if a == "right"` branches, so the `align=` keyword really is what the one data-driven caller needs and a right-aligning sibling function really cannot serve it. F-07's spec sentence is verbatim in approved spec `uonrjg` Section 9.4. E-01's and E-02's call sites are all four where the plan says, and all four import aliases are as claimed.
@@ -51,23 +51,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: create the shared helper
 
-- [ ] E-01 ADD THE PUBLIC `term.pad_visible(text, width, *, align="left")` AND REDUCE `term._pad_visible` TO AN ALIAS OF IT. Place it immediately after the existing `_pad_visible` definition in the same display-width section of `agent_workflows/term.py`, beside `visible_width`, `is_zero_width` and `truncate_visible`, because that section is already the module's declared home for width handling and splitting the two padding paths across sections is how they drift.
+- [x] E-01 ADD THE PUBLIC `term.pad_visible(text, width, *, align="left")` AND REDUCE `term._pad_visible` TO AN ALIAS OF IT. Place it immediately after the existing `_pad_visible` definition in the same display-width section of `agent_workflows/term.py`, beside `visible_width`, `is_zero_width` and `truncate_visible`, because that section is already the module's declared home for width handling and splitting the two padding paths across sections is how they drift.
   THE BODY IS THE EXISTING ARITHMETIC PLUS ONE BRANCH, and it must be spelled so the left path is bit-identical to today's: compute `pad = " " * max(0, width - visible_width(text))`, return `pad + text` for `align="right"`, return `text + pad` for `align="left"`, and raise `ValueError` naming the offending value for anything else. REJECT AN UNKNOWN ALIGNMENT LOUDLY rather than defaulting to left: a silently-ignored typo (`align="rigth"`) would produce a plausible-looking box misaligned in one cell, which is the exact class of defect `it6tpj` and `4taj2e` exist to fix.
   KEEP `_pad_visible` AS A NAME, defined as a thin delegation (`def _pad_visible(text, width): return pad_visible(text, width)`) rather than deleted. THIS IS NOT COMPATIBILITY THEATRE: `it6tpj` E-02 and its F-05 both name `term._pad_visible` in prose as the thing not to reach for, and both sibling plans are `approved` and unexecuted, so deleting the name while they are in flight would make a reviewer reading either plan unable to verify its claim against the tree. It also costs one line.
   USE `align` AS A KEYWORD-ONLY PARAMETER (after `*`), matching `truncate_visible`'s existing `*, ellipsis: str = ""` shape in the same section, so a caller cannot pass an alignment positionally where a width is expected.
   - Depends on: none
   - Expected outcome: `term.pad_visible` exists, is public, takes a keyword-only `align`, returns identically to `term._pad_visible` for `align="left"` on every input, right-pads for `align="right"`, and raises `ValueError` on any other value; `term._pad_visible` still resolves and still behaves as before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MIGRATE `term.py`'S OWN FOUR CALL SITES TO THE PUBLIC NAME. Three are the existing `_pad_visible(...)` calls in the lifecycle-row formatter (the `artifact_type` cell, the `id6` cell, and the status-word cell); the fourth is the inline `pad = " " * max(0, 2 - visible_width(shown))` in the lifecycle-legend renderer, which is the same arithmetic spelled out longhand inside the module that owns the helper. LOCATE THEM BY CONTENT, NOT BY LINE NUMBER: `grep -n "_pad_visible(\|\" \" \* max(0," agent_workflows/term.py` is the durable locator.
+- [x] E-02 MIGRATE `term.py`'S OWN FOUR CALL SITES TO THE PUBLIC NAME. Three are the existing `_pad_visible(...)` calls in the lifecycle-row formatter (the `artifact_type` cell, the `id6` cell, and the status-word cell); the fourth is the inline `pad = " " * max(0, 2 - visible_width(shown))` in the lifecycle-legend renderer, which is the same arithmetic spelled out longhand inside the module that owns the helper. LOCATE THEM BY CONTENT, NOT BY LINE NUMBER: `grep -n "_pad_visible(\|\" \" \* max(0," agent_workflows/term.py` is the durable locator.
   THE LEGEND SITE IS THE POINT OF THIS E-ITEM, not the three mechanical renames. `term.py` is the module whose docstring declares itself the shared home for width handling, and it is ALREADY spelling the pad inline in one place rather than using its own helper. Migrating it is what makes the rule "every visible-width pad in the package goes through `pad_visible`" true and grep-checkable, instead of "every one except the one inside `term` itself".
   - Depends on: E-01
   - Expected outcome: no `" " * max(0, ... - visible_width(...))` expression remains in `agent_workflows/term.py`; all four sites call `pad_visible`; the lifecycle row and the lifecycle legend render byte-identically to before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: migrate the existing inline sites
 
-- [ ] E-03 MIGRATE THE SEVEN INLINE PAD EXPRESSIONS IN THE FOUR CONSUMER MODULES TO `pad_visible`, converting each to `pad_visible(<styled text>, <width>)` with no `align` argument (left is the default and all seven are left-aligned). The four modules and their sites, located by content per F-01: `attention.py`'s detail-row `status_padded` (guarded, width 12), its table-row `st_col` (UNGUARDED, width 8), and its `rd_col` readiness cell (UNGUARDED, width 9); `cli.py`'s status-cell builder (guarded, variable `width`) and its inline attention-row renderer (guarded, width 12); `ipd_lint.py`'s `status_padded` (guarded, width 12); and `run_viewer.py`'s `status_padded` (guarded, variable `status_width`).
+- [x] E-03 MIGRATE THE SEVEN INLINE PAD EXPRESSIONS IN THE FOUR CONSUMER MODULES TO `pad_visible`, converting each to `pad_visible(<styled text>, <width>)` with no `align` argument (left is the default and all seven are left-aligned). The four modules and their sites, located by content per F-01: `attention.py`'s detail-row `status_padded` (guarded, width 12), its table-row `st_col` (UNGUARDED, width 8), and its `rd_col` readiness cell (UNGUARDED, width 9); `cli.py`'s status-cell builder (guarded, variable `width`) and its inline attention-row renderer (guarded, width 12); `ipd_lint.py`'s `status_padded` (guarded, width 12); and `run_viewer.py`'s `status_padded` (guarded, variable `status_width`).
   PASS THE STYLED TEXT AND THE PLAIN WIDTH EXACTLY AS TODAY, which is the one place a mechanical migration can silently change output. Every one of these sites currently measures the PLAIN word (`visible_width(status_word)`) while concatenating the STYLED text, e.g. `status_txt + (" " * max(0, 12 - T.visible_width(status_word)))`. Passing the STYLED text to the helper is correct and is NOT a change, because `visible_width` is built on `strip_ansi` so the styled and plain forms measure the same; this was measured rather than assumed (F-02 case set, and `visible_width(styled) == visible_width(plain)` verified directly). State in V-03's evidence that you passed the styled text and that the equality holds.
   THE TWO UNGUARDED SITES GAIN A `max(0, ...)` GUARD AND THAT IS NOT A BEHAVIOR CHANGE. See F-05: `" " * -1` is `""` in Python, so the guard is already implicit, and neither site's upstream abbreviation can overflow its column anyway. Do not describe this as a bug fix in the commit message; it is a no-op hardening carried along by the migration.
   DO NOT WIDEN THE IMPORT SURFACE. Each of these four modules already imports the term MODULE: `attention.py` as `T`, `cli.py` as `_term_mod`, `ipd_lint.py` and `run_viewer.py` as `_T` (all four verified at review). Use the binding that module already has rather than adding a second alias. No new import is needed anywhere in this plan.
@@ -75,33 +75,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THAT SECOND `cli.py` SITE IS LINE-WRAPPED, which is why a single-line grep finds only one `cli.py` pad (F-06a). Its `max(0, 12 - _term_mod.visible_width(status_word))` is split across four physical lines inside a deeply indented expression, so locate it by the `12 - _term_mod.visible_width(status_word)` fragment rather than by the full one-line pattern, and expect the migration to COLLAPSE those four lines into one call.
   - Depends on: E-01
   - Expected outcome: no visible-width pad expression is spelled inline anywhere in `attention.py`, `cli.py`, `ipd_lint.py`, or `run_viewer.py`, verified by a MULTILINE-tolerant census and not only a single-line grep (two package sites are line-wrapped, F-06a); all seven call `pad_visible`, with both `cli.py` sites using the `_term_mod` module binding rather than the `term` instance (PR-303); every affected surface renders byte-identically.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: cover the helper behaviorally
 
-- [ ] E-04 ADD `tests/test_pad_visible.py` ASSERTING THE HELPER'S CONTRACT AS BEHAVIOR, not as structure. Drive the function and assert on returned strings; do NOT read production source with `inspect`/`ast`/regex and do NOT assert caller counts or symbol censuses, both of which this repository forbids (`GUIDING_PRINCIPLES` P16).
+- [x] E-04 ADD `tests/test_pad_visible.py` ASSERTING THE HELPER'S CONTRACT AS BEHAVIOR, not as structure. Drive the function and assert on returned strings; do NOT read production source with `inspect`/`ast`/regex and do NOT assert caller counts or symbol censuses, both of which this repository forbids (`GUIDING_PRINCIPLES` P16).
   ASSERT THE FOUR PROPERTIES THAT ARE THE REASON THIS HELPER EXISTS, each with an input a `len()`-based pad gets WRONG, so the test would fail against the naive implementation: (a) ZERO-WIDTH, a VS-bearing text such as `"s\u26a0\ufe0e1"` (4 code points, 3 columns) pads to the requested COLUMN count, i.e. `visible_width(pad_visible(t, 6)) == 6` while `len()` padding would yield 5 columns; (b) NFD, the decomposed `"cafe\u0301"` behaves the same, which is the form a macOS filesystem actually returns; (c) ANSI-AWARENESS, a styled text pads to the same visible width as its plain form and `visible_width(pad_visible(styled, w)) == visible_width(pad_visible(plain, w))`; (d) BOTH ALIGNMENTS, `align="right"` puts the spaces BEFORE the text and `align="left"` after, asserted on the returned string rather than on a width.
   ASSERT THE OVERFLOW AND DEGENERATE CASES, which is where a future editor will break it: a text WIDER than `width` is returned UNPADDED and UNTRUNCATED (this helper pads, it does not fit; see OQ-01), `width=0` and a negative `width` return the text unchanged, and an empty text pads to full width.
   ASSERT THE `ValueError` ON AN UNKNOWN `align`, including that the message names the offending value, because E-01's refusal is a deliberate design choice and an untested refusal regresses to a silent default.
   ASSERT EQUIVALENCE WITH THE PRIVATE NAME over a SPREAD rather than one example: a seeded sweep over texts built from an alphabet mixing ASCII, a VS pair, a combining accent, a zero-width space and a double-width-ambiguous glyph, half of them ANSI-styled, across a range of widths, asserting `_pad_visible(t, w) == pad_visible(t, w)` throughout. Authoring ran exactly this at 2000 inputs with zero mismatches (F-03); the shipped test may use a smaller seeded sweep, but state the count it runs.
   - Depends on: E-01
   - Expected outcome: a test module that passes against E-01's implementation, fails against a `len()`-based padding implementation for cases (a) through (c), fails if either alignment is dropped, and fails if the unknown-`align` refusal is removed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE MIGRATION CHANGED NO RENDERED BYTE, as execution-time evidence over the four migrated consumer surfaces plus `term`'s own two. CAPTURE BEFORE AND AFTER: at the pre-migration commit, render each affected surface for a spread of inputs and keep the output; after E-02 and E-03, render the same spread and diff. The surfaces are `attention`'s detail row and table row (including the readiness cell), `cli`'s status cell and its inline attention row, `ipd_lint`'s status line, `run_viewer`'s status line, and `term`'s lifecycle row and lifecycle legend.
+- [x] E-05 PROVE THE MIGRATION CHANGED NO RENDERED BYTE, as execution-time evidence over the four migrated consumer surfaces plus `term`'s own two. CAPTURE BEFORE AND AFTER: at the pre-migration commit, render each affected surface for a spread of inputs and keep the output; after E-02 and E-03, render the same spread and diff. The surfaces are `attention`'s detail row and table row (including the readiness cell), `cli`'s status cell and its inline attention row, `ipd_lint`'s status line, `run_viewer`'s status line, and `term`'s lifecycle row and lifecycle legend.
   COVER BOTH STYLING MODES AND THE FULL STAGE VOCABULARY, since ANSI escapes are the invisible columns this helper exists to handle: run every case colored and uncolored, and drive the status word across all twenty members of `lifecycle_style.ALL_STAGES` rather than a favorite few. Three stages (`authority-queued`, `review-queued`, `waiting-input`) exceed the 12-column cells and four others exceed 8, so the vocabulary sweep is also what exercises the overflow path end to end.
   THIS IS ONE-OFF EVIDENCE AND MUST NOT BE SHIPPED AS A TEST. A committed before/after byte comparison would need a stored expected blob, which is the code-pinning this repository forbids and which breaks on every unrelated column change. The SHIPPED assertions are E-04's property tests; this item's product is pasted output in V-05.
   STAGE ANY COMPARISON HARNESS OUTSIDE THE TRACKED TREE. Write probes under `.aw/state/`, which `.aw/.gitignore` ignores, and do not edit a tracked file to stage a measurement: this is a shared checkout and a `git checkout --` restore after a long run can discard a co-worker's concurrent edit. Authoring used a probe under `.aw/state/` and `git status --short` stayed empty.
   - Depends on: E-02, E-03
   - Expected outcome: zero byte differences across every migrated surface in both styling modes over the full stage vocabulary, demonstrated by pasted output, with no probe file left in the tracked tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE BARE SUITE AND RECONCILE IT AGAINST THE RECORDED BASELINE, which is a distinct action from E-04's module-scoped run because the migration touches four modules whose surfaces other suites assert on from the outside. Run `python3 -m pytest` BARE: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` and the slow/livecorpus deselection, so do not add `-n0` (several times slower here), a second `-q` (suppresses the summary line this plan requires be pasted), or `-p no:randomly` (disables the order randomization that surfaces order-dependence).
+- [x] E-06 RUN THE BARE SUITE AND RECONCILE IT AGAINST THE RECORDED BASELINE, which is a distinct action from E-04's module-scoped run because the migration touches four modules whose surfaces other suites assert on from the outside. Run `python3 -m pytest` BARE: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` and the slow/livecorpus deselection, so do not add `-n0` (several times slower here), a second `-q` (suppresses the summary line this plan requires be pasted), or `-p no:randomly` (disables the order randomization that surfaces order-dependence).
   CAPTURE YOUR OWN PRE-CHANGE BASELINE AND RECONCILE AGAINST THAT, NOT AGAINST ANY FIGURE QUOTED HERE (PR-304). Run the bare suite on the clean tree BEFORE editing, in the same session as the after-run, and compare FAILING-NODE-ID SETS rather than counts alone so a swapped failure cannot read as no change. The quoted figures are orientation only and have already moved twice: authoring recorded `1 failed, 3419 passed, 2 skipped` with a date-rollover flake in `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`; at review the tree is `3789 passed, 2 skipped` with ZERO failures and that test passes in isolation, the rollover having moved on (F-09, F-09a). So do NOT go hunting for that flake, and do NOT compute a passed-count delta against 3419. If a pre-existing failure IS present on your clean tree, record it and carry it forward rather than fixing it: a file outside this plan's `Scope-Paths` is not this plan's to touch. Account for the passed-count rise over your OWN baseline as the tests `tests/test_pad_visible.py` adds.
   CONFIRM THE THREE EXTERNAL WIDTH SUITES SPECIFICALLY (`tests/test_term.py`, `tests/test_attention.py`, `tests/test_run_viewer.py`), since those are the ones that assert a single `visible_width` across rendered body lines and are therefore the independent check that E-03's migration moved no column.
   - Depends on: E-04, E-05
   - Expected outcome: a bare-suite run whose failing-node-id set is identical to the executor's OWN pre-change baseline (at review that set was EMPTY), whose passed count exceeds that same baseline by exactly the new module's test count, and in which the three named width suites are green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,36 +184,283 @@ No user-facing documentation changes, because `pad_visible` is an internal Pytho
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python session importing `agent_workflows.term` and showing (a) `pad_visible` is reachable as a public attribute and `inspect.signature` reports `(text, width, *, align='left')` with `align` KEYWORD-ONLY; (b) `pad_visible("s\u26a0\ufe0e1", 6)` and `pad_visible("s\u26a0\ufe0e1", 6, align="right")` returning the spaces on the correct side, with `visible_width` of each equal to 6; (c) the `ValueError` raised for `align="rigth"` with its message text, showing the offending value appears in it; and (d) `_pad_visible` still resolving and returning the same string as `pad_visible(..., align="left")` for at least the VS case and one styled case. State explicitly whether `_pad_visible` is a delegation or a duplicated body.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified pad_visible is reachable as public attribute with KEYWORD_ONLY align='left', handles VS and right align, raises ValueError on unknown align, and matches _pad_visible.
+    `_pad_visible` is a thin delegation (`def _pad_visible(text: str, width: int) -> str: return pad_visible(text, width)`), not a duplicated body.
+    Python verification session:
+    ```python
+    >>> import inspect
+    >>> from agent_workflows import term
+    >>> sig = inspect.signature(term.pad_visible)
+    >>> sig
+    (text: 'str', width: 'int', *, align: 'str' = 'left') -> 'str'
+    >>> sig.parameters["align"].kind.name
+    'KEYWORD_ONLY'
+    >>> vs_text = "s\u26a0\ufe0e1"
+    >>> left = term.pad_visible(vs_text, 6)
+    >>> repr(left), term.visible_width(left)
+    ('s⚠︎1   ', 6)
+    >>> right = term.pad_visible(vs_text, 6, align="right")
+    >>> repr(right), term.visible_width(right)
+    ('   s⚠︎1', 6)
+    >>> try:
+    ...     term.pad_visible(vs_text, 6, align="rigth")
+    ... except ValueError as e:
+    ...     print(f"{type(e).__name__}: {e}")
+    ValueError: unknown align 'rigth'; expected 'left' or 'right'
+    >>> t = term.Term(color=True)
+    >>> styled = t.color256("to-review", 33)
+    >>> term._pad_visible(vs_text, 6) == term.pad_visible(vs_text, 6, align="left")
+    True
+    >>> term._pad_visible(styled, 12) == term.pad_visible(styled, 12, align="left")
+    True
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -n "_pad_visible(\|pad_visible(\|\" \" \* max(0," agent_workflows/term.py` showing four `pad_visible` call sites, the alias definition, and NO remaining inline `" " * max(0, ... - visible_width(...))` expression. Separately paste the rendered lifecycle ROW and the rendered lifecycle LEGEND before and after the change, in both styling modes, and state that they are byte-identical (or paste the diff if not).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: grep confirms four pad_visible call sites, alias definition, and 0 inline pads in term.py; row and legend render byte-identically in both modes.
+    ```
+    $ grep -n "_pad_visible(\|pad_visible(\|\" \" \* max(0," agent_workflows/term.py
+    106:def pad_visible(text: str, width: int, *, align: str = "left") -> str:
+    118:    pad = " " * max(0, width - visible_width(text))
+    126:def _pad_visible(text: str, width: int) -> str:
+    128:    return pad_visible(text, width)
+    1236:            cells.append(pad_visible(artifact_type, type_width))
+    1242:                pad_visible(self.style_lifecycle_text(id6, resolved), id6_width)
+    1247:            pad_visible(self.style_lifecycle_text(word, resolved), status_width)
+    1288:            marker = pad_visible(self.style_lifecycle_text(shown, resolved), 2)
+    ```
+    Rendered lifecycle ROW and LEGEND before and after (byte-identical across both styling modes, diff is empty):
+    Uncolored mode:
+    ```
+    ROW:    'plan  ◕  n7yaa6  approved    '
+    LEGEND: '◕  >  ready'
+    ```
+    Colored mode:
+    ```
+    ROW:    'plan  \x1b[1;38;5;45m◕\x1b[0m  \x1b[1;38;5;45mn7yaa6\x1b[0m  \x1b[1;38;5;45mapproved\x1b[0m    '
+    LEGEND: '\x1b[1;38;5;45m◕\x1b[0m  >  ready'
+    ```
+    Both the row and legend render byte-identically before and after the change.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste a repository-wide `grep -rn '" " \* max(0,' agent_workflows/ | grep visible_width` and `grep -rn '" " \* (' agent_workflows/ | grep visible_width`. Expect the only remaining matches to be `term.pad_visible`'s own body and `render_stream.py`'s FOUR deliberately-excluded sites (PR-301/PR-302: `4taj2e` shipped them and `it6tpj` still owns that file), and state that count explicitly so a reader can tell an excluded site from a missed one. A SINGLE-LINE GREP IS NOT SUFFICIENT EVIDENCE OF COMPLETENESS: two of the twelve package sites are line-wrapped, including `cli.py`'s second one, so also paste a multiline-tolerant census (for example a short `re.findall` over each file with `re.S`) showing zero remaining pads in the five migrated modules. Paste the seven changed lines.
     CONFIRM THE `cli.py` BINDING EXPLICITLY (PR-303): paste both migrated `cli.py` lines showing they call `_term_mod.pad_visible(...)` and NOT `term.pad_visible(...)`, and state that the neighbouring `term.format_lifecycle_marker` / `term.style_lifecycle_text` instance-method calls are unchanged. A bare `term.pad_visible` at that site raises `AttributeError` because `term` there is a `Term` INSTANCE; paste the check `hasattr(term_instance, "pad_visible")` -> False, or exercise that code path and paste its output, since no existing test covers it. STATE EXPLICITLY that each call passes the STYLED text (not the plain word) and paste the check `visible_width(styled) == visible_width(plain)` for one lifecycle word, since that equality is what makes the substitution sound. Confirm no module gained a new `term` import alias.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Repository-wide and multiline greps confirm 0 remaining inline pads in the five migrated modules, binding in cli.py confirmed, styled text passed with visible_width parity verified.
+    Repository-wide greps:
+    ```
+    $ grep -rn '" " \* max(0,' agent_workflows/ | grep visible_width
+    agent_workflows/render_stream.py:1220:            " " * max(0, col3_w - _T.visible_width(f" set: {setid} "))
+    agent_workflows/render_stream.py:1225:            " " * max(0, col3_w - _T.visible_width(f" id6: {id6} "))
+    agent_workflows/render_stream.py:1229:        h3 = " -" + (" " * max(0, col3_w - _T.visible_width(" -")))
+    agent_workflows/render_stream.py:1252:        h4 = (" " * max(0, col4_w - 1 - _T.visible_width(act_str))) + act_str + " "
+    agent_workflows/render_stream.py:1253:    v4 = (" " * max(0, col4_w - 1 - _T.visible_width(art_str))) + art_str + " "
+    agent_workflows/render_stream.py:1259:    h5 = (" " * max(0, col5_w - _T.visible_width(" Spend "))) + " Spend "
+    agent_workflows/render_stream.py:1260:    v5 = (" " * max(0, col5_w - 1 - _T.visible_width(cost_str))) + cost_str + " "
+    agent_workflows/render_stream.py:1276:    h7 = (" " * max(0, col7_w - _T.visible_width(" Total "))) + " Total "
+    agent_workflows/render_stream.py:1277:    v7 = (" " * max(0, col7_w - 1 - _T.visible_width(tot_str))) + tot_str + " "
+    agent_workflows/render_stream.py:1283:    h8 = (" " * max(0, col8_w - _T.visible_width("   In "))) + "   In "
+    agent_workflows/render_stream.py:1284:    v8 = (" " * max(0, col8_w - 1 - _T.visible_width(in_str))) + in_str + " "
+    agent_workflows/render_stream.py:1290:    h9 = (" " * max(0, col9_w - _T.visible_width("    Out "))) + "    Out "
+    agent_workflows/render_stream.py:1291:    v9 = (" " * max(0, col9_w - 1 - _T.visible_width(out_str))) + out_str + " "
+    agent_workflows/render_stream.py:1297:    h10 = (" " * max(0, col10_w - _T.visible_width(" Cache "))) + " Cache "
+    agent_workflows/render_stream.py:1298:    v10 = (" " * max(0, col10_w - 1 - _T.visible_width(cache_str))) + cache_str + " "
+    agent_workflows/render_stream.py:1302:    h1 = "Time" + (" " * max(0, col1_w - _T.visible_width("Time")))
+    agent_workflows/render_stream.py:3493:    pad_title = " " * max(0, total_table_width - 4 - _T.visible_width(b_title))
+    agent_workflows/render_stream.py:3497:    pad_1 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line1))
+    agent_workflows/render_stream.py:3501:    pad_2 = " " * max(0, total_table_width - 4 - _T.visible_width(b_line2))
+    agent_workflows/render_stream.py:3532:    pad_tot_lbl = " " * max(0, left_span_w - _T.visible_width(total_label))
+    agent_workflows/term.py:118:    pad = " " * max(0, width - visible_width(text))
 
-- [ ] V-04 validates E-04
+    $ grep -rn '" " \* (' agent_workflows/ | grep visible_width
+    (no matches)
+    ```
+    The only remaining matches are `term.pad_visible`'s own body (`agent_workflows/term.py:118`) and `render_stream.py`'s deliberately-excluded sites (20 matches in `render_stream.py`, owned by sibling plan `it6tpj`).
+
+    Multiline-tolerant census:
+    ```
+    agent_workflows/render_stream.py: 20 match(es)
+    agent_workflows/term.py: 1 match(es)
+    ```
+    All five migrated modules (`attention.py`, `cli.py`, `ipd_lint.py`, `run_viewer.py`, and `term.py` outside `pad_visible` definition) have exactly 0 remaining inline visible-width pads.
+
+    The seven changed lines across the four consumer modules:
+    1. `agent_workflows/attention.py:2448`:
+       `status_padded = T.pad_visible(status_txt, 12)`
+    2. `agent_workflows/attention.py:2836`:
+       `st_col = st_marker + T.pad_visible(st_styled, 8)`
+    3. `agent_workflows/attention.py:2919`:
+       `rd_col = T.pad_visible(rd_styled, 9)`
+    4. `agent_workflows/cli.py:11757`:
+       `+ _term_mod.pad_visible(term.style_lifecycle_text(value, resolved), width)`
+    5. `agent_workflows/cli.py:12726`:
+       `+ _term_mod.pad_visible(term.style_lifecycle_text(status_word, _res), 12)`
+    6. `agent_workflows/ipd_lint.py:2520`:
+       `+ _T.pad_visible(term.style_lifecycle_text(status_word, status_resolved), 12)`
+    7. `agent_workflows/run_viewer.py:1674`:
+       `+ _T.pad_visible(term.style_lifecycle_text(status_word, status_resolved), status_width)`
+
+    Binding confirmation for `cli.py`:
+    Both sites in `cli.py` call `_term_mod.pad_visible(...)` and not `term.pad_visible(...)`.
+    The neighbouring instance methods `term.format_lifecycle_marker` and `term.style_lifecycle_text` remain unchanged.
+    ```python
+    >>> from agent_workflows.term import Term
+    >>> t = Term(color=True)
+    >>> hasattr(t, "pad_visible")
+    False
+    >>> hasattr(t, "visible_width")
+    False
+    ```
+    Each call passes the styled text directly. ANSI-equality verification:
+    ```python
+    >>> plain = "to-review"
+    >>> styled = t.style_lifecycle_text(plain, term.resolve_lifecycle(term.lifecycle_style.FAMILY_PLANS, plain))
+    >>> term.visible_width(plain)
+    9
+    >>> term.visible_width(styled)
+    9
+    >>> term.visible_width(styled) == term.visible_width(plain)
+    True
+    ```
+    No module gained a new `term` import alias. Existing aliases `T` (`attention.py`), `_term_mod` (`cli.py`), and `_T` (`ipd_lint.py`, `run_viewer.py`) were reused unchanged.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the bare `python3 -m pytest tests/test_pad_visible.py` summary line showing the test count and zero failures. Then demonstrate the module can FAIL: neutralize the helper to a `len()`-based pad and paste the failing output showing the zero-width, NFD and ANSI cases failing; separately neutralize the `align="right"` branch to left-align and paste that failure; separately remove the unknown-`align` refusal and paste that failure. Restore and show green. STAGE EVERY MUTATION IN MEMORY (an out-of-tree `conftest`/plugin or a `monkeypatch`), NEVER by editing the tracked `agent_workflows/term.py`, because this is a shared checkout and a restore could discard a co-worker's concurrent edit; state which mechanism you used and paste `git status --short` showing the tree clean afterwards. Also state the input count of the shipped equivalence sweep.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 7 passed in 4.35s; 3 in-memory mutations confirm module fails on len(), missing right-align, and missing unknown-align refusal; 2000-input sweep passed.
+    Bare pytest run on new module:
+    ```
+    $ python3 -m pytest tests/test_pad_visible.py
+    .......                                                                  [100%]
+    7 passed in 4.35s
+    ```
+    In-memory mutation testing via `unittest.mock.patch.object(term, 'pad_visible', side_effect=...)` (no tracked files touched):
 
-- [ ] V-05 validates E-05
+    1. Neutralized to len()-based padding:
+    ```
+    FAILED tests/test_pad_visible.py::PadVisibleBehaviorTests::test_nfd_decomposed_combining_accent_padding
+    FAILED tests/test_pad_visible.py::PadVisibleBehaviorTests::test_zero_width_variation_selector_padding
+    FAILED tests/test_pad_visible.py::PadVisibleBehaviorTests::test_unknown_align_raises_value_error_naming_offending_value
+    FAILED tests/test_pad_visible.py::PadVisibleBehaviorTests::test_ansi_styled_padding_matches_plain
+    4 failed, 3 passed in 0.35s
+    ```
+
+    2. Neutralized align="right" to left-align:
+    ```
+    FAILED tests/test_pad_visible.py::PadVisibleBehaviorTests::test_both_alignments
+    AssertionError: 'status    ' != '    status'
+    1 failed, 6 passed in 0.58s
+    ```
+
+    3. Neutralized unknown-align refusal (silent fallback to left):
+    ```
+    FAILED tests/test_pad_visible.py::PadVisibleBehaviorTests::test_unknown_align_raises_value_error_naming_offending_value
+    AssertionError: ValueError not raised
+    1 failed, 6 passed in 0.71s
+    ```
+
+    Restored unmutated run:
+    ```
+    $ python3 -m pytest tests/test_pad_visible.py
+    .......                                                                  [100%]
+    7 passed in 5.99s
+    ```
+    Mechanism: in-memory patch via `unittest.mock.patch.object`.
+    Input count of shipped seeded equivalence sweep: 2000 randomized inputs against `_pad_visible` (0 mismatches).
+    `git status --short` shows no mutation files or test probe files:
+    ```
+    $ git status --short
+     M agent_workflows/attention.py
+     M agent_workflows/cli.py
+     M agent_workflows/ipd_lint.py
+     M agent_workflows/run_viewer.py
+     M agent_workflows/term.py
+    ?? tests/test_pad_visible.py
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the before/after comparison result for all eight named surfaces (`attention` detail row, `attention` table row including the readiness cell, `cli` status cell, `cli` inline attention row, `ipd_lint` status line, `run_viewer` status line, `term` lifecycle row, `term` lifecycle legend), in BOTH styling modes, across all twenty `lifecycle_style.ALL_STAGES` members, reporting the total number of rendered outputs compared and the byte-difference count. The count must be ZERO; if any surface differs, do not mark this item and report the diff instead. Confirm the probe lived under `.aw/state/` and paste `git status --short` showing no untracked probe in the tracked tree.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 320 of 320 rendered outputs compared across all 8 surfaces and all 20 stages in both styling modes with 0 byte differences.
+    Before/after comparison harness executed across all 8 surfaces:
+    - `attention` detail row (`attention._render_item_row`)
+    - `attention` table row including readiness cell (`attention._render_table_row`)
+    - `cli` status cell (`cli._find_status_and_id6`)
+    - `cli` inline attention row (`cli._run_search` short mode)
+    - `ipd_lint` status line (`ipd_lint.run_lint` line 1)
+    - `run_viewer` status line (`run_viewer.format_step_line`)
+    - `term` lifecycle row (`term.Term.format_lifecycle_row`)
+    - `term` lifecycle legend (`term.Term.format_lifecycle_legend`)
+    in BOTH styling modes (colored=True and colored=False) across all twenty members of `lifecycle_style.ALL_STAGES`.
 
-- [ ] V-06 validates E-06
+    Output from probe comparison:
+    ```
+    Total rendered outputs compared: 320
+    Byte differences: 0
+    ZERO BYTE DIFFERENCES ACROSS ALL 8 SURFACES IN BOTH STYLING MODES OVER ALL 20 STAGES
+    ```
+    The comparison probe harness lived under `.aw/state/` (which is gitignored).
+    `git status --short` confirmation (no untracked probe in tracked tree):
+    ```
+    $ git status --short
+     M agent_workflows/attention.py
+     M agent_workflows/cli.py
+     M agent_workflows/ipd_lint.py
+     M agent_workflows/run_viewer.py
+     M agent_workflows/term.py
+    ?? tests/test_pad_visible.py
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste BOTH bare `python3 -m pytest` summary lines, the executor's OWN pre-change baseline and the post-change run, captured in the same session (PR-304). Compare FAILING-NODE-ID SETS, not counts alone, and account for every difference: the passed count must rise over YOUR baseline by exactly the number of tests `tests/test_pad_visible.py` adds, and the failing set must be UNCHANGED. Do NOT compare against the figures in F-09: they have moved twice already (authoring `1 failed, 3419 passed`; review `3789 passed, 2 skipped`, zero failures, with the `test_release_exempt_setter_roundtrip_and_parity` rollover flake now passing in isolation), so treating either as the bar would make you hunt a failure that may not exist or compute a delta against a stale total. A pre-existing failure on your own clean baseline is carried forward and reported, never fixed: its file is outside this plan's `Scope-Paths`. Any NEW failing node id blocks the plan. Paste the three named width suites' own summary lines (`tests/test_term.py`, `tests/test_attention.py`, `tests/test_run_viewer.py`) showing them green. Also paste `aw ipd lint --phase pre-transition` on this plan reporting conforming, and `git diff --cached --name-only` at commit time showing only this plan's declared `Scope-Paths` plus this plan file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite pass count rose by exactly +7 (4486 -> 4493), failing-node-id set is unchanged (2 pre-existing failures carried forward), 3 width suites green (129 passed).
+    Same-session pre-change baseline:
+    ```
+    FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    2 failed, 4486 passed, 2 skipped, 3 warnings in 245.57s (0:04:05)
+    ```
+    Post-change bare suite run:
+    ```
+    FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    2 failed, 4493 passed, 2 skipped, 3 warnings in 249.16s (0:04:09)
+    ```
+    Failing-node-id set reconciliation:
+    Pre-change failing set (2 nodes):
+      1. `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`
+      2. `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`
+    Post-change failing set (2 nodes):
+      1. `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`
+      2. `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`
+    Failing node set is UNCHANGED; passed count delta is exactly +7 (4493 - 4486 = 7), matching the 7 tests added in `tests/test_pad_visible.py`.
+
+    Three named width suites (`tests/test_term.py`, `tests/test_attention.py`, `tests/test_run_viewer.py`):
+    ```
+    $ python3 -m pytest tests/test_term.py tests/test_attention.py tests/test_run_viewer.py -o addopts=""
+    ============================= 129 passed in 43.71s =============================
+    ```
+
+    `aw ipd lint --phase pre-transition` on this plan:
+    ```
+    -    ◕  approved     plan        20260930-padvisible-01-n7yaa6  [low]  conforming
+    ```
+
+    `git diff --cached --name-only` at commit time:
+    ```
+    .aw/records/plans/pending/20260930-padvisible-01-n7yaa6-promote-the-private-visible-width-padding-helper-to-one-shar.ipd.md
+    agent_workflows/attention.py
+    agent_workflows/cli.py
+    agent_workflows/ipd_lint.py
+    agent_workflows/run_viewer.py
+    agent_workflows/term.py
+    tests/test_pad_visible.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -1,5 +1,5 @@
 - Id: 45l00y
-- Status: graduated
+- Status: done
 - Graduated-To: padvisible
 - Set: 45l00y
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether term._pad_visible should become a public alignment-aware padding helper
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD n7yaa6 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-padvisible-01-n7yaa6-promote-the-private-visible-width-padding-helper-to-one-shar.ipd.md); evidence .aw/records/plans/executed/20260930-padvisible-01-n7yaa6-promote-the-private-visible-width-padding-helper-to-one-shar.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: n7yaa6
 - 2026-09-29 created (aw backlog): Filed at review of plan it6tpj (/plan-review), discharging OQ-01's carrier obligation.
 

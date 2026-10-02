@@ -1671,9 +1671,9 @@ def format_step_line(
     status_padded = (
         status_marker
         + " "
-        + term.style_lifecycle_text(status_word, status_resolved)
-        # PADDED BY VISIBLE COLUMNS (Section 9.4), never `len()` on styled text.
-        + (" " * max(0, status_width - _T.visible_width(status_word)))
+        + _T.pad_visible(
+            term.style_lifecycle_text(status_word, status_resolved), status_width
+        )
     )
 
     lead = "   "
