@@ -3872,8 +3872,8 @@ def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
     from agent_workflows.project_context import (
+        classify_project_dir,
         git_root_for_message,
-        is_project_dir,
         no_project_message,
         resolve_verb_repo_root,
     )
@@ -3896,7 +3896,8 @@ def run(args) -> int:
     # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
     # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
     # cli-output-contract.md Section 3 / 11.4.
-    if not is_project_dir(repo_root):
+    classification = classify_project_dir(repo_root)
+    if not classification.is_root:
         # ci9kx2-01 (`bjgqez`) E-03: --check is valid only for a climb that found no project (nothing
         # to violate); an explicitly named non-project directory fails closed with cannot-run
         # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
@@ -3962,22 +3963,24 @@ def run(args) -> int:
             # (measured; decision 03-quqyc4-D2). `aw install` defaults to cwd, so `.` is literally
             # runnable. In a NON-git directory no action is attached and `next` stays null, because an
             # unconditional install suggestion would be wrong there.
-            git_root = git_root_for_message(repo_root)
-            summary = (
-                "no AW project found at the specified directory; "
-                "--dir is honored verbatim with no upward climb"
-                if explicit_dir
-                else (
-                    "no AW project found at the working directory or any ancestor; "
-                    "cd into the repository or pass --dir <repo>"
+            if classification.is_inside_project and explicit_dir:
+                summary = (
+                    "the specified directory is inside an AW project but is not its root; "
+                    "--dir is honored verbatim with no upward climb"
                 )
-            )
-            res = CommandResult(
-                command="attention",
-                status="cannot-run",
-                exit_code=2,
-                summary=summary,
-                next_actions=(
+                next_actions = []
+            else:
+                git_root = git_root_for_message(repo_root)
+                summary = (
+                    "no AW project found at the specified directory; "
+                    "--dir is honored verbatim with no upward climb"
+                    if explicit_dir
+                    else (
+                        "no AW project found at the working directory or any ancestor; "
+                        "cd into the repository or pass --dir <repo>"
+                    )
+                )
+                next_actions = (
                     [
                         NextAction(
                             command="aw install .",
@@ -3986,7 +3989,13 @@ def run(args) -> int:
                     ]
                     if git_root is not None
                     else []
-                ),
+                )
+            res = CommandResult(
+                command="attention",
+                status="cannot-run",
+                exit_code=2,
+                summary=summary,
+                next_actions=next_actions,
             )
             return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(

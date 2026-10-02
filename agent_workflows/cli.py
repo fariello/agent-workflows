@@ -9844,8 +9844,8 @@ def _run_plans(
 ) -> int:
     from agent_workflows.artifact_types import EXIT_CANNOT_RUN
     from agent_workflows.project_context import (
+        classify_project_dir,
         git_root_for_message,
-        is_project_dir,
         no_project_message,
         resolve_verb_repo_root,
     )
@@ -9869,7 +9869,8 @@ def _run_plans(
     # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
     # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
     # cli-output-contract.md Section 3 / 11.4.
-    if not is_project_dir(root):
+    classification = classify_project_dir(root)
+    if not classification.is_root:
         if ctx.is_agent or ctx.is_json:
             # nogitmsg `quqyc4` E-05 / backlog `5x195l`: THIS BRANCH USED TO CRASH. It built
             # `exit_code=3` and emitted it, but `aw.agent/v1` admits only 0/1/2 and additionally
@@ -9902,22 +9903,24 @@ def _run_plans(
             # consumer reads the remedy from `next` instead of parsing prose. `aw install .` and not
             # `aw install <absolute root>`, because the absolute form is unemittable for the leak
             # reason above (decision 03-quqyc4-D2); `aw install` defaults to cwd.
-            git_root = git_root_for_message(root)
-            summary = (
-                "no AW project found at the specified directory; "
-                "--dir is honored verbatim with no upward climb"
-                if explicit_dir
-                else (
-                    "no AW project found at the working directory or any ancestor; "
-                    "cd into the repository or pass --dir <repo>"
+            if classification.is_inside_project and explicit_dir:
+                summary = (
+                    "the specified directory is inside an AW project but is not its root; "
+                    "--dir is honored verbatim with no upward climb"
                 )
-            )
-            res = CommandResult(
-                command="ipd board",
-                status="cannot-run",
-                exit_code=2,
-                summary=summary,
-                next_actions=(
+                next_actions = []
+            else:
+                git_root = git_root_for_message(root)
+                summary = (
+                    "no AW project found at the specified directory; "
+                    "--dir is honored verbatim with no upward climb"
+                    if explicit_dir
+                    else (
+                        "no AW project found at the working directory or any ancestor; "
+                        "cd into the repository or pass --dir <repo>"
+                    )
+                )
+                next_actions = (
                     [
                         NextAction(
                             command="aw install .",
@@ -9926,7 +9929,13 @@ def _run_plans(
                     ]
                     if git_root is not None
                     else []
-                ),
+                )
+            res = CommandResult(
+                command="ipd board",
+                status="cannot-run",
+                exit_code=2,
+                summary=summary,
+                next_actions=next_actions,
             )
             return get_renderer(ctx).emit(res, ctx)
         # THE VERB STRING IS `ipd board`, NOT `plans` (`quqyc4` E-03, F-18). This message's whole job
