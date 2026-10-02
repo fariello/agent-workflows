@@ -1,5 +1,6 @@
 - Id: 8jl0rx
-- Status: open
+- Status: graduated
+- Graduated-To: 8jl0rx
 - Blocks-Release: next
 - Set: 8jl0rx
 - Priority: high
@@ -7,6 +8,7 @@
 - Summary: Fix non-recursive spec resolution in agy_run.resolve_spec
 
 ## Workflow history
+- 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: a6ootg
 - 2026-09-30 created (aw backlog): Fix non-recursive spec resolution in agy_run.resolve_spec
 
 `agy_run.resolve_spec` enumerates candidate specifications with non-recursive `d.glob("*.md")` over `.agents/docs/specs` and `.aw/records/specs`. Following the `specdirs` migration (`2fa65732`) which moved specifications into status subdirectories (`draft/`, `approved/`, `implemented/`, `superseded/`), the non-recursive glob sees only `README.md` at the specs root and resolves zero of the repository specifications.
