@@ -1,11 +1,13 @@
 - Id: sinhkj
-- Status: open
+- Status: graduated
+- Graduated-To: runverdict
 - Set: runverdict
 - Priority: medium
 - Work-Kind: followup
 - Summary: Decide whether an uncorroborated verifier turn (claimed tests_run unmatched by its own session log) should ever refuse integration
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: q4uifc
 - 2026-09-30 created (aw backlog): Filed as the durable carrier for the refusal question plans bjx20r and btak7a deliberately do not decide
 
 FILED as the durable carrier for a decision two pending plans (`bjx20r` Order 08, `btak7a` Order 09, both from backlog `5xgllt`) deliberately DO NOT make, so the question survives their execution instead of vanishing when they class `done`.
