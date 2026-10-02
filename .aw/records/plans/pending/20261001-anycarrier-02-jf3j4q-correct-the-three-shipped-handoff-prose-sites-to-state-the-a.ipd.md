@@ -1,0 +1,204 @@
+# IPD: Correct the three shipped HANDOFF prose sites to state the ALL-carrier rule and drop the stale SATISFIED disclaimer
+
+- Date: 2026-10-01
+- Kind: child
+- Concern: THREE SHIPPED PROSE SITES STATE THE CLOSE-LEGITIMACY CONTRACT WITH A SINGULAR CARRIER, AND ONE OF THEM IS INSTALLED INTO EVERY MANAGED TARGET REPO. `check_engine.evaluate_blocking_close`'s HANDOFF arm now requires EVERY same-gate carrier to be executed or implemented (its own comment: "EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED", tightened by `anycarrier` Order 1 / plan `2o5wka`, backlog `lsbd32`), and the arm's shipped code reads `if same_gate_carriers and all(_carrier_eval(_c) for _c in same_gate_carriers)`. But the human-facing sentences describing that arm still name ONE carrier: (i) `engine.py`'s managed pre-commit-config comment, at BOTH `_BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` and `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK`, reads "HANDOFF via an EXECUTED From-Backlog plan or implemented spec"; (ii) `hooks/backlog_blocking_close_gate.py`'s module docstring reads "HANDOFF (a `From-Backlog` blocking plan present in the staged tree with the same `Blocks-Release`)"; (iii) `cli.py`'s `_DESCRIPTIONS["backlog-blocking-close-gate"]` entry, the text a human reads from `aw backlog-blocking-close-gate --help`, reads "(HANDOFF: an EXECUTED From-Backlog blocking plan; DE-GATED: Blocks-Release cleared)". Site (iii) was NOT named by backlog `d1ldvk` and was found at authoring. Site (i) is the sharpest, because `engine.create_backlog_close_gate_hook` WRITES it into a target repo's `.pre-commit-config.yaml`, so a managed repo's operator reads it as the stated contract. SEPARATELY, the same docstring paragraph at site (ii) carries a disclaimer that is now FALSE rather than merely imprecise: it says the SATISFIED path "is only honored here if child 02 durably records the evidence citation into the item (it does not today; that is out of the hook's reach by design)". `gateatrest` `f7igdu` shipped exactly that durable record (`backlog.set_close_evidence_line`, written when `verdict.path == "SATISFIED"`, read back by `check_engine`'s `_META_CLOSE_EVIDENCE_RE` into `item_close_evidence`), so the hook DOES honor a persisted citation today.
+- Scope: IN: correct the HANDOFF carrier cardinality in the three shipped prose sites named above, and correct the one stale SATISFIED parenthetical in the site (ii) docstring; add behavior-level test coverage that the INSTALLED pre-commit config and the two `--help`/docstring surfaces state the rule the predicate actually applies, driven through `engine.create_backlog_close_gate_hook` and the CLI rather than by reading source. OUT: any change to `check_engine.evaluate_blocking_close` or to any other predicate (the code is correct; this plan makes the prose match it); the residual ungated-sibling divergence (`2o5wka` OQ-02); the positional-spelling bypass (`47ttnv`/`2misq5`); the repo-local `AGENTS.md` close-legitimacy paragraph and `.aw/records/backlog/README.md`, both already corrected by `2o5wka` E-06; the hook's "honest limits" sentences about `--no-verify` and opt-in status, which remain accurate.
+- Scope-Paths: agent_workflows/engine.py, agent_workflows/hooks/backlog_blocking_close_gate.py, agent_workflows/cli.py, tests/test_backlog_close_gate_prose.py
+- Item-Dependencies: executed:2o5wka
+- Status: to-review
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: d1ldvk
+- Set: anycarrier
+- Order: 2
+- Highest E allocated: 07
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: jf3j4q
+
+## Workflow history
+- 2026-10-02 same-status (aw set): the ALL-carrier predicate this plan's prose describes ships in 2o5wka; describing it earlier would state a rule the code lacks (backlog d1ldvk DEPENDENCY note)
+
+- 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `d1ldvk`, which was itself FILED AT REVIEW of `2o5wka` as the durable carrier for its OQ-03 (`- Carrier: d1ldvk`). Every claim below was DRIVEN at HEAD `ddca38540` in this lane, not inferred from the item's prose: the three prose sites were located by `grep -rn 'EXECUTED From-Backlog\|From-Backlog blocking plan' --include=*.py agent_workflows/ tools/` (which returned site (iii) in `cli.py` that the backlog item does not name), the ALL-carrier arm was read in shipped source, BOTH install paths of the template were EXERCISED on scratch repos (fresh-create and append-to-existing, the created YAML parsed with `yaml.safe_load`), and the stale SATISFIED disclaimer was FALSIFIED by constructing a `Close-Evidence:`-carrying item and observing `evaluate_blocking_close -> legitimate=True path=SATISFIED` with `backlog_blocking_close_gate.check` returning `(0, [])`. A full bare suite baseline was captured BEFORE any edit (`4 failed, 4484 passed, 2 skipped`), and all four failures were triaged as pre-existing and unrelated; see F-07. Scratch repos were removed; the tree carries only this plan.
+- 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+The sentences a human reads about the HANDOFF close route say what the predicate actually enforces: EVERY same-gate carrier must have executed, not one. The one that ships into every managed target repo says it too, and the hook docstring stops carrying a disclaimer about evidence persistence that a later plan made false.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: confirm the rule and the sites at the executing HEAD before editing prose
+
+- [ ] E-01 RE-CONFIRM, at the executing HEAD, both that the predicate is ALL-carrier and that the three prose sites still read as this plan quotes them, because this plan's entire justification is that the code and the prose disagree. Read `check_engine.evaluate_blocking_close`'s HANDOFF arm and paste the post-loop verdict condition. Then run `grep -rn "EXECUTED From-Backlog\|From-Backlog blocking plan" --include=*.py agent_workflows/ tools/` and paste its output. If the predicate is NOT ALL-carrier (for example a later plan reverted `2o5wka`), STOP and report rather than editing prose to describe a rule the code does not have. If a grep hit this plan does not name has appeared, report it and treat it as in scope only if it is the same HANDOFF-cardinality claim.
+  - Depends on: none
+  - Expected outcome: the arm returns HANDOFF only under `all(...)` over `same_gate_carriers`; grep returns the three known sites (four lines, since `engine.py` has two occurrences).
+  - MEASURED AT AUTHORING at HEAD `ddca38540`, so treat this as confirmation and do not expect the stop condition. The arm's shipped condition is `if same_gate_carriers and all(_carrier_eval(_c) for _c in same_gate_carriers):` returning `CloseVerdict(True, "ok", f"gate {blocks_release!r} handed off to a From-Backlog plan or spec", (), "HANDOFF")`, and its comment already reads "EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED". Grep returned exactly three hits, four lines of prose across them: `_DESCRIPTIONS["backlog-blocking-close-gate"]` in `cli.py` (line 627 at authoring), and `engine._BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` plus `engine._BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK` (lines 5598 and 5614 at authoring).
+  - NOTE THAT THE HANDOFF VERDICT'S OWN `reason` STRING IS ALSO SINGULAR ("handed off to a From-Backlog plan or spec") AND IS DELIBERATELY NOT IN SCOPE. It is a machine-consumed verdict field asserted by tests (`2o5wka` E-03 case (2) pins `path == "HANDOFF"`), not a contract statement installed for an operator to read, and changing it risks a test surface this plan has no reason to touch. Record it in the final report; do not edit it.
+  - Execution state: pending
+
+- [ ] E-02 FALSIFY THE STALE SATISFIED DISCLAIMER before rewriting it, so the rewrite rests on observed behavior rather than on this plan's assertion. Build a scratch `git init` repo carrying one `planned` release resolving `next`, and ONE backlog item under `.aw/records/backlog/done/` with `- Status: done`, `- Blocks-Release: next`, NO carrier, and a `- Close-Evidence:` bullet citing a resolvable in-tree artifact. Paste `check_engine.evaluate_blocking_close(root, item, "done")`'s `legitimate` and `path`, and paste `hooks.backlog_blocking_close_gate.check(root)` on the staged tree. Then locate where the citation is persisted and paste the writing site.
+  - Depends on: E-01
+  - Expected outcome: `legitimate=True, path='SATISFIED'` with no `evidence=` argument passed, and the hook returning `(0, [])`, which together prove the docstring's "(it does not today)" clause false.
+  - MEASURED AT AUTHORING, verbatim: `legitimate= True path= SATISFIED`, reason `gate 'next' satisfied by resolvable evidence '.aw/records/releases/20260101-rrrrrr-01-rrrrrr-r.release.md'`; and `backlog_blocking_close_gate.check(Path('.')) -> (0, [])` after `git add -A`. THE PERSISTENCE SITE is `backlog.set_close_evidence_line`, called in the setter under `if verdict.legitimate and verdict.path == "SATISFIED":` with the comment "gateatrest f7igdu E-03: write the cited evidence durably on an evidence-satisfied close"; it is read back by `check_engine`'s `_META_CLOSE_EVIDENCE_RE` into `item_close_evidence`, which the SATISFIED arm consults as `effective_evidence = evidence if evidence is not None else item_close_evidence`. The carrier plan is `.aw/records/plans/executed/20260930-gateatrest-01-f7igdu-record-a-satisfying-close-evidence-citation-durably-on-the-b.ipd.md`.
+  - THIS IS WHY THE DOCSTRING FIX IS A CORRECTION AND NOT A POLISH. Sites (i) and (iii), and the cardinality clause of (ii), are IMPRECISE (they name which arm exists and what carrier shape it accepts, not how many must have executed). This clause is FALSE: it tells a reader the hook cannot honor a persisted citation, and the hook does. Keep the two defects distinct in the commit message and the report; do not let the stronger claim launder the weaker one or vice versa.
+  - Execution state: pending
+
+### Task group 2: pin the intended prose contract in tests before editing it
+
+- [ ] E-03 ADD a new behavior test file `tests/test_backlog_close_gate_prose.py` that pins the three operator-facing surfaces against the rule the predicate applies, BEFORE editing any prose. Drive each surface rather than reading source: (1) call `engine.create_backlog_close_gate_hook(scratch, use_git=False, install=True)` on a repo with NO pre-commit config, read the CREATED `.pre-commit-config.yaml`, assert it parses with `yaml.safe_load`, assert the `backlog-blocking-close-gate` hook id is present, and assert its comment states the ALL-carrier rule (asserting on the rendered FILE CONTENT the installer produced, which is the artifact an operator reads); (2) the same assertion on the APPEND path, calling the installer on a repo that already has an unrelated `.pre-commit-config.yaml`, which exercises `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK` rather than the template; (3) invoke the CLI help for `backlog-blocking-close-gate` through `cli.main` and assert the rendered description states the ALL-carrier rule; (4) assert the `hooks.backlog_blocking_close_gate` module docstring (`__doc__`, the module's own documented contract) states the ALL-carrier rule and does NOT carry the falsified "it does not today" clause.
+  - Depends on: E-02
+  - Expected outcome: all four cases FAIL against unchanged prose, each naming the singular wording it found.
+  - CHOOSE ASSERTIONS THAT CANNOT PASS VACUOUSLY AND CANNOT PIN INCIDENTAL WORDING. Assert on the SEMANTIC token this plan is installing (the word `EVERY`, co-located with `From-Backlog`, in the HANDOFF clause) plus the ABSENCE of the singular formulation this plan removes; do NOT assert the full sentence verbatim, which would make every future copy-edit a test failure. For case (4), assert the absence of the exact substring `it does not today`.
+  - THIS IS PERMITTED AND IS NOT A CODE-PINNING TEST, and the distinction must be respected rather than assumed. AGENTS.md forbids tests that read PRODUCTION SOURCE with `inspect`/`ast`/regex as a proxy for correctness. Cases (1) and (2) read a FILE THE INSTALLER WROTE, which is a real output artifact and the exact thing a managed repo's operator reads. Case (3) drives the CLI and reads rendered help, an output. Case (4) reads `__doc__`, the module's own published contract, which IS the deliverable here rather than a proxy for one: this plan's entire product is correct prose on three shipped surfaces, so the prose is the observable outcome and there is no behavior behind it to test instead. Do NOT reach for `inspect.getsource`, do NOT regex `engine.py`, and do NOT assert on line numbers or on where in the file the strings live.
+  - Execution state: pending
+
+### Task group 3: correct the prose
+
+- [ ] E-04 CORRECT SITE (i), the installed template, at BOTH `_BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` and `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK` in `agent_workflows/engine.py`, changing the HANDOFF clause from "HANDOFF via an EXECUTED From-Backlog plan or implemented spec" to a clause stating that EVERY same-gate From-Backlog carrier (plan or spec) must be executed or implemented. Keep the two occurrences IDENTICAL in their comment region, keep each comment line within the width of the lines around it (they are YAML comments; the longest existing one is 132 characters, so re-wrap rather than producing one longer line), and leave every non-comment line of both strings byte-identical.
+  - Depends on: E-03
+  - Expected outcome: E-03 cases (1) and (2) pass; the installed file still parses as YAML and still wires the same hook id, entry, and flags.
+  - THE TWO STRINGS OVERLAP AND THAT IS LOAD-BEARING, so verify it survives your edit: measured at authoring, `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK in _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` is `True` (the template is the block plus a leading `# Pre-commit hooks (created by agent-workflows)...` header and a `repos:` line). If you edit one and not the other, that containment breaks and the two install paths start disagreeing. Re-assert the containment after editing; E-03's two cases cover the two paths behaviorally, and this is the cheap direct check.
+  - DO NOT "TIDY" THE SURROUNDING COMMENT while you are in there. The `bklggrad f1dhht` attribution, the "Delegates to the shared close-legitimacy predicate" sentence, and the "LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI" limits are all still accurate and are deliberately out of scope. Widening this edit widens an INSTALL-SURFACE diff, which is exactly the blast radius `2o5wka` OQ-03 deferred this work to keep separable.
+  - Execution state: pending
+
+- [ ] E-05 CORRECT SITE (ii), the `agent_workflows/hooks/backlog_blocking_close_gate.py` module docstring, in its "Commit-time legitimacy is reconstructed from PERSISTED state only" paragraph, making TWO distinct corrections. FIRST, the cardinality: change "HANDOFF (a `From-Backlog` blocking plan present in the staged tree with the same `Blocks-Release`)" so it states that EVERY same-gate `From-Backlog` carrier in the staged tree must be executed or implemented. SECOND, the falsified clause: rewrite "A transient `--evidence` CLI arg is NOT visible to the hook, so the SATISFIED path is only honored here if child 02 durably records the evidence citation into the item (it does not today; that is out of the hook's reach by design)" to state that the setter DOES now persist the citation as a `- Close-Evidence:` bullet, citing `gateatrest` `f7igdu`, so SATISFIED IS honored from persisted state; keep the still-true observation that a transient `--evidence` argument is itself invisible to the hook.
+  - Depends on: E-04
+  - Expected outcome: E-03 case (4) passes; `python3 -m pytest tests/test_check_engine_release_gate.py` still passes, since it imports and drives this module.
+  - KEEP THE REST OF THIS DOCSTRING INTACT, including the `bklggrad f1dhht` attribution, the `bu9yij` section 7.7 citation, the OQ-01 `done`-case-only scoping, and the whole "Honest limits (never oversold)" paragraph. Those are accurate and the plan's value here is precision, not rewriting.
+  - CITE BY SYMBOL, NOT BY LINE, in whatever you write into the docstring: reference `backlog.set_close_evidence_line` and the `- Close-Evidence:` field name rather than a file offset, which expires.
+  - Execution state: pending
+
+- [ ] E-06 CORRECT SITE (iii), `_DESCRIPTIONS["backlog-blocking-close-gate"]` in `agent_workflows/cli.py`, changing "(HANDOFF: an EXECUTED From-Backlog blocking plan; DE-GATED: Blocks-Release cleared)" so the HANDOFF half states that EVERY same-gate carrier must be executed or implemented. This site was NOT named by backlog `d1ldvk`; it was found at authoring by the same grep, states the same defect on a surface a human reads directly from `--help`, and is included for that reason.
+  - Depends on: E-05
+  - Expected outcome: E-03 case (3) passes; `aw backlog-blocking-close-gate --help` renders the corrected text.
+  - THIS DESCRIPTION IS ALREADY LONG AND IS RENDERED WRAPPED BY ARGPARSE, so spend no words: the minimal faithful edit is to the HANDOFF parenthetical alone. Leave the DE-GATED half, the "Gates the 'done' case only" sentence, and the opt-in/`--no-verify` limits untouched. Measured at authoring, NO test asserts this description's text (`grep -rn "_DESCRIPTIONS" tests/*.py` returns nothing, and `tests/test_completion.py` references the command only as a name in a completion-exclusion table with the reason "internal gate"), so E-03 case (3) is the first and only coverage of it; that is a reason to add the test, not a reason to skip the edit.
+  - Execution state: pending
+
+### Task group 4: validate against the measured baseline
+
+- [ ] E-07 RUN THE FULL SUITE BARE on the changed tree and reconcile it AGAINST THE F-07 BASELINE rather than against a green bar, then run the repository's own checks. Run `python3 -m pytest` with NO added flags and capture both the summary line and the FAILURE LIST. Re-capture the baseline in THIS lane first if the lane's HEAD has moved since authoring, since F-07's four failures include a live-corpus test whose verdict depends on artifacts other parties write. Then run `aw check` and `aw sanitize --agent` on the changed tree.
+  - Depends on: E-06
+  - Expected outcome: the new file's four cases pass, and the failure SET is unchanged from F-07's named four (or smaller).
+  - A GREEN BAR IS NOT THE BAR AND MUST NOT BE WRITTEN AS ONE. Measured at authoring on the UNEDITED lane: `4 failed, 4484 passed, 2 skipped, 3 warnings in 289.89s`. Reconcile BY TEST NAME against F-07's four. `test_typecheck_gate.py::...::test_typecheck_gate_clean_exit` passed in isolation (`3 passed`), so it is a parallel-run artifact and may or may not reappear; `test_spec_review_attestation.py::...::test_every_real_spec_in_this_repository_still_conforms` is a LIVE-CORPUS test that failed on another party's artifact (`20261001-89xjll-...spec.md: ['attention.unsafe-field']`) and pytest itself printed the LIVE-CORPUS NOTE saying such a failure may be caused by another party. None of the four touches `engine.py`'s templates, the hook module, or `cli.py`'s descriptions. A FIFTH failure, or any failure outside that set, is a real signal: report it and do NOT adjust a test to match.
+  - `aw check` IS NOISY ON THIS REPOSITORY FOR UNRELATED REASONS, so judge it by DELTA and not by silence. Measured at authoring, it emitted 319 lines of pre-existing findings about other artifacts (nonconformant slugs, dangling `From-Spec` links, missing `Carrier-Evidence`). The acceptance question is whether THIS plan's edits add a finding, so capture it before and after if the output is hard to attribute.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE REPOSITORY FORBIDS CODE-PINNING TESTS (AGENTS.md; GUIDING_PRINCIPLES P16): no reading production source with `inspect`, `ast`, regex, or substring search as a proxy for correctness, and specifically no asserting "that specific text, docstrings, or comment banners remain unchanged in a script". This plan's deliverable IS prose on three shipped surfaces, so E-03 was designed against that rule rather than around it: two cases read a file the INSTALLER WROTE, one drives the CLI and reads rendered help, and the fourth reads a module's `__doc__` as the published contract it is. See E-03's own note for the reasoning; a reviewer who disagrees should say so, because this is the one judgement call in the plan.
+- `tests/test_carrier_scan_single_item_contract.py` is the repository's ONE sanctioned AST guard and its docstring fences it to call SHAPES in `agent_workflows/`. It is not a precedent for source-reading assertions about wording.
+- THE SUITE IS RUN BARE: `python3 -m pytest`, with `pyproject.toml` `addopts` already supplying `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. Do not add `-n0` (several times slower here), a second `-q` (compounds to `-qq` and suppresses the summary line this plan requires pasted), or `-p no:randomly`.
+- An install-surface string in `engine.py` is written into a TARGET repo by a `create_*` function and is therefore read by operators who never see this repository; `_create_if_absent` on the fresh path and an append on the existing-config path are the two routes, and both are no-clobber and idempotent.
+
+## Findings
+
+| Id | Finding | Evidence (driven at HEAD `ddca38540`) |
+|---|---|---|
+| F-01 | The HANDOFF arm is ALL-carrier in shipped code, so the premise holds. | `check_engine.evaluate_blocking_close` returns HANDOFF only under `if same_gate_carriers and all(_carrier_eval(_c) for _c in same_gate_carriers):`, and its comment reads "EVERY From-Backlog PLAN or SPEC with the SAME Blocks-Release must be EXECUTED/IMPLEMENTED ... tightened by anycarrier Order 1 (2o5wka, backlog lsbd32)". |
+| F-02 | Site (i) exists TWICE and is installed. | `grep -rn "EXECUTED From-Backlog" --include=*.py agent_workflows/ tools/` returned two hits in `engine.py`, namely `engine._BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` and `engine._BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK` (lines 5598 and 5614 at authoring). Both read "HANDOFF via an EXECUTED From-Backlog plan or implemented spec". The installer reaching them is `engine.create_backlog_close_gate_hook`. |
+| F-03 | Both install paths were EXERCISED, so the operator-visible artifact is confirmed, not assumed. | Fresh path: `create_backlog_close_gate_hook(scratch, use_git=False, install=True)` returned `{'created': ['.pre-commit-config.yaml'], 'skipped': [], 'notes': []}`, and the written file contains the singular comment and parses (`yaml.safe_load` truthy). Append path: on a repo with an unrelated config it returned `notes: ['appended the backlog-blocking-close-gate hook block to .pre-commit-config.yaml']` and appended the same singular comment after the pre-existing hook. |
+| F-04 | The two template strings OVERLAP, so a one-sided edit would desynchronize the install paths. | `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK in _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` is `True` (lengths 744 and 919). The comment lines measure 101, 132, 96 and 99 characters, so 132 is the local width budget. |
+| F-05 | Site (iii) in `cli.py` is a FOURTH occurrence the backlog item does not name, on a surface a human reads directly. The `_DESCRIPTIONS["backlog-blocking-close-gate"]` entry in `cli.py` (line 627 at authoring) reads "(HANDOFF: an EXECUTED From-Backlog blocking plan; DE-GATED: Blocks-Release cleared)". Confirmed rendered by running `python3 -m agent_workflows backlog-blocking-close-gate --help`, which prints that parenthetical in its description block. |
+| F-06 | The site (ii) SATISFIED disclaimer is FALSE, not imprecise. | On a scratch repo whose gated `done` item carries only `- Close-Evidence:` and no carrier, `evaluate_blocking_close(root, item, "done")` returned `legitimate=True path=SATISFIED` with NO `evidence=` argument, and `backlog_blocking_close_gate.check(root)` returned `(0, [])`. The persistence the docstring denies is `backlog.set_close_evidence_line`, called under `verdict.path == "SATISFIED"` by `gateatrest` `f7igdu`, read back via `check_engine._META_CLOSE_EVIDENCE_RE` into `item_close_evidence`. |
+| F-07 | The suite has FOUR pre-existing failures in this lane BEFORE any edit, so a green bar is not an honest acceptance criterion and the executor must compare against this baseline. | Bare `python3 -m pytest` on the unedited lane: `4 failed, 4484 passed, 2 skipped, 3 warnings in 289.89s`. The four: `test_statusline_behavior.py::...::test_box_renderer_invariants_across_swept_inputs`, `test_typecheck_gate.py::...::test_typecheck_gate_clean_exit`, `test_run_finding_reachability.py::...::test_unreachable_binding_refusal_fires_under_perturbation`, `test_spec_review_attestation.py::...::test_every_real_spec_in_this_repository_still_conforms`. TRIAGED: `test_typecheck_gate` PASSES in isolation (`3 passed`, a parallel-run artifact); the spec-attestation one is a LIVE-CORPUS test failing on another party's artifact (`20261001-89xjll-...spec.md: ['attention.unsafe-field']`, and pytest itself printed the LIVE-CORPUS NOTE warning that a failure here may be caused by another party's artifact). None touches `engine.py` templates, the hook module, or `cli.py` descriptions. |
+| F-08 | No existing test asserts any of the three prose strings, so E-03 is new coverage rather than a rewrite. | `grep -rn "_DESCRIPTIONS" tests/*.py` returns nothing; `grep -rn "PRECOMMIT_BLOCK\|PRECOMMIT_TEMPLATE" tests/*.py` returns nothing; `tests/test_completion.py` names the command only in a completion-exclusion table (`("backlog-blocking-close-gate", False, "internal gate")`). `tests/test_check_engine_release_gate.py` imports and DRIVES `hooks.backlog_blocking_close_gate` but asserts behavior, not its docstring. |
+| F-09 | `2o5wka` already corrected the two REPO-LOCAL statements, so this plan must not re-edit them. | `AGENTS.md`'s close-legitimacy paragraph now reads "(1) HANDOFF, EVERY same-gate carrier (From-Backlog plan or spec) ... a multi-carrier item stays `graduated` until the last carrier executes", and `.aw/records/backlog/README.md` states the `done` requirement in the same voice. Neither is installed into a target repo. |
+
+## Proposed changes (ordered, validatable)
+
+1. Confirm at the executing HEAD that the predicate is ALL-carrier and the three sites still read as quoted (E-01), and falsify the SATISFIED disclaimer by observation (E-02).
+2. Add `tests/test_backlog_close_gate_prose.py` pinning all four surfaces, and watch it go red (E-03).
+3. Correct the installed template at both occurrences, preserving their containment relationship and YAML validity (E-04).
+4. Correct the hook module docstring, both the cardinality clause and the falsified SATISFIED clause (E-05).
+5. Correct the CLI description's HANDOFF parenthetical (E-06).
+6. Validate against the F-07 baseline rather than against a green bar, and re-exercise both install paths.
+
+## Deferred / out of scope (with reason)
+
+- The HANDOFF verdict's own `reason` string ("handed off to a From-Backlog plan or spec") is singular and stays so. It is a machine-consumed verdict field, not an operator-facing contract statement, and `2o5wka` E-03's cases assert on `verdict.path`; editing the reason text invites churn in a test surface this plan has no reason to touch. Recorded in E-01 and reported, not fixed. No carrier filed: this is a judgement that the site is correct as-is, not an obligation deferred.
+- `check_engine.evaluate_blocking_close` and every other predicate: unchanged by construction. The code is right and the prose is wrong; this plan moves only the prose.
+- The residual ungated-sibling divergence (`2o5wka` OQ-02) and the positional-spelling bypass (`47ttnv`/`2misq5`): separate, owned elsewhere, explicitly excluded by backlog `d1ldvk`.
+- `AGENTS.md` and `.aw/records/backlog/README.md`: already corrected by `2o5wka` E-06 (F-09). Re-editing them would duplicate shipped work.
+- The repository's four pre-existing suite failures (F-07): not caused by and not touched by this plan. Triaged and reported, not fixed; two are live-corpus or parallel-run artifacts.
+
+## Scope check
+
+- Over-scope: `agent_workflows/cli.py` is in `Scope-Paths` but is NOT named by backlog `d1ldvk`. Declared deliberately: it is a FOURTH occurrence of the same defect (F-05) on a surface a human reads from `--help`, found by the same grep that found the other two, and fixing two of three sites would leave the inconsistency this plan exists to remove. A reviewer who wants the item's letter honored exactly should say so, and E-06 can be split to its own plan without disturbing E-04 or E-05.
+- Under-scope: none. The three sites plus the one false clause are the whole of the item's obligation, and the item's own exclusions are honored in Deferred.
+
+## Required tests / validation
+
+- `tests/test_backlog_close_gate_prose.py` (new, E-03): four behavior cases over the two install paths, the rendered CLI help, and the module `__doc__`. Must be observed RED before the E-04/E-05/E-06 edits and GREEN after.
+- `python3 -m pytest tests/test_check_engine_release_gate.py tests/test_backlog_handoff_close.py tests/test_completion.py`: the suites that drive the hook module, the close predicate, and the command table, as a targeted regression check on the edited modules.
+- Bare `python3 -m pytest`, compared against the F-07 baseline of `4 failed, 4484 passed, 2 skipped`. ACCEPTANCE IS NOT A GREEN BAR: it is "no NEW failure relative to F-07's named four, and the new file's cases passing". A fifth failure, or a change in which tests fail, is a real signal and must be reported rather than waved through.
+- `aw check` and `aw sanitize --agent` on the changed tree, to confirm the prose edits introduce no drift finding and no leak.
+
+## Spec / documentation sync
+
+No `.spec.md` file is touched, and none needs touching: the close-legitimacy contract is stated in `AGENTS.md` and `.aw/records/backlog/README.md` (both already corrected by `2o5wka` E-06, F-09), not in a spec, and this plan changes no behavior for a spec to describe. `Scope-Paths` declares no spec path, consistent with that.
+
+## Open questions
+
+### OQ-01: Is asserting on a module `__doc__` and on installer-written comment text acceptable here, given the repository's ban on code-pinning tests?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED AS PERMITTED, from the ban's own stated purpose rather than by reading its wording narrowly. AGENTS.md forbids tests that read PRODUCTION SOURCE as a PROXY for correctness, and names "assert that specific text, docstrings, or comment banners remain unchanged in a script" among its examples; the reason given is that such tests pin structure instead of outcomes. Here the prose IS the outcome: this plan's entire deliverable is that three shipped operator-facing surfaces state the rule the predicate applies, and there is no behavior behind them to test instead, because the behavior is already correct. Two of the four cases read a FILE THE INSTALLER WROTE on a scratch repo (an output artifact, and the exact text a managed target's operator reads), and one drives the CLI and reads rendered help (an output). Only case (4) reads `__doc__`, which is the module's published contract rather than its structure. The ban's spirit is further honored by HOW the assertions are written: E-03 requires asserting the semantic token (`EVERY` co-located with `From-Backlog`) plus the absence of the superseded formulation, NOT the sentence verbatim, so an ordinary copy-edit does not fail the suite. The residual risk is accepted and named: these four cases will need updating if the clause is reworded substantively, which is the intended tripwire. Flagged in Scope check and here so a reviewer can overrule it; if overruled, drop case (4) and keep the three output-reading cases, which cover both install paths and the help surface.
+
+### OQ-02: Should the engine template comment also state the SATISFIED path now that evidence is durably persisted?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED AS NO, keep the template edit to cardinality alone. The installed comment already enumerates all three routes accurately, ending "or a persisted evidence citation", which is CORRECT today and was arguably ahead of the code when written; `gateatrest` `f7igdu` made it true. Only the HANDOFF clause is wrong, so only the HANDOFF clause changes. This keeps the install-surface diff minimal, which is the exact property `2o5wka` OQ-03 deferred this work to preserve, and it avoids re-litigating wording that is already right.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [ ] V-01 validates E-01
+  - Required evidence: PASTE the HANDOFF arm's post-loop verdict condition as read from shipped source at the executing HEAD, and PASTE the full output of `grep -rn "EXECUTED From-Backlog\|From-Backlog blocking plan" --include=*.py agent_workflows/ tools/`. The pasted condition must quantify over all of `same_gate_carriers` (an `all(...)` or an equivalent), and the grep must show the `engine.py` pair plus the `cli.py` site. A condition that returns inside the carrier loop FAILS this item and means STOP, since the prose would then be correct and this plan baseless. Also state explicitly whether the grep surfaced any site this plan does not name.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: PASTE the scratch fixture (or the script that builds it) and the two observations side by side: `evaluate_blocking_close` returning `legitimate=True, path='SATISFIED'` with NO `evidence=` argument passed, and `backlog_blocking_close_gate.check(root)` returning `(0, [])` on the staged tree. PASTE the persistence site you located, by SYMBOL. A `path` other than `SATISFIED`, or a hook refusal, FAILS this item: it would mean the docstring clause is still true and E-05's second correction must be dropped.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: PASTE the new test file's four case names and PASTE the RED run from BEFORE the prose edits (`python3 -m pytest tests/test_backlog_close_gate_prose.py -o addopts=""`), showing all four FAILING and each failure message naming the singular wording or the stale clause it found. A case that passes before the edits is vacuous and FAILS this item: fix the assertion, do not proceed. Also PASTE one assertion verbatim to show it keys on the semantic token plus the absence of the superseded formulation rather than on a whole sentence.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: PASTE the rendered `.pre-commit-config.yaml` produced by `create_backlog_close_gate_hook` on BOTH paths (fresh-create and append-to-existing) on scratch repos, each showing the corrected ALL-carrier comment and the unchanged hook id/entry/flags. PASTE a `yaml.safe_load` parse result for the fresh-path file. PASTE the re-checked containment `_BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK in _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE` as `True`. PASTE the green run of E-03 cases (1) and (2). A containment of `False`, or two occurrences whose comment regions differ, FAILS this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: PASTE the corrected docstring paragraph in full, showing BOTH corrections (the ALL-carrier cardinality and the SATISFIED clause now stating that the setter persists `- Close-Evidence:`, citing `gateatrest` `f7igdu` and `backlog.set_close_evidence_line`). PASTE a grep confirming the substring `it does not today` is GONE from the module. PASTE the green run of E-03 case (4) and of `python3 -m pytest tests/test_check_engine_release_gate.py`. A docstring that fixes cardinality but leaves the false clause, or vice versa, FAILS this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: PASTE the actual output of `python3 -m agent_workflows backlog-blocking-close-gate --help` showing the corrected HANDOFF parenthetical as argparse renders it, and PASTE the green run of E-03 case (3). PASTE `python3 -m pytest tests/test_completion.py` green, since that file is the one place the command name is tabulated. Help text still showing "an EXECUTED From-Backlog blocking plan" FAILS this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: PASTE the bare `python3 -m pytest` summary line from the changed tree AND the full failure list, then COMPARE it BY TEST NAME against F-07's four pre-existing failures. The bar is: the new file's four cases PASS, and NO failure appears that is not among F-07's named four. Counts alone do NOT satisfy this item, because the count drifts with the corpus; the NAMED SET is the comparison. PASTE `aw check` and `aw sanitize --agent` on the changed tree, and state whether either adds a finding attributable to this plan's four paths. A fifth failing test, or any failure outside F-07's set, FAILS this item and must be reported rather than explained away; if one of F-07's four has since been FIXED on main, say so and treat its reappearance as a new failure.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review` and requires `/plan-review` and then explicit human approval before execution. The executor must: perform E-01 and E-02 FIRST and STOP if either stop condition fires (an ALL-carrier predicate is the plan's premise, and a still-true SATISFIED clause would void half of E-05); observe E-03's cases RED before editing prose; commit through `aw commit <plan> -- <paths>` limited to the four declared `Scope-Paths`, never `git add -A`, and never push; paste ACTUAL runner output for every `V-*` rather than claiming success; and compare the suite against F-07's baseline instead of asserting a green bar. Two prose defects of DIFFERENT severity are in flight (three imprecise cardinality statements, one FALSE clause) and the commit message must keep them distinct. On completion, run `aw ipd lint --phase pre-transition`, confirm every `V-*` records `pass` with pasted evidence, and finalize through `aw ipd finalize` rather than moving the file by hand.
