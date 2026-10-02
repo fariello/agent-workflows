@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/hooks/backlog_blocking_close_gate.py, agent_workflows/cli.py, tests/test_backlog_close_gate_prose.py
 - Item-Dependencies: executed:2o5wka
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: d1ldvk
