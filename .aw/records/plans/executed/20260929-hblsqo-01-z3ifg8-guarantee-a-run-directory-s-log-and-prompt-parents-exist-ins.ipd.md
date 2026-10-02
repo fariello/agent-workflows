@@ -6,7 +6,7 @@
 - Scope: Convert the undocumented caller obligation into a GUARANTEE at the two write sites that own it, plus the one shared writer. THREE changes: (1) `runner_shared.write_prompt` creates `path.parent` before `write_text`, since it both computes and writes the path and is therefore solely responsible for it; (2) `oc_runipd.run_opencode` and (3) `agy_runipd.run_agy_turn` each create `log_path.parent` before the `open("w")`, fixing both hosts rather than one. The fix is deliberately NOT placed inside `attempt_log_path`: that helper is a PURE PATH FUNCTION with read-only and record-only callers (`runner_shared.execute_item_core` calls it merely to record `"log": str(attempt_log_path(...))` into an attempt dict, and the dashboard/viewer re-root recorded log names for READING), so creating a directory there would make a pure accessor mutate the filesystem and would create `sessions/` in run directories nobody ever launches into. DOES NOT change any filename or path shape, DOES NOT alter `initialize_run_core` (its mkdir loop stays, now as defence in depth rather than as the sole guarantee), DOES NOT remove either existing caller-side workaround, and DOES NOT touch `outcomes/`, whose writers are out of scope and separately addressed below.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_dir_parents_are_guaranteed.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: z3ifg8
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: z3ifg8 verified (set hblsqo, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-6bolin-01-6bolin-grandfatheringandcheckertests-fails-on-89xjll-spec.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-m88gwh-01-m88gwh-danglingcommitsearchtests-test-07-real-corpus-arm-.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-605 all fixed; fix verified end to end
 
