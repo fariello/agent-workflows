@@ -2007,6 +2007,8 @@ def verification_flag_tristate(args: argparse.Namespace) -> Optional[bool]:
             "turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is "
             "the same request as --no-validate"
         )
+    # zdgc6t E-05: close narrower agy hole on --validate --no-validate using shared predicate
+    runner_shared.refuse_contradictory_verification_flags(args)
     if bool(no_verify):
         return False
     return validate
@@ -3650,7 +3652,7 @@ AUTOMATIC STATUS ROUTING:
         "--no-verify",
         "--no-audit",
         dest="no_verify",
-        action="store_true",
+        action=runner_shared.RecordingStoreTrueAction,
         help="Skip turn-2 clean-session skeptical validation",
     )
     # hostdefault-02 (`ybkmzp`) E-02: the TRI-STATE surface, so this host can express "let the
@@ -3672,7 +3674,7 @@ AUTOMATIC STATUS ROUTING:
     start.add_argument(
         "--validate",
         dest="validate",
-        action=argparse.BooleanOptionalAction,
+        action=runner_shared.RecordingBooleanOptionalAction,
         default=None,
         help="Run (or skip) the turn-2 independent clean-session verification. Omit to use the "
         "runner-profile store's per-model choice, which on this host defaults to verifying. "

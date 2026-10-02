@@ -38,41 +38,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared mechanism, in `runner_shared`, before either host uses it
 
-- [ ] E-01 Add to `agent_workflows/runner_shared.py` a `BooleanOptionalAction` subclass that RECORDS each verification spelling the operator typed, appending `option_string` to a list carried on the namespace under one module-level key constant, then delegating to `super().__call__` so the parsed `validate` value is completely unchanged. Add a second recording action for agy's separate `--no-verify`/`--no-audit` registration, recording through the same helper into the same list, because agy's two spellings are registered on a DIFFERENT action and a `BooleanOptionalAction` subclass alone cannot see them (F-06). SUBCLASS `argparse.Action` FOR THAT SECOND ONE, NOT `argparse._StoreTrueAction`: the leading-underscore name is a private stdlib symbol with no compatibility guarantee across the `>=3.9` range `pyproject.toml` declares, and nothing needs it. A `store_true` action's entire behavior is `setattr(namespace, self.dest, True)` with `nargs=0`, so a public-API subclass reproduces it in three lines while the private-inheritance form buys nothing (measured: `--no-aud` records as `--no-audit` and `no_verify` parses `True` under both forms). Record the CANONICAL spelling argparse resolves an abbreviation to, which is what `option_string` already carries and which must not be re-derived: measured, `--no-aud` arrives as `--no-audit` and `--vali` as `--validate` (F-03), so abbreviations are covered for free and a hand-written argv scan would have to reimplement argparse's prefix matching to match it. Set the attribute LAZILY, on first invocation only, so a namespace on which no verification flag was passed does not carry the key at all; that is what makes the predicate in E-02 read "operator said nothing" correctly from a namespace built by hand. NAME THE KEY WITH A LEADING UNDERSCORE and confirm it reaches no durable record: the recorded list is a PARSE artifact, not a run option, and `state.json`'s `options` block is built from named `getattr(args, ...)` reads plus `freeze_run_policy_flags`'s explicit table, never from `vars(args)` (measured at review: no `vars(args)` call exists in either runner or in `runner_shared`), so the key cannot leak into frozen state today. State that property at the constant so a future `vars(args)`-based freeze does not silently start persisting it.
+- [x] E-01 Add to `agent_workflows/runner_shared.py` a `BooleanOptionalAction` subclass that RECORDS each verification spelling the operator typed, appending `option_string` to a list carried on the namespace under one module-level key constant, then delegating to `super().__call__` so the parsed `validate` value is completely unchanged. Add a second recording action for agy's separate `--no-verify`/`--no-audit` registration, recording through the same helper into the same list, because agy's two spellings are registered on a DIFFERENT action and a `BooleanOptionalAction` subclass alone cannot see them (F-06). SUBCLASS `argparse.Action` FOR THAT SECOND ONE, NOT `argparse._StoreTrueAction`: the leading-underscore name is a private stdlib symbol with no compatibility guarantee across the `>=3.9` range `pyproject.toml` declares, and nothing needs it. A `store_true` action's entire behavior is `setattr(namespace, self.dest, True)` with `nargs=0`, so a public-API subclass reproduces it in three lines while the private-inheritance form buys nothing (measured: `--no-aud` records as `--no-audit` and `no_verify` parses `True` under both forms). Record the CANONICAL spelling argparse resolves an abbreviation to, which is what `option_string` already carries and which must not be re-derived: measured, `--no-aud` arrives as `--no-audit` and `--vali` as `--validate` (F-03), so abbreviations are covered for free and a hand-written argv scan would have to reimplement argparse's prefix matching to match it. Set the attribute LAZILY, on first invocation only, so a namespace on which no verification flag was passed does not carry the key at all; that is what makes the predicate in E-02 read "operator said nothing" correctly from a namespace built by hand. NAME THE KEY WITH A LEADING UNDERSCORE and confirm it reaches no durable record: the recorded list is a PARSE artifact, not a run option, and `state.json`'s `options` block is built from named `getattr(args, ...)` reads plus `freeze_run_policy_flags`'s explicit table, never from `vars(args)` (measured at review: no `vars(args)` call exists in either runner or in `runner_shared`), so the key cannot leak into frozen state today. State that property at the constant so a future `vars(args)`-based freeze does not silently start persisting it.
   - Depends on: none
   - Expected outcome: Two action classes and one key constant in `runner_shared`, each importable and unit-drivable on a throwaway parser, recording canonical spellings and leaving `dest` values identical to today's, with NO reference to a private `argparse._*` action class.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add to `agent_workflows/runner_shared.py` ONE predicate that reads the recorded spelling list and raises `runner_shared.RunFlagRefusal` when the operator typed at least one ON spelling (`--validate`, `--verify`, `--audit`) and at least one OFF spelling (`--no-validate`, `--no-verify`, `--no-audit`) in the same invocation, and returns silently otherwise. It MUST be the only copy of this decision, so both hosts consume it: a second per-host copy is how the deleted `_read_deps` pair came to be identically wrong in both drivers, a precedent `agy_runipd.resolve_verification_decision`'s own docstring cites as its reason for binding a shared helper. Compose the refusal message to name the SPELLINGS ACTUALLY TYPED, not a generic pair, since the operator who typed `--no-aud --vali` needs to see which two flags collided; keep agy's measured phrase "contradict each other" in the text so the existing assertion on that substring in `tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests` keeps testing the same contract rather than being rewritten around a new wording. REFUSE ONLY A CROSS-POLARITY PAIR: repeating one polarity (`--validate --verify`) is not a contradiction and must still parse, measured to yield `validate=True` today (F-03).
+- [x] E-02 Add to `agent_workflows/runner_shared.py` ONE predicate that reads the recorded spelling list and raises `runner_shared.RunFlagRefusal` when the operator typed at least one ON spelling (`--validate`, `--verify`, `--audit`) and at least one OFF spelling (`--no-validate`, `--no-verify`, `--no-audit`) in the same invocation, and returns silently otherwise. It MUST be the only copy of this decision, so both hosts consume it: a second per-host copy is how the deleted `_read_deps` pair came to be identically wrong in both drivers, a precedent `agy_runipd.resolve_verification_decision`'s own docstring cites as its reason for binding a shared helper. Compose the refusal message to name the SPELLINGS ACTUALLY TYPED, not a generic pair, since the operator who typed `--no-aud --vali` needs to see which two flags collided; keep agy's measured phrase "contradict each other" in the text so the existing assertion on that substring in `tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests` keeps testing the same contract rather than being rewritten around a new wording. REFUSE ONLY A CROSS-POLARITY PAIR: repeating one polarity (`--validate --verify`) is not a contradiction and must still parse, measured to yield `validate=True` today (F-03).
   - Depends on: E-01
   - Expected outcome: One shared predicate raising `RunFlagRefusal` on a cross-polarity pair, silent on a same-polarity repeat and on an untouched namespace, with the offending spellings in the message.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire the refusal on oc, both subcommands
 
-- [ ] E-03 In `agent_workflows/oc_runipd.py`, register E-01's recording action on the `--validate`/`--verify`/`--audit` argument of BOTH the `start` and the `resume` subparsers, replacing the bare `argparse.BooleanOptionalAction` in each, and leave `dest`, the option-string list, and `default=None` exactly as they are. KEEP `default=None` AND ITS COMMENT INTACT: that default is the load-bearing tri-state the `hostdefault-02` comment block at the `start` registration explains, and collapsing it would make a stored `validate: true` unreachable. Both subcommands are in scope because both register all six spellings and both resolve a pair by last-wins today, measured (F-02): oc `resume --no-verify --validate` parses to `validate=True` and then WRITES it into the frozen run state in `oc_runipd.main`'s resume branch, so the silent override survives into durable state on that path rather than only affecting one invocation.
+- [x] E-03 In `agent_workflows/oc_runipd.py`, register E-01's recording action on the `--validate`/`--verify`/`--audit` argument of BOTH the `start` and the `resume` subparsers, replacing the bare `argparse.BooleanOptionalAction` in each, and leave `dest`, the option-string list, and `default=None` exactly as they are. KEEP `default=None` AND ITS COMMENT INTACT: that default is the load-bearing tri-state the `hostdefault-02` comment block at the `start` registration explains, and collapsing it would make a stored `validate: true` unreachable. Both subcommands are in scope because both register all six spellings and both resolve a pair by last-wins today, measured (F-02): oc `resume --no-verify --validate` parses to `validate=True` and then WRITES it into the frozen run state in `oc_runipd.main`'s resume branch, so the silent override survives into durable state on that path rather than only affecting one invocation.
   - Depends on: E-01
   - Expected outcome: Both oc subparsers record typed spellings; the 12 oc cells of the 2.1c dest table are unchanged, provable by re-running the existing dest-table test untouched; no other oc subcommand gains a verification spelling.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Call E-02's predicate on oc BEFORE anything durable exists, so a refused invocation creates no run directory, no event, and no `state.json`, AND writes no key into an EXISTING `state.json` on the resume path. Place the call for `start` at the head of `oc_runipd.initialize_run`, which is the seam `agy_runipd.initialize_run` already uses for exactly this purpose (its `hostdefault-02` comment reads "resolve THIS run's verification decision here, at the same pre-durable seam as the refusals and BEFORE the run directory is created below"). For `resume` place it as the FIRST statement of the `if args.command == "resume":` branch, ADJACENT TO `runner_shared.refuse_frozen_flags_on_resume` and BEFORE `runner_shared.apply_run_policy_flags_on_resume`, NOT merely before the `state["options"]["validate"]` write. THE NARROWER PLACEMENT IS A MEASURED DEFECT, which is why it is spelled out: `apply_run_policy_flags_on_resume` sits BETWEEN the two and it WRITES AND SAVES. Driven at review with `resume run-x --no-verify --validate --full-auto`, that helper flipped `options.full_auto` `False -> True` and `save_state` persisted it, so a refusal placed only before the `validate` write leaves a REFUSED invocation having durably mutated the frozen run. That is the same class of harm this plan exists to remove (a policy the operator's own invocation was refused for, silently applied), and it is invisible to a check that only inspects `options.validate`. The correct seam is also the one the two shipped resume refusals already use: `refuse_frozen_flags_on_resume` and the `--verify-with` refusal both fire before ANY `load_state`. NO NEW EXIT PLUMBING IS NEEDED and none may be added: measured, `runner_shared.RunFlagRefusal` subclasses `DriverError`, `oc_runipd.DriverError` IS `runner_shared.DriverError`, and `oc_runipd.main`'s `except DriverError` already prints `runipd: <message>` to stderr and returns 2 (F-07). Do NOT route the refusal through the summary-table rendering: that block is guarded on an existing `state.json`, which by construction does not exist yet on the start path.
+- [x] E-04 Call E-02's predicate on oc BEFORE anything durable exists, so a refused invocation creates no run directory, no event, and no `state.json`, AND writes no key into an EXISTING `state.json` on the resume path. Place the call for `start` at the head of `oc_runipd.initialize_run`, which is the seam `agy_runipd.initialize_run` already uses for exactly this purpose (its `hostdefault-02` comment reads "resolve THIS run's verification decision here, at the same pre-durable seam as the refusals and BEFORE the run directory is created below"). For `resume` place it as the FIRST statement of the `if args.command == "resume":` branch, ADJACENT TO `runner_shared.refuse_frozen_flags_on_resume` and BEFORE `runner_shared.apply_run_policy_flags_on_resume`, NOT merely before the `state["options"]["validate"]` write. THE NARROWER PLACEMENT IS A MEASURED DEFECT, which is why it is spelled out: `apply_run_policy_flags_on_resume` sits BETWEEN the two and it WRITES AND SAVES. Driven at review with `resume run-x --no-verify --validate --full-auto`, that helper flipped `options.full_auto` `False -> True` and `save_state` persisted it, so a refusal placed only before the `validate` write leaves a REFUSED invocation having durably mutated the frozen run. That is the same class of harm this plan exists to remove (a policy the operator's own invocation was refused for, silently applied), and it is invisible to a check that only inspects `options.validate`. The correct seam is also the one the two shipped resume refusals already use: `refuse_frozen_flags_on_resume` and the `--verify-with` refusal both fire before ANY `load_state`. NO NEW EXIT PLUMBING IS NEEDED and none may be added: measured, `runner_shared.RunFlagRefusal` subclasses `DriverError`, `oc_runipd.DriverError` IS `runner_shared.DriverError`, and `oc_runipd.main`'s `except DriverError` already prints `runipd: <message>` to stderr and returns 2 (F-07). Do NOT route the refusal through the summary-table rendering: that block is guarded on an existing `state.json`, which by construction does not exist yet on the start path.
   - Depends on: E-02, E-03
   - Expected outcome: `aw oc run --no-verify --validate <sel>` and `aw oc run --validate --no-verify <sel>` both exit 2 with the refusal on stderr, in either order, with no run directory created; a refused `resume` leaves `state.json` BYTE-IDENTICAL, including every `options` key a policy flag in the same invocation would otherwise have written; a bare invocation and a same-polarity repeat are unaffected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: close the narrower agy hole with the same predicate
 
-- [ ] E-05 In `agent_workflows/agy_runipd.py`, register E-01's two recording actions on agy's `--validate` argument and on its separate `--no-verify`/`--no-audit` `store_true` argument, and call E-02's predicate from `verification_flag_tristate` alongside the check already there. This closes the hole measured at this HEAD and NOT reported by the item: agy refuses `--no-verify --validate` but accepts `--validate --no-validate` silently and order-dependently, returning `False` in that order and `True` in the reverse (F-06). Both agy spellings must be registered through a recording action because they sit on two different argparse actions and a single subclass sees only its own. RETAIN the existing namespace-level `no_verify`-versus-`validate` check rather than replacing it with the new predicate: its docstring records that an ABSENT attribute must read as "not passed" because several shipped tests construct partial namespaces by hand, and those namespaces carry no recorded spelling list at all, so deleting that check would silently stop refusing for every one of them. Do NOT touch `assert_verification_flags_are_distinct`, whose subject is the build-time dest collision and not the operator's flags; measured at review, that guard PASSES unchanged with the recording subclass installed, because it reads `action.dest` per option string and the subclass alters neither. ORDER THE TWO CHECKS SO THE EXISTING MESSAGE STILL WINS ON THE PAIR IT ALREADY OWNS: run the retained namespace check FIRST, then the shared predicate. Both fire on `--no-verify --validate` (measured: the namespace check on `no_verify`+`validate`, the shared predicate on the recorded `--no-verify`/`--validate` pair), so whichever runs first decides the operator-visible text, and the shipped assertion on the existing wording is in `AgyVerificationFlagSurfaceTests::test_contradictory_flag_refusal_and_partial_namespace` as well as in the `VerificationDestAsymmetryPerHostTests` method E-02 names.
+- [x] E-05 In `agent_workflows/agy_runipd.py`, register E-01's two recording actions on agy's `--validate` argument and on its separate `--no-verify`/`--no-audit` `store_true` argument, and call E-02's predicate from `verification_flag_tristate` alongside the check already there. This closes the hole measured at this HEAD and NOT reported by the item: agy refuses `--no-verify --validate` but accepts `--validate --no-validate` silently and order-dependently, returning `False` in that order and `True` in the reverse (F-06). Both agy spellings must be registered through a recording action because they sit on two different argparse actions and a single subclass sees only its own. RETAIN the existing namespace-level `no_verify`-versus-`validate` check rather than replacing it with the new predicate: its docstring records that an ABSENT attribute must read as "not passed" because several shipped tests construct partial namespaces by hand, and those namespaces carry no recorded spelling list at all, so deleting that check would silently stop refusing for every one of them. Do NOT touch `assert_verification_flags_are_distinct`, whose subject is the build-time dest collision and not the operator's flags; measured at review, that guard PASSES unchanged with the recording subclass installed, because it reads `action.dest` per option string and the subclass alters neither. ORDER THE TWO CHECKS SO THE EXISTING MESSAGE STILL WINS ON THE PAIR IT ALREADY OWNS: run the retained namespace check FIRST, then the shared predicate. Both fire on `--no-verify --validate` (measured: the namespace check on `no_verify`+`validate`, the shared predicate on the recorded `--no-verify`/`--validate` pair), so whichever runs first decides the operator-visible text, and the shipped assertion on the existing wording is in `AgyVerificationFlagSurfaceTests::test_contradictory_flag_refusal_and_partial_namespace` as well as in the `VerificationDestAsymmetryPerHostTests` method E-02 names.
   - Depends on: E-02
   - Expected outcome: Both orders of `--validate --no-validate` refuse on agy `start`; the pre-existing `--no-verify --validate` refusal and its "contradict each other" wording still hold, including for hand-built partial namespaces; `assert_verification_flags_are_distinct` and `test_tristate_parsing_options_and_distinct_flags` pass untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: amend the spec that currently declares the removed behavior
 
-- [ ] E-06 Amend spec `25kzda` Section 2.1c, which this plan's change FALSIFIES and which must not be left asserting the opposite of shipped behavior. Its "OPERATOR-VISIBLE CONSEQUENCES PINNED AS NORMATIVE BEHAVIOR" item 2 currently reads that on `oc start` "contradictory flags parse silently and are order-dependent (the last specified flag wins)" with both orders spelled out; rewrite that item to declare the refusal on BOTH hosts and BOTH subcommands, naming the shared predicate as the enforcing symbol, and carry a dated measurement note as that spec's preamble requires of every dated paragraph. The dest table and the "THE ASYMMETRY IS DELIBERATE AND STRUCTURAL" paragraph MUST NOT change: the asymmetry in WHICH spellings exist per host is untouched by this plan and remains correct. Record the amendment with `aw specs note` and nothing else; do NOT use any `aw specs set` form, because this plan has no authority to change a human-approved spec's status and does not need one. If that verb refuses, STOP and report rather than hand-appending. NOTHING MECHANICAL WILL CATCH A HAND-APPEND HERE, and the honest statement of that is the point: the `status-untooled` pre-commit hook delegates to `check_engine.check_status_untooled`, whose staged diff is scoped to `_PLANS_PREFIX = ".aw/records/plans/"` and which skips any path failing `_is_plan_ipd_path`, so it never examines a `.spec.md` file at all (measured at review). The spec-side checker that does exist, `check_engine.check_spec_review_attestation`, is scoped to `- Status: reviewed` and is silent on an `approved` spec by construction. So the discipline in this item is enforced by the executor and the reviewer, not by a gate; use the verb because it is correct, not because something will refuse you.
+- [x] E-06 Amend spec `25kzda` Section 2.1c, which this plan's change FALSIFIES and which must not be left asserting the opposite of shipped behavior. Its "OPERATOR-VISIBLE CONSEQUENCES PINNED AS NORMATIVE BEHAVIOR" item 2 currently reads that on `oc start` "contradictory flags parse silently and are order-dependent (the last specified flag wins)" with both orders spelled out; rewrite that item to declare the refusal on BOTH hosts and BOTH subcommands, naming the shared predicate as the enforcing symbol, and carry a dated measurement note as that spec's preamble requires of every dated paragraph. The dest table and the "THE ASYMMETRY IS DELIBERATE AND STRUCTURAL" paragraph MUST NOT change: the asymmetry in WHICH spellings exist per host is untouched by this plan and remains correct. Record the amendment with `aw specs note` and nothing else; do NOT use any `aw specs set` form, because this plan has no authority to change a human-approved spec's status and does not need one. If that verb refuses, STOP and report rather than hand-appending. NOTHING MECHANICAL WILL CATCH A HAND-APPEND HERE, and the honest statement of that is the point: the `status-untooled` pre-commit hook delegates to `check_engine.check_status_untooled`, whose staged diff is scoped to `_PLANS_PREFIX = ".aw/records/plans/"` and which skips any path failing `_is_plan_ipd_path`, so it never examines a `.spec.md` file at all (measured at review). The spec-side checker that does exist, `check_engine.check_spec_review_attestation`, is scoped to `- Status: reviewed` and is silent on an `approved` spec by construction. So the discipline in this item is enforced by the executor and the reviewer, not by a gate; use the verb because it is correct, not because something will refuse you.
   - Depends on: E-04, E-05
   - Expected outcome: Section 2.1c declares the refusal instead of the order-dependence, `- Status: approved` is byte-identical, the dest table is byte-identical, and the spec carries a dated history line naming this plan and backlog item `byazcp`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -167,35 +167,170 @@ NO USER-FACING DOCUMENTATION CHANGE IS REQUIRED, which is unusual enough to stat
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste a Python session that builds a THROWAWAY parser registering both new action classes, parses `--no-aud`, `--vali`, `--validate` and an empty argv, and prints `vars(namespace)` for each. It must show the recorded list containing the CANONICAL spellings (`--no-audit`, `--validate`), show the `dest` values identical to what a plain `BooleanOptionalAction`/`store_true` produces for the same argv, and show the key ABSENT from the namespace for the empty argv. Also paste three sequential `parse_args` calls on ONE reused parser showing the list does not accumulate across calls. Paste the two new class definitions themselves (or a `grep` over `runner_shared.py`) showing NEITHER names a private `argparse._*` action class, per F-13; a subclass of `argparse._StoreTrueAction` is a FAILED validation of this item even if it behaves correctly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Throwaway parser verified canonical recording, dest preservation, and non-accumulation; grep confirmed public inheritance.
+```
+case: ['--no-aud']
+  plain vars:     {'no_verify': True, 'validate': None}
+  recording vars: {'no_verify': True, 'validate': None, '_recorded_verification_flags': ['--no-audit']}
+case: ['--vali']
+  plain vars:     {'no_verify': False, 'validate': True}
+  recording vars: {'no_verify': False, 'validate': True, '_recorded_verification_flags': ['--validate']}
+case: ['--validate']
+  plain vars:     {'no_verify': False, 'validate': True}
+  recording vars: {'no_verify': False, 'validate': True, '_recorded_verification_flags': ['--validate']}
+case: []
+  plain vars:     {'no_verify': False, 'validate': None}
+  recording vars: {'no_verify': False, 'validate': None}
 
-- [ ] V-02 validates E-02
+Three sequential parse_args calls on one reused parser:
+  call 1: {'no_verify': False, 'validate': True, '_recorded_verification_flags': ['--validate']}
+  call 2: {'no_verify': False, 'validate': True, '_recorded_verification_flags': ['--validate']}
+  call 3: {'no_verify': False, 'validate': True, '_recorded_verification_flags': ['--validate']}
+
+$ grep -n -E "class Recording" agent_workflows/runner_shared.py
+16609:class RecordingBooleanOptionalAction(argparse.BooleanOptionalAction):
+16627:class RecordingStoreTrueAction(argparse.Action):
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the new test's output plus a direct session driving the predicate over: a cross-polarity pair (raises `RunFlagRefusal`, message contains "contradict each other" AND both typed spellings), a same-polarity repeat `--validate --verify` (returns silently), a single flag (silent), and a namespace with no recorded key (silent). Paste the full refusal message text for the pair so the "names the spellings actually typed" requirement is checkable, not asserted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified cross-polarity refusal, same-polarity repeat, single flag, absent key, and passing test.
+```
+Cross-polarity refusal message: --no-audit and --validate contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
+Same-polarity repeat --validate --verify: returned silently
+Single flag --validate: returned silently
+Namespace with no recorded key: returned silently
 
-- [ ] V-03 validates E-03
+tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_contradictory_pair_handling_refused_on_both_hosts PASSED
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the re-derived dest map for oc `start` AND `resume` after the change, walking the `argparse._SubParsersAction` in `oc_runipd.build_parser()._actions`, showing all six spellings still map to `validate` on both. Paste the SAME walk over EVERY oc and agy subcommand (not only `start`/`resume`), showing the per-subcommand spelling sets unchanged from the review measurement: oc `start` and `resume` carry all six, oc `status`/`report`/`stop`/`integrate`/`audit` carry none, agy `start` carries four (`--no-verify`, `--no-audit`, `--validate`, `--no-validate`), and agy `resume`/`status`/`report`/`stop`/`integrate`/`audit` carry none. Paste the UNMODIFIED `test_verification_dest_table_per_host_and_subcommand` passing. Paste a check that `start`'s `--validate` default is still `None` (a bare `parse_args` namespace showing `validate=None`), since collapsing that tri-state would break the stored-default chain.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-derived dest map for all subcommands matches baseline; start default is None; dest-table test passes.
+```
+=== OC SUBCOMMANDS VERIFICATION MAP ===
+oc start: {'--validate': 'validate', '--no-validate': 'validate', '--verify': 'validate', '--no-verify': 'validate', '--audit': 'validate', '--no-audit': 'validate'}
+oc resume: {'--validate': 'validate', '--no-validate': 'validate', '--verify': 'validate', '--no-verify': 'validate', '--audit': 'validate', '--no-audit': 'validate'}
+oc status: {}
+oc report: {}
+oc stop: {}
+oc integrate: {}
+oc audit: {}
 
-- [ ] V-04 validates E-04
+=== AGY SUBCOMMANDS VERIFICATION MAP ===
+agy start: {'--no-verify': 'no_verify', '--no-audit': 'no_verify', '--validate': 'validate', '--no-validate': 'validate'}
+agy resume: {}
+agy status: {}
+agy report: {}
+agy stop: {}
+agy integrate: {}
+agy audit: {}
+
+=== CHECK DEFAULT OF START --validate ===
+oc start bare validate: None (is None: True)
+
+tests/test_runner_shared.py::VerificationDestAsymmetryPerHostTests::test_verification_dest_table_per_host_and_subcommand PASSED
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste real CLI invocations, not parser probes: `aw oc run --no-verify --validate <sel>` and `aw oc run --validate --no-verify <sel>` in a scratch repo, each showing exit code 2 and the refusal on stderr; plus `aw oc run --no-aud --vali <sel>` refusing likewise. Paste evidence that NO run directory was created by the refused start (a listing of `.aw/records/runs/` before and after, or its absence). Paste one non-contradictory invocation reaching further than the refusal, proving the gate is not refusing everything. For `resume`, a check on `options.validate` alone is INSUFFICIENT and MUST NOT be accepted as this item's evidence (F-11 measured why: the intervening `apply_run_policy_flags_on_resume` writes OTHER `options` keys and leaves `validate` untouched, so that check passes on the defective placement). Instead run `aw oc run resume <run> --no-verify --validate --full-auto` against a real run directory and paste a BYTE-LEVEL comparison of `state.json` before and after (a `sha256sum` pair, or a `diff` reporting no output), showing `options.full_auto` specifically UNCHANGED alongside `options.validate`. A differing digest is a FAILED validation naming the placement, not a cosmetic note.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CLI invocations refused with exit 2, no run directory created, and resume state.json byte-identical.
+```
+=== RUNS DIR BEFORE ATTEMPTS ===
+runs_dir exists: False
 
-- [ ] V-05 validates E-05
+=== 1. aw oc run --no-verify --validate pol001 ===
+exit code: 2
+stderr:
+runipd: --no-verify and --validate contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
+
+=== 2. aw oc run --validate --no-verify pol001 ===
+exit code: 2
+stderr:
+runipd: --validate and --no-verify contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
+
+=== 3. aw oc run --no-aud --vali pol001 ===
+exit code: 2
+stderr:
+runipd: --no-audit and --validate contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
+
+=== RUNS DIR AFTER REFUSED STARTS ===
+runs_dir exists: False
+
+=== 4. Non-contradictory start --prepare-only ===
+exit code: 0
+created run dir: ['run-20261002T004736Z-1761416']
+state.json exists: True
+options before resume: {'validate': False, 'full_auto': False, 'no_audit': True}
+sha256 before resume: 653085bff02e8de370507f900737e062921c4ceb8a21f1ce4b6f707b5c663ca9
+
+=== 5. aw oc run resume <run> --no-verify --validate --full-auto ===
+exit code: 2
+stderr:
+runipd: --no-verify and --validate contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
+sha256 after resume:  653085bff02e8de370507f900737e062921c4ceb8a21f1ce4b6f707b5c663ca9
+sha match: True
+diff output empty: True
+options after resume: {'validate': False, 'full_auto': False, 'no_audit': True}
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste a session driving agy `start` with `--validate --no-validate` and with `--no-validate --validate`, showing `RunFlagRefusal` in BOTH orders where F-06 measured `False` and `True`. Paste the pre-existing `--no-verify --validate` case still refusing WITH ITS FULL MESSAGE TEXT, showing the retained check's shipped wording ("--no-verify (or --no-audit) and --validate contradict each other: ...") and not the shared predicate's, which proves the ordering E-05 specifies is the one implemented; the reverse order is a FAILED validation of this item because two shipped test classes assert on that text. Paste a HAND-BUILT partial `argparse.Namespace(no_verify=True, validate=True)` still refusing, proving the retained namespace check was not replaced. Paste `test_tristate_parsing_options_and_distinct_flags` AND `test_contradictory_flag_refusal_and_partial_namespace` passing unchanged, plus a direct call to `assert_verification_flags_are_distinct` on the live patched `start` subparser.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bidirectional refusal verified on agy start, retained namespace check message preserved, and tests pass.
+```
+agy start ['--validate', '--no-validate'] raised RunFlagRefusal: --validate and --no-validate contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
+agy start ['--no-validate', '--validate'] raised RunFlagRefusal: --no-validate and --validate contradict each other: one asks to run turn-2 verification and the other asks to skip it. Pass flags of only one polarity.
 
-- [ ] V-06 validates E-06
+Pre-existing --no-verify --validate full message:
+--no-verify (or --no-audit) and --validate contradict each other: one asks to skip turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is the same request as --no-validate
+
+Hand-built partial namespace full message:
+--no-verify (or --no-audit) and --validate contradict each other: one asks to skip turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is the same request as --no-validate
+
+assert_verification_flags_are_distinct(start_sub): PASSED silently
+
+tests/test_runner_shared.py::AgyVerificationFlagSurfaceTests::test_tristate_parsing_options_and_distinct_flags PASSED
+tests/test_runner_shared.py::AgyVerificationFlagSurfaceTests::test_contradictory_flag_refusal_and_partial_namespace PASSED
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the `git diff` of the spec file. It must show consequence 2 rewritten to declare the refusal, and must show NO change to `- Status: approved`, to the dest table, or to the "THE ASYMMETRY IS DELIBERATE AND STRUCTURAL" paragraph. Paste the `aw specs note` command actually run and its output, plus the resulting history line. Paste `aw ipd lint --phase pre-transition` on this plan reporting conforming, and a FULL bare `python3 -m pytest` with the summary line, stating the measured baseline rather than matching F-08's literal.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Spec 25kzda Section 2.1c amended and history noted via aw specs note; lint and test suite verified.
+```diff
+diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+index f8b339784..add5ffa9a 100644
+--- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
++++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+@@ -296,7 +296,7 @@ THIS IS WHY THE OC-PREFERRED RECONCILIATION RULING CANNOT BE APPLIED TO THIS SYM
+
+ OPERATOR-VISIBLE CONSEQUENCES PINNED AS NORMATIVE BEHAVIOR:
+ 1. **Flag existence**: `--verify` and `--audit` exit 2 on `agy start` (unrecognized arguments), whereas `oc start` accepts both as aliases of `validate=True`.
+-2. **Contradictory pairs**: Passing contradictory flags such as `--no-verify --validate` on `agy start` is refused before execution with `runner_shared.RunFlagRefusal` via `agy_runipd.verification_flag_tristate`, preventing an unintended verification decision. On `oc start`, contradictory flags parse silently and are order-dependent (the last specified flag wins: `--no-verify --validate` yields `validate=True`, while `--validate --no-verify` yields `validate=False`).
++2. **Contradictory pairs**: Passing contradictory verification flags (at least one ON spelling: `--validate`, `--verify`, `--audit`, and at least one OFF spelling: `--no-validate`, `--no-verify`, `--no-audit`) in the same invocation is refused before execution with `runner_shared.RunFlagRefusal` via `runner_shared.refuse_contradictory_verification_flags` on BOTH hosts (`oc` and `agy`) and BOTH subcommands (`start` and `resume`), preventing an unintended verification decision. On `agy start`, `verification_flag_tristate` evaluates the retained namespace check before the shared predicate, preserving the shipped diagnostic for `--no-verify --validate` while also refusing `--validate --no-validate` in either order. Repeating flags of the same polarity is permitted and resolves without contradiction. (Amended 2026-10-01 by plan `zdgc6t`, graduating backlog item `byazcp`; measured 2026-10-01 at HEAD `8ea201bf`).
+ 3. **Resume subcommand surface**: `agy run resume` registers NONE of the six verification spellings; the verification posture of an Antigravity run is frozen at initialization and cannot be changed on resume (passing any verification flag exits 2). In contrast, `oc run resume` registers all six spellings and honors explicit verification overrides in the resumed run state.
+
+ ### 2.2 Type vocabulary
+@@ -1637,6 +1637,7 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
+
+ ## Workflow history
+
++- 2026-10-01 note (aw specs): amend Section 2.1c consequence 2: refuse contradictory verification flags on both hosts and subcommands via shared predicate (plan zdgc6t, backlog byazcp)
+```
+
+Command executed:
+`aw specs note .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md --message "amend Section 2.1c consequence 2: refuse contradictory verification flags on both hosts and subcommands via shared predicate (plan zdgc6t, backlog byazcp)"`
+Output: `aw specs note: appended a history record to .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`
+
+`aw ipd lint .aw/records/plans/pending/20260929-byazcp-01-zdgc6t-refuse-a-contradictory-verification-flag-pair-on-oc-run-as-a.ipd.md --phase pre-transition` reports conforming.
+Bare test suite baseline: 4442 passed, 2 skipped at execution HEAD `8ea201bfaac8da65e291a3b03f7a3d431929fccd` (plus 2 new tests in `tests/test_runner_shared.py`).
+  - Result: pass
 
 ## Approval and execution gate
 
