@@ -1,11 +1,13 @@
 - Id: mt6j1p
-- Status: open
+- Status: graduated
+- Graduated-To: mt6j1p
 - Set: mt6j1p
 - Priority: low
 - Work-Kind: followup
 - Summary: No checker reports a plan whose filename date disagrees with its own - Date: metadata, so a wrong filename date is silent even after the value itself is validated
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: wyk11f
 - 2026-09-30 created (aw backlog): Filed while authoring plan fqcax0 (graduating 5h8u3z) as the carrier for its OQ-03: the wider gap the 5h8u3z backlog item raises in its last sentence and does not answer.
 
 DEFERRED FROM PLAN fqcax0 OQ-03, which closes the ADJACENT defect (a present-but-unparseable - Date: value escaping aw ipd lint) and deliberately does not reach this one.
