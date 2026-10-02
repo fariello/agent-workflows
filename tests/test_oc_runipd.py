@@ -7181,14 +7181,8 @@ class PerArtifactDispositionLineTests(unittest.TestCase):
     def _disposition_lines(self, out: str) -> list:
         from agent_workflows import run_selection_policy as pol
 
-        lines = out.splitlines()
-        start = lines.index(pol.DISPOSITION_HEADER)
-        block = []
-        for line in lines[start + 1 :]:
-            if not line.startswith("- "):
-                break
-            block.append(line)
-        return block
+        lines = support.section_lines(out, pol.DISPOSITION_HEADER, pol.SUMMARY_HEADER)
+        return [ln for ln in lines[1:] if ln.startswith("- ")]
 
     def test_an_approval_blocked_queue_explains_itself_instead_of_showing_a_bare_reviewed(
         self,
@@ -7322,7 +7316,7 @@ class EndOfRunDispositionSummaryTests(unittest.TestCase):
             self._entry(4, "ddd444", status="queued", dependencies=["executed:aaa111"]),
         ]
         out_mixed = self._run_and_capture(queue_mixed)
-        block = out_mixed[out_mixed.index(pol.SUMMARY_HEADER) :].splitlines()
+        block = support.section(out_mixed, pol.SUMMARY_HEADER, "  total: ").splitlines()
         counted = sum(
             int(m.group(2))
             for line in block
