@@ -29237,6 +29237,7 @@ class StallWatchdog:
         check_interval: float = 1.0,
         *,
         reaper: Callable[[subprocess.Popen], None] | None = None,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         self.process = process
         self.timeout = float(timeout) if timeout and timeout > 0 else 0.0
@@ -29249,6 +29250,15 @@ class StallWatchdog:
         self._stalled = threading.Event()
         self._thread: threading.Thread | None = None
         self._reaper = reaper if reaper is not None else _default_stall_reaper
+        self._progress_checker = progress_checker
+
+    @property
+    def progress_checker(self) -> Callable[[], bool] | None:
+        return self._progress_checker
+
+    @progress_checker.setter
+    def progress_checker(self, checker: Callable[[], bool] | None) -> None:
+        self._progress_checker = checker
 
     def touch(self) -> None:
         self._last_activity = time.monotonic()
@@ -29281,6 +29291,13 @@ class StallWatchdog:
                 break
             idle = time.monotonic() - self._last_activity
             if idle >= self.timeout:
+                if self._progress_checker is not None:
+                    try:
+                        if self._progress_checker():
+                            self.touch()
+                            continue
+                    except Exception:
+                        pass
                 self._stalled.set()
                 self._reaper(self.process)
                 break

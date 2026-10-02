@@ -1036,9 +1036,15 @@ class StallWatchdog(runner_shared.StallWatchdog):
         process: subprocess.Popen,
         timeout: float | None = 900.0,
         check_interval: float = 1.0,
+        *,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(
-            process, timeout, check_interval, reaper=lambda p: terminate_process(p)
+            process,
+            timeout,
+            check_interval,
+            reaper=lambda p: terminate_process(p),
+            progress_checker=progress_checker,
         )
 
 
@@ -3017,6 +3023,7 @@ def run_opencode(
         # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
         # (which keeps emitting housekeeping lines) is still correctly killed.
         observer = stall_progress.SubagentProgressObserver()
+        watchdog.progress_checker = observer.poll
 
         def _subagent_progress() -> None:
             watchdog.touch()
