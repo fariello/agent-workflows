@@ -9,6 +9,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261001-rcp8c4-01-8wpjeq-strike-the-seven-dangling-test-run-flag-surface-citations-in.ipd.md
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
 - Priority: low
