@@ -6,7 +6,7 @@
 - Scope: IN: (1) add a BEHAVIORAL gate asserting that every command in `COMMAND_INVENTORY` is actually INVOKABLE (its `--help` does not die with an argparse `invalid choice`), with an explicit per-command allow-set for the two measured exceptions, each citing its owning item; (2) correct the two in-code comments that cite the deleted test and the "asserted elsewhere" claim as if the gate were live. OUT: this plan does NOT register the `prompts set` subparser, does NOT touch `status_set.TYPE_STATUSES`, and does NOT touch the prompts writer: all three are `7z3ovv`'s declared scope and duplicating them would collide. It does NOT delete the `upgrade-test` root declaration or fix its wrong `agent_record_kind` (that is `lbbo9s`). It does NOT widen, narrow, or re-home `EXEMPTION_REGISTRY`, does NOT change `build_matrix`'s behavior, and adds NO coverage row for any absent command.
 - Scope-Paths: tests/test_command_surface_declarations.py, tests/conformance_matrix.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -19,6 +19,7 @@
 - Id: gm9baj
 
 ## Workflow history
+- 2026-10-02 reviewed (aw set): status set to reviewed
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: `--help`/`invalid choice` detector has measured false negatives under `set`/`backlog set`/`runs`; E-01 now resolves tokens through the parser dispatch table), PR-002 (MEDIUM, fixed: E-04/V-04 baseline re-derived same-session), PR-003 (LOW, fixed: `68sur3` already graduated), PR-004 (LOW, fixed: finalize ownership), PR-005 (LOW, fixed: V-01 import wording). Record: `.aw/records/reviews/20261002-declabsent-01-gm9baj-restore-the-declared-but-absent-cli-leaf-gate-deleted-in-the.review.md`.
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `68sur3`, graduating it. Every claim in Findings was MEASURED in this lane at HEAD `aa7631e55` by driving the real parser and reading real git history, not read off prose. THE AUTHORING DECISION A REVIEWER SHOULD CHECK FIRST IS THE SCOPE, because it deliberately does NOT do what the item asks. The item frames the fix as a binary scope call ("either REGISTER the subparser ... or REMOVE both the dispatch branch and the help claim"). BOTH HORNS ARE ALREADY TAKEN by pending plan `7z3ovv`, which graduated the DUPLICATE item `um8ikz` on 2026-10-02 (run `run-20261001T222151Z-2118435`), carries `- Blocks-Release: next`, declares all three production paths this item names, and whose own F-12 row identifies `68sur3` as a duplicate and obliges its E-07 to graduate it. Authoring a second plan for the same registration would put two pending plans into the same hunks of `cli._build_parser` and the same `TYPE_STATUSES` entry, which is the collision the production contract exists to avoid.
