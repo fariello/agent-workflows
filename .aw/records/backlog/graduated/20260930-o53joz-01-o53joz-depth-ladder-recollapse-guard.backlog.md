@@ -1,11 +1,13 @@
 - Id: o53joz
-- Status: open
+- Status: graduated
+- Graduated-To: o53joz
 - Set: o53joz
 - Priority: low
 - Work-Kind: chore
 - Summary: Add a mechanical guard so a future lifecycle renderer cannot silently re-collapse the 256/16/none color-depth ladder
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: y2ge26
 - 2026-09-30 created (aw backlog): Add a mechanical guard so a future lifecycle renderer cannot silently re-collapse the 256/16/none color-depth ladder
 
 RAISED BY plan nw088c (backlog p5qx91) while fixing a measured instance of exactly this.
