@@ -1,11 +1,13 @@
 - Id: 2mjfo7
-- Status: open
+- Status: graduated
+- Graduated-To: runverdict
 - Set: runverdict
 - Priority: low
 - Work-Kind: chore
 - Summary: Unify run_dashboard's two per-host session-log tool-call readers onto the shared verifier_corroboration extractor
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: e08ssu
 - 2026-09-30 created (aw backlog): Filed as the durable carrier for a duplication plan bjx20r identifies and deliberately leaves in place
 
 FILED as the durable carrier for a duplication plan `bjx20r` (Order 08, from backlog `5xgllt`) IDENTIFIES and deliberately does NOT fix, so the residue outlives that plan's execution.
