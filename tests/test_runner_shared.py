@@ -2404,28 +2404,189 @@ class VerificationDestAsymmetryPerHostTests(unittest.TestCase):
                     f"oc start must accept {flag} as an alias of validate=True",
                 )
 
-    def test_contradictory_pair_handling_refused_on_agy_and_order_dependent_on_oc(self):
-        """Pin operator consequence 2: contradictory pair refused on agy, order-dependent on oc."""
+    def test_contradictory_pair_handling_refused_on_both_hosts(self):
+        """Pin operator consequence 2: contradictory verification flags refused on both hosts (zdgc6t)."""
+        # agy start: --no-verify --validate retains shipped wording (E-05 ordering)
         agy_parser = agy_runipd.build_parser()
         args = agy_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
         with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
             agy_runipd.verification_flag_tristate(args)
         self.assertIn("contradict each other", str(ctx.exception))
+        self.assertTrue(
+            str(ctx.exception).startswith(
+                "--no-verify (or --no-audit) and --validate contradict each other:"
+            )
+        )
 
+        # agy start: hand-built partial namespace retains shipped refusal
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(
+                argparse.Namespace(no_verify=True, validate=True)
+            )
+        self.assertIn("contradict each other", str(ctx.exception))
+
+        # agy start: both orders of --validate --no-validate refuse (F-06, E-05)
+        for flags in (["--validate", "--no-validate"], ["--no-validate", "--validate"]):
+            with self.subTest(agy_flags=flags):
+                args = agy_parser.parse_args(["start", "demo", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    agy_runipd.verification_flag_tristate(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
+
+        # oc start: both orders refuse and name the typed spellings
         oc_parser = oc_runipd.build_parser()
-        oc_args1 = oc_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
-        self.assertIs(
-            oc_args1.validate,
-            True,
-            "oc start --no-verify --validate must resolve validate=True (last flag wins)",
-        )
+        for flags in (["--no-verify", "--validate"], ["--validate", "--no-verify"]):
+            with self.subTest(oc_start_flags=flags):
+                args = oc_parser.parse_args(["start", "demo", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_contradictory_verification_flags(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
 
-        oc_args2 = oc_parser.parse_args(["start", "demo", "--validate", "--no-verify"])
-        self.assertIs(
-            oc_args2.validate,
-            False,
-            "oc start --validate --no-verify must resolve validate=False (last flag wins)",
+        # oc resume: both orders refuse and name the typed spellings
+        for flags in (["--no-verify", "--validate"], ["--validate", "--no-verify"]):
+            with self.subTest(oc_resume_flags=flags):
+                args = oc_parser.parse_args(["resume", "run-123", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_contradictory_verification_flags(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
+
+        # oc start: abbreviated pair (--no-aud --vali) canonicalizes and refuses (F-03)
+        args_abbrev = oc_parser.parse_args(["start", "demo", "--no-aud", "--vali"])
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            runner_shared.refuse_contradictory_verification_flags(args_abbrev)
+        self.assertIn("contradict each other", str(ctx.exception))
+        self.assertIn("--no-audit", str(ctx.exception))
+        self.assertIn("--validate", str(ctx.exception))
+
+        # Same-polarity repeats, single flag, and bare invocation are NOT refused
+        # oc start:
+        args_rep1 = oc_parser.parse_args(["start", "demo", "--validate", "--verify"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep1)
+        self.assertIs(args_rep1.validate, True)
+
+        args_rep2 = oc_parser.parse_args(["start", "demo", "--verify", "--audit"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep2)
+        self.assertIs(args_rep2.validate, True)
+
+        args_rep3 = oc_parser.parse_args(["start", "demo", "--no-verify", "--no-audit"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep3)
+        self.assertIs(args_rep3.validate, False)
+
+        args_single = oc_parser.parse_args(["start", "demo", "--validate"])
+        runner_shared.refuse_contradictory_verification_flags(args_single)
+        self.assertIs(args_single.validate, True)
+
+        args_bare = oc_parser.parse_args(["start", "demo"])
+        runner_shared.refuse_contradictory_verification_flags(args_bare)
+        self.assertIsNone(args_bare.validate)
+
+        # agy start same-polarity repeats in both orders:
+        for flags in (
+            ["--no-verify", "--no-validate"],
+            ["--no-validate", "--no-verify"],
+        ):
+            with self.subTest(agy_same_polarity=flags):
+                args_agree = agy_parser.parse_args(["start", "demo", *flags])
+                self.assertIs(agy_runipd.verification_flag_tristate(args_agree), False)
+
+    def test_subcommands_other_than_start_and_resume_declare_no_verification_flags(
+        self,
+    ):
+        """Assert no subcommand other than start/resume on oc and start on agy has verification flags."""
+        parsers = {
+            "oc": oc_runipd.build_parser(),
+            "agy": agy_runipd.build_parser(),
+        }
+        subcommands_with_none = {
+            "oc": ("status", "report", "stop", "integrate", "audit"),
+            "agy": ("resume", "status", "report", "stop", "integrate", "audit"),
+        }
+        for host, sub_names in subcommands_with_none.items():
+            subs = self._get_subparsers(parsers[host])
+            for sub_name in sub_names:
+                sub = subs[sub_name]
+                for action in sub._actions:
+                    for opt in getattr(action, "option_strings", []):
+                        self.assertNotIn(
+                            opt,
+                            self.VERIFICATION_SPELLINGS,
+                            f"{host} {sub_name} must not declare verification flag {opt}",
+                        )
+
+    def test_end_to_end_contradictory_refusal_leaves_no_run_dir_and_byte_identical_resume_state(
+        self,
+    ):
+        """Pin operator consequence: refused start creates no run dir, refused resume preserves state.json."""
+        import tempfile
+        import os
+        import io
+        import contextlib
+        from unittest import mock
+
+        probe = VerificationPolarityTests(
+            "test_verification_polarity_matrix_and_agreement"
         )
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home}, clear=False):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = probe.make_repo(pathlib.Path(td), id6="e2e001")
+                    stderr_start = io.StringIO()
+                    with contextlib.redirect_stderr(stderr_start):
+                        rc_start = oc_runipd.main(
+                            [
+                                "start",
+                                "e2e001",
+                                "--repo",
+                                str(repo),
+                                "--no-verify",
+                                "--validate",
+                            ]
+                        )
+                    self.assertEqual(rc_start, 2, "refused oc start must exit 2")
+                    self.assertIn("contradict each other", stderr_start.getvalue())
+                    runs_dir = repo / ".aw" / "records" / "runs"
+                    self.assertEqual(
+                        list(runs_dir.glob("run-*")) if runs_dir.exists() else [],
+                        [],
+                        "refused oc start must create no run directory",
+                    )
+
+                    oc_parser = oc_runipd.build_parser()
+                    valid_args = oc_parser.parse_args(
+                        ["start", "e2e001", "--repo", str(repo)]
+                    )
+                    valid_args.prepare_only = True
+                    run_dir = oc_runipd.initialize_run(valid_args)
+                    state_path = run_dir / "state.json"
+                    self.assertTrue(state_path.exists())
+                    state_bytes_before = state_path.read_bytes()
+
+                    stderr_resume = io.StringIO()
+                    with contextlib.redirect_stderr(stderr_resume):
+                        rc_resume = oc_runipd.main(
+                            [
+                                "resume",
+                                str(run_dir),
+                                "--no-verify",
+                                "--validate",
+                                "--full-auto",
+                            ]
+                        )
+                    self.assertEqual(rc_resume, 2, "refused oc resume must exit 2")
+                    self.assertIn("contradict each other", stderr_resume.getvalue())
+
+                    state_bytes_after = state_path.read_bytes()
+                    self.assertEqual(
+                        state_bytes_before,
+                        state_bytes_after,
+                        "refused resume must leave state.json byte-identical, including options.full_auto",
+                    )
 
     def test_resume_subcommand_verification_flag_handling_per_host(self):
         """Pin operator consequence 3: agy resume rejects all verification flags (exit 2), oc resume accepts them."""

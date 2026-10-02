@@ -1875,6 +1875,8 @@ def initialize_run(args: argparse.Namespace) -> Path:
     Freezes queue items with "from_backlog" and runs report_untracked_dirt_at_run_start.
     Evaluates __file__ in the runner module so driver identity attributes to this host.
     """
+    # zdgc6t E-04: refuse contradictory verification flags before anything durable exists.
+    runner_shared.refuse_contradictory_verification_flags(args)
     # runprofile-03 (`3cm15q`) E-02: FIRST statement in the function, deliberately. The launch
     # identity is decided before the repository is even validated, so no ordering change can later
     # slip a durable write ahead of a refusal.
@@ -4590,7 +4592,7 @@ LAUNCH IDENTITY (model / variant / agent):
         "--verify",
         "--audit",
         dest="validate",
-        action=argparse.BooleanOptionalAction,
+        action=runner_shared.RecordingBooleanOptionalAction,
         # hostdefault-02 (`ybkmzp`) E-03: `None`, NOT `False`, matching this driver's `resume` parser
         # which has always shipped `default=None` for exactly this reason. The flag is a genuine
         # TRI-STATE now: `None` means the operator said nothing, which falls THROUGH to the
@@ -4682,7 +4684,7 @@ LAUNCH IDENTITY (model / variant / agent):
         "--verify",
         "--audit",
         dest="validate",
-        action=argparse.BooleanOptionalAction,
+        action=runner_shared.RecordingBooleanOptionalAction,
         default=None,
         help="Override turn-2 independent verification of executed plans",
     )
@@ -5288,6 +5290,9 @@ def main(argv: list[str] | None = None) -> int:
             print(run_dir / "execution-report.md")
             return 0
         if args.command == "resume":
+            # zdgc6t E-04: refuse contradictory verification flags before any state is loaded or written
+            # and before apply_run_policy_flags_on_resume can flip unrelated options (F-11).
+            runner_shared.refuse_contradictory_verification_flags(args)
             # runflags-01 (`uyeko5`) E-06: REFUSE a flag spec 2.1 freezes, before any state is loaded
             # or written. Scoped to `--retry-budget`, the one flag spec `:131` explicitly freezes ("the
             # frozen value cannot change on resume"). The blanket `:129` reading is NOT implemented,

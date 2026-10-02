@@ -16572,6 +16572,121 @@ def launch_model_for_role(
     return "", LAUNCH_MODEL_SOURCE_UNRECORDED
 
 
+# =================================================================================================
+# VERIFICATION SPELLING RECORDING & CONTRADICTION REFUSAL (zdgc6t)
+# =================================================================================================
+
+#: Namespace key carrying the canonical spellings of verification flags typed by the operator.
+#: NAMED WITH A LEADING UNDERSCORE on purpose: this is a parse artifact, not a run option or
+#: policy setting. It must not leak into durable run state (`state.json`), which is built from
+#: named `getattr(args, ...)` reads and `freeze_run_policy_flags`'s explicit table, never from
+#: `vars(args)`. If future code ever bases state freezing on `vars(args)`, this key must be
+#: excluded.
+_RECORDED_VERIFICATION_FLAGS_KEY: str = "_recorded_verification_flags"
+
+VERIFICATION_ON_SPELLINGS: frozenset[str] = frozenset(
+    {"--validate", "--verify", "--audit"}
+)
+VERIFICATION_OFF_SPELLINGS: frozenset[str] = frozenset(
+    {"--no-validate", "--no-verify", "--no-audit"}
+)
+
+
+def _record_verification_spelling(
+    namespace: Any,
+    option_string: str | None,
+) -> None:
+    """Record a typed verification flag spelling lazily on `namespace`."""
+    if not option_string:
+        return
+    recorded = getattr(namespace, _RECORDED_VERIFICATION_FLAGS_KEY, None)
+    if recorded is None:
+        recorded = []
+        setattr(namespace, _RECORDED_VERIFICATION_FLAGS_KEY, recorded)
+    recorded.append(option_string)
+
+
+class RecordingBooleanOptionalAction(argparse.BooleanOptionalAction):
+    """A `BooleanOptionalAction` that records the canonical spelling typed by the operator.
+
+    Used on `oc` (`start` and `resume`) and `agy` (`start`) to record which verification spelling
+    the operator typed, while delegating to `super().__call__` to preserve the parsed `dest` value.
+    """
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        _record_verification_spelling(namespace, option_string)
+        super().__call__(parser, namespace, values, option_string=option_string)
+
+
+class RecordingStoreTrueAction(argparse.Action):
+    """An `argparse.Action` matching `store_true` that records typed verification spellings.
+
+    Subclasses public `argparse.Action` rather than private `argparse._StoreTrueAction` (F-13)
+    for cross-Python compatibility across the `>=3.9` range. Used on `agy start` for the separate
+    `--no-verify`/`--no-audit` registration.
+    """
+
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: str,
+        default: Any = False,
+        required: bool = False,
+        help: str | None = None,
+    ) -> None:
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            nargs=0,
+            const=True,
+            default=default,
+            required=required,
+            help=help,
+        )
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        _record_verification_spelling(namespace, option_string)
+        setattr(namespace, self.dest, True)
+
+
+def refuse_contradictory_verification_flags(args: Any) -> None:
+    """Refuse an invocation where the operator typed contradictory verification flags.
+
+    Raises :class:`RunFlagRefusal` when at least one ON spelling (`--validate`, `--verify`,
+    `--audit`) and at least one OFF spelling (`--no-validate`, `--no-verify`, `--no-audit`)
+    were typed in the same invocation. Repeating one polarity (e.g. `--validate --verify`)
+    is not a contradiction and returns silently. A namespace with no recorded flags
+    (e.g. hand-built partial namespace or no flags passed) also returns silently.
+    """
+    recorded: Sequence[str] | None = getattr(
+        args, _RECORDED_VERIFICATION_FLAGS_KEY, None
+    )
+    if not recorded:
+        return
+
+    has_on = any(s in VERIFICATION_ON_SPELLINGS for s in recorded)
+    has_off = any(s in VERIFICATION_OFF_SPELLINGS for s in recorded)
+    if has_on and has_off:
+        distinct_typed = list(dict.fromkeys(recorded))
+        typed_str = " and ".join(distinct_typed)
+        raise RunFlagRefusal(
+            f"{typed_str} contradict each other: one asks to run turn-2 verification "
+            "and the other asks to skip it. Pass flags of only one polarity."
+        )
+
+
 class VerificationDecision(NamedTuple):
     """WHETHER a verifier turn runs for this run, plus WHICH tier decided it.
 
