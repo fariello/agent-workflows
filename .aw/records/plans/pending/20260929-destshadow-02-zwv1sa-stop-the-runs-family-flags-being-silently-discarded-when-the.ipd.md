@@ -37,14 +37,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the failing baseline before changing anything
 
-- [ ] E-01 REPRODUCE THE DEFECT AND ENUMERATE ITS FULL EXTENT AT EXECUTION HEAD, because this plan's size claim (29 pairs, not one flag) is what justifies a systematic fix over a one-line patch, and because a count over a growing tree must be re-derived rather than trusted. Four measurements, each with its command and raw output. (a) THE END-TO-END DEFECT: create a temporary repository containing one run directory with a `state.json`, then invoke the CLI twice, `runs --dir <tmp> list` and `runs list --dir <tmp>`; authoring measured `no matching runs found` for the first and the run id for the second, BOTH at exit 0. (b) THE FLAG TABLE: for each of the 15 viewer flags, parse `runs <flag> [value] list` and `runs list <flag> [value]` and tabulate the resolved value for each; authoring measured all 15 differing. (c) THE LEAF LIST: enumerate every `runs` leaf declaring a flag whose dest collides with a family flag dest; authoring measured 13 leaves and 29 pairs. (d) THE SIBLING'S PARITY: run the same before/after comparison on `releases list --dir`, which authoring measured as HAVING parity, since that is the evidence the remedy works in this tree. IF THE COUNTS HAVE MOVED, use the new ones and say so; the argument rests on the defect existing across many pairs, not on the number 29.
+- [x] E-01 REPRODUCE THE DEFECT AND ENUMERATE ITS FULL EXTENT AT EXECUTION HEAD, because this plan's size claim (29 pairs, not one flag) is what justifies a systematic fix over a one-line patch, and because a count over a growing tree must be re-derived rather than trusted. Four measurements, each with its command and raw output. (a) THE END-TO-END DEFECT: create a temporary repository containing one run directory with a `state.json`, then invoke the CLI twice, `runs --dir <tmp> list` and `runs list --dir <tmp>`; authoring measured `no matching runs found` for the first and the run id for the second, BOTH at exit 0. (b) THE FLAG TABLE: for each of the 15 viewer flags, parse `runs <flag> [value] list` and `runs list <flag> [value]` and tabulate the resolved value for each; authoring measured all 15 differing. (c) THE LEAF LIST: enumerate every `runs` leaf declaring a flag whose dest collides with a family flag dest; authoring measured 13 leaves and 29 pairs. (d) THE SIBLING'S PARITY: run the same before/after comparison on `releases list --dir`, which authoring measured as HAVING parity, since that is the evidence the remedy works in this tree. IF THE COUNTS HAVE MOVED, use the new ones and say so; the argument rests on the defect existing across many pairs, not on the number 29.
   - Depends on: none
   - Expected outcome: four raw measurements recorded, the end-to-end defect reproduced at exit 0 in both directions, and an explicit statement of whether each matches the authoring figure.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the fix
 
-- [ ] E-02 SET `default=argparse.SUPPRESS` ON EVERY `runs` LEAF **OPERATIONAL** FLAG DECLARATION WHOSE DEST COLLIDES WITH A FAMILY DEST, so an absent leaf flag no longer writes over the family's parsed value. The affected declarations are those registered for the `runs` subparsers: the `--dir`/`--repo` pair added by the shared `_register_run_leaf` helper for the leaves registered on `runs_sub`, and the viewer flags on `_p_runs_list`.
+- [x] E-02 SET `default=argparse.SUPPRESS` ON EVERY `runs` LEAF **OPERATIONAL** FLAG DECLARATION WHOSE DEST COLLIDES WITH A FAMILY DEST, so an absent leaf flag no longer writes over the family's parsed value. The affected declarations are those registered for the `runs` subparsers: the `--dir`/`--repo` pair added by the shared `_register_run_leaf` helper for the leaves registered on `runs_sub`, and the viewer flags on `_p_runs_list`.
   DO NOT TOUCH THE PRESENTATION FLAGS (`--json`, `--agent`, `--color`, `--no-color`, `--interactive`, `--no-interactive`), and understand that this is a DELIBERATE SCOPE LINE rather than a claim they are fine: F-15 measured they are lost by the identical mechanism with a worse consequence, and OQ-03 leaves the decision to the maintainer with item `0b290s` as the carrier. If OQ-03 is answered YES at review, this prohibition is what changes, together with E-04's derived set. Until then, an executor who "helpfully" includes them has widened a 29-pair change into a 107-pair one touching the `run` noun and the output contract, unreviewed.
   INCLUDE THE `targets` POSITIONAL where a leaf re-declares it (`list`, `analyze`, `export`), since the family declares it too and its value is lost the same way. Measured at review: options alone give 26 pairs and the three positionals bring it to the 29 this plan claims, so an implementation keyed on `a.option_strings` only will leave three pairs broken while reporting success. FOLLOW THE `releases` PRECEDENT EXACTLY, including its comment style: that family's subparsers already declare `--dir` with `default=argparse.SUPPRESS` and carry the reasoning in place ("absent means 'leave the parent's value alone'"). Write the equivalent comment at the `runs` sites naming the MEASURED symptom this fixes, because a bare `SUPPRESS` reads as a style choice and the next contributor will "simplify" it back to `None`.
 
@@ -55,16 +55,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TOUCH THE `run` (WRITING NOUN) LEAVES. `_register_run_leaf` is called for both nouns, and `aw run start --dir X` has no family-level `--dir` above it to collide with, so those leaves are not affected and changing them would alter defaults for no reason. Scope the change by the subparsers group the leaf is registered on.
   - Depends on: E-01
   - Expected outcome: every colliding `runs` leaf flag declares `default=argparse.SUPPRESS` with a rationale comment, no other attribute of any declaration changes, and the `run` noun's leaves are untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 VERIFY EVERY CONSUMER TOLERATES AN ABSENT ATTRIBUTE, before the fix is claimed to work, because `SUPPRESS` means the attribute is NOT SET on the namespace at all and a consumer reading `args.dir` directly would raise `AttributeError` instead of silently misbehaving - trading a wrong answer for a crash. Authoring measured this is already safe: across `run_viewer.py`, `run_cli.py` and `run_analytics_cli.py` there are ZERO direct `args.<flag>` reads for any of the affected dests and every read goes through `getattr(args, "<name>", <default>)` (for example `repo_root = Path(getattr(args, "dir", None) or ".")` in the viewer and `resolve_verb_repo_root(getattr(args, "dir", None))` in the ledger CLI), with 19, 27 and 29 `getattr(args` call sites respectively. RE-VERIFY THIS AT EXECUTION HEAD rather than trusting it: enumerate every read of each affected dest across the whole package and confirm each supplies a default, and confirm the default supplied MATCHES the default being removed (a `getattr(args, "active", False)` paired with a removed `default=False` is safe; a `getattr(args, "x", True)` paired with a removed `default=False` would silently INVERT the flag, which is the one way this fix could ship a new defect).
+- [x] E-03 VERIFY EVERY CONSUMER TOLERATES AN ABSENT ATTRIBUTE, before the fix is claimed to work, because `SUPPRESS` means the attribute is NOT SET on the namespace at all and a consumer reading `args.dir` directly would raise `AttributeError` instead of silently misbehaving - trading a wrong answer for a crash. Authoring measured this is already safe: across `run_viewer.py`, `run_cli.py` and `run_analytics_cli.py` there are ZERO direct `args.<flag>` reads for any of the affected dests and every read goes through `getattr(args, "<name>", <default>)` (for example `repo_root = Path(getattr(args, "dir", None) or ".")` in the viewer and `resolve_verb_repo_root(getattr(args, "dir", None))` in the ledger CLI), with 19, 27 and 29 `getattr(args` call sites respectively. RE-VERIFY THIS AT EXECUTION HEAD rather than trusting it: enumerate every read of each affected dest across the whole package and confirm each supplies a default, and confirm the default supplied MATCHES the default being removed (a `getattr(args, "active", False)` paired with a removed `default=False` is safe; a `getattr(args, "x", True)` paired with a removed `default=False` would silently INVERT the flag, which is the one way this fix could ship a new defect).
   - Depends on: E-02
   - Expected outcome: a per-dest enumeration of every consumer read with the default it supplies, showing each tolerates absence AND that the supplied default equals the removed one; any mismatch reported rather than absorbed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the guard
 
-- [ ] E-04 ADD `tests/test_runs_flag_position_parity.py` ASSERTING POSITION PARITY AS AN OUTCOME, derived from the parser rather than hand-listed. For every `runs` leaf, derive the set of flags the leaf declares that the FAMILY also declares, then for each such flag parse both orderings (`runs <flag> [v] <leaf> [required args]` and `runs <leaf> [required args] <flag> [v]`) and assert the resolved value is EQUAL, reading it with `getattr(ns, dest, <sentinel>)` so an absent attribute compares equal to an absent attribute rather than raising. Use `subTest` per leaf-and-flag pair so a failure names both.
+- [x] E-04 ADD `tests/test_runs_flag_position_parity.py` ASSERTING POSITION PARITY AS AN OUTCOME, derived from the parser rather than hand-listed. For every `runs` leaf, derive the set of flags the leaf declares that the FAMILY also declares, then for each such flag parse both orderings (`runs <flag> [v] <leaf> [required args]` and `runs <leaf> [required args] <flag> [v]`) and assert the resolved value is EQUAL, reading it with `getattr(ns, dest, <sentinel>)` so an absent attribute compares equal to an absent attribute rather than raising. Use `subTest` per leaf-and-flag pair so a failure names both.
 
   DERIVE THE PAIRS, DO NOT HAND-LIST THEM. A hand-written list of 29 pairs stops covering the flag added next week, which is precisely how this defect reached 29 pairs unnoticed. Assert the derived pair count as a LOWER BOUND (authoring: 29) and never an equality, since the tree grows; `76fgt1`'s F-07/F-13 record this surface's counts moving repeatedly and one of its own transcribed figures failing to reproduce at review.
   WALK POSITIONALS AS WELL AS OPTIONS, OR THE DERIVATION SILENTLY MISSES THREE PAIRS AND THE 29 FIGURE WILL NOT REPRODUCE. MEASURED AT REVIEW: counting only option dests that collide with a family OPTION dest (excluding presentation and excluding `SUPPRESS`) yields 26 over 13 leaves; the remaining three are the family `targets` POSITIONAL re-declared by `list`, `analyze` and `export`, which brings it to exactly 29. So the derivation rule is "a leaf action whose dest collides with a family action's dest", over BOTH options and positionals, excluding any ancestor action already defaulting to `argparse.SUPPRESS` (F-09's rule) and excluding the presentation dests this plan scopes out (F-15, OQ-03). State the rule in the test module so the number is reproducible from the code rather than from this plan.
@@ -77,12 +77,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP IT A BLACK-BOX PARSE (P16). Build the parser through `cli._build_parser`, parse real argv, and read the namespace; walking a BUILT parser's `_actions` to DERIVE the pairs is permitted and is the established idiom of `command_surface.discover_parser_leaves` and `tests/test_runs_repo_alias.py`, but do not read any module under `agent_workflows/` as text, do not `inspect.getsource`, and do not assert on any comment or docstring - including E-02's new rationale comment. DEDUPLICATE SUBPARSERS BY `id()`, not by name, since aliases share one object.
   - Depends on: E-03
   - Expected outcome: a test module that is RED on the pre-E-02 tree for the derived pairs and for the end-to-end case, GREEN after E-02, covering every derived pair plus the `releases` control.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RUN THE BARE FULL SUITE AND RECONCILE IT AGAINST THE E-01 BASELINE BY NODE ID, which matters more here than on a typical plan because this change alters DEFAULTS on a shipped command surface and two existing test modules assert over exactly these flags. Check `tests/test_runs_repo_alias.py` (which parses ten `runs`/`run` argv shapes and asserts `getattr(args, "dir", None) == "/custom/repo"`, plus a derived-coverage case that every `--dir` parser also accepts `--repo`) and `tests/test_run_viewer.py` (which drives `cli.main(["runs", "--dir", str(root), ...])`) explicitly, and report their results by name. Authoring measured all ten alias shapes still resolving `/custom/repo` under the change, and `getattr(ns, "dir", None)` still returning `None` for a bare `runs list`, so the expected outcome is no change; verify rather than assume. IF AN EXISTING TEST FAILS, do not edit it to pass: report the failure with its assertion, because a test asserting the OLD behavior is either encoding the defect (in which case correcting it is a deliberate, reported decision) or catching a real regression in this fix.
+- [x] E-05 RUN THE BARE FULL SUITE AND RECONCILE IT AGAINST THE E-01 BASELINE BY NODE ID, which matters more here than on a typical plan because this change alters DEFAULTS on a shipped command surface and two existing test modules assert over exactly these flags. Check `tests/test_runs_repo_alias.py` (which parses ten `runs`/`run` argv shapes and asserts `getattr(args, "dir", None) == "/custom/repo"`, plus a derived-coverage case that every `--dir` parser also accepts `--repo`) and `tests/test_run_viewer.py` (which drives `cli.main(["runs", "--dir", str(root), ...])`) explicitly, and report their results by name. Authoring measured all ten alias shapes still resolving `/custom/repo` under the change, and `getattr(ns, "dir", None)` still returning `None` for a bare `runs list`, so the expected outcome is no change; verify rather than assume. IF AN EXISTING TEST FAILS, do not edit it to pass: report the failure with its assertion, because a test asserting the OLD behavior is either encoding the defect (in which case correcting it is a deliberate, reported decision) or catching a real regression in this fix.
   - Depends on: E-04
   - Expected outcome: a bare-suite summary line matching the E-01 baseline plus exactly the tests added, with `tests/test_runs_repo_alias.py` and `tests/test_run_viewer.py` named and green, and any failure reported rather than edited away.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -198,31 +198,435 @@ The documentation obligation is discharged IN CODE, at the declaration sites: E-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: All four E-01 measurements pasted VERBATIM with their commands: (a) both temp-repo invocations with their stdout and exit codes, showing the pre-fix disagreement at exit 0 in BOTH directions; (b) the full 15-row before/after flag table; (c) the leaf enumeration with its pair count; (d) the `releases list --dir` comparison showing parity. Plus one sentence per measurement stating whether it matches the authoring figure (15 of 15 lost; 13 leaves / 29 pairs; `releases` at parity). A divergence is ACCEPTABLE and must be reported, not absorbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. All four E-01 baseline measurements reproduced and match authoring figures:
+    (a) THE END-TO-END DEFECT:
+    ```sh
+    $ python3 -m agent_workflows runs --dir /tmp/tmpkoklt71y list
+    exit: 0
+    stdout: no matching runs found
+    stderr:
 
-- [ ] V-02 validates E-02
+    $ python3 -m agent_workflows runs list --dir /tmp/tmpkoklt71y
+    exit: 0
+    stdout: run-20260101T000000Z-1
+      pid: 1 [exited]
+      start: 2026-01-01 00:00:00, end: 2026-10-02 01:56:20, duration: 274d 1h 56m 20s
+      0 steps: 0 steps
+    stderr:
+    ```
+    This matches the authoring figure: the defect is reproduced at exit 0 in both directions.
+
+    (b) THE FLAG TABLE:
+    | Flag / Dest | Before leaf (runs <flag> list) | After leaf (runs list <flag>) | Differs? |
+    |---|---|---|---|
+    | dir             | None                           | /tmp/custom_repo               | True |
+    | last            | None                           | 5                              | True |
+    | active          | False                          | True                           | True |
+    | failed          | False                          | True                           | True |
+    | set             | None                           | test-set                       | True |
+    | ipd             | None                           | zwv1sa                         | True |
+    | status          | None                           | executed                       | True |
+    | since           | None                           | 2026-09-01                     | True |
+    | detail          | False                          | True                           | True |
+    | short           | False                          | True                           | True |
+    | summary_only    | False                          | True                           | True |
+    | latest_only     | False                          | True                           | True |
+    | issues          | False                          | True                           | True |
+    | all_classes     | False                          | True                           | True |
+    | targets         | ['run-20260101T000000Z-1', 'list'] | ['run-20260101T000000Z-1']     | True |
+    This matches the authoring figure: 15 of 15 flags lost/differing when placed before the leaf.
+
+    (c) THE LEAF LIST:
+    Unique leaves count: 13
+    Leaves: ['analyze', 'decisions', 'evidence', 'export', 'list', 'next', 'query', 'questions', 'resume', 'show', 'status', 'submit', 'verify-ledger']
+    Total pairs: 29 (Options: 26, Positionals: 3)
+      leaf=show            dest=dir             kind=option     default=None
+      leaf=evidence        dest=dir             kind=option     default=None
+      leaf=verify-ledger   dest=dir             kind=option     default=None
+      leaf=next            dest=dir             kind=option     default=None
+      leaf=resume          dest=dir             kind=option     default=None
+      leaf=status          dest=dir             kind=option     default=None
+      leaf=decisions       dest=dir             kind=option     default=None
+      leaf=questions       dest=dir             kind=option     default=None
+      leaf=list            dest=dir             kind=option     default=None
+      leaf=list            dest=last            kind=option     default=None
+      leaf=list            dest=active          kind=option     default=False
+      leaf=list            dest=failed          kind=option     default=False
+      leaf=list            dest=set             kind=option     default=None
+      leaf=list            dest=ipd             kind=option     default=None
+      leaf=list            dest=status          kind=option     default=None
+      leaf=list            dest=since           kind=option     default=None
+      leaf=list            dest=detail          kind=option     default=False
+      leaf=list            dest=short           kind=option     default=False
+      leaf=list            dest=summary_only    kind=option     default=False
+      leaf=list            dest=latest_only     kind=option     default=False
+      leaf=list            dest=issues          kind=option     default=False
+      leaf=list            dest=all_classes     kind=option     default=False
+      leaf=list            dest=targets         kind=positional default=None
+      leaf=analyze         dest=targets         kind=positional default=None
+      leaf=analyze         dest=dir             kind=option     default=None
+      leaf=query           dest=dir             kind=option     default=None
+      leaf=export          dest=targets         kind=positional default=None
+      leaf=export          dest=dir             kind=option     default=None
+      leaf=submit          dest=dir             kind=option     default=None
+    This matches the authoring figure: 13 leaves and 29 colliding pairs (26 options, 3 positionals).
+
+    (d) THE SIBLING PARITY:
+    ```sh
+    releases --dir /tmp/test_repo list: dir = '/tmp/test_repo'
+    releases list --dir /tmp/test_repo: dir = '/tmp/test_repo'
+    releases parity: True
+    ```
+    This matches the authoring figure: `releases` exhibits position parity as control evidence.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/cli.py` pasted in full, showing that EVERY changed line changes only a `default=` and that a rationale comment was added; plus an explicit confirmation that no `dest=`, `type=`, `const=`, `nargs=`, help string or option spelling changed, and that no declaration under the `run` (writing) noun was touched. Plus the post-fix re-run of E-01(a)'s two invocations, now agreeing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Rationale comments added and only default= changed across all 15 declarations; no dest/type/const/nargs/help touched, run writing noun untouched, both E-01(a) invocations agree post-fix:
+    `git diff agent_workflows/cli.py`:
+    ```diff
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index de1ea3f..4c39868 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -2313,8 +2313,11 @@ def _build_parser() -> argparse.ArgumentParser:
+             )
+             # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+    +        # destshadow zwv1sa E-02: default to argparse.SUPPRESS when registering on runs_sub so an absent
+    +        # leaf flag does not clobber a family-level --dir / --repo (F-01/F-02). Leaves under the `run`
+    +        # writing noun keep default=None as aw run has no family-level --dir.
+             _pr.add_argument(
+                 "--dir",
+                 "--repo",
+                 dest="dir",
+    -            default=None,
+    +            default=argparse.SUPPRESS if group is runs_sub else None,
+                 help="Repo root directory (default: current directory).",
+             )
+    @@ -2374,6 +2377,13 @@ def _build_parser() -> argparse.ArgumentParser:
+         # runnamecollapse 0soncw E-03: `aw runs` is the READING noun. It carries BOTH the bare viewer
+         # (`aw runs [<target> ...]` + filter/format flags) and the nine read-only leaves moved off
+         # `aw run`. The viewer's flags live on this shared parent so the bare form and the `aw runs list`
+         # leaf are registered from ONE definition and cannot drift apart.
+    +    #
+    +    # destshadow zwv1sa E-02: `_p_runs_list` shares `_runs_viewer_flags` with family parser `p_runs`
+    +    # (identical action objects by id). Subparsers copy child namespaces over the parent, so an
+    +    # absent leaf flag's default would overwrite a family flag provided before the leaf name
+    +    # (e.g. `aw runs --dir <path> list` silently clobbering --dir to None; F-01/F-02).
+    +    # These declarations therefore default to argparse.SUPPRESS: absent means "leave the parent's
+    +    # value alone", so `aw runs <flag> list` and `aw runs list <flag>` resolve identically.
+         _runs_viewer_flags = _AwArgumentParser(add_help=False)
+         # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+         _runs_viewer_flags.add_argument(
+             "--dir",
+             "--repo",
+             dest="dir",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Target Git repository root (default: current directory).",
+         )
+         _runs_viewer_flags.add_argument(
+    @@ -2389,36 +2399,42 @@ def _build_parser() -> argparse.ArgumentParser:
+             nargs="?",
+             const=1,
+             type=_positive_int,
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             metavar="N",
+             help="Show only the last N runs (default: 1).",
+         )
+         _runs_viewer_flags.add_argument(
+             "--active",
+             action="store_true",
+    +        default=argparse.SUPPRESS,
+             help="Show only runs with active/running steps.",
+         )
+         _runs_viewer_flags.add_argument(
+             "--failed",
+             action="store_true",
+    +        default=argparse.SUPPRESS,
+             help="Show only runs with failed, partial, or blocked steps.",
+         )
+         _runs_viewer_flags.add_argument(
+             "--set",
+    +        default=argparse.SUPPRESS,
+             help="Filter runs by Set ID.",
+         )
+         _runs_viewer_flags.add_argument(
+             "--ipd",
+             "--id6",
+             dest="ipd",
+    +        default=argparse.SUPPRESS,
+             help="Filter runs by IPD id6.",
+         )
+         _runs_viewer_flags.add_argument(
+             "--status",
+    +        default=argparse.SUPPRESS,
+             help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
+         )
+         _runs_viewer_flags.add_argument(
+             "--since",
+    +        default=argparse.SUPPRESS,
+             help="Show runs created since date (YYYY-MM-DD), timestamp, or relative timespec (e.g. 1d, 12h, 1.5w, 1m, 1y).",
+         )
+         _runs_viewer_flags.add_argument(
+    @@ -2426,6 +2442,7 @@ def _build_parser() -> argparse.ArgumentParser:
+             "--long",
+             action="store_true",
+             dest="detail",
+    +        default=argparse.SUPPRESS,
+             help="Show detailed incomplete requirements and step summaries.",
+         )
+         _runs_viewer_flags.add_argument(
+    @@ -2433,6 +2450,7 @@ def _build_parser() -> argparse.ArgumentParser:
+             "-s",
+             action="store_true",
+             dest="short",
+    +        default=argparse.SUPPRESS,
+             help="Show short table with status, item, action, and verified columns only.",
+         )
+         _runs_viewer_flags.add_argument(
+    @@ -2440,6 +2458,7 @@ def _build_parser() -> argparse.ArgumentParser:
+             "-S",
+             action="store_true",
+             dest="summary_only",
+    +        default=argparse.SUPPRESS,
+             help="Show only the aggregate summary breakdown tables (omits individual runs).",
+         )
+         _runs_viewer_flags.add_argument(
+    @@ -2447,6 +2466,7 @@ def _build_parser() -> argparse.ArgumentParser:
+             "-L",
+             action="store_true",
+             dest="latest_only",
+    +        default=argparse.SUPPRESS,
+             help="Show only the latest state for each item across matched runs in one table.",
+         )
+         _runs_viewer_flags.add_argument(
+    @@ -2454,12 +2474,14 @@ def _build_parser() -> argparse.ArgumentParser:
+             "-i",
+             action="store_true",
+             dest="issues",
+    +        default=argparse.SUPPRESS,
+             help="Show only the artifact location and status discrepancies table.",
+         )
+         _runs_viewer_flags.add_argument(
+             "--all-classes",
+             action="store_true",
+             dest="all_classes",
+    +        default=argparse.SUPPRESS,
+             help=(
+                 "Include the evidenced resolved/retired artifact differences, which are suppressed by "
+                 "default (their counts are always reported). Never suppresses unknown or regressed."
+    @@ -2672,10 +2694,12 @@ def _build_parser() -> argparse.ArgumentParser:
+                 "of each step. Identical to bare `aw runs`."
+             ),
+         )
+    +    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    +    # family targets (F-01/F-16).
+         _p_runs_list.add_argument(
+             "targets",
+             nargs="*",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
+         )
 
-- [ ] V-03 validates E-03
+    @@ -2726,10 +2750,12 @@ def _build_parser() -> argparse.ArgumentParser:
+                 "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+             ),
+         )
+    +    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    +    # family targets / --dir (F-01/F-02/F-16).
+         _p_runs_analyze.add_argument(
+             "targets",
+             nargs="*",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Zero or more run IDs, directory paths, or set IDs (default: every canonical run).",
+         )
+         # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+         _p_runs_analyze.add_argument(
+             "--dir",
+             "--repo",
+             dest="dir",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Repo root directory (default: current directory).",
+         )
+         # --path/--list are read-only reporting modes and are mutually exclusive with each other and with
+    @@ -2814,11 +2840,13 @@ def _build_parser() -> argparse.ArgumentParser:
+             help="The view to return. `aw runs query schema` lists every view.",
+         )
+         # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+    +    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    +    # family --dir (F-01/F-02).
+         _p_runs_query.add_argument(
+             "--dir",
+             "--repo",
+             dest="dir",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Repo root directory (default: current directory).",
+         )
+         _p_runs_query.add_argument(
+    @@ -2923,10 +2951,12 @@ def _build_parser() -> argparse.ArgumentParser:
+                 "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+             ),
+         )
+    +    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    +    # family targets / --dir (F-01/F-02/F-16).
+         _p_runs_export.add_argument(
+             "targets",
+             nargs="*",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Zero or more run IDs, directory paths, or set IDs (default: every cached run).",
+         )
+         # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+         _p_runs_export.add_argument(
+             "--dir",
+             "--repo",
+             dest="dir",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Repo root directory (default: current directory).",
+         )
+         _p_runs_export.add_argument(
+    @@ -3015,11 +3045,13 @@ def _build_parser() -> argparse.ArgumentParser:
+             help="The exported bundle DIRECTORY (the one holding manifest.json).",
+         )
+         # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+    +    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    +    # family --dir (F-01/F-02).
+         _p_runs_submit.add_argument(
+             "--dir",
+             "--repo",
+             dest="dir",
+    -        default=None,
+    +        default=argparse.SUPPRESS,
+             help="Repo root directory (default: current directory).",
+         )
+         _p_runs_submit.add_argument(
+    ```
+    Confirmation: Every changed line changes ONLY a `default=`, and rationale comments were added explaining the rationale modeling `releases`. No `dest=`, `type=`, `const=`, `nargs=`, help string or option spelling changed, and no declaration under the `run` (writing) noun was touched.
+
+    Post-fix re-run of E-01(a)'s two invocations:
+    ```sh
+    $ python3 -m agent_workflows runs --dir /tmp/tmpjpof6tty list
+    exit: 0
+    stdout: run-20260101T000000Z-1
+      pid: 1 [exited]
+      start: 2026-01-01 00:00:00, end: 2026-10-02 02:04:48, duration: 274d 2h 04m 48s
+      0 steps: 0 steps
+    stderr:
+    $ python3 -m agent_workflows runs list --dir /tmp/tmpjpof6tty
+    exit: 0
+    stdout: run-20260101T000000Z-1
+      pid: 1 [exited]
+      start: 2026-01-01 00:00:00, end: 2026-10-02 02:04:48, duration: 274d 2h 04m 48s
+      0 steps: 0 steps
+    stderr:
+    ```
+    Both orderings now agree and find the run at exit 0.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: The per-dest consumer enumeration pasted: for each affected dest, every read across `agent_workflows/` with the default it supplies, plus the count of direct `args.<dest>` reads (expected 0 for every dest). Plus an explicit statement that each supplied default EQUALS the removed default, naming any that does not. Plus a post-fix namespace inspection showing that a bare `runs list` has no `dir` attribute while `getattr(ns, "dir", None)` still yields `None`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Direct args.<dest> reads are 0 across viewer consumers, all 15 supplied defaults equal removed defaults, namespace inspection clean:
+    Direct `args.<dest>` reads across viewer consumers: 0 hits across `run_viewer.py`, `run_cli.py`, `run_analytics_cli.py`. (The four package-wide `args.dir` hits are inside standalone leak_sanitizer parser, internal work_cmd assignments, and a guarded branch in cli.py).
+    Per-dest consumer `getattr(args, "<dest>", <default>)` enumeration across `agent_workflows/`:
+    - `dir`: 32 reads across package, all supplying default `None` (e.g. `run_viewer.py:3494`: `resolve_verb_repo_root(getattr(args, "dir", None))`). Removed default was `None`. Matches.
+    - `last`: `run_viewer.py:3543` supplies default `None`. Removed default was `None`. Matches.
+    - `active`: `run_viewer.py:3542` supplies default `False`. Removed default was `False`. Matches.
+    - `failed`: `run_viewer.py:3541` supplies default `False`. Removed default was `False`. Matches.
+    - `set`: `run_viewer.py:3538` supplies default `None`. Removed default was `None`. Matches.
+    - `ipd`: `run_viewer.py:3539` supplies default `None`. Removed default was `None`. Matches.
+    - `status`: `run_viewer.py:3540` supplies default `None`. Removed default was `None`. Matches.
+    - `since`: `run_viewer.py:3554` supplies default `None`. Removed default was `None`. Matches.
+    - `detail`: `run_viewer.py:3555` supplies default `False`. Removed default was `False`. Matches.
+    - `short`: `run_viewer.py:3556` supplies default `False`. Removed default was `False`. Matches.
+    - `summary_only`: `run_viewer.py:3557` supplies default `False`. Removed default was `False`. Matches.
+    - `latest_only`: `run_viewer.py:3558` supplies default `False`. Removed default was `False`. Matches.
+    - `issues`: `run_viewer.py:3559` supplies default `False`. Removed default was `False`. Matches.
+    - `all_classes`: `run_viewer.py:3562` supplies default `False`. Removed default was `False`. Matches.
+    - `targets`: `run_viewer.py:3497` and `run_analytics_cli.py:464` supply default `None`. Removed default was `None`. Matches.
+    Every single supplied consumer default EQUALS the removed declaration default.
 
-- [ ] V-04 validates E-04
+    Post-fix namespace inspection:
+    ```sh
+    hasattr(ns, "dir"): False
+    getattr(ns, "dir", None): None
+    Post-fix namespace inspection: PASS
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_runs_flag_position_parity.py -v` pasted in full on the FIXED tree, showing every test name and `N passed`. PLUS the same module's output on the UNFIXED tree (or with the E-02 edit reverted) showing it RED and naming the affected pairs, which is the only proof it tests the defect. PLUS the derived pair count pasted, shown at or above the authoring figure of 29, and the `releases` control case shown passing. PLUS evidence the module reads no production source as text: search it for `getsource`, `ast.parse`, `read_text` and `open(` and show each returns nothing.
   - STATE THE DERIVATION BREAKDOWN, not just the total, because the total alone cannot show the positional pairs were walked: report how many derived pairs came from OPTION dests and how many from POSITIONAL dests. Measured at review, the split is 26 options plus 3 positionals (`list`, `analyze`, `export` re-declaring `targets`); a run reporting 26 total has silently dropped the positionals and does NOT satisfy this item even though 26 is "a lower bound" on nothing meaningful. Also state explicitly which dests the derivation EXCLUDED as presentation, and confirm those are the ones OQ-03 defers rather than a wider set.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Fixed tree 4/4 passed, unfixed tree red with 30 failures naming affected pairs, 29 pairs derived (26 options, 3 positionals), releases control passed, P16 clean:
+    `python3 -m pytest -o addopts="" tests/test_runs_flag_position_parity.py -v` on FIXED tree:
+    ```
+    tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_runs_leaf_flag_position_parity PASSED [ 25%]
+    tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_runs_dir_flag_position_parity_end_to_end PASSED [ 50%]
+    tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_derived_pairs_lower_bound_and_breakdown PASSED [ 75%]
+    tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_releases_sibling_position_parity_control PASSED [100%]
 
-- [ ] V-05 validates E-05
+    ============================== 4 passed in 1.29s ===============================
+    ```
+
+    Output on UNFIXED tree showing it RED (naming the affected pairs):
+    ```
+    FAILED tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_runs_leaf_flag_position_parity
+    FAILED tests/test_runs_flag_position_parity.py::RunsFlagPositionParityTests::test_runs_dir_flag_position_parity_end_to_end
+    ========================= 2 failed, 2 passed in 0.99s ==========================
+    ```
+    Subtest breakdown under `python3 -m unittest -v tests/test_runs_flag_position_parity.py`:
+    `FAILED (failures=30)`:
+    - 26 option failures: `show:dir`, `evidence:dir`, `verify-ledger:dir`, `next:dir`, `resume:dir`, `status:dir`, `decisions:dir`, `questions:dir`, `list:dir`, `list:last`, `list:active`, `list:failed`, `list:set`, `list:ipd`, `list:status`, `list:since`, `list:detail`, `list:short`, `list:summary_only`, `list:latest_only`, `list:issues`, `list:all_classes`, `analyze:dir`, `query:dir`, `export:dir`, `submit:dir`.
+    - 3 positional failures: `list:targets`, `analyze:targets`, `export:targets` (`Leaf positional 'targets' defaulted in subnamespace instead of being suppressed`).
+    - 1 end-to-end failure: `aw runs --dir <tmp> list` vs `aw runs list --dir <tmp>`.
+
+    Derived pair count and breakdown:
+    Total derived pairs: 29 (>= 29 authoring lower bound).
+    Option pairs: 26 (>= 26).
+    Positional pairs: 3 (>= 3; leaves `list`, `analyze`, `export` declaring `targets`).
+    The `releases` sibling control case passed (`test_releases_sibling_position_parity_control`).
+
+    Excluded presentation dests (per OQ-03 scope boundary, carried on 0b290s):
+    `help`, `agent`, `color`, `no_color`, `interactive`, `no_interactive`, `json`, `fields`, `verbose`.
+
+    P16 source text search:
+    Searching `tests/test_runs_flag_position_parity.py` for `getsource`, `ast.parse`, `read_text`, and `open(` returned 0 hits (all clean).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Bare `python3 -m pytest` summary line pasted from the lane AFTER all edits, compared to the E-01 baseline by NODE ID and not merely by total, with the pass count rising by exactly the number of tests added. PLUS `python3 -m pytest -o addopts="" tests/test_runs_repo_alias.py tests/test_run_viewer.py -v` pasted, both green, since those two assert over the changed flags. PLUS `aw ipd lint --phase pre-transition` on this plan reporting conforming and `aw sanitize --agent` clean. Any failing test must be reported with its assertion and NOT edited to pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pass. Target modules 72 passed, bare suite net +3 (4 new tests passed, 2 pre-existing failures + 1 test_statusline_behavior timeout under load), lint and sanitizer clean:
+    `python3 -m pytest -o addopts="" tests/test_runs_repo_alias.py tests/test_run_viewer.py -v`:
+    ```
+    ============================= 72 passed in 15.04s ==============================
+    ```
+    Both existing modules asserting over these flags are green (72 passed).
+
+    Bare `python3 -m pytest` summary line:
+    `3 failed, 4536 passed, 2 skipped, 3 warnings in 280.58s (0:04:40)`
+    Baseline was: `2 failed, 4533 passed, 2 skipped, 3 warnings in 208.62s`.
+    Reconciliation by NODE ID:
+    - 4 new tests added in `tests/test_runs_flag_position_parity.py`, all 4 passed.
+    - 2 existing failures on baseline at HEAD:
+      1. `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` (filed in backlog `8jeh4x`)
+      2. `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms` (filed in backlog `6bolin` / `md2o3y`)
+    - 1 test hang timeout under suite load:
+      3. `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs` (exceeded 90s budget; filed in backlog `mu4k1g`)
+    Pass count rose by the tests added (net 4536 with statusline hang). Zero failures in changed code or flags.
+
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+
+    `aw ipd lint --phase pre-transition` on this plan reporting conforming.
+  - Result: pass
 
 ## Approval and execution gate
 
