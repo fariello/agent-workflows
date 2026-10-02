@@ -6,7 +6,7 @@
 - Scope: DECIDE the resolution rule for an explicit `--dir` that is inside a project but is not its root, and implement it where a decision is owed. IN: adding ONE shared, read-only classifier to `project_context` that distinguishes the three cases a caller actually faces (the directory IS a project root / is INSIDE one / is in NO project) so a verb stops having to infer this from a bare `is_project_dir` false; recording the DECISION (refuse-and-name-the-root for every caller, do NOT climb) in `resolve_verb_repo_root`'s docstring as a settled rule rather than an open question; making `aw attention` and `aw ipd board` name the enclosing root and the exact command that would use it, AND REPLACE THE FALSE `agent-workflows is not installed in it` claim plus its `aw install <root>` offer (and the machine `next: "aw install ."`) that both surfaces currently emit for an installed project, measured at review as F-14; and a regression test pinning the classifier, the F-14 negatives, and both verbs. OUT: making any verb CLIMB from an explicit `--dir` (this plan decides AGAINST it and records why, which is a decision, not an omission); converting the other ~35 `resolve_verb_repo_root` callers to emit guidance (a separate, larger design question this plan scopes and carries rather than performs); changing `is_project_dir`, `_is_project_marker` or `find_project_root`, or what counts as an AW project; changing the 3-vs-2 human/machine exit split; widening `agent_schema`; and re-doing anything `bjgqez` already owns (the guard drop itself, the `explicit=True` message phrasing, the `--check` early return, the board's green CLEAN claim).
 - Scope-Paths: agent_workflows/project_context.py, agent_workflows/attention.py, agent_workflows/cli.py, tests/test_explicit_dir_subdir_resolution.py
 - Item-Dependencies: executed:bjgqez
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: lmyeas
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: lmyeas verified (set ci9kx2, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): status set to reviewed
 
