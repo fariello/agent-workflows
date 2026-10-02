@@ -48,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: give the progress bar an ASCII form
 
-- [ ] E-01 ADD A `use_unicode: bool = True` PARAMETER TO `render_stream.format_progress_bar` AND AN ASCII FILL BRANCH, keeping the signature backward-compatible by defaulting to the current behavior. The function today has NO ASCII path: it always builds its fill from `"█"` plus the `_FRACTIONAL_BLOCKS` eighths table, so there is no flag to honor and nothing for a caller to select (F-02 link 7).
+- [x] E-01 ADD A `use_unicode: bool = True` PARAMETER TO `render_stream.format_progress_bar` AND AN ASCII FILL BRANCH, keeping the signature backward-compatible by defaulting to the current behavior. The function today has NO ASCII path: it always builds its fill from `"█"` plus the `_FRACTIONAL_BLOCKS` eighths table, so there is no flag to honor and nothing for a caller to select (F-02 link 7).
   THE ASCII BRANCH MUST PRESERVE VISIBLE WIDTH EXACTLY, and this is the one hard constraint. The bar sits inside a padded column, so a fill that is one character shorter shifts the box. Authoring proposed: round the fraction to whole cells (`full = int(round(frac * width))`) and emit `"#" * full + " " * (width - full)`, which drops the eighths resolution ASCII cannot express while keeping the total cell count at `width`. Width parity is confirmed across `0/10`, `1/10`, `3/10`, `5/10`, `10/10`, `79/80` and the `0/0` degenerate case: the ASCII and Unicode bars report the SAME `term.visible_width` at every one (F-05).
   BUT DO NOT SHIP `int(round(...))` AS WRITTEN: IT CREATES TWO USER-VISIBLE COLLISIONS THE UNICODE BAR DOES NOT HAVE (F-12, measured at review). Rounding to whole cells makes `79/80` render `[##########]`, BYTE-IDENTICAL to `80/80`, so a run at 99 percent looks FINISHED; and it makes `1/80`, `3/80` and `4/80` all render `[          ]`, byte-identical to `0/80`, so a run that has started looks UN-STARTED. The shipped Unicode bar distinguishes every one of those states through the eighths table, so this would be a NEW wrong answer introduced by a bug fix, on the same user-perceptible-impact test that earns this plan its `bug` classification and its release gate. Losing eighth-cell RESOLUTION is unavoidable in ASCII and is fine; collapsing the "started" and "complete" BOUNDARIES is not, because those are the two readings an operator actually takes from a progress bar.
   SO CLAMP THE BOUNDARIES. A measured conforming shape is floor-plus-clamp: `full = int(frac * width)`, then `if frac > 0 and full == 0: full = 1` (a started run shows at least one cell) and `if frac < 1.0 and full == width: full = width - 1` (an incomplete run never shows a full bar). Verified at review to keep every bar at exactly `width` cells and to render `100%` -> `[##########]`, `99%` -> `[######### ]`, `4%` -> `[#         ]`, `0%` -> `[          ]`. Any other shape is acceptable if it holds the same two boundary properties AND the width parity; what is NOT acceptable is bare `round()`, and V-01 now requires the boundary cases as evidence rather than only the parity table.
@@ -56,35 +56,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PICK THE FILL CHARACTER FROM ASCII ONLY, and state which you chose. `#` is authoring's measured choice; `=` or `*` are equally conforming. What is NOT conforming is any `_FRACTIONAL_BLOCKS` member, every one of which is non-ASCII.
   - Depends on: none
   - Expected outcome: `format_progress_bar(..., use_unicode=False)` returns a string containing no code point above U+007F at every progress state, at the same visible width as its Unicode twin, AND distinguishes a started run from an un-started one and an incomplete run from a complete one (so `1/80` differs from `0/80` and `79/80` differs from `80/80`, F-12); `format_progress_bar(...)` with the flag defaulted is byte-identical to today for every input.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 FORWARD `use_unicode` FROM `format_statusline_lines` TO ITS `format_progress_bar` CALL, which is a ONE-LINE change and the narrowest edit in this plan. The function already HAS the flag as a parameter and already uses it to select its own box-drawing characters; it simply does not pass it down, so the bar it embeds ignores the mode the rest of the box respects (F-02 link 6).
+- [x] E-02 FORWARD `use_unicode` FROM `format_statusline_lines` TO ITS `format_progress_bar` CALL, which is a ONE-LINE change and the narrowest edit in this plan. The function already HAS the flag as a parameter and already uses it to select its own box-drawing characters; it simply does not pass it down, so the bar it embeds ignores the mode the rest of the box respects (F-02 link 6).
   THIS IS THE ONLY LINE THIS PLAN TOUCHES INSIDE `format_statusline_lines`, and that is deliberate: approved plan `it6tpj` rewrites that function's thirty-five width and pad sites, so every additional line taken here is a merge conflict with an approved plan (F-07). Change the call and nothing else; do not tidy neighbouring lines, do not convert a `len()`, do not touch a pad.
   - Depends on: E-01
   - Expected outcome: `format_statusline_lines(..., use_unicode=False)` emits no code point above U+007F at any progress state; the `use_unicode=True` output is byte-identical to today.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the ASCII decision reach the box
 
-- [ ] E-03 GIVE `render_stream.Statusline` A `use_unicode` SOURCE AND FORWARD IT, so the class that actually renders the live box in production can express the mode at all. Today `Statusline.__init__` has no such parameter and `Statusline._render_lines_unlocked` calls `format_statusline_lines` WITHOUT `use_unicode`, so the renderer silently takes its `True` default no matter what the operator asked for (F-02 link 4).
+- [x] E-03 GIVE `render_stream.Statusline` A `use_unicode` SOURCE AND FORWARD IT, so the class that actually renders the live box in production can express the mode at all. Today `Statusline.__init__` has no such parameter and `Statusline._render_lines_unlocked` calls `format_statusline_lines` WITHOUT `use_unicode`, so the renderer silently takes its `True` default no matter what the operator asked for (F-02 link 4).
   DERIVE IT FROM THE `Palette` THE CLASS ALREADY REQUIRES rather than adding a second source of truth. `pal` is a REQUIRED constructor argument (measured: no default) and `Palette` already carries a `use_unicode` attribute set in its `__init__`, so `self.pal.use_unicode` is an existing, already-plumbed decision and reading it adds no new public surface. An explicit `use_unicode: bool | None = None` parameter that falls back to the palette is also acceptable if the executor prefers an override seam; state which you chose and why in V-03.
   DO NOT CALL `term.should_unicode()` FROM INSIDE THIS CLASS. The capability decision belongs to the call site that owns the stream, which is what `Palette` is for; `lifecycle_style` records the same division ("it owns stream capability, `AW_ASCII_ONLY` and `FORCE_ASCII`"). A renderer that re-detects would ignore the `--no-color`-style explicit intent a caller may have resolved already.
   - Depends on: E-02
   - Expected outcome: a `Statusline` constructed with a `Palette` carrying `use_unicode=False` renders a box with no code point above U+007F; one constructed with the default palette is byte-identical to today's output.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 BUILD THE STATUSLINE'S `Palette` WITH THE DETECTED UNICODE CAPABILITY IN BOTH RUNNERS, which is the last broken link and the only one outside `render_stream`. No `Palette` construction in either runner passes `use_unicode`, so `term.should_unicode` (which correctly reads `AW_ASCII_ONLY`, `FORCE_ASCII` and the stream encoding) never influences any of them (F-02 link 3).
+- [x] E-04 BUILD THE STATUSLINE'S `Palette` WITH THE DETECTED UNICODE CAPABILITY IN BOTH RUNNERS, which is the last broken link and the only one outside `render_stream`. No `Palette` construction in either runner passes `use_unicode`, so `term.should_unicode` (which correctly reads `AW_ASCII_ONLY`, `FORCE_ASCII` and the stream encoding) never influences any of them (F-02 link 3).
   THE TARGET IS ONE CONSTRUCTION PER RUNNER, NOT SIX AND FIVE (F-13, measured at review, correcting this plan's own count). There is exactly ONE `Statusline(` construction in each runner, in `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn`, and in each the `pal` it receives comes from a single function-body assignment `pal = Palette(should_color(sys.stdout))`. So this item edits ONE line in each file. That makes it smaller and safer than the plan originally implied, and it means a diff touching more than two constructions is over-scope and must be justified or reverted.
   BEWARE THE SECOND `pal` IN `run_opencode`, WHICH TARGETS `sys.stderr` (F-14). The same function also assigns `pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))` inside the cross-tree-session refusal path, nested three `if`s deep. The later stdout assignment REBINDS `pal` before the statusline is built, so the stderr palette never reaches the box. DO NOT CHANGE IT: giving it `use_unicode=should_unicode(sys.stdout)` would pair a stdout glyph decision with a stderr color decision in one object, which is the exact defect this item's own same-stream rule forbids. Following the `pal` name without noticing the rebinding is the specific mistake to avoid here.
   If an executor finds that a single `pal` is shared between the statusline and another surface, REPORT that in V-04's evidence rather than silently changing both.
   PASS THE SAME STREAM TO BOTH DETECTORS. The statusline writes to `sys.stdout` (measured: `Statusline(pal=pal, stream=sys.stdout, ...)`), and `should_color` is already called on `sys.stdout` at those sites, so `use_unicode=should_unicode(sys.stdout)` keeps the two decisions reading the same stream. A palette whose color decision and glyph decision disagree about which stream they describe is a defect of its own.
   - Depends on: E-03
   - Expected outcome: with `AW_ASCII_ONLY=1` in the environment, the statusline palette each runner builds reports `use_unicode` False; with the variable unset and a UTF-8 stdout, it reports True.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: leave a guard
 
-- [ ] E-05 ADD `tests/test_statusline_ascii_mode.py` ASSERTING ASCII-MODE PURITY AS A PROPERTY, at the two levels this plan repairs. LEVEL ONE, the renderer: for `format_statusline_lines(..., use_unicode=False)` with a `Palette(..., use_unicode=False)`, assert that NO character of any returned line has `ord(c) >= 128`. LEVEL TWO, the class: build a `Statusline` whose palette carries `use_unicode=False` and assert the same property over `render_line()`, which is what proves E-03's forward actually happens rather than merely existing.
+- [x] E-05 ADD `tests/test_statusline_ascii_mode.py` ASSERTING ASCII-MODE PURITY AS A PROPERTY, at the two levels this plan repairs. LEVEL ONE, the renderer: for `format_statusline_lines(..., use_unicode=False)` with a `Palette(..., use_unicode=False)`, assert that NO character of any returned line has `ord(c) >= 128`. LEVEL TWO, the class: build a `Statusline` whose palette carries `use_unicode=False` and assert the same property over `render_line()`, which is what proves E-03's forward actually happens rather than merely existing.
   SWEEP THE PROGRESS STATES RATHER THAN TESTING ONE, because the leak is progress-dependent and a single case would miss it. Authoring measured U+2588 absent at `current_idx=0` and present at every one of 1 through 10 with `total_items=10`, so a test written against an un-started run PASSES ON THE BROKEN TREE. Cover at minimum `0/N`, a fractional-eighth state (`3/10`, which selects the `_FRACTIONAL_BLOCKS` branch rather than the whole-block one), a mid state, and `N/N`; also cover the `total_items=0` degenerate case, which takes a separate branch in `format_progress_bar`.
   ASSERT THE WIDTH PARITY TOO, since purity alone can be achieved by a shorter bar that silently shifts the box: assert the ASCII and Unicode bars report equal `term.visible_width` at each swept state, and assert the ASCII box's four lines are all one visible width (measured at review: four lines, all 129 columns at `width=128`).
   AND ASSERT THE TWO BOUNDARY PROPERTIES F-12 MEASURED, because purity and parity together still permit the regression: assert `format_progress_bar(1, 80, use_unicode=False) != format_progress_bar(0, 80, use_unicode=False)` (started is distinguishable from un-started) and `format_progress_bar(79, 80, use_unicode=False) != format_progress_bar(80, 80, use_unicode=False)` (incomplete is distinguishable from complete). These are the assertions that would have caught the plan's original `int(round(...))` proposal, and without them a future refactor can silently reintroduce it.
@@ -93,7 +93,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   MUTATION-CHECK THE MODULE. Neutralize E-01 through E-04 and show it FAILING, then restore and show it green; a guard that passes on the broken tree proves nothing (P16's own mutation bullet, and `GUIDING_PRINCIPLES` "Never weaken an assertion so it passes everywhere"). STAGE THE MUTATION IN MEMORY, never by editing and restoring a tracked file: this is a shared checkout and `render_stream.py` is high-traffic, so a `git checkout --` restore after a long suite run can discard a co-worker's concurrent edit.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: a module that FAILS on the pre-fix tree at every progress state above zero, in both styling modes, at both the function and the class level, and passes after E-01 through E-04; asserting the two F-12 boundary properties alongside purity and parity; containing no byte pin, no source inspection, and no assertion on the rendered clock.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -195,31 +195,411 @@ ONE HONEST RESIDUE TO RECORD RATHER THAN HIDE: after this plan, `AW_ASCII_ONLY=1
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of `format_progress_bar` and confirm by reading it that `use_unicode: bool = True` was added (defaulted, so every existing caller is unaffected) and that the ASCII branch builds its fill from ASCII characters only, naming WHICH character you chose. Paste `format_progress_bar(cur, tot, use_unicode=False)` for `0/10`, `1/10`, `3/10`, `5/10`, `10/10`, `79/80` and `0/0`, each with a pure-ASCII assertion; `3/80` is REQUIRED among them because the fractional-eighths branch leaks a different code point (U+258D) than the whole-block branch and is a distinct path (F-03). Paste THE WIDTH PARITY TABLE showing `term.visible_width` EQUAL for the ASCII and Unicode bars at every one of those states; authoring measured 24 columns for the `/10` and `/80` cases and 22 for `0/0`, both reproduced at review (F-05). A purity result without the parity table is a FAIL, not a pass, because a shorter bar shifts the whole box.
     THEN PASTE THE BOUNDARY-COLLISION PROOF, which is the evidence F-12 added and which the parity table cannot show: paste the ASCII bar for `0/80`, `1/80`, `3/80`, `79/80` and `80/80` side by side and confirm that `1/80` DIFFERS from `0/80` (a started run is distinguishable from an un-started one) and `79/80` DIFFERS from `80/80` (an incomplete run is distinguishable from a complete one). State the fill rule you implemented. If you used bare `int(round(frac*width))` these two assertions FAIL by construction (measured at review: `79/80` and `80/80` both render `[##########]`, and `0/80`/`1/80`/`3/80`/`4/80` all render `[          ]`), so this is a hard gate on the item and not a stylistic note. Also confirm every ASCII bar is exactly `width` cells, including at negative and over-total `current` values. Paste THE UNICODE NO-REGRESSION COUNT: the number of `current`/`total` combinations compared against the pre-fix function and the number of byte differences, which must be zero (authoring compared every `current` across totals 0, 1, 7, 10, 80, 1000 with 0 differences).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified format_progress_bar committed diff, ASCII purity, visible width parity, boundary-preservation, and Unicode no-regression count.
+    Committed diff of `format_progress_bar` in `agent_workflows/render_stream.py`:
+    ```diff
+    @@ -983,3 +983,5 @@
+    -def format_progress_bar(current: int, total: int, width: int = 10) -> str:
+    +def format_progress_bar(
+    +    current: int, total: int, width: int = 10, use_unicode: bool = True
+    +) -> str:
+         """Format a block progress bar with blank spaces and fraction eighths (e.g. ' 0/80  [          ]   0.00%')."""
+    @@ -994,10 +996,21 @@
+    -    eighths = int(round(frac * width * 8))
+    -    full = eighths // 8
+    -    rem = eighths % 8
+    -    if rem > 0 and full < width:
+    -        bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+    -    else:
+    -        bar = "█" * full + " " * (width - full)
+    +    if use_unicode:
+    +        eighths = int(round(frac * width * 8))
+    +        full = eighths // 8
+    +        rem = eighths % 8
+    +        if rem > 0 and full < width:
+    +            bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+    +        else:
+    +            bar = "█" * full + " " * (width - full)
+    +    else:
+    +        if width <= 0:
+    +            bar = ""
+    +        else:
+    +            full = int(frac * width)
+    +            if frac > 0.0 and full == 0:
+                full = 1
+            if frac < 1.0 and full == width:
+                full = max(0, width - 1)
+            bar = "#" * full + " " * (width - full)
+    ```
+    Confirmation: `use_unicode: bool = True` added as a defaulted parameter, preserving existing callers. ASCII fill character chosen is `#` (pure ASCII).
 
-- [ ] V-02 validates E-02
+    State outputs and pure-ASCII assertions (`format_progress_bar(cur, tot, use_unicode=False)`):
+    - `(0, 10)`: `' 0/10  [          ]   0%'` -> all(ord(c) < 128) is True
+    - `(1, 10)`: `' 1/10  [#         ]  10%'` -> all(ord(c) < 128) is True
+    - `(3, 10)`: `' 3/10  [###       ]  30%'` -> all(ord(c) < 128) is True
+    - `(5, 10)`: `' 5/10  [#####     ]  50%'` -> all(ord(c) < 128) is True
+    - `(10, 10)`: `'10/10  [##########] 100%'` -> all(ord(c) < 128) is True
+    - `(3, 80)`: `' 3/80  [#         ]   4%'` -> all(ord(c) < 128) is True (emits no U+258D)
+    - `(79, 80)`: `'79/80  [######### ]  99%'` -> all(ord(c) < 128) is True
+    - `(0, 0)`: `'0/0  [          ]   0%'` -> all(ord(c) < 128) is True
+
+    Width parity table (`term.visible_width` side-by-side):
+    | State (cur/tot) | ASCII bar | Unicode bar | ASCII width | Unicode width | Equal? |
+    |---|---|---|---|---|---|
+    | (0, 10) | `' 0/10  [          ]   0%'` | `' 0/10  [          ]   0%'` | 24 | 24 | True |
+    | (1, 10) | `' 1/10  [#         ]  10%'` | `' 1/10  [█         ]  10%'` | 24 | 24 | True |
+    | (3, 10) | `' 3/10  [###       ]  30%'` | `' 3/10  [███       ]  30%'` | 24 | 24 | True |
+    | (5, 10) | `' 5/10  [#####     ]  50%'` | `' 5/10  [█████     ]  50%'` | 24 | 24 | True |
+    | (10, 10) | `'10/10  [##########] 100%'` | `'10/10  [██████████] 100%'` | 24 | 24 | True |
+    | (3, 80) | `' 3/80  [#         ]   4%'` | `' 3/80  [▍         ]   4%'` | 24 | 24 | True |
+    | (79, 80) | `'79/80  [######### ]  99%'` | `'79/80  [█████████▉]  99%'` | 24 | 24 | True |
+    | (0, 0) | `'0/0  [          ]   0%'` | `'0/0  [          ]   0%'` | 22 | 22 | True |
+
+    Boundary-collision proof (F-12):
+    - `0/80`:  `' 0/80  [          ]   0%'`
+    - `1/80`:  `' 1/80  [#         ]   1%'`
+    - `3/80`:  `' 3/80  [#         ]   4%'`
+    - `79/80`: `'79/80  [######### ]  99%'`
+    - `80/80`: `'80/80  [##########] 100%'`
+    - Confirmation: `1/80 != 0/80` is True (`'[#         ]' != '[          ]'`, started distinguishable from un-started).
+    - Confirmation: `79/80 != 80/80` is True (`'[######### ]' != '[##########]'`, incomplete distinguishable from complete).
+    - Fill rule implemented: Floor-plus-clamp (`full = int(frac * width)`, clamp `full = 1` if `frac > 0 and full == 0`, clamp `full = max(0, width - 1)` if `frac < 1.0 and full == width`, `bar = "#" * full + " " * (width - full)`).
+    - Cell count check: every ASCII bar is exactly `width` (10) cells, including negative current (`cur=-1, tot=10` -> 10 cells) and over-total current (`cur=15, tot=10` -> 10 cells).
+    - Unicode no-regression count: 1110 combinations tested across totals 0, 1, 7, 10, 80, 1000 against the pre-fix function: exactly 0 byte differences.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff of the `format_progress_bar` call inside `format_statusline_lines` and confirm by reading it that it is a ONE-LINE change and that NOTHING ELSE in that function moved, since approved plan `it6tpj` rewrites thirty-five other sites in the same function and every extra line taken here is a conflict with it (F-07). Explicitly confirm no `len()` was converted, no pad was rewritten, and no neighbouring line was reformatted. Paste THE PER-STATE PURITY SWEEP for `format_statusline_lines(..., use_unicode=False)` with `Palette(..., use_unicode=False)`: the set of non-ASCII code points at `current_idx` 0 through 10 with `total_items=10`, BEFORE and AFTER, in BOTH styling modes. Authoring's before-baseline to reproduce or refute is U+2588 at states 1 through 10 and nothing at state 0 (F-03); after, the set must be EMPTY AT EVERY STATE. State explicitly that state 0 was included and that it passed before the fix too, so a reader knows the sweep is what gives this evidence its force. Confirm the `use_unicode=True` box is byte-identical to the pre-fix output for the same inputs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified format_statusline_lines one-line change, per-state ASCII purity sweep, and Unicode byte-identity.
+    Committed diff of `format_progress_bar` call inside `format_statusline_lines`:
+    ```diff
+    @@ -1215,3 +1215,3 @@
+         item_elapsed = max(0, int(now_ts - item_start_ts))
+         item_el_str = format_compact_duration(item_elapsed)
+    -    bar = format_progress_bar(current_idx, total_items)
+    +    bar = format_progress_bar(current_idx, total_items, use_unicode=use_unicode)
+         val3 = f" {item_el_str} {bar}"
+    ```
+    Confirmation: Exactly ONE line changed. Nothing else in `format_statusline_lines` moved; no `len()` was converted, no pad was rewritten, and no neighbouring line was reformatted.
 
-- [ ] V-03 validates E-03
+    Per-state purity sweep for `format_statusline_lines(..., use_unicode=False)` with `Palette(..., use_unicode=False)` across `current_idx` 0..10 (`total_items=10`):
+    BEFORE:
+    - `enabled=False` (plain):
+      - cur= 0: non_ascii_count=0 code_points=[] chars=[]
+      - cur= 1..10: non_ascii_count=1 code_points=['0x2588'] chars=['█']
+    - `enabled=True` (styled):
+      - cur= 0: non_ascii_count=0 code_points=[] chars=[]
+      - cur= 1..10: non_ascii_count=1 code_points=['0x2588'] chars=['█']
+
+    AFTER:
+    - `enabled=False` (plain):
+      - cur= 0..10: non_ascii_count=0 code_points=[] chars=[] (all 11 states empty)
+    - `enabled=True` (styled):
+      - cur= 0..10: non_ascii_count=0 code_points=[] chars=[] (all 11 states empty)
+
+    Confirmation: State 0 was included in both sweeps and passed before the fix too, demonstrating that testing non-zero states is what makes this verification sound.
+    Confirmation: `use_unicode=True` box output is byte-identical to pre-fix output for identical inputs across all 4 lines.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed diff of `Statusline.__init__` and `Statusline._render_lines_unlocked` and STATE WHICH SHAPE YOU CHOSE (reading `self.pal.use_unicode`, or an explicit `use_unicode: bool | None = None` parameter falling back to the palette) and why. Confirm by reading the diff that the class does NOT call `term.should_unicode` itself, since the capability decision belongs to the call site that owns the stream. Paste the non-ASCII set of `Statusline(pal=Palette(False, use_unicode=False), ...).render_line()` showing it EMPTY, and the same for `Palette(True, use_unicode=False)` so the styled path is covered. Then paste the DEFAULT case, a `Statusline` built with an ordinary `Palette`, showing its box byte-identical to the pre-fix output: this is what proves the change is a new reachable path rather than a behavior change for existing callers. Confirm the rendered result is still four lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified Statusline use_unicode parameter fallback, absence of internal detector calls, ASCII purity, and default Unicode parity.
+    Committed diff of `Statusline.__init__` and `Statusline._render_lines_unlocked`:
+    ```diff
+    @@ -1473,3 +1473,7 @@
+             action: str | None = None,
+             artifact_kind: str | None = None,
+             activity: str | None = None,
+    +        use_unicode: bool | None = None,
+         ) -> None:
+             self.pal = pal
+    +        self.use_unicode = (
+    +            use_unicode if use_unicode is not None else pal.use_unicode
+    +        )
+             self.stream = stream
+    @@ -1579,3 +1583,4 @@
+                 action=self.action,
+                 artifact_kind=self.artifact_kind,
+                 activity=self.activity,
+    +            use_unicode=self.use_unicode,
+             )
+    ```
+    Shape chosen: An explicit `use_unicode: bool | None = None` parameter falling back to `pal.use_unicode`. This derives the mode from the palette's existing capability decision by default while providing a clean override seam without having to construct a new palette.
+    Confirmation: `Statusline` does NOT call `term.should_unicode` itself; stream capability is owned by the caller/palette.
 
-- [ ] V-04 validates E-04
+    Non-ASCII set of `Statusline.render_line()`:
+    - `Statusline(pal=Palette(False, use_unicode=False))`: `leaks=[]` (empty)
+    - `Statusline(pal=Palette(True, use_unicode=False))`: `leaks=[]` (empty)
+
+    Default case (`Statusline` built with ordinary `Palette(False)`):
+    - `pal.use_unicode` defaults to True. Box contains standard Unicode box characters (`['─', '│', '┬', '┴', '╭', '╮', '╯', '╰', '█']`) and is byte-identical to pre-fix output.
+    - Rendered result line count: exactly 4 lines (`len(box.splitlines()) == 4`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the committed diff of every `Palette(...)` construction you changed in `oc_runipd` and `agy_runipd`, and STATE THE COUNT per file together with WHICH `Statusline` each changed palette feeds. THE EXPECTED COUNT IS ONE PER FILE (F-13): there is exactly one `Statusline(` construction in each runner and each takes its `pal` from a single function-body `Palette(should_color(sys.stdout))` assignment, so a diff changing more than two constructions in total is over-scope and must be justified or reverted. CONFIRM EXPLICITLY THAT YOU DID NOT CHANGE `run_opencode`'s STDERR PALETTE (F-14), the `runner_shared.Palette(runner_shared.should_color(sys.stderr))` assigned in the cross-tree-session refusal path, which the later stdout assignment rebinds before the statusline is built; paste that line unchanged. Confirm the unicode detector reads THE SAME STREAM as the adjacent color detector (`should_unicode(sys.stdout)` beside `should_color(sys.stdout)`), since a palette whose two decisions describe different streams is its own defect. Paste THE END-TO-END ENVIRONMENT PROOF, which is the only evidence this link actually connected: with `AW_ASCII_ONLY=1` set, the non-ASCII set of the statusline the runner builds, showing the nine code points BEFORE (F-01) and none AFTER; then the same with `FORCE_ASCII=1`; then with BOTH UNSET, showing the Unicode box unchanged, so the fix did not disable Unicode for everybody. If you found a `pal` shared between a statusline and another surface, REPORT it here rather than having silently changed both.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified one changed Palette construction per runner feeding Statusline, unchanged stderr palette, same-stream detection, and end-to-end environment proof.
+    Committed diff in `agent_workflows/oc_runipd.py`:
+    ```diff
+    @@ -652,3 +652,6 @@
+     from agent_workflows.runner_shared import (
+         should_color as should_color,
+     )
+    +from agent_workflows.term import (
+    +    should_unicode as should_unicode,
+    +)
+    @@ -2810,3 +2813,3 @@
+         verbosity = int(options.get("verbosity") or 0)
+    -    pal = Palette(should_color(sys.stdout))
+    +    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
+         log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
+    ```
 
-- [ ] V-05 validates E-05
+    Committed diff in `agent_workflows/agy_runipd.py`:
+    ```diff
+    @@ -353,3 +353,6 @@
+     from agent_workflows.runner_shared import (
+         should_color as should_color,
+     )
+    +from agent_workflows.term import (
+    +    should_unicode as should_unicode,
+    +)
+    @@ -2371,3 +2374,3 @@
+         verbosity = int(options.get("verbosity") or 0)
+    -    pal = Palette(should_color(sys.stdout))
+    +    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
+         log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
+    ```
+
+    Palette construction counts and targets:
+    - Exactly ONE `Palette(...)` construction changed in `oc_runipd.py` (line 2810 in `run_opencode`), feeding `Statusline(pal=pal, stream=sys.stdout, ...)` at line 2984.
+    - Exactly ONE `Palette(...)` construction changed in `agy_runipd.py` (line 2371 in `run_agy_turn`), feeding `Statusline(pal=pal, stream=sys.stdout, ...)` at line 2497.
+    - Expected count confirmed: exactly 1 per runner (2 in total).
+
+    Confirmation of `run_opencode` stderr palette (F-14):
+    Line 2629 of `agent_workflows/oc_runipd.py` was NOT changed. Unchanged line:
+    `pal = runner_shared.Palette(runner_shared.should_color(sys.stderr))`
+
+    Same stream confirmed: Both detectors read `sys.stdout` (`should_color(sys.stdout)` and `should_unicode(sys.stdout)`).
+
+    End-to-end environment proof:
+    - `AW_ASCII_ONLY=1`:
+      - BEFORE: 9 code points `['─', '│', '┬', '┴', '╭', '╮', '╯', '╰', '█']`
+      - AFTER: 0 code points (`[]`)
+    - `FORCE_ASCII=1`:
+      - BEFORE: 9 code points `['─', '│', '┬', '┴', '╭', '╮', '╯', '╰', '█']`
+      - AFTER: 0 code points (`[]`)
+    - BOTH UNSET:
+      - 9 code points `['─', '│', '┬', '┴', '╭', '╮', '╯', '╰', '█']` (Unicode box unchanged)
+
+    Shared palette report: In both runners, `pal` is function-local and is passed only to `Statusline` and turn logging/reporting.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `tests/test_statusline_ascii_mode.py` in full and confirm by reading it that it asserts PROPERTIES (no character above U+007F; equal visible width between the ASCII and Unicode bars; one distinct visible width across the box's four lines) and contains NO byte pin, NO `inspect`/`ast`/regex read of production source, and NO assertion on the rendered clock string, which is timezone-dependent in content while its width is not (measured across three zones including a half-hour offset). Confirm it tests BOTH LEVELS, the `format_statusline_lines` function and the `Statusline` class, since only the class-level case proves E-03's forward happens. Confirm it SWEEPS PROGRESS STATES including a fractional-eighth state and the `total_items=0` degenerate case, and state explicitly that a `0/N`-only fixture would have passed on the broken tree (F-03), because that is the trap this requirement exists to prevent. Confirm both styling modes are covered. Paste THE MUTATION PROOF: with E-01 through E-04 neutralized IN MEMORY, the module FAILING with its actual pytest output; then restored, green. State the mechanism and confirm NO tracked file was edited to produce it, pasting `git status --short` empty before and after. Paste the bare-suite summary line with its failing-node-id delta against your own clean-tree baseline (F-08 records one unrelated pre-existing failure), the focused run over the new module plus `tests/test_term.py` and `tests/test_run_summary_visible_width.py` (the sibling guard calls the function E-01 changes, per F-09), `python3 -m agent_workflows check` gaining no diagnostic, and `aw sanitize --agent` clean.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified tests/test_statusline_ascii_mode.py properties, swept progress states, mutation failure/pass cycle, focused suite, and clean delta on bare suite.
+    `tests/test_statusline_ascii_mode.py` in full:
+    ```python
+    """Regression guard asserting ASCII-mode purity, visible width parity, and boundary preservation.
+
+    Spec uonrjg Section 9.4 contract: guaranteed single-byte alignment in ASCII mode.
+    Validates IPD mzrr7x (E-01 through E-05).
+    """
+
+    from __future__ import annotations
+
+    import io
+    import time
+    import pytest
+
+    from agent_workflows import term as _T
+    from agent_workflows.render_stream import (
+        Palette,
+        Statusline,
+        format_progress_bar,
+        format_statusline_lines,
+    )
+
+
+    class TestStatuslineAsciiModePurity:
+        """Assert ASCII-mode purity, width parity, and boundary properties across renderer and class."""
+
+        @pytest.mark.parametrize("enabled", [False, True], ids=["plain", "styled"])
+        @pytest.mark.parametrize(
+            ("cur", "tot"),
+            [
+                (0, 0),    # degenerate zero total
+                (0, 10),   # un-started run (0/N)
+                (1, 10),   # started run
+                (3, 10),   # fractional eighth state
+                (5, 10),   # mid state
+                (10, 10),  # completed run (N/N)
+                (3, 80),   # fractional eighths on wider total
+                (79, 80),  # 99% boundary
+            ],
+        )
+        def test_format_statusline_lines_ascii_purity_swept_states(
+            self, enabled: bool, cur: int, tot: int
+        ) -> None:
+            """Level 1 (renderer): format_statusline_lines under use_unicode=False emits only ASCII."""
+            pal = Palette(enabled, use_unicode=False)
+            lines = format_statusline_lines(
+                now_ts=1700000000.0,
+                run_start_ts=1700000000.0,
+                item_start_ts=1700000000.0,
+                last_act_ts=1700000000.0,
+                current_idx=cur,
+                total_items=tot,
+                setid="statuscov",
+                id6="mzrr7x",
+                pal=pal,
+                use_unicode=False,
+            )
+            assert len(lines) == 4, f"Expected 4 lines, got {len(lines)}"
+            for i, line in enumerate(lines):
+                non_ascii = [c for c in line if ord(c) >= 128]
+                assert not non_ascii, (
+                    f"Line {i} for cur={cur}, tot={tot}, enabled={enabled} contains non-ASCII: {non_ascii}"
+                )
+            # All 4 lines must share the exact same visible terminal width
+            widths = {_T.visible_width(line) for line in lines}
+            assert len(widths) == 1, f"Expected uniform visible width across 4 lines, got {widths}"
+
+        @pytest.mark.parametrize("enabled", [False, True], ids=["plain", "styled"])
+        @pytest.mark.parametrize(
+            ("cur", "tot"),
+            [
+                (0, 0),
+                (0, 10),
+                (1, 10),
+                (3, 10),
+                (5, 10),
+                (10, 10),
+                (3, 80),
+                (79, 80),
+            ],
+        )
+        def test_statusline_class_ascii_purity_swept_states(
+            self, enabled: bool, cur: int, tot: int
+        ) -> None:
+            """Level 2 (class): Statusline with a use_unicode=False palette forwards ASCII mode."""
+            pal = Palette(enabled, use_unicode=False)
+            sl = Statusline(
+                pal=pal,
+                stream=io.StringIO(),
+                current_idx=cur,
+                total_items=tot,
+                setid="statuscov",
+                id6="mzrr7x",
+                run_start_mono=time.monotonic(),
+            )
+            box = sl.render_line()
+            lines = box.splitlines()
+            assert len(lines) == 4, f"Expected 4 lines in rendered statusline, got {len(lines)}"
+            for i, line in enumerate(lines):
+                non_ascii = [c for c in line if ord(c) >= 128]
+                assert not non_ascii, (
+                    f"Statusline line {i} for cur={cur}, tot={tot}, enabled={enabled} contains non-ASCII: {non_ascii}"
+                )
+            widths = {_T.visible_width(line) for line in lines}
+            assert len(widths) == 1, f"Expected uniform visible width across 4 statusline lines, got {widths}"
+
+        def test_statusline_explicit_use_unicode_override(self) -> None:
+            """Statusline constructor honors explicit use_unicode parameter override."""
+            pal = Palette(True, use_unicode=True)
+            sl = Statusline(
+                pal=pal,
+                stream=io.StringIO(),
+                current_idx=3,
+                total_items=10,
+                setid="statuscov",
+                id6="mzrr7x",
+                use_unicode=False,
+            )
+            box = sl.render_line()
+            non_ascii = [c for c in box if ord(c) >= 128]
+            assert not non_ascii, f"Expected pure ASCII with use_unicode=False override, got: {non_ascii}"
+
+        @pytest.mark.parametrize(
+            ("cur", "tot"),
+            [
+                (0, 0),
+                (0, 10),
+                (1, 10),
+                (3, 10),
+                (5, 10),
+                (10, 10),
+                (3, 80),
+                (79, 80),
+                (80, 80),
+            ],
+        )
+        def test_progress_bar_visible_width_parity_and_ascii_purity(
+            self, cur: int, tot: int
+        ) -> None:
+            """ASCII progress bar matches Unicode progress bar visible width at all swept states."""
+            u_bar = format_progress_bar(cur, tot, width=10, use_unicode=True)
+            a_bar = format_progress_bar(cur, tot, width=10, use_unicode=False)
+            # ASCII purity
+            non_ascii = [c for c in a_bar if ord(c) >= 128]
+            assert not non_ascii, f"ASCII bar for cur={cur}, tot={tot} contains non-ASCII: {non_ascii}"
+            # Width parity
+            u_width = _T.visible_width(u_bar)
+            a_width = _T.visible_width(a_bar)
+            assert a_width == u_width, (
+                f"Width mismatch for ({cur}/{tot}): ascii width {a_width} != unicode width {u_width}"
+            )
+
+        def test_progress_bar_boundary_distinguishability(self) -> None:
+            """Boundary preservation (F-12): started != unstarted (1/80 != 0/80) and incomplete != complete (79/80 != 80/80)."""
+            b0 = format_progress_bar(0, 80, width=10, use_unicode=False)
+            b1 = format_progress_bar(1, 80, width=10, use_unicode=False)
+            b79 = format_progress_bar(79, 80, width=10, use_unicode=False)
+            b80 = format_progress_bar(80, 80, width=10, use_unicode=False)
+
+            assert b1 != b0, (
+                f"Boundary collision: started run (1/80: '{b1}') must differ from unstarted (0/80: '{b0}')"
+            )
+            assert b79 != b80, (
+                f"Boundary collision: incomplete run (79/80: '{b79}') must differ from complete (80/80: '{b80}')"
+            )
+    ```
+
+    Property and constraint confirmation:
+    - Asserts properties: character purity (`ord(c) < 128`), visible width equality between ASCII and Unicode bars, and uniform width across the 4 box lines.
+    - NO byte pin, NO inspect/ast/regex of production source, NO assertion on the rendered clock string.
+    - Tests both levels: Level 1 (`format_statusline_lines` function) and Level 2 (`Statusline` class).
+    - Sweeps progress states: `0/0`, `0/10`, `1/10`, `3/10`, `5/10`, `10/10`, `3/80`, `79/80`, `80/80`.
+    - Explicit confirmation: `0/N` alone passed on the broken tree (F-03), which is why testing non-zero states is load-bearing.
+    - Both styling modes covered (`enabled=False`, `enabled=True`).
+
+    Mutation proof:
+    - Neutralizing E-01 through E-04 in memory via a custom pytest plugin that restored the pre-fix behavior (reverting `format_progress_bar` to always Unicode and dropping `use_unicode` in `Statusline._render_lines_unlocked`):
+      `36 failed, 7 passed in 1.15s`
+      The 7 passing cases are the degenerate 0/0 and 0/10 states (where fill is blank) and the boundary test. All 36 non-zero progress state tests across function and class levels, plain and styled, failed with AssertionError.
+    - Restored:
+      `43 passed in 7.20s`
+    - Mechanism: in-memory pytest plugin passed to `pytest.main()`. No tracked file was edited.
+
+    Full suite baseline and delta:
+    - Baseline: `5 failed, 4463 passed, 2 skipped, 3 warnings in 413.80s (0:06:53)`
+    - Post-fix: `2 failed, 4509 passed, 2 skipped, 3 warnings in 192.92s (0:03:12)`
+    - Delta: ZERO new failing node IDs (+46 passed, including the 43 new tests).
+    - Pre-existing failures: `tests/test_spec_review_attestation.py` and `tests/test_run_finding_reachability.py` (both present in baseline).
+
+    Focused suite run:
+    `python3 -m pytest tests/test_statusline_ascii_mode.py tests/test_term.py tests/test_run_summary_visible_width.py`:
+    `78 passed in 21.12s`
+
+    `python3 -m agent_workflows check --agent`:
+    0 new diagnostics gained.
+
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 

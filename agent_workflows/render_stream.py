@@ -980,7 +980,9 @@ def format_compact_tokens(n: float) -> str:
 _FRACTIONAL_BLOCKS = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"]
 
 
-def format_progress_bar(current: int, total: int, width: int = 10) -> str:
+def format_progress_bar(
+    current: int, total: int, width: int = 10, use_unicode: bool = True
+) -> str:
     """Format a block progress bar with blank spaces and fraction eighths (e.g. ' 0/80  [          ]   0.00%')."""
     if total <= 0:
         frac = 0.0
@@ -991,13 +993,24 @@ def format_progress_bar(current: int, total: int, width: int = 10) -> str:
         tot_str = str(total)
         cur_str = f"{current:>{len(tot_str)}}"
 
-    eighths = int(round(frac * width * 8))
-    full = eighths // 8
-    rem = eighths % 8
-    if rem > 0 and full < width:
-        bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+    if use_unicode:
+        eighths = int(round(frac * width * 8))
+        full = eighths // 8
+        rem = eighths % 8
+        if rem > 0 and full < width:
+            bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+        else:
+            bar = "█" * full + " " * (width - full)
     else:
-        bar = "█" * full + " " * (width - full)
+        if width <= 0:
+            bar = ""
+        else:
+            full = int(frac * width)
+            if frac > 0.0 and full == 0:
+                full = 1
+            if frac < 1.0 and full == width:
+                full = max(0, width - 1)
+            bar = "#" * full + " " * (width - full)
 
     pct = int(round(frac * 100))
     return f"{cur_str}/{tot_str}  [{bar}] {pct:>3}%"
@@ -1202,7 +1215,7 @@ def format_statusline_lines(
     # 2. Item Elapsed & Progress Bar (Col 3)
     item_elapsed = max(0, int(now_ts - item_start_ts))
     item_el_str = format_compact_duration(item_elapsed)
-    bar = format_progress_bar(current_idx, total_items)
+    bar = format_progress_bar(current_idx, total_items, use_unicode=use_unicode)
     val3 = f" {item_el_str} {bar}"
 
     if setid and id6:
@@ -1460,8 +1473,10 @@ class Statusline:
         action: str | None = None,
         artifact_kind: str | None = None,
         activity: str | None = None,
+        use_unicode: bool | None = None,
     ) -> None:
         self.pal = pal
+        self.use_unicode = use_unicode if use_unicode is not None else pal.use_unicode
         self.stream = stream
         self.tracker = tracker
         self.interval = interval
@@ -1562,6 +1577,7 @@ class Statusline:
             action=self.action,
             artifact_kind=self.artifact_kind,
             activity=self.activity,
+            use_unicode=self.use_unicode,
         )
 
     def render_line(self) -> str:

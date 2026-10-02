@@ -353,6 +353,9 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     should_color as should_color,
 )
+from agent_workflows.term import (
+    should_unicode as should_unicode,
+)
 from agent_workflows.runner_shared import (
     state_root as state_root,
 )
@@ -2368,7 +2371,7 @@ def run_agy_turn(
     output_mode = options.get("output_mode", "clean")
     # streamfmt (mm6wuz) E-06: read from the FROZEN run options, the same path `output_mode` takes.
     verbosity = int(options.get("verbosity") or 0)
-    pal = Palette(should_color(sys.stdout))
+    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
