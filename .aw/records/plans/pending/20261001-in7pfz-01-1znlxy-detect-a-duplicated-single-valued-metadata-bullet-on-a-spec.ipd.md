@@ -6,7 +6,8 @@
 - Scope: add a duplicate-bullet finding to the SPEC validator only, mirroring the backlog detector but with the multi-valued allowlist the spec corpus requires; register its severity; test it. No change to any reader, to the backlog or plan detectors, or to any spec file's content.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/check_engine.py, tests/test_specs_metadata_duplicate_bullet.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: in7pfz
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Review record: .aw/records/reviews/20261001-in7pfz-01-1znlxy-detect-a-duplicated-single-valued-metadata-bullet-on-a-spec.review.md
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `in7pfz`; re-measured the gap at HEAD `9b1b722e5` and found the BACKLOG half already closed by executed plan `7ohskw`, narrowing this plan to the spec half alone (see F-01/F-02).
 
@@ -36,26 +38,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `specs.SPEC_MULTI_VALUED_KEYS` is importable and contains `Constrained-by`; no behavior change yet.
   - Execution state: pending
 
-- [ ] E-02 In `specs.validate_spec`, count top-level `- Key:` bullets within the metadata block delimited by `specs._metadata_end` (the first `## ` heading), and append one `core.Drift` per key whose count exceeds 1 and which is NOT in `SPEC_MULTI_VALUED_KEYS`. Use rule id `spec.metadata-bullet-repeated` (the `spec.` namespace the validator already uses for `spec.priority-invalid` and `spec.work-kind-invalid`, not the `attention.` namespace), and a detail of the shape `metadata bullet - <Key>: appears <N> times`, matching the wording `backlog.validate_item` already emits. Pass the detail through `A.escape_detail` as the neighbouring spec findings do.
+- [ ] E-02 In `specs.validate_spec`, count top-level `- Key:` bullets within the metadata block delimited by `specs._metadata_end` (the first `## ` heading), and append one `core.Drift` per key whose count exceeds 1 and which is NOT in `SPEC_MULTI_VALUED_KEYS`. Use rule id `spec.metadata-bullet-repeated` (the `spec.` namespace the validator already uses for `spec.priority-invalid` and `spec.work-kind-invalid`, not the `attention.` namespace), and a detail of the shape `metadata bullet - <Key>: appears <N> times`, matching the wording `backlog.validate_item` already emits. Pass the detail through `A.escape_detail` as the neighbouring spec findings do. Do NOT copy the backlog twin's `Kind` -> `Work-Kind` canonicalization: no spec reader accepts the legacy `- Kind:` spelling (`specs._WORK_KIND_RE` matches `- Work-Kind:` only) and no spec in the corpus carries it, so canonicalizing would invent an equivalence the spec contract does not have. KNOW THE BLAST RADIUS, re-measured at review: `validate_spec` is not only the `aw specs check` reader. It is also the in-memory residual gate that makes `aw specs set` and `aw specs migrate` REFUSE a non-conforming result (`specs.run_set`/`run_migrate`: "the resulting spec would not conform; refused"), the per-spec reader of `attention._spec_record` (so `aw attention --check`), the spec arm of the runner's RUN-STRUCTURE-PREFLIGHT in `runner_shared`, and `check_engine`'s specs walk. So after this lands, a hand-duplicated bullet blocks every tooled transition of that spec until a human removes the duplicate. That is the intended fail-closed outcome, and its cost is zero today because F-03 measures no real spec firing.
   - Depends on: E-01
   - Expected outcome: a spec carrying two `- Blocks-Release:` lines yields exactly one `spec.metadata-bullet-repeated` Drift; a spec carrying four `- Constrained-by:` lines yields none.
   - Execution state: pending
 
-- [ ] E-03 Register `spec.metadata-bullet-repeated` in `check_engine.RULE_REGISTRY` as `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`, matching the registration its backlog twin `backlog.metadata-bullet-repeated` carries. Rationale to record in the plan's own history, not in the code: an unregistered rule already defaults to error severity via `_DEFAULT_RULESPEC`, so registering changes no exit code; it is required so the rule is not SILENTLY unclassified, which is the stated purpose of that default's comment.
+- [ ] E-03 Register `spec.metadata-bullet-repeated` in `check_engine.RULE_REGISTRY` as `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`, matching the registration its backlog twin `backlog.metadata-bullet-repeated` carries. Place it beside its backlog twin and extend that block's existing comment to cover it, rather than recording rationale in the plan's history, which is tool-written and is not the place for execution notes. The rationale: an unregistered rule already defaults to error severity via `_DEFAULT_RULESPEC`, so registering changes no exit code; it is required so the rule is not SILENTLY unclassified, which is the stated purpose of that default's comment. CONSTRAINT: the rule id must not contain the substrings `duplicate` or `graduation`, because `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate` refuses any such key in `RULE_REGISTRY`; `spec.metadata-bullet-repeated` satisfies this, so do not rename it to a `duplicate` spelling.
   - Depends on: E-02
   - Expected outcome: `check_engine.RULE_REGISTRY["spec.metadata-bullet-repeated"].severity == "error"`.
   - Execution state: pending
 
 ### Task group 2: evidence that the corpus still passes
 
-- [ ] E-04 Run `aw specs check` and `aw check all` against the unmodified repository corpus and paste the output, confirming the new rule fires on zero real specs (the pre-measured expectation from F-03: only `Constrained-by` repeats, and it is allowlisted).
+- [ ] E-04 Run `aw specs check --agent` and `aw check all --agent` against the unmodified repository corpus, BEFORE E-02 and AFTER E-03, and paste both captures, confirming the new rule fires on zero real specs (the pre-measured expectation from F-03: only `Constrained-by` repeats, and it is allowlisted). THE BASELINE IS NOT CLEAN, so do not demand conformance: at review `aw specs check` reported 1 pre-existing finding (`attention.unsafe-field` on the over-length `- Scope:` of `20261001-89xjll-01-89xjll-...spec.md`) and `aw check all` reported 97 across many live rules. Those are live counts and context only; re-derive them at execution. The claim this step makes is that `spec.metadata-bullet-repeated` appears ZERO times and that the after-set restricted to spec locations equals the before-set.
   - Depends on: E-03
-  - Expected outcome: both commands report conformance with no `spec.metadata-bullet-repeated` finding; no spec file is edited to achieve this.
+  - Expected outcome: neither command reports any `spec.metadata-bullet-repeated` finding; the `aw specs check` diagnostic set is identical before and after; no spec file is edited to achieve this.
   - Execution state: pending
 
 ### Task group 3: tests
 
-- [ ] E-05 Write `tests/test_specs_metadata_duplicate_bullet.py` exercising `specs.validate_spec` on constructed spec texts (tmp paths, never production source introspection): (a) duplicated `- Blocks-Release:` is reported once with the expected detail; (b) duplicated `- Gate-Kind:` on a `deferred` spec is reported, and does NOT suppress or duplicate the existing gate findings; (c) four `- Constrained-by:` lines are NOT reported; (d) a duplicate appearing only AFTER the first `## ` heading (i.e. a prose example) is NOT reported, pinning the `_metadata_end` boundary; (e) a conformant single-valued spec yields no finding; (f) the rule id is present in `check_engine.RULE_REGISTRY` with severity `error`.
+- [ ] E-05 Write `tests/test_specs_metadata_duplicate_bullet.py` exercising `specs.validate_spec` on constructed spec texts (tmp paths, never production source introspection): (a) duplicated `- Blocks-Release:` is reported once with the expected detail; (b) duplicated `- Gate-Kind:` on a `deferred` spec is reported, and does NOT suppress or duplicate the existing gate findings, pinned with TWO fixtures: (b1) both lines carry the SAME valid kind with a valid `- Gate-Ref:`, so the new rule is the ONLY finding; (b2) the lines carry DIFFERENT kinds where the last one (which `_read_gate` keeps) makes the ref invalid, so exactly one `attention.gate-malformed` AND exactly one `spec.metadata-bullet-repeated` are both present. Review measured that (b2)'s shape, `Gate-Kind: date` then `Gate-Kind: decision` with `Gate-Ref: 2027-01-01`, yields `attention.gate-malformed` today and nothing else; (c) four `- Constrained-by:` lines are NOT reported; (d) a duplicate appearing only AFTER the first `## ` heading (i.e. a prose example) is NOT reported, pinning the `_metadata_end` boundary; (e) a conformant single-valued spec yields no finding; (f) the rule id is present in `check_engine.RULE_REGISTRY` with severity `error`.
   - Depends on: E-03
   - Expected outcome: the new test module passes; every assertion is on returned Drift records or registry values, never on source text.
   - Execution state: pending
@@ -111,7 +113,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_specs_metadata_duplicate_bullet.py` (new module, run narrowed with `-o addopts=""` if per-test counts are wanted).
-- `python3 -m pytest` bare, for the full fast suite, pasting the actual summary line.
+- `python3 -m pytest` bare, for the full fast suite, BEFORE E-01 and AFTER E-06, pasting both summary lines. The baseline may carry pre-existing failures unrelated to this plan; the bar is that the after-run carries no failure absent from the before-run.
 - `aw specs check` and `aw check all` against the unmodified corpus, proving zero new findings on real specs.
 
 ## Spec / documentation sync
@@ -154,12 +156,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the full output of `aw specs check` and `aw check all` run on the corpus with NO spec file modified, showing conformance and no `spec.metadata-bullet-repeated` finding. If any real spec does fire, do NOT edit that spec: stop and report, because F-03 predicted zero and a nonzero result falsifies the allowlist.
+  - Required evidence: paste the BEFORE (pre-E-02) and AFTER (post-E-03) output of `aw specs check --agent` and `aw check all --agent` run on the corpus with NO spec file modified, showing ZERO `spec.metadata-bullet-repeated` findings in the after captures and an identical `aw specs check` `{location, rule}` set before and after. Do NOT claim conformance: name each pre-existing finding as pre-existing. If any real spec does fire, do NOT edit that spec: stop and report, because F-03 predicted zero and a nonzero result falsifies the allowlist.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the output of `python3 -m pytest tests/test_specs_metadata_duplicate_bullet.py -o addopts=""` showing all cases passing with counts, AND the bare `python3 -m pytest` summary line for the whole fast suite. Confirm in one sentence that no test in the new module reads production source text via `inspect`, `ast`, regex or substring search (GUIDING_PRINCIPLES P16).
+  - Required evidence: paste the output of `python3 -m pytest tests/test_specs_metadata_duplicate_bullet.py -o addopts=""` showing all cases passing with counts, AND the bare `python3 -m pytest` summary lines from BEFORE E-01 and AFTER E-06, naming any failure present in both as pre-existing and showing no NEW failure; do not describe the suite as clean if it is not. Confirm in one sentence that no test in the new module reads production source text via `inspect`, `ast`, regex or substring search (GUIDING_PRINCIPLES P16).
   - Observed evidence:
   - Result: pending
 
@@ -177,4 +179,4 @@ This plan requires explicit human approval before execution; it is authored `to-
 
 On execution, follow the repository execution contract: commit only the paths named in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing; paste actual test output rather than claiming success. Do not mark any `V-*` as `pass` from the matching execution checkmark; inspect evidence in a separate pass.
 
-Post-gate lifecycle: once every `E-*` is `performed`, every `V-*` is `pass` with pasted evidence, and `aw ipd lint --phase pre-transition` reports conforming, move this plan to `.aw/records/plans/executed/` through the tooled transition. Backlog item `in7pfz` is then closable by the runner on the normal `graduated` path; this plan carries `- From-Backlog: in7pfz` so the handoff is machine-readable. The item carries no `- Blocks-Release:` gate, so none is inherited here.
+Scope fence: `- Scope-Paths:` is a DECLARATION, not a stop condition; if an edit outside it proves necessary, make it and JUSTIFY it, which `aw ipd finalize` enforces with a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path. Post-gate lifecycle: once every `E-*` is `performed`, every `V-*` is `pass` with pasted evidence, and `aw ipd lint --phase pre-transition` reports conforming, the terminal transition is `aw ipd finalize 1znlxy --apply`; under `aw oc run` / `aw agy run` the runner owns it, and when executed by hand the executor runs it. Never hand-roll a `git mv` to `executed/`. Backlog item `in7pfz` is then closable by the runner on the normal `graduated` path; this plan carries `- From-Backlog: in7pfz` so the handoff is machine-readable. The item carries no `- Blocks-Release:` gate, so none is inherited here.
