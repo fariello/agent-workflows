@@ -29,7 +29,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: TODO
 
-- [ ] E-01 TODO one observable action.
+- [ ] E-01 CONFIRM c0ch01 REACHED executed
   - Depends on: none
   - Expected outcome: TODO observable result.
   - Execution state: pending
@@ -38,7 +38,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Child IPDs, sequence, and dependencies
 
-TODO: child IPD table (Order | File | What it does | Depends on).
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `c0ch01` | TODO child plan filename | TODO what it does. | none |
 
 ## Completion criteria (the whole Set is done only when)
 

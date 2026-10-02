@@ -654,5 +654,133 @@ class ScaffoldVocabularyIntroTests(unittest.TestCase):
             )
 
 
+class ConformingOrchestratorScaffoldTests(unittest.TestCase):
+    """Plan zojfn6: scaffolded orchestrator conforms to the typed row grammar and gates begin."""
+
+    def test_scaffolded_orchestrator_conforms_to_row_grammar(self):
+        text = A.build_skeleton(
+            kind="orchestrator",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=0,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        res = L.orchestrator_row_conformance(text)
+        self.assertTrue(res.applies)
+        self.assertTrue(res.conforming)
+        self.assertEqual(res.table_reason, "")
+        self.assertEqual(len(res.rows), 1)
+        row = res.rows[0]
+        self.assertEqual(row.ident, "E-01")
+        self.assertEqual(row.child_id6, "c0ch01")
+        self.assertEqual(row.status, "executed")
+        self.assertEqual(row.depends_on, "none")
+        self.assertTrue(row.conforming)
+
+    def test_child_skeleton_unaffected_and_row_rule_does_not_apply(self):
+        text = A.build_skeleton(
+            kind="child",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=1,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        res = L.orchestrator_row_conformance(text)
+        self.assertFalse(res.applies)
+        self.assertTrue(res.conforming)
+        self.assertIn("- [ ] E-01 TODO one observable action.", text)
+
+    def test_authoring_placeholders_resolved_reports_fresh_scaffolds_as_unresolved(
+        self,
+    ):
+        orch = A.build_skeleton(
+            kind="orchestrator",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=0,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        child = A.build_skeleton(
+            kind="child",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=1,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        self.assertFalse(A.authoring_placeholders_resolved(orch))
+        self.assertFalse(A.authoring_placeholders_resolved(child))
+
+    def test_begin_and_pre_execution_gate_untyped_orchestrator(self):
+        from agent_workflows import ipd_lifecycle as LC
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "t@e.com"], cwd=root, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "T"], cwd=root, check=True)
+            (root / "init.txt").write_text("init\n")
+            subprocess.run(["git", "add", "init.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "init"], cwd=root, check=True)
+
+            fresh_text = A.build_skeleton(
+                kind="orchestrator",
+                title="Fresh Orch",
+                author="tester",
+                when="2026-10-01",
+                set_name="testset",
+                order=0,
+                plan_id="orc001",
+                priority="medium",
+                work_kind="chore",
+            )
+            p_fresh = root / "fresh.ipd.md"
+            p_fresh.write_text(fresh_text, encoding="utf-8")
+
+            untyped_text = fresh_text.replace(
+                "- [ ] E-01 CONFIRM c0ch01 REACHED executed",
+                "- [ ] E-01 TODO one observable action.",
+            )
+            p_untyped = root / "untyped.ipd.md"
+            p_untyped.write_text(untyped_text, encoding="utf-8")
+
+            # 1. begin on untyped orchestrator fails with IPD-S407 in findings
+            res_untyped = LC.begin(
+                root, p_untyped, "tester model=m", timestamp="2026-10-01T00:00:00Z"
+            )
+            self.assertEqual(res_untyped.exit_code, LC.EXIT_FINDINGS)
+            s407_findings = [f for f in res_untyped.findings if "IPD-S407" in f]
+            self.assertTrue(len(s407_findings) > 0, res_untyped.findings)
+
+            # 2. begin on freshly scaffolded orchestrator does NOT produce IPD-S407
+            res_fresh = LC.begin(
+                root, p_fresh, "tester model=m", timestamp="2026-10-01T00:00:00Z"
+            )
+            s407_fresh = [f for f in res_fresh.findings if "IPD-S407" in f]
+            self.assertEqual(len(s407_fresh), 0, res_fresh.findings)
+
+            # 3. pre-execution lint on untyped plan returns IPD-S407 diagnostic
+            res_lint = L.lint_file(p_untyped, checkpoint="pre-execution")
+            s407_diags = [d for d in res_lint.diagnostics if d.code == L.C_ORCH_ROW]
+            self.assertTrue(len(s407_diags) > 0)
+
+
 if __name__ == "__main__":
     unittest.main()

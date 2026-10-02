@@ -1950,7 +1950,9 @@ def _structurally_conforming_plan(
     if child_table:
         text = text.replace(
             "## Child IPDs, sequence, and dependencies\n\n"
-            "TODO: child IPD table (Order | File | What it does | Depends on).\n",
+            "| Order | Id | File | What it does | Depends on |\n"
+            "|---|---|---|---|---|\n"
+            "| 01 | `c0ch01` | TODO child plan filename | TODO what it does. | none |\n",
             child_table + "\n",
         )
     if checklist_rows is not None:
@@ -1958,7 +1960,7 @@ def _structurally_conforming_plan(
         import re
 
         pattern = re.compile(
-            r"### Task group 1: TODO\n\n- \[ \] E-01 TODO one observable action\..*?(?=\n\n##|\Z)",
+            r"### Task group 1: TODO\n\n- \[ \] E-01 CONFIRM c0ch01 REACHED executed.*?(?=\n\n##|\Z)",
             re.DOTALL,
         )
         text = pattern.sub(
@@ -2074,7 +2076,14 @@ class RollupTransitionCase(unittest.TestCase):
             ]
         checklist_rows = None
         validation_rows = None
-        if not untyped_checklist and children:
+        if untyped_checklist:
+            checklist_rows = [
+                "- [ ] E-01 TODO one observable action.\n  - Depends on: none\n  - Expected outcome: TODO observable result.\n  - Execution state: pending"
+            ]
+            validation_rows = [
+                "- [ ] V-01 validates E-01\n  - Required evidence: TODO falsifiable evidence.\n  - Observed evidence:\n  - Result: pending"
+            ]
+        elif children:
             checklist_rows = [
                 f"- [ ] E-{order:02d} CONFIRM {id6} REACHED executed\n  - Depends on: {'none' if idx == 0 else f'E-{children[idx-1][1]:02d}'}\n  - Expected outcome: {id6} reached executed\n  - Execution state: pending"
                 for idx, (id6, order, _s, _b) in enumerate(children)
