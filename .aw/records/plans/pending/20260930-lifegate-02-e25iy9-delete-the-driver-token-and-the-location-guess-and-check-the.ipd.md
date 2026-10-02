@@ -218,6 +218,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
   - Carrier: ariaau
 - THE REMAINING `1o4eif` AND HOSTILE-AGENT JUSTIFICATION COMMENTS ELSEWHERE IN THE PACKAGE. `ipd_lifecycle`'s module-header comment and `orchestrate_isolation`'s docstring are the subject of a sibling plan in the `malgate` Set, which measured them and fenced this plan's region out of its own scope. This plan removes only the justification comment inside the code it deletes, so the two do not collide.
   - Carrier: dmjp0u
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-malgate-03-dmjp0u-reframe-every-determined-same-user-and-malicious-agent-justi.ipd.md
 - MAKING THE NEW CHECK A HARD BOUNDARY. Out of scope by construction, not by preference: P15 says "If real isolation is ever required, it comes from the operating system (a separate user, a sandbox such as the opt-in hardened profile), never from checks in our own code." The new check is guidance for honest actors, which the backlog item's own honest-limits section states.
   - Carrier-Declined: Nothing is owed because filing it would assert the repository intends to build a mechanism its own guiding principle forbids, which is the exact machinery this plan is deleting.
 - RESTORING ANY COVERAGE FOR THE DELETED MECHANISM. `tests/test_driver_attestation_gate.py` is deleted rather than adapted because every one of its cases tests the token or the location guess. No replacement is owed for a deleted behavior; E-08's file covers the replacement behavior instead.
