@@ -40,30 +40,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the advisory report in both gate verbs
 
-- [ ] E-01 In `work_cmd.run_work_begin`, replace the hardcoded `(warning)` parenthetical in the advisory heading and carry each finding's own severity on its detail line. The heading becomes `aw work begin: note - {len(advisory)} advisory finding(s) on {plan_path.name} (not blocking):` and the loop body becomes a line carrying the finding's severity before its rule id, falling back to a literal `unclassified` when `getattr(d, "severity", "")` is empty or missing so the line can never silently render a blank tier. Locate the site by the quoted heading string `advisory (warning) finding(s) on` inside `run_work_begin`. Do NOT touch the `if blocking:` branch that follows, do NOT change the partition returned by `_validate_plan_via_engine`, and do NOT change the return codes.
+- [x] E-01 In `work_cmd.run_work_begin`, replace the hardcoded `(warning)` parenthetical in the advisory heading and carry each finding's own severity on its detail line. The heading becomes `aw work begin: note - {len(advisory)} advisory finding(s) on {plan_path.name} (not blocking):` and the loop body becomes a line carrying the finding's severity before its rule id, falling back to a literal `unclassified` when `getattr(d, "severity", "")` is empty or missing so the line can never silently render a blank tier. Locate the site by the quoted heading string `advisory (warning) finding(s) on` inside `run_work_begin`. Do NOT touch the `if blocking:` branch that follows, do NOT change the partition returned by `_validate_plan_via_engine`, and do NOT change the return codes.
   LOCATE THE LOOP BODY BY ITS ENCLOSING `if advisory:` BLOCK, NOT BY ITS TEXT (PR-109). The detail line `print(f"  {d.rule}: {d.detail}")` is BYTE-IDENTICAL in four places (measured: the advisory loop and the blocking loop in EACH of the two verbs), so a search-and-replace on that string would also rewrite the two refusal reports this item forbids changing, and no `V-*` would catch it because V-02 inspects the blocking HEADING rather than its finding lines. Edit exactly TWO of the four occurrences across E-01 and E-02, and show the occurrence count in the diff.
   - Depends on: none
   - Expected outcome: `aw work begin` on a plan with one advisory finding prints a heading containing `advisory finding(s)` and NOT containing `(warning)`, followed by a line naming that finding's registered severity; the verb still allocates a worktree and still returns 0.
-  - Execution state: pending
-- [ ] E-02 Apply the IDENTICAL correction to the matching block in `work_cmd.run_commit`, keeping the two verbs' wording in lockstep (the backlog item's instruction: "Both verbs share the wording, so fix them together"). Locate the site by the quoted heading string `advisory (warning) finding(s) on` inside `run_commit`, which is the SECOND and last occurrence of that literal in the module. Confirm as part of this item that no third EMITTING occurrence exists, so the wording is corrected everywhere it is PRINTED. Do NOT touch the adjacent `aw commit: refusing - ...` heading, the `_in_scope` comparison above it, or the `--no-plan` short-circuit.
+  - Execution state: performed
+- [x] E-02 Apply the IDENTICAL correction to the matching block in `work_cmd.run_commit`, keeping the two verbs' wording in lockstep (the backlog item's instruction: "Both verbs share the wording, so fix them together"). Locate the site by the quoted heading string `advisory (warning) finding(s) on` inside `run_commit`, which is the SECOND and last occurrence of that literal in the module. Confirm as part of this item that no third EMITTING occurrence exists, so the wording is corrected everywhere it is PRINTED. Do NOT touch the adjacent `aw commit: refusing - ...` heading, the `_in_scope` comparison above it, or the `--no-plan` short-circuit.
   SCOPE THE CONFIRMING SEARCH TO EXECUTABLE CODE, NOT THE WHOLE REPOSITORY, corrected at review (PR-102). The right search is `grep -rn "advisory (warning)" --include="*.py" .`, which must return ZERO hits after this item; additionally `grep -rn "(warning) finding" tests/ docs/` must stay empty. A WHOLE-REPO search CANNOT reach zero and must not be used as the bar: five `.md` records legitimately QUOTE the defective literal while describing the defect (this plan, executed `ygb3nk`, executed `s7cu7n`, pending `9m4ujh`, backlog `7gr0vr`), and two of them are in `.aw/records/plans/executed/`, which AGENTS.md forbids rewriting. Do NOT edit any record to make a search pass: a plan or backlog item that quotes the string it is fixing is correct, and scrubbing those quotes would destroy the evidence trail this plan's own findings rest on.
   - Depends on: E-01
   - Expected outcome: both headings are byte-identical apart from their verb prefix, no occurrence of the literal `advisory (warning)` survives in any `*.py` file, no record file is edited to achieve that, and `aw commit` still commits on an advisory finding and still refuses on a blocking one.
-  - Execution state: pending
-- [ ] E-03 Extend `tests/test_work_gate_severity.py` with behavioral coverage that FAILS against the shipped wording and passes after E-01 and E-02: for each verb, drive the real CLI with a patched `check_engine.check_type` returning a `check.scope-drift` drift (registered `error`, routed advisory) and assert the captured output carries that finding's real severity on the FINDING'S OWN LINE, does NOT contain the literal `(warning)`, and still contains the substring `advisory`; add one MIXED-batch case proving two advisory findings of DIFFERENT registered severities each render their own tier.
+  - Execution state: performed
+- [x] E-03 Extend `tests/test_work_gate_severity.py` with behavioral coverage that FAILS against the shipped wording and passes after E-01 and E-02: for each verb, drive the real CLI with a patched `check_engine.check_type` returning a `check.scope-drift` drift (registered `error`, routed advisory) and assert the captured output carries that finding's real severity on the FINDING'S OWN LINE, does NOT contain the literal `(warning)`, and still contains the substring `advisory`; add one MIXED-batch case proving two advisory findings of DIFFERENT registered severities each render their own tier.
   DO NOT ASSERT THE BARE SUBSTRING `error` OVER THE WHOLE CAPTURED OUTPUT, which is the one way this item can be satisfied vacuously (PR-103). Measured at review: a pre-fix run whose drift DETAIL contains the word `error` (for example the real `check.scope-drift` message "1 changed path is outside the plan's declared Scope-Paths") makes `assertIn("error", out)` pass on the UNFIXED build, so the negative control V-03 demands would go green and prove nothing. The detail text is chosen by the test itself, so this is a live trap and not a hypothetical. Assert instead on the SPECIFIC LINE: locate the output line containing the rule id and assert the tier token appears ON THAT LINE beside it (for example that the line matching `check.scope-drift` also contains `error`), which is false on the pre-fix build whatever the detail says. Choose each probe's `detail` so it does NOT contain a tier word, and state in the test's docstring that this is deliberate.
   Assert on captured process output and the resulting git/worktree state only; do not read `work_cmd` source with `inspect`, `ast`, or substring search, and do not assert on line counts or call counts (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE", GUIDING_PRINCIPLES P16). Do not weaken, rename, or delete the four existing advisory tests, whose `assertIn("advisory", out)` assertions must keep passing unchanged (verified at review: all four assert only the bare substring `advisory` plus a rule id, and the proposed heading preserves both).
   - Depends on: E-02
   - Expected outcome: new tests fail on the pre-fix wording for the stated reason and pass after it, the 11 pre-existing tests in the file still pass, and the suite reports no regression.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove no regression and no scope leak
 
-- [ ] E-04 Run the full suite BARE and reconcile the committed set against `- Scope-Paths:` before committing. THE BASELINE IS A PRE-EDIT ACT RECORDED HERE, NOT TAKEN HERE, clarified at review (PR-106): this item `- Depends on: E-03`, so the edits already exist by the time it runs and the authored instruction to baseline "before applying E-01 and E-02" cannot be followed from inside it. Capture the full-suite baseline and the negative-control failure as the FIRST acts of the execution turn, then report both figures in this item. An executor who reaches E-04 with no pre-edit baseline reports that honestly and compares against the tip, never inventing a figure or reverting edits to manufacture one.
+- [x] E-04 Run the full suite BARE and reconcile the committed set against `- Scope-Paths:` before committing. THE BASELINE IS A PRE-EDIT ACT RECORDED HERE, NOT TAKEN HERE, clarified at review (PR-106): this item `- Depends on: E-03`, so the edits already exist by the time it runs and the authored instruction to baseline "before applying E-01 and E-02" cannot be followed from inside it. Capture the full-suite baseline and the negative-control failure as the FIRST acts of the execution turn, then report both figures in this item. An executor who reaches E-04 with no pre-edit baseline reports that honestly and compares against the tip, never inventing a figure or reverting edits to manufacture one.
   AFTER THE FIX: run `python3 -m pytest` bare so the configured `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` applies, run `aw sanitize --agent`, and inspect `git status --short` plus `git diff --cached --name-only` to confirm only the two scope paths and this plan are staged. This item exists as its own E because its deliverable is EVIDENCE about the whole change rather than a code edit, and because `work_cmd.py` is shared with pending plan `9m4ujh` (F-07), making the staged-set check a real risk control rather than a formality.
   - Depends on: E-03
   - Expected outcome: a bare full-suite run passing with no new failures against the baseline recorded at the START of the execution turn, `aw sanitize --agent` reporting no `fail`, and a staged set containing exactly `agent_workflows/work_cmd.py`, `tests/test_work_gate_severity.py` and this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -146,22 +146,182 @@ N/A with reason, and the reason is measured rather than assumed. F-02 searched t
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Verbatim pasted transcript of `aw work begin` driven against a plan whose only finding is an `error`-registered advisory rule (`check.scope-drift`), showing (a) a heading containing the substring `advisory` and `(not blocking)`, (b) NO occurrence of the literal `(warning)` in the output, (c) the tier `error` on the SAME LINE as `check.scope-drift` (quote that single line, so the evidence cannot be satisfied by the word appearing anywhere else in the transcript; see PR-103), and (d) the worktree still allocated with exit 0. The probe's drift detail must not itself contain a tier word, and the transcript must show that. Plus the pasted output of a search for `advisory (warning)` in `agent_workflows/work_cmd.py` showing the `run_work_begin` occurrence is gone.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: Single-line quote showing tier on same line:
+    `  [error] check.scope-drift: probe scope drift detail without tier words`
+    Verbatim transcript:
+    ```
+    aw work begin: note - 1 advisory finding(s) on 20260828-wk-01-wk0001-demo.ipd.md (not blocking):
+      [error] check.scope-drift: probe scope drift detail without tier words
+    aw work begin: validated 20260828-wk-01-wk0001-demo.ipd.md; allocated worktree /tmp/tmpz35qnfa7/.aw/worktrees/wk0001 (branch aw/lane/wk0001, base 9a2d9b5b7eb7)
+    exit code: 0
+    lease exists: True
+    ```
+    Search for `advisory (warning)` in `agent_workflows/work_cmd.py`:
+    ```
+    $ grep -rn "advisory (warning)" agent_workflows/work_cmd.py
+    (0 matches, exit 1)
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: The same four-part transcript for `aw commit`, showing the commit still created (pasted `git show --stat HEAD` naming the committed path) with exit 0; PLUS pasted output of `grep -rn "advisory (warning)" --include="*.py" .` returning NO matches, proving both EMITTING sites corrected and no third code site missed, together with `grep -rn "(warning) finding" tests/ docs/` returning nothing. Do NOT paste a whole-repo search as this evidence and do NOT treat its hits as a failure: it cannot reach zero, because five `.md` records legitimately quote the literal while describing the defect and two of them are executed plans that must not be rewritten (PR-101, PR-102). A pasted `git status --short` showing NO record file modified other than this plan is part of this item's evidence, since editing a record to clear a search would be the wrong fix. PLUS a pasted diff of the two headings (or the two literals quoted side by side) showing them identical apart from the verb prefix; PLUS a pasted transcript of a BLOCKING finding on `aw commit` showing its `refusing` heading unchanged and exit 1, proving the routing and the blocking message were not disturbed; that transcript must also show the blocking FINDING LINES still in their original `  <rule>: <detail>` form with NO tier prefix, because the blocking loop body is byte-identical to the advisory one and a search-and-replace would have rewritten both (F-09, PR-109). State the number of `print(f"  {d.rule}: {d.detail}")` occurrences remaining in the module, which must be exactly two.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: Verbatim transcript (aw commit advisory):
+    ```
+    aw commit: note - 1 advisory finding(s) on 20260828-wk-01-wk0001-demo.ipd.md (not blocking):
+      [error] check.scope-drift: probe scope drift detail without tier words
+    aw commit: committed 1 path(s): 571ea27539ae3cd5a70adff069e65e379f9bc2dd
+    exit code: 0
+    ```
+    git show --stat HEAD:
+    ```
+    commit 571ea27539ae3cd5a70adff069e65e379f9bc2dd
+    Author: T <t@e.com>
+    Date:   Thu Oct 1 20:46:11 2026 -0400
+
+        update f
+
+        AW-Run: run-20261001T154752Z-3669000
+        AW-Item: majlt4
+
+     src/f.py | 2 +-
+     1 file changed, 1 insertion(+), 1 deletion(-)
+    ```
+    Code searches:
+    ```
+    $ grep -rn "advisory (warning)" --include="*.py" .
+    (0 matches, exit 1)
+    $ grep -rn "(warning) finding" tests/ docs/
+    (0 matches, exit 1)
+    ```
+    git status --short showing no records modified:
+    ```
+    $ git status --short
+     M .aw/records/plans/pending/20260930-advisoryhdr-01-majlt4-stop-the-commit-and-work-begin-advisory-heading-hardcoding-w.ipd.md
+     M agent_workflows/work_cmd.py
+     M tests/test_work_gate_severity.py
+    ```
+    Headings side by side (identical apart from verb prefix):
+    `run_work_begin: f"aw work begin: note - {len(advisory)} advisory finding(s) on {plan_path.name} (not blocking):"`
+    `run_commit:     f"aw commit: note - {len(advisory)} advisory finding(s) on {plan_path.name} (not blocking):"`
+
+    Blocking finding transcript on aw commit:
+    ```
+    aw commit: refusing - 1 finding(s) on 20260828-wk-01-wk0001-demo.ipd.md:
+      check.name-nonconformant: probe bad name detail without tier words
+    exit code: 1
+    ```
+    Blocking finding line remains untiered in original `  <rule>: <detail>` form.
+
+    Remaining occurrences of `print(f"  {d.rule}: {d.detail}")` in `agent_workflows/work_cmd.py`: exactly two (lines 346 and 721).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: THE NEGATIVE CONTROL FIRST: pasted output of the new tests run at the UNMODIFIED base showing them FAILING, with the assertion error text proving they fail on the `(warning)` wording and not for an unrelated reason. The negative control must be shown to fail for the RIGHT reason specifically: paste the assertion message and confirm it names the missing per-finding tier or the surviving `(warning)` literal, not merely "error not found in output". ADDED AT REVIEW (PR-103): state explicitly that no new test asserts the bare substring `error` over the whole captured output, and name the per-line assertion used instead, because a bare whole-output `assertIn("error", out)` passes on the unfixed build whenever the drift detail happens to contain the word, which would make this very negative control green and vacuous. Then pasted `python3 -m pytest tests/test_work_gate_severity.py -o addopts=""` after the fix showing all tests passing with the total count, which must be strictly greater than the base's 11. Plus the pasted mixed-batch test output (or the test's own captured output) showing two advisory findings rendering `error` and `warning` on separate lines in one report. Plus confirmation, by pasted `git diff` of the test file, that no pre-existing test body was modified and that no added test reads production source via `inspect`, `ast`, regex, or substring search over `work_cmd.py`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: Negative control output at unmodified base (3 failed, 11 passed in 9.28s):
+    ```
+    =================================== FAILURES ===================================
+    _ WorkGateSeverityTest.test_commit_mixed_advisory_reports_distinct_per_line_severities _
+    ...
+    >       self.assertNotIn(
+                "(warning)",
+                heading_line,
+                "Heading must not contain hardcoded '(warning)'",
+            )
+    E       AssertionError: '(warning)' unexpectedly found in 'aw commit: note - 2 advisory (warning) finding(s) on 20260828-wk-01-wk0001-demo.ipd.md (not blocking):' : Heading must not contain hardcoded '(warning)'
+
+    _ WorkGateSeverityTest.test_work_begin_scope_drift_reports_error_severity_per_line_and_no_warning_literal _
+    ...
+    >       self.assertIn(
+                "error",
+                finding_lines[0],
+                f"Finding line for check.scope-drift must carry registered severity 'error', got line: {finding_lines[0]!r}",
+            )
+    E       AssertionError: 'error' not found in '  check.scope-drift: probe scope drift detail without tier words' : Finding line for check.scope-drift must carry registered severity 'error', got line: '  check.scope-drift: probe scope drift detail without tier words'
+
+    _ WorkGateSeverityTest.test_commit_scope_drift_reports_error_severity_per_line_and_no_warning_literal _
+    ...
+    >       self.assertNotIn(
+                "(warning)", out, "Advisory heading must not contain '(warning)' literal"
+            )
+    E       AssertionError: '(warning)' unexpectedly found in 'aw commit: note - 1 advisory (warning) finding(s) on 20260828-wk-01-wk0001-demo.ipd.md (not blocking):\n  check.scope-drift: probe scope drift detail without tier words\naw commit: committed 1 path(s): 56bcaf2e78ff5c4f73a0e43fa4ed2b694ab1f020\n' : Advisory heading must not contain '(warning)' literal
+    ========================= 3 failed, 11 passed in 9.28s =========================
+    ```
+
+    Assertion design (PR-103):
+    No new test asserts the bare substring `error` over the whole captured output. Each test isolates the line matching the rule id (`[line for line in out.splitlines() if "check.scope-drift" in line]`) and asserts `self.assertIn("error", finding_lines[0])` on that specific line, while probe details deliberately omit tier words.
+
+    Post-fix test run:
+    ```
+    $ python3 -m pytest tests/test_work_gate_severity.py -o addopts="" -v
+    ============================== 14 passed in 8.72s ==============================
+    ```
+    Total count: 14 passed (strictly greater than the base's 11).
+
+    Mixed-batch output:
+    ```
+    aw commit: note - 2 advisory finding(s) on 20260828-wk-01-wk0001-demo.ipd.md (not blocking):
+      [error] check.scope-drift: probe scope drift detail without tier words
+      [warning] check.review-decision-unescalated: probe unescalated detail without tier words
+    aw commit: committed 1 path(s): db82629cab2310046961e4b3dfbad8916573b7ab
+    exit code: 0
+    ```
+
+    Confirmation of test hygiene:
+    `git diff tests/test_work_gate_severity.py` shows only 3 newly appended test methods at the end of `WorkGateSeverityTest`. No pre-existing test body was modified. No added test reads production source via `inspect`, `ast`, regex, or substring search over `work_cmd.py`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Pasted BARE `python3 -m pytest` output including its actual `N passed` summary line, compared against the FULL-SUITE baseline taken at the start of the execution turn (PR-106), which must be pasted beside it. Compare FAILING-NODE-ID SETS and not counts alone, so a swap of one failure for another cannot read as no change. The `11 passed` figure is the TOUCHED FILE's own count, NOT a full-suite baseline, and must not be used as one (re-measured at review: `python3 -m pytest tests/test_work_gate_severity.py -o addopts="" -q` -> `11 passed in 4.33s`; the authored `2.36s` was that same file at authoring, and the wall time is machine-dependent context rather than a bar). Plus pasted `git status --short` and `git diff --cached --name-only` immediately before the commit showing ONLY `agent_workflows/work_cmd.py`, `tests/test_work_gate_severity.py` and this plan staged, confirming no co-worker's concurrent edit to the shared `work_cmd.py` was swept in. Plus pasted `aw sanitize --agent` output showing no `fail`. Plus pasted `aw ipd lint --phase pre-transition` output reporting conforming.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full-suite baseline taken at start of turn:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    FAILED tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    FAILED tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+    FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    5 failed, 4450 passed, 2 skipped, 3 warnings in 633.31s (0:10:33)
+    ```
+
+    Post-fix bare full-suite run:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    3 failed, 4455 passed, 2 skipped, 3 warnings in 284.26s (0:04:44)
+    ```
+
+    Failing node ID comparison:
+    Baseline failures:
+    - tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    - tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection
+    - tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    - tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+    - tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+
+    Post-fix failures:
+    - tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    - tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    - tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+
+    Failing-node-id set difference:
+    Zero new failures introduced; post-fix failing set is a strict subset of baseline. Net +5 passed tests (4450 -> 4455), including the 3 new tests in tests/test_work_gate_severity.py.
+
+    Pre-commit staging check:
+    git status --short:
+     M .aw/records/plans/pending/20260930-advisoryhdr-01-majlt4-stop-the-commit-and-work-begin-advisory-heading-hardcoding-w.ipd.md
+     M agent_workflows/work_cmd.py
+     M tests/test_work_gate_severity.py
+
+    git diff --cached --name-only: (empty before staging; scoped to declared paths at commit).
+
+    aw sanitize --agent:
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    (0 findings, exit 0)
+
+    aw ipd lint --phase pre-transition:
+    -    ✓  approved     plan        20260930-advisoryhdr-01-majlt4  [low]  conforming
+  - Result: pass
 
 ## Approval and execution gate
 
