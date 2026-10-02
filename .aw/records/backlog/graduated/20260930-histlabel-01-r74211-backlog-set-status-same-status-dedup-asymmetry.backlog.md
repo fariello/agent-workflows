@@ -1,11 +1,13 @@
 - Id: r74211
-- Status: open
+- Status: graduated
+- Graduated-To: histdedup
 - Set: histlabel
 - Priority: low
 - Work-Kind: chore
 - Summary: aw backlog set --status appends a duplicate same-status history record; the positional spelling deduplicates it
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: evbx9s
 - 2026-09-30 created (aw backlog): Measured while authoring plan jbipfa from backlog awqzuh; the sibling defect of awqzuh's label asymmetry, on the same two code paths.
 
 Measured 2026-09-30 at HEAD `4b7f2582` while authoring plan `jbipfa` from backlog `awqzuh`, by driving each spelling TWICE over identical fixtures in temporary repositories.
