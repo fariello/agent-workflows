@@ -1,5 +1,5 @@
 - Id: an77ub
-- Status: graduated
+- Status: done
 - Graduated-To: awinbox
 - Blocks-Release: next
 - Set: awinbox
@@ -8,6 +8,7 @@
 - Summary: Plan 9iiqmm is executed and its backlog item closed done, but its inbox-counter implementation never landed: both declared Scope-Paths carry zero inbox references on main and the code survives only in unreachable dangling git objects
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD olmvgw executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-awinbox-03-olmvgw-re-land-the-inbox-waiting-drops-counter-that-never-reached-m.ipd.md); evidence .aw/records/plans/executed/20260930-awinbox-03-olmvgw-re-land-the-inbox-waiting-drops-counter-that-never-reached-m.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053059Z-3200713: olmvgw
 - 2026-09-28 created (aw backlog): Filed at authoring of plan dv7c49 (from backlog 3sh9d6), which found this while verifying which artifacts carry 3sh9d6's stale non-TTY claim. Filed now rather than left to the executor because check.ipd-uncarried-obligation is error-severity and refuses a - Carrier: naming a non-resolving id6.
 
