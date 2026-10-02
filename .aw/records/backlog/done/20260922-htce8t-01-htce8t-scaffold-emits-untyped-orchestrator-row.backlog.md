@@ -1,5 +1,5 @@
 - Id: htce8t
-- Status: graduated
+- Status: done
 - Graduated-To: htce8t
 - Set: htce8t
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: aw ipd scaffold emits a non-conforming orchestrator checklist row, so the typed-row rule cannot gate aw ipd begin
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD zojfn6 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-htce8t-01-zojfn6-make-the-scaffolded-orchestrator-skeleton-conform-to-the-typ.ipd.md); evidence .aw/records/plans/executed/20260929-htce8t-01-zojfn6-make-the-scaffolded-orchestrator-skeleton-conform-to-the-typ.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: zojfn6
 - 2026-09-22 created (aw backlog): aw ipd scaffold emits a non-conforming orchestrator checklist row, so the typed-row rule cannot gate aw ipd begin
 
