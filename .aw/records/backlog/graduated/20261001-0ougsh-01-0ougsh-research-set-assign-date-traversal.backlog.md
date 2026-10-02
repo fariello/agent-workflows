@@ -1,5 +1,6 @@
 - Id: 0ougsh
-- Status: open
+- Status: graduated
+- Graduated-To: 0ougsh
 - Blocks-Release: next
 - Set: 0ougsh
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: aw research set-assign interpolates an unvalidated --date into the destination filename, so a traversal in it moves an existing record outside the records tree; measured 2026-10-01, the sibling vector to m5csyi on the rename path
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: plb8jx
 - 2026-10-01 created (aw backlog): aw research set-assign interpolates an unvalidated --date into the destination filename, so a traversal in it moves an existing record outside the records tree; measured 2026-10-01, the sibling vector to m5csyi on the rename path
 
 FILED WHILE AUTHORING plan `deftzy` (Set `7w6zsl`), which fixes the research tree's descriptive-field injection and deliberately excludes every `--date` defect.
