@@ -23022,6 +23022,23 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
                 lines.append(f"    - `{cmd}`")
         else:
             lines.append("    - (none recorded)")
+        # runverdict-09 (`btak7a`) E-03: render corroboration verdict and reason directly adjacent to tests run.
+        corr_verdict = it.get("corroboration_verdict")
+        corr_reason = it.get("corroboration_reason")
+        if corr_verdict is None:
+            attempts = it.get("attempts")
+            if isinstance(attempts, list) and attempts:
+                last_att = attempts[-1]
+                if isinstance(last_att, dict):
+                    corr_verdict = last_att.get("corroboration_verdict")
+                    corr_reason = last_att.get("corroboration_reason")
+        if corr_verdict:
+            corr_str = (
+                f"{corr_verdict} (reason: {corr_reason})"
+                if corr_reason
+                else str(corr_verdict)
+            )
+            lines.append(f"  - Corroboration: {corr_str}")
         lines.append("  - Corrections made:")
         if corrs:
             for corr in corrs:
@@ -32800,6 +32817,19 @@ def execute_item_core(
 
                             # runverdict-05 (`bxx9af`) E-04: require real test evidence before verify_disp can be 'verified'
                             v_has_evidence = False
+                            # runverdict-09 (`btak7a`) E-01: pre-guard initialization for corroboration variables.
+                            # Placement is load-bearing: v_data is bound ONLY in the try's else: branch above and
+                            # is unbound when v_unreadable is True. The unreadable arm reaches 'indeterminate'
+                            # through this initialization, NOT through executing computation on unbound v_data.
+                            v_corr_verdict = "indeterminate"
+                            v_corr_reason = "outcome-unreadable"
+                            v_corr_counts = {
+                                "claimed": 0,
+                                "observed": 0,
+                                "matched": 0,
+                                "delegations": 0,
+                                "missing_command_text": 0,
+                            }
                             if not v_unreadable and isinstance(v_data, dict):
                                 v_has_evidence = has_verifier_test_evidence(v_data)
                                 attempt["tests_run"] = v_data.get("tests_run", [])
@@ -32810,7 +32840,49 @@ def execute_item_core(
                                 item["corrections_made"] = v_data.get(
                                     "corrections_made", []
                                 )
+                                # runverdict-09 (`btak7a`) E-01: call Order 08's turn-level verdict function-locally.
+                                # The computation must not break the turn under any circumstances: wrap it so any failure
+                                # yields indeterminate with reason 'computation-failed'. This guard is deliberate, but is
+                                # not a licence to place the call where v_data could be unbound (a masked NameError would
+                                # look like a valid indeterminate).
+                                try:
+                                    from agent_workflows.verifier_corroboration import (
+                                        corroborate_verifier_turn,
+                                    )
+
+                                    v_log_path = attempt.get("verify_log") or ""
+                                    v_claims = extract_verifier_test_commands(v_data)
+                                    v_corr = corroborate_verifier_turn(
+                                        v_log_path, v_claims
+                                    )
+                                    v_corr_verdict = v_corr.verdict
+                                    v_corr_reason = v_corr.reason_code
+                                    v_corr_counts = v_corr.counts
+                                except Exception:
+                                    v_corr_verdict = "indeterminate"
+                                    v_corr_reason = "computation-failed"
+                                    v_corr_counts = {
+                                        "claimed": (
+                                            len(v_data.get("tests_run", []))
+                                            if isinstance(v_data.get("tests_run"), list)
+                                            else 0
+                                        ),
+                                        "observed": 0,
+                                        "matched": 0,
+                                        "delegations": 0,
+                                        "missing_command_text": 0,
+                                    }
                             attempt["verify_has_evidence"] = v_has_evidence
+                            # runverdict-09 (`btak7a`) E-02: store the verdict, reason code, and counts
+                            # on both attempt and item beside existing evidence fields.
+                            # Deliberately omitted from lane_containment._PRIOR_ATTEMPT_SAFE_KEYS:
+                            # feeding previous verifier assessments to a retrying agent is an unrequested prompt-design change.
+                            attempt["corroboration_verdict"] = v_corr_verdict
+                            attempt["corroboration_reason"] = v_corr_reason
+                            attempt["corroboration_counts"] = v_corr_counts
+                            item["corroboration_verdict"] = v_corr_verdict
+                            item["corroboration_reason"] = v_corr_reason
+                            item["corroboration_counts"] = v_corr_counts
 
                             if (
                                 verify_disp == VERIFY_DISP_VERIFIED
