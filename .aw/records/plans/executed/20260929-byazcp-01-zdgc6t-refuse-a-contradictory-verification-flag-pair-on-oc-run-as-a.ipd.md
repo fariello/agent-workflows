@@ -6,7 +6,7 @@
 - Scope: Give oc the pre-run refusal agy has, via a `BooleanOptionalAction` subclass in `runner_shared` that RECORDS which spellings the operator actually typed, plus one shared predicate both hosts call. Covers oc `start` and oc `resume` (both register the six spellings and both currently resolve a pair by last-wins), closes the narrower agy same-action hole F-06 measures with the same predicate, and amends spec `25kzda` Section 2.1c plus its pinning test, both of which currently DECLARE the order-dependent behavior this plan removes. ON `resume` THE REFUSAL SITS AT THE HEAD OF THE BRANCH, not merely before the `validate` write, because F-11 measures that the intervening `apply_run_policy_flags_on_resume` would otherwise let a REFUSED invocation durably flip an unrelated frozen policy. CHANGES NO DEST TABLE: all 24 cells of the per-host mapping 2.1c declares are preserved byte-for-byte, and no spelling is added, removed, or renamed on either host.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zdgc6t
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zdgc6t verified (set byazcp, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set; /plan-review by opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-B01 (HIGH, fixed), PR-B02 (MEDIUM, fixed), PR-B03 (MEDIUM, fixed), PR-B04 (MEDIUM, fixed), PR-B05 (LOW, fixed). Every one of F-01 through F-10 was re-driven at this HEAD and all ten reproduce. Three NEW findings recorded as F-11 (the resume seam E-04 named was downstream of a writing helper, so a REFUSED resume would have flipped options.full_auto durably), F-12 (the pre-commit backstop E-06 invoked does not read specs at all), and F-13 (the private argparse._StoreTrueAction subclass was unnecessary). OQ-02's resolution was corrected: the two agy checks are not disjoint on a real parse, so E-05 now specifies their ORDER. Suite at review: 3387 passed, 2 skipped in 58.22s.
 
