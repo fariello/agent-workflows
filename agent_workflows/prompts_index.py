@@ -295,15 +295,18 @@ def run_index(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", None) or DEFAULT_INDEX_LIMIT
     if getattr(args, "check", False):
         drift = check_drift(repo_root, prompts_dir, limit=limit)
-        if getattr(args, "agent", False):
-            print(_core.render_agent_drift(drift), end="")
-            return _core.drift_exit_code(drift)
-        if not drift:
-            print("prompts index --check: clean")
-            return 0
-        for d in drift:
-            print(f"{d.location}: {d.rule}: {d.detail}")
-        return _core.drift_exit_code(drift)
+        # tsvagent Order 01 (n9ua3b) E-03: route all audiences through the shared renderer
+        # via artifact_core.emit_index_check_result, preserving the legacy human lines byte-exact
+        # via data["human_rendered"]. Rely on the renderer's return value (result.exit_code),
+        # which identically preserves artifact_core.drift_exit_code(drift).
+        return _core.emit_index_check_result(
+            args,
+            repo_root,
+            drift,
+            "prompts index --check: clean",
+            command="index",
+            target="prompts",
+        )
     entries, drift = scan_prompts(prompts_dir)
     json_path = prompts_dir / INDEX_JSON
     md_path = prompts_dir / INDEX_MD

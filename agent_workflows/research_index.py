@@ -700,20 +700,18 @@ def run_index(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", None) or DEFAULT_INDEX_LIMIT
     if getattr(args, "check", False):
         drift = check_drift(repo_root, research_root, limit=limit)
-        # idxuntrack 02 (yvvf98) E-02: BOTH branches defer to the shared severity convention rather
-        # than `1 if drift else 0`, so an `info` finding (a manifest never generated, the normal state
-        # of a fresh clone or worktree) does not fail the gate while real staleness still does. See
-        # the twin note in `plans_index.run_index`.
-        if getattr(args, "agent", False):
-            for d in drift:
-                print(f"{d.location}\t{d.rule}\t{d.detail}")
-            return _core.drift_exit_code(drift)
-        if not drift:
-            print("index --check: clean")
-            return 0
-        for d in drift:
-            print(f"{d.location}: {d.rule}: {d.detail}")
-        return _core.drift_exit_code(drift)
+        # tsvagent Order 01 (n9ua3b) E-04: route all audiences through the shared renderer
+        # via artifact_core.emit_index_check_result, preserving the legacy human lines byte-exact
+        # via data["human_rendered"]. Rely on the renderer's return value (result.exit_code),
+        # which identically preserves artifact_core.drift_exit_code(drift).
+        return _core.emit_index_check_result(
+            args,
+            repo_root,
+            drift,
+            "index --check: clean",
+            command="index",
+            target="research",
+        )
     # Regenerate.
     entries, drift = _scan_docs(research_root, repo_root=repo_root)
     if drift:

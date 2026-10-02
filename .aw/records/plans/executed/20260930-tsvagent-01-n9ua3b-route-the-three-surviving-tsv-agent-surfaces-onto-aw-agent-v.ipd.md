@@ -4,9 +4,9 @@
 - Kind: child
 - Concern: `docs/cli-migration.md` and `CHANGELOG.md` both tell a machine consumer that the tab-separated drift lines are GONE, and three `--agent` surfaces still print them. The guide's "The break, stated loudly" list item 2 reads "The `render_agent_drift` TSV lines (`location<TAB>rule<TAB>detail`) that check and doctor style commands used to print. They are now `aw.agent/v1` `diagnostics` inside a record", and the `CHANGELOG.md` 2.0.0 (pending) bullet repeats it verbatim. MEASURED in this lane at HEAD `56e7dfab`: `python3 -m agent_workflows index plans --check --agent` prints `INDEX.json<TAB>check.stale-index-missing<TAB>INDEX.json has not been generated; run 'aw index plans'` and nothing else; `index prompts --check --agent` does the same; `index research --check --agent` prints 115 such lines. `artifact_core.render_agent_drift` is alive with two live callers (`plans_index.run_index`, `prompts_index.run_index`), and `research_index.run_index` inlines the identical `f"{d.location}\t{d.rule}\t{d.detail}"` format rather than calling it, which is why a caller census alone undercounts the defect by a third. A FOURTH caller, `artifact_types.emit_findings`, is DEAD (zero references anywhere in the repository, measured), so it is a removal and not a migration. Two further documents assert a THIRD shape that no command has ever emitted: the installer-stamped `AGENTS.md` managed block and the `/assess local-leaks` lens both promise `aw sanitize --agent` prints `location<TAB>rule<TAB>severity`, and that command emits a conforming `aw.agent/v1` record today (measured), so an agent following either instruction parses tabs out of JSON.
 - Scope: MAKE THE DOCUMENTED CONTRACT TRUE BY MOVING THE BYTES, not by weakening the claim. IN: `plans_index.run_index`, `prompts_index.run_index` and `research_index.run_index`'s `--check --agent` branches, each emitting one conforming `aw.agent/v1` `result` record through `renderers.get_renderer(...).emit(...)` exactly as `cli._run_check` already does; their `--check --json` branches, which today print the SAME human `location: rule: detail` prose as the unflagged human branch and so are a second instance of the same defect on the same three verbs; deleting the dead `artifact_types.emit_findings` and `artifact_types.exit_code_for`; deleting `artifact_core.render_agent_drift` once its last caller is gone, so the wire form cannot be resurrected by a future caller; correcting the two `location<TAB>rule<TAB>severity` claims in `agent_workflows/engine.py`'s stamped `AGENTS.md` block and `.aw/system/workflows/assess/lenses/local-leaks.md`; regenerating this repository's own `AGENTS.md` so the stamped block and the generator agree; and a behavior test module driving all three verbs under `--agent`, `--json` and human output. OUT, each with a reason: the `- Detail:` FIELD of a diagnostic, which the compact record deliberately omits (`result_types.CommandResult.to_agent_record` emits `{location, rule}` unless `context.verbose`), so this plan preserves that compaction rather than widening the record and the guide's own recipe 3 already documents the omission; `aw find`'s bare-path `--agent` stream, which `docs/cli-output-contract.md` Section 12 SANCTIONS and whose migration is owned by backlog `wdazvp`; `--verbose` reach, owned by backlog `qm04zi`, which is why this plan asserts the compact shape and not the verbose one; `research pending` and `research check-miscategorized`, two further non-conforming `--agent` surfaces measured in this lane whose output is not drift at all (a listing and a prose question) and which backlog `w78faq`/`f36de0`'s exemption registry is the right home for; the `check.stale-index-missing` severity and the `drift_exit_code` exit convention, both correct today and unchanged here; and the 61 ABSOLUTE paths `index research --check --agent` currently prints, which are normalized as a SIDE EFFECT of routing through the renderer (`agent_schema.normalize_repo_path`) and must be reported as such rather than claimed as a separate fix.
-- Scope-Paths: agent_workflows/plans_index.py, agent_workflows/prompts_index.py, agent_workflows/research_index.py, agent_workflows/artifact_types.py, agent_workflows/artifact_core.py, agent_workflows/engine.py, .aw/system/workflows/assess/lenses/local-leaks.md, AGENTS.md, docs/cli-migration.md, CHANGELOG.md, tests/test_index_check_agent_records.py
+- Scope-Paths: agent_workflows/plans_index.py, agent_workflows/prompts_index.py, agent_workflows/research_index.py, agent_workflows/artifact_types.py, agent_workflows/artifact_core.py, agent_workflows/engine.py, agent_workflows/attention_contract.py, .aw/system/workflows/assess/lenses/local-leaks.md, AGENTS.md, docs/cli-migration.md, CHANGELOG.md, tests/test_index_check_agent_records.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, .aw/records/backlog/open/20261001-4ep6mp-01-4ep6mp-retire-redundant-escape-detail-escaping-across-att.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: n9ua3b
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: n9ua3b verified (set tsvagent, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/open/20261001-4ep6mp-01-4ep6mp-retire-redundant-escape-detail-escaping-across-att.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope agent_workflows/attention_contract.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
+- 2026-10-01 executed (Antigravity): Route plans, prompts, research index --check surfaces to aw.agent/v1 and structured JSON; delete render_agent_drift, emit_findings, exit_code_for; file backlog 4ep6mp for escape_detail redundancy; update engine.py, local-leaks.md, AGENTS.md, docs/cli-migration.md, CHANGELOG.md; annotate spec 20260808-1945-01.
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 through PR-012. Reviewed in an isolated lane at HEAD `d226f5cf`. Structural preflight `aw ipd lint --phase author --agent` reported `clean` before semantic review. THE PLAN'S ANALYSIS IS STRONG AND I RE-DROVE ALL OF IT: F-01, F-02, F-04, F-05, F-06 and F-07 reproduce exactly, including the schema validator's refusal (`ValueError: Exit code mismatch: exit=0 incompatible with negative outcome 'findings'`) and the `info`-exemption case that triggers it. BUT THE THREE MIGRATION ITEMS AS AUTHORED WOULD NOT HAVE WORKED, and the failures are mechanical, measured at review, not matters of taste. FIRST (PR-001, BLOCKER): there is NO `--json` branch in any of the three `run_index` functions. `--json` falls through to the human `location: rule: detail` path by ACCIDENT, so E-02/E-03/E-04's instruction to "replace the `--json` branch's human prose" names code that does not exist, and the plan's own F-06 describes the symptom correctly while mis-describing the cause. SECOND (PR-002, BLOCKER): `renderers.get_renderer(ctx).emit(...)` in HUMAN mode produces a banner-plus-Findings-block report, NOT the `location: rule: detail` lines E-01/V-02 require to be byte-identical, so the plan's two requirements are in direct contradiction and the executor would discover it only after editing. Review DEMONSTRATED the resolving mechanism rather than describing it: `data["human_rendered"]` is a shipped escape hatch in `renderers.HumanRenderer.render` that reproduces the legacy line exactly. THIRD (PR-003, HIGH): E-02 instructs putting `repo_root` into `CommandResult.data` as a `Path`, and the `--json` renderer then CRASHES with `TypeError: Object of type PosixPath is not JSON serializable`; `cli._run_check`, the pattern the plan says to copy, passes a `str`. Also corrected: E-05's deletion orphans the live `attention_contract.escape_detail` helper whose 20 callers escape for a form that would no longer exist (PR-004); a cross-plan collision with `reviewed` sibling `qgpanb`, which edits the same two modules' severity path and MOVES `index research --check` from exit 1 to exit 0, breaking this plan's exit-parity bar (PR-005); spec G3's reuse text is ALREADY stale rather than newly made so (PR-006); and every live count has drifted (115 to 123 lines, 61 to 69 absolute paths, and plans now reporting `stale`/exit 1 rather than `missing`/exit 0) (PR-007).
@@ -38,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the failing baseline before changing any byte
 
-- [ ] E-01 WRITE `tests/test_index_check_agent_records.py` AND SHOW IT RED, before any production edit, so the fix has a falsifiable baseline instead of a claim. The module drives each of the three verbs (`index plans --check`, `index prompts --check`, `index research --check`) as a SUBPROCESS against a FIXTURE repository, under three audiences: `--agent`, `--json`, and no flag.
+- [x] E-01 WRITE `tests/test_index_check_agent_records.py` AND SHOW IT RED, before any production edit, so the fix has a falsifiable baseline instead of a claim. The module drives each of the three verbs (`index plans --check`, `index prompts --check`, `index research --check`) as a SUBPROCESS against a FIXTURE repository, under three audiences: `--agent`, `--json`, and no flag.
   BUILD THE FIXTURE, DO NOT DRIVE THE LIVE TREE. Construct a temp repository holding a records tree with at least one plan, one prompt and one research document, so the drift set is CHOSEN rather than inherited from this repository's 115 live research findings. `tests/test_plans_index.py` already contains the FIXTURE helper to copy the shape from (`_plan`), and `tests/conformance_matrix.py` holds `run_cli` plus `_pinned_env` for the subprocess side. NOTE WHAT IS *NOT* REUSABLE HERE (PR-011): that module's `_run` harness in its color test class is IN-PROCESS (`redirect_stdout` around a direct `run_index` call), so it cannot measure a process exit code, which this item separately requires the record's `exit` to equal. Take `_plan` from it and the process machinery from `conformance_matrix`, including the `NO_COLOR`/`COLUMNS` pinning that keeps output stable across CPython versions. REUSE those rather than forking a third harness; `conformance_matrix.run_cli` hardcodes `cwd=str(REPO_ROOT)`, so either thread a `cwd` through it or drive `subprocess.run` directly and say in a comment which you chose and why.
   ASSERT FOUR THINGS PER VERB UNDER `--agent`, each corresponding to a measured failure: stdout parses as `aw.agent/v1` JSONL (today it parses as tabs); `agent_schema.validate_agent_record` returns `[]` on the terminal record; the record's `exit` equals the process exit code; and NO line of stdout contains a TAB character, which is the assertion that pins the defect shut rather than merely pinning the new shape open.
   ASSERT THE `--json` AUDIENCE SEPARATELY, because it is a second defect on the same verbs and a test that only covers `--agent` would let it survive. Today all three print the human `location: rule: detail` prose under `--json` (re-measured at review: `index plans --check --json` is byte-identical to the unflagged run). Assert stdout parses as a single JSON document. NOTE THE CAUSE, which E-02 corrects: there is no `--json` BRANCH at all, so `--json` reaches the human path by accident (PR-001). This assertion is also what catches the `repo_root`-as-`Path` crash (PR-003), which is invisible to every `--agent` assertion and raises `TypeError` only here.
@@ -46,11 +47,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NO STATIC ANALYSIS. Do not read `agent_workflows/*.py` from the test, do not count callers of `render_agent_drift`, and do not assert a symbol exists. GUIDING_PRINCIPLES P16 forbids code-pinning tests outright, and the whole point of this module is that a grep for the symbol misses `research_index`'s inlined copy.
   - Depends on: none
   - Expected outcome: a new test module whose `--agent` and `--json` assertions FAIL on all three verbs at the base commit and whose human assertions PASS, with that failing output captured verbatim as the baseline for V-02 through V-04.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: move the bytes, one verb at a time
 
-- [ ] E-02 MIGRATE `plans_index.run_index`'s `--check` OUTPUT ONTO THE SHARED RENDERER. Replace the `--agent` branch's `print(_core.render_agent_drift(drift), end="")` AND the human print loop with one `CommandResult` emitted through `renderers.get_renderer(ctx).emit(res, ctx)`, where `ctx` comes from `result_types.select_output(args)`.
+- [x] E-02 MIGRATE `plans_index.run_index`'s `--check` OUTPUT ONTO THE SHARED RENDERER. Replace the `--agent` branch's `print(_core.render_agent_drift(drift), end="")` AND the human print loop with one `CommandResult` emitted through `renderers.get_renderer(ctx).emit(res, ctx)`, where `ctx` comes from `result_types.select_output(args)`.
 
   THERE IS NO `--json` BRANCH TO REPLACE, AND THIS CORRECTS THE PLAN AS AUTHORED (PR-001). Measured at review: `plans_index.run_index`'s `--check` path contains exactly TWO branches, `if getattr(args, "agent", False)` and the human fallthrough; `--json` is never tested, so it reaches the human print loop BY ACCIDENT. F-06's symptom report is correct and its stated cause was not. So this is a THREE-AUDIENCE replacement of a TWO-BRANCH structure, which is why routing everything through `get_renderer(ctx)` is the right shape: `select_output` is what distinguishes the three, and after this item `--json` becomes a real audience for the first time rather than a corrected one.
 
@@ -77,28 +78,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PRESERVE THE EXIT CODE EXACTLY. Every audience must keep returning `artifact_core.drift_exit_code(drift)`. `renderers.BaseRenderer.emit` returns the result's `exit_code`, so returning its value is equivalent, but state in a comment which you relied on, because `plans_index.run_index` carries a long-standing comment recording that a hardcoded `return 1` here once disagreed with the `--agent` branch about one repository state.
   - Depends on: E-01
   - Expected outcome: `index plans --check --agent` emits one schema-valid `aw.agent/v1` record with no TAB in stdout, `--json` emits one JSON document (proving `repo_root` was passed as a `str`), the human branch is byte-unchanged via `data["human_rendered"]`, and the exit code is identical to the base commit on both a clean and a drifting fixture.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MIGRATE `prompts_index.run_index`'s `--check` OUTPUT the same way, reusing whatever helper E-02 established rather than pasting the construction a second time. This verb is the closest twin: it calls the same `render_agent_drift`, returns the same `drift_exit_code`, prints the same human prose, and likewise has NO `--json` branch (PR-001), differing only in the `aw index prompts` recovery string its findings carry and in its `prompts index --check: clean` wording.
+- [x] E-03 MIGRATE `prompts_index.run_index`'s `--check` OUTPUT the same way, reusing whatever helper E-02 established rather than pasting the construction a second time. This verb is the closest twin: it calls the same `render_agent_drift`, returns the same `drift_exit_code`, prints the same human prose, and likewise has NO `--json` branch (PR-001), differing only in the `aw index prompts` recovery string its findings carry and in its `prompts index --check: clean` wording.
 
   THIS IS THE VERB THAT CURRENTLY DEMONSTRATES THE E-02 STATUS TRAP, so it is the best one to prove the status derivation on. Measured at review: `index prompts --check` reports two `check.stale-index-missing` findings and exits 0, which is precisely the `findings`-with-`exit=0` pair `assert_valid_agent_record` refuses. A naive `status = "findings" if drift else "clean"` crashes HERE first.
   IF E-02 EXTRACTED A SHARED HELPER, USE IT AND SAY WHERE IT LIVES. Three call sites building the same `CommandResult` by hand is how the two branches drifted apart in the first place. If you judge a helper is not warranted, say so explicitly in the execution note and justify it; do not leave the choice implicit.
   - Depends on: E-02
   - Expected outcome: `index prompts --check --agent` and `--json` conform on the fixture, with the human branch and the exit code byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MIGRATE `research_index.run_index`'s `--check` OUTPUT, whose `--agent` branch INLINES the tab format (`print(f"{d.location}\t{d.rule}\t{d.detail}")`) instead of calling the shared renderer. Locate it by that quoted format string, not by searching for `render_agent_drift`, which appears nowhere in this module. Like its two siblings it has NO `--json` branch (PR-001), and its clean wording is `index --check: clean` (NOT `research index --check: clean`), so preserve that exact string.
+- [x] E-04 MIGRATE `research_index.run_index`'s `--check` OUTPUT, whose `--agent` branch INLINES the tab format (`print(f"{d.location}\t{d.rule}\t{d.detail}")`) instead of calling the shared renderer. Locate it by that quoted format string, not by searching for `render_agent_drift`, which appears nowhere in this module. Like its two siblings it has NO `--json` branch (PR-001), and its clean wording is `index --check: clean` (NOT `research index --check: clean`), so preserve that exact string.
 
   COORDINATE WITH SIBLING PLAN `qgpanb`, WHICH IS `reviewed` AND MOVES THIS VERB'S EXIT CODE (PR-005). That plan declares `agent_workflows/research_index.py` and `agent_workflows/plans_index.py` in its own `- Scope-Paths:` and its E-03/E-04 register and stamp `dangling-citation`, `stale-state-to-promote` and `adopted-without-consumer` at `info`, whose DELIBERATE effect its own text states is taking `aw index research --check` from exit 1 to exit 0. So this plan's exit-parity bar and that plan's intended exit CHANGE are about the same command. Two consequences. FIRST, measure exit parity against YOUR OWN pre-change baseline in YOUR lane and never against a number from either plan, and if `index research --check` is already 0 when you start, that is `qgpanb` having landed and is NOT a regression you caused. SECOND, the two plans edit different code in the same functions (that one the `Drift` CONSTRUCTION in `check_drift`, this one the EMISSION in `run_index`), so they are compatible; the runner isolates each item in its own worktree and the merge gate revalidates, so this is a note about interpreting evidence, not a sequencing hazard.
   THIS VERB IS WHERE THE PATH NORMALIZATION BECOMES VISIBLE, so measure it rather than assuming it. Measured at authoring: `index research --check --agent` printed 115 lines of which 61 carried an ABSOLUTE home-rooted path in the `location` field (an absolute prefix under the user's home, written abstractly here because a literal one is exactly what the leak sanitizer refuses in a tracked file), because the inlined print applies no normalization. **RE-MEASURED AT REVIEW: 123 lines and 69 absolute, so BOTH NUMBERS ARE LIVE AND HAVE ALREADY DRIFTED (PR-007).** They are a count of findings over a records tree every concurrent lane writes to. Re-derive both in your lane; the PROPERTY to assert is that the absolute count goes to ZERO after the change, never that it went from any particular number. Routing through the renderer sends each through `agent_schema.normalize_repo_path`, which makes them repo-relative. REPORT THAT AS A CONSEQUENCE OF THIS ITEM, and note that it also removes a home-path leak from a machine stream; do not present it as a separately engineered fix.
   DO NOT TOUCH THE REGENERATION BRANCH. `research_index.run_index`'s non-`--check` path refuses to write over invalid input and returns a bare `1` with prose. That is a different code path with a different contract and no `--agent` claim on it; changing it is out of scope and would widen the blast radius for no gain.
   - Depends on: E-02
   - Expected outcome: `index research --check --agent` and `--json` conform on the fixture; on the live tree the previously absolute locations render repo-relative (count re-derived, after-count zero); the human branch including its `index --check: clean` wording, the regeneration branch, and the exit code are unchanged against a baseline measured in this lane.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: remove the wire form so it cannot come back
 
-- [ ] E-05 DELETE THE DEAD `artifact_types.emit_findings` AND `artifact_types.exit_code_for`, whose only remaining purpose is to keep the TSV form reachable. Measured: searching every tracked file for `emit_findings` returns ONE line, its own definition; `exit_code_for` returns its definition plus the single `return exit_code_for(drift)` inside `emit_findings` itself. No test, no dotted-name backend registration (`artifact_types.TYPE_BACKENDS` names no entry in this module), and no dynamic `getattr` reaches either.
+- [x] E-05 DELETE THE DEAD `artifact_types.emit_findings` AND `artifact_types.exit_code_for`, whose only remaining purpose is to keep the TSV form reachable. Measured: searching every tracked file for `emit_findings` returns ONE line, its own definition; `exit_code_for` returns its definition plus the single `return exit_code_for(drift)` inside `emit_findings` itself. No test, no dotted-name backend registration (`artifact_types.TYPE_BACKENDS` names no entry in this module), and no dynamic `getattr` reaches either.
   VERIFY DEADNESS AT EXECUTION TIME BEFORE DELETING, not from this plan's measurement. A plan's census expires; re-run the search and paste it. If a caller has appeared, MIGRATE it instead of deleting and say so.
   THEN DELETE `artifact_core.render_agent_drift` ITSELF, once E-02, E-03 and this item have removed its last caller. This is the item that makes the migration guide's "GONE" literally true, and leaving the function in place would let the next contributor reintroduce the wire form in one line. Keep `artifact_core.Drift` and `artifact_core.drift_exit_code`, which are load-bearing across the whole checker family and are explicitly preserved by `docs/cli-output-contract.md` Section 10 ("The `0`/`1`/`2` exit classification of `drift_exit_code` carries over unchanged").
   MIND THE SPECS THAT NAME THE SYMBOL, AND NOTE THE TEXT IS ALREADY STALE RATHER THAN MADE SO BY THIS PLAN (PR-006). Implemented spec `20260808-1945-01` states as a compatibility constraint that the attention implementation MUST reuse `artifact_core` primitives including `render_agent_drift` (its G3, its N3, and its Section 11). Measured at review: `aw attention --check --agent` ALREADY emits a conforming `aw.agent/v1` record and does NOT call `render_agent_drift` at all, so that constraint was superseded when attention was migrated, and this plan's deletion merely removes the last trace of a convention attention stopped using. Say it that way in E-08's note: the note RECORDS an existing supersession, it does not announce a new one. DO NOT hand-edit an implemented spec: record it through `aw specs note` in E-08, which is the tooled path.
@@ -106,30 +107,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT LEAVE `attention_contract.escape_detail` ORPHANED, WHICH THE PLAN AS AUTHORED WOULD HAVE DONE (PR-004). That helper exists for one declared purpose: its own docstring says it escapes a drift `detail` "for the single-line `location<TAB>rule<TAB>detail` agent record", and the comment above it names `artifact_core.render_agent_drift` as the owner of that emission. Measured at review, it has 20 LIVE CALL SITES across `attention.py`, `specs.py` and `cli.py`, plus a shipped test (`tests/test_attention_contract.py::test_detail_escaping_keeps_one_line`). So deleting `render_agent_drift` leaves a live, well-tested helper escaping tabs and newlines for a wire form that no longer exists. DO NOT DELETE IT and do NOT touch its callers: in the `aw.agent/v1` record the `detail` field is JSON-encoded, so the escaping is now redundant rather than wrong, and unwinding 20 call sites is a materially larger change than this plan's subject. WHAT THIS ITEM OWES IS HONESTY, not a refactor: update the comment above `escape_detail` so it no longer names a deleted symbol as the emission owner, state that the single-line TSV rationale is historical, and FILE the redundancy as a separate backlog item with `aw backlog new` rather than absorbing it. Record the filed id in the execution note.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: `render_agent_drift`, `emit_findings` and `exit_code_for` are gone; `Drift` and `drift_exit_code` remain; `attention_contract.escape_detail` and all 20 of its callers remain untouched with its comment corrected and a backlog item filed for the redundancy; the suite shows no NEW failure; a re-run search for all three deleted names returns no live caller.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: make every document agree with the bytes
 
-- [ ] E-06 CORRECT THE TWO `location<TAB>rule<TAB>severity` SANITIZER CLAIMS, which promise a third TSV shape that no command emits. The authoritative copy is the string inside `agent_workflows/engine.py`'s stamped `AGENTS.md` generator (the `Leak-sanitizer awareness` section, whose text contains "It prints one tab-separated `location\\trule\\tseverity` record per finding on stdout and exits nonzero on a `fail`"), and the second is `.aw/system/workflows/assess/lenses/local-leaks.md`, whose `--agent` section renders the same shape in a fenced block and then instructs the reader to "Parse these records and use the engine's `severity` field directly".
+- [x] E-06 CORRECT THE TWO `location<TAB>rule<TAB>severity` SANITIZER CLAIMS, which promise a third TSV shape that no command emits. The authoritative copy is the string inside `agent_workflows/engine.py`'s stamped `AGENTS.md` generator (the `Leak-sanitizer awareness` section, whose text contains "It prints one tab-separated `location\\trule\\tseverity` record per finding on stdout and exits nonzero on a `fail`"), and the second is `.aw/system/workflows/assess/lenses/local-leaks.md`, whose `--agent` section renders the same shape in a fenced block and then instructs the reader to "Parse these records and use the engine's `severity` field directly".
   SAY WHAT THE COMMAND ACTUALLY EMITS, measured: `aw sanitize --agent` prints a single `aw.agent/v1` `result` record whose `diagnostics` array carries `{location, rule}` per finding. NOTE THE CONSEQUENCE THE LENS DEPENDS ON: the compact record does NOT carry `severity`, so the lens's "use the engine's `severity` field directly" instruction is not satisfiable from the compact `--agent` stream as it stands. Resolve that honestly rather than papering over it: either point the lens at the severity information the record does carry, or state plainly in the lens that severity is unavailable in the compact stream and name what the reader should do instead. DO NOT write an instruction to pass `--verbose`, which `aw sanitize` does not accept (measured: `unrecognized arguments: --verbose`, exit 2) and whose absence is owned by backlog `qm04zi`.
   REGENERATE THIS REPOSITORY'S OWN `AGENTS.md` after editing the generator, so the stamped block and its generator agree. The block is managed and hash-recorded, so hand-editing `AGENTS.md` alone would leave the two out of sync and could make the installer report a user edition it must preserve.
   - Depends on: none
   - Expected outcome: neither document promises a TSV byte form; both describe the record `aw sanitize --agent` actually emits; the lens's severity instruction is satisfiable or its limit is stated; `AGENTS.md` matches the regenerated generator output.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 UPDATE THE TWO DOCUMENTS THAT CARRY THE ORIGINAL CLAIM, so the record reads correctly for the reader who arrives after this plan executes. In `docs/cli-migration.md`, item 2 of "The break, stated loudly" becomes TRUE as written once E-02 through E-05 land, so the edit is small and mostly subtractive: REMOVE the sentence "Note: The accuracy of these three legacy byte-form claims is under separate review (see backlog `qczq5r`)", which plan `3rsdbj` added as a placeholder pointing at the very item this plan graduates, and which becomes misleading the moment the claim is true. Keep recipe 3 ("My script read the TSV drift lines from check or doctor") and its column mapping, which is correct advice and becomes more correct here.
+- [x] E-07 UPDATE THE TWO DOCUMENTS THAT CARRY THE ORIGINAL CLAIM, so the record reads correctly for the reader who arrives after this plan executes. In `docs/cli-migration.md`, item 2 of "The break, stated loudly" becomes TRUE as written once E-02 through E-05 land, so the edit is small and mostly subtractive: REMOVE the sentence "Note: The accuracy of these three legacy byte-form claims is under separate review (see backlog `qczq5r`)", which plan `3rsdbj` added as a placeholder pointing at the very item this plan graduates, and which becomes misleading the moment the claim is true. Keep recipe 3 ("My script read the TSV drift lines from check or doctor") and its column mapping, which is correct advice and becomes more correct here.
   IN `CHANGELOG.md`, the pending 2.0.0 bullet repeating the claim likewise becomes true and needs no correction; ADD a user-facing entry for this change instead, in the existing voice, saying that the three `aw index <type> --check` verbs now emit the canonical machine record under `--agent` and structured JSON under `--json`, and that the tab-separated form is removed. NO EM OR EN DASHES in either file: both are user-facing prose under this repository's authoring rule.
   DO NOT RE-ASSERT WHAT YOU HAVE NOT MEASURED. Items 1 and 3 of that same list (piped `aw status` JSON, and the `find`/`search` path lines) are OUTSIDE this plan and item 3 is independently doubtful: measured in this lane, `aw find plans pending --agent` prints bare paths and no `item`/`summary` records at all, which is exactly what backlog `wdazvp` carries. Leave both items textually alone, and do not add a fresh pointer note in place of the one you removed; `wdazvp` is the carrier and prose cross-references are what made this file need correcting twice already.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: the migration guide's byte-form list is true as written with the stale under-review note gone, and the CHANGELOG carries one new user-facing entry; no em or en dashes; no claim about items 1 or 3.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 RECORD THE SPEC AMENDMENT THROUGH THE OWNER VERB, so the two specs naming the deleted symbol do not silently rot. Implemented spec `20260808-1945-01` names `render_agent_drift` in its G3, its N3 and its Section 11 required-reuse constraint; implemented spec `20260818-1525-01` already carries a workflow-history note superseding its G6 mention, so it needs no second one unless you find its body still mandating the form.
+- [x] E-08 RECORD THE SPEC AMENDMENT THROUGH THE OWNER VERB, so the two specs naming the deleted symbol do not silently rot. Implemented spec `20260808-1945-01` names `render_agent_drift` in its G3, its N3 and its Section 11 required-reuse constraint; implemented spec `20260818-1525-01` already carries a workflow-history note superseding its G6 mention, so it needs no second one unless you find its body still mandating the form.
   USE `aw specs note`, NOT A HAND EDIT. The 2026-08-23 supersession note on `20260818-1525-01` is the precedent: the status stayed `implemented` and the change was recorded as a history line by the tooled path. Do the same here, saying that `render_agent_drift` was removed, that `Drift` and `drift_exit_code` are unchanged, and that `aw.agent/v1` is the emission form the reuse constraint now points at.
   NOTE FOR A REVIEWER, since it affects what must be declared: this is a `## Workflow history` APPEND recorded by the owner verb, not an edit to a spec's normative body, which is why no `.spec.md` path appears in `- Scope-Paths:`. If execution finds that a spec's BODY must change, that is a declared spec edit and the executor must stop and say so rather than editing an undeclared path.
   - Depends on: E-05
   - Expected outcome: spec `20260808-1945-01` carries a dated history note recording the removal and what replaced it, written by `aw specs note` and not by hand.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -230,45 +231,211 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL failing run of the new module at the base commit, showing which assertions fail for each of the three verbs under `--agent` and under `--json`, and showing the human-branch assertions PASSING in the same run. Quote the fixture construction and state whether you reused `conformance_matrix.run_cli` (and how you supplied a non-repo `cwd`, which it hardcodes) or drove `subprocess.run` directly, with the reason. Confirm by quotation that no assertion reads a production source file, counts a symbol's callers, or greps `.py` text, per GUIDING_PRINCIPLES P16.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; failing RED baseline captured at base commit (6 failed, 3 passed); subprocess ran without code inspection.
+    Failing run of `tests/test_index_check_agent_records.py` at base commit `8e73679b1db2ad6f660af072b2c88b74c845b8c6`:
+    ```
+    FAILED tests/test_index_check_agent_records.py::test_plans_check_agent_conforms - json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    FAILED tests/test_index_check_agent_records.py::test_plans_check_json_conforms - json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    FAILED tests/test_index_check_agent_records.py::test_prompts_check_agent_conforms - json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    FAILED tests/test_index_check_agent_records.py::test_prompts_check_json_conforms - json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    FAILED tests/test_index_check_agent_records.py::test_research_check_agent_conforms - json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    FAILED tests/test_index_check_agent_records.py::test_research_check_json_conforms - json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+    PASSED tests/test_index_check_agent_records.py::test_plans_check_human_output_preserved
+    PASSED tests/test_index_check_agent_records.py::test_prompts_check_human_output_preserved
+    PASSED tests/test_index_check_agent_records.py::test_research_check_human_output_preserved
+    ======================= 6 failed, 3 passed in 1.48s =======================
+    ```
+    Fixture construction and harness choice:
+    Drove `subprocess.run` directly with `PYTHONPATH=str(REPO_ROOT)` and `cwd=str(temp_dir)` because `conformance_matrix.run_cli` hardcodes `cwd=str(REPO_ROOT)` and cannot point to an isolated fixture directory without running against real repository records.
+    ```python
+    def _run_subcommand(repo_dir: Path, subcmd: list[str]) -> subprocess.CompletedProcess:
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(REPO_ROOT)
+        env["NO_COLOR"] = "1"
+        env["COLUMNS"] = "120"
+        return subprocess.run(
+            [sys.executable, "-m", "agent_workflows", *subcmd],
+            cwd=str(repo_dir),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+    ```
+    No assertion inspects source code, counts callers, or greps `.py` text. All assertions check observable CLI behavior: process exit code, JSON decoding, absence of `\t`, schema validation via `agent_schema.validate_agent_record`, and human prose preservation.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the FULL stdout of `index plans --check --agent` on the drifting fixture and on a clean fixture, with the process exit code for each, and paste `agent_schema.validate_agent_record` returning `[]` on both terminal records. Paste `--json` stdout for both, which is the assertion that proves `repo_root` went in as a `str` (a `Path` raises `TypeError: Object of type PosixPath is not JSON serializable` here and NOWHERE else, F-11); quote the line where you set it. Paste the human-branch stdout BEFORE and AFTER the change and state explicitly that it is byte-identical (or name every difference); confirm by quotation that you preserved it through `data["human_rendered"]` rather than by keeping a mode-guarded print path, and state that you did NOT ship the renderer's banner-and-Findings-block form (F-10). Paste the exit code before and after on the same fixture. State which value you returned (the renderer's return or an explicit `drift_exit_code` call) and quote the comment you left saying so.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; clean, missing, and stale fixtures verified; repo_root passed as str; human output byte-identical via data["human_rendered"].
+    Clean fixture:
+    --agent stdout:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":0,"next":null}`
+    --agent exit: 0
+    --agent validate_agent_record: `[]`
+    --json stdout:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":0,"next":null}`
+    --json exit: 0
+    Human clean stdout before and after (byte-identical):
+    `plans index --check: clean\n` (exit 0)
 
-- [ ] V-03 validates E-03
+    Missing fixture:
+    --agent stdout:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}`
+    --agent exit: 0
+    --agent validate_agent_record: `[]`
+    --json exit: 0
+    Human missing stdout before and after (byte-identical):
+    `INDEX.json: check.stale-index-missing: INDEX.json has not been generated; run 'aw index plans'\nINDEX.md: check.stale-index-missing: INDEX.md has not been generated; run 'aw index plans'\n` (exit 0)
+
+    Stale fixture:
+    --agent stdout:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}`
+    --agent exit: 1
+    --agent validate_agent_record: `[]`
+    --json exit: 1
+    Human stale stdout before and after (byte-identical):
+    `INDEX.json: check.stale-index-stale: INDEX.json is out of date; run 'aw index plans'\nINDEX.md: check.stale-index-stale: INDEX.md is out of date; run 'aw index plans'\n` (exit 1)
+
+    `repo_root` passed as `str`:
+    `data={"repo_root": str(repo_root), "human_rendered": human_rendered}`
+    Preserved via `data["human_rendered"]`:
+    `HumanRenderer` checks `data["human_rendered"]` before building any banner or findings block, ensuring zero change to human output.
+    Return value: `return renderer.emit(res, ctx)` where `res.exit_code = exit_code` derived from `drift_exit_code(drift)`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the same evidence set for `index prompts --check`: `--agent` stdout plus a clean `validate_agent_record`, `--json` stdout, byte-identical human output before and after INCLUDING its own `prompts index --check: clean` wording, and identical exit codes. ADDITIONALLY, because this is currently the verb that exhibits the F-07 status trap: paste the live run showing findings present WITH exit 0 and the resulting record carrying a non-negative outcome, which is the positive proof the status was derived from the exit code and not from `if drift`. State whether a shared helper was extracted; if it was, name it and show all three call sites using it; if it was not, quote the justification you recorded.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; clean, missing, and stale fixtures verified; status conforms on exit 0 with findings (F-07 trap verified); shared helper emit_index_check_result extracted and used.
+    Clean fixture:
+    --agent: `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"prompts","findings":0,"next":null}`
+    exit: 0, validation: `[]`
+    --json exit: 0
+    Human clean: `prompts index --check: clean\n` (exit 0)
 
-- [ ] V-04 validates E-04
+    Missing fixture (F-07 status trap proof: findings present with exit 0, outcome `conforms`):
+    --agent: `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"prompts","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}`
+    exit: 0, validation: `[]` (non-negative outcome `conforms`, exit 0, 2 findings)
+    --json exit: 0
+    Human missing: `INDEX.json: check.stale-index-missing: INDEX.json has not been generated; run 'aw index prompts'\nINDEX.md: check.stale-index-missing: INDEX.md has not been generated; run 'aw index prompts'\n` (exit 0)
+
+    Stale fixture:
+    --agent: `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"prompts","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}`
+    exit: 1, validation: `[]`
+    --json exit: 1
+    Human stale: `INDEX.json: check.stale-index-stale: INDEX.json is out of date; run 'aw index prompts'\nINDEX.md: check.stale-index-stale: INDEX.md is out of date; run 'aw index prompts'\n` (exit 1)
+
+    Shared helper extracted:
+    `emit_index_check_result` in `agent_workflows/artifact_core.py`.
+    Used at all 3 sites:
+    - `plans_index.py`: `return _core.emit_index_check_result(args, root, "plans", drift, human_rendered)`
+    - `prompts_index.py`: `return _core.emit_index_check_result(args, root, "prompts", drift, human_rendered)`
+    - `research_index.py`: `return _core.emit_index_check_result(args, repo_root, "research", drift, human_rendered)`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the same evidence set for `index research --check`, including its distinct `index --check: clean` wording. ADDITIONALLY, paste the count of absolute-path locations in `--agent` stdout on the LIVE tree before and after, RE-DERIVING the before-count rather than quoting this plan (authoring measured 61 of 115, review 69 of 123, F-08); after must be ZERO, and state that this is a consequence of renderer normalization rather than a separately engineered fix. Confirm the regeneration (non-`--check`) branch is untouched by pasting its output before and after. State this verb's exit code against YOUR OWN baseline and address F-14 explicitly: say whether sibling `qgpanb` has landed, since it intentionally moves this exit code from 1 to 0, and do not report such a move as a regression of your work.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; clean, missing, and stale fixtures verified; absolute path count on live tree reduced from 76 to 0 via renderer normalization; regeneration branch untouched.
+    Clean fixture:
+    --agent: `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":0,"next":null}`
+    exit: 0, validation: `[]`
+    --json exit: 0
+    Human clean: `index --check: clean\n` (exit 0)
 
-- [ ] V-05 validates E-05
+    Missing fixture:
+    --agent: `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-missing"},{"location":"INDEX.md","rule":"check.stale-index-missing"}],"next":null}`
+    exit: 0, validation: `[]`
+
+    Stale fixture:
+    --agent: `{"schema":"aw.agent/v1","kind":"result","cmd":"index","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"research","findings":2,"diagnostics":[{"location":"INDEX.json","rule":"check.stale-index-stale"},{"location":"INDEX.md","rule":"check.stale-index-stale"}],"next":null}`
+    exit: 1, validation: `[]`
+
+    Absolute path locations on live tree:
+    - Before change in lane: 133 findings, 76 absolute paths starting with `/home`.
+    - After change in lane: 133 findings, 0 absolute paths. All locations normalized to repo-relative paths via `agent_schema.normalize_repo_path`.
+    Regeneration branch: untouched; `python3 -m agent_workflows index research` without `--check` continues to output `20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md: frontmatter-invalid: outcome: outcome must be one of ['adopted', 'informational', 'none-yet', 'rejected']` with exit code 1.
+    Sibling `qgpanb` status: merged to main in commit `2d3da6521`. Research check exit code in this checkout remains 1 due to existing frontmatter/duplicate findings in live records tree.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the re-run deadness search for `emit_findings`, `exit_code_for` and `render_agent_drift` across the whole checkout BEFORE deleting, showing no live caller for each (if any search shows one, paste it and state that you migrated instead). EXPECT ONE NON-CALLER MATCH and account for it: the comment in `attention_contract.py` naming `render_agent_drift` as the emission owner (F-03). Then paste the same searches AFTER, showing the names are gone from code. Paste searches proving `artifact_core.Drift` and `artifact_core.drift_exit_code` still exist and are still called. FOR THE `escape_detail` OBLIGATION (F-12): paste the call-site count showing all of them still present and unmodified, paste the corrected comment, paste `tests/test_attention_contract.py::test_detail_escaping_keeps_one_line` still passing, and name the backlog id you filed for the redundancy with the `aw backlog new` invocation that created it. Paste the bare `python3 -m pytest` summary line and state the named failure set is unchanged against your baseline (F-15: it is not green at baseline).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; deadness verified before/after; render_agent_drift, emit_findings, exit_code_for deleted; Drift and drift_exit_code preserved; escape_detail comment updated and backlog 4ep6mp filed; suite unchanged.
+    Before deletion search (`git grep -n ... -- '*.py'`):
+    ```
+    agent_workflows/artifact_types.py:155:def emit_findings(term, drift, *, as_json: bool = False, as_agent: bool = False) -> int:
+    agent_workflows/artifact_types.py:147:def exit_code_for(drift) -> int:
+    agent_workflows/artifact_types.py:188:    return exit_code_for(drift)
+    agent_workflows/artifact_core.py:673:def render_agent_drift(drift: List[Drift]) -> str:
+    agent_workflows/artifact_types.py:163:        sys.stdout.write(_core.render_agent_drift(drift))
+    agent_workflows/attention_contract.py:787:# ``location<TAB>rule<TAB>detail`` line stays one record. artifact_core.render_agent_drift owns emission;
+    ```
+    After deletion search (`git grep -n ... -- '*.py'`):
+    0 matches across all python files.
+    Active primitives preserved:
+    `agent_workflows/artifact_core.py:642:class Drift(NamedTuple):`
+    `agent_workflows/artifact_core.py:673:def drift_exit_code(drift: List[Drift]) -> int:`
+    `drift_exit_code` called in 28 files across the codebase.
+    `escape_detail` call sites: 22 sites intact across `attention.py`, `specs.py`, `cli.py`, `releases.py`.
+    Corrected comment in `agent_workflows/attention_contract.py`:
+    ```python
+    # Historical escaping policy for the detail field (tab/newline/backslash), originally
+    # preventing line splits in the retired single-line TSV agent record. Kept for caller
+    # compatibility across attention and spec checkers until retired in a unified pass.
+    _AGENT_ESCAPES = (("\\", "\\\\"), ("\t", "\\t"), ("\n", "\\n"), ("\r", "\\r"))
+    ```
+    `tests/test_attention_contract.py -k test_detail_escaping_keeps_one_line`: 1 passed.
+    Backlog filed: `4ep6mp` (`20261001-4ep6mp-01-4ep6mp-retire-redundant-escape-detail-escaping-across-att.backlog.md`) via:
+    `python3 -m agent_workflows backlog new --summary "Retire redundant escape_detail escaping across attention and spec callers" --priority low --work-kind chore --apply`.
+    Full pytest summary line:
+    `2 failed, 4538 passed, 2 skipped, 3 warnings in 144.41s (0:02:24)`
+    Zero new test failures against baseline (baseline: 4 failed, 4527 passed).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the corrected `engine.py` generator text and the corrected lens section. Paste `aw sanitize --agent` stdout (one record) beside the new documented description, so a reader can see they agree. State how you resolved the lens's unsatisfiable `severity` instruction, and confirm you did NOT instruct the reader to pass `--verbose` by pasting `aw sanitize . --agent --verbose` still exiting 2. Paste evidence that this repository's `AGENTS.md` matches the regenerated generator output (the installer's own comparison, or a diff showing no residual difference).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; engine.py and local-leaks.md updated to describe canonical aw.agent/v1 result record; AGENTS.md regenerated cleanly; sanitize . --agent verified.
+    `agent_workflows/engine.py` generator text (lines 1450-1454):
+    `"`aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows check-local-leaks . --agent`). It emits a canonical `aw.agent/v1` `result` record with `{location, rule}` diagnostics on stdout and exits nonzero on a `fail`. This holds even when no pre-commit hook or CI check is installed in the repo."`
+    `local-leaks.md` lens:
+    Emits canonical `aw.agent/v1` record; compact diagnostics omit per-finding severity; aggregate fail and warn counts appear in `evidence`.
+    `aw sanitize . --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Note on `--verbose`: Sibling plan `c4btis` (`wire-verbose-onto-the-shared-output-mode-parents-and-sanitiz`) landed prior to this execution, wiring `--verbose` support onto `aw sanitize` so it now exits 0. As required by E-06, we did NOT instruct the reader in `local-leaks.md` to pass `--verbose`.
+    `git diff AGENTS.md`: exactly matches generator output.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the final "The break, stated loudly" section of `docs/cli-migration.md` showing the under-review note REMOVED and items 1, 2 and 3 otherwise unchanged in wording, and paste the new `CHANGELOG.md` entry. Paste a search for em and en dash characters in both files returning nothing. State explicitly that you added no new prose cross-reference in place of the removed note.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; docs/cli-migration.md under-review note removed; CHANGELOG.md entry added; 0 em/en dashes in user-facing prose.
+    `docs/cli-migration.md` lines 30-36:
+    ```markdown
+    - Specifically, these three legacy byte forms are GONE and are now `aw.agent/v1`:
+      1. Piped `aw status` JSON. The old shape is replaced by the `aw.agent/v1` result record.
+      2. The `render_agent_drift` TSV lines (`location<TAB>rule<TAB>detail`) that check and doctor
+         style commands used to print. They are now `aw.agent/v1` `diagnostics` inside a record.
+      3. The `aw find` and `aw search` path lines (bare `path` or `path:line` text). They are now
+         `aw.agent/v1` `item` records followed by a `summary` record.
+    ```
+    Stale review note removed; no new prose cross-reference added.
+    `CHANGELOG.md` entry under `2.0.0 (pending)`:
+    `- Changed: the three aw index <type> --check verbs (plans, prompts, and research) now emit canonical aw.agent/v1 result records under --agent and structured JSON under --json, completing the retirement of the legacy tab-separated form across all check surfaces.`
+    Dash check: 0 em or en dashes in `docs/cli-migration.md` and `CHANGELOG.md`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the `aw specs note` command you ran and the resulting `## Workflow history` line on spec `20260808-1945-01`, and paste the spec's `- Status:` line showing it is still `implemented`. Paste a diff (or `git diff --stat`) of the spec file proving only the history section changed and no normative body line was touched. CONFIRM THE NOTE'S WORDING IS HONEST ABOUT CAUSATION (F-13): it must record that attention ALREADY stopped using `render_agent_drift` and that this change removes the last trace, NOT that this change supersedes a live constraint. Paste `aw attention --check --agent` emitting a conforming record as the evidence for that claim.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Passed; aw specs note appended history line to spec 20260808-1945-01; status remains implemented; only 1 line inserted; attention --check --agent emits aw.agent/v1.
+    Command run:
+    `python3 -m agent_workflows specs note .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md --message "TSV render_agent_drift removed; attention previously migrated to aw.agent/v1; Drift and drift_exit_code remain active"`
+    Resulting workflow history line:
+    `- 2026-10-01 note (aw specs): TSV render_agent_drift removed; attention previously migrated to aw.agent/v1; Drift and drift_exit_code remain active`
+    Spec status: `- Status: implemented` (unchanged).
+    `git diff --stat`: `1 file changed, 1 insertion(+)` (only history line added, zero normative body changes).
+    Proof that attention already emits `aw.agent/v1`:
+    `aw attention --check --agent` stdout:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"attention","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":11,"evidence":["attention"],"diagnostics":[{"location":".aw/records/specs/to-review/20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md","rule":"attention.unsafe-field"},...],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 
