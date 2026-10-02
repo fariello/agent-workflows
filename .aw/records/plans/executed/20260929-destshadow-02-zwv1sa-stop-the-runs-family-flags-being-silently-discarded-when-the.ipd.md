@@ -6,7 +6,7 @@
 - Scope: Make a `runs` leaf's own flag default STOP overwriting the family value, by the mechanism the sibling `releases` family already uses correctly, and guard the property. IN: `default=argparse.SUPPRESS` on the colliding OPERATIONAL flag declarations under the `runs` family in `agent_workflows/cli.py` so an ABSENT leaf flag leaves the family's parsed value alone; a new `tests/test_runs_flag_position_parity.py` asserting POSITION PARITY (each flag resolves to the same value before and after the leaf token) across every affected leaf, driven through the CLI rather than by inspecting the parser; and an end-to-end case on a temporary repository proving `aw runs --dir X list` now finds the run it previously missed. OUT: any change to what a flag MEANS, any rename, any new flag, any change to the `runs`/`run` split or to `_ViewerOrLeafSubParsersAction`'s routing, the `releases new --version` case (F-09: benign, different mechanism), and the SUBCOMMAND-shadowing shape of the same argparse mechanism, which is Order 01's (`8kd4eo`). ALSO OUT, AND STATED EXPLICITLY AT REVIEW BECAUSE THE PLAN PREVIOUSLY NARROWED HERE SILENTLY: the PRESENTATION flags (`--json`, `--agent`, `--color`, `--no-color`, `--interactive`, `--no-interactive`), which are lost by the IDENTICAL mechanism with a WORSE consequence (F-15: `aw runs --json list` prints human text at exit 0). That exclusion is a size judgement, not a claim they are unaffected, and it is the maintainer's to overrule: see OQ-03, carried by item `0b290s`.
 - Scope-Paths: agent_workflows/cli.py, tests/test_runs_flag_position_parity.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zwv1sa
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zwv1sa verified (set destshadow, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-1001..PR-1005 all fixed
 
