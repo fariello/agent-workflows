@@ -1,5 +1,5 @@
 - Id: 6if6ko
-- Status: graduated
+- Status: done
 - Graduated-To: verbdouble
 - Set: 6if6ko
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: labels.command already carries the run verb, so every caller suffixing 'run' renders 'aw oc run run <id6>' in an operator-facing remedy
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD z3si7r executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-verbdouble-01-z3si7r-fix-the-shipped-doubled-verb-remedy-and-pin-the-whole-class.ipd.md); evidence .aw/records/plans/executed/20260929-verbdouble-01-z3si7r-fix-the-shipped-doubled-verb-remedy-and-pin-the-whole-class.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: z3si7r
 - 2026-09-22 created (aw backlog): labels.command already carries the run verb, so every caller suffixing 'run' renders 'aw oc run run <id6>' in an operator-facing remedy
 
