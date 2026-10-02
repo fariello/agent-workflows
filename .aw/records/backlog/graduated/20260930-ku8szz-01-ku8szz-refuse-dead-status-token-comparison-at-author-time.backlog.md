@@ -1,11 +1,13 @@
 - Id: ku8szz
-- Status: open
+- Status: graduated
+- Graduated-To: ku8szz
 - Set: ku8szz
 - Priority: low
 - Work-Kind: chore
 - Summary: Decide whether a deterministic author-time rule can refuse a bare comparison against a retired status token without firing on the six unrelated vocabularies that share the spellings blocked and partial
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: fr19jr
 - 2026-09-30 created (aw backlog): Decide whether a deterministic author-time rule can refuse a bare comparison against a retired status token without firing on the six unrelated vocabularies that share the spellings blocked and partial
 
 DEFERRED BY PLAN `qvfd4l` (from backlog `cxrpwv`), which carries the behavioral fence but not this checker.
