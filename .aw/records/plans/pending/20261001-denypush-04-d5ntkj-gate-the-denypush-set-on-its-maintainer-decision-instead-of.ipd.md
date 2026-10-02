@@ -6,7 +6,8 @@
 - Scope: IN: add ONE typed, shipped, dispatch-enforced dependency edge, `state:backlog:done:wcbpqf`, to the two `denypush` plans whose deliverables the decision actually changes (`l4vw9o` the ship/stop decision, `pi3bk8` the field name), written through `aw ipd dependencies set` so the value is canonicalized and validated rather than hand-edited; record on `wcbpqf` what closing it requires and which plans wait on it; and verify by driving `runner_shared.edge_satisfied` that the edge refuses while the item is `open` and releases when it is `done`. OUT: answering any of the three decisions (they are the human's, which is the premise of the carrier and of this plan); changing any plan's `- Status:`, `- Readiness:`, `- Approval:`, E-items, V-items, scope or prose; gating `x2dwu5` or `wzhe4n` (measured below: neither names the field and `x2dwu5` is records-only, so holding them would stop work the decision does not touch); any product code, probe, capability or spec edit, all of which belong to the Set's own children; and a general mechanism for the 29-question population of the same shape, which is deliberately CARRIED by backlog `hc6n7r` (filed at authoring) rather than built here.
 - Scope-Paths: .aw/records/plans/pending/20260929-denypush-00-l4vw9o-decide-and-if-approved-build-a-landlock-backed-network-denia.ipd.md, .aw/records/plans/pending/20260929-denypush-02-pi3bk8-add-a-probed-supports-deny-remote-ssh-push-capability-provin.ipd.md, .aw/records/backlog/open/20260929-denypush-01-wcbpqf-decide-port-denial-capability-posture.backlog.md, .aw/records/backlog/open/20261001-denypush-01-hc6n7r-carrier-field-gates-nothing.backlog.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
 - Work-Kind: followup
 - Priority: low
 - From-Backlog: wcbpqf
@@ -18,6 +19,7 @@
 
 ## Workflow history
 
+- 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: REJECT - NEEDS REPLAN; PR-001 (BLOCKER: the gate releases itself; this plan is the SOLE `From-Backlog: wcbpqf` carrier, so on execution `runner_shared.evaluate_backlog_close` returns close=True and `aw backlog set wcbpqf --status done` succeeds from `graduated`, both driven), PR-002 (HIGH: an unmet `state:backlog` edge on an approved plan REFUSES THE WHOLE RUN at `enforce_freeze_time_refusal` (`RUN-DEPENDENCY-UNSATISFIABLE`, spec z7nbn1 1.4), not a per-item `dependency-blocked` deferral, driven), PR-003 (HIGH: premises stale at HEAD ce551c597: `wcbpqf` and `hc6n7r` are `graduated`, `x2dwu5` is `executed`, Scope-Paths name `backlog/open/` paths that no longer exist), PR-004 (MEDIUM: `pi3bk8` OQ-01, the field name, is already resolved at review). Escalated as OQ-03..OQ-05. Plan body left as authored for the replacement author.
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored review-ready while graduating backlog `wcbpqf`. Authoring MEASURED the item's own premises and corrected two of them (F-05, F-06): the item says a rename "must be applied to ALL FOUR plans together, since a half-renamed Set would leave the spec naming a field that does not exist", but only TWO plans name the field (`l4vw9o` 5 hits, `pi3bk8` 11, `x2dwu5` and `wzhe4n` zero) and spec `25kzda` names it ZERO times, so the spec half of that sentence describes a state that does not exist yet. The correction makes the gate NARROWER than the item implies, which is why it is recorded rather than quietly applied.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -212,6 +214,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   whole still cannot COMPLETE without the answer, since the orchestrator is gated and `AGENTS.md` makes
   retirement conditional on every child being `executed`, so the narrower boundary loses nothing.
 
+### OQ-03: How should the Set be held so that executing the holding plan cannot itself release the hold?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: OPEN, REPLAN REQUIRED. Measured at review: this plan is the ONLY artifact carrying `- From-Backlog: wcbpqf`, so when it executes the runner's `process_backlog_close` evaluates `evaluate_backlog_close(repo, "wcbpqf", ...)` to `close=True` ("every IPD carrier is executed and this run executed ...") and its `close_backlog_item` argv (`aw backlog set wcbpqf --status done --evidence <this plan>`) succeeds from `graduated` (driven on a scratch copy: exit 0, item moved to `done/`). That satisfies `state:backlog:done:wcbpqf` with no maintainer answer. Candidate shapes for the replacement, which is the human's choice: (a) gate on a NEW decision item that no plan carries via `From-Backlog`, so only a human can close it; (b) have the maintainer move `l4vw9o`/`pi3bk8` out of `approved` until the decision is made, with no edge at all; (c) answer the decision now, which makes the gate unnecessary.
+
+### OQ-04: Is a whole-run refusal an acceptable way for this gate to bite?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-002
+- Resolution or deferral rationale: OPEN, REPLAN REQUIRED. The plan says the edge defers the two plans as `dependency-blocked` while the run continues. Measured at review, that is false for this edge: `runner_shared.enforce_freeze_time_refusal` raised `DriverError: [RUN-DEPENDENCY-UNSATISFIABLE] pi3bk8 requires state:backlog:done:wcbpqf; ... No work started` for a queue containing `pi3bk8`. That follows spec `z7nbn1` 1.4, which refuses the WHOLE RUN when an edge cannot be met during the run. So any selection containing a gated approved plan (including `aw oc run all`, if it selects them) would run nothing at all. The replacement must either accept that blast radius explicitly or use a hold that removes the plans from execute selection (OQ-03 shape (b)).
+
+### OQ-05: Re-derive the plan's premises against the current tree
+
+- Blocking: yes
+- Status: open
+- Owner: plan author (replacement)
+- Finding: PR-003
+- Resolution or deferral rationale: OPEN, REPLAN REQUIRED. At review HEAD `ce551c597`: `wcbpqf` is `graduated` (commit `ab3fc2317`, "graduated by run ...: d5ntkj"), `hc6n7r` is `graduated` to Set `carriergate` (plan `rpw4sb`), and `x2dwu5` is `executed`, so its OQ-01 has already closed unanswered. Two of the four Scope-Paths (`.aw/records/backlog/open/...wcbpqf...`, `.../open/...hc6n7r...`) no longer exist. E-04/V-04's "confirm `- Status: open`" cannot pass. `pi3bk8` OQ-01 (the field name) is `resolved` at review, so decision (2) is no longer open. `rpw4sb` F-08 already measured that `state:backlog:done:<carrier>` refuses a `graduated` carrier. A replacement plan must start from these facts.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
@@ -243,6 +269,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+REVIEW 2026-10-02: REJECT - NEEDS REPLAN. Do not approve or execute this plan as written; see OQ-03 to OQ-05 and the review record. Executing it would close `wcbpqf` (PR-001) and refuse whole runs (PR-002).
 
 WHAT A HUMAN WOULD BE APPROVING. Four `denypush` plans are approved and ready to run, and three
 maintainer decisions about them are recorded on backlog `wcbpqf` with nothing making anyone answer
