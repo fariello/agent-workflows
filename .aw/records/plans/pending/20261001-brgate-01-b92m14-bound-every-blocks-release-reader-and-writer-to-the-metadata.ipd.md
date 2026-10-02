@@ -6,7 +6,8 @@
 - Scope: IN: convert every `- Blocks-Release:` READER and the one WRITER onto the existing shared metadata-region boundary (`selectors.metadata_region`), which already owns exactly this bounding for `- Id:`, `- Status:` and `- Set:` under executed plan `76w6mq`. The answer to the item's question "which reader is correct" is therefore NOT a new invention: it is the boundary this repository already decided on and shipped, and the 4 diverging readers are the ones that were never converted. Concretely: add ONE shared reader to `selectors` beside its `read_front_matter_id`/`read_front_matter_status` twins; route `status_set`'s display read, `status_set`'s two `_existing_br` gate-default reads, `ipd_lint`'s board read, `attention`'s plans read, and `releases._ITEM_BLOCKS_RELEASE_RE`'s three call sites through it; bound the `releases.set_blocks_release_line` STRIP to the metadata region so it can no longer delete a body line; and author outcome tests driving each. OUT, each with a reason recorded under Deferred: the six SIBLING line writers in `releases` (`_PRIORITY_LINE_RE`, `_WORK_KIND_LINE_RE`, `_FROM_BACKLOG_LINE_RE`, `_FROM_SPEC_LINE_RE`, `_ITEM_DEPENDENCIES_LINE_RE`, `_GRADUATED_TO_LINE_RE`), which share the writer's unbounded shape but are a different field family with their own blast radius; `check_engine._read_blocks_release` and `specs._read_blocks_release`, which are ALREADY bounded and are the correctness reference this plan converges on rather than changes; `check_engine._META_BLOCKS_RELEASE_RE`'s one unbounded call site at the `check_release_gate_consistency` at-rest arm, which is measured here as non-diverging on the corpus and is folded in as E-06 only because it is the same pattern in the same rule family; and any change to WHAT the gate means or to the close-legitimacy ladder.
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/status_set.py, agent_workflows/attention.py, agent_workflows/releases.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, tests/test_blocks_release_reader_bounding.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: 5e533q
@@ -18,7 +19,9 @@
 - Id: b92m14
 
 ## Workflow history
+- 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
+- 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD `b64d92e86`; `aw ipd lint` author and review-finalize both clean. Every cited symbol re-located: the four unbounded readers (`status_set._format_status_transition_line`'s `m_br`, `ipd_lint` board `m_br`, `attention` plans `br_m`, `releases._ITEM_BLOCKS_RELEASE_RE` x3), the three `status_set` gate reads, `check_engine`'s one unbounded site at `_META_BLOCKS_RELEASE_RE.search(item_txt)`, dead `status_set._BLOCKS_RELEASE_RE`, and `set_blocks_release_line`'s whole-text strip (driven on `7w6zsl`: body quote removed). The approach was sound. PR-001: the live corpus bars (190/868) had moved to 218/928, so V-05 and V-08 now compare against a same-session baseline (F-13). PR-002: E-07/V-07's 7w6zsl expectation was wrong for a record that already carries the gate, so it was corrected to an empty diff plus a fixture case. PR-003: the Deferred 'FILE ONE' carrier was filed at review as `7afjyu` (bug, Blocks-Release next), with exposure measured. PR-004: E-06's 'no remaining unbounded read' claim was scoped to `check_engine`, because `_META_BLOCKS_RELEASE_RE` keeps three external callers. PR-005: the gate gained a scope fence, conditional finalize ownership, `aw commit b92m14`, and the `5e533q` close path; E-03's ambiguous 'Leave ... converted' was made imperative, and E-08 gained a `-` removal case (f).
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `5e533q`. The item asks which reader is correct; the repository has ALREADY ANSWERED that question for the identity fields (`selectors.metadata_region`, executed plan `76w6mq`), so this plan converges the 4 unconverted `Blocks-Release` readers onto it rather than re-deciding. Measured FOUR things the item does not name. (1) THE DIVERGENCE IS BIDIRECTIONAL: `aw set` both over-labels (body-quoted line, no gate written) and under-labels (no body line, gate written) on the same command; the item only records the over-label. (2) THE UNBOUNDED READ IS LOAD-BEARING ON A WRITE PATH, so the two setter spellings now write DIFFERENT FILES from identical input, contradicting `decide_gate_default`'s own single-authority docstring; the item believes this is display-only. (3) THE WRITER IS UNBOUNDED TOO and deletes a body line from a real tracked record (driven on `7w6zsl`); 8 tracked records are exposed. (4) PLAN `4gwgo3`'s F-03 HAS NO CARRIER and shares this root cause, so it is folded in here rather than left unowned. Also measured that bounding is behavior-preserving on the real corpus: `get_release_blockers(next)` stays 190, the sentinel count stays 868, and `check_blocks_release` stays 0 findings, with only the 4 quoting documents changing answer. Suite baseline measured BARE at HEAD `302b8cb86`: `2 failed, 4374 passed, 2 skipped, 3 warnings in 350.50s`, both failures pre-existing and order-dependent (they pass in isolation; see Findings F-10).
 - 2026-10-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -42,12 +45,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: the diverging readers
 
-- [ ] E-02 In `agent_workflows/status_set.py`, replace the DISPLAY read inside `_format_status_transition_line` (the `m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", rec.raw_text)` line and its `blocks_release = m_br.group(1) if m_br else None` partner, in the `else` arm below `br_arg`) with a call to `selectors.read_front_matter_blocks_release(rec.raw_text)`. Note in a comment that this regex was additionally missing the `$` anchor its siblings carry, which is why it diverges from `releases` even on a record where bounding alone would not. Delete the now-unused module-level `_BLOCKS_RELEASE_RE` at the top of the module if and only if it has no other reference (measured at authoring: it has exactly one occurrence in the file, its own definition, so it is dead today).
+- [ ] E-02 In `agent_workflows/status_set.py`, replace the DISPLAY read inside `_format_status_transition_line` (the `m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", rec.raw_text)` line and its `blocks_release = m_br.group(1) if m_br else None` partner, in the `else` arm below `br_arg`) with a call to `selectors.read_front_matter_blocks_release(rec.raw_text)`. Note in a comment that this regex was additionally missing the `$` anchor its siblings carry, which is why it diverges from `releases` even on a record where bounding alone would not. Delete the now-unused module-level `_BLOCKS_RELEASE_RE` at the top of the module if and only if it has no other reference (measured at authoring and re-measured at review, HEAD `b64d92e86`: `grep -n _BLOCKS_RELEASE_RE agent_workflows/status_set.py` returns only its own definition, so it is dead today; `backlog._BLOCKS_RELEASE_RE` and `specs._BLOCKS_RELEASE_RE` are DIFFERENT module-private names and must not be touched).
   - Depends on: E-01
   - Expected outcome: `aw set` no longer prints `[blocking]` for a record whose only gate bullet is in its body, and the `>` lead glyph agrees with the label.
   - Execution state: pending
 
-- [ ] E-03 In `agent_workflows/status_set.py`, replace BOTH `_existing_br` reads (the one in `apply_status_change`'s backlog gate-default block and the one in the `aw backlog set` positional arm further down, each spelled `re.search(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text)`) with `selectors.read_front_matter_blocks_release(_current_text)`. This is the WRITE-PATH half and the one that makes the two setter spellings agree. Leave the third, From-Backlog-inheritance read in the same module (the `_carrier_m` search over `"\n".join(new_lines)`) converted the same way, since it decides whether to inherit a gate and a body-quoted bullet would suppress a legitimate inheritance.
+- [ ] E-03 In `agent_workflows/status_set.py`, replace BOTH `_existing_br` reads (the one in `apply_status_change`'s backlog gate-default block and the one in the `aw backlog set` positional arm further down, each spelled `re.search(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text)`) with `selectors.read_front_matter_blocks_release(_current_text)`. This is the WRITE-PATH half and the one that makes the two setter spellings agree. ALSO convert the third, From-Backlog-inheritance read in the same module (the `_carrier_m` search over `"\n".join(new_lines)` in `apply_status_change`) the same way, since it decides whether to inherit a gate and a body-quoted bullet would suppress a legitimate inheritance.
   - Depends on: E-01
   - Expected outcome: `aw set blocked <id6>` and `aw backlog set <id6> --status blocked` write BYTE-IDENTICAL front matter for the same input item, where today they differ by a whole `- Blocks-Release: next` line.
   - Execution state: pending
@@ -57,26 +60,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a pending plan whose only `- Blocks-Release:` bullet sits in its `## Workflow history` is no longer returned by `releases.get_release_blockers`, closing plan `4gwgo3`'s unowned F-03.
   - Execution state: pending
 
-- [ ] E-05 In `agent_workflows/releases.py`, convert the three `_ITEM_BLOCKS_RELEASE_RE.search(text)` call sites (in `_declared_blocks_release`, `count_blocks_release_sentinel`, and `check_blocks_release`) to `selectors.read_front_matter_blocks_release(text)`, and delete `_ITEM_BLOCKS_RELEASE_RE` once it has no remaining reference. Add the `selectors` import; verified at authoring that `selectors` imports none of `releases`/`status_set`/`attention`/`check_engine`/`backlog`/`specs`, so there is no cycle. Leave `_ITEM_FROM_BACKLOG_RE` and `_ITEM_GRADUATED_TO_RE` alone: they are a different field family, and the long comment above `_ITEM_GRADUATED_TO_RE` explains why the latter's value pattern must stay whole-value.
+- [ ] E-05 In `agent_workflows/releases.py`, convert the three `_ITEM_BLOCKS_RELEASE_RE.search(text)` call sites (in `_declared_blocks_release`, `count_blocks_release_sentinel`, and `check_blocks_release`) to `selectors.read_front_matter_blocks_release(text)`, and delete `_ITEM_BLOCKS_RELEASE_RE` once it has no remaining reference. Add the `selectors` import; verified at authoring that `selectors` imports none of `releases`/`status_set`/`attention`/`check_engine`/`backlog`/`specs`, so there is no cycle (re-verified at review: `import agent_workflows.selectors` loads none of those seven modules). Leave `_ITEM_FROM_BACKLOG_RE` and `_ITEM_GRADUATED_TO_RE` alone: they are a different field family, and the long comment above `_ITEM_GRADUATED_TO_RE` explains why the latter's value pattern must stay whole-value.
   - Depends on: E-01
   - Expected outcome: all three `releases` consumers answer from the metadata region, and `check_blocks_release` can no longer raise `check.blocks-release-dangling` against a gate value that only ever appeared in a record's prose.
   - Execution state: pending
 
 - [ ] E-06 In `agent_workflows/ipd_lint.py`, replace the board read (`m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", raw_text)`) with `selectors.read_front_matter_blocks_release(raw_text)`; and in `agent_workflows/check_engine.py`, change the ONE unbounded `_META_BLOCKS_RELEASE_RE.search(item_txt)` call site (the at-rest arm of `check_release_gate_consistency`, guarding the `done`-item candidate list) to go through the module's existing bounded accessor `_read_blocks_release(item_txt)`, which already wraps the same pattern in `_metadata_region`. `ipd_lint` carries the same unanchored, unbounded regex `status_set`'s display did, which is how two board-rendering surfaces came to share one defect. `check_engine`'s other nine reads already use the bounded accessor; this is the single outlier, and converting it makes the rule family internally consistent.
   - Depends on: E-01
-  - Expected outcome: `aw ipd lint`'s board labels a plan `[blocking]` on the same basis `aw attention` does, and `check_engine` has no remaining unbounded `Blocks-Release` read.
+  - Expected outcome: `aw ipd lint`'s board labels a plan `[blocking]` on the same basis `aw attention` does, and `check_engine`'s own code has no remaining unbounded `Blocks-Release` read. NOTE (review PR-004): `_META_BLOCKS_RELEASE_RE` itself STAYS, because `production_checks.spec_plan_gate_carry`, `production_checks.backlog_gate_handoff` and `runner_shared.populate_manifest_specs` still call `_ce._META_BLOCKS_RELEASE_RE.search(...)` directly over whole texts; they are out of scope (Scope check), so the claim is about `check_engine` only and not "no unbounded read anywhere".
   - Execution state: pending
 
 ### Task group 3: the writer
 
 - [ ] E-07 In `agent_workflows/releases.py`, bound the STRIP in `set_blocks_release_line` to the metadata region so it can no longer delete a body line. Keep the function's existing contract otherwise (idempotent; removes the line for `-`/`None`; inserts after `- Status:` falling back to `- Id:`). Implementation: compute `region = selectors.metadata_region(text)`, apply `_BLOCKS_RELEASE_LINE_RE.sub("", region)` to the region ONLY, reattach the untouched remainder, then insert as today. Preserve the behavior that a YAML-fenced record's region is its leading fence, so a YAML research doc's body bullets are equally safe. Do NOT convert the six sibling line writers in this module: they are deferred with their reason recorded.
   - Depends on: none
-  - Expected outcome: `set_blocks_release_line` on the real tracked item `.aw/records/backlog/graduated/20260929-7w6zsl-01-7w6zsl-research-new-summary-injects-yaml-key.backlog.md` adds a front-matter line and loses ZERO lines, where today it deletes the quoted bullet from that item's fenced YAML example.
+  - Expected outcome: `set_blocks_release_line(text, "next")` on the real tracked item `.aw/records/backlog/graduated/20260929-7w6zsl-01-7w6zsl-research-new-summary-injects-yaml-key.backlog.md` leaves every BODY line byte-identical, where today it deletes the quoted bullet from that item's fenced YAML example. Note the item ALREADY carries `- Blocks-Release: next` in its front matter, so the correct post-fix diff is EMPTY (strip-then-reinsert of the same front-matter line): re-measured at review HEAD `b64d92e86`, today's diff is `+- Blocks-Release: next` (front matter, re-inserted) and `-- Blocks-Release: next` removed TWICE from the body (both line 4's front-matter original and line 22's body quote are stripped, one re-added), i.e. net body loss 1 line. The executor re-derives the pre-fix diff at execution rather than trusting either figure.
   - Execution state: pending
 
 ### Task group 4: tests and changelog
 
-- [ ] E-08 Author `tests/test_blocks_release_reader_bounding.py` driving OUTCOMES, never code structure: no `inspect`, no `ast`, no regex over production source, no symbol censuses (AGENTS.md; GUIDING_PRINCIPLES P16). Cover, each on a real fixture repository: (a) the bidirectional display divergence, asserting the rendered `aw set` line and `aw attention --format json`'s `blocks_release` AGREE in both the body-quoted and the no-body-line cases; (b) the two setter spellings writing byte-identical front matter for the same input, with the body-quoted bullet present; (c) a plan with a body-only bullet absent from `releases.get_release_blockers`, plus a CONTROL plan with a real front-matter gate still PRESENT, so the test cannot pass by the reader returning `None` for everything; (d) `set_blocks_release_line` preserving a body line while setting the front-matter one, asserted on line count and content; (e) a REGRESSION GUARD pinning that the whole-corpus answers are unchanged, by asserting `get_release_blockers(next)`, `count_blocks_release_sentinel` and `check_blocks_release` on a fixture tree built to contain both a legitimately gated record and a quoting record. Add a CHANGELOG.md entry under the pending 2.0.0 section describing the user-visible fix in plain prose with no em or en dashes.
+- [ ] E-08 Author `tests/test_blocks_release_reader_bounding.py` driving OUTCOMES, never code structure: no `inspect`, no `ast`, no regex over production source, no symbol censuses (AGENTS.md; GUIDING_PRINCIPLES P16). Cover, each on a real fixture repository: (a) the bidirectional display divergence, asserting the rendered `aw set` line and `aw attention --format json`'s `blocks_release` AGREE in both the body-quoted and the no-body-line cases; (b) the two setter spellings writing byte-identical front matter for the same input, with the body-quoted bullet present; (c) a plan with a body-only bullet absent from `releases.get_release_blockers`, plus a CONTROL plan with a real front-matter gate still PRESENT, so the test cannot pass by the reader returning `None` for everything; (d) `set_blocks_release_line` preserving a body line while setting the front-matter one, asserted on line count and content; (e) a REGRESSION GUARD on a FIXTURE tree (never the live corpus) built to contain both a legitimately gated record and a quoting record, asserting `get_release_blockers(next)`, `count_blocks_release_sentinel` and `check_blocks_release` count the gated record and NOT the quoting one. (f) `releases.set_blocks_release_line(text, "-")` on a fixture whose front matter AND body both carry the bullet removes ONLY the front-matter line. Every test drives functions or the CLI and asserts outputs; no test reads production source (P16). Add a CHANGELOG.md entry under the pending 2.0.0 section describing the user-visible fix in plain prose with no em or en dashes.
   - Depends on: E-02, E-03, E-04, E-05, E-06, E-07
   - Expected outcome: the new file passes, and each assertion fails if its corresponding E-item is reverted.
   - Execution state: pending
@@ -121,6 +124,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-09 | THE CONVERSION IS BEHAVIOR-PRESERVING ON THE REAL CORPUS, which is what makes it low-risk rather than merely desirable. Only 4 documents change answer, and all 4 are prose that QUOTES a gate bullet. | Measured over 2949 records under `.aw/records/`: 4 divergent, all quoting documents (2 reviews, 2 research). Per tree: backlog 0 of 847, specs 0 of 39, plans 0 of 1170, releases 0 of 1, walkthroughs 0 of 24, roadmaps 0 of 1, prompts 0 of 17; reviews 2 of 684 and research 2 of 128. With the readers shimmed to the bounded form: `get_release_blockers(next)` 190 -> 190, `count_blocks_release_sentinel` 868 -> 868, `check_blocks_release` 0 -> 0 findings. |
 | F-10 | THE SUITE BASELINE IS 2 PRE-EXISTING FAILURES, AND THEY ARE ORDER-DEPENDENT RATHER THAN BROKEN, so an executor must not read them as caused by this plan nor treat a green isolated run as proof the suite is clean. | Bare `python3 -m pytest` at HEAD `302b8cb86` with a clean tree: `2 failed, 4374 passed, 2 skipped, 3 warnings in 350.50s`, failing `tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference` and `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`. The same two files run with `-o addopts=""`: `44 passed in 49.14s`. |
 | F-11 | THE PERMISSIVE DASH SPELLING COSTS NOTHING HERE, so E-01 can match its neighbours without a behavior change. | Region-bounded strict (`[ \t]*`) versus region-bounded permissive (`\s*`) compared across the 1415 records mentioning the field: `strict-vs-loose region-bounded diffs: 0`. |
+| F-13 | (review) THE LIVE CORPUS FIGURES HAVE ALREADY MOVED, SO NO V-ITEM MAY USE THEM AS A BAR. At review HEAD `b64d92e86`: `get_release_blockers(next)` 218 (authored 190), `count_blocks_release_sentinel` 928 (authored 868), `check_blocks_release` 0; anchored-unbounded versus region-bounded divergence is now 3 records (the `envhermet` review and the two `awmetastore` research docs), and 8 records carry a gate line outside their region (2 reviews, 3 executed plans, `7w6zsl`, 2 research). These are live populations that every gated item filed changes, so V-05 compares against a pre-change measurement taken in the SAME session, and the authored and review figures are context only (rubric G re-derivation convention). | in-process probe at review printing `blockers 218 sentinel 928 check 0` and `divergent 3` with the three paths |
 | F-12 | ONE DIVERGENT RECORD IS CAUSED BY THE MISSING `$` ANCHOR RATHER THAN BY BOUNDING, so the display read needs both fixes and a reader converted but left unanchored would still diverge. | `.aw/records/reviews/20260926-rendrop-01-2yqt0a-...review.md` contains the line `- Blocks-Release: next                  - Set: demo` (a side-by-side prose table). The unanchored read returns `'next'`; both anchored reads return `None`. It is the only record in the corpus whose gate line carries trailing content. |
 
 ## Proposed changes (ordered, validatable)
@@ -147,10 +151,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   almost certainly present in them too, but each is a different field with a different corpus exposure
   and `Graduated-To` additionally has a multi-valued grammar whose own comment warns against reusing a
   sibling's pattern. Converting seven writers in one commit would make a single revert impossible.
-  - Carrier: FILE ONE. This is a real, unmeasured defect class in declared-adjacent code, and E-07
-    establishes the mechanism that would close it, so declining would leave known-shaped work unowned.
-    The executor must file a backlog item naming the six symbols and E-07 as the pattern to follow, and
-    record its id6 in this plan's workflow history at finalize.
+  - Carrier: 7afjyu
+    Filed at review (2026-10-02) rather than left to the executor, because an unfiled carrier is a
+    deferral with no owner. MEASURED at review: records with a line matching each writer's strip
+    pattern outside the metadata region are Priority 7, Work-Kind 7, Item-Dependencies 4,
+    Graduated-To 3, From-Backlog 0, From-Spec 0, so the class is real rather than hypothetical. The
+    item is `bug` and carries `- Blocks-Release: next`, per the every-live-bug-gates rule.
 - `check_engine._read_blocks_release` AND `specs._read_blocks_release` ARE NOT CHANGED. Both are
   ALREADY metadata-bounded (the former via `selectors.metadata_region`, the latter via its own
   `_metadata_end`), and they are the behavior this plan converges the other readers ONTO. Changing them
@@ -194,7 +200,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 Validation is the new `tests/test_blocks_release_reader_bounding.py` driving the real CLI and the real
 functions on fixture repositories, plus the BARE suite. Every claim must be evidenced with pasted
 runner output. Two properties must hold beyond "the new tests pass": the corpus answers must be
-UNCHANGED (F-09's 190/868/0), and the readers must still return a real value for a legitimately gated
+UNCHANGED against a same-session pre-change measurement (V-05; F-09 and F-13 figures are context only), and the readers must still return a real value for a legitimately gated
 record, so that no assertion is satisfiable by a reader that answers `None` unconditionally.
 
 ## Spec / documentation sync
@@ -263,7 +269,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste, run against THIS repository, `releases.get_release_blockers(root,'next')` length, `releases.count_blocks_release_sentinel(root)`, and `len(releases.check_blocks_release(root))`, showing `190`, `868` and `0`: unchanged from the pre-fix figures in F-09. Then paste `check_blocks_release` on a fixture containing a record whose only gate bullet is a prose quotation of a nonexistent release id6, showing NO `check.blocks-release-dangling` finding, where the unbounded reader would have raised one.
+  - Required evidence: paste, run against THIS repository BOTH before the E-01..E-07 edits and after them in the same session (the before-measure taken from the pre-change tree or a `git worktree` of the base commit; never `git stash` in a shared checkout), `releases.get_release_blockers(root,'next')` length, `releases.count_blocks_release_sentinel(root)`, and `len(releases.check_blocks_release(root))`. The bar is that each AFTER value equals its BEFORE value, OR that any difference is fully accounted for by named records whose only gate line is outside their metadata region (list them). F-09's `190/868/0` and F-13's `218/928/0` are context, not the bar (F-13). Then paste `check_blocks_release` on a fixture containing a record whose only gate bullet is a prose quotation of a nonexistent release id6, showing NO `check.blocks-release-dangling` finding, where the unbounded reader would have raised one.
   - Observed evidence:
   - Result: pending
 
@@ -273,12 +279,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: paste a unified diff of `releases.set_blocks_release_line` applied to the real tracked record named in E-07, showing exactly ONE line added to front matter and ZERO lines removed from the body, beside the pre-fix diff from F-07 showing `LINES LOST: 1`. Then paste the idempotence check (applying it twice yields the identical text) and the `-`/`None` removal case still removing the FRONT-MATTER line only.
+  - Required evidence: paste a unified diff of `releases.set_blocks_release_line(text, "next")` applied to the real tracked record named in E-07 (read in-process; the file is NOT rewritten), showing ZERO body lines changed (the expected diff is empty because the record already carries that front-matter gate), beside the pre-fix diff re-derived at execution showing the body quote removed. Then the same on a fixture copy with the front-matter gate line deleted, showing exactly ONE line added to front matter and zero body lines changed. Then paste the idempotence check (applying it twice yields the identical text) and the `-`/`None` removal case still removing the FRONT-MATTER line only.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-08 validates E-08
-  - Required evidence: paste the BARE `python3 -m pytest` summary line and compare it to F-10's baseline (`2 failed, 4374 passed, 2 skipped`); the two named pre-existing failures may persist but the pass count must rise by the new tests and NO new failure may appear. Paste the new file's own run. Paste, for at least items (b), (c) and (d) of E-08, the output of reverting the corresponding production change and re-running, showing the assertion FAILS, so the tests are proven load-bearing rather than vacuous. Paste the CHANGELOG diff and confirm it contains no em or en dash.
+  - Required evidence: paste the BARE `python3 -m pytest` summary line AND its `FAILED` name list, next to a pre-change bare run taken in the SAME session, and compare the failure sets BY NAME: no failure name may appear that was absent before (F-10's two names are context; the suite's failure set is order-dependent, so a count is informational and not the bar). Paste the new file's own run. Paste, for at least items (b), (c) and (d) of E-08, the output of reverting the corresponding production change and re-running, showing the assertion FAILS, so the tests are proven load-bearing rather than vacuous. Paste the CHANGELOG diff and confirm it contains no em or en dash.
   - Observed evidence:
   - Result: pending
 
@@ -301,25 +307,35 @@ tracked records exposed. The plan also adopts plan `4gwgo3`'s F-03, which that p
 filing carriers for its two siblings and none for this one (F-08); it shares the identical root cause.
 Risk is low and measured rather than asserted: across 2949 records only 4 change answer, all of them
 prose that QUOTES a gate bullet, and the three corpus-level aggregates (`get_release_blockers` 190,
-sentinel 868, `check_blocks_release` 0) are unchanged under a shimmed bounded reader (F-09). One
+sentinel 868, `check_blocks_release` 0 at authoring; 218/928/0 at review, F-13) are unchanged under a shimmed bounded reader (F-09). One
 subtlety an approver should not skip: one divergent record is caused by a MISSING `$` ANCHOR rather
 than by bounding (F-12), so E-02 must fix both or that record still diverges.
 
-EXECUTION CONTRACT. Commit only the eight declared paths, through
-`aw commit <plan> -- <paths>`; never `git add -A`, `git add .`, `git commit -a`, or `--no-verify`, and
+EXECUTION CONTRACT. Commit only the eight declared paths plus this plan, through
+`aw commit b92m14 -- <paths>`; never `git add -A`, `git add .`, `git commit -a`, or `--no-verify`, and
 never push. This is a SHARED CHECKOUT: before committing, verify the staged set with
 `git diff --cached --name-only`, unstage anything you did not change with `git restore --staged <path>`,
 and re-verify after any failed raw commit attempt. Paste ACTUAL runner output for every test claim; a
 summary written from memory violates the execution contract. Run the suite BARE (`python3 -m pytest`),
 with no added flags: do not pass `-n0`, a second `-q`, or `-p no:randomly`. Expect F-10's two
 pre-existing failures and do not "fix" them here; they are out of scope and order-dependent. Do not
-weaken any E-item or V-item to make it pass, and do not widen scope to the six sibling line writers
-(file the carrier backlog item the Deferred section requires instead) or to `backlog.py`/`specs.py`.
+weaken any E-item or V-item to make it pass.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). The eight
+paths in `- Scope-Paths:` are the fence. The six sibling line writers are owned by carrier `7afjyu`, and
+`backlog.py`, `specs.py`, `production_checks.py` and `runner_shared.py` are out of scope for the reasons
+under Deferred and Scope check. If an out-of-scope edit turns out to be necessary, make it and then
+justify it to `aw ipd finalize` with `--scope-reason`. A declared path left unmodified needs
+`--scope-ack`. Neither case is a reason to stop.
 
 POST-GATE LIFECYCLE. Execution requires human approval first (`- Status:` must reach `approved`); this
 plan deliberately carries NO `- Readiness:` field, because that is `/plan-review`'s attestation to
-write and not the author's. Run `aw ipd begin` before implementing and `aw ipd finalize` after, so the
-lifecycle records the transition; do not hand-move the file to `.aw/records/plans/executed/`. Do not
+write and not the author's. Run `aw ipd begin` before implementing. Do not hand-move the file to `.aw/records/plans/executed/`.
+When this plan runs in a runner lane (`aw oc run` / `aw agy run`), the runner owns the terminal
+transition. When it is executed by hand, the executor performs it with
+`aw ipd finalize b92m14 --actor <agent/model> --message <summary> --apply`. Do not
 claim completion until `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted
 evidence. The backlog item `5e533q` stays `graduated` rather than `done` until this plan is executed,
-since it carries `- Blocks-Release: next` and this plan is its gate carrier.
+since it carries `- Blocks-Release: next` and this plan is its gate carrier. Once this plan is executed,
+close it via the HANDOFF rule (`aw backlog set done 5e533q`), which passes because this plan carries
+`- From-Backlog: 5e533q` and the same gate.
