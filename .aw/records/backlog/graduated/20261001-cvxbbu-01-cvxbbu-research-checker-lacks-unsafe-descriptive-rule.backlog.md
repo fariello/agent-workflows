@@ -1,5 +1,6 @@
 - Id: cvxbbu
-- Status: open
+- Status: graduated
+- Graduated-To: cvxbbu
 - Blocks-Release: next
 - Set: cvxbbu
 - Priority: medium
@@ -7,6 +8,7 @@
 - Summary: The research tree has no checker rule for an unsafe descriptive front-matter field, so a hand-edited or legacy over-bound or ANSI-bearing summary passes aw check research and reaches a terminal raw; three committed summaries already exceed the 300-char bound
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: xnogdl
 - 2026-10-01 created (aw backlog): The research tree has no checker rule for an unsafe descriptive front-matter field, so a hand-edited or legacy over-bound or ANSI-bearing summary passes aw check research and reaches a terminal raw; three committed summaries already exceed the 300-char bound
 
 FILED AS THE CARRIER for the checker-half row in plan `deftzy` (Set `7w6zsl`), which closes the research WRITE paths only. This is the research-tree twin of `ynhst5`, which does the same for specs and releases.
