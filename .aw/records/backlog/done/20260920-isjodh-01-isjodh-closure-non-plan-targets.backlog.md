@@ -1,5 +1,5 @@
 - Id: isjodh
-- Status: graduated
+- Status: done
 - Graduated-To: isjodh
 - Set: isjodh
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Admit a non-plan dependency target (spec/backlog) into --with-dependencies, which currently refuses it
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD yu47nf executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-isjodh-01-yu47nf-admit-a-non-plan-dependency-target-into-the-with-dependencie.ipd.md); evidence .aw/records/plans/executed/20260929-isjodh-01-yu47nf-admit-a-non-plan-dependency-target-into-the-with-dependencie.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235941Z-1396311: yu47nf
 - 2026-09-20 created (aw backlog): Admit a non-plan dependency target (spec/backlog) into --with-dependencies, which currently refuses it
 
