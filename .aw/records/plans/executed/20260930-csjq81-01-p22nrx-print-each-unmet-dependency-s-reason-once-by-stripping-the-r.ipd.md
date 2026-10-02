@@ -6,7 +6,7 @@
 - Scope: IN: (a) ONE shared, pure de-duplication helper in `run_selection_policy` that removes a reason's leading self-reference to its own token, to that token's CANONICAL rewrite (the third spelling review measured as missing, F-11), or to that token's bare target id6, and is a no-op otherwise; (b) its application at the FIVE render sites that compose token-plus-reason (`render_stream.render_run_summary_table`'s diagnostics block, `runner_shared.write_report`'s `## Dependency blocks (why)` section, `runner_shared.render_transient_dependency_waits`' per-dependency lines AND that function's `Why this is not terminal:` line, and `run_selection_policy.derive_item_disposition`'s `unmet:` clause); (c) behavioral tests over every reason SHAPE the three live producers emit, including the declared-bare-id6 shape. OUT: changing any reason string a producer WRITES (so the durable `events.jsonl` `reasons` map stays byte-identical and `derive_item_disposition`'s substring-matched code selector keeps its input), changing any disposition CODE or gloss (spec `25kzda` 5.4 owns those names), and the two adjacent defects `8mohre` (in-queue edge mislabelled `external`, owned by plan `zhqt51`, still pending) and the missing recovery hint (plan `8eei5p`, which has since EXECUTED; F-12).
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/render_stream.py, agent_workflows/runner_shared.py, tests/test_dependency_block_reporting.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: p22nrx
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: p22nrx verified (set csjq81, attempt 1).
 - 2026-10-01 approved (aw set): status set to approved
 - 2026-10-01 reviewed (aw set): /plan-review complete: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH), PR-002 (MEDIUM), PR-003 (MEDIUM), PR-004 (LOW), all FIXED. Findings and three decision rows in .aw/records/reviews/20260930-csjq81-01-p22nrx-print-each-unmet-dependency-s-reason-once-by-stripping-the-r.review.md.
 
