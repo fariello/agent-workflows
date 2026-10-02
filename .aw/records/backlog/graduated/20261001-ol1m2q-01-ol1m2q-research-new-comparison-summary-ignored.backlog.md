@@ -1,5 +1,6 @@
 - Id: ol1m2q
-- Status: open
+- Status: graduated
+- Graduated-To: ol1m2q
 - Blocks-Release: next
 - Set: ol1m2q
 - Priority: low
@@ -7,6 +8,7 @@
 - Summary: aw research new-comparison silently ignores --summary: plan_new_comparison passes a fixed per-file string to _mk so the user value is never written, and the flag is documented as a one-line human summary
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: wjvn8a
 - 2026-10-01 created (aw backlog): aw research new-comparison silently ignores --summary: plan_new_comparison passes a fixed per-file string to _mk so the user value is never written, and the flag is documented as a one-line human summary
 
 FILED WHILE AUTHORING plan `deftzy` (Set `7w6zsl`), which GUARDS this parameter without making it live.
