@@ -1,11 +1,13 @@
 - Id: hc6n7r
-- Status: open
+- Status: graduated
+- Graduated-To: carriergate
 - Set: denypush
 - Priority: low
 - Work-Kind: followup
 - Summary: Decide whether a carried non-blocking open question should gate its plan dispatch, and if so wire the Carrier field to an enforced dependency edge (29 open carried questions across 23 pending plans, zero edge-backed)
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: rpw4sb
 - 2026-10-01 created (aw backlog): Decide whether a carried non-blocking open question should gate its plan dispatch, and if so wire the Carrier field to an enforced dependency edge (29 open carried questions across 23 pending plans, zero edge-backed)
 
 THE MEASURED GAP. A plan records a maintainer decision it cannot answer by writing `- Carrier: <id6>` on the open question, naming the backlog item that durably holds the decision. That field is DOCUMENTATION ONLY: nothing makes the plan wait for the decision. Measured 2026-10-01 over every pending and reusable plan by parsing each with `ipd_lint.parse` and comparing each open-and-carried question against the plan own `Item-Dependencies` text: 29 open questions across 23 plans carry a Carrier, and ZERO are backed by a `state:backlog:done:<carrier>` edge. The population is LIVE and grows as plans are authored, so re-derive the number rather than trusting this one.
