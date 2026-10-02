@@ -420,3 +420,170 @@ class WorkGateSeverityTest(unittest.TestCase):
 
         lease_file = self.root / ".aw" / "state" / "work" / "bad001" / "work-lease.json"
         self.assertFalse(lease_file.exists(), "Lease file must not exist on refusal")
+
+    # ----------------------------------------------------------------------------------
+    # Advisory heading and per-finding severity reporting (IPD majlt4)
+    # ----------------------------------------------------------------------------------
+
+    def test_commit_scope_drift_reports_error_severity_per_line_and_no_warning_literal(
+        self,
+    ):
+        """IPD majlt4 E-03: aw commit on error-registered advisory finding reports error per-line.
+
+        Probe detail deliberately avoids tier words (error, warning, info) so assertions
+        cannot pass vacuously (PR-103). Assertions verify the tier appears on the finding's
+        own line and the literal '(warning)' is absent from the output.
+        """
+        (self.root / "src" / "f.py").write_text(
+            "print('modified scope')\n", encoding="utf-8"
+        )
+        drift = artifact_core.Drift(
+            str(self.plan_path),
+            "check.scope-drift",
+            "probe scope drift detail without tier words",
+        )
+        with mock.patch.object(check_engine, "check_type", return_value=[drift]):
+            rc, out = self._run(
+                [
+                    "commit",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "-m",
+                    "update f with scope drift",
+                    "--",
+                    "src/f.py",
+                ]
+            )
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("advisory", out)
+        self.assertNotIn(
+            "(warning)", out, "Advisory heading must not contain '(warning)' literal"
+        )
+        finding_lines = [
+            line for line in out.splitlines() if "check.scope-drift" in line
+        ]
+        self.assertEqual(
+            len(finding_lines),
+            1,
+            f"Expected exactly 1 line for check.scope-drift, got: {finding_lines}",
+        )
+        self.assertIn(
+            "error",
+            finding_lines[0],
+            f"Finding line for check.scope-drift must carry registered severity 'error', got line: {finding_lines[0]!r}",
+        )
+        # Verify commit succeeded
+        show = subprocess.check_output(
+            ["git", "show", "--stat", "HEAD"], cwd=self.root, text=True
+        )
+        self.assertIn("src/f.py", show)
+
+    def test_work_begin_scope_drift_reports_error_severity_per_line_and_no_warning_literal(
+        self,
+    ):
+        """IPD majlt4 E-03: aw work begin on error-registered advisory finding reports error per-line.
+
+        Probe detail deliberately avoids tier words (error, warning, info) so assertions
+        cannot pass vacuously (PR-103). Assertions verify the tier appears on the finding's
+        own line and the literal '(warning)' is absent from the output.
+        """
+        drift = artifact_core.Drift(
+            str(self.plan_path),
+            "check.scope-drift",
+            "probe scope drift detail without tier words",
+        )
+        with mock.patch.object(check_engine, "check_type", return_value=[drift]):
+            rc, out = self._run(["work", "begin", "wk0001", "--dir", str(self.root)])
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("allocated worktree", out)
+        self.assertIn("advisory", out)
+        finding_lines = [
+            line for line in out.splitlines() if "check.scope-drift" in line
+        ]
+        self.assertEqual(
+            len(finding_lines),
+            1,
+            f"Expected exactly 1 line for check.scope-drift, got: {finding_lines}",
+        )
+        self.assertIn(
+            "error",
+            finding_lines[0],
+            f"Finding line for check.scope-drift must carry registered severity 'error', got line: {finding_lines[0]!r}",
+        )
+        self.assertNotIn(
+            "(warning)", out, "Advisory heading must not contain '(warning)' literal"
+        )
+        lease_file = self.root / ".aw" / "state" / "work" / "wk0001" / "work-lease.json"
+        self.assertTrue(lease_file.is_file(), "Lease file must exist after allocation")
+
+    def test_commit_mixed_advisory_reports_distinct_per_line_severities(self):
+        """IPD majlt4 E-03: mixed advisory batch reports distinct per-line severities.
+
+        Two advisory findings of different registered severities (check.scope-drift: error,
+        check.review-decision-unescalated: warning) must each render their own tier on their
+        own line, and the heading must not assert a single batch-level parenthetical.
+        Probe details deliberately avoid tier words (error, warning, info) (PR-103).
+        """
+        (self.root / "src" / "f.py").write_text(
+            "print('modified mixed')\n", encoding="utf-8"
+        )
+        drifts = [
+            artifact_core.Drift(
+                str(self.plan_path),
+                "check.scope-drift",
+                "probe scope drift detail without tier words",
+            ),
+            artifact_core.Drift(
+                str(self.plan_path),
+                "check.review-decision-unescalated",
+                "probe unescalated detail without tier words",
+            ),
+        ]
+        with mock.patch.object(check_engine, "check_type", return_value=drifts):
+            rc, out = self._run(
+                [
+                    "commit",
+                    "wk0001",
+                    "--dir",
+                    str(self.root),
+                    "-m",
+                    "update f mixed advisory",
+                    "--",
+                    "src/f.py",
+                ]
+            )
+        self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+        self.assertIn("advisory", out)
+        self.assertIn("2 advisory finding(s)", out)
+        heading_line = next(
+            line for line in out.splitlines() if "advisory finding(s)" in line
+        )
+        self.assertNotIn(
+            "(warning)",
+            heading_line,
+            "Heading must not contain hardcoded '(warning)'",
+        )
+        drift_line = next(
+            line for line in out.splitlines() if "check.scope-drift" in line
+        )
+        unescalated_line = next(
+            line
+            for line in out.splitlines()
+            if "check.review-decision-unescalated" in line
+        )
+        self.assertIn(
+            "error",
+            drift_line,
+            f"Finding line for check.scope-drift must carry 'error': {drift_line!r}",
+        )
+        self.assertIn(
+            "warning",
+            unescalated_line,
+            f"Finding line for check.review-decision-unescalated must carry 'warning': {unescalated_line!r}",
+        )
+        # Verify commit succeeded
+        show = subprocess.check_output(
+            ["git", "show", "--stat", "HEAD"], cwd=self.root, text=True
+        )
+        self.assertIn("src/f.py", show)

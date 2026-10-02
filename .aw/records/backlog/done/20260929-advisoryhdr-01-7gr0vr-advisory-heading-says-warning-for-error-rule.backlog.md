@@ -1,5 +1,5 @@
 - Id: 7gr0vr
-- Status: graduated
+- Status: done
 - Graduated-To: advisoryhdr
 - Set: advisoryhdr
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw commit/work begin advisory heading says '(warning)' for an error-registered rule
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw agy run: IPD majlt4 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-advisoryhdr-01-majlt4-stop-the-commit-and-work-begin-advisory-heading-hardcoding-w.ipd.md); evidence .aw/records/plans/executed/20260930-advisoryhdr-01-majlt4-stop-the-commit-and-work-begin-advisory-heading-hardcoding-w.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: majlt4
 - 2026-09-29 created (aw backlog): aw commit/work begin advisory heading says '(warning)' for an error-registered rule
 
