@@ -1,5 +1,6 @@
 - Id: lq2w86
-- Status: open
+- Status: graduated
+- Graduated-To: lq2w86
 - Blocks-Release: next
 - Set: lq2w86
 - Priority: low
@@ -7,4 +8,5 @@
 - Summary: Fix date timezone parity between backlog run_set and status_set across UTC midnight
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: rfyrvp
 - 2026-09-30 created (aw backlog): Fix date timezone parity between backlog run_set and status_set across UTC midnight
