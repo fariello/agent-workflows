@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: `cli.main` carries a live dispatch arm routing `prompt_cmd == "set"` to `status_set.run_set_command(..., scoped_type="prompts")`, and the `prompts` family description advertises that `'set' transitions a staged prompt's status`, but `prompts_sub` registers only `new`, so `aw prompts set <status> <sel>` dies in argparse with `invalid choice: 'set' (choose from 'new')` and the arm is unreachable. The surface is simultaneously DECLARED: `command_surface.COMMAND_INVENTORY` carries a full `CommandDeclaration(command="prompts set", ...)`, so `get_declared_leaves()` reports it as one of 162 declared leaves while `conformance_matrix.build_matrix` reports it in `declared_absent` and SKIPS every coverage row for it. Registering the subparser is not a one-line fix, because the shared setter's prompts vocabulary is WRONG in a way the untyped spelling already exposes: `status_set.TYPE_STATUSES["prompts"]` is a verbatim copy of the plans vocabulary (11 tokens including `draft`, `to-review`, `reviewed`, `approved`, `auto-approved`), while the prompts tree has exactly FIVE buckets, so six of those eleven tokens resolve to the `pending` bucket and write a `- Status:` the tree has no directory for.
 - Scope: IN: (1) register a `set` subparser on the `prompts` family so the shipped dispatch arm and the shipped `CommandDeclaration` both become reachable, with the flag surface the declaration already names; (2) narrow `status_set.TYPE_STATUSES["prompts"]` from the copied plans vocabulary to the five real buckets DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` (never re-listed), keeping `done` as the existing `executed` alias that `normalize_target_status` already implements; (3) make the setter write a prompt's status into its single leading `<!-- aw-prompt: ... -->` metadata comment instead of prepending a `- Status:` bullet, because the bullet is a measured corruption of a pasteable prompt and a measured `aw check prompts` error. OUT: the plan does NOT register any other missing prompts verb (`aw prompts check` is retired by maintainer decision, see Deferred), does NOT touch the untyped `aw set`'s own grammar, does NOT change which prompts a selector MATCHES, does NOT touch any other tree's vocabulary, and does NOT alter the five bucket names or the `attention_contract` class mapping.
-- Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/prompts.py, agent_workflows/command_surface.py, tests/test_status_set.py, tests/test_exit_contract_conformance.py, tests/test_prompts_set_surface.py, docs/artifact-lifecycles.md, .aw/records/backlog/open/20261001-setdispgate-01-68sur3-prompts-set-dispatched-but-unregistered.backlog.md
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/prompts.py, agent_workflows/command_surface.py, tests/test_status_set.py, tests/test_exit_contract_conformance.py, tests/test_prompts_set_surface.py, tests/test_status_set_descriptive_safety.py, docs/artifact-lifecycles.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: um8ikz
@@ -18,6 +19,7 @@
 - Id: 7z3ovv
 
 ## Workflow history
+- 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Re-verified at lane HEAD 83888bf53 (F-01..F-04, F-11 reproduce). Fixed: 68sur3 already graduated to gm9baj so E-07 no longer edits it and coordinates with gm9baj's allow-set (PR-001); in-process narrowing measured 4 failed existing prompt tests, now re-targeted in E-06 with tests/test_status_set_descriptive_safety.py added to scope (PR-002); live-count bars replaced by re-derived baseline and per-leaf scenario rows (PR-003); shared commit flags on the new leaf (PR-004); path-scoped negative-control stash (PR-005); scope fence + conditional finalize (PR-006); OQ owners (PR-007).
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `um8ikz`, graduating it. Every claim in Findings was MEASURED in this lane at HEAD `ccd7ee3b8`, by driving the real CLI and by calling the real functions, not read off the source. THE ITEM'S DIAGNOSIS IS CORRECT and its framing of the blocker is correct in KIND but understated in SEVERITY, and three facts were found that the item does not state and that change the shape of the fix. FIRST, the item frames the vocabulary question as needing a maintainer DECISION ("simply registering the subparser would expose a vocabulary question rather than settle it"). It does not: the repository already answers it mechanically, because `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` and `attention_contract._PROMPTS_MAP` independently agree on the SAME five tokens, and the `specs` and `backlog` entries of the very same `TYPE_STATUSES` table are already DERIVED from their lifecycle dirs with in-code comments saying never to re-list them. The prompts entry is the outlier that was copy-pasted from plans. So the fix is to apply an established pattern, not to invent a vocabulary. SECOND, and this is the finding that matters most: the setter does not merely accept a wrong status, it CORRUPTS THE PROMPT. Measured end to end, `aw set executed <prompt-id6>` prepends a literal `- Status: executed` bullet, which for a prompt is visible text above the prompt body, breaking the select-all-and-paste property the whole tree exists for; on a prompt with a body it lands INSIDE the body, between the H1 and the first paragraph. The same write leaves the metadata comment's own `Status:` field untouched, so the two disagree, which `aw check prompts` then reports as `check.prompt-status-mismatch`. The item does not mention the metadata comment at all. THIRD, this is also a MISSING-COVERAGE defect and not only a dead-code defect: `conformance_matrix.build_matrix` reports `declared_absent: ['prompts set', 'upgrade-test']` and every required scenario row for the leaf is silently dropped, while `test_exit_contract_conformance.test_help_floor_gate` names `prompts set` in its own docstring as the one of thirteen `--help` divergences that is NOT an argparse.REMAINDER forwarder, a note that only makes sense because the leaf is dead. So the registration restores real conformance coverage rather than just removing an eyesore. The two measured writer defects are closed HERE rather than filed, because they are only reachable through the surface this plan makes reachable, and shipping a newly-reachable verb that corrupts its own artifact would be worse than leaving it dead.
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
@@ -54,6 +56,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `pending -> to-review` for prompts today, and `to-review` is NOT a prompt bucket, so that alias must be
   re-pointed or removed rather than carried: decide it in OQ-01 and implement the decision here. The
   validation for this item must drive the token either way, so whichever OQ-01 resolves to is pinned.
+  RECORD THE BASELINE FIRST: before any edit, run the bare suite (`python3 -m pytest`) once and record
+  its summary line and failed-node set as `<baseline>`; later gates compare against it, not against
+  "zero failures", because unrelated load-sensitive nodes (backlog `wc5c5e`) may fail at HEAD.
+  NARROWING BREAKS FOUR EXISTING TESTS, MEASURED AT REVIEW, and they must be re-pointed in E-06 rather
+  than the narrowing being weakened. Applying exactly this narrowing in-process and running
+  `tests/test_status_set.py tests/test_status_set_descriptive_safety.py` gave `4 failed, 104 passed`:
+  `test_status_set.py::TestStatusSetCommands::test_prompt_set` (sets a prompt `approved`),
+  `::TestStatusSetCommands::test_set_multiple_mixed_types` (sets a plan, spec AND prompt `reviewed` in one
+  call; refused `Status 'reviewed' is not valid for prompts (valid: ['done', 'executed', 'not-executed',
+  'pending', 'reusable', 'superseded'])`), `::TerminalReopenRefusalTests::test_a_non_plan_artifact_transition_is_unaffected`
+  (sets a prompt `draft`), and `test_status_set_descriptive_safety.py::TestLengthAsymmetryAndNonRegressions::test_conforming_transitions_across_five_trees`
+  (sets a prompt `to-review`). Each pins the DEFECT this item fixes (a non-bucket status accepted for a
+  prompt), so the refusal is the intended behavior change and not a regression.
   - Depends on: none
   - Expected outcome: `sorted(status_set.TYPE_STATUSES["prompts"])` is the five bucket names plus the
     retained alias(es) and nothing else; `aw set prompts draft <id6>` REFUSES with the existing
@@ -101,6 +116,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   `exit_contract=(0, 1, 2)`. `--json`/`--agent` arrive via the shared `common` parent every other leaf
   uses. The positional is `args` with `nargs="+"` taking `<status> <selector...>`, matching `p_ipd_set`,
   which is the closest shipped sibling reaching the same engine with a `scoped_type`.
+  ALSO REGISTER THE SHARED COMMIT FLAGS with `cli._add_commit_flags(p_prompts_set)`, as `p_ipd_set`
+  does: `status_set._offer_self_commit` reads `args.commit`/`args.no_commit`, and without them a TTY run
+  can only commit by prompt and a non-interactive run can never commit (`_add_commit_flags` docstring).
+  Add `--commit`/`--no-commit` to the declaration's `legacy_flags` alongside `--dir`/`--yes`.
   ALSO ADD `--dir` AND `--yes`, AND SAY WHY IN THE PLAN: every other surface reaching
   `run_set_command` declares `--dir` (the engine resolves a repo root from it) and `--yes` (the
   confirmation gate reads it), and a leaf that honors a flag it does not declare is the `SHOULD` C5 of
@@ -165,8 +184,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     by finding a `- Status:` bullet) and pass after.
   - Execution state: pending
 
-- [ ] E-06 Re-point the two existing tests whose recorded premise this plan falsifies, so the suite does
-  not keep asserting that the verb is dead.
+- [ ] E-06 Re-point the existing tests whose recorded premise this plan falsifies: the two that assert
+  the verb is dead, and the four (E-01) that drive a prompt to a status the narrowed vocabulary refuses.
+  FOR THE FOUR VOCABULARY TESTS, change only the PROMPT member's target to a real bucket while keeping
+  each test's assertion about what it actually pins: `test_prompt_set` -> a bucket such as `executed`
+  (and assert the status lands in the metadata comment or, for the commentless bullet fixture, per the
+  OQ-02 posture E-02 implements); `test_set_multiple_mixed_types` -> keep the plan and spec at `reviewed`
+  and drop or re-target the prompt member, since one token cannot be valid for all three trees now, and
+  ADD the refusal as an explicit assertion that a mixed batch carrying a prompt at `reviewed` is refused
+  BEFORE making changes (the measured `Refusing before making changes.`); `test_a_non_plan_artifact_transition_is_unaffected`
+  -> move the prompt `executed -> pending` instead of `-> draft`, which still proves the plan terminal
+  guard does not leak onto prompts; `test_conforming_transitions_across_five_trees` -> a real bucket in
+  place of `to-review`. Do NOT widen the vocabulary to keep any of them green.
   `tests/test_status_set.py::test_a_non_plan_artifact_transition_is_unaffected` carries the docstring
   "Driven through the UNTYPED `aw set other` spelling because `aw prompts set` is not a live parser
   surface (`aw prompts` accepts only `new`)". Its ASSERTION is about the plan terminal guard not leaking
@@ -186,31 +215,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   does not "fix" the fixture and silently delete that coverage.
   - Depends on: E-05
   - Expected outcome: both docstrings state what is now true with a pasted measurement; the plan-guard
-    assertion is unchanged and now runs on both spellings; no gate is weakened.
+    assertion still holds and now runs on both spellings; the four vocabulary tests target real buckets
+    and `test_set_multiple_mixed_types` additionally asserts the refusal; no gate is weakened.
   - Execution state: pending
 
-- [ ] E-07 Resolve the duplicate backlog item `68sur3` onto this plan, and run the whole-repository
+- [ ] E-07 Confirm the duplicate backlog item `68sur3` is ALREADY carried, and run the whole-repository
   validation gate.
-  `68sur3` FILES THE SAME DEFECT AS `um8ikz` (F-12). It is `open` with `- Blocks-Release: next` and
-  `- Work-Kind: bug`, and both spec `wy9aru`'s carrier table and pending plan `63zo2f`'s deferred section
-  name it as this work's carrier. Executing this plan without resolving it leaves a live release-gated
-  blocker describing work that already shipped, which is exactly the dangling-gate state
-  `check.orphaned-live-blocker` exists to surface.
-  GRADUATE IT, DO NOT CLOSE IT BY HAND AND DO NOT CLEAR ITS GATE. Set it `graduated` with
-  `aw backlog set graduated 68sur3 --message` citing this plan's id6, so the HANDOFF route applies and the
-  gate is provably preserved: this plan already carries `- Blocks-Release: next`, so once it is `executed`
-  the standard carrier rule can close the item legitimately. `aw backlog set done 68sur3` would FAIL CLOSED
-  anyway (`check_engine.evaluate_blocking_close`), and `--blocks-release -` would silently drop a real
-  release gate.
+  `68sur3` FILES THE SAME DEFECT AS `um8ikz` (F-12). RE-MEASURED AT REVIEW (HEAD `83888bf53`): it is NO
+  LONGER `open`. It sits in `.aw/records/backlog/graduated/` with history `2026-10-02 graduated (aw
+  backlog): graduated by run run-20261001T221821Z-1985969: gm9baj`, `- Graduated-To: declabsent`, and an
+  unchanged `- Blocks-Release: next`; its carrier is pending plan `gm9baj` (`- From-Backlog: 68sur3`),
+  which restores the declared-but-absent leaf gate and deliberately leaves the registration to THIS plan.
+  So there is NOTHING to graduate here, and this plan must NOT edit `68sur3` at all (no
+  `aw backlog set`, no added `From-Backlog`, no gate change): re-graduating it would be a no-op at best,
+  and pointing it at `7z3ovv` would sever `gm9baj`'s HANDOFF carrier. `aw backlog set done 68sur3` would
+  FAIL CLOSED (`check_engine.evaluate_blocking_close`) while `gm9baj` is unexecuted, and
+  `--blocks-release -` would silently drop a real release gate; neither is this plan's act.
+  COORDINATE WITH `gm9baj` ON ONE POINT. `gm9baj` E-02 seeds an allow-set of declared-but-unreachable
+  commands with EXACTLY `prompts set` and asserts SET EQUALITY, and its failure message tells "whichever
+  plan executes second" to delete the stale entry. If `gm9baj` has ALREADY executed when this plan runs,
+  E-03 makes that entry stale and the gate goes red in this plan's full-suite run: DELETE the
+  `prompts set` entry from that allow-set (it lives in `tests/conformance_matrix.py` and/or
+  `tests/test_command_surface_declarations.py` per `gm9baj`), justify the out-of-declared-scope path at
+  finalize with `--scope-reason`, and report it. If `gm9baj` has NOT executed, do nothing; its own
+  executor removes the entry.
   THEN RUN THE REPOSITORY-WIDE GATE, which is this plan's last action and not a formality: the bare full
   suite, `aw check all`, and a staged-path inspection. Run the suite BARE (`python3 -m pytest`): `addopts`
   already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, so adding `-n0` makes
   it several times slower and adding `-q` suppresses the very summary line the execution contract requires
   you to paste.
   - Depends on: E-06
-  - Expected outcome: `68sur3` sits in `.aw/records/backlog/graduated/` carrying its unchanged
-    `- Blocks-Release: next` and a history record naming `7z3ovv`; the bare suite reports zero failures;
-    `aw check all` reports no new findings.
+  - Expected outcome: `68sur3` is byte-unchanged by this plan (still `graduated` to `gm9baj`, still
+    `- Blocks-Release: next`); the bare suite reports no failure absent from the pre-edit baseline recorded
+    in E-01; `aw check all` reports no new findings.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -261,7 +298,7 @@ the real functions. Probe artifacts were created and removed; `git status --porc
 | F-09 | **SELECTOR RESOLUTION STILL WORKS DESPITE F-08**, so the fix is confined to the status read/write and does not need to touch matching. This bounds the blast radius. | `match_selector('ng0ga4', inventory_all_artifacts(scoped_type='prompts'), Path('.'), scoped_type='prompts')` returns exactly one record, the right file, even though its `id6` field is `None`: the filename slot carries the id6. This is consistent with plan `3b01h9`, which fixed the id6 DISPLAY and `--id`/`--set` FILTERS in `aw find` and explicitly "changes nothing about which records MATCH a selector". |
 | F-10 | THE SHIPPED FAMILY HELP ALREADY PROMISES THE VERB, so the current state is a user-facing falsehood and not merely an omission. | `cli._COMMAND_DESCRIPTIONS["prompts"]` reads `"... 'new' mints a conforming staged prompt into pending/, and 'set' transitions a staged prompt's status. The prompt's lifecycle is its directory, so a transition moves the file."` Meanwhile `aw prompts --help` renders `{new}` and its own description/epilog describe only `new`, and its `OUTPUT & EXITS` block claims `Exit codes: 0 clean, 2 cannot-run/usage error`, omitting the `1` the shipped `prompts set` declaration carries. |
 | F-11 | TWO EXISTING TESTS RECORD THE DEAD SURFACE AS A PREMISE, and both need re-pointing rather than deleting. | `tests/test_status_set.py::test_a_non_plan_artifact_transition_is_unaffected` docstring: "Driven through the UNTYPED `aw set other` spelling because `aw prompts set` is not a live parser surface (`aw prompts` accepts only `new`)". `tests/test_exit_contract_conformance.py::test_help_floor_gate` docstring names `prompts set` in its 13-leaf list and says "In a real subprocess, 12 of the 13 actually exit 0 ('prompts set' is the exception, exiting 2 in subprocess too)" - true only because the leaf is dead, since it is the one entry in that list that is not an `argparse.REMAINDER` forwarder. Measured: `aw prompts set executed foo` exits 2 in a real subprocess, agreeing with that docstring today. |
-| F-12 | A SECOND BACKLOG ITEM FILES THE SAME DEFECT INDEPENDENTLY, and its analysis adds one consequence this plan should record. | `.aw/records/backlog/open/20261001-setdispgate-01-68sur3-prompts-set-dispatched-but-unregistered.backlog.md` (`open`, `Blocks-Release: next`, `Work-Kind: bug`) was filed 2026-10-01 while mapping the `set` dispatch surface for `fcnz1r`. It adds that `status_set._offer_self_commit`'s docstring enumerates `prompts set` among the surfaces one integration covers, "which an author reasonably reads as five live callers when four are live". Spec `wy9aru` E-3 and pending plan `63zo2f` both name `68sur3` as the carrier for this work; pending plan `5poaqh` independently measured the same dead surface in its own conventions section. See Deferred for the duplicate-resolution obligation. |
+| F-12 | A SECOND BACKLOG ITEM FILES THE SAME DEFECT INDEPENDENTLY, and its analysis adds one consequence this plan should record. (REVIEW UPDATE: since authoring, `68sur3` was graduated to plan `gm9baj` and moved to `.aw/records/backlog/graduated/`; see E-07.) | `.aw/records/backlog/open/20261001-setdispgate-01-68sur3-prompts-set-dispatched-but-unregistered.backlog.md` (`open`, `Blocks-Release: next`, `Work-Kind: bug`) was filed 2026-10-01 while mapping the `set` dispatch surface for `fcnz1r`. It adds that `status_set._offer_self_commit`'s docstring enumerates `prompts set` among the surfaces one integration covers, "which an author reasonably reads as five live callers when four are live". Spec `wy9aru` E-3 and pending plan `63zo2f` both name `68sur3` as the carrier for this work; pending plan `5poaqh` independently measured the same dead surface in its own conventions section. See Deferred for the duplicate-resolution obligation. |
 | F-13 | THE BASELINE IS GREEN ON EVERY MODULE THIS PLAN TOUCHES, so a failure after the change is this plan's. | `python3 -m pytest tests/test_command_surface_declarations.py tests/test_exit_contract_conformance.py tests/test_status_set.py tests/test_agent_surface_conformance.py` reported `139 passed in 13.54s` (1 deselected by the configured marker filter). `aw check prompts` on the clean tree reported `checked 2, errors 0, warnings 0, info 1` (the `info` is the standing "cross-tree collisions NOT checked by a per-type run" notice). |
 | F-14 | **A PROBE REVEALED THAT `aw set` SELF-COMMITS, which an executor must know before driving this surface by hand.** | `aw set prompts pending vocab-probe --yes` (on a TTY-less lane) printed `Committed 1 path(s): 4d34ebbfda26...` and created commit `chore(prompts): set status pending` without being asked. Recovered with `git reset --soft HEAD~1`, `git restore --staged <path>`, and deleting the probe; `git status --porcelain` empty and HEAD back at `ccd7ee3b8`. This is `status_set._offer_self_commit` behaving as designed (`offer_commit(..., on_unrelated_staged="scope")`), not a defect, and it is exactly why E-05's validation must drive fixtures in a temp repo rather than this checkout. |
 
@@ -282,21 +319,19 @@ the real functions. Probe artifacts were created and removed; `git status --porc
 5. `agent_workflows/cli.py` and `docs/artifact-lifecycles.md`: correct the family `help`/`description`/
    `epilog` to describe two verbs and the three-value exit contract, and name both spellings at the two
    doc sites, leaving the bucket table and mermaid diagram untouched. (E-04)
-6. `tests/test_prompts_set_surface.py` (new) and `tests/test_status_set.py` +
-   `tests/test_exit_contract_conformance.py` (re-pointed docstrings and one added case). (E-05, E-06)
+6. `tests/test_prompts_set_surface.py` (new), `tests/test_status_set.py` +
+   `tests/test_exit_contract_conformance.py` (re-pointed docstrings and one added case), and the four
+   vocabulary-pinning prompt tests in `tests/test_status_set.py` and
+   `tests/test_status_set_descriptive_safety.py` re-targeted to real buckets. (E-05, E-06)
 
 ## Deferred / out of scope (with reason)
 
-- **THE DUPLICATE BACKLOG ITEM `68sur3` MUST BE RESOLVED AS PART OF EXECUTION, not left dangling.** It
-  files the same defect as `um8ikz` (F-12), it is `open` with `Blocks-Release: next`, and spec `wy9aru`
-  and pending plan `63zo2f` both name it as this work's carrier. Executing this plan without closing it
-  leaves a live release-gated blocker describing work that already shipped. The close is legitimate by
-  the HANDOFF route only if the item carries `- From-Backlog: 7z3ovv`'s gate correctly, so the mechanism
-  is: set `68sur3` to `graduated` with `--message` citing this plan, then let the standard carrier rule
-  close it when this plan executes. Do NOT set it `done` by hand and do NOT clear its gate. The carrier
-  below is the duplicate item ITSELF, not a newly filed one: E-07 performs the graduation, so the
-  obligation is discharged inside this plan rather than handed onward.
-  - Carrier: 68sur3
+- **THE DUPLICATE BACKLOG ITEM `68sur3` IS ALREADY CARRIED ELSEWHERE, so this plan does not resolve it.**
+  It files the same defect as `um8ikz` (F-12) and is `graduated` with `- Blocks-Release: next` to pending
+  plan `gm9baj`, which owns the declared-but-absent leaf GATE while leaving the registration to this plan
+  (its Scope `OUT`). With both plans executed the item closes through the standard HANDOFF route on its
+  own carrier. This plan must not edit the item (E-07).
+  - Carrier: gm9baj
 - `aw prompts check` IS NOT IMPLEMENTED AND IS NOT COMING, so do not add it and do not cite its spec as
   live authority. Approved spec `20260808-1958-01-prompt-purity-lint` is now in
   `.aw/records/specs/superseded/` and backlog item `kkzgrk` records the maintainer's 2026-09-26 decision
@@ -337,10 +372,11 @@ the real functions. Probe artifacts were created and removed; `git status --porc
   (vocabulary + prompts write branch), `prompts.py` (the comment status writer), `command_surface.py`
   (the `prompts set` `legacy_flags` tuple, per E-03), `tests/test_status_set.py` (re-pointed docstring +
   added typed-spelling case), `tests/test_exit_contract_conformance.py` (re-pointed docstring census),
-  `tests/test_prompts_set_surface.py` (new), `docs/artifact-lifecycles.md` (two spelling sites), and the
-  `68sur3` backlog item (relocated by its `graduated` transition, per E-07). The backlog path is declared
-  at its CURRENT `open/` location; the transition moves it to `graduated/`, which is the tooled relocation
-  `aw backlog set` performs and not an undeclared edit.
+  `tests/test_prompts_set_surface.py` (new), `tests/test_status_set_descriptive_safety.py` (one prompt
+  fixture status re-pointed, per E-06), and `docs/artifact-lifecycles.md` (two spelling sites). The
+  `68sur3` backlog file is NOT declared: it is already graduated to `gm9baj` and this plan does not edit
+  it (E-07). The only conditional out-of-declared path is `gm9baj`'s allow-set entry (E-07), justified at
+  finalize if touched.
 - Under-scope: `check_engine.py` is NOT
   edited, so the three `check.prompt-*` rules are consumed as the oracle for E-02 rather than changed.
   `attention.py`, `attention_contract.py`, `record_placement.py` and `lifecycle_dirs.py` are NOT edited;
@@ -353,7 +389,9 @@ the real functions. Probe artifacts were created and removed; `git status --porc
   tests/test_exit_contract_conformance.py tests/test_command_surface_declarations.py
   tests/test_agent_surface_conformance.py` must pass, with the new module's cases demonstrated to FAIL on
   pre-change code (stash the production edits, run, paste the failures, restore).
-- The bare full suite (`python3 -m pytest`) must show zero failures. Do NOT add flags: `addopts` already
+- The bare full suite (`python3 -m pytest`) must show no failed node absent from the pre-edit `<baseline>`
+  recorded in E-01 (each new one either shown unrelated by a passing isolated re-run, pasted, or the item
+  fails). Do NOT add flags: `addopts` already
   supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`.
 - `aw check prompts` must report zero errors and zero warnings on the real tree after a real transition of
   a real prompt, and the transitioned prompt must be reverted afterwards (it is tracked content, not a
@@ -384,7 +422,7 @@ the real functions. Probe artifacts were created and removed; `git status --porc
 
 - Blocking: no
 - Status: resolved
-- Owner: author
+- Owner: plan author
 - Resolution or deferral rationale: RE-POINT IT, resolved from repository evidence rather than deferred.
   `normalize_target_status` maps `pending -> to-review` for `record_type in ("plans", "prompts")`, which is
   correct for plans (`pending/` is the plans DIRECTORY and `to-review` is its readiness status, so the
@@ -403,7 +441,7 @@ the real functions. Probe artifacts were created and removed; `git status --porc
 
 - Blocking: no
 - Status: resolved
-- Owner: author
+- Owner: plan author
 - Resolution or deferral rationale: NO, resolved by following the shipped precedent exactly.
   `prompts.inject_metadata_id6` returns a commentless file UNCHANGED and its docstring states why: minting
   a comment "would ADD a line above the body of a file whose purity this function exists to protect", and
@@ -449,14 +487,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-03 validates E-03
   - Required evidence: Paste `aw prompts set --help` exiting **0** and listing the declared flags
-    (`--message`, `--by-human`, `--dry-run`, `--dir`, `--yes`), contrasted with F-01's `invalid choice:
+    (`--message`, `--by-human`, `--dry-run`, `--dir`, `--yes`, `--commit`, `--no-commit`), contrasted with F-01's `invalid choice:
     'set' (choose from 'new')`. Paste `aw prompts set executed <id6> --dry-run` previewing and leaving the
     file byte-identical (show the `sha256` unchanged). Paste the output of
     `python3 -c "import sys; sys.path.insert(0,'tests'); from agent_workflows import cli; from
     conformance_matrix import build_matrix; r = build_matrix(cli._build_parser());
     print(r.undeclared, r.declared_absent, r.passing_count())"` showing `undeclared` still `[]`,
-    `declared_absent` NO LONGER containing `prompts set`, and the row count GREATER than the 1193 F-02
-    measured (the increase is the leaf's restored coverage rows). Paste `aw prompts set` with an
+    `declared_absent` NO LONGER containing `prompts set`, and `r.rows_for('prompts set')` NON-EMPTY with
+    `r.scenarios_for('prompts set')` equal to `set(conformance_matrix.required_scenarios(command_surface.get_declaration('prompts set')))`
+    (the leaf's restored coverage rows; 8 scenarios at review, context only; the 1193 total F-02 measured is
+    a live count other plans move and is NOT the bar). Paste `aw prompts set` with an
     unrecognized flag exiting 2, so the declared `exit_contract` still holds.
   - Observed evidence:
   - Result: pending
@@ -475,8 +515,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: Paste the new module's full run output with per-test names
     (`python3 -m pytest tests/test_prompts_set_surface.py -o addopts="" -v`), showing a case per defect:
     registration, vocabulary refusal with its message, comment-write with body identity, commentless
-    fallback, and dry-run byte-identity. Then paste the PRE-CHANGE failure run: revert the production
-    edits (`git stash push -- agent_workflows/`), run the same command, and paste the failures showing the
+    fallback, and dry-run byte-identity. Then paste the PRE-CHANGE failure run: revert ONLY this plan's production
+    edits (`git stash push -- agent_workflows/cli.py agent_workflows/status_set.py agent_workflows/prompts.py agent_workflows/command_surface.py`,
+    never a bare or directory-wide stash in a shared checkout), run the same command, and paste the failures showing the
     registration case raising `SystemExit(2)`/`invalid choice: 'set'`, the vocabulary case ACCEPTING
     `draft`, and the writer case finding a `- Status:` bullet. Restore and confirm `git status
     --porcelain` shows only intended paths. A test that passes both before and after proves nothing and
@@ -493,19 +534,23 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     paste the specific result for
     `test_status_set.py::...::test_a_non_plan_artifact_transition_is_unaffected` showing BOTH spellings
     exercised. Confirm in prose that no assertion was weakened or skipped to accommodate the change, and
-    that `create_prompt`'s bullet-shaped fixture was deliberately left intact per E-06.
+    that `create_prompt`'s bullet-shaped fixture was deliberately left intact per E-06. For each of the
+    four E-01 vocabulary tests, paste its diff hunk and its passing result, and paste the new mixed-batch
+    refusal assertion's passing result showing the `not valid for prompts` message.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-07 validates E-07
-  - Required evidence: Paste the `aw backlog set graduated 68sur3 --message ...` command and its output,
-    then paste the item's resulting front matter showing `- Status: graduated`, an UNCHANGED
-    `- Blocks-Release: next`, and a history record naming `7z3ovv`. Paste the BARE full-suite output
-    (`python3 -m pytest`, no added flags) including its `N passed` summary line, showing zero failures.
+  - Required evidence: Paste `git diff <pre-edit-sha> -- .aw/records/backlog/` showing NO change to
+    `68sur3`'s file, and its front matter showing `- Status: graduated`, `- Graduated-To: declabsent` and
+    `- Blocks-Release: next`. State whether `gm9baj` had executed at run time and, if so, paste the deleted
+    allow-set entry diff and its `--scope-reason`. Paste the BARE full-suite output
+    (`python3 -m pytest`, no added flags) including its `N passed` summary line beside the pre-edit
+    `<baseline>` line, showing no failed node absent from `<baseline>`.
     Paste `aw check prompts` and `aw check all` reporting no new findings, and specifically no
     `check.orphaned-live-blocker` or `check.from-backlog-gate-mismatch` naming either item. Paste
-    `git status --porcelain` showing only this plan's declared paths (plus `command_surface.py` per the
-    Scope check note) modified, and `git diff --cached --name-only` before the commit confirming nothing
+    `git status --porcelain` showing only this plan's declared paths modified (plus the conditional
+    `gm9baj` allow-set path, if E-07 touched it), and `git diff --cached --name-only` before the commit confirming nothing
     belonging to another party is staged. Paste `aw ipd lint --phase pre-transition` conforming.
   - Observed evidence:
   - Result: pending
@@ -528,8 +573,16 @@ registration is what makes the surface reachable, and the two defects it would e
 over-wide vocabulary, and a writer that corrupts the artifact and breaks its own checker) are measured, not
 hypothetical. Registering first would ship a verb that damages the files it is for.
 
-POST-GATE LIFECYCLE MOVE. After every `E-*` is `performed` and every `V-*` is `pass` with pasted evidence,
-run `aw ipd lint --phase pre-transition`, confirm it conforms, and move this plan to
-`.aw/records/plans/executed/` through the tooled transition (`aw ipd finalize`, never a hand `git mv` and
-never a hand-edited `- Status:`). Backlog item `um8ikz` is set `graduated` by the authoring runner, not by
-this execution; do not set it `done` by hand. Backlog item `68sur3` must be resolved as Deferred requires.
+SCOPE FENCE. The declared `- Scope-Paths:` are a DECLARATION so finalize can reconcile what was edited
+against what was declared, not a stop condition: if the work genuinely requires another path (for example
+`gm9baj`'s allow-set entry, E-07), make the edit and JUSTIFY it at finalize with `--scope-reason`, and
+acknowledge any declared-but-unmodified path with `--scope-ack`. DO stop and report for a genuinely unsafe
+condition: an unresolvable concurrent edit to `agent_workflows/cli.py` or `agent_workflows/status_set.py`.
+
+POST-GATE LIFECYCLE MOVE. The finalize obligation is unconditional: this plan does not reach
+`.aw/records/plans/executed/` until every `E-*` is `performed`, every `V-*` is `pass` with pasted evidence,
+and `aw ipd lint --phase pre-transition` conforms. OWNERSHIP IS CONDITIONAL: under `aw oc run` or
+`aw agy run` the RUNNER performs the finalize and the lifecycle move, so do not invoke it yourself; when
+executed by hand outside a runner, the executor performs it via `aw ipd finalize`. Never hand `git mv` and
+never hand-edit `- Status:`. Backlog item `um8ikz` is set `graduated` by the authoring runner, not by
+this execution; do not set it `done` by hand. Backlog item `68sur3` is carried by `gm9baj` and is not edited here (E-07).
