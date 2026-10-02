@@ -6,7 +6,7 @@
 - Scope: Split the one bound into two measured classes in `attention_contract` (a 300-char ONE-LINE class for `Summary`/`Gate-Summary`/`Title`/evidence fields, unchanged; a new prose class for the multi-sentence `- Scope:`/`- Concern:`/`- Question:` fields), repoint the two `specs.validate_spec` prose judgements at the prose bound, close the write-path hole in `specs.run_new` that let the red spec be authored, and add the hostile-string tests. EXCLUDES a grandfather cutover tier (route (a), refused with reasons below), EXCLUDES raising the single bound for all fields (route (b)), EXCLUDES touching the plans tree's `- Concern:`/`- Scope:` which no checker judges today, and EXCLUDES the renderer escaping that plan `qpw45x` owns.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/specs.py, tests/test_descriptive_length_classes.py, tests/test_specs_releases_unsafe_field.py, tests/test_specs_releases_descriptive_safety.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: pl1lbb
 
 ## Workflow history
+- 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; readiness go-pending-approval
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Readiness go-pending-approval. OQ-02 resolved (keep chore; gate lives on `6bolin`). Re-measured at HEAD `033d50385`: `specs check`, `attention --check --agent`, `check specs` all exit 1 on `89xjll` (343-char Scope, the only spec Scope over 300 of 24).
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `tapqf2`. The item left the route open among (a) a grandfather cutover tier, (b) raising the bound, and (c) write-path-only enforcement; all three are RESOLVED from repository evidence rather than deferred, and the chosen design is none of them verbatim (see OQ-01). Authoring also corrected the item's own measurement and found a defect STRICTLY WORSE than the one it reports: the item says enforcing the bound "would fail `aw check` on a clean checkout", describing a hypothetical, but the bound is ALREADY enforced for spec `- Scope:` by plan `ynhst5` and `main` is ALREADY red on two fail-closed CI steps plus one default-suite test (F-03). That makes this a live breakage rather than the latent-debt `chore` the item assumed; the Work-Kind question is raised for the reviewer at OQ-02 rather than decided here.
