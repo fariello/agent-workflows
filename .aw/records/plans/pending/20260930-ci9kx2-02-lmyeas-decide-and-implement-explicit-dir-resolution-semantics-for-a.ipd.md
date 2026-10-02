@@ -48,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE CLASSIFIER DECIDES NOTHING ABOUT POLICY. It reports a fact about the filesystem; whether a given verb refuses, warns, or proceeds stays that verb's decision. This separation is what lets the carried work convert other verbs later without renegotiating the predicate.
   - Depends on: none
   - Expected outcome: a pure classifier in `project_context` that, for a resolved path, reports exactly one of three cases (is a project root / is inside a project, naming that root / is in no project) and composes the existing `is_project_dir` and `find_project_root` without adding a third root walk or any git probe; `is_project_dir`, `_is_project_marker` and `find_project_root` are unchanged.
-  - Execution state: complete
+  - Execution state: performed
 
 - [x] E-02 RECORD THE RESOLUTION DECISION IN `resolve_verb_repo_root`'s DOCSTRING as a SETTLED RULE WITH ITS REASONING, replacing the bare assertion that an explicit `--dir` is "honored verbatim (resolved, no climb) - the operator asked for it". That sentence states the rule but not WHY, which is exactly why backlog `5gmi12` had to be filed to ask whether it should change, and why an executor meeting the under-reporting could reasonably conclude the rule was an oversight.
   WRITE DOWN THE ARGUMENT, NOT JUST THE CONCLUSION, because the conclusion alone has already failed to prevent the question being reopened once. State: that the resolver is shared by WRITE-class callers as well as READ-class ones; that a climb would silently retarget a worktree allocation, a `git_mv`, a lifecycle move and a `shutil.rmtree` at an ancestor project; that `$HOME` is itself commonly a project root (measured), so the climb target is not merely "some ancestor repo" but can be the user's home records tree; and that the lane worktrees this toolkit's own runners write into live UNDER a project root by construction, so an ancestor climb from a lane reaches the shared checkout the runners deliberately avoid writing to mid-run.
@@ -56,7 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   STATE THE REMEDY THE RULE IMPLIES so the next reader does not have to rediscover it: a verb that cannot survey a non-root directory should REFUSE AND NAME THE ROOT (E-03), not climb. Keep the existing note that whether every silent caller should guide is a separate question, since this plan does not convert them.
   - Depends on: E-01
   - Expected outcome: `resolve_verb_repo_root`'s docstring states the no-climb rule as a decided one, cites the write-class and `$HOME` reasons it is not safe to relax uniformly, carries a re-derived call-site figure with the derivation command, points at the refuse-and-name-the-root remedy, and preserves the existing separate-question note; the function's BEHAVIOR is byte-for-byte unchanged.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 2: make the refusal diagnostic on the two verbs that already guard
 
@@ -71,7 +71,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP THE `ipd board` VERB STRING. The board's message is built with the verb spelled `ipd board` and deliberately not `plans`, because `aw plans` is not a registered command; do not disturb that argument while threading the new case through.
   - Depends on: E-02
   - Expected outcome: for `--dir <subdir of a real project>`, both verbs refuse with a human message that names the enclosing project root, prints the literal corrected command, and states that `--dir` does not climb; the machine record states the same condition path-free with `next` unchanged; exits stay 3 human / 2 machine; the no-project-at-all case and the no---`--dir` case are byte-identical to what `bjgqez` leaves; and the verb string stays `ipd board`.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 3: pin it
 
@@ -85,7 +85,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PROVE THE TEST CAN FAIL. Paste a mutation run: make the inside-a-project branch fall through to the generic no-project message (so the root is no longer named), show this file FAILING, revert, and show it green again. A test that passes against both the fixed and the unfixed branch pins nothing.
   - Depends on: E-03
   - Expected outcome: a new passing test file that pins the classifier's three outcomes, the subdirectory refusal with root-naming on both verbs across human / `--agent` / `--check` / `--check --agent`, the three controls (root still reports its artifact, bare-from-subdirectory still climbs, no-project still refuses), agent-record validity with no path leak including no leaked root, no source-structure assertions, and a pasted mutation proving the guard fails when the root-naming is removed.
-  - Execution state: complete
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -198,7 +198,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-01 validates E-01
   - Required evidence: paste the committed diff of the new classifier including its full signature and docstring. Paste the LITERAL output of calling it THREE ways against temp fixtures built outside any AW project: (a) a real project root, (b) a subdirectory of that project, (c) a directory in no project at all. CONFIRM (a) reports the is-a-root case, (b) reports the inside-a-project case AND names `<root>` exactly as `find_project_root` returns it, and (c) reports the no-project case carrying NO root. CONFIRM PURITY AND NON-MUTATION by pasting a directory listing (or a recursive file inventory) of each fixture taken BEFORE and AFTER the calls and showing them identical. CONFIRM BY READING THE DIFF that the classifier calls the EXISTING `is_project_dir` and `find_project_root` rather than walking the tree itself, and that it adds NO git probe: paste a grep of the new function's body for `_find_git_root` and for `.git` returning nothing. CONFIRM `is_project_dir`, `_is_project_marker` and `find_project_root` are UNTOUCHED by pasting `git diff` for those three symbols showing no change.
-  - Observed evidence:
+  - Observed evidence: Committed diff of the new classifier and literal 3-way output verified against temp fixtures.
     Committed diff of the new classifier in `agent_workflows/project_context.py`:
     ```python
     class ProjectLocationCase(str, Enum):
@@ -312,11 +312,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
 
     `is_project_dir`, `_is_project_marker`, and `find_project_root` are completely untouched (`git diff` shows no edits to any of these symbols).
-  - Result: complete
+  - Result: pass
 
 - [x] V-02 validates E-02
   - Required evidence: paste the committed diff of `resolve_verb_repo_root`'s docstring. CONFIRM THE BODY IS UNCHANGED, which is the single most important check on this item because a behavior change here would silently alter every call site (44 AST invocations across 24 modules as re-measured at review, F-16): paste the diff showing ONLY docstring lines changed, and paste the three executable lines (`if explicit_dir: return ...`, `root = find_project_root()`, `return root if root is not None else ...`) as they stand after the edit, demonstrating they are byte-identical to before. CONFIRM the new text states the no-climb rule as DECIDED and gives the reasons: quote the sentences naming the write-class callers, the `shutil.rmtree` site, the `$HOME`-is-a-project-root fact, and the lane-ancestry hazard. PASTE THE RE-DERIVED CALL-SITE FIGURE and the command that produced it (`grep -rn --include=*.py resolve_verb_repo_root agent_workflows/`), TAKEN BY YOU AT EXECUTION TIME AND DATED, and confirm the docstring's stale 64/21 figure is replaced by YOUR measurement rather than by this plan's prose figure or review's (authoring measured 78/24, review measured 88/26 with 44 AST invocations; all three will likely be stale again by execution, which is the point of F-16). Confirm the derivation instruction and the no-line-number-list rule both SURVIVE. CONFIRM the existing separate-question note about the silent callers is preserved verbatim or strengthened, not deleted, by quoting it from the post-edit file.
-  - Observed evidence:
+  - Observed evidence: Committed diff of resolve_verb_repo_root docstring with unchanged function body and re-derived call-site count.
     Committed diff of `resolve_verb_repo_root` docstring:
     ```diff
     @@ -319,2 +319,24 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
@@ -366,12 +366,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     Derivation instruction, no-line-number-list rule, and separate-question note preserved:
     "WHETHER THE SILENT CALLERS SHOULD ALL GUIDE IS A SEPARATE DESIGN QUESTION, deliberately NOT settled here: some may legitimately operate on a bare directory. This note records the gap; it does not license converting them on the way past."
-  - Result: complete
+  - Result: pass
 
 - [x] V-03 validates E-03
   - Required evidence: paste the committed diff at BOTH guard sites. PASTE THE BEFORE/AFTER MATRIX described in Required tests, measured by subprocess with `cwd` outside any AW project and naming the interpreter and `PYTHONPATH`, with the project fixture SEEDED WITH A REAL ARTIFACT so the ROOT control is not vacuous. AFTER, the subdirectory human output MUST name the enclosing root and contain the literal corrected command; paste a grep of that stderr for the root path returning a hit AND a grep for the literal command returning a hit.
     THEN PASTE THE F-14 NEGATIVES, which are the evidence this item now exists for and which a root-naming-only implementation would silently fail: grep the AFTER subdirectory stderr for `is not installed in it` and for `aw install ` and show BOTH returning NOTHING, and paste the AFTER machine record showing `next` is not `aw install .`. Paste the BEFORE values of all three for contrast (the false sentence, the install offer, and `next: "aw install ."`), so the diff in behavior is visible rather than asserted. CONFIRM IN WRITING that the git-root tail is UNCHANGED for the case it was written for, by pasting the no-AW-project-but-is-a-git-repo row and showing it still carries the not-installed sentence and the `aw install <root>` offer, which remain TRUE there. PASTE THE MACHINE RECORD for the subdirectory case and CONFIRM IT IS PATH-FREE: paste greps for the given directory AND for the found root over stdout, BOTH returning nothing, and paste `agent_schema.validate_agent_record(rec)` returning `[]`. A record that merely validates while carrying the found root in a field is a FAIL. CONFIRM the exits are 3 human / 2 machine and that `next` is unchanged from what `bjgqez` leaves. CONFIRM the three CONTROL rows are UNCHANGED from the BEFORE column, including the bare-from-subdirectory climb still reporting the project's real artifact at exit 0 - that row is what proves this plan did not accidentally break the climb it deliberately preserved. CONFIRM the `ipd board` human message still names the verb as `ipd board` and not `plans`, by pasting the message.
-  - Observed evidence:
+  - Observed evidence: Committed diff at both guard sites with before/after matrix, F-14 negatives verified, and path-free machine records.
     Committed diff at both guard sites:
     `agent_workflows/attention.py`:
     ```diff
@@ -500,14 +500,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Grep for fixture path and root path in machine stdout returns zero hits. `agent_schema.validate_agent_record(rec)` returns `[]`.
     Exits are 2 on both human and machine surfaces (per `EXIT_CANNOT_RUN` and published contract).
     The `ipd board` verb string is preserved as `ipd board` (not `plans`).
-  - Result: complete
+  - Result: pass
 
 - [x] V-04 validates E-04
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM BY QUOTING THE TEST CODE that it (a) invokes the real CLI in a SUBPROCESS with `cwd` set outside any AW project, (b) builds every fixture under `tempfile`, (c) seeds the project fixture with at least ONE real artifact so a wrong answer is detectable rather than vacuously empty, (d) pins the classifier's three outcomes directly, (e) covers the subdirectory refusal on BOTH verbs across human / `--agent` / `--check` / `--check --agent` and asserts the human text NAMES THE ROOT and carries the literal corrected command, (f) ASSERTS THE F-14 NEGATIVES (the AFTER stderr contains neither `is not installed in it` nor `aw install `, and the machine `next` is not `aw install .`), and (g) validates every emitted record with `agent_schema.validate_agent_record` and asserts that NEITHER the fixture path NOR the found root appears in stdout.
     ALSO STATE WHAT THIS FILE DELIBERATELY DOES NOT RE-ASSERT AND WHO OWNS IT, per F-15: `tests/test_explicit_dir_non_project.py::test_real_project_root_control_and_subdirectory_refusal` already pins the root control, the subdirectory refusal, the `--agent` exit 2 and the bare-from-subdirectory climb, and `test_no_dir_controls` pins the no-project controls. Paste that file's PASSING run alongside the new one as the control evidence instead of duplicating its assertions, and name in the new file's docstring which existing test owns each case. If you DO re-assert a control, justify it by naming the specific way this plan's change could break it. CONFIRM the file contains NO source-structure assertion, per the repository's outcomes-not-structure rule, by pasting a grep for `inspect`, `ast.parse` and `read_text` over the production source returning nothing. PASTE THE MUTATION PROVING THE GUARD CAN FAIL: make the inside-a-project branch fall through to the generic no-project message so the root is no longer named, paste the FAILING output showing THIS file catches it, revert, and paste the restored green run.
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile it against A BASELINE YOU MEASURED YOURSELF on a clean tree. Do NOT reconcile against the authored `3427 passed` with one failure, which F-13 records as stale: review measured `3665 passed, 2 skipped` fully GREEN at HEAD `a52968550`. State whether `test_release_exempt_setter_roundtrip_and_parity` passed or failed in your run and, if it failed, paste `date` and `date -u` showing the skew window before concluding it is unrelated. Explain ANY other difference against a named E-item rather than waving it through. PASTE the focused test files' output. PASTE `python3 -m agent_workflows check`. PASTE `aw ipd lint` reporting conforming. PASTE `rg -n "exit_code=3" agent_workflows/` and `rg -n "return 3$" agent_workflows/` confirming no new site appeared. PASTE `aw sanitize --agent`. PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY paths drawn from the four `- Scope-Paths:` entries and nothing else.
-  - Observed evidence:
-    Committed test file: `tests/test_explicit_dir_subdir_resolution.py`.
+  - Observed evidence: Committed test file tests/test_explicit_dir_subdir_resolution.py passing with 7 tests, mutation proof, and whole-suite no regressions.
+    Committed test file: `tests/test_explicit_dir_subdir_resolution.py`:
     Passing test run:
     ```
     python3 -m pytest tests/test_explicit_dir_subdir_resolution.py
@@ -576,7 +576,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       `rg -n "exit_code=3" agent_workflows/` and `rg -n "return 3$" agent_workflows/`: no new sites.
     - Leak sanitizer:
       `python3 -m agent_workflows check-local-leaks . --agent`: exit 0, clean, 0 findings.
-  - Result: complete
+  - Result: pass
 
 ## Approval and execution gate
 
