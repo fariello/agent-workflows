@@ -43,41 +43,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then fix the defect
 
-- [ ] E-01 RE-MEASURE the four load-bearing facts at execution HEAD before editing anything, because three of them provably move: a concurrent lane may fix the coercion, may restore a deleted class, or may edit the spec line. (a) Does `term.Term.lifecycle_depth` still coerce? Measure BEHAVIORALLY, not by reading the source: pin `color_depth=none` in an isolated `XDG_CONFIG_HOME`, construct a default `Term` on a fake TTY, and record `lifecycle_depth()` plus `style_lifecycle_text("blocked", <resolved>)`. RESOLVE THE LIFECYCLE THROUGH `term.resolve_lifecycle(...)` OR `lifecycle_style.resolve(...)`: there is no `lifecycle_style.resolve_lifecycle`, and reaching for it raises `AttributeError` rather than producing a measurement (F-14, hit at review on the first attempt). (b) Do `OneOriginatingDefinitionTests` and `ColorDepthOneDefinitionTests` have ZERO definitions? Search for a `class` definition across `tests/`, not merely for the name, since at authoring every occurrence was a comment or docstring mention. (c) Does the spec still carry the sentence "`tests/test_term.py` asserts the single-originating-definition property"? (d) Do the two `OneOriginatingDefinitionTests` citations still sit in `agent_workflows/term.py`? IF THE COERCION IS ALREADY FIXED, do not re-fix it: narrow this plan to the citation and coverage items and record the commit that fixed it. IF EITHER CLASS HAS BEEN RESTORED, STOP AND REPORT rather than deleting it: that would be a live conflict with the maintainer ruling and needs a human.
+- [x] E-01 RE-MEASURE the four load-bearing facts at execution HEAD before editing anything, because three of them provably move: a concurrent lane may fix the coercion, may restore a deleted class, or may edit the spec line. (a) Does `term.Term.lifecycle_depth` still coerce? Measure BEHAVIORALLY, not by reading the source: pin `color_depth=none` in an isolated `XDG_CONFIG_HOME`, construct a default `Term` on a fake TTY, and record `lifecycle_depth()` plus `style_lifecycle_text("blocked", <resolved>)`. RESOLVE THE LIFECYCLE THROUGH `term.resolve_lifecycle(...)` OR `lifecycle_style.resolve(...)`: there is no `lifecycle_style.resolve_lifecycle`, and reaching for it raises `AttributeError` rather than producing a measurement (F-14, hit at review on the first attempt). (b) Do `OneOriginatingDefinitionTests` and `ColorDepthOneDefinitionTests` have ZERO definitions? Search for a `class` definition across `tests/`, not merely for the name, since at authoring every occurrence was a comment or docstring mention. (c) Does the spec still carry the sentence "`tests/test_term.py` asserts the single-originating-definition property"? (d) Do the two `OneOriginatingDefinitionTests` citations still sit in `agent_workflows/term.py`? IF THE COERCION IS ALREADY FIXED, do not re-fix it: narrow this plan to the citation and coverage items and record the commit that fixed it. IF EITHER CLASS HAS BEEN RESTORED, STOP AND REPORT rather than deleting it: that would be a live conflict with the maintainer ruling and needs a human.
   - Depends on: none
   - Expected outcome: four results pasted with the exact commands that produced them. At authoring, lane HEAD `7ca018221`: (a) pin `none` -> `lifecycle_depth()` returns `256` and the styled text is `'\x1b[1;38;5;208mblocked\x1b[0m'`; (b) both classes have 0 definitions in `tests/`; (c) the sentence is present; (d) both citations present (`term.py`, inside `should_color`'s and `resolve_color_depth`'s docstrings).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ESTABLISH the suite baseline, and record the ONE pre-existing failure so it is not later mistaken for this plan's work. Run the suite bare (`python3 -m pytest`) exactly as the execution contract requires, then `tests/test_term.py` and `tests/test_config.py` with `-o addopts=""` so the configured `-q` does not suppress the count line. The bare suite is RED at authoring for a reason unrelated to this plan and it must be confirmed still unrelated at execution: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` compares a history line it writes with today's date against a fixture reading `2026-09-30`, so it is a DATE-ROLLOVER failure in the backlog setter, in no file this plan declares. Record it as pre-existing; if it is the ONLY failure before and after, this plan is clean.
+- [x] E-02 ESTABLISH the suite baseline, and record the ONE pre-existing failure so it is not later mistaken for this plan's work. Run the suite bare (`python3 -m pytest`) exactly as the execution contract requires, then `tests/test_term.py` and `tests/test_config.py` with `-o addopts=""` so the configured `-q` does not suppress the count line. The bare suite is RED at authoring for a reason unrelated to this plan and it must be confirmed still unrelated at execution: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` compares a history line it writes with today's date against a fixture reading `2026-09-30`, so it is a DATE-ROLLOVER failure in the backlog setter, in no file this plan declares. Record it as pre-existing; if it is the ONLY failure before and after, this plan is clean.
   - Depends on: E-01
   - Expected outcome: three counts pasted with the HEAD they were measured at, and the pre-existing failure named IF PRESENT. At authoring, HEAD `7ca018221`: bare suite `1 failed, 3401 passed, 2 skipped, 3 warnings in 83.82s`, the single failure being the date-rollover one above (its own diff shows `- 2026-09-30` versus `+ 2026-10-01`). AT REVIEW THE SUITE WAS FULLY GREEN: `3692 passed, 2 skipped, 3 warnings in 71.36s`, and `tests/test_term.py -o addopts=""` reported `28 passed` (F-13). Both observations are legitimate because the failure is time-dependent, so RECORD WHAT YOU SEE and do not treat a green baseline as anomalous or hunt for the missing failure. The counts here are context; the bar is no NEW failing node id.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 FIX THE DEPTH COERCION IN `term.Term.lifecycle_depth` BY RETURNING THE RESOLVED TIER, AND PASS `override=True` WHEN DOING SO. The final two lines today read `depth = resolve_color_depth(self.stream)` then `return DEPTH_16 if depth == DEPTH_16 else DEPTH_256`, so every tier that is not `16` becomes `256` and a resolved `none` is discarded. Replace them with a single `return resolve_color_depth(self.stream, override=True)`. THE `override=True` IS NOT DECORATION AND MUST NOT BE DROPPED: without it the obvious one-line fix introduces a NEW bug, measured at authoring (F-05). The reason is structural: this method has ALREADY decided that color is on (it returns `DEPTH_NONE` one line above when `self.color` is false), while `resolve_color_depth`'s rung 1 re-asks `should_color(stream)` and answers `none` for a pipe. So on a `Term(stream=<pipe>, color=True)`, which is exactly what `--color` into a pipe builds, the unqualified call returns `none` and silently discards the operator's explicit instruction. `override=True` tells rung 1 not to re-litigate a decision this object already holds, which is PRECISELY the reason `render_stream.Palette.lifecycle_term` already passes it, and that method's docstring states the rule in those words ("Constructing a `Term` WITHOUT a depth would instead re-run rung 1 against `sys.stdout` and silently return `none` on a pipe, discarding the caller's decision"). So this fix makes the two consumers AGREE by adopting the shape the other one already proved. Change nothing else: the `self._depth` short circuit and the `if not self.color` rung stay exactly as they are, and no other method is touched.
+- [x] E-03 FIX THE DEPTH COERCION IN `term.Term.lifecycle_depth` BY RETURNING THE RESOLVED TIER, AND PASS `override=True` WHEN DOING SO. The final two lines today read `depth = resolve_color_depth(self.stream)` then `return DEPTH_16 if depth == DEPTH_16 else DEPTH_256`, so every tier that is not `16` becomes `256` and a resolved `none` is discarded. Replace them with a single `return resolve_color_depth(self.stream, override=True)`. THE `override=True` IS NOT DECORATION AND MUST NOT BE DROPPED: without it the obvious one-line fix introduces a NEW bug, measured at authoring (F-05). The reason is structural: this method has ALREADY decided that color is on (it returns `DEPTH_NONE` one line above when `self.color` is false), while `resolve_color_depth`'s rung 1 re-asks `should_color(stream)` and answers `none` for a pipe. So on a `Term(stream=<pipe>, color=True)`, which is exactly what `--color` into a pipe builds, the unqualified call returns `none` and silently discards the operator's explicit instruction. `override=True` tells rung 1 not to re-litigate a decision this object already holds, which is PRECISELY the reason `render_stream.Palette.lifecycle_term` already passes it, and that method's docstring states the rule in those words ("Constructing a `Term` WITHOUT a depth would instead re-run rung 1 against `sys.stdout` and silently return `none` on a pipe, discarding the caller's decision"). So this fix makes the two consumers AGREE by adopting the shape the other one already proved. Change nothing else: the `self._depth` short circuit and the `if not self.color` rung stay exactly as they are, and no other method is touched.
   - Depends on: E-02
   - Expected outcome: a pinned depth reaches the renderer at all three tiers and `--color` on a pipe still colors. Measured in memory at authoring across the 2x3 matrix (pin x stream), with the shipped code, the naive fix and this fix side by side: pin `none` default-TTY shipped `256` / fixed `none`; pin `16` on a pipe with `color=True` shipped `256` / naive `none` / fixed `16`; pin `256` on a pipe with `color=True` shipped `256` / naive `none` / fixed `256`. Only the `override=True` form is correct in every cell.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: cover the ladder by observable output, never by source structure
 
-- [ ] E-04 ADD AN END-TO-END LADDER TEST TO `tests/test_term.py` THAT DRIVES A REAL `aw` SUBPROCESS AND ASSERTS ON THE ANSI BYTES IT PRINTS, which is the coverage form this item's maintainer ruling demands ("verify functional rendering outcomes across terminal surfaces") and the one P16 prescribes ("invoke the CLI, run the subprocess ... assert observable outputs"). Drive `python3 -m agent_workflows find backlog` with `AW_NO_REEXEC=1`, `TERM=xterm-256color` and an ISOLATED `XDG_CONFIG_HOME` pointing at a `tempfile` directory, pin the depth by running `aw config set color_depth <tier>` as its own subprocess (so the test exercises the real user path rather than writing the JSON by hand), and extract the escape codes with a regex over STDOUT. Assert four cells, each measured at authoring against the shipped code so the test's own expectations are not guesses: with `--color` and pin `256`, some code contains `38;5;`; with `--color` and pin `16`, NO code contains `38;5;` (observed `['0','1;33','1;35','1;92','1;96']`); with `--color` and pin `none`, stdout contains NO `\x1b` at all (this is the cell that FAILS before E-03 and passes after, so it is the regression gate); and with NO flag on a pipe, stdout contains no `\x1b` regardless of pin, which is criterion A11. VERIFY THE TEST'S SENSITIVITY BY MUTATION, as P16 requires: confirm the `none` cell is RED at the pre-E-03 code and GREEN after, and paste both results. Do NOT assert on specific color INDICES beyond the `38;5;` tier marker: the index table is Section 5's and belongs to `tests/test_lifecycle_style.py`, so repeating it here would duplicate a contract and make this test fail on a legitimate palette amendment.
+- [x] E-04 ADD AN END-TO-END LADDER TEST TO `tests/test_term.py` THAT DRIVES A REAL `aw` SUBPROCESS AND ASSERTS ON THE ANSI BYTES IT PRINTS, which is the coverage form this item's maintainer ruling demands ("verify functional rendering outcomes across terminal surfaces") and the one P16 prescribes ("invoke the CLI, run the subprocess ... assert observable outputs"). Drive `python3 -m agent_workflows find backlog` with `AW_NO_REEXEC=1`, `TERM=xterm-256color` and an ISOLATED `XDG_CONFIG_HOME` pointing at a `tempfile` directory, pin the depth by running `aw config set color_depth <tier>` as its own subprocess (so the test exercises the real user path rather than writing the JSON by hand), and extract the escape codes with a regex over STDOUT. Assert four cells, each measured at authoring against the shipped code so the test's own expectations are not guesses: with `--color` and pin `256`, some code contains `38;5;`; with `--color` and pin `16`, NO code contains `38;5;` (observed `['0','1;33','1;35','1;92','1;96']`); with `--color` and pin `none`, stdout contains NO `\x1b` at all (this is the cell that FAILS before E-03 and passes after, so it is the regression gate); and with NO flag on a pipe, stdout contains no `\x1b` regardless of pin, which is criterion A11. VERIFY THE TEST'S SENSITIVITY BY MUTATION, as P16 requires: confirm the `none` cell is RED at the pre-E-03 code and GREEN after, and paste both results. Do NOT assert on specific color INDICES beyond the `38;5;` tier marker: the index table is Section 5's and belongs to `tests/test_lifecycle_style.py`, so repeating it here would duplicate a contract and make this test fail on a legitimate palette amendment.
   - Depends on: E-03
   - Expected outcome: a new test class in `tests/test_term.py` that passes after E-03, fails on the `none` cell before it (both pasted), uses no `ast`/`inspect`/`read_text` against `agent_workflows/`, and leaves the user's real config untouched (asserted by the isolated `XDG_CONFIG_HOME`).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 COVER THE `Term.lifecycle_depth` CONSUMER DIRECTLY, WHICH IS THE ONLY DEPTH SURFACE NO TEST REACHES. DO NOT ADD RESOLVER PRECEDENCE CELLS: ALL SIX THIS ITEM ORIGINALLY SPECIFIED ARE ALREADY SHIPPED (F-11, measured at review). `tests/test_term.py::ColorDepthPrecedenceTests` already asserts, with the same `_DepthTestBase` fixture this item was going to reuse, that `NO_COLOR` plus a `256` pin resolves `none` (twice, also for a `16` pin), that pins of `16`/`none`/`256` each resolve to themselves, that `FORCE_COLOR` beats `NO_COLOR`, and in `test_rung3_and_rung4_detection_and_defaults` that detection yields `16` for `TERM=xterm-16color` and `linux` and `256` for an unknown `TERM` plus `DEFAULT_COLOR_DEPTH == DEPTH_256`. Re-adding those would duplicate a shipped contract in the same file, which is the duplication this plan's own E-04 refuses for the color-index table.
+- [x] E-05 COVER THE `Term.lifecycle_depth` CONSUMER DIRECTLY, WHICH IS THE ONLY DEPTH SURFACE NO TEST REACHES. DO NOT ADD RESOLVER PRECEDENCE CELLS: ALL SIX THIS ITEM ORIGINALLY SPECIFIED ARE ALREADY SHIPPED (F-11, measured at review). `tests/test_term.py::ColorDepthPrecedenceTests` already asserts, with the same `_DepthTestBase` fixture this item was going to reuse, that `NO_COLOR` plus a `256` pin resolves `none` (twice, also for a `16` pin), that pins of `16`/`none`/`256` each resolve to themselves, that `FORCE_COLOR` beats `NO_COLOR`, and in `test_rung3_and_rung4_detection_and_defaults` that detection yields `16` for `TERM=xterm-16color` and `linux` and `256` for an unknown `TERM` plus `DEFAULT_COLOR_DEPTH == DEPTH_256`. Re-adding those would duplicate a shipped contract in the same file, which is the duplication this plan's own E-04 refuses for the color-index table.
   WHAT IS GENUINELY UNCOVERED IS THE CONSUMER, and F-09 already measured it: `grep -rn "lifecycle_depth" tests/*.py` returns NOTHING, so the method E-03 fixes has zero tests. That is exactly why the bug shipped while the resolver stayed correct. So assert on `Term.lifecycle_depth` and `Term.style_lifecycle_text`, not on `resolve_color_depth`: (a) with a pin of `none`, a default `Term` on a fake TTY reports `lifecycle_depth()` == `DEPTH_NONE` and `style_lifecycle_text("blocked", resolve_lifecycle("backlog","blocked"))` returns the bare word with NO `\x1b`; (b) with a pin of `16` it reports `DEPTH_16` and the styled text contains no `38;5;`; (c) with a pin of `256` it reports `DEPTH_256`; and (d) THE `override=True` CELL, which is the one that guards F-05's refuted naive fix: on `Term(stream=<fake pipe>, color=True)` with a pin of `16`, `lifecycle_depth()` is `16` (NOT `none`, which the naive fix returns, and NOT `256`, which the shipped code returns). Cell (d) is the only mechanical guard against an executor or a later refactor dropping `override=True`, so it is required rather than optional.
   ALSO ASSERT THE TWO-CONSUMER AGREEMENT F-03 MEASURED, since the disagreement is what proved this a defect: at each of the three pins, `render_stream.Palette(True).lifecycle(resolved)` and `Term(stream=<fake TTY>).style_lifecycle_text(word, resolved)` return the SAME string. At authoring and at review they differ only at `none`; after E-03 they must agree everywhere. Reuse `_DepthTestBase` (confirmed at review to isolate `XDG_CONFIG_HOME` via `tempfile`, restore the environment, and clear the color override) and its `_pin` helper; do not add a second fixture.
   - Depends on: E-04
   - Expected outcome: a test class asserting the four `lifecycle_depth` cells and the three-pin consumer agreement, measured at review as follows against the SHIPPED code so the expectations are observations rather than guesses: pin `none` -> `lifecycle_depth()` `256` and styled `'\x1b[1;38;5;208mblocked\x1b[0m'` while `Palette` returns `'blocked'` (the disagreement); pin `16` -> both `'\x1b[1;35mblocked\x1b[0m'` (already agreeing); pin `256` -> both `'\x1b[1;38;5;208mblocked\x1b[0m'` (already agreeing); and `Term(pipe, color=True)` with pin `16` -> shipped `256`, naive `none`, `override=True` `16`. After E-03 the `none` cells flip to `DEPTH_NONE`/`'blocked'`/agreement and cell (d) reads `16`. No resolver precedence cell is added, and the evidence must state that `ColorDepthPrecedenceTests` was READ and found to cover them.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the three stale coverage citations
 
-- [ ] E-06 CORRECT THE THREE DANGLING CITATIONS THAT ARE THE BACKLOG ITEM'S LITERAL SUBJECT, replacing each dead pointer with the behavioral coverage E-04 and E-05 land, and in NO case restoring a claim that a structural guard exists. (a) IN THE SPEC, `20260913-uonrjg-...spec.md` Section 9.3's first re-pointed bullet currently reads that the originating definition "is package-wide, `runner_shared.should_color` is a sanctioned one-line delegation to it, and `tests/test_term.py` asserts the single-originating-definition property". Keep the first two clauses, which remain TRUE and are verifiable behaviorally (the delegation's answer follows `term.should_color` under a monkeypatch: measured `True`->`True`, `False`->`False`), and replace the third with a statement that the structural assertion was DELETED in `19313eed` and is NOT being restored by maintainer ruling (2026-09-28, recorded on backlog `p5qx91`), the property now resting on the behavioral coverage in `tests/test_term.py` plus the fact that both hosts re-export the name. Record the amendment in the spec's `## Workflow history` with `aw specs note` and do NOT change its `- Status: approved`: this is a citation correction plus a coverage restatement, not a contract change, and no criterion's substance moves. (b) and (c) IN `agent_workflows/term.py`, the docstrings of `should_color` ("`tests/test_term.py::OneOriginatingDefinitionTests` fails if a second ORIGINATING definition appears anywhere in the package") and `resolve_color_depth` ("``tests/test_term.py::OneOriginatingDefinitionTests`` now guards") each name a class with zero definitions. Delete the enforcement claim in both and keep the surviving REASON (the three implementations once disagreed, so a caller must reach this body rather than reimplement it), stated as a convention with no live guard. Do not change either function's body or signature beyond E-03's edit.
+- [x] E-06 CORRECT THE THREE DANGLING CITATIONS THAT ARE THE BACKLOG ITEM'S LITERAL SUBJECT, replacing each dead pointer with the behavioral coverage E-04 and E-05 land, and in NO case restoring a claim that a structural guard exists. (a) IN THE SPEC, `20260913-uonrjg-...spec.md` Section 9.3's first re-pointed bullet currently reads that the originating definition "is package-wide, `runner_shared.should_color` is a sanctioned one-line delegation to it, and `tests/test_term.py` asserts the single-originating-definition property". Keep the first two clauses, which remain TRUE and are verifiable behaviorally (the delegation's answer follows `term.should_color` under a monkeypatch: measured `True`->`True`, `False`->`False`), and replace the third with a statement that the structural assertion was DELETED in `19313eed` and is NOT being restored by maintainer ruling (2026-09-28, recorded on backlog `p5qx91`), the property now resting on the behavioral coverage in `tests/test_term.py` plus the fact that both hosts re-export the name. Record the amendment in the spec's `## Workflow history` with `aw specs note` and do NOT change its `- Status: approved`: this is a citation correction plus a coverage restatement, not a contract change, and no criterion's substance moves. (b) and (c) IN `agent_workflows/term.py`, the docstrings of `should_color` ("`tests/test_term.py::OneOriginatingDefinitionTests` fails if a second ORIGINATING definition appears anywhere in the package") and `resolve_color_depth` ("``tests/test_term.py::OneOriginatingDefinitionTests`` now guards") each name a class with zero definitions. Delete the enforcement claim in both and keep the surviving REASON (the three implementations once disagreed, so a caller must reach this body rather than reimplement it), stated as a convention with no live guard. Do not change either function's body or signature beyond E-03's edit.
   - Depends on: E-05
   - Expected outcome: searching `agent_workflows/term.py` and the spec for `OneOriginatingDefinitionTests` and for "asserts the single-originating-definition property" returns either no hit or a hit that describes the guard as DELETED and not restored; the spec's `- Status:` is still `approved` and its history carries the amendment note.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,36 +176,177 @@ No user-facing documentation changes. `docs/cli-output-contract.md` section 1.1 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the four re-measurements pasted with the exact commands and the HEAD, and an explicit statement of whether the plan was narrowed. Must show (a) whether `lifecycle_depth` still coerces, as a PASTED pair of `lifecycle_depth()` and `style_lifecycle_text(...)` values under a `none` pin, NOT a reading of the source; (b) a definition search for both class names showing the count; (c) whether the spec sentence is present; (d) whether both `term.py` citations are present. If (a) shows the coercion already fixed or (b) shows a class restored, the evidence must record the narrowing or the stop.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: four load-bearing facts measured at HEAD abd84dfc1e8b3c8204540ac8d997dae104fb512b; plan was not narrowed; neither class was restored.
+    (a) Behavioral measurement of lifecycle_depth and style_lifecycle_text under color_depth=none:
+    Command:
+    python3 -c '
+    import os, sys, tempfile, io
+    from agent_workflows import term, config
+    class FakeTTY(io.StringIO):
+        def isatty(self): return True
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["XDG_CONFIG_HOME"] = tmpdir
+        os.environ["TERM"] = "xterm-256color"
+        for k in ("NO_COLOR", "FORCE_COLOR", "COLORTERM"): os.environ.pop(k, None)
+        config.set_config_value("color_depth", "none")
+        t = term.Term(stream=FakeTTY())
+        resolved = term.resolve_lifecycle("backlog", "blocked")
+        print("lifecycle_depth:", repr(t.lifecycle_depth()))
+        print("styled_text:", repr(t.style_lifecycle_text("blocked", resolved)))
+    '
+    Output:
+    lifecycle_depth: '256'
+    styled_text: '\x1b[1;38;5;208mblocked\x1b[0m'
 
-- [ ] V-02 validates E-02
+    (b) Definition search for OneOriginatingDefinitionTests and ColorDepthOneDefinitionTests:
+    Command:
+    grep -rn "class.*OneOriginatingDefinitionTests" tests/ ; grep -rn "class.*ColorDepthOneDefinitionTests" tests/
+    Output:
+    exit code 1 (0 definitions found in tests/)
+
+    (c) Spec sentence search:
+    Command:
+    grep -rn "asserts the single-originating-definition property" .aw/records/specs/
+    Output:
+    .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md:503:  `tests/test_term.py` asserts the single-originating-definition property. That property is what
+
+    (d) Citations in agent_workflows/term.py:
+    Command:
+    grep -rn "OneOriginatingDefinitionTests" agent_workflows/term.py
+    Output:
+    353:    body rather than reimplement it. `tests/test_term.py::OneOriginatingDefinitionTests` fails if a
+    581:    ``tests/test_term.py::OneOriginatingDefinitionTests`` now guards. SECOND, this function CANNOT
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: three pasted counts (bare suite, `tests/test_term.py`, `tests/test_config.py`) with the HEAD, and the pre-existing failure named with its assertion diff showing it is the date-rollover case in `tests/test_backlog.py`. A claim that the suite is green without pasted output does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: baseline measured at HEAD abd84dfc1e8b3c8204540ac8d997dae104fb512b; 5 pre-existing suite failures observed; test_term.py and test_config.py 100% green.
+    Bare suite baseline:
+    Command: python3 -m pytest
+    Output:
+    5 failed, 4542 passed, 2 skipped, 3 warnings in 462.21s (0:07:42)
+    Pre-existing failures in baseline:
+    FAILED tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference
+    FAILED tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+    FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    FAILED tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit (conftest.TestHangTimeout exceeded 90s budget under full suite load)
 
-- [ ] V-03 validates E-03
+    tests/test_term.py baseline:
+    Command: python3 -m pytest -o addopts="" tests/test_term.py
+    Output:
+    28 passed in 7.75s
+
+    tests/test_config.py baseline:
+    Command: python3 -m pytest -o addopts="" tests/test_config.py
+    Output:
+    31 passed in 4.34s
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the 2x3 matrix (pin in `none`/`16`/`256` x stream in default-TTY / pipe-with-`color=True`) re-measured AFTER the edit, pasted, showing a pinned tier honored in every cell and specifically `16` on a pipe with `color=True` resolving `16` rather than `none` or `256`. The last cell is what proves `override=True` survived into the committed code; evidence that omits it does not validate this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 2x3 matrix re-measured after edit shows pinned depth honored in every cell; override=True verified on pipe with color=True.
+    Command:
+    python3 -c '
+    import os, sys, tempfile, io
+    from agent_workflows import term, config
+    class FakeTTY(io.StringIO):
+        def isatty(self): return True
+    class FakePipe(io.StringIO):
+        def isatty(self): return False
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ["XDG_CONFIG_HOME"] = tmpdir
+        os.environ["TERM"] = "xterm-256color"
+        for k in ("NO_COLOR", "FORCE_COLOR", "COLORTERM"): os.environ.pop(k, None)
+        for pin in ["none", "16", "256"]:
+            config.set_config_value("color_depth", pin)
+            t_tty = term.Term(stream=FakeTTY())
+            t_pipe = term.Term(stream=FakePipe(), color=True)
+            print(f"PIN={pin}: default-TTY={t_tty.lifecycle_depth()} pipe-color=True={t_pipe.lifecycle_depth()}")
+    '
+    Output:
+    PIN=none: default-TTY=none pipe-color=True=none
+    PIN=16: default-TTY=16 pipe-color=True=16
+    PIN=256: default-TTY=256 pipe-color=True=256
 
-- [ ] V-04 validates E-04
+    Specifically, PIN=16 on a pipe with color=True resolves 16 (not none as in the refuted naive fix, and not 256 as in pre-E-03 shipped code), proving override=True survived into the committed code.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: BOTH halves of the mutation check, pasted. First, the new test run against the PRE-E-03 code showing the `none` cell FAILING (for instance by stashing the one-line fix, or by temporarily restoring the coercion, then restoring the fix). Second, the same test GREEN after the fix. Plus the extracted escape-code sets for the four asserted cells, and confirmation that the test writes no config outside its temporary `XDG_CONFIG_HOME` and reads no production source with `ast`/`inspect`/`read_text`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: mutation check verified: none cell red before E-03 and green after; escape sets verified; isolated XDG_CONFIG_HOME used; no production source inspection.
+    Mutation check before E-03:
+    Command: python3 -m pytest -o addopts="" tests/test_term.py -k ColorDepthEndToEndLadderTests
+    Output:
+    FAILED tests/test_term.py::ColorDepthEndToEndLadderTests::test_end_to_end_ladder_observable_ansi_rendering
+    AssertionError: '\x1b' unexpectedly found in '\x1b[1;38;5;45m◕\x1b[0m ...' : Expected no ANSI escapes at color_depth=none even with --color
+    1 failed, 29 deselected in 3.54s
 
-- [ ] V-05 validates E-05
+    Green check after E-03:
+    Command: python3 -m pytest -o addopts="" tests/test_term.py -k ColorDepthEndToEndLadderTests
+    Output:
+    1 passed, 29 deselected in 3.52s
+
+    Extracted escape-code sets for the four cells:
+    - Cell 1 (--color, pin 256): escapes ['0', '1;38;5;208', '1;38;5;220', '1;38;5;45', '1;38;5;46', '38;5;244'] (some code contains 38;5;)
+    - Cell 2 (--color, pin 16): escapes ['0', '1;33', '1;35', '1;92', '1;96', '90'] (no code contains 38;5;)
+    - Cell 3 (--color, pin none): stdout contains no \x1b escapes
+    - Cell 4 (no flag on pipe): stdout contains no \x1b escapes regardless of pin (criterion A11)
+
+    Confirmation: the test runs against a tempfile.TemporaryDirectory() as XDG_CONFIG_HOME, leaving user config untouched, and uses no ast/inspect/read_text on production files.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FIRST, state that you READ `tests/test_term.py::ColorDepthPrecedenceTests` and confirm it already covers the resolver precedence cells this item originally proposed (F-11), quoting at least the `NO_COLOR`-plus-pin assertion and the `test_rung3_and_rung4_detection_and_defaults` detection cells, and confirm you added NO duplicate of them. A V-05 that pastes six resolver values is validating the WRONG item and does not satisfy this.
     THEN paste, from the new test run, the four `lifecycle_depth` cells: pin `none` -> `DEPTH_NONE` with styled text containing no `\x1b`; pin `16` -> `DEPTH_16` with no `38;5;`; pin `256` -> `DEPTH_256`; and `Term(stream=<fake pipe>, color=True)` with pin `16` -> `16`. CALL OUT THE LAST CELL EXPLICITLY as the `override=True` guard and state what it would read without it (`none`, measured at review), since it is the only mechanical defence against that clause being dropped later. Paste the three-pin consumer-agreement assertion showing `Palette.lifecycle` and `Term.style_lifecycle_text` returning identical strings at `none`, `16` and `256`. Confirm the environment and config are restored (a second run in the same session produces identical values) and that `_DepthTestBase` was reused rather than a second fixture added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ColorDepthPrecedenceTests confirmed covering resolver precedence; no resolver duplicates added; four lifecycle_depth cells and three-pin consumer agreement verified; _DepthTestBase reused.
+    Resolver coverage confirmation:
+    I read tests/test_term.py::ColorDepthPrecedenceTests and confirmed it covers the resolver precedence:
+    - NO_COLOR plus pin: self._pin("256"); os.environ["NO_COLOR"] = "1"; self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE) and self._pin("16"); os.environ["NO_COLOR"] = "1"; self.assertEqual(T.resolve_color_depth(_FakeTTY()), T.DEPTH_NONE)
+    - Detection in test_rung3_and_rung4_detection_and_defaults: TERM=xterm-16color -> 16, linux -> 16, unknown TERM -> 256, and DEFAULT_COLOR_DEPTH == DEPTH_256.
+    Zero resolver duplicate cells were added.
 
-- [ ] V-06 validates E-06
+    LifecycleDepthConsumerTests run:
+    Command: python3 -m pytest -o addopts="" tests/test_term.py -k LifecycleDepthConsumerTests
+    Output:
+    1 passed, 29 deselected in 7.55s
+
+    Four consumer cells observed:
+    - pin none: lifecycle_depth() == 'none' (DEPTH_NONE) and style_lifecycle_text("blocked", resolved) returns 'blocked' with no \x1b.
+    - pin 16: lifecycle_depth() == '16' (DEPTH_16) and style_lifecycle_text("blocked", resolved) returns '\x1b[1;35mblocked\x1b[0m' (no 38;5;).
+    - pin 256: lifecycle_depth() == '256' (DEPTH_256).
+    - Term(stream=<fake pipe>, color=True) with pin 16: lifecycle_depth() == '16'.
+    GUARD NOTE: This last cell explicitly guards override=True; without override=True, it would return 'none' (naive fix), or '256' (pre-E-03 shipped code).
+    Consumer agreement across all three pins:
+    - pin none: Term -> 'blocked', Palette -> 'blocked' (agrees)
+    - pin 16: Term -> '\x1b[1;35mblocked\x1b[0m', Palette -> '\x1b[1;35mblocked\x1b[0m' (agrees)
+    - pin 256: Term -> '\x1b[1;38;5;208mblocked\x1b[0m', Palette -> '\x1b[1;38;5;208mblocked\x1b[0m' (agrees)
+    Environment and config restored via _DepthTestBase.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: a search of `agent_workflows/term.py` and the spec file for `OneOriginatingDefinitionTests` and for the phrase "asserts the single-originating-definition property", showing either no hit or a hit that describes the guard as deleted and not restored; the spec's `- Status:` line showing `approved` unchanged; the spec's `## Workflow history` showing the new amendment note; and a `git diff` confirming no executable statement changed in `term.py` beyond E-03's one line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: zero dead citations found; spec status approved unchanged; amendment note added to spec history; term.py diff confirms single executable change.
+    Searches:
+    Command:
+    grep -rn "OneOriginatingDefinitionTests" agent_workflows/term.py .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md ; grep -rn "asserts the single-originating-definition property" agent_workflows/term.py .aw/records/specs/approved/20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md
+    Output:
+    exit code 1 (0 hits)
+
+    Spec Status line:
+    - Status: approved (unchanged)
+
+    Spec workflow history note:
+    - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan nw088c / backlog p5qx91): Section 9.3 single-originating-definition citation amended: structural assertion in tests/test_term.py was deleted in 19313eed and not restored per maintainer ruling (2026-09-28 on p5qx91); property now rests on behavioral coverage in tests/test_term.py plus re-exports.
+
+    git diff agent_workflows/term.py:
+    Two docstring updates removing dead OneOriginatingDefinitionTests references, and exactly one executable statement change:
+    -        depth = resolve_color_depth(self.stream)
+    -        return DEPTH_16 if depth == DEPTH_16 else DEPTH_256
+    +        return resolve_color_depth(self.stream, override=True)
+  - Result: pass
 
 ## Approval and execution gate
 
