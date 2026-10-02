@@ -42,47 +42,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the surface before changing it
 
-- [ ] E-01 RE-DERIVE the leaf census at execution HEAD rather than trusting this plan's authoring numbers, because the command tree grows continuously and every number in F-1 through F-4 is a function of it. Build `cli._build_parser()`, walk it to its leaves through `argparse._SubParsersAction.choices`, and classify each leaf into exactly three buckets: UNSAFE (has a positional whose `nargs` is `argparse.REMAINDER` or `argparse.PARSER`), TARGET (no unsafe positional, has a positional whose `nargs` is `"*"` or `"+"`, and declares at least one option of its own beyond the inherited presentation set), and MISSING-FLAG (as TARGET but declares no option of its own, the `aw config set` class of F-3).
+- [x] E-01 RE-DERIVE the leaf census at execution HEAD rather than trusting this plan's authoring numbers, because the command tree grows continuously and every number in F-1 through F-4 is a function of it. Build `cli._build_parser()`, walk it to its leaves through `argparse._SubParsersAction.choices`, and classify each leaf into exactly three buckets: UNSAFE (has a positional whose `nargs` is `argparse.REMAINDER` or `argparse.PARSER`), TARGET (no unsafe positional, has a positional whose `nargs` is `"*"` or `"+"`, and declares at least one option of its own beyond the inherited presentation set), and MISSING-FLAG (as TARGET but declares no option of its own, the `aw config set` class of F-3).
   REPORT EVERY COUNT UNDER **BOTH** COUNTING RULES, because this plan's own numbers use two DIFFERENT rules and mixing them silently is how a census "contradicts" a correct finding (PR-201). By DISTINCT PARSER OBJECT (dedup by `id()`, the idiom `tests/test_cli_parser_conflict_policy.py` establishes with `_collect_parser_objects`, because an alias registers the SAME parser object under several `choices` keys) the measured values at review HEAD `bacf1aae` are 174 parser objects, **151 leaves** and **16 UNSAFE**. By CHOICE KEY (counting each alias separately, i.e. walking `choices` without deduplicating) they are **249 leaves** and **33 UNSAFE**. F-1's 249 and F-4's 33 are CHOICE-KEY numbers; the `id()` idiom E-01 previously named would have produced 151 and 16 and looked like a contradiction. TARGET (25) and MISSING-FLAG (8) are IDENTICAL under both rules, because no aliased leaf is in either bucket, which is why F-2 and F-3 are unambiguous as written.
   Report the three bucket counts and their member lists, under both rules for UNSAFE and the total. Confirm or correct 174 / 151 / 249 / 16 / 33 / 25 / 8. CROSS-CHECK the canonical figure against the shipped enumerator rather than trusting one hand-written walk: `command_surface.discover_parser_leaves(cli._build_parser())` returns the canonical leaves with aliases EXCLUDED and measured 151 at review HEAD, matching the `id()`-dedup count exactly, so a disagreement between your walk and that function is a bug in your walk. If any count has drifted, use the measured one and say so at finalize; do NOT quietly fix a different set than the one validated. GUARD 2 is written against the UNSAFE PROPERTY per parser object, not against either count, so a drift in the count is a reporting correction and not a change to the fix.
   - Depends on: none
   - Expected outcome: a pasted census giving the parser-object count, the leaf count under BOTH counting rules, the UNSAFE count under BOTH rules, and the TARGET and MISSING-FLAG counts with their member lists; plus an explicit statement of whether 174 / 151 / 249 / 16 / 33 / 25 / 8 still hold, naming any drift and which rule each number uses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPRODUCE the failure and the recursion hazard at HEAD, as two separate pasted demonstrations, BEFORE editing `cli.py`. First, run the five item-named reproductions (`aw set approved --dir . a1b2c3`, `aw set approved a1b2c3 -m x d4e5f6`, `aw find plans a --dir . b`, `aw specs set approved abc123 --dir . def456`, `aw partition -t plans s1 --dir . s2`) and paste each exit code and stderr, so the baseline is evidence rather than assertion. Second, prove the F-6 recursion hazard on at least one interpreter in the 3.9 through 3.12 range (the repo's `requires-python` is `>=3.9`): build a throwaway `ArgumentParser` subclass whose `parse_known_args` calls `super().parse_known_intermixed_args` with NO reentrancy guard, parse `["a","--dir",".","b"]`, and paste the resulting `RecursionError`. This is the defect E-03's guard exists to prevent, and it must be demonstrated rather than taken on faith, because a fix that ships without the guard passes on 3.13/3.14 and breaks every 3.9 through 3.12 user.
+- [x] E-02 REPRODUCE the failure and the recursion hazard at HEAD, as two separate pasted demonstrations, BEFORE editing `cli.py`. First, run the five item-named reproductions (`aw set approved --dir . a1b2c3`, `aw set approved a1b2c3 -m x d4e5f6`, `aw find plans a --dir . b`, `aw specs set approved abc123 --dir . def456`, `aw partition -t plans s1 --dir . s2`) and paste each exit code and stderr, so the baseline is evidence rather than assertion. Second, prove the F-6 recursion hazard on at least one interpreter in the 3.9 through 3.12 range (the repo's `requires-python` is `>=3.9`): build a throwaway `ArgumentParser` subclass whose `parse_known_args` calls `super().parse_known_intermixed_args` with NO reentrancy guard, parse `["a","--dir",".","b"]`, and paste the resulting `RecursionError`. This is the defect E-03's guard exists to prevent, and it must be demonstrated rather than taken on faith, because a fix that ships without the guard passes on 3.13/3.14 and breaks every 3.9 through 3.12 user.
   - Depends on: E-01
   - Expected outcome: pasted exit codes and stderr for the five failing commands at HEAD, plus a pasted `RecursionError` traceback from an unguarded override on a 3.9-3.12 interpreter, with the interpreter version printed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make options-anywhere work where it is safe
 
-- [ ] E-03 ADD a `parse_known_args` override to `cli._AwArgumentParser` that delegates to `argparse.ArgumentParser.parse_known_intermixed_args` for a SAFE leaf and to the inherited behavior otherwise, with the three guards below, each of which is load-bearing and independently justified. GUARD 1, REENTRANCY: return the inherited behavior immediately when a per-instance sentinel is already set, and set that sentinel around the intermixed call in a `try/finally`; without it, the stdlib's internal `self.parse_known_args` call recurses into this override forever on Python 3.9-3.12 (F-6, demonstrated by E-02). GUARD 2, UNSAFE POSITIONALS: return the inherited behavior when any positional action has `nargs` of `argparse.REMAINDER` or `argparse.PARSER`, which keeps all 33 forwarding leaves and `aw runs`' routing action on exactly today's code path (F-4). GUARD 3, NO-OP AVOIDANCE: return the inherited behavior when no positional has `nargs` in `("*", "+")`, so the roughly 173 leaves that cannot exhibit the bug keep byte-identical parsing and the blast radius stays at the leaves that need it. ALSO keep a `TypeError` fallback around the intermixed call, because that is the stdlib's documented signal that a parser is incompatible and it costs one `except` clause to degrade to current behavior instead of crashing. Place the override on `_AwArgumentParser` and NOT on `argparse.ArgumentParser`: measured, all 174 reachable parser objects are `_AwArgumentParser` (160) or its subclass `_RunsArgumentParser` (14) and zero are plain `ArgumentParser`, so the base class reaches the whole tree without patching the stdlib for every other library in the process. Document WHY each guard exists in the docstring, in the register the surrounding class comments already use, since the next reader's temptation is to simplify exactly these three lines away.
+- [x] E-03 ADD a `parse_known_args` override to `cli._AwArgumentParser` that delegates to `argparse.ArgumentParser.parse_known_intermixed_args` for a SAFE leaf and to the inherited behavior otherwise, with the three guards below, each of which is load-bearing and independently justified. GUARD 1, REENTRANCY: return the inherited behavior immediately when a per-instance sentinel is already set, and set that sentinel around the intermixed call in a `try/finally`; without it, the stdlib's internal `self.parse_known_args` call recurses into this override forever on Python 3.9-3.12 (F-6, demonstrated by E-02). GUARD 2, UNSAFE POSITIONALS: return the inherited behavior when any positional action has `nargs` of `argparse.REMAINDER` or `argparse.PARSER`, which keeps all 33 forwarding leaves and `aw runs`' routing action on exactly today's code path (F-4). GUARD 3, NO-OP AVOIDANCE: return the inherited behavior when no positional has `nargs` in `("*", "+")`, so the roughly 173 leaves that cannot exhibit the bug keep byte-identical parsing and the blast radius stays at the leaves that need it. ALSO keep a `TypeError` fallback around the intermixed call, because that is the stdlib's documented signal that a parser is incompatible and it costs one `except` clause to degrade to current behavior instead of crashing. Place the override on `_AwArgumentParser` and NOT on `argparse.ArgumentParser`: measured, all 174 reachable parser objects are `_AwArgumentParser` (160) or its subclass `_RunsArgumentParser` (14) and zero are plain `ArgumentParser`, so the base class reaches the whole tree without patching the stdlib for every other library in the process. Document WHY each guard exists in the docstring, in the register the surrounding class comments already use, since the next reader's temptation is to simplify exactly these three lines away.
   - Depends on: E-02
   - Expected outcome: `cli._AwArgumentParser.parse_known_args` exists, routes a safe greedy leaf through the intermixed parser and every other leaf through the inherited path, carries all three guards plus the `TypeError` fallback, and each guard's rationale is stated in the docstring.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 VERIFY the `aw runs` viewer-or-leaf routing is untouched, as its own step rather than as a line in E-03, because it is the one leaf in the tree that carries a `nargs=PARSER` routing action AND a sibling `targets nargs="*"` on the same parser, argparse rejects intermixed parsing on that shape outright, and `cli._ViewerOrLeafSubParsersAction`'s docstring records that the registration order is load-bearing and that plain argparse cannot express the combination at all. Drive the real parser over the bare viewer (`runs`), a single target (`runs RUN1`), a target with a trailing viewer flag (`runs RUN1 --issues`), a leading viewer flag (`runs --issues RUN1`), two targets, and three named leaves (`runs show RUN1`, `runs list --last`, `runs status RUN1`), and confirm `targets` and `runs_command` land exactly as they do at HEAD. Compare against a baseline captured BEFORE E-03, not against expectation. If any case differs, STOP and report rather than adjusting the routing action to accommodate the override: the override is the thing that must yield here.
+- [x] E-04 VERIFY the `aw runs` viewer-or-leaf routing is untouched, as its own step rather than as a line in E-03, because it is the one leaf in the tree that carries a `nargs=PARSER` routing action AND a sibling `targets nargs="*"` on the same parser, argparse rejects intermixed parsing on that shape outright, and `cli._ViewerOrLeafSubParsersAction`'s docstring records that the registration order is load-bearing and that plain argparse cannot express the combination at all. Drive the real parser over the bare viewer (`runs`), a single target (`runs RUN1`), a target with a trailing viewer flag (`runs RUN1 --issues`), a leading viewer flag (`runs --issues RUN1`), two targets, and three named leaves (`runs show RUN1`, `runs list --last`, `runs status RUN1`), and confirm `targets` and `runs_command` land exactly as they do at HEAD. Compare against a baseline captured BEFORE E-03, not against expectation. If any case differs, STOP and report rather than adjusting the routing action to accommodate the override: the override is the thing that must yield here.
   - Depends on: E-03
   - Expected outcome: a pasted before/after table over the eight `aw runs` argv shapes showing `targets` and `runs_command` identical pre- and post-change, or an explicit STOP naming the diverging case.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: keep it from regressing
 
-- [ ] E-05 ADD the behavioral regression test file `tests/test_options_anywhere.py` covering the three PARSE-OUTCOME classes below. Every assertion is on an observable parse outcome. (1) POSITIVE: for a runtime-selected sample of TARGET leaves, a flag placed between and after positionals parses AND the positional list is the full expected set. Assert the parsed VALUES rather than mere non-failure, because a parser that silently dropped a positional would also avoid exit 2. The measured shape to pin is `specs set approved abc123 --dir /tmp def456` yielding all three of `approved`, `abc123`, `def456`. (2) PASSTHROUGH NEGATIVE: `aw commit --no-plan -- a.py b.py` and `aw commit -- --dir weird` still deliver post-`--` tokens verbatim, the contract `work_cmd._recover_commit_flags` and `_split_remainder` depend on (F-5). (3) ROUTING NEGATIVE: the eight `aw runs` shapes from E-04.
+- [x] E-05 ADD the behavioral regression test file `tests/test_options_anywhere.py` covering the three PARSE-OUTCOME classes below. Every assertion is on an observable parse outcome. (1) POSITIVE: for a runtime-selected sample of TARGET leaves, a flag placed between and after positionals parses AND the positional list is the full expected set. Assert the parsed VALUES rather than mere non-failure, because a parser that silently dropped a positional would also avoid exit 2. The measured shape to pin is `specs set approved abc123 --dir /tmp def456` yielding all three of `approved`, `abc123`, `def456`. (2) PASSTHROUGH NEGATIVE: `aw commit --no-plan -- a.py b.py` and `aw commit -- --dir weird` still deliver post-`--` tokens verbatim, the contract `work_cmd._recover_commit_flags` and `_split_remainder` depend on (F-5). (3) ROUTING NEGATIVE: the eight `aw runs` shapes from E-04.
   TWO CONSTRAINTS ON HOW THE FILE IS WRITTEN. It must contain no source introspection, per GUIDING_PRINCIPLES P16: no `inspect`, no source reading, no assertion that the override exists. It must hard-code no leaf count, selecting leaves by evaluating the TARGET predicate at runtime, because the growing tree would turn a literal count into a maintenance trap. Build parsers via `cli._build_parser()` and parse in-process, the idiom `tests/test_flag_surface_uniformity.py` and `tests/test_cli_find.py` already use.
   - Depends on: E-04
   - Expected outcome: a new passing test file covering the three parse-outcome classes, containing no source-introspection assertion and no hard-coded leaf-count assertion, whose positive cases assert parsed positional values rather than only a non-failure.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 ADD the two GUARD-REGRESSION classes to `tests/test_options_anywhere.py`, kept a separate item from E-05 because they pin guards rather than parse outcomes and each needs its own deliberate-break demonstration. (4) REENTRANCY, guarding GUARD 1: a TARGET-leaf parse that would recurse without the per-instance sentinel, so the guard cannot be deleted silently. The unguarded failure mode is `RecursionError`, not a wrong answer, and it is INVISIBLE on 3.13 and newer (F-6), so this class is only meaningful when the file is also run on a sub-3.13 interpreter, which V-07 requires. (5) MISSING-FLAG REFUSAL CONTAINMENT, guarding what F-11 measured at review: assert that each of the eight MISSING-FLAG leaves STILL REFUSES an undeclared flag end to end, by driving `cli.main` (not the bare parser) and asserting a nonzero exit, for at least `aw config set k v --dir .` and `aw exclude a --dir .`. This class exists because the override DOES reach these leaves (GUARD 3 tests only for a greedy positional) and absorbs the undeclared flag's VALUE as a positional, leaving only the flag token as a leftover; the refusal survives solely because `argparse.parse_args` errors on any leftover. Assert the REFUSAL, which is the contract, and do NOT assert the exact message text, which F-11 measures as changing from `unrecognized arguments: --dir .` to `unrecognized arguments: --dir` and which is not a contract worth pinning.
+- [x] E-07 ADD the two GUARD-REGRESSION classes to `tests/test_options_anywhere.py`, kept a separate item from E-05 because they pin guards rather than parse outcomes and each needs its own deliberate-break demonstration. (4) REENTRANCY, guarding GUARD 1: a TARGET-leaf parse that would recurse without the per-instance sentinel, so the guard cannot be deleted silently. The unguarded failure mode is `RecursionError`, not a wrong answer, and it is INVISIBLE on 3.13 and newer (F-6), so this class is only meaningful when the file is also run on a sub-3.13 interpreter, which V-07 requires. (5) MISSING-FLAG REFUSAL CONTAINMENT, guarding what F-11 measured at review: assert that each of the eight MISSING-FLAG leaves STILL REFUSES an undeclared flag end to end, by driving `cli.main` (not the bare parser) and asserting a nonzero exit, for at least `aw config set k v --dir .` and `aw exclude a --dir .`. This class exists because the override DOES reach these leaves (GUARD 3 tests only for a greedy positional) and absorbs the undeclared flag's VALUE as a positional, leaving only the flag token as a leftover; the refusal survives solely because `argparse.parse_args` errors on any leftover. Assert the REFUSAL, which is the contract, and do NOT assert the exact message text, which F-11 measures as changing from `unrecognized arguments: --dir .` to `unrecognized arguments: --dir` and which is not a contract worth pinning.
   - Depends on: E-05
   - Expected outcome: both guard classes present and passing, the reentrancy class demonstrated red on a sub-3.13 interpreter with GUARD 1 removed, and the missing-flag class asserting a nonzero exit through `cli.main` on at least two of the eight leaves without pinning message text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RECORD the user-visible change in `CHANGELOG.md` under the pending 2.0.0 entry, stating that options may now be placed anywhere among positional arguments on the commands that accept them, and stating the THREE HONEST LIMITS so the entry does not overpromise what the item asked for. LIMIT 1: the forwarding commands that pass a tail to another program (`aw commit`, `aw test`, `aw oc run`, `aw agy run`, `aw integration-lock`, `aw run as`, ...) still require their flags BEFORE the `--` marker. LIMIT 2: the leaves identified in F-3 still reject a flag they never declared, wherever it is placed. LIMIT 3, ADDED AT REVIEW (PR-203) BECAUSE IT WAS MEASURED AND IS THE LIMIT AN OPERATOR MEETS FIRST: the tolerance applies to a flag placed among the positionals OF A LEAF, not to a flag placed before an intermediate GROUP token. Measured at review HEAD, `aw specs set approved abc --dir /tmp def` now works while `aw specs --dir /tmp set approved abc` still exits 2 with `argument specs_command: invalid choice`, because the group parser sees `--dir` before it has chosen a leaf. Say so plainly rather than letting "anywhere" imply it. Write it without em or en dashes, per the execution contract for user-facing prose. Do NOT claim "all subcommands", which is what the backlog item asked for and is not what ships.
+- [x] E-06 RECORD the user-visible change in `CHANGELOG.md` under the pending 2.0.0 entry, stating that options may now be placed anywhere among positional arguments on the commands that accept them, and stating the THREE HONEST LIMITS so the entry does not overpromise what the item asked for. LIMIT 1: the forwarding commands that pass a tail to another program (`aw commit`, `aw test`, `aw oc run`, `aw agy run`, `aw integration-lock`, `aw run as`, ...) still require their flags BEFORE the `--` marker. LIMIT 2: the leaves identified in F-3 still reject a flag they never declared, wherever it is placed. LIMIT 3, ADDED AT REVIEW (PR-203) BECAUSE IT WAS MEASURED AND IS THE LIMIT AN OPERATOR MEETS FIRST: the tolerance applies to a flag placed among the positionals OF A LEAF, not to a flag placed before an intermediate GROUP token. Measured at review HEAD, `aw specs set approved abc --dir /tmp def` now works while `aw specs --dir /tmp set approved abc` still exits 2 with `argument specs_command: invalid choice`, because the group parser sees `--dir` before it has chosen a leaf. Say so plainly rather than letting "anywhere" imply it. Write it without em or en dashes, per the execution contract for user-facing prose. Do NOT claim "all subcommands", which is what the backlog item asked for and is not what ships.
   - Depends on: E-05, E-07
   - Expected outcome: a CHANGELOG entry describing the new tolerance and all THREE limits, free of em and en dashes, making no all-subcommands claim and no claim that a flag may precede a group token.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -186,40 +186,292 @@ No `.spec.md` file is amended and none is in `Scope-Paths:`. No spec governs arg
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted census showing the total leaf count and all three bucket counts WITH their member lists, plus an explicit statement of whether F-1's 249, F-4's 33, F-2's 25 and F-3's 8 still hold, naming any drift. A census that reports only a total, or that reports counts without the member lists, does NOT satisfy this item: the member lists are what E-05 samples from and what proves the UNSAFE set was correctly identified before GUARD 2 was written against it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Re-derived leaf census at execution HEAD confirms 175 parser objects, 152 distinct leaf parsers (by id and canonical discover_parser_leaves), 250 choice-key leaves, 16 UNSAFE (33 by choice key), 25 TARGET, and 8 MISSING-FLAG.
+    Re-derived leaf census at execution HEAD:
+    ```
+    === CENSUS AT HEAD ===
+    Total distinct parser objects: 175
+    Distinct leaf parser objects (dedup by id): 152
+    Canonical discover_parser_leaves count: 152
+    Leaves by choice key: 250
+    UNSAFE by distinct parser object (id): 16
+    UNSAFE by choice key: 33
+    TARGET by distinct parser object (id): 25
+    TARGET by choice key: 29
+    MISSING-FLAG by distinct parser object (id): 8
+    MISSING-FLAG by choice key: 14
 
-- [ ] V-02 validates E-02
+    TARGET members (25 distinct):
+      - agent-workflows adopt
+      - agent-workflows backlog set
+      - agent-workflows check
+      - agent-workflows find
+      - agent-workflows group
+      - agent-workflows index
+      - agent-workflows install
+      - agent-workflows ipd dependencies remove
+      - agent-workflows ipd dependencies set
+      - agent-workflows ipd lint
+      - agent-workflows ipd recheck-readiness
+      - agent-workflows ipd set
+      - agent-workflows next
+      - agent-workflows partition
+      - agent-workflows rename
+      - agent-workflows research set-assign
+      - agent-workflows runs analyze
+      - agent-workflows runs export
+      - agent-workflows runs list
+      - agent-workflows search
+      - agent-workflows set
+      - agent-workflows specs set
+      - agent-workflows upgrade-test clean
+      - agent-workflows upgrade-test new
+      - agent-workflows workflow compile
+
+    MISSING-FLAG members (8 distinct):
+      - agent-workflows config add
+      - agent-workflows config is
+      - agent-workflows config remove
+      - agent-workflows config set
+      - agent-workflows exclude
+      - agent-workflows include
+      - agent-workflows workflow check-generated
+      - agent-workflows workflow validate
+
+    UNSAFE members (16 distinct):
+      - agent-workflows __complete
+      - agent-workflows agy exec
+      - agent-workflows agy integrate
+      - agent-workflows agy review
+      - agent-workflows agy runipd
+      - agent-workflows agy sessions
+      - agent-workflows agy view
+      - agent-workflows commit
+      - agent-workflows integration-lock
+      - agent-workflows oc integrate
+      - agent-workflows oc review
+      - agent-workflows oc runipd
+      - agent-workflows pwatch
+      - agent-workflows run as
+      - agent-workflows run ipd
+      - agent-workflows test
+    ```
+    Drift statement:
+    - UNSAFE: 16 by distinct parser object, 33 by choice key. F-4's 33 holds exactly.
+    - TARGET: 25 distinct parser objects. F-2's 25 holds exactly. (29 by choice key due to aliases on next (+3) and specs set (+1)).
+    - MISSING-FLAG: 8 distinct parser objects. F-3's 8 holds exactly. (14 by choice key due to aliases on config/conf and remove/rm).
+    - Total parser objects: 175 (drift: +1 from 174 at review HEAD due to commit 6fd70f35c adding runs resume).
+    - Distinct leaf parser objects: 152 (drift: +1 from 151; matches command_surface.discover_parser_leaves count 152).
+    - Total choice-key leaves: 250 (drift: +1 from 249).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the pasted exit code and stderr for each of the five reproductions AT HEAD before any edit (each must show exit 2 and an `unrecognized arguments` message), PLUS a pasted `RecursionError` traceback from an unguarded override with the interpreter version printed and that version being below 3.13. A demonstration on 3.13 or 3.14 alone does NOT satisfy this item, because F-6 establishes the hazard is absent there; evidence from the newest interpreter would prove the opposite of what is needed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 5 named reproductions exit 2 at HEAD before edits; F-6 infinite recursion hazard reproduced on Python 3.12.3 with RecursionError.
+    Five failing command reproductions at HEAD prior to edits:
+    1. `aw set approved --dir . a1b2c3` -> exit code 2:
+       `agent-workflows: error: unrecognized arguments: a1b2c3`
+    2. `aw set approved a1b2c3 -m x d4e5f6` -> exit code 2:
+       `agent-workflows: error: unrecognized arguments: d4e5f6`
+    3. `aw find plans a --dir . b` -> exit code 2:
+       `agent-workflows: error: unrecognized arguments: b`
+    4. `aw specs set approved abc123 --dir . def456` -> exit code 2:
+       `agent-workflows: error: unrecognized arguments: def456`
+    5. `aw partition -t plans s1 --dir . s2` -> exit code 2:
+       `agent-workflows: error: unrecognized arguments: s2`
 
-- [ ] V-03 validates E-03
+    Demonstration of F-6 recursion hazard on Python 3.12.3 (sub-3.13 interpreter):
+    ```
+    $ python3.12 -c "import sys, argparse; print('Python version:', sys.version); ... p.parse_known_args(['a', '--dir', '.', 'b'])"
+    Python version: 3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]
+    Traceback (most recent call last):
+      File "<string>", line 11, in <module>
+      File "<string>", line 7, in parse_known_args
+      File "/usr/lib/python3.12/argparse.py", line 2472, in parse_known_intermixed_args
+        namespace, remaining_args = self.parse_known_args(args, namespace)
+      File "<string>", line 7, in parse_known_args
+      ...
+      File "/usr/lib/python3.12/argparse.py", line 2472, in parse_known_intermixed_args
+        namespace, remaining_args = self.parse_known_args(args, namespace)
+    RecursionError: maximum recursion depth exceeded
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the `git diff` of `agent_workflows/cli.py` showing the override and all three guards; the five reproductions from E-02 re-run and now SUCCEEDING, with their parsed positional values shown so a silently-dropped positional would be visible; and a pasted demonstration that an UNSAFE leaf took the unchanged path (parse `aw commit --no-plan -- a.py b.py` and show `path_argv` retains the verbatim tail). The diff must show each guard's rationale documented. Evidence showing only that the failing commands now pass is INSUFFICIENT: the risk in this item is what the override does to the leaves it should not touch.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. cli._AwArgumentParser.parse_known_args added with 3 guards; all 5 reproductions succeed with parsed positional values; unsafe commit leaves retain verbatim tail.
+    Diff of `agent_workflows/cli.py` showing documented override and all 3 guards:
+    ```diff
+    @@ -759,6 +759,57 @@ class _AwArgumentParser(argparse.ArgumentParser):
+             print(f"Next  {hint_cmd} --help", file=sys.stderr)
+             self.exit(2)
 
-- [ ] V-04 validates E-04
+    +    def parse_known_args(self, args=None, namespace=None):
+    +        """Parse arguments allowing options anywhere among positionals on safe leaves.
+    +
+    +        optanywhere z593o5 E-03. Delegates to argparse's parse_known_intermixed_args
+    +        when, and only when, the leaf parser is SAFE for intermixed parsing (has a
+    +        greedy positional, and carries no REMAINDER or PARSER positional action).
+    +        Three guards are load-bearing:
+    +
+    +        GUARD 1 (REENTRANCY): on Python 3.9 through 3.12, stdlib's
+    +        `parse_known_intermixed_args` calls `self.parse_known_args` internally during
+    +        its multi-pass parse. Without a per-instance sentinel, calling intermixed
+    +        from parse_known_args recurses infinitely until RecursionError (F-6).
+    +
+    +        GUARD 2 (UNSAFE POSITIONALS): argparse rejects intermixed parsing with
+    +        TypeError when any positional has nargs=REMAINDER or nargs=PARSER. Forwarding
+    +        commands (e.g. `aw commit`, `aw test`, `aw oc run`, `aw agy run`) and
+    +        `aw runs`' viewer-or-leaf routing action declare these positionals. Bypassing
+    +        intermixed parsing keeps their passthrough and routing contracts untouched (F-4, F-5).
+    +
+    +        GUARD 3 (NO-OP AVOIDANCE): leaves without a greedy positional (`*` or `+`)
+    +        cannot swallow flags placed after positionals. Skipping intermixed parsing
+    +        for them keeps byte-identical behavior on the majority of commands and bounds
+    +        the blast radius strictly to the leaves that need it.
+    +
+    +        A TypeError fallback around the intermixed call ensures that any unforeseen
+    +        parser structure incompatible with intermixed parsing degrades gracefully to
+    +        the inherited behavior rather than raising.
+    +        """
+    +        # GUARD 1: Reentrancy sentinel (prevents infinite recursion on Python 3.9-3.12)
+    +        if getattr(self, "_parsing_intermixed", False):
+    +            return super().parse_known_args(args=args, namespace=namespace)
+    +
+    +        positionals = [a for a in self._actions if not a.option_strings]
+    +
+    +        # GUARD 2: Unsafe positionals (REMAINDER or PARSER)
+    +        if any(a.nargs in (argparse.REMAINDER, argparse.PARSER) for a in positionals):
+    +            return super().parse_known_args(args=args, namespace=namespace)
+    +
+    +        # GUARD 3: No-op avoidance (only leaves with greedy positionals '*' or '+')
+    +        if not any(a.nargs in ("*", "+") for a in positionals):
+    +            return super().parse_known_args(args=args, namespace=namespace)
+    +
+    +        self._parsing_intermixed = True
+    +        try:
+    +            try:
+    +                return super().parse_known_intermixed_args(args=args, namespace=namespace)
+    +            except TypeError:
+    +                return super().parse_known_args(args=args, namespace=namespace)
+    +        finally:
+    +            self._parsing_intermixed = False
+    ```
+
+    Five reproductions re-run post-change with parsed positional values:
+    1. `set approved --dir . a1b2c3` -> args=['approved', 'a1b2c3'], dir='.'
+    2. `set approved a1b2c3 -m x d4e5f6` -> args=['approved', 'a1b2c3', 'd4e5f6'], message='x'
+    3. `find plans a --dir . b` -> type='plans', selector=['a', 'b'], dir='.'
+    4. `specs set approved abc123 --dir . def456` -> args=['approved', 'abc123', 'def456'], dir='.'
+    5. `partition -t plans s1 --dir . s2` -> artifact_type='plans', selectors=['s1', 's2'], dir='.'
+
+    Unsafe leaf took unchanged path:
+    - `commit --no-plan -- a.py b.py` -> path_argv=['--', 'a.py', 'b.py'] (verbatim tail preserved)
+    - `commit -- --dir weird` -> path_argv=['--', '--dir', 'weird'] (verbatim tail preserved)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the before/after table over all eight `aw runs` argv shapes, captured from a real parse (not asserted), showing `targets` and `runs_command` identical pre- and post-change. It must include both `runs RUN1 --issues` and `runs --issues RUN1`, and both a bare-viewer and a named-leaf case, since those are the shapes the routing action's docstring says plain argparse cannot express. Any divergence must be reported as a STOP, not reconciled by editing the routing action.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All eight aw runs argv shapes verified byte-identical between pre-edit and post-edit real parses.
+    Before/after comparison over all eight `aw runs` shapes:
+    | Argv shape | Pre-edit `targets`, `runs_command`, `issues` | Post-edit `targets`, `runs_command`, `issues` | Divergence |
+    |---|---|---|---|
+    | `['runs']` | `targets=None, runs_cmd=None, issues=False` | `targets=None, runs_cmd=None, issues=False` | none (identical) |
+    | `['runs', 'RUN1']` | `targets=['RUN1'], runs_cmd=None, issues=False` | `targets=['RUN1'], runs_cmd=None, issues=False` | none (identical) |
+    | `['runs', 'RUN1', '--issues']` | `targets=['RUN1'], runs_cmd=None, issues=True` | `targets=['RUN1'], runs_cmd=None, issues=True` | none (identical) |
+    | `['runs', '--issues', 'RUN1']` | `targets=['RUN1'], runs_cmd=None, issues=True` | `targets=['RUN1'], runs_cmd=None, issues=True` | none (identical) |
+    | `['runs', 'RUN1', 'RUN2']` | `targets=['RUN1', 'RUN2'], runs_cmd=None, issues=False` | `targets=['RUN1', 'RUN2'], runs_cmd=None, issues=False` | none (identical) |
+    | `['runs', 'show', 'RUN1']` | `targets=[], runs_cmd='show', issues=False` | `targets=[], runs_cmd='show', issues=False` | none (identical) |
+    | `['runs', 'list', '--last']` | `targets=[], runs_cmd='list', issues=False` | `targets=[], runs_cmd='list', issues=False` | none (identical) |
+    | `['runs', 'status', 'RUN1']` | `targets=[], runs_cmd='status', issues=False` | `targets=[], runs_cmd='status', issues=False` | none (identical) |
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the bare `python3 -m pytest` summary line with its `N passed` count, beside the executor's OWN pre-edit baseline (review-HEAD reference at `bacf1aae` is `3246 passed, 2 skipped, 3 warnings`, a LIVE count to re-derive rather than match); a targeted run of `tests/test_options_anywhere.py` showing its three parse-outcome classes; and the pasted PARSED VALUES for at least one positive case, so a silently-dropped positional would be visible (the measured shape is `specs set approved abc123 --dir /tmp def456` yielding all three selector tokens). Paste evidence the file contains no source-introspection assertion (a grep for `inspect`, `getsource` and `ast`) and no hard-coded leaf-count assertion. The multi-interpreter and deliberate-break evidence moved to V-07, which owns the guard classes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Bare pytest suite passed at 4478 passed (zero new failures against pre-edit baseline); test_options_anywhere.py passed (20 passed); positive parsed values confirmed; no introspection assertions.
+    Pre-edit bare suite baseline:
+    `5 failed, 4455 passed, 2 skipped, 3 warnings in 314.50s (0:05:14)`
+    Post-edit bare suite:
+    `2 failed, 4478 passed, 2 skipped, 3 warnings in 323.10s (0:05:23)`
+    (23 additional tests passed; zero new failures against baseline; the 2 remaining failures are pre-existing corpus/concurrency failures identical to baseline).
+    Six F-8 test modules re-run: `52 passed in 11.28s`.
 
-- [ ] V-07 validates E-07
+    Targeted run of `tests/test_options_anywhere.py`:
+    `20 passed in 10.59s` (pytest) / `Ran 20 tests in 2.010s OK` (unittest).
+
+    Parsed values for positive case:
+    `specs set approved abc123 --dir /tmp def456` -> `ns.args = ['approved', 'abc123', 'def456']`, `ns.dir = '/tmp'`. All three positional values preserved.
+
+    No source introspection assertion:
+    `grep -w -E "inspect|getsource|ast" tests/test_options_anywhere.py` yields only the header comment:
+    `Contains NO source introspection (no inspect, getsource, ast, or code reading).`
+    No hardcoded leaf count: `test_dynamically_selected_target_leaves_accept_intermixed_option` discovers target leaves dynamically at runtime and asserts `len(targets) >= 10`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the MULTI-INTERPRETER run, being `tests/test_options_anywhere.py` passing on one interpreter below 3.13 and one at or above it, with both versions printed. At review HEAD `python3.9` (3.9.25), `python3.11` (3.11.15), `python3.12` (3.12.3) and `python3` (3.14.6) are all present in this environment, so the STOP condition for an unavailable sub-3.13 interpreter should not fire; if it does, report that rather than substituting 3.14 alone. PLUS the deliberate-break demonstration for GUARD 1: remove the reentrancy guard in the working tree, run the file on the SUB-3.13 interpreter, paste the `RecursionError` failure, restore, paste the pass. A break demonstrated on 3.13 or 3.14 does NOT satisfy this, because F-6 measures the hazard as absent there (verified at review: the stdlib body calls `self.parse_known_args(` on 3.9/3.11/3.12 and `self._parse_known_args2(` on 3.14, and an unguarded subclass raises `RecursionError` on the first three and parses cleanly on the fourth). PLUS the missing-flag containment class: paste the nonzero exit from driving `cli.main` on at least `aw config set k v --dir .` and `aw exclude a --dir .`, and confirm by inspection that the test asserts the REFUSAL and does NOT pin the message text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Multi-interpreter check passed on Python 3.12.3 and Python 3.14.6; Guard 1 deliberate break demonstrated RecursionError on Python 3.12.3 and passed when restored; missing-flag containment verified via cli.main.
+    Multi-interpreter run:
+    1. Sub-3.13 interpreter (Python 3.12.3):
+       ```
+       $ python3.12 --version; python3.12 -m unittest tests/test_options_anywhere.py
+       Python 3.12.3
+       ....................
+       ----------------------------------------------------------------------
+       Ran 20 tests in 7.351s
+       OK
+       ```
+    2. Interpreter at or above 3.13 (Python 3.14.6):
+       ```
+       $ python3 --version; python3 -m unittest tests/test_options_anywhere.py
+       Python 3.14.6
+       ....................
+       ----------------------------------------------------------------------
+       Ran 20 tests in 2.010s
+       OK
+       ```
 
-- [ ] V-06 validates E-06
+    Deliberate-break demonstration for Guard 1 on Python 3.12.3:
+    Guard 1 sentinel check commented out in `agent_workflows/cli.py`:
+    ```
+    $ python3.12 -m unittest tests/test_options_anywhere.py
+      File "agent_workflows/cli.py", line 807, in parse_known_args
+        return super().parse_known_intermixed_args(args=args, namespace=namespace)
+      File "/usr/lib/python3.12/argparse.py", line 2496, in parse_known_intermixed_args
+        namespace, extras = self.parse_known_args(remaining_args, namespace)
+      ...
+    RecursionError: maximum recursion depth exceeded
+    FAILED (errors=15)
+    ```
+    Restored Guard 1:
+    `Ran 20 tests in 4.159s OK`
+
+    Missing-flag refusal containment:
+    `cli.main(['config', 'set', 'k', 'v', '--dir', '.'])` exited with code 2
+    `cli.main(['exclude', 'a', '--dir', '.'])` exited with code 2
+    In `TestOptionsAnywhereMissingFlagRefusal`, tests assert `self.assertNotEqual(cm.exception.code, 0)` without pinning message text.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: the `CHANGELOG.md` diff, showing the entry states the new tolerance AND all THREE limits (the `--`-marker requirement for forwarding commands; the undeclared-flag leaves of F-3; and F-12's group-token limit, that a flag may not precede an intermediate group token such as `aw specs --dir /tmp set ...`), plus a check that it contains no em or en dash and makes no "all subcommands" claim. An entry that describes the fix without its limits does NOT satisfy this item, because the backlog item asked for the broader behavior and a silent overclaim in user-facing prose is the specific failure this evidence exists to catch. Paste the two measured commands that bound LIMIT 3 side by side (`aw specs set approved abc --dir /tmp def` succeeding, `aw specs --dir /tmp set approved abc` still exiting 2) so the limit written in the CHANGELOG is the limit the code actually has.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. CHANGELOG.md updated with options-anywhere tolerance and all three limits; verified free of em/en dashes and makes no all-subcommands claim; Limit-3 pair demonstrated.
+    Diff of `CHANGELOG.md`:
+    ```diff
+    +- Added: options may now be placed anywhere among positional arguments on commands that accept them, so invocations such as aw specs set approved abc --dir /tmp def no longer fail with unrecognized arguments. Three limits apply. First, forwarding and passthrough commands (such as aw commit, aw test, aw oc run, aw agy run, aw integration-lock, and aw run as) still require their flags before the -- marker. Second, commands that declare no options of their own beyond presentation flags (including aw config set, aw exclude, and aw include) still reject undeclared flags wherever placed. Third, tolerance applies to flags placed among the positional arguments of a leaf command, not to flags placed before an intermediate group token; for example, aw specs --dir /tmp set approved abc still exits 2 because the group parser must select a subcommand before leaf flags come into scope.
+    ```
+    Dash check:
+    Em dash (`\u2014`): False
+    En dash (`\u2013`): False
+    No "all subcommands" claim: "on commands that accept them".
+
+    Limit 3 bounding commands side by side:
+    - Flag placed among leaf positionals:
+      `aw specs set approved abc --dir /tmp def` -> parsed args=['approved', 'abc', 'def'], dir='/tmp' (succeeded)
+    - Flag placed before intermediate group token:
+      `aw specs --dir /tmp set approved abc` -> exit code 2: `agent-workflows specs: error: argument specs_command: invalid choice: '/tmp' (choose from 'new', 'scaffold', 'set', 'note', 'check', 'migrate')`
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -759,6 +759,59 @@ class _AwArgumentParser(argparse.ArgumentParser):
         print(f"Next  {hint_cmd} --help", file=sys.stderr)
         self.exit(2)
 
+    def parse_known_args(self, args=None, namespace=None):
+        """Parse arguments allowing options anywhere among positionals on safe leaves.
+
+        optanywhere z593o5 E-03. Delegates to argparse's parse_known_intermixed_args
+        when, and only when, the leaf parser is SAFE for intermixed parsing (has a
+        greedy positional, and carries no REMAINDER or PARSER positional action).
+        Three guards are load-bearing:
+
+        GUARD 1 (REENTRANCY): on Python 3.9 through 3.12, stdlib's
+        `parse_known_intermixed_args` calls `self.parse_known_args` internally during
+        its multi-pass parse. Without a per-instance sentinel, calling intermixed
+        from parse_known_args recurses infinitely until RecursionError (F-6).
+
+        GUARD 2 (UNSAFE POSITIONALS): argparse rejects intermixed parsing with
+        TypeError when any positional has nargs=REMAINDER or nargs=PARSER. Forwarding
+        commands (e.g. `aw commit`, `aw test`, `aw oc run`, `aw agy run`) and
+        `aw runs`' viewer-or-leaf routing action declare these positionals. Bypassing
+        intermixed parsing keeps their passthrough and routing contracts untouched (F-4, F-5).
+
+        GUARD 3 (NO-OP AVOIDANCE): leaves without a greedy positional (`*` or `+`)
+        cannot swallow flags placed after positionals. Skipping intermixed parsing
+        for them keeps byte-identical behavior on the majority of commands and bounds
+        the blast radius strictly to the leaves that need it.
+
+        A TypeError fallback around the intermixed call ensures that any unforeseen
+        parser structure incompatible with intermixed parsing degrades gracefully to
+        the inherited behavior rather than raising.
+        """
+        # GUARD 1: Reentrancy sentinel (prevents infinite recursion on Python 3.9-3.12)
+        if getattr(self, "_parsing_intermixed", False):
+            return super().parse_known_args(args=args, namespace=namespace)
+
+        positionals = [a for a in self._actions if not a.option_strings]
+
+        # GUARD 2: Unsafe positionals (REMAINDER or PARSER)
+        if any(a.nargs in (argparse.REMAINDER, argparse.PARSER) for a in positionals):
+            return super().parse_known_args(args=args, namespace=namespace)
+
+        # GUARD 3: No-op avoidance (only leaves with greedy positionals '*' or '+')
+        if not any(a.nargs in ("*", "+") for a in positionals):
+            return super().parse_known_args(args=args, namespace=namespace)
+
+        self._parsing_intermixed = True
+        try:
+            try:
+                return super().parse_known_intermixed_args(
+                    args=args, namespace=namespace
+                )
+            except TypeError:
+                return super().parse_known_args(args=args, namespace=namespace)
+        finally:
+            self._parsing_intermixed = False
+
 
 class _ViewerOrLeafSubParsersAction(argparse._SubParsersAction):
     """Route `aw runs`' first positional either to a LEAF subparser or to the bare VIEWER.
