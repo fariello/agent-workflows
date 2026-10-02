@@ -14,7 +14,7 @@ This module provides:
   * E-03: Merge-and-revalidate gates for isolated mutators: stale-base detection, conflict-
           resolution authority, combined-diff review, generated-file ownership, and FULL
           post-integration validation (never trusting per-lane results).
-  * E-04: Seeded orchestration adversarial protections against role collisions, leaked prose,
+  * E-04: Orchestration isolation guards against honest mistakes: role collisions, leaked prose,
           unauthorized mutations, shared-worktree conflicts, stale branches, lane timeouts,
           and unsafe background completions.
 
