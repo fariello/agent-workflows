@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/research_cmd.py, tests/test_research_date_containment.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: m5csyi
