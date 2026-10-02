@@ -1,5 +1,5 @@
 - Id: 0b290s
-- Status: graduated
+- Status: done
 - Graduated-To: destshadow
 - Blocks-Release: next
 - Set: 0b290s
@@ -8,6 +8,7 @@
 - Summary: A parser leaf positional named 'command' silently shadows the subparsers dest and dispatch falls through to help with no error
 
 ## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD zwv1sa executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260929-destshadow-01-8kd4eo-make-an-argparse-dest-that-shadows-a-subcommand-an-executed.ipd.md, .aw/records/plans/executed/20260929-destshadow-02-zwv1sa-stop-the-runs-family-flags-being-silently-discarded-when-the.ipd.md); evidence .aw/records/plans/executed/20260929-destshadow-01-8kd4eo-make-an-argparse-dest-that-shadows-a-subcommand-an-executed.ipd.md
 - 2026-09-29 set (aw backlog): graduated by run run-20260928T235632Z-1358353: 8kd4eo, zwv1sa
 - 2026-09-22 created (aw backlog): Found while adding 'aw integration-lock' (plan vddpml E-07).
 
