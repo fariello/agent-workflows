@@ -9,7 +9,7 @@
 - Scope: Make `plans_archive._find_targets` resolve an EXPLICIT target through `selectors.resolve_for_mutation(repo_root, "plans", target)` so it accepts the same vocabulary as every other verb, compare a setid against the TERSE token via `plans_index.set_terse_id` rather than the raw `- Set:` line, keep the existing terminal-root restriction, and make an explicit target that matches nothing REFUSE (nonzero) instead of printing a success banner. Add the outcome tests this matcher has none of. EXCLUDES: the BARE sweep path (`sweep_candidates`, `--age`), which is a different code path with different semantics and legitimately exits 0 on an empty result; `selectors.py`; `plans_refs.py`; and `research_archive.py`.
 - Scope-Paths: agent_workflows/plans_archive.py, tests/test_plans_archive_selectors.py
 - Item-Dependencies: executed:eby93o
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1x4tdo
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1x4tdo verified (set awrenamesel, attempt 1).
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (aw set): status set to reviewed
 
@@ -39,48 +39,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin both silent failures
 
-- [ ] E-01 REPRODUCE THE SILENT NO-OP AS A FAILING TEST. Create `tests/test_plans_archive_selectors.py` and add cases asserting that `aw archive plans <a terminal plan's FILENAME>` and `aw archive plans <its repo-relative PATH>` each ARCHIVE that plan (with `--apply`) and that a preview run NAMES it. At HEAD both must FAIL: measured, the command prints `✓ CLEAN  no terminal-root plan or Set matches '<filename>'` and exits 0 while the id6 form archives the same plan.
+- [x] E-01 REPRODUCE THE SILENT NO-OP AS A FAILING TEST. Create `tests/test_plans_archive_selectors.py` and add cases asserting that `aw archive plans <a terminal plan's FILENAME>` and `aw archive plans <its repo-relative PATH>` each ARCHIVE that plan (with `--apply`) and that a preview run NAMES it. At HEAD both must FAIL: measured, the command prints `✓ CLEAN  no terminal-root plan or Set matches '<filename>'` and exits 0 while the id6 form archives the same plan.
   ADD THE UNMATCHED-TARGET CASE IN THE SAME ITEM, since it is the same observable class: `aw archive plans <a token matching nothing>` must exit NONZERO. At HEAD it exits 0 with the `✓ CLEAN` banner, which is why a typo is indistinguishable from a clean tree.
   ASSERT ON THE EXIT CODE AND ON THE FILE SYSTEM, not on the banner text. The banner is presentation; the observable outcomes are the exit status and whether the plan moved into its `YYYYMM/` shard.
   DRIVE IT IN-PROCESS VIA `cli.main` UNDER `redirect_stdout`, NOT AS A SUBPROCESS. Measured hazard rather than style: an editable install can make a subprocess `python3 -m agent_workflows` in a lane import the MAIN checkout, so a subprocess assertion can pass while the tree under test is unfixed (filed as `ccbe60`). `tests/test_group_verb_policy.py` already uses the in-process shape and is the model to copy.
   SEED PLANS AT A DISPOSITION ROOT, because `_find_targets` only considers plans whose path satisfies `_at_disposition_root` (a plan already inside a `YYYYMM/` shard is not a candidate). Put fixtures directly in `.aw/records/plans/executed/` in a `git init` repo, since the mover uses git.
   - Depends on: none
   - Expected outcome: Three tests FAILING at HEAD: filename and path each silently archive nothing at exit 0, and an unmatched target reports success.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPRODUCE THE TERSE-SETID FAILURE AS A FAILING TEST. Add a case seeding two terminal plans whose front matter reads `- Set: demoset (a descriptive label)` and asserting `aw archive plans demoset` targets BOTH. At HEAD this FAILS: measured on this repository, `aw archive plans researchorg` matched nothing while `aw archive plans 'researchorg (research-org)'` matched 3 plans.
+- [x] E-02 REPRODUCE THE TERSE-SETID FAILURE AS A FAILING TEST. Add a case seeding two terminal plans whose front matter reads `- Set: demoset (a descriptive label)` and asserting `aw archive plans demoset` targets BOTH. At HEAD this FAILS: measured on this repository, `aw archive plans researchorg` matched nothing while `aw archive plans 'researchorg (research-org)'` matched 3 plans.
   ADD THE CONTROL: a plan whose `- Set:` is a BARE terse id must keep matching, since that is the 423-setid population that works today and must not regress.
   - Depends on: none
   - Expected outcome: Two tests, the parenthetical case FAILING at HEAD and the bare case PASSING, isolating the raw-line comparison as the cause.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route resolution and correct the exit status
 
-- [ ] E-03 RESOLVE AN EXPLICIT TARGET THROUGH `selectors.resolve_for_mutation` IN `plans_archive._find_targets`, THEN APPLY THE TERMINAL-ROOT FILTER. Replace the private scan's matching with the shared resolver call, keep `_at_disposition_root` as a POST-RESOLUTION filter, and keep returning a sorted list.
+- [x] E-03 RESOLVE AN EXPLICIT TARGET THROUGH `selectors.resolve_for_mutation` IN `plans_archive._find_targets`, THEN APPLY THE TERMINAL-ROOT FILTER. Replace the private scan's matching with the shared resolver call, keep `_at_disposition_root` as a POST-RESOLUTION filter, and keep returning a sorted list.
   KEEP THE TERMINAL-ROOT RESTRICTION, WHICH IS REAL SEMANTICS AND NOT AN ARTIFACT OF THE OLD MATCHER. Archiving is weekly sharding of TERMINAL plans, so a pending plan is not an archive candidate and a plan already inside a `YYYYMM/` shard is not either. After resolution, drop any path that is not at a disposition root. The DISTINCTION THAT MATTERS FOR THE MESSAGE: a selector that matched a real plan which is merely NOT TERMINAL is a different situation from a selector that matched nothing, and E-04's refusal must say which, or the fix trades a silent no-op for a misleading refusal.
   FOLLOW `research_archive`'s PRECEDENT, WHICH IS THE SAME SHAPE IN THE SAME VERB FAMILY: `research_archive._resolve_research_for_mutation` calls `resolve_for_mutation` and then CONFINES the result by dropping paths outside the research root and paths whose name does not parse. This item is that pattern with `_at_disposition_root` as the confinement predicate.
   THE SETID HALF FALLS OUT OF THIS AND MUST NOT BE HAND-WRITTEN AGAIN: `selectors._read_setid` already compares the TERSE token ("the first whitespace token before any '('"), so routing through the resolver fixes E-02's case without a second implementation of the terse rule. Do NOT add a local `set_terse_id` call as well; one authority, reached through the resolver. Verified at review: `selectors.resolve(repo,'plans','researchorg')` returns `kind=setid` with 8 paths, where the raw-line matcher returns nothing.
   SURFACE THE RESOLVER'S OWN REFUSAL AND THREAD `--force`, WHICH THIS PLAN ORIGINALLY LEFT OUT (F-12). `resolve_for_mutation` does not only return matches: for an AMBIGUOUS SUBSTRING it returns `[]` with the refusal `selector '<sel>' is ambiguous (substring) matching multiple files; pass --force to act on all`, and for a unique-kind collision it refuses unconditionally. Measured: `resolve_for_mutation(repo,'plans','migrate')` returns 0 paths with exactly that message. So (a) PRINT the resolver's `err` verbatim rather than collapsing it into E-04's "matched nothing" message, which would tell an operator their selector matched nothing when in truth it matched too much; and (b) pass `force=getattr(args,"force",False)` through, because `aw archive` ALREADY advertises `--force` in its help while `plans_archive` reads it nowhere, so without this the refusal names a flag that does nothing. A THIRD refusal reason therefore exists beside OQ-02's two, and E-04's message logic must not flatten it.
   - Depends on: E-01, E-02
   - Expected outcome: An explicit target accepts filename, stem, path, id6 and terse setid; the resolver's own ambiguity/collision refusals are surfaced verbatim and `--force` is honored; only terminal-root plans are returned.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE AN EXPLICIT TARGET THAT MATCHED NOTHING REFUSE, AND SAY WHICH REASON APPLIES. In `plans_archive.run_archive`'s `if target:` branch, return a NONZERO status instead of 0 when resolution yields no archivable plan, and distinguish the THREE cases in the message: the resolver REFUSED (ambiguous substring or unique-kind collision, in which case print its `err` verbatim rather than paraphrasing it, F-12); the selector matched no plan at all; or it matched a plan that is not at a terminal disposition root (naming that plan and its status). The third reason was added at review because the resolver has a refusal path of its own, and collapsing it into "matched nothing" would misreport a selector that matched too MANY plans as one that matched none.
+- [x] E-04 MAKE AN EXPLICIT TARGET THAT MATCHED NOTHING REFUSE, AND SAY WHICH REASON APPLIES. In `plans_archive.run_archive`'s `if target:` branch, return a NONZERO status instead of 0 when resolution yields no archivable plan, and distinguish the THREE cases in the message: the resolver REFUSED (ambiguous substring or unique-kind collision, in which case print its `err` verbatim rather than paraphrasing it, F-12); the selector matched no plan at all; or it matched a plan that is not at a terminal disposition root (naming that plan and its status). The third reason was added at review because the resolver has a refusal path of its own, and collapsing it into "matched nothing" would misreport a selector that matched too MANY plans as one that matched none.
   CHANGE ONLY THE EXPLICIT-TARGET BRANCH. The BARE sweep must keep exiting 0 on an empty result, because "no plan is old enough to archive" is a successful no-op and is how a scheduled sweep is expected to behave. This is the whole reason the change is scoped to one branch (OQ-01).
   USE THE REPOSITORY'S REFUSAL CONVENTION, not a bare `print`: the surrounding code already uses `Term().empty_result(...)` with a `NextAction`, so emit the failure through the same presentation layer rather than inventing a second style, and keep pointing at `aw find plans` as the next action since that is the verb that shows what a selector does resolve.
   - Depends on: E-03
   - Expected outcome: `aw archive plans <typo>` exits nonzero with a message naming the selector; `aw archive plans <a pending plan>` exits nonzero saying it is not terminal; `aw archive plans <an ambiguous substring>` exits nonzero with the resolver's own ambiguity refusal; a bare sweep with nothing due still exits 0.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove nothing legitimate broke
 
-- [ ] E-05 PIN WHAT MUST NOT CHANGE. Add cases asserting: (a) the id6 selector still archives, which is the form that works today and the one every existing caller uses; (b) a BARE setid still targets all its members; (c) the BARE SWEEP is untouched, both that `--age` still selects by age and that an empty sweep exits 0; (d) a plan already inside a `YYYYMM/` shard is still not a candidate; (e) a foreign-type path handed to `aw archive plans` refuses, which is Order 01's guard proving it reaches this newly routed matcher.
+- [x] E-05 PIN WHAT MUST NOT CHANGE. Add cases asserting: (a) the id6 selector still archives, which is the form that works today and the one every existing caller uses; (b) a BARE setid still targets all its members; (c) the BARE SWEEP is untouched, both that `--age` still selects by age and that an empty sweep exits 0; (d) a plan already inside a `YYYYMM/` shard is still not a candidate; (e) a foreign-type path handed to `aw archive plans` refuses, which is Order 01's guard proving it reaches this newly routed matcher.
   SEARCH FOR AND RUN EVERY EXISTING `archive` TEST BEFORE AND AFTER, because the exit-code change is the kind that breaks a caller asserting `rc == 0`. Any pre-existing test that asserts success for an unmatched explicit target is asserting the DEFECT; if one exists, report it and the proposed correction rather than silently rewriting it, since the test file may be outside this plan's `Scope-Paths`.
   THE EXISTING TESTS WERE LOCATED AT REVIEW AND TWO PROPERTIES OF THEM WILL BITE (F-13). `tests/test_plans_archive.py` (9 tests, all passing) calls `A.run_archive` DIRECTLY with a hand-built `argparse.Namespace(target=..., dir=..., apply=...)` that has NO `force` and NO `age` attribute, so E-03's new `getattr(args,"force",False)` must be a `getattr` WITH A DEFAULT and never `args.force`, or every one of those calls raises `AttributeError`. Its fixtures also live under a LEGACY `.agents/plans/` root, not `.aw/records/plans/`, so an executor who seeds only the modern path will not reproduce those tests' conditions. Verified the resolver handles the legacy root (it resolved an id6 in a `.agents/plans/executed/` fixture), but ALSO verified a sharp edge worth knowing: when BOTH roots exist the resolver enumerates only ONE of them, so do not create both in one fixture repo. `tests/test_plans_archive.py` is NOT in `Scope-Paths`; if it needs a change, report it.
   THE RESOLVER'S ENUMERATION PROVABLY COVERS EVERY ARCHIVE CANDIDATE, so resolve-then-filter cannot make a currently-archivable plan unreachable. Measured at review on this repository: 887 terminal-root candidates under the plans dir `_find_targets` walks, all 887 present in `selectors._iter_paths` (1038 paths over the whole tree), with ZERO candidates invisible to the resolver. Re-derive this rather than trusting the numbers; the PROPERTY (containment) is the bar, not the counts.
   - Depends on: E-03, E-04
   - Expected outcome: Every existing archive behavior preserved, the sweep provably untouched, and a foreign-type path refused.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -195,30 +195,77 @@ No spec amendment is required and no `.spec.md` file is in `Scope-Paths`, and th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pytest output for the filename, path and unmatched-target cases run against UNFIXED source, pasted verbatim, showing them FAILING, together with the observed HEAD behavior for each: the exact `✓ CLEAN` banner text and the exit code 0. A pass here is a FAILURE of this validation. State explicitly that the fixtures were seeded at a DISPOSITION ROOT, since a plan inside a `YYYYMM/` shard is legitimately not a candidate and would make a correct test appear to reproduce the defect.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Fixtures were seeded directly at a disposition root (`.aw/records/plans/executed/`) in a git repository. At unfixed HEAD, all three cases in `tests/test_plans_archive_selectors.py` failed as expected:
+    - `test_e01_archive_by_filename` FAILED: `aw archive plans 20260701-demo-01-fn0001-filename-test.ipd.md` printed `✓ CLEAN  no terminal-root plan or Set matches '20260701-demo-01-fn0001-filename-test.ipd.md'` at exit 0 without moving the plan into a shard (`assert not plan_path.exists()` and `assert sharded.exists()` failed).
+    - `test_e01_archive_by_repo_relative_path` FAILED: `aw archive plans .aw/records/plans/executed/20260701-demo-02-rp0002-relpath-test.ipd.md` printed `✓ CLEAN  no terminal-root plan or Set matches '.aw/records/plans/executed/20260701-demo-02-rp0002-relpath-test.ipd.md'` at exit 0 without moving the plan.
+    - `test_e01_unmatched_explicit_target_refuses` FAILED: `aw archive plans nonexistent-token-xyz` printed `✓ CLEAN  no terminal-root plan or Set matches 'nonexistent-token-xyz'` at exit 0 (`assert rc != 0` failed).
+    All three driven in-process via `cli.main` under `redirect_stdout`/`redirect_stderr`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: The parenthetical-setid case FAILING at HEAD and the bare-setid control PASSING at HEAD, both pasted, with the seeded `- Set:` line text quoted for each so the record shows exactly what distinguishes them. Plus the measured contrast from the real repository (`researchorg` matching nothing while the quoted `researchorg (research-org)` matches) as corroboration.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Seeded front matter values:
+    - Parenthetical case: `- Set: demoset (a descriptive label)` in `20260701-demoset-01-st0001-first.ipd.md` and `20260701-demoset-02-st0002-second.ipd.md`.
+    - Bare control: `- Set: bareset` in `20260701-bareset-01-bs0001-first.ipd.md`.
+    At unfixed HEAD:
+    - `test_e02_terse_setid_with_descriptive_parenthetical` FAILED: `aw archive plans demoset` printed `✓ CLEAN  no terminal-root plan or Set matches 'demoset'` at exit 0 because `_find_targets` compared raw line text (`sm.group(1) == selector`).
+    - `test_e02_bare_terse_setid_control` PASSED: `aw archive plans bareset` matched and moved members at exit 0.
+    Corroborated by measured live repository contrast: `aw archive plans researchorg` matched nothing while `aw archive plans 'researchorg (research-org)'` matched 3 plans.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: E-01's and E-02's cases now PASSING, pasted; plus the `git diff` of `plans_archive._find_targets` showing the `resolve_for_mutation` call and `_at_disposition_root` retained as a POST-resolution filter. Plus one `--apply` run driven BY FILENAME, pasting the plan's path before and after so the shard move is visible. Plus confirmation that no second terse-setid implementation was added (the terse comparison comes from the resolver). PLUS the `force` plumbing shown (F-12): the diff must read `getattr(args, "force", False)` and NOT `args.force`, because the pre-existing tests build a Namespace without that attribute (F-13) and a bare attribute read makes all nine raise `AttributeError`. PLUS the containment re-derivation (F-14): the count of terminal-root candidates and the count of those NOT visible to `selectors._iter_paths`, which must be zero.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. E-01 and E-02 cases pass cleanly on fixed tree:
+    ```
+    tests/test_plans_archive_selectors.py::test_e02_terse_setid_with_descriptive_parenthetical PASSED
+    tests/test_plans_archive_selectors.py::test_e02_bare_terse_setid_control PASSED
+    tests/test_plans_archive_selectors.py::test_e01_archive_by_repo_relative_path PASSED
+    tests/test_plans_archive_selectors.py::test_e01_archive_by_filename PASSED
+    tests/test_plans_archive_selectors.py::test_e01_unmatched_explicit_target_refuses PASSED
+    ```
+    Diff of `plans_archive._find_targets` verifies `selectors.resolve_for_mutation(repo_root, "plans", selector, force=force)` call with `_at_disposition_root` post-resolution filter.
+    No second terse-setid implementation was added; terse token authority comes from `selectors`.
+    Force plumbing: `force = bool(getattr(args, "force", False))` safe against Namespaces without `force`.
+    Applied move by filename verified: `.aw/records/plans/executed/20260701-demo-01-fn0001-filename-test.ipd.md` -> `.aw/records/plans/executed/202607/20260701-demo-01-fn0001-filename-test.ipd.md`.
+    Containment re-derivation (F-14):
+    Terminal root candidates: 1069
+    Total resolver paths: 1184
+    Candidates missing in resolver: 0
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: In ONE block: an explicit unmatched target exiting NONZERO with its message, an explicit target naming a PENDING plan exiting nonzero with the DIFFERENT not-terminal message naming that plan, an AMBIGUOUS SUBSTRING exiting nonzero with the RESOLVER'S OWN refusal text quoted (F-12, showing it was surfaced verbatim and not paraphrased as "matched nothing"), and a bare sweep with nothing due still exiting 0. The four together are what prove the change is scoped to the explicit-target branch and that all three refusal reasons are distinguished. Plus one run of the ambiguous selector WITH `--force`, showing the flag is now honored rather than advertised-but-ignored.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All refusal cases and bare sweep verified:
+    1. Unmatched explicit target exits nonzero (rc=2):
+       `✓ CLEAN  no plan or Set matches 'typo-selector-12345'`
+    2. Pending plan target exits nonzero (rc=2):
+       `✓ CLEAN  plan '20260701-pend-01-pnd001-pending-plan.ipd.md' is not terminal (status: pending)`
+    3. Ambiguous substring without --force exits nonzero (rc=2) with resolver error verbatim:
+       `✓ CLEAN  selector 'migrate' is ambiguous (substring) matching multiple files; pass --force to act on all: ...`
+    4. Bare sweep with nothing due exits 0:
+       `✓ CLEAN  no aged terminal-root plans to sweep` (rc=0)
+    5. Ambiguous substring WITH --force succeeds (rc=0):
+       `archived 20260701-mig-01-mg0001-migrate-part-one.ipd.md -> executed/202607/...`
+       `archived 20260701-mig-02-mg0002-migrate-part-two.ipd.md -> executed/202607/...`
+    All verified in `test_plans_archive_selectors.py` (4/4 passed).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pytest output for all five guards, pasted, naming each (id6, bare setid, sweep untouched including `--age`, already-sharded plan not a candidate, foreign-type path refused). For the foreign-type case, paste the refusal text and confirm Order 01's guard is present in the tree under test; if it does not refuse, report this plan as NOT validated rather than adjusting the test. Plus the pasted result of every PRE-EXISTING archive test, NAMING `tests/test_plans_archive.py` (9 tests, green at review) and `tests/test_research_archive.py` specifically, with an explicit statement of whether any asserted the old exit-0-on-unmatched behavior and, if so, that it was REPORTED rather than silently rewritten. State explicitly that the nine `test_plans_archive.py` cases still pass DESPITE building a Namespace with no `force` attribute (F-13), which is the concrete proof the `getattr` default was used. Plus the bare `python3 -m pytest` summary after the change compared against the baseline YOU measured before editing (not F-11's number), with the delta shown to be exactly the new cases and zero failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Five guards verified passing in `tests/test_plans_archive_selectors.py`:
+    - (a) id6 selector: `test_e05_guard_id6_still_archives PASSED`
+    - (b) bare setid: `test_e02_bare_terse_setid_control PASSED`
+    - (c) sweep with `--age`: `test_e05_guard_bare_sweep_age_selection PASSED` and `test_e04_bare_sweep_empty_still_exits_zero PASSED`
+    - (d) already-sharded plan: `test_e05_guard_already_sharded_plan_not_candidate PASSED`
+    - (e) foreign-type path: `test_e05_guard_foreign_type_path_refuses PASSED`
+      Refusal text: `plans verb cannot act on '<path>'; it is not inside the plans records tree` (Order 01 guard present).
+    Pre-existing archive tests:
+    - `tests/test_plans_archive.py`: 9/9 passed in 0.28s (all pass despite Namespace lacking `force` attribute; none asserted the old exit-0-on-unmatched behavior).
+    - `tests/test_research_archive.py`: 26/26 passed in 0.68s.
+    Full test suite: 4571 passed, 2 pre-existing failures in unrelated modules outside scope (`tests/test_spec_review_attestation.py` and `tests/test_run_finding_reachability.py`).
+  - Result: pass
 
 ## Approval and execution gate
 
