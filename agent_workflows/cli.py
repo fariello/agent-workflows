@@ -2311,11 +2311,14 @@ def _build_parser() -> argparse.ArgumentParser:
             ),
         )
         # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+        # destshadow zwv1sa E-02: default to argparse.SUPPRESS when registering on runs_sub so an absent
+        # leaf flag does not clobber a family-level --dir / --repo (F-01/F-02). Leaves under the `run`
+        # writing noun keep default=None as aw run has no family-level --dir.
         _pr.add_argument(
             "--dir",
             "--repo",
             dest="dir",
-            default=None,
+            default=argparse.SUPPRESS if group is runs_sub else None,
             help="Repo root directory (default: current directory).",
         )
         # The projection inspectors need the workflow name that owns the run-artifacts subdir.
@@ -2372,13 +2375,20 @@ def _build_parser() -> argparse.ArgumentParser:
     # (`aw runs [<target> ...]` + filter/format flags) and the nine read-only leaves moved off
     # `aw run`. The viewer's flags live on this shared parent so the bare form and the `aw runs list`
     # leaf are registered from ONE definition and cannot drift apart.
+    #
+    # destshadow zwv1sa E-02: `_p_runs_list` shares `_runs_viewer_flags` with family parser `p_runs`
+    # (identical action objects by id). Subparsers copy child namespaces over the parent, so an
+    # absent leaf flag's default would overwrite a family flag provided before the leaf name
+    # (e.g. `aw runs --dir <path> list` silently clobbering --dir to None; F-01/F-02).
+    # These declarations therefore default to argparse.SUPPRESS: absent means "leave the parent's
+    # value alone", so `aw runs <flag> list` and `aw runs list <flag>` resolve identically.
     _runs_viewer_flags = _AwArgumentParser(add_help=False)
     # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
     _runs_viewer_flags.add_argument(
         "--dir",
         "--repo",
         dest="dir",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Target Git repository root (default: current directory).",
     )
     _runs_viewer_flags.add_argument(
@@ -2389,36 +2399,42 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const=1,
         type=_positive_int,
-        default=None,
+        default=argparse.SUPPRESS,
         metavar="N",
         help="Show only the last N runs (default: 1).",
     )
     _runs_viewer_flags.add_argument(
         "--active",
         action="store_true",
+        default=argparse.SUPPRESS,
         help="Show only runs with active/running steps.",
     )
     _runs_viewer_flags.add_argument(
         "--failed",
         action="store_true",
+        default=argparse.SUPPRESS,
         help="Show only runs with failed, partial, or blocked steps.",
     )
     _runs_viewer_flags.add_argument(
         "--set",
+        default=argparse.SUPPRESS,
         help="Filter runs by Set ID.",
     )
     _runs_viewer_flags.add_argument(
         "--ipd",
         "--id6",
         dest="ipd",
+        default=argparse.SUPPRESS,
         help="Filter runs by IPD id6.",
     )
     _runs_viewer_flags.add_argument(
         "--status",
+        default=argparse.SUPPRESS,
         help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
     )
     _runs_viewer_flags.add_argument(
         "--since",
+        default=argparse.SUPPRESS,
         help="Show runs created since date (YYYY-MM-DD), timestamp, or relative timespec (e.g. 1d, 12h, 1.5w, 1m, 1y).",
     )
     _runs_viewer_flags.add_argument(
@@ -2426,6 +2442,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--long",
         action="store_true",
         dest="detail",
+        default=argparse.SUPPRESS,
         help="Show detailed incomplete requirements and step summaries.",
     )
     _runs_viewer_flags.add_argument(
@@ -2433,6 +2450,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-s",
         action="store_true",
         dest="short",
+        default=argparse.SUPPRESS,
         help="Show short table with status, item, action, and verified columns only.",
     )
     _runs_viewer_flags.add_argument(
@@ -2440,6 +2458,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-S",
         action="store_true",
         dest="summary_only",
+        default=argparse.SUPPRESS,
         help="Show only the aggregate summary breakdown tables (omits individual runs).",
     )
     _runs_viewer_flags.add_argument(
@@ -2447,6 +2466,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "-L",
         action="store_true",
         dest="latest_only",
+        default=argparse.SUPPRESS,
         help="Show only the latest state for each item across matched runs in one table.",
     )
     _runs_viewer_flags.add_argument(
@@ -2454,12 +2474,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "-i",
         action="store_true",
         dest="issues",
+        default=argparse.SUPPRESS,
         help="Show only the artifact location and status discrepancies table.",
     )
     _runs_viewer_flags.add_argument(
         "--all-classes",
         action="store_true",
         dest="all_classes",
+        default=argparse.SUPPRESS,
         help=(
             "Include the evidenced resolved/retired artifact differences, which are suppressed by "
             "default (their counts are always reported). Never suppresses unknown or regressed."
@@ -2672,10 +2694,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "of each step. Identical to bare `aw runs`."
         ),
     )
+    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    # family targets (F-01/F-16).
     _p_runs_list.add_argument(
         "targets",
         nargs="*",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
     )
 
@@ -2726,10 +2750,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
         ),
     )
+    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    # family targets / --dir (F-01/F-02/F-16).
     _p_runs_analyze.add_argument(
         "targets",
         nargs="*",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Zero or more run IDs, directory paths, or set IDs (default: every canonical run).",
     )
     # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
@@ -2737,7 +2763,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir",
         "--repo",
         dest="dir",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Repo root directory (default: current directory).",
     )
     # --path/--list are read-only reporting modes and are mutually exclusive with each other and with
@@ -2814,11 +2840,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="The view to return. `aw runs query schema` lists every view.",
     )
     # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    # family --dir (F-01/F-02).
     _p_runs_query.add_argument(
         "--dir",
         "--repo",
         dest="dir",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Repo root directory (default: current directory).",
     )
     _p_runs_query.add_argument(
@@ -2923,10 +2951,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
         ),
     )
+    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    # family targets / --dir (F-01/F-02/F-16).
     _p_runs_export.add_argument(
         "targets",
         nargs="*",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Zero or more run IDs, directory paths, or set IDs (default: every cached run).",
     )
     # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
@@ -2934,7 +2964,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir",
         "--repo",
         dest="dir",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Repo root directory (default: current directory).",
     )
     _p_runs_export.add_argument(
@@ -3015,11 +3045,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="The exported bundle DIRECTORY (the one holding manifest.json).",
     )
     # tqaxjw: accept --repo as an additive alias of --dir matching aw oc run.
+    # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
+    # family --dir (F-01/F-02).
     _p_runs_submit.add_argument(
         "--dir",
         "--repo",
         dest="dir",
-        default=None,
+        default=argparse.SUPPRESS,
         help="Repo root directory (default: current directory).",
     )
     _p_runs_submit.add_argument(
