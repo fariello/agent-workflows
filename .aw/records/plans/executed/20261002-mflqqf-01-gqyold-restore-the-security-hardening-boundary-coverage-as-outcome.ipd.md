@@ -6,7 +6,7 @@
 - Scope: Restore behavioral coverage for the seven boundary checkers plus the aggregate and the two canonical-scanner adapters in `agent_workflows/security_hardening.py` as one new per-module test file; fix the `check_local_server_binding` prefix fail-open; add the first test caller for `host_runner.redact_worker_output`, the one production integration point of this module. Out of scope: the `[::1]`/`::ffff:` bracket and IPv4-mapped spellings beyond the one refusal arm named in E-03 (carrier below), the case-insensitivity of the `RedactionPolicy` key match (carrier below, it lives in another module), any new boundary, any wiring of these checkers into `aw check` or a hook, and the packaging boundary (Order 02 of this Set).
 - Scope-Paths: tests/test_security_hardening.py, tests/test_host_runner_redaction.py, agent_workflows/security_hardening.py, docs/security.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gqyold
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gqyold verified (set mflqqf, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-verified at lane HEAD `76faafbc2`: zero `security_hardening` test callers, the prefix fail-open, and every F-07 row. Added an interpreter-independent IPv4-mapped guard to E-03, pinned the two spellings E-03 flips, corrected E-06 away from an unreachable masking assertion toward the `run_task` refusal path, required runtime-built home paths, and extended E-07 to correct the boundary 4 secret claim (new carrier `lfko0e`).
 
