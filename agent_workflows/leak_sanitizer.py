@@ -45,6 +45,8 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from agent_workflows.home_path_patterns import HOME_PATH_RULES
+
 # --- Fragment-assembled sensitive literals ---------------------------------------------------
 # Never write these tokens as plain substrings; assemble them so this file is self-clean.
 _H = "gfa" + "riello"  # the maintainer's username fragment
@@ -63,12 +65,12 @@ _REMOTE = (
 # --- Structural + curated patterns (severity: fail) ------------------------------------------
 # These fail the non-interactive gate. Conservative and specific to avoid false positives.
 _FAIL_PATTERNS: dict[str, re.Pattern[str]] = {
-    # Any user's real POSIX home dir. Generic doc placeholders (u, alice, user, USER, <...>) allowed.
-    "home-path": re.compile(r"/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+"),
-    # macOS home dirs.
-    "users-path": re.compile(r"/Users/(?!<|user/)[A-Za-z0-9._-]+"),
-    # Windows home dirs (C:\Users\<name>), both slash forms.
-    "windows-home": re.compile(r"[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+"),
+    # Any user's real POSIX home dir, derived from home_path_patterns. Generic doc placeholders (u, alice, user, USER, <...>) allowed.
+    "home-path": re.compile(HOME_PATH_RULES["home-path"][0]),
+    # macOS home dirs, derived from home_path_patterns.
+    "users-path": re.compile(HOME_PATH_RULES["users-path"][0]),
+    # Windows home dirs (C:\Users\<name>), both slash forms, derived from home_path_patterns.
+    "windows-home": re.compile(HOME_PATH_RULES["windows-home"][0]),
     # The maintainer's local-checkout dir style.
     "vc-home": re.compile(re.escape(_VC) + r"(?:/|\b)"),
     # Private / sibling repo names that must never appear in tracked files.
@@ -566,9 +568,9 @@ def build_ruleset(
 
 
 _REQUIRED_RULE_SUBSTRINGS: dict[str, tuple[str, ...]] = {
-    "home-path": ("/home/",),
-    "users-path": ("/Users/",),
-    "windows-home": ("Users",),
+    "home-path": HOME_PATH_RULES["home-path"][1],
+    "users-path": HOME_PATH_RULES["users-path"][1],
+    "windows-home": HOME_PATH_RULES["windows-home"][1],
     "vc-home": (_VC,),
     "private-repo": (_R1, _R2, _R3),
     "other-account": (_ACCT,),

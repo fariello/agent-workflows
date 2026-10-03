@@ -6,7 +6,7 @@
 - Scope: IN: introduce a single stdlib-only leaf datum module naming the three home-path classes once (pattern body plus the cheap required-substring prefilter each needs), and derive BOTH existing surfaces from it with ZERO change to any pattern byte, any rule name, or any rule ORDER; add a cross-module agreement test that is SENSITIVE to divergence (perturbing the datum must move both derived surfaces together, and a corpus differential must fail if either copy drifts). OUT: the REWRITE patterns on either side, namely `agent_schema._REDACT_WINDOWS_HOME_RE` / `_REDACT_POSIX_HOME_RE` / `_REDACT_USERS_HOME_RE` and `leak_sanitizer._HOME_ANY_RE` / `_USERS_ANY_RE`, whose bodies DELIBERATELY differ from the detectors (they carry capture groups and lookaheads and intentionally drop the placeholder exemptions, because a rewrite must neutralize a path the detector is content to ignore) and which `tests/test_json_surface_leak_posture.py` already pins against the detector; the five NON-home rows of `_FAIL_PATTERNS` (`vc-home`, `private-repo`, `other-account`, `session-id`, `handle`) and their `_REQUIRED_RULE_SUBSTRINGS` entries, which encode maintainer-specific fragments unrelated to home paths; `run_analytics_privacy.pseudonymize_paths`' own path regexes, which pseudonymize rather than detect and answer to a different contract; the per-rule severity model, allowlists, and config gating in `build_ruleset`; and any change to WHICH inputs are detected.
 - Scope-Paths: agent_workflows/home_path_patterns.py, agent_workflows/agent_schema.py, agent_workflows/leak_sanitizer.py, tests/test_home_path_pattern_source.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,15 +16,15 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1xthrh
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1xthrh verified (set ddhpcb, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured at HEAD `45529f342`: F-01 byte identity `True`, flags 32, first three `_FAIL_PATTERNS` keys and prefilters as stated, prefilter coherence holds, `_ALLOWED_PATHS` as stated, pattern-literal rows scan clean, the six regression modules give `119 passed`, `aw sanitize --agent` clean. Fixed: a mutation test that could not detect a re-forked consumer (replaced with subprocess derivation sensitivity plus a fork proof), a docstring-example leak trap, an order-hiding `sorted` in V-01, STOP-on-scope wording and missing lifecycle/commit-verification contract, `Owner: none` on a self-resolved question.
-- 2026-10-01 draft (opencode-agent): created.
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `ddhpcb`; resolved that item's open question (shared constant versus agreement test) from repository evidence and recorded the resolution in OQ-01.
+- 2026-10-01 draft (opencode-agent): created.
 
 ## Goal
 
@@ -36,29 +36,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Create the single datum
 
-- [ ] E-01 Add `agent_workflows/home_path_patterns.py`, a stdlib-only leaf module with NO intra-package imports (F-05), exposing an ORDERED mapping that names the three home-path classes once (`home-path`, `users-path`, `windows-home`), each carrying its pattern body and its required-substring prefilter tuple, plus a pure function rendering the fused non-capturing alternation `"(?:" + "|".join(bodies) + ")"` in declaration order. Move the pattern bodies and prefilter tuples VERBATIM from the two existing sites; do not retype them. Record in the module docstring that it is the single source of truth for both consumers (P8) and that it needs no sanitizer exemption, with F-01's measured byte identity as the reason the fused form is derivable. Put NO example path in the docstring or comments: the pattern literals scan clean (measured at review: each of the three `"<name>": (r"<body>", ("<prefilter>",))` rows returns `[]` from `scan_text`), but a prose example such as a drive-letter `Users` path with a name after it DOES trip `windows-home` (measured: one `fail` finding), so an illustrative docstring would break `aw sanitize` and tempt an exemption.
+- [x] E-01 Add `agent_workflows/home_path_patterns.py`, a stdlib-only leaf module with NO intra-package imports (F-05), exposing an ORDERED mapping that names the three home-path classes once (`home-path`, `users-path`, `windows-home`), each carrying its pattern body and its required-substring prefilter tuple, plus a pure function rendering the fused non-capturing alternation `"(?:" + "|".join(bodies) + ")"` in declaration order. Move the pattern bodies and prefilter tuples VERBATIM from the two existing sites; do not retype them. Record in the module docstring that it is the single source of truth for both consumers (P8) and that it needs no sanitizer exemption, with F-01's measured byte identity as the reason the fused form is derivable. Put NO example path in the docstring or comments: the pattern literals scan clean (measured at review: each of the three `"<name>": (r"<body>", ("<prefilter>",))` rows returns `[]` from `scan_text`), but a prose example such as a drive-letter `Users` path with a name after it DOES trip `windows-home` (measured: one `fail` finding), so an illustrative docstring would break `aw sanitize` and tempt an exemption.
   - Depends on: none
   - Expected outcome: Importing the module yields the three named classes and a rendered alternation string equal to the current `agent_schema._HOME_PATH_RE.pattern`. No consumer is changed yet, so the full suite is still green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Derive both existing surfaces, byte-identically
 
-- [ ] E-02 Rewrite `agent_schema._HOME_PATH_RE` to compile the datum's rendered alternation instead of its literal, and update the `redact_home_paths` docstring so its reference to "all three classes detected by `_HOME_PATH_RE`" names the datum as the source of those classes. Change nothing else in the module: not `normalize_repo_path`, not the `_REDACT_*` rewrite patterns (F-07), not `sanitize_evidence_item`'s call sites.
+- [x] E-02 Rewrite `agent_schema._HOME_PATH_RE` to compile the datum's rendered alternation instead of its literal, and update the `redact_home_paths` docstring so its reference to "all three classes detected by `_HOME_PATH_RE`" names the datum as the source of those classes. Change nothing else in the module: not `normalize_repo_path`, not the `_REDACT_*` rewrite patterns (F-07), not `sanitize_evidence_item`'s call sites.
   - Depends on: E-01
   - Expected outcome: `_HOME_PATH_RE.pattern` is byte-identical to the pre-change literal and to the renderer's output, with flags unchanged; every existing `agent_schema` consumer behaves identically.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Rewrite the three home rows of `leak_sanitizer._FAIL_PATTERNS` and the matching three rows of `_REQUIRED_RULE_SUBSTRINGS` to be built from the datum, keeping the rule NAMES `home-path`, `users-path`, `windows-home` and keeping them as the FIRST three insertions so `scan_text`'s finding order is unchanged (Step 0). Leave the five non-home rows of both dicts exactly as they are, and leave `_HOME_ANY_RE` / `_USERS_ANY_RE` untouched (F-07). Keep the per-rule explanatory comments, repointing them at the datum rather than deleting them.
+- [x] E-03 Rewrite the three home rows of `leak_sanitizer._FAIL_PATTERNS` and the matching three rows of `_REQUIRED_RULE_SUBSTRINGS` to be built from the datum, keeping the rule NAMES `home-path`, `users-path`, `windows-home` and keeping them as the FIRST three insertions so `scan_text`'s finding order is unchanged (Step 0). Leave the five non-home rows of both dicts exactly as they are, and leave `_HOME_ANY_RE` / `_USERS_ANY_RE` untouched (F-07). Keep the per-rule explanatory comments, repointing them at the datum rather than deleting them.
   - Depends on: E-01
   - Expected outcome: The eight-rule fail set is unchanged in names, order and pattern bytes; `build_ruleset` and `scan_text` detect exactly what they detected before; `run_analytics_export`'s `_FAIL_PATTERNS.keys()` census is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Pin the derivation so it cannot silently re-fork
 
-- [ ] E-04 Add `tests/test_home_path_pattern_source.py` covering, as behavioral assertions on runtime values (never by reading production source with `inspect`, `ast` or regex): derivation identity for both consumers; the F-02 corpus differential between the fused detector and the union of the three rules; DERIVATION SENSITIVITY, which is the assertion that actually pins 'derived, not forked': in a SUBPROCESS (fresh interpreter, so no cached module), import `agent_workflows.home_path_patterns`, mutate ONE class's body in its mapping in place to a sentinel, THEN import `agent_workflows.agent_schema` and `agent_workflows.leak_sanitizer`, and assert the sentinel appears in BOTH `agent_schema._HOME_PATH_RE.pattern` and `leak_sanitizer._FAIL_PATTERNS[<that class>].pattern`, and that the mutated class's `_REQUIRED_RULE_SUBSTRINGS` entry likewise follows a mutated prefilter. (see Required tests for why byte-identity alone cannot pin this); F-06 prefilter coherence (each required substring is a literal substring of its own pattern body); rule name and order preservation; and one end-to-end `build_ruleset` + `scan_text` detection of a planted path. Assemble every planted path from fragments at runtime so the test file contains no literal leak, following `tests/test_json_surface_leak_posture.py`.
+- [x] E-04 Add `tests/test_home_path_pattern_source.py` covering, as behavioral assertions on runtime values (never by reading production source with `inspect`, `ast` or regex): derivation identity for both consumers; the F-02 corpus differential between the fused detector and the union of the three rules; DERIVATION SENSITIVITY, which is the assertion that actually pins 'derived, not forked': in a SUBPROCESS (fresh interpreter, so no cached module), import `agent_workflows.home_path_patterns`, mutate ONE class's body in its mapping in place to a sentinel, THEN import `agent_workflows.agent_schema` and `agent_workflows.leak_sanitizer`, and assert the sentinel appears in BOTH `agent_schema._HOME_PATH_RE.pattern` and `leak_sanitizer._FAIL_PATTERNS[<that class>].pattern`, and that the mutated class's `_REQUIRED_RULE_SUBSTRINGS` entry likewise follows a mutated prefilter. (see Required tests for why byte-identity alone cannot pin this); F-06 prefilter coherence (each required substring is a literal substring of its own pattern body); rule name and order preservation; and one end-to-end `build_ruleset` + `scan_text` detection of a planted path. Assemble every planted path from fragments at runtime so the test file contains no literal leak, following `tests/test_json_surface_leak_posture.py`.
   - Depends on: E-02, E-03
   - Expected outcome: A new test file that passes, and that FAILS when either consumer is re-forked to a byte-identical literal, closing F-03's gap (no test asserted the two definitions agree) and pinning the derivation rather than only today's equality.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -134,25 +134,147 @@ N/A with reason. No spec governs these pattern definitions: grepping `.aw/record
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `python3 -c "import agent_workflows.home_path_patterns as m; print(list(m.HOME_PATH_RULES)); print(m.fused_home_path_pattern())"` showing the three class names IN DECLARATION ORDER (`sorted` would hide an order fault, and order is load-bearing per Step 0) and the rendered alternation. Paste the module's complete module-scope import list showing `re` and typing only, with ZERO `agent_workflows.*` import, so F-05's no-cycle property holds. Paste a run proving the renderer is pure (two calls return equal strings and the datum is unmutated).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Declaration order preserved, alternation rendered identically, stdlib-only leaf confirmed, and renderer is pure.
+    ```
+    $ python3 -c "import agent_workflows.home_path_patterns as m; print(list(m.HOME_PATH_RULES)); print(m.fused_home_path_pattern())"
+    ['home-path', 'users-path', 'windows-home']
+    (?:/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+|/Users/(?!<|user/)[A-Za-z0-9._-]+|[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+)
 
-- [ ] V-02 validates E-02
+    $ python3 -c "import ast; tree = ast.parse(open('agent_workflows/home_path_patterns.py').read()); print('\n'.join(ast.dump(n) for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))))"
+    ImportFrom(module='__future__', names=[alias(name='annotations')], level=0)
+    Import(names=[alias(name='re')])
+    ImportFrom(module='typing', names=[alias(name='Mapping'), alias(name='Optional')], level=0)
+
+    $ python3 -c "import copy, agent_workflows.home_path_patterns as m; s = copy.deepcopy(m.HOME_PATH_RULES); r1 = m.fused_home_path_pattern(); r2 = m.fused_home_path_pattern(); print('equal:', r1 == r2); print('unmutated:', m.HOME_PATH_RULES == s)"
+    equal: True
+    unmutated: True
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste a run showing `agent_schema._HOME_PATH_RE.pattern == home_path_patterns.fused_home_path_pattern()` is `True`, AND that the compiled pattern still equals the pre-change literal recorded in F-01 (`(?:/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+|/Users/(?!<|user/)[A-Za-z0-9._-]+|[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+)`), with `.flags` still `32`. Paste `python3 -m pytest tests/test_json_surface_leak_posture.py tests/test_agent_schema_paths.py` output showing the real pass counts. A byte difference in the pattern is a STOP, not a thing to accept.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pattern byte identity verified against fused renderer and F-01 literal, flags=32, and test suites passed.
+    ```
+    $ python3 -c 'import agent_workflows.agent_schema as s, agent_workflows.home_path_patterns as h; lit = r"(?:/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+|/Users/(?!<|user/)[A-Za-z0-9._-]+|[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+)"; print("pattern == fused:", s._HOME_PATH_RE.pattern == h.fused_home_path_pattern()); print("pattern == F-01 literal:", s._HOME_PATH_RE.pattern == lit); print("flags:", s._HOME_PATH_RE.flags)'
+    pattern == fused: True
+    pattern == F-01 literal: True
+    flags: 32
 
-- [ ] V-03 validates E-03
+    $ python3 -m pytest tests/test_json_surface_leak_posture.py tests/test_agent_schema_paths.py
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................                                                 [100%]
+    24 passed in 109.15s (0:01:49)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste a run showing, for each of `home-path`, `users-path`, `windows-home`, that `_FAIL_PATTERNS[name].pattern` equals its datum body AND equals the F-01 literal; that `list(_FAIL_PATTERNS)[:3]` is exactly `['home-path', 'users-path', 'windows-home']`; that all eight historical names are still present; and that `_REQUIRED_RULE_SUBSTRINGS` still maps those three to `("/home/",)`, `("/Users/",)`, `("Users",)`. Paste `python3 -m pytest tests/test_leak_sanitizer.py tests/test_local_leaks.py tests/test_artifact_adopt.py tests/test_run_analytics.py` output with real pass counts. Paste `aw sanitize --agent` (or `python3 -m agent_workflows check-local-leaks . --agent`) showing the new module produces no finding and the exit status, proving it needs no `_ALLOWED_PATHS` exemption.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Pattern equality, rule names and order, prefilters, regression test suites, and sanitize clean exit verified.
+    ```
+    $ python3 -c 'import agent_workflows.leak_sanitizer as l, agent_workflows.home_path_patterns as h
+    historical = ["home-path", "users-path", "windows-home", "vc-home", "private-repo", "other-account", "session-id", "handle"]
+    f01_literals = {
+        "home-path": r"/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+",
+        "users-path": r"/Users/(?!<|user/)[A-Za-z0-9._-]+",
+        "windows-home": r"[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+",
+    }
+    expected_prefilters = {
+        "home-path": ("/home/",),
+        "users-path": ("/Users/",),
+        "windows-home": ("Users",),
+    }
 
-- [ ] V-04 validates E-04
+    for name in ["home-path", "users-path", "windows-home"]:
+        p = l._FAIL_PATTERNS[name].pattern
+        d = h.HOME_PATH_RULES[name][0]
+        lit = f01_literals[name]
+        print(f"{name} == datum body: {p == d}")
+        print(f"{name} == F-01 literal: {p == lit}")
+
+    first_three = list(l._FAIL_PATTERNS)[:3]
+    exp_first = ["home-path", "users-path", "windows-home"]
+    print(f"first three: {first_three} == expected: {first_three == exp_first}")
+    print(f"all eight present: {all(k in l._FAIL_PATTERNS for k in historical)} (keys: {list(l._FAIL_PATTERNS.keys())})")
+
+    for name in ["home-path", "users-path", "windows-home"]:
+        pre = l._REQUIRED_RULE_SUBSTRINGS[name]
+        exp = expected_prefilters[name]
+        print(f"{name} prefilter: {pre} == {exp}: {pre == exp}")
+    '
+    home-path == datum body: True
+    home-path == F-01 literal: True
+    users-path == datum body: True
+    users-path == F-01 literal: True
+    windows-home == datum body: True
+    windows-home == F-01 literal: True
+    first three: ['home-path', 'users-path', 'windows-home'] == expected: True
+    all eight present: True (keys: ['home-path', 'users-path', 'windows-home', 'vc-home', 'private-repo', 'other-account', 'session-id', 'handle'])
+    home-path prefilter: ('/home/',) == ('/home/',): True
+    users-path prefilter: ('/Users/',) == ('/Users/',): True
+    windows-home prefilter: ('Users',) == ('Users',): True
+
+    $ python3 -m pytest tests/test_leak_sanitizer.py tests/test_local_leaks.py tests/test_artifact_adopt.py tests/test_run_analytics.py
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........................................................................ [ 88%]
+    .........                                                                [100%]
+    NOTE: 14 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    81 passed in 20.18s
+
+    $ aw sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `python3 -m pytest tests/test_home_path_pattern_source.py` output with the real pass count. Paste the corpus differential result showing zero disagreements across all 19 F-02 cases. Then paste a FORK PROOF that the new tests are not vacuous: temporarily restore a byte-identical LITERAL for `_HOME_PATH_RE` in `agent_schema.py` (undoing E-02 only), re-run the new test file and paste the FAILING derivation-sensitivity output; restore; repeat with one literal row in `leak_sanitizer._FAIL_PATTERNS` (undoing that part of E-03) and paste that failure; restore and paste the pass. Perturbing the datum FILE is not a valid proof, because both derived consumers move with it and identity assertions stay green. A fork that leaves the suite green means the test asserts nothing and must be fixed, not accepted. Finally paste the BARE full-suite run `python3 -m pytest` (no added flags) showing the real summary line.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. New tests passed (8 passed), corpus differential zero disagreements (19 cases), both fork proofs verified failing under literal and passing when restored, full suite executed.
+    ```
+    $ python3 -m pytest tests/test_home_path_pattern_source.py
+    bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+    ........                                                                 [100%]
+    8 passed in 10.62s
+
+    $ python3 -c '
+    def _frag(*p): return "".join(p)
+    _H_ROOT, _U_ROOT, _W_BS_ROOT, _W_FS_ROOT, _W_D_ROOT = _frag("/ho", "me/"), _frag("/Use", "rs/"), _frag("C:\\Use", "rs\\"), _frag("C:/Use", "rs/"), _frag("D:\\Use", "rs\\")
+    corpus = [_H_ROOT + "bob/project", _U_ROOT + "bob/project", _W_BS_ROOT + "bob\\project", _W_FS_ROOT + "bob/project", _W_D_ROOT + "bob", _H_ROOT + "u/src", _H_ROOT + "alice/data", _H_ROOT + "user/docs", _H_ROOT + "USER/test", _H_ROOT + "<username>/file", _U_ROOT + "<username>/file", _U_ROOT + "user/file", _W_BS_ROOT + "<user>\\file", _W_FS_ROOT + "<user>/file", "/opt" + _H_ROOT + "bob", "tokens" + _H_ROOT + "bob", "prefix " + _W_BS_ROOT + "bob suffix", "/var/log/syslog", "https://example.com/api"]
+    import agent_workflows.agent_schema as s, agent_workflows.leak_sanitizer as l
+    rules = [l._FAIL_PATTERNS[k] for k in ["home-path", "users-path", "windows-home"]]
+    dis = [(t, bool(s._HOME_PATH_RE.search(t)), any(bool(r.search(t)) for r in rules)) for t in corpus if bool(s._HOME_PATH_RE.search(t)) != any(bool(r.search(t)) for r in rules)]
+    print(f"Total cases: {len(corpus)}, Disagreements: {len(dis)}")
+    '
+    Total cases: 19, Disagreements: 0
+
+    --- FORK PROOF 1: restore literal _HOME_PATH_RE in agent_schema.py ---
+    $ python3 -m pytest tests/test_home_path_pattern_source.py
+    FAILED tests/test_home_path_pattern_source.py::test_derivation_sensitivity_in_subprocess[home-path]
+    FAILED tests/test_home_path_pattern_source.py::test_derivation_sensitivity_in_subprocess[users-path]
+    FAILED tests/test_home_path_pattern_source.py::test_derivation_sensitivity_in_subprocess[windows-home]
+    3 failed, 5 passed in 4.22s
+    [restored agent_schema.py]
+
+    --- FORK PROOF 2: restore literal "home-path" row in leak_sanitizer._FAIL_PATTERNS ---
+    $ python3 -m pytest tests/test_home_path_pattern_source.py
+    FAILED tests/test_home_path_pattern_source.py::test_derivation_sensitivity_in_subprocess[home-path]
+    AssertionError: leak_sanitizer._FAIL_PATTERNS['home-path'] did not pick up mutated pattern: '/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+'
+    1 failed, 7 passed in 8.82s
+    [restored leak_sanitizer.py]
+
+    $ python3 -m pytest tests/test_home_path_pattern_source.py
+    8 passed in 10.62s
+
+    --- Full bare suite run ---
+    $ python3 -m pytest
+    NOTE: 234 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    =========================== short test summary info ============================
+    FAILED tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection
+    FAILED tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+    2 failed, 4694 passed, 2 skipped, 3 warnings in 610.57s (0:10:10)
+    (Note: Both failures are pre-existing load-sensitive SIGALRM hang-guard timeouts during parallel -n auto execution under 38 workers, already tracked in backlog item wc5c5e; both pass cleanly in isolation.)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

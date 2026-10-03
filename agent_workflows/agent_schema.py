@@ -15,6 +15,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+from agent_workflows.home_path_patterns import fused_home_path_pattern
+
 # --------------------------------------------------------------------------------------------------
 # Schema Constants
 # --------------------------------------------------------------------------------------------------
@@ -61,9 +63,8 @@ INCOMPLETE_OUTCOMES: tuple[str, ...] = (
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
 
 # Unsanitized path patterns (home paths, usernames, absolute OS prefixes)
-_HOME_PATH_RE = re.compile(
-    r"(?:/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+|/Users/(?!<|user/)[A-Za-z0-9._-]+|[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+)"
-)
+# Derived from home_path_patterns (single source of truth, P8).
+_HOME_PATH_RE = re.compile(fused_home_path_pattern())
 
 
 # --------------------------------------------------------------------------------------------------
@@ -168,8 +169,9 @@ def redact_home_paths(text: Any) -> Any:
     """Redact home-style absolute path prefixes inside a string to '~'.
 
     Performs a lossy, idempotent rewrite of embedded home directory paths across
-    all three classes detected by `_HOME_PATH_RE` (POSIX `/home/<user>`, macOS
-    `/Users/<user>`, and Windows `<drive>:\\Users\\<user>`).
+    all three classes detected by `_HOME_PATH_RE` (sourced from the shared
+    `home_path_patterns` datum: POSIX `/home/<user>`, macOS `/Users/<user>`,
+    and Windows `<drive>:\\Users\\<user>`).
 
     This is the counterpart that `normalize_repo_path` cannot serve because it operates
     on a whole path value rather than on paths embedded within free text (such as
