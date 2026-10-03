@@ -1,5 +1,5 @@
 - Id: mbjuv5
-- Status: graduated
+- Status: done
 - Graduated-To: mbjuv5
 - Set: mbjuv5
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Audit items already closed done through the ungated positional aw backlog set spelling, whose release gate was silently dropped
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 1hrlp3 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-mbjuv5-01-1hrlp3-audit-the-already-closed-release-gated-backlog-items-the-sta.ipd.md); evidence .aw/records/plans/executed/20261001-mbjuv5-01-1hrlp3-audit-the-already-closed-release-gated-backlog-items-the-sta.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 1hrlp3
 - 2026-09-29 created (aw backlog): Audit items already closed done through the ungated positional aw backlog set spelling, whose release gate was silently dropped
 

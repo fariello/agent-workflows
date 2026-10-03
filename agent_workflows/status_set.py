@@ -972,6 +972,28 @@ def same_status_message_is_duplicate(
     )
 
 
+class StatusChangeResult(tuple):
+    """Result of apply_status_change: a 2-tuple (dest_path, norm_status) with rewritten_paths attribute."""
+
+    def __new__(
+        cls,
+        dest_path: Path,
+        norm_status: str,
+        rewritten_paths: list[str] | None = None,
+    ):
+        return super().__new__(cls, (dest_path, norm_status))
+
+    def __init__(
+        self,
+        dest_path: Path,
+        norm_status: str,
+        rewritten_paths: list[str] | None = None,
+    ) -> None:
+        self.dest_path = dest_path
+        self.norm_status = norm_status
+        self.rewritten_paths = list(rewritten_paths or [])
+
+
 def apply_status_change(
     rec: ArtifactRecord,
     target_status: str,
@@ -1522,7 +1544,7 @@ def apply_status_change(
     ) and not is_dup
 
     if not content_changed and not path_changed and not _write_history_anyway:
-        return rec.path, norm_status
+        return StatusChangeResult(rec.path, norm_status, [])
 
     # Write the Workflow history record. NEWEST-FIRST, NOT appended: the `insert(i + 1, ...)` below
     # PREPENDS the new record directly under the `## Workflow history` heading, so the FIRST record
@@ -1597,7 +1619,41 @@ def apply_status_change(
         except OSError:
             pass
 
-    return dest_path, norm_status
+    rewritten_citations: list[str] = []
+    if (
+        moving
+        and getattr(args, "rewrite_citations", False)
+        and not getattr(args, "dry_run", False)
+    ):
+        try:
+            old_rel = rec.path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            old_rel = rec.path.as_posix()
+        try:
+            new_rel = dest_path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            new_rel = dest_path.as_posix()
+
+        citation_changes = getattr(args, "_citation_changes", None)
+        if citation_changes is None and (
+            getattr(args, "agent", False) or getattr(args, "json", False)
+        ):
+            citation_changes = []
+            setattr(args, "_citation_changes", citation_changes)
+
+        from agent_workflows import artifact_refs as _refs
+
+        rewritten_citations = _refs.post_relocation_citation_rewrite(
+            repo_root,
+            old_rel,
+            new_rel,
+            is_agent_or_json=bool(
+                getattr(args, "agent", False) or getattr(args, "json", False)
+            ),
+            changes=citation_changes,
+        )
+
+    return StatusChangeResult(dest_path, norm_status, rewritten_citations)
 
 
 def _auto_index_types(
@@ -2678,7 +2734,8 @@ def run_set_command(
     touched_paths: list[str] = []
     for rec in matched_records:
         old_text = rec.raw_text
-        dest_path, norm_stat = apply_status_change(rec, target_status, repo_root, args)
+        res = apply_status_change(rec, target_status, repo_root, args)
+        dest_path, norm_stat = res
         new_text = dest_path.read_text(encoding="utf-8") if dest_path.exists() else ""
         changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())
         results.append((dest_path, norm_stat, rec, changed))
@@ -2698,6 +2755,10 @@ def run_set_command(
                 touched_paths.append(src_rel)
             if dest_rel not in touched_paths:
                 touched_paths.append(dest_rel)
+        if hasattr(res, "rewritten_paths"):
+            for rp in res.rewritten_paths:
+                if rp not in touched_paths:
+                    touched_paths.append(rp)
 
     if ctx.is_agent or ctx.is_json:
         changes = [
@@ -2713,6 +2774,8 @@ def run_set_command(
             )
             for dest, norm_stat, rec, changed in results
         ]
+        if hasattr(args, "_citation_changes") and args._citation_changes:
+            changes.extend(args._citation_changes)
         _auto_index_types(touched_types, repo_root, changes=changes)
         _offer_self_commit(
             args,

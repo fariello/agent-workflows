@@ -1653,7 +1653,10 @@ LANE_ATTENTION_STATES: frozenset[str] = frozenset(
 #: The integration target the landing question asks about, when the run record names no other. Both
 #: drivers merge a verified lane into whatever the shared checkout has checked out, which is `main` in
 #: this repository (`integrate_lane_branch` runs a bare `git merge` in the main checkout), so `HEAD` is
-#: the honest fallback: it is the branch the merge would actually land on.
+#: the honest fallback: it is the branch the merge would actually land on. That argument is sound only
+#: when `HEAD` resolves against the checkout rather than the caller's worktree; this precondition is
+#: enforced in `lane_work_has_landed` and `lane_work_landed_by_content`, which anchor the target via
+#: `ipd_lifecycle.checkout_git_common_dir`.
 LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"
 
 
@@ -1668,21 +1671,47 @@ def lane_work_has_landed(
     fast-forward makes the lane tip an ancestor of the target trivially, and the controlled `--no-ff`
     merge makes it an ancestor through the merge commit.
 
+    TARGET IS CHECKOUT-ANCHORED (backlog ``cjrjtu``). The symbolic target is resolved against the
+    checkout's common directory (via :func:`ipd_lifecycle.checkout_git_common_dir`), whose ``HEAD`` is
+    the checkout's integration target, rather than against whichever worktree happens to be the
+    caller's cwd.
+
     RETURNS THREE VALUES ON PURPOSE. `None` means the question could not be answered (the branch no
-    longer exists, the target does not resolve, or git failed), and the caller must keep that visible
-    as an UNKNOWN instead of reading it as either answer. git's own exit convention is 0 = ancestor,
-    1 = not an ancestor, and anything else = error, which is why the error case is not folded into
-    `False`.
+    longer exists, the target does not resolve, git failed, or no checkout anchor could be established),
+    and the caller must keep that visible as an UNKNOWN instead of reading it as either answer. git's
+    own exit convention is 0 = ancestor, 1 = not an ancestor, and anything else = error, which is why
+    the error case is not folded into `False`. Shapes unanswerable under this rule are in practice only
+    paths where `--git-common-dir` itself fails; separate-git-dir, submodule, and bare repositories with
+    linked worktrees remain answerable.
     """
     if not branch:
         return None
     rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
     if rc != 0:
         return None
-    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", target])
+    from agent_workflows import ipd_lifecycle
+
+    common_dir = ipd_lifecycle.checkout_git_common_dir(repo)
+    if common_dir is None:
+        return None
+    rc, out, _err = _run_git(
+        repo,
+        [
+            f"--git-dir={common_dir}",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"{target}^{{commit}}",
+        ],
+    )
     if rc != 0:
         return None
-    rc, _out, _err = _run_git(repo, ["merge-base", "--is-ancestor", branch, target])
+    resolved_target = out.strip()
+    if not resolved_target:
+        return None
+    rc, _out, _err = _run_git(
+        repo, ["merge-base", "--is-ancestor", branch, resolved_target]
+    )
     if rc == 0:
         return True
     if rc == 1:
@@ -1701,6 +1730,10 @@ def lane_work_landed_by_content(
     target as a different commit. Spec `attention-registry-and-cross-tree-status` F3a makes the
     exclusion NORMATIVE ("a lane whose work HAS reached the integration target MUST NOT fail it
     either"), and ancestry alone does not satisfy it.
+
+    TARGET IS CHECKOUT-ANCHORED (backlog ``cjrjtu``). Resolved against the checkout's common dir
+    exactly like :func:`lane_work_has_landed`, so `git cherry` compares against the checkout's target
+    rather than a caller worktree's tip.
 
     WHY THIS IS NOT A HYPOTHETICAL SHAPE, which is the whole justification for carrying a second
     reading. Two live recovery paths in this codebase tell the operator to CHERRY-PICK by name:
@@ -1742,10 +1775,27 @@ def lane_work_landed_by_content(
     rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
     if rc != 0:
         return None
-    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", target])
+    from agent_workflows import ipd_lifecycle
+
+    common_dir = ipd_lifecycle.checkout_git_common_dir(repo)
+    if common_dir is None:
+        return None
+    rc, out, _err = _run_git(
+        repo,
+        [
+            f"--git-dir={common_dir}",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"{target}^{{commit}}",
+        ],
+    )
     if rc != 0:
         return None
-    rc, out, _err = _run_git(repo, ["cherry", target, branch])
+    resolved_target = out.strip()
+    if not resolved_target:
+        return None
+    rc, out, _err = _run_git(repo, ["cherry", resolved_target, branch])
     if rc != 0:
         return None
     lines = [ln for ln in (out or "").splitlines() if ln.strip()]

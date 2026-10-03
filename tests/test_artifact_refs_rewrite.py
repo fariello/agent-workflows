@@ -283,3 +283,141 @@ class TestArtifactRefsRewrite(_RepoTestCase):
         new_name = "20260701-seta-01-r33333-new-rsch.reference-research.md"
         self.assertIn(new_name, rev.read_text(encoding="utf-8"))
         self.assertIn(new_name, tst.read_text(encoding="utf-8"))
+
+
+class TestScopePathCitationRewriteHelper(_RepoTestCase):
+    """Behavior tests for Scope-Paths citation rewrite helper and in-flight guard (IPD 5h3qyy E-07)."""
+
+    def test_a_path_keyed_rewrites_scope_paths_and_preserves_prose_and_fenced(self):
+        from agent_workflows import artifact_refs
+
+        old_p = ".aw/records/backlog/open/20261001-bk0001-01-bk0001-item.backlog.md"
+        new_p = (
+            ".aw/records/backlog/graduated/20261001-bk0001-01-bk0001-item.backlog.md"
+        )
+
+        plan_file = self.plans / "20261001-test-01-pl0001-plan.ipd.md"
+        plan_content = (
+            f"# IPD: Test Plan\n"
+            f"- Id: pl0001\n"
+            f"- Scope-Paths: {old_p}, other.py\n\n"
+            f"Prose citation: {old_p} in analysis.\n\n"
+            f"```\n"
+            f"fenced code: {old_p}\n"
+            f"```\n"
+        )
+        plan_file.write_text(plan_content, encoding="utf-8")
+
+        rewritten, skipped = artifact_refs.rewrite_scope_path_citations(
+            self.tmp, {old_p: new_p}
+        )
+        self.assertIn(plan_file, rewritten)
+        self.assertEqual(skipped, [])
+
+        updated = plan_file.read_text(encoding="utf-8")
+        self.assertIn(f"- Scope-Paths: {new_p}, other.py", updated)
+        self.assertIn(f"Prose citation: {old_p} in analysis.", updated)
+        self.assertIn(f"fenced code: {old_p}", updated)
+
+    def test_b_name_keyed_map_unchanged_filename_plans_zero_edits(self):
+        from agent_workflows import artifact_refs
+
+        name = "20261001-bk0001-01-bk0001-item.backlog.md"
+        plan_file = self.plans / "20261001-test-01-pl0001-plan.ipd.md"
+        plan_file.write_text(
+            f"# IPD: Test\n- Id: pl0001\n- Scope-Paths: .aw/records/backlog/open/{name}\n",
+            encoding="utf-8",
+        )
+
+        edits, skipped = artifact_refs.plan_scope_path_reference_rewrites(
+            self.tmp, {name: name}
+        )
+        self.assertEqual(edits, [])
+        self.assertEqual(skipped, [])
+
+    def test_c_executed_plan_and_tests_byte_unchanged(self):
+        from agent_workflows import artifact_refs
+
+        old_p = ".aw/records/backlog/open/20261001-bk0001-01-bk0001-item.backlog.md"
+        new_p = (
+            ".aw/records/backlog/graduated/20261001-bk0001-01-bk0001-item.backlog.md"
+        )
+
+        exec_dir = self.tmp / ".aw" / "records" / "plans" / "executed"
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        exec_plan = exec_dir / "20261001-test-01-ex0001-exec.ipd.md"
+        exec_orig = f"# IPD: Executed\n- Id: ex0001\n- Scope-Paths: {old_p}\n"
+        exec_plan.write_text(exec_orig, encoding="utf-8")
+
+        test_file = self.tests_dir / "test_exec.py"
+        test_orig = f"# Test citing {old_p}\nPATH = '{old_p}'\n"
+        test_file.write_text(test_orig, encoding="utf-8")
+
+        rewritten, skipped = artifact_refs.rewrite_scope_path_citations(
+            self.tmp, {old_p: new_p}
+        )
+        self.assertEqual(rewritten, [])
+        self.assertEqual(skipped, [])
+        self.assertEqual(exec_plan.read_text(encoding="utf-8"), exec_orig)
+        self.assertEqual(test_file.read_text(encoding="utf-8"), test_orig)
+
+    def test_d_forward_declaration_skipped_with_reason_and_byte_unchanged(self):
+        from agent_workflows import artifact_refs
+
+        old_p = ".aw/records/specs/approved/20261001-sp0001-01-sp0001-spec.spec.md"
+        new_p = ".aw/records/specs/implementing/20261001-sp0001-01-sp0001-spec.spec.md"
+
+        plan_file = self.plans / "20261001-test-01-fwd001-forward.ipd.md"
+        plan_orig = (
+            f"# IPD: Forward Declaring\n- Id: fwd001\n- Scope-Paths: {old_p}, {new_p}\n"
+        )
+        plan_file.write_text(plan_orig, encoding="utf-8")
+
+        rewritten, skipped = artifact_refs.rewrite_scope_path_citations(
+            self.tmp, {old_p: new_p}
+        )
+        self.assertEqual(rewritten, [])
+        self.assertEqual(len(skipped), 1)
+        self.assertEqual(skipped[0][0], plan_file)
+        self.assertIn("destination already declared in Scope-Paths", skipped[0][1])
+        self.assertEqual(plan_file.read_text(encoding="utf-8"), plan_orig)
+
+    def test_e_guard_classifies_receipt_corrupt_noid_as_must_skip_and_provably_absent_as_rewritable(
+        self,
+    ):
+        from agent_workflows import artifact_refs, ipd_lifecycle
+
+        p_no_receipt = self.plans / "20261001-test-01-no0001-noreceipt.ipd.md"
+        p_no_receipt.write_text(
+            "# IPD\n- Id: no0001\n- Scope-Paths: foo.py\n", encoding="utf-8"
+        )
+
+        p_with_receipt = self.plans / "20261001-test-01-rc0001-withreceipt.ipd.md"
+        p_with_receipt.write_text(
+            "# IPD\n- Id: rc0001\n- Scope-Paths: foo.py\n", encoding="utf-8"
+        )
+        rcpt1 = ipd_lifecycle.receipt_path_for(self.tmp, "rc0001")
+        rcpt1.parent.mkdir(parents=True, exist_ok=True)
+        rcpt1.write_text('{"schema_version": 2, "plan_id": "rc0001"}', encoding="utf-8")
+
+        p_corrupt_receipt = self.plans / "20261001-test-01-bad001-corrupt.ipd.md"
+        p_corrupt_receipt.write_text(
+            "# IPD\n- Id: bad001\n- Scope-Paths: foo.py\n", encoding="utf-8"
+        )
+        rcpt2 = ipd_lifecycle.receipt_path_for(self.tmp, "bad001")
+        rcpt2.parent.mkdir(parents=True, exist_ok=True)
+        rcpt2.write_text("{corrupt-json", encoding="utf-8")
+
+        p_no_id = self.plans / "20261001-test-01-noid01-missingid.ipd.md"
+        p_no_id.write_text("# IPD\n- Scope-Paths: foo.py\n", encoding="utf-8")
+
+        candidates = [p_no_receipt, p_with_receipt, p_corrupt_receipt, p_no_id]
+        rewritable, must_skip = artifact_refs.classify_citing_plans_for_rewrite(
+            self.tmp, candidates
+        )
+
+        self.assertEqual(rewritable, [p_no_receipt])
+        skip_dict = {p: reason for p, reason in must_skip}
+        self.assertIn("live begin receipt present", skip_dict[p_with_receipt])
+        self.assertIn("live begin receipt present", skip_dict[p_corrupt_receipt])
+        self.assertIn("missing - Id:", skip_dict[p_no_id])
