@@ -912,10 +912,14 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     # leaves were declared - i.e. the invested surface was the undeclared one - which is fixed here.
     # NOTE on the BARE `aw runs` (which renders the viewer table): it is deliberately NOT declared.
     # `COMMAND_INVENTORY` declares LEAVES, and `discover_parser_leaves` only reports parsers with no
-    # subparsers, so a family ROOT is never a leaf. Declaring it registered as declaration/parser
-    # DRIFT (`test_declared_absent_leaves_are_only_the_known_prompts_family`), exactly as it would for
-    # the other bare-invokable family roots (`aw ipd` renders the board, `aw specs`, `aw backlog`),
-    # none of which is declared either. The bare viewer's contract is carried by `runs list`, its
+    # subparsers, so a family ROOT is never a leaf. Declaring a family root would appear in the
+    # harness's declared_absent census, though the restored gate
+    # (`test_command_surface_declarations.test_zero_unreachable_command_declarations`) is BEHAVIORAL
+    # and would not flag it because family roots resolve through the dispatch table. However,
+    # declaring a root violates the convention: the other bare-invokable family roots (`aw ipd`
+    # renders the board, `aw specs`, `aw backlog`, `aw prompts`, `aw research`, `aw config`) are
+    # neither declared nor leaves (only `upgrade-test` was declared, an inconsistency owned by
+    # open backlog item lbbo9s). The bare viewer's contract is carried by `runs list`, its
     # identical alias, which IS a leaf.
     CommandDeclaration(
         # The viewer table under its own name; identical to bare `aw runs` (same renderer, same
