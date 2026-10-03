@@ -7,6 +7,7 @@
 - Summary: The integration deferral poll rung waits only on dirty paths, so it reports a mid-merge checkout as a clear base and a deferred re-attempt refuses again immediately
 
 ## Workflow history
+- 2026-10-02 note (aw backlog): Adopted item sketch for qkwu1r: placed merge_check after overlap_check (OQ-02), added no new bound since existing staleness bound terminates abandoned mid-merge bases (F-04), and sharpened consequence framing (dirt-cleared detail is affirmatively wrong, F-02).
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: qkwu1r
 - 2026-09-28 created (aw backlog): Carrier for plan g2z2pp's deferred poll-rung row and its OQ-03.
 
