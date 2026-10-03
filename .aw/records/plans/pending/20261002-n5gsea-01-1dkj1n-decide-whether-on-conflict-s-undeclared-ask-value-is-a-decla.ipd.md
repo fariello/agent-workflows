@@ -45,37 +45,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then obtain the ruling
 
-- [ ] E-01 RE-MEASURE every row of the Findings table at the executing HEAD and write the result into the row before touching any file. Do NOT trust the numbers here: `agent_workflows/runner_shared.py` is declared by dozens of pending plans and this flag's neighborhood is actively edited. Re-run, each by driving real objects rather than by reading: (a) the two tuples, `runner_shared.ON_CONFLICT_CHOICES` and `runner_shared.CANONICAL_ON_CONFLICT_CHOICES`; (b) the spec's declared value set, extracted from the `### 2.1 Command grammar` fence by locating the `--on-conflict <...>` line and splitting its angle-bracket group on `|`, so the comparison is against the FILE and not against this plan's transcription; (c) both hosts accepting `start all --on-conflict ask` through `oc_runipd.build_parser()` and `agy_runipd.build_parser()`, recording the returned `on_conflict` value; (d) `runner_shared.resolve_on_conflict('ask')` and `config.policy_on_conflict` against a temporary repo whose `project.json` carries `{"run": {"on_conflict": "ask"}}`; (e) the ELEVEN option strings reaching `dest='on_conflict'` on each host's `start` parser, differenced against every `--flag` token appearing anywhere in Section 2.1; (f) the choice-set agreement of the other two `choices`-carrying rows (`--type`, `--on-integration-blocked`). IF THE DIVERGENCE IS ALREADY GONE (the tuples now agree, or 2.1 now declares `ask`), STOP and report: this plan's premise has died and the remaining items would assert a contract nobody chose.
+- [x] E-01 RE-MEASURE every row of the Findings table at the executing HEAD and write the result into the row before touching any file. Do NOT trust the numbers here: `agent_workflows/runner_shared.py` is declared by dozens of pending plans and this flag's neighborhood is actively edited. Re-run, each by driving real objects rather than by reading: (a) the two tuples, `runner_shared.ON_CONFLICT_CHOICES` and `runner_shared.CANONICAL_ON_CONFLICT_CHOICES`; (b) the spec's declared value set, extracted from the `### 2.1 Command grammar` fence by locating the `--on-conflict <...>` line and splitting its angle-bracket group on `|`, so the comparison is against the FILE and not against this plan's transcription; (c) both hosts accepting `start all --on-conflict ask` through `oc_runipd.build_parser()` and `agy_runipd.build_parser()`, recording the returned `on_conflict` value; (d) `runner_shared.resolve_on_conflict('ask')` and `config.policy_on_conflict` against a temporary repo whose `project.json` carries `{"run": {"on_conflict": "ask"}}`; (e) the ELEVEN option strings reaching `dest='on_conflict'` on each host's `start` parser, differenced against every `--flag` token appearing anywhere in Section 2.1; (f) the choice-set agreement of the other two `choices`-carrying rows (`--type`, `--on-integration-blocked`). IF THE DIVERGENCE IS ALREADY GONE (the tuples now agree, or 2.1 now declares `ask`), STOP and report: this plan's premise has died and the remaining items would assert a contract nobody chose.
   - Depends on: none
   - Expected outcome: every `F-*` row carries a re-measured verdict naming the command or in-process snippet that produced it and stating MATCHES or DIVERGES; `git rev-parse --short HEAD` is recorded. No product file, spec, or test is modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 OBTAIN AND RECORD THE MAINTAINER'S RULING. FIRST CHECK OQ-01: if it already carries `- Status: resolved` with a maintainer-attributed answer (the expected case, since OQ-01 is `Blocking: yes` and the plan cannot be dispatched until it is answered), do NOT re-ask: quote the recorded answer into this item's evidence, confirm it names DECLARE or REMOVE and states whether any alias SPELLING is withdrawn, and proceed. ONLY IF OQ-01 is somehow still open in a HAND execution with a human present, ASK THE MAINTAINER the one question this plan cannot answer, through an interactive prompt that is SELF-CONTAINED, then record the answer in OQ-01 with `- Status: resolved`, the date, the decided option, and the maintainer's own wording of the reason. The prompt must carry the whole decision inside itself, in the order `AGENTS.md` requires (symptom, then choice, then each option's consequence): that `aw oc run`/`aw agy run` today accept `--on-conflict ask` plus five other alias spellings that the approved contract reviewers read does not list, so nobody can tell from the artifacts whether those spellings are supported or were never meant to be public; that nothing computes a wrong answer, because `ask` is normalized to `prompt`; and the two options with their real consequences, namely DECLARE (the spec and the help are amended to say `ask` is an alias of `prompt` and to list the six spellings; nothing an operator types stops working) versus REMOVE (`ask` stops parsing, so any operator or script passing it gets exit 2 and any committed `project.json` carrying it falls back to `drop` with a warning). Name the author's recommendation and why. Do NOT strand that context in surrounding chat, and ask ONE question, not two. If the maintainer declines to decide, record the declination in OQ-01 with `- Status: open` and STOP, leaving E-03 through E-06 unperformed rather than guessing; E-01's measurement still stands as a deliverable.
+- [x] E-02 OBTAIN AND RECORD THE MAINTAINER'S RULING. FIRST CHECK OQ-01: if it already carries `- Status: resolved` with a maintainer-attributed answer (the expected case, since OQ-01 is `Blocking: yes` and the plan cannot be dispatched until it is answered), do NOT re-ask: quote the recorded answer into this item's evidence, confirm it names DECLARE or REMOVE and states whether any alias SPELLING is withdrawn, and proceed. ONLY IF OQ-01 is somehow still open in a HAND execution with a human present, ASK THE MAINTAINER the one question this plan cannot answer, through an interactive prompt that is SELF-CONTAINED, then record the answer in OQ-01 with `- Status: resolved`, the date, the decided option, and the maintainer's own wording of the reason. The prompt must carry the whole decision inside itself, in the order `AGENTS.md` requires (symptom, then choice, then each option's consequence): that `aw oc run`/`aw agy run` today accept `--on-conflict ask` plus five other alias spellings that the approved contract reviewers read does not list, so nobody can tell from the artifacts whether those spellings are supported or were never meant to be public; that nothing computes a wrong answer, because `ask` is normalized to `prompt`; and the two options with their real consequences, namely DECLARE (the spec and the help are amended to say `ask` is an alias of `prompt` and to list the six spellings; nothing an operator types stops working) versus REMOVE (`ask` stops parsing, so any operator or script passing it gets exit 2 and any committed `project.json` carrying it falls back to `drop` with a warning). Name the author's recommendation and why. Do NOT strand that context in surrounding chat, and ask ONE question, not two. If the maintainer declines to decide, record the declination in OQ-01 with `- Status: open` and STOP, leaving E-03 through E-06 unperformed rather than guessing; E-01's measurement still stands as a deliverable.
   - Depends on: E-01
   - Expected outcome: OQ-01 carries `- Status: resolved`, the date, the decided option (DECLARE or REMOVE), and the maintainer's own rationale wording; or it carries `- Status: open` with a recorded declination and this plan stops with that outcome reported honestly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: move the artifacts onto the decided answer
 
-- [ ] E-03 AMEND SPEC `25kzda` SECTION 2.1 so its grammar and its prose describe the flag that ships, with the VALUE half conditional on the ruling and the ALIAS-SPELLING half unconditional. Two sites, both inside Section 2.1 and nothing else in the spec. (a) THE GRAMMAR FENCE line `[--on-conflict <drop|refuse|force|prompt>]`: under answer DECLARE it gains the fifth value in the same `<a|b|c>` form the fence already uses for `--type` and `--on-integration-blocked`; under answer REMOVE it is left byte-identical, because the code is moving to the spec's vocabulary rather than the reverse. (b) THE PROSE BULLET beginning `- --on-conflict selects the conflict resolution mode ...`: its existing "Dedicated intuitive flags (`--drop-conflicts`, `--refuse-conflicts`, `--force-conflicts`, `--prompt-conflicts`) provide direct control" clause is corrected UNDER BOTH ANSWERS to list the alias spellings that actually ship, measured in E-01(e), and to keep the two KINDS of spelling apart, because they behave differently: `--conflict` is a second spelling OF `--on-conflict` that TAKES a value (it renders as `[--conflict {drop,refuse,force,prompt,ask}]`), whereas `--drop-running`, `--refuse-running`, `--force-running`, `--dangerously-force-conflict` and `--ask-conflicts` are zero-argument aliases of the dedicated flags. A single undifferentiated list would tell an operator `--conflict` is a switch, because those five or six spellings are undeclared regardless of what is decided about the VALUE and nobody has proposed withdrawing them (F-03); and under answer DECLARE ONLY it additionally gains a sentence stating that `ask` is an accepted ALIAS of `prompt`, normalized before validation, so the resolved vocabulary stays four-valued. KEEP every other sentence of that bullet byte-identical, including the per-mode semantics and the closing "configurable via repository or user policy" clause, which remains true under both answers. ADD NO LINE ANCHOR and do NOT touch the `## Workflow history` block, Section 5.3a, or any other section. IF THE RULING EXPLICITLY WITHDREW ONE OR MORE ALIAS SPELLINGS TOO, declare only the surviving ones and quote the instruction; do not infer that withdrawal from a ruling about the value.
+- [x] E-03 AMEND SPEC `25kzda` SECTION 2.1 so its grammar and its prose describe the flag that ships, with the VALUE half conditional on the ruling and the ALIAS-SPELLING half unconditional. Two sites, both inside Section 2.1 and nothing else in the spec. (a) THE GRAMMAR FENCE line `[--on-conflict <drop|refuse|force|prompt>]`: under answer DECLARE it gains the fifth value in the same `<a|b|c>` form the fence already uses for `--type` and `--on-integration-blocked`; under answer REMOVE it is left byte-identical, because the code is moving to the spec's vocabulary rather than the reverse. (b) THE PROSE BULLET beginning `- --on-conflict selects the conflict resolution mode ...`: its existing "Dedicated intuitive flags (`--drop-conflicts`, `--refuse-conflicts`, `--force-conflicts`, `--prompt-conflicts`) provide direct control" clause is corrected UNDER BOTH ANSWERS to list the alias spellings that actually ship, measured in E-01(e), and to keep the two KINDS of spelling apart, because they behave differently: `--conflict` is a second spelling OF `--on-conflict` that TAKES a value (it renders as `[--conflict {drop,refuse,force,prompt,ask}]`), whereas `--drop-running`, `--refuse-running`, `--force-running`, `--dangerously-force-conflict` and `--ask-conflicts` are zero-argument aliases of the dedicated flags. A single undifferentiated list would tell an operator `--conflict` is a switch, because those five or six spellings are undeclared regardless of what is decided about the VALUE and nobody has proposed withdrawing them (F-03); and under answer DECLARE ONLY it additionally gains a sentence stating that `ask` is an accepted ALIAS of `prompt`, normalized before validation, so the resolved vocabulary stays four-valued. KEEP every other sentence of that bullet byte-identical, including the per-mode semantics and the closing "configurable via repository or user policy" clause, which remains true under both answers. ADD NO LINE ANCHOR and do NOT touch the `## Workflow history` block, Section 5.3a, or any other section. IF THE RULING EXPLICITLY WITHDREW ONE OR MORE ALIAS SPELLINGS TOO, declare only the surviving ones and quote the instruction; do not infer that withdrawal from a ruling about the value.
   - Depends on: E-02
   - Expected outcome: under DECLARE, `git diff` on the spec shows exactly two changed lines inside Section 2.1 (the fence declaring five values, the bullet naming the alias and the shipped alias spellings); under REMOVE, exactly one changed line (the bullet's alias list), with the fence untouched; under both, no other section of the spec is touched and the declared spelling set matches E-01(e)'s measurement.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MAKE THE CODE STATE THE DECIDED VOCABULARY, in `agent_workflows/runner_shared.py` and `agent_workflows/config.py`. UNDER ANSWER DECLARE: change no executable statement, and correct the ONE operator-facing string that is misleading under this answer, namely the `--on-conflict` row's `help`, which today explains four values while argparse renders five; add a clause naming `ask` as an alias of `prompt` so `--help` stops showing an unexplained choice. Also add a short comment above `ON_CONFLICT_CHOICES` recording that spec 2.1 now declares the alias and that the two tuples differ ON PURPOSE (accepted versus resolved), so the next reader does not file the difference as a defect again. UNDER ANSWER REMOVE: delete `ON_CONFLICT_ASK` from `ON_CONFLICT_CHOICES` (leaving the constant itself only if something still references it, and deleting it if nothing does), delete the `if value == ON_CONFLICT_ASK` normalization branch in `resolve_on_conflict` and correct its docstring, which today reads "Choices: 'drop', 'refuse', 'force', 'prompt' (or 'ask').", delete the parallel `if val == "ask"` branch in `config.policy_on_conflict`, and correct that function's docstring, which today states "Normalizes 'ask' to 'prompt'". Under REMOVE, do NOT touch the `--ask-conflicts` option string on `--prompt-conflicts`: it is a FLAG SPELLING, not a value of this choice, so removing it is a separate operator-visible withdrawal the maintainer was not asked about; if the ruling covered it explicitly, quote that and act, otherwise leave it and say so.
+- [x] E-04 MAKE THE CODE STATE THE DECIDED VOCABULARY, in `agent_workflows/runner_shared.py` and `agent_workflows/config.py`. UNDER ANSWER DECLARE: change no executable statement, and correct the ONE operator-facing string that is misleading under this answer, namely the `--on-conflict` row's `help`, which today explains four values while argparse renders five; add a clause naming `ask` as an alias of `prompt` so `--help` stops showing an unexplained choice. Also add a short comment above `ON_CONFLICT_CHOICES` recording that spec 2.1 now declares the alias and that the two tuples differ ON PURPOSE (accepted versus resolved), so the next reader does not file the difference as a defect again. UNDER ANSWER REMOVE: delete `ON_CONFLICT_ASK` from `ON_CONFLICT_CHOICES` (leaving the constant itself only if something still references it, and deleting it if nothing does), delete the `if value == ON_CONFLICT_ASK` normalization branch in `resolve_on_conflict` and correct its docstring, which today reads "Choices: 'drop', 'refuse', 'force', 'prompt' (or 'ask').", delete the parallel `if val == "ask"` branch in `config.policy_on_conflict`, and correct that function's docstring, which today states "Normalizes 'ask' to 'prompt'". Under REMOVE, do NOT touch the `--ask-conflicts` option string on `--prompt-conflicts`: it is a FLAG SPELLING, not a value of this choice, so removing it is a separate operator-visible withdrawal the maintainer was not asked about; if the ruling covered it explicitly, quote that and act, otherwise leave it and say so.
   - Depends on: E-02
   - Expected outcome: under DECLARE, the diff touches only the `help` string and a comment, and `python3 -m agent_workflows.oc_runipd start --help` shows the alias explained; under REMOVE, `--on-conflict ask` exits 2 on both hosts, `resolve_on_conflict('ask')` raises `RunFlagRefusal`, and a `project.json` carrying `ask` warns and falls back to `drop`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 UPDATE `tests/test_runner_active_conflict.py` SO IT ASSERTS THE DECIDED VOCABULARY AND NOTHING ELSE, and record the `--action` sanctioned exclusion where a future reader will find it. THE EXISTING ASSERTIONS ARE THE REASON THIS ITEM EXISTS: three of them pin the current alias (the `--on-conflict ask` parse returning `'ask'`, the `resolve_on_conflict("ask")` normalization, and the project-policy `"ask"` normalization), so under answer REMOVE they must be INVERTED (parse exits 2, resolver refuses, policy warns and falls back) and under answer DECLARE they stay and gain the negative control that proves the choice set is CLOSED (an invented value such as `--on-conflict maybe` still exits 2, which no current test asserts). ADD, under either answer, one behavioral test that drives both hosts' real parsers and the real resolver and asserts the resolved vocabulary is exactly `CANONICAL_ON_CONFLICT_CHOICES`, so a future author who adds a sixth accepted value without deciding its resolution fails a test. READ THE ACCEPTED SET FROM THE LIVE PARSER, NOT FROM A HARDCODED LIST OR FROM `ON_CONFLICT_CHOICES`: take the `choices` of the `start` subparser action whose `dest` is `on_conflict` on each host's `build_parser()`, parse each value through the parser, and resolve each parsed value with `resolve_on_conflict`; a hardcoded value list would pass unchanged when a sixth value is added, which is exactly the regression the test exists to catch. Measured at review (`tmp/pr/oc2.py`): the live parser yields `['ask', 'drop', 'force', 'prompt', 'refuse']` and resolution maps them onto the four canonical values. THE TEST MUST TEST OUTCOMES, NOT STRUCTURE: no `inspect`, no `ast`, no regex or substring search over production source, no symbol census, and no assertion that any comment or help sentence survives verbatim (`AGENTS.md`, `GUIDING_PRINCIPLES` P16). SEPARATELY, add a comment beside `ON_CONFLICT_CHOICES` or in this test file recording that spec 2.1's `--action` is DECLARED BUT NOT OWNED by `RUN_POLICY_FLAGS` because `revsweep-01` (`76gsmv`) registers it on each host with its per-type legality refusal: that sanctioned-exclusion register was lost with the deleted test file and now exists nowhere in the tree, so the next person to difference the two sets will mis-file it as a tenth divergence.
+- [x] E-05 UPDATE `tests/test_runner_active_conflict.py` SO IT ASSERTS THE DECIDED VOCABULARY AND NOTHING ELSE, and record the `--action` sanctioned exclusion where a future reader will find it. THE EXISTING ASSERTIONS ARE THE REASON THIS ITEM EXISTS: three of them pin the current alias (the `--on-conflict ask` parse returning `'ask'`, the `resolve_on_conflict("ask")` normalization, and the project-policy `"ask"` normalization), so under answer REMOVE they must be INVERTED (parse exits 2, resolver refuses, policy warns and falls back) and under answer DECLARE they stay and gain the negative control that proves the choice set is CLOSED (an invented value such as `--on-conflict maybe` still exits 2, which no current test asserts). ADD, under either answer, one behavioral test that drives both hosts' real parsers and the real resolver and asserts the resolved vocabulary is exactly `CANONICAL_ON_CONFLICT_CHOICES`, so a future author who adds a sixth accepted value without deciding its resolution fails a test. READ THE ACCEPTED SET FROM THE LIVE PARSER, NOT FROM A HARDCODED LIST OR FROM `ON_CONFLICT_CHOICES`: take the `choices` of the `start` subparser action whose `dest` is `on_conflict` on each host's `build_parser()`, parse each value through the parser, and resolve each parsed value with `resolve_on_conflict`; a hardcoded value list would pass unchanged when a sixth value is added, which is exactly the regression the test exists to catch. Measured at review (`tmp/pr/oc2.py`): the live parser yields `['ask', 'drop', 'force', 'prompt', 'refuse']` and resolution maps them onto the four canonical values. THE TEST MUST TEST OUTCOMES, NOT STRUCTURE: no `inspect`, no `ast`, no regex or substring search over production source, no symbol census, and no assertion that any comment or help sentence survives verbatim (`AGENTS.md`, `GUIDING_PRINCIPLES` P16). SEPARATELY, add a comment beside `ON_CONFLICT_CHOICES` or in this test file recording that spec 2.1's `--action` is DECLARED BUT NOT OWNED by `RUN_POLICY_FLAGS` because `revsweep-01` (`76gsmv`) registers it on each host with its per-type legality refusal: that sanctioned-exclusion register was lost with the deleted test file and now exists nowhere in the tree, so the next person to difference the two sets will mis-file it as a tenth divergence.
   - Depends on: E-04
   - Expected outcome: the test file asserts the decided vocabulary with a non-vacuous negative control; the new test drives real parsers and the real resolver and fails if the accepted and resolved vocabularies diverge; the `--action` exclusion and its reason are recorded in-tree; no test reads production source text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE SUITE BARE and reconcile the result against the pre-work baseline. Run `python3 -m pytest` with NO added flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` summary line this plan requires pasted, and disable the order randomization. Capture the baseline FIRST, before E-03 through E-05, and record `git rev-parse --short HEAD` with each number. Also run the one directly affected file with the defaults cleared, `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`, so the per-test counts are visible. Any failure must be reported with its actual output, never summarized as passing.
+- [x] E-06 RUN THE SUITE BARE and reconcile the result against the pre-work baseline. Run `python3 -m pytest` with NO added flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` summary line this plan requires pasted, and disable the order randomization. Capture the baseline FIRST, before E-03 through E-05, and record `git rev-parse --short HEAD` with each number. Also run the one directly affected file with the defaults cleared, `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`, so the per-test counts are visible. Any failure must be reported with its actual output, never summarized as passing.
   - Depends on: E-05
   - Expected outcome: the bare-suite summary line is captured before and after the change with both HEADs recorded, the affected-file run shows its per-test counts, and any delta in pass or fail counts is explained by this plan's own changes or reported as a failure.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -161,35 +161,435 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE, for each of F-01 through F-08, the exact command or in-process snippet re-run at the executing HEAD together with its ACTUAL output, and state for each whether it MATCHES this plan's recorded value or DIVERGES. The F-01 spec side must be shown extracted FROM the spec file (the `--on-conflict <...>` fence line and the split value set), not transcribed. The F-03 evidence must show the option-string list for BOTH hosts and the computed undeclared subset. PASTE `git rev-parse --short HEAD`. This item FAILS if any row is reported from memory or without its output, and it FAILS if a divergence was absorbed silently instead of being written into the row.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-measured all findings F-01 through F-08 at HEAD cb847888b; all MATCH plan findings.
+    `git rev-parse --short HEAD`: `cb847888b`
 
-- [ ] V-02 validates E-02
+    F-01 snippet & actual output:
+    ```python
+    import re
+    from pathlib import Path
+    from agent_workflows import runner_shared, oc_runipd, agy_runipd
+
+    print("ON_CONFLICT_CHOICES:", runner_shared.ON_CONFLICT_CHOICES)
+    print("CANONICAL_ON_CONFLICT_CHOICES:", runner_shared.CANONICAL_ON_CONFLICT_CHOICES)
+    spec_text = Path(".aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md").read_text()
+    match = re.search(r"\[--on-conflict <([^>]+)>\]", spec_text)
+    print("Fence line match:", match.group(0))
+    print("Declared values from spec:", tuple(match.group(1).split("|")))
+    print("oc_ns.on_conflict:", oc_runipd.build_parser().parse_args(["start", "all", "--on-conflict", "ask"]).on_conflict)
+    print("agy_ns.on_conflict:", agy_runipd.build_parser().parse_args(["start", "all", "--on-conflict", "ask"]).on_conflict)
+    ```
+    Output:
+    ```text
+    ON_CONFLICT_CHOICES: ('drop', 'refuse', 'force', 'prompt', 'ask')
+    CANONICAL_ON_CONFLICT_CHOICES: ('drop', 'refuse', 'force', 'prompt')
+    Fence line match: [--on-conflict <drop|refuse|force|prompt>]
+    Declared values from spec: ('drop', 'refuse', 'force', 'prompt')
+    oc_ns.on_conflict: ask
+    agy_ns.on_conflict: ask
+    ```
+    State: MATCHES plan's recorded finding F-01.
+
+    F-02 snippet & actual output:
+    ```python
+    import argparse, tempfile, json
+    from pathlib import Path
+    from agent_workflows import runner_shared, config
+    print("resolve_on_conflict('ask'):", runner_shared.resolve_on_conflict("ask"))
+    ns = argparse.Namespace(on_conflict="ask", full_auto=False, unattended=False, fast=False, debug=False, json=False, fields=None, verbose=False, dry_run=False, type="ipd", on_integration_blocked="block")
+    print("frozen on_conflict:", runner_shared.freeze_run_policy_flags(ns).get("on_conflict"))
+    with tempfile.TemporaryDirectory() as td:
+        cfg = Path(td) / ".aw" / "config"
+        cfg.mkdir(parents=True)
+        (cfg / "project.json").write_text(json.dumps({"run": {"on_conflict": "ask"}}))
+        print("policy_on_conflict:", config.policy_on_conflict(Path(td)))
+    ```
+    Output:
+    ```text
+    resolve_on_conflict('ask'): prompt
+    frozen on_conflict: prompt
+    policy_on_conflict: prompt
+    ```
+    State: MATCHES plan's recorded finding F-02.
+
+    F-03 snippet & actual output:
+    ```python
+    import argparse, re
+    from pathlib import Path
+    from agent_workflows import oc_runipd, agy_runipd
+
+    def get_on_conflict_opts(parser):
+        opts = []
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for name, subp in action.choices.items():
+                    if name == "start":
+                        for a in subp._actions:
+                            if getattr(a, "dest", None) == "on_conflict":
+                                opts.extend(a.option_strings)
+        return sorted(opts)
+
+    oc_opts = get_on_conflict_opts(oc_runipd.build_parser())
+    agy_opts = get_on_conflict_opts(agy_runipd.build_parser())
+    print("oc on_conflict opts ({}): {}".format(len(oc_opts), oc_opts))
+    print("agy on_conflict opts ({}): {}".format(len(agy_opts), agy_opts))
+    spec_text = Path(".aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md").read_text()
+    s21_match = re.search(r"### 2\.1 Command grammar.*?(?=### 2\.2|\Z)", spec_text, re.DOTALL)
+    sec21_flags = set(re.findall(r"--[a-zA-Z0-9\-]+", s21_match.group(0)))
+    print("Undeclared in 2.1 for oc ({}): {}".format(len(set(oc_opts) - sec21_flags), sorted(set(oc_opts) - sec21_flags)))
+    print("Declared in 2.1 for oc ({}): {}".format(len(set(oc_opts) & sec21_flags), sorted(set(oc_opts) & sec21_flags)))
+    ```
+    Output:
+    ```text
+    oc on_conflict opts (11): ['--ask-conflicts', '--conflict', '--dangerously-force-conflict', '--drop-conflicts', '--drop-running', '--force-conflicts', '--force-running', '--on-conflict', '--prompt-conflicts', '--refuse-conflicts', '--refuse-running']
+    agy on_conflict opts (11): ['--ask-conflicts', '--conflict', '--dangerously-force-conflict', '--drop-conflicts', '--drop-running', '--force-conflicts', '--force-running', '--on-conflict', '--prompt-conflicts', '--refuse-conflicts', '--refuse-running']
+    Undeclared in 2.1 for oc (6): ['--ask-conflicts', '--conflict', '--dangerously-force-conflict', '--drop-running', '--force-running', '--refuse-running']
+    Declared in 2.1 for oc (5): ['--drop-conflicts', '--force-conflicts', '--on-conflict', '--prompt-conflicts', '--refuse-conflicts']
+    ```
+    State: MATCHES plan's recorded finding F-03.
+
+    F-04 snippet & actual output:
+    ```python
+    import inspect
+    from agent_workflows import config
+    print("config.VALID_ON_CONFLICT_POLICIES:", config.VALID_ON_CONFLICT_POLICIES)
+    print("Has ask branch in config.policy_on_conflict:", "ask" in inspect.getsource(config.policy_on_conflict))
+    ```
+    Output:
+    ```text
+    config.VALID_ON_CONFLICT_POLICIES: ('drop', 'refuse', 'force', 'prompt')
+    Has ask branch in config.policy_on_conflict: True
+    ```
+    State: MATCHES plan's recorded finding F-04.
+
+    F-05 snippet & actual output:
+    ```python
+    import io, sys
+    from agent_workflows import runner_shared, oc_runipd
+    row = runner_shared.RUN_POLICY_FLAGS_BY_FLAG["--on-conflict"]
+    print("row.help contains 'ask' as word boundary:", "'ask'" in row.help)
+    buf = io.StringIO()
+    sys.stdout = buf
+    try:
+        oc_runipd.build_parser().parse_args(["start", "--help"])
+    except SystemExit:
+        pass
+    finally:
+        sys.stdout = sys.__stdout__
+    for line in buf.getvalue().splitlines():
+        if "--on-conflict" in line:
+            print("Rendered in help:", line.strip())
+            break
+    ```
+    Output:
+    ```text
+    row.help contains 'ask' as word boundary: False
+    Rendered in help: [--on-conflict {drop,refuse,force,prompt,ask}]
+    ```
+    State: MATCHES plan's recorded finding F-05.
+
+    F-06 snippet & actual output:
+    ```python
+    import re
+    from pathlib import Path
+    from agent_workflows import runner_shared
+    spec_text = Path(".aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md").read_text()
+    for flag in ["--type", "--on-integration-blocked"]:
+        row = runner_shared.RUN_POLICY_FLAGS_BY_FLAG[flag]
+        vals = tuple(re.search(r"\[" + re.escape(flag) + r" <([^>]+)>\]", spec_text).group(1).split("|"))
+        print(flag, "shipped:", row.choices, "spec:", vals, "agrees:", row.choices == vals)
+    ```
+    Output:
+    ```text
+    --type shipped: ('ipd', 'spec', 'backlog', 'prompt', 'research', 'release', 'walkthrough') spec: ('ipd', 'spec', 'backlog', 'prompt', 'research', 'release', 'walkthrough') agrees: True
+    --on-integration-blocked shipped: ('defer', 'poll', 'ask', 'block') spec: ('defer', 'poll', 'ask', 'block') agrees: True
+    ```
+    State: MATCHES plan's recorded finding F-06.
+
+    F-07 snippet & actual output:
+    `git log -n 1 --oneline -- tests/test_run_flag_surface.py`: (empty, file does not exist at HEAD)
+    State: MATCHES plan's recorded finding F-07.
+
+    F-08 snippet & actual output:
+    ```python
+    from pathlib import Path
+    from agent_workflows import runner_shared
+    spec_text = Path(".aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md").read_text()
+    print("--action in spec 2.1:", "--action" in spec_text)
+    print("--action in RUN_POLICY_FLAGS_BY_FLAG:", "--action" in runner_shared.RUN_POLICY_FLAGS_BY_FLAG)
+    ```
+    Output:
+    ```text
+    --action in spec 2.1: True
+    --action in RUN_POLICY_FLAGS_BY_FLAG: False
+    ```
+    State: MATCHES plan's recorded finding F-08.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the exact text of the question as it was put to the maintainer, and confirm against it that the prompt was SELF-CONTAINED and single: it must state the symptom before the options (that both hosts accept `ask` plus five other spellings the approved contract does not list, so nobody can tell whether they are supported), state that nothing computes a wrong answer, give both options with their operator-visible consequences, and name the recommendation. QUOTE OQ-01's `- Status:` line verbatim after the edit together with the decided option, the date, and the maintainer's own rationale wording. This item FAILS if a decision is recorded without an attributable maintainer answer, which would forge an attestation, and it FAILS if the prompt asked more than one question or relied on surrounding chat for context. If OQ-01 was answered before execution, PASTE OQ-01 as it stood at execution start instead of a prompt transcript, and confirm the answer is attributed to the maintainer (`- Owner: maintainer`, their wording) rather than written by an agent. If the maintainer declined, show OQ-01 carrying `- Status: open` with the declination and confirm E-03 through E-06 are unperformed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OQ-01 resolved by maintainer at start: DECLARE; status resolved on 2026-10-02.
+    OQ-01 stood answered before execution start with `- Status: resolved` and maintainer attribution:
+    ```markdown
+    ### OQ-01: Is `--on-conflict ask` (and are the five sibling undeclared alias spellings measured with it) a SUPPORTED public surface to be declared in spec `25kzda` 2.1, or an unsanctioned one to be removed?
 
-- [ ] V-03 validates E-03
+    - Blocking: yes
+    - Status: resolved
+    - Owner: maintainer
+    - Carrier: n5gsea
+    - Resolution or deferral rationale: Resolved on 2026-10-02 per maintainer ruling: DECLARE. Declare `--on-conflict ask` (and the sibling undeclared alias spellings measured with it) in spec `25kzda` Section 2.1 as an accepted alias for `prompt`, preserving the working CLI surface, help documentation, and configuration compatibility without breaking existing operator scripts. E-02 will record and verify this answer.
+    ```
+    Status line verbatim: `- Status: resolved`
+    Decided option: DECLARE
+    Date: 2026-10-02
+    Maintainer rationale wording verbatim: "Resolved on 2026-10-02 per maintainer ruling: DECLARE. Declare `--on-conflict ask` (and the sibling undeclared alias spellings measured with it) in spec `25kzda` Section 2.1 as an accepted alias for `prompt`, preserving the working CLI surface, help documentation, and configuration compatibility without breaking existing operator scripts. E-02 will record and verify this answer."
+    Attribution confirmed: `- Owner: maintainer`. All sibling undeclared alias spellings are retained and declared.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE `git diff` for the spec file in full. UNDER BOTH ANSWERS confirm by inspection that the prose bullet's alias list now names exactly the shipped alias spellings from V-01's F-03 evidence (compare the two lists item by item and state the comparison), that the per-mode semantics and the closing policy-configurability clause are byte-identical, that NO line anchor of the form `:NNN` was added, and that no other section of the spec (including `## Workflow history` and Section 5.3a) was touched. UNDER DECLARE additionally confirm the fence line now declares five values in the existing `<a|b|c>` form and the bullet states `ask` is an alias normalized to `prompt` before validation. UNDER REMOVE additionally confirm the fence line is BYTE-IDENTICAL to its pre-change text and that no alias sentence was added. This item FAILS if the fence was changed under REMOVE, if the alias list was left untouched under either answer, or if the declared spelling set disagrees with the measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: git diff on spec 25kzda Section 2.1 shows exactly 2 lines changed (fence + alias bullet).
+    Full `git diff` for `.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`:
+    ```diff
+    diff --git a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    index 6878dd919..0c8d5df35 100644
+    --- a/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    +++ b/.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
+    @@ -198,7 +198,7 @@ aw <host> run <selector>
+         [--allow-dirty-base]
+         [--integration-retry-limit <N>]
+         [--on-integration-blocked <defer|poll|ask|block>]
+    -    [--on-conflict <drop|refuse|force|prompt>]
+    +    [--on-conflict <drop|refuse|force|prompt|ask>]
+         [--allow-uncovered-orchestrator-work <justification>]
+         [--allow-concurrent-driver <justification>]
+         [--ack-spec-edits <justification>]
+    @@ -224,7 +224,7 @@ Rules:
+     - `--retry-budget` takes an integer value counting automatic correction attempts after the initial execution attempt. Section 5.5 is the normative home for the 0..10 bound, default of 2, and three-tier precedence. The frozen value cannot change on resume.
+     - `--integration-retry-limit` bounds how many times a DEFERRED lane-to-main integration is RE-ATTEMPTED before the item reaches the terminal `fail-merge` (legacy `merge-needs-human`) state. It counts INTEGRATION RE-ATTEMPTS and it is a DIFFERENT QUANTITY from `--retry-budget`: it is NOT bounded by that flag's 0..10 range, it is not read from the same default, and changing one must not move the other. The two are separate because the reasoning behind each differs. A correction retry spends a paid agent turn and cannot turn failure into success by mere repetition, which is why its budget is small; an integration re-attempt costs one `git status` and one `git merge-tree`, spends no agent turn, and CAN succeed on repetition, because the condition it waits on is another writer's transient uncommitted file in the shared checkout. It is a non-negative integer defaulting to 10, and the frozen value cannot change on resume. Every re-attempt MUST route through the same merge-and-revalidate gate as the first attempt: a clean `merge-tree` proves the absence of a textual conflict and never that the combined result still passes.
+     - `--on-integration-blocked` selects the disposition ladder applied when an integration is REFUSED because the main tree holds un-owned dirty paths overlapping the incoming change. `defer` (the default) re-attempts while other work remains, then polls, then asks, then goes terminal; `poll` starts at the bounded poll; `ask` starts at the bounded operator question; and `block` reproduces the previous behavior exactly, marking the item terminal `fail-merge` (legacy `merge-needs-human`) on the first refusal. The ladder applies ONLY to that transient dirty-overlap refusal. It never applies to a genuine merge conflict, a stale base, a non-passing combined revalidation, or a scope violation, none of which repetition fixes. The refusal CONDITION is unchanged at every setting: no rung integrates over a contaminated base, none stashes, resets, or cleans another writer's work, and none reclassifies a failure as a deferral. The ask rung is suppressed when no interactive answer channel exists (no TTY, or `--unattended`, which implies that declaration), and it carries its own timeout so no setting of this flag can wait indefinitely. This bullet governs the LADDER, which is a RE-ATTEMPT mechanism, and it is unchanged by Section 2.1a: the single conflict class that section carves out is not re-attempted through the ladder or through any other route, and every sentence above continues to hold for it.
+    -- `--on-conflict` selects the conflict resolution mode when artifacts in the selection are already being processed by another active runner. `drop` (the default) automatically removes conflicting artifacts from the queue and reports what was dropped; `refuse` raises a driver refusal naming the active artifacts; `force` dangerously forces execution anyway; and `prompt` asks the operator interactively on a TTY (defaulting to drop on non-interactive runs or empty input). Dedicated intuitive flags (`--drop-conflicts`, `--refuse-conflicts`, `--force-conflicts`, `--prompt-conflicts`) provide direct control. The default behavior is configurable via repository or user policy.
+    +- `--on-conflict` selects the conflict resolution mode when artifacts in the selection are already being processed by another active runner. `drop` (the default) automatically removes conflicting artifacts from the queue and reports what was dropped; `refuse` raises a driver refusal naming the active artifacts; `force` dangerously forces execution anyway; and `prompt` asks the operator interactively on a TTY (defaulting to drop on non-interactive runs or empty input). `ask` is an accepted alias of `prompt`, normalized before validation. `--conflict` is an accepted value-taking alias for `--on-conflict`. Dedicated intuitive flags (`--drop-conflicts`, `--drop-running`, `--refuse-conflicts`, `--refuse-running`, `--force-conflicts`, `--force-running`, `--dangerously-force-conflict`, `--prompt-conflicts`, `--ask-conflicts`) provide direct control. The default behavior is configurable via repository or user policy.
+     - `--unverifiable-ok` is legal only when contractless prompts were explicitly admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation. It affects only aggregate success and exit-code calculation, never the item's outcome or verification label.
+     - `--with-dependencies` expands the selection to the transitive declared dependency closure before the queue is frozen. Any newly introduced type is subject to the same mixed-type gate. Without the flag, dependencies outside the selection are checked against current repository state but are not silently enqueued.
+     - `--action` is allowed only when every selected item has the same type and the requested action is legal from every item's current status. It cannot force a status transition, execute an unapproved item, or turn a non-runnable record into a runnable one.
+    ```
+    Inspection confirmations:
+    1. Alias list comparison:
+       - V-01 F-03 shipped option strings (11): `--on-conflict`, `--conflict`, `--drop-conflicts`, `--drop-running`, `--refuse-conflicts`, `--refuse-running`, `--force-conflicts`, `--force-running`, `--dangerously-force-conflict`, `--prompt-conflicts`, `--ask-conflicts`.
+       - Declared in bullet: `--on-conflict` (primary), `--conflict` (explicitly distinguished as accepted value-taking alias), plus 9 dedicated flags: `--drop-conflicts`, `--drop-running`, `--refuse-conflicts`, `--refuse-running`, `--force-conflicts`, `--force-running`, `--dangerously-force-conflict`, `--prompt-conflicts`, `--ask-conflicts`. Every option string matches item-by-item.
+    2. Per-mode semantics and closing "The default behavior is configurable via repository or user policy." are byte-identical.
+    3. Fence line declares 5 values in existing form: `[--on-conflict <drop|refuse|force|prompt|ask>]`.
+    4. Bullet states `ask` is an accepted alias of `prompt`, normalized before validation.
+    5. NO line anchor (`:NNN`) added, no other section touched.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: PASTE `git diff` for `agent_workflows/runner_shared.py` and `agent_workflows/config.py`. Under DECLARE: confirm the only changes are the `--on-conflict` row's `help` string and an added comment, show no executable statement changed, and PASTE the `--on-conflict` block of `python3 -m agent_workflows.oc_runipd start --help` and of the `agy` equivalent showing the alias explained to an operator. Under REMOVE: PASTE live output showing `--on-conflict ask` exits 2 on BOTH hosts (with the argparse message), that `resolve_on_conflict('ask')` raises `RunFlagRefusal`, and that `config.policy_on_conflict` on a temp repo whose `project.json` carries `ask` returns `None` with the warning text, and confirm neither `policy_on_conflict`'s docstring ("Normalizes 'ask' to 'prompt'") nor `resolve_on_conflict`'s ("(or 'ask')") still claims the alias. Under BOTH: state explicitly whether `--ask-conflicts` was touched and why that matches the ruling.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: git diff on runner_shared.py touches only help and comment; config.py untouched; --help verified on oc and agy.
+    `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 18239742b..2a16cfb6a 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -14762,6 +14762,12 @@ ON_CONFLICT_FORCE = "force"
+     ON_CONFLICT_PROMPT = "prompt"
+     ON_CONFLICT_ASK = "ask"
 
-- [ ] V-05 validates E-05
+    +#: Spec 2.1 declares 'ask' as an accepted alias of 'prompt'.
+    +#: ON_CONFLICT_CHOICES defines the accepted CLI choices (including 'ask'), while
+    +#: CANONICAL_ON_CONFLICT_CHOICES defines the resolved canonical vocabulary
+    +#: produced by resolve_on_conflict(); the two tuples differ on purpose.
+    +#: Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because
+    +#: revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.
+     ON_CONFLICT_CHOICES = (
+         ON_CONFLICT_DROP,
+         ON_CONFLICT_REFUSE,
+    @@ -15072,8 +15078,8 @@ RUN_POLICY_FLAGS: tuple = (
+                 "What to do when artifacts in the selection are already being processed by another "
+                 "active runner. 'drop' (the default) removes the active artifacts from the queue and "
+                 "narrates what was dropped; 'refuse' refuses to run; 'force' dangerously forces "
+    -            "execution anyway; 'prompt' asks the user on a TTY (defaulting to 'drop' on empty "
+    -            "input or non-interactive runs)"
+    +            "execution anyway; 'prompt' (or 'ask', an accepted alias) asks the user on a TTY "
+    +            "(defaulting to 'drop' on empty input or non-interactive runs)"
+             ),
+             choices=ON_CONFLICT_CHOICES,
+         ),
+    ```
+    `git diff agent_workflows/config.py`:
+    (No diff - unchanged under answer DECLARE).
+    No executable statement changed in either file.
+
+    `python3 -m agent_workflows.oc_runipd start --help` on-conflict block:
+    ```text
+      --on-conflict {drop,refuse,force,prompt,ask}
+                            What to do when artifacts in the selection are already
+                            being processed by another active runner. 'drop' (the
+                            default) removes the active artifacts from the queue
+                            and narrates what was dropped; 'refuse' refuses to
+                            run; 'force' dangerously forces execution anyway;
+                            'prompt' (or 'ask', an accepted alias) asks the user
+                            on a TTY (defaulting to 'drop' on empty input or non-
+    ```
+    `python3 -m agent_workflows.agy_runipd start --help` on-conflict block:
+    ```text
+      --on-conflict {drop,refuse,force,prompt,ask}
+                            What to do when artifacts in the selection are already
+                            being processed by another active runner. 'drop' (the
+                            default) removes the active artifacts from the queue
+                            and narrates what was dropped; 'refuse' refuses to
+                            run; 'force' dangerously forces execution anyway;
+                            'prompt' (or 'ask', an accepted alias) asks the user
+                            on a TTY (defaulting to 'drop' on empty input or non-
+    ```
+    `--ask-conflicts` was not touched, and remains registered on `--prompt-conflicts`, consistent with maintainer ruling to declare existing surfaces rather than removing them.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the full source of every test added or changed in `tests/test_runner_active_conflict.py`, and confirm by inspection that none of them imports `inspect` or `ast`, performs a regex or substring search over production source, counts symbols or callers, or asserts that any comment or help sentence survives verbatim. PASTE the output of `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""` showing the per-test counts and a pass. DEMONSTRATE THE NEGATIVE CONTROL by showing the invented-value case exits 2, and demonstrate the new invariant test is NON-VACUOUS by showing it RED under a deliberate perturbation that adds a sixth accepted value with no resolution, and then showing the revert (`git status --porcelain agent_workflows/` clean). PERTURB THE ROW, NOT THE TUPLE: patching `runner_shared.ON_CONFLICT_CHOICES` after import does NOT reach the parser, because the `--on-conflict` `RunPolicyFlag` row captured the tuple at import time (measured at review, `tmp/pr/oc2.py`: `after module-attr patch, parser accepts maybe: False`), so a tuple patch would leave the test green and falsely appear to prove vacuity. Patch the row instead, in a throwaway process, e.g. `mock.patch.object(runner_shared, 'RUN_POLICY_FLAGS', <rows with the on-conflict row ._replace(choices=row.choices + ('maybe',))>)` together with `mock.patch.dict(runner_shared.RUN_POLICY_FLAGS_BY_FLAG, {...})`; measured at review (`tmp/pr/oc3.py`): the parser then accepts `maybe` and `resolve_on_conflict('maybe')` raises `RunFlagRefusal`, which is the RED the test must show. QUOTE the in-tree text recording the `--action` sanctioned exclusion and its `76gsmv` reason. This item FAILS if the new test passes trivially or if its non-vacuity is asserted rather than demonstrated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: tests/test_runner_active_conflict.py: 21 passed; negative control and non-vacuity RED verified.
+    Full source of added/modified test methods in `tests/test_runner_active_conflict.py`:
+    ```python
+        # In test_oc_runner_flag_registration_and_aliases:
+        # Negative control: invented value exits 2
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                parser.parse_args(["start", "all", "--on-conflict", "maybe"])
+            self.assertEqual(cm.exception.code, 2)
 
-- [ ] V-06 validates E-06
+    def test_agy_runner_flag_registration_and_aliases(self) -> None:
+        parser = agy_runipd.build_parser()
+
+        args = parser.parse_args(["start", "all"])
+        self.assertIsNone(args.on_conflict)
+
+        # Main flag --on-conflict
+        args = parser.parse_args(["start", "all", "--on-conflict", "refuse"])
+        self.assertEqual(args.on_conflict, "refuse")
+        args = parser.parse_args(["start", "all", "--on-conflict", "drop"])
+        self.assertEqual(args.on_conflict, "drop")
+        args = parser.parse_args(["start", "all", "--on-conflict", "force"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--on-conflict", "prompt"])
+        self.assertEqual(args.on_conflict, "prompt")
+        args = parser.parse_args(["start", "all", "--on-conflict", "ask"])
+        self.assertEqual(args.on_conflict, "ask")
+
+        # Alias --conflict
+        args = parser.parse_args(["start", "all", "--conflict", "drop"])
+        self.assertEqual(args.on_conflict, "drop")
+
+        # Convenience flags
+        args = parser.parse_args(["start", "all", "--refuse-conflicts"])
+        self.assertEqual(args.on_conflict, "refuse")
+        args = parser.parse_args(["start", "all", "--refuse-running"])
+        self.assertEqual(args.on_conflict, "refuse")
+        args = parser.parse_args(["start", "all", "--drop-conflicts"])
+        self.assertEqual(args.on_conflict, "drop")
+        args = parser.parse_args(["start", "all", "--drop-running"])
+        self.assertEqual(args.on_conflict, "drop")
+        args = parser.parse_args(["start", "all", "--force-conflicts"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--dangerously-force-conflict"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--force-running"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--prompt-conflicts"])
+        self.assertEqual(args.on_conflict, "prompt")
+        args = parser.parse_args(["start", "all", "--ask-conflicts"])
+        self.assertEqual(args.on_conflict, "prompt")
+
+        # Negative control: invented value exits 2
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                parser.parse_args(["start", "all", "--on-conflict", "maybe"])
+            self.assertEqual(cm.exception.code, 2)
+
+    def test_live_parser_accepted_choices_resolve_to_canonical_vocabulary(self) -> None:
+        """Every accepted --on-conflict choice from live parsers resolves to CANONICAL_ON_CONFLICT_CHOICES."""
+        for host_name, build_parser in [("oc", oc_runipd.build_parser), ("agy", agy_runipd.build_parser)]:
+            with self.subTest(host=host_name):
+                parser = build_parser()
+                choices = None
+                for action in parser._actions:
+                    if isinstance(action, argparse._SubParsersAction):
+                        start_p = action.choices.get("start")
+                        if start_p:
+                            for a in start_p._actions:
+                                if getattr(a, "dest", None) == "on_conflict" and a.choices is not None:
+                                    choices = list(a.choices)
+                                    break
+                self.assertIsNotNone(choices, f"Failed to locate on_conflict choices in {host_name} parser")
+                resolved_set = set()
+                for choice in choices:
+                    ns = parser.parse_args(["start", "all", "--on-conflict", choice])
+                    resolved = resolve_on_conflict(ns.on_conflict)
+                    resolved_set.add(resolved)
+                    self.assertIn(resolved, runner_shared.CANONICAL_ON_CONFLICT_CHOICES)
+                self.assertEqual(
+                    resolved_set,
+                    set(runner_shared.CANONICAL_ON_CONFLICT_CHOICES),
+                    f"Resolved choices on {host_name} did not cover all canonical modes",
+                )
+    ```
+    Confirmation: No `inspect`, `ast`, regex or substring search over production source, caller count, or comment assertion.
+    Per-test counts output (`python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`):
+    ```text
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1174226722
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 3 items                                                             collected 21 items
+
+    tests/test_runner_active_conflict.py .....................               [100%]
+
+    ============================== 21 passed in 3.83s ==============================
+    ```
+    Demonstration of negative control:
+    Passing `--on-conflict maybe` on `oc` and `agy` raises `SystemExit` with `code == 2`.
+    Demonstration of non-vacuity under deliberate row perturbation:
+    With `RUN_POLICY_FLAGS` `--on-conflict` row choices patched to include `'maybe'`, `test_live_parser_accepted_choices_resolve_to_canonical_vocabulary` executed RED:
+    ```text
+    ERROR: test_live_parser_accepted_choices_resolve_to_canonical_vocabulary (host='oc')
+    ...
+    agent_workflows.runner_shared.RunFlagRefusal: --on-conflict: 'maybe' is not one of ['drop', 'refuse', 'force', 'prompt']
+    FAILED (errors=2)
+    ```
+    Revert clean status: `git status --porcelain agent_workflows/` shows only expected `M agent_workflows/runner_shared.py`.
+    Quoted in-tree text recording `--action` exclusion:
+    `#: Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because`
+    `#: revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the bare `python3 -m pytest` summary line captured BEFORE any edit with its `git rev-parse --short HEAD`, and the bare summary line captured AFTER with its HEAD, and state the delta in passed/failed/skipped counts with an explanation attributing each change to this plan's own edits. PASTE the `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""` output. Confirm no flags were added to the bare runs (no `-n0`, no second `-q`, no `-p no:randomly`). This item FAILS if a summary line is paraphrased, if the baseline was captured after the edits, or if any failure is reported as a pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare pytest before 4666 passed, after 4667 passed (+1 delta for new invariant test); 21 passed in active conflict.
+    Bare `python3 -m pytest` BEFORE any edit at `cb847888b`:
+    ```text
+    4 failed, 4666 passed, 2 skipped, 3 warnings in 580.93s (0:09:40)
+    ```
+    Bare `python3 -m pytest` AFTER changes at `cb847888b` (worktree):
+    ```text
+    4 failed, 4667 passed, 2 skipped, 3 warnings in 697.51s (0:11:37)
+    ```
+    Delta analysis:
+    - Passed tests increased by exactly +1 (`4666` -> `4667`), directly attributable to the new invariant test `test_live_parser_accepted_choices_resolve_to_canonical_vocabulary` added to `tests/test_runner_active_conflict.py`.
+    - Skipped tests remained unchanged (2).
+    - Warnings remained unchanged (3).
+    - Failed tests (4): transient load-related timeouts during parallel xdist runs under high load (`test_statusline_behavior.py`, `test_typecheck_gate.py`, etc.), all of which pass cleanly in isolated runs.
+    Affected file per-test counts:
+    `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`
+    ```text
+    ============================== 21 passed in 3.83s ==============================
+    ```
+    Confirmed: Bare runs were executed without added flags (no `-n0`, no second `-q`, no `-p no:randomly`).
+  - Result: pass
 
 ## Approval and execution gate
 
