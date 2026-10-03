@@ -6,7 +6,7 @@
 - Scope: IN: give `ipd_authoring.build_skeleton` a separate history-date input so the `draft` RECORD can be stamped UTC while `- Date:` and the filename stay LOCAL per D55, wire `run_scaffold` to pass both, and add an outcome test that drives the real scaffold-then-transition sequence east of UTC and asserts the lifecycle gate reports clean. OUT, each with a reason recorded under "Deferred": the setter-family clock fix (owned by `5ivkdh`); the cross-spelling timezone guard (owned by `ayhveg`); the duplicate-item convergence (owned by `qjm4bg`); filename and `- Date:` prefixes, which D55 rules LOCAL; `prompts._today_iso`, which feeds no history record; and the direction-classification behavior of `_plan_status_event_groups` itself.
 - Scope-Paths: agent_workflows/ipd_authoring.py, tests/test_scaffold_history_clock.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 9wcei0
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9wcei0 verified (set jvw1kg, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-02, findings PR-001..E-01. Recomputed at HEAD `9b562dc8f`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001, PR-002, PR-003, PR-004, PR-005. Defect re-reproduced at lane HEAD e4dba9b13 under TZ=XXX-20 (check plans rc=1; Honolulu rc=0). PR-001 OPEN: pending plan rfyrvp makes the same ipd_authoring split (escalated as blocking OQ-03). Fixed: always-in-window fixed-offset zones for the guard (PR-002); runnable E-01 scaffold flags and narrowed STOP (PR-003); scope fence + conditional finalize (PR-004); OQ owners (PR-005).
@@ -42,7 +42,7 @@ REVIEW NOTE (2026-10-02, `/plan-review` at lane HEAD `e4dba9b13`): A SECOND PEND
 
 ### Task group 1: reproduce before changing anything
 
-- [ ] E-01 Reproduce the defect THROUGH THE SHIPPED CLI at the executing HEAD, and capture the
+- [x] E-01 Reproduce the defect THROUGH THE SHIPPED CLI at the executing HEAD, and capture the
   baseline the later items are measured against. This is its own item and it comes first because the
   whole plan rests on a claim about a gate's verdict, and that verdict depends on three things this
   plan does not own (the scaffold, the setter, and the checker's direction classifier), any of which
@@ -66,11 +66,11 @@ REVIEW NOTE (2026-10-02, `/plan-review` at lane HEAD `e4dba9b13`): A SECOND PEND
     IF THE REPRODUCTION DOES NOT FIRE, establish WHY before stopping. If `rfyrvp` (or any other plan) has landed the split, record its commit, mark E-02 and E-03 `blocked` with that citation, and still perform E-04, because the guard is additive. If the checker's classifier moved instead, STOP AND REPORT, since the premise is gone. Re-measured at review HEAD `e4dba9b13` under `TZ=XXX-20` (local `2026-10-03`, UTC `2026-10-02`): `.aw/records/plans/pending/20261003-probeset-01-<id6>-probe-plan.ipd.md` with `- 2026-10-02 to-review (aw set)` above `- 2026-10-03 draft (probe): created.` and `aw check plans --agent` rc=1; under `Pacific/Honolulu`, rc=0. So the defect is live at review.
   - Depends on: none
   - Expected outcome: pasted evidence that `aw check plans --agent` exits 1 east of UTC and 0 west of UTC on a plan produced by the real scaffold plus one real transition, with both history records, the filename, the local date and the UTC date recorded for each run; plus the bare-suite baseline at the executing HEAD by FAILURE NAME; no source file changed yet.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: split the two date roles in the generator
 
-- [ ] E-02 Give `ipd_authoring.build_skeleton` a SECOND, separate date input for the history record,
+- [x] E-02 Give `ipd_authoring.build_skeleton` a SECOND, separate date input for the history record,
   defaulting to the existing `when` so every current caller keeps its exact output. The function
   takes one `when` today and spends it in two places with two different governing rulings: the
   `- Date:` metadata field and the `draft` record rendered from
@@ -90,9 +90,9 @@ REVIEW NOTE (2026-10-02, `/plan-review` at lane HEAD `e4dba9b13`): A SECOND PEND
     into one.
   - Depends on: E-01
   - Expected outcome: `build_skeleton` accepts an optional history-date argument that defaults to `when`; called with only `when` it returns output byte-identical to before (demonstrated against both committed templates); called with both, the `draft` record carries the history date while `- Date:` carries `when`; `tests/test_ipd_templates.py` and `tests/test_ipd_authoring.py` pass with no template regenerated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Wire `ipd_authoring.run_scaffold` to pass a UTC history date beside its existing LOCAL
+- [x] E-03 Wire `ipd_authoring.run_scaffold` to pass a UTC history date beside its existing LOCAL
   `when`, and leave BOTH filename sites untouched. This is separate from E-02 because E-02 adds a
   capability that changes no behavior while this item is the actual behavior change, and a reviewer
   must be able to see which one moved the verdict.
@@ -114,11 +114,11 @@ REVIEW NOTE (2026-10-02, `/plan-review` at lane HEAD `e4dba9b13`): A SECOND PEND
     two are correct in either order because this plan changes a caller that plan does not declare.
   - Depends on: E-02
   - Expected outcome: a plan produced by the real `aw ipd scaffold --apply` east of UTC carries a UTC `draft` history record beside a LOCAL filename prefix and a LOCAL `- Date:`; the E-01 reproduction now reports `aw check plans --agent` exit 0 east AND west of UTC; the evidence states whether the shared helper was reused or an inline expression was written.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the property so it cannot silently return
 
-- [ ] E-04 Add a new `tests/test_scaffold_history_clock.py` that drives the real scaffold-then-
+- [x] E-04 Add a new `tests/test_scaffold_history_clock.py` that drives the real scaffold-then-
   transition sequence under timezones bracketing UTC and asserts the lifecycle gate reports clean,
   and demonstrate it RED at base. A guard never seen failing proves nothing, and that bar is not
   rhetorical here: no test in `tests/` calls `time.tzset()` at all today (measured: zero matches),
@@ -152,7 +152,7 @@ REVIEW NOTE (2026-10-02, `/plan-review` at lane HEAD `e4dba9b13`): A SECOND PEND
   - Depends on: E-03
     USE A FIXED-OFFSET POSIX ZONE THAT IS ALWAYS IN THE SKEW WINDOW, NOT A REAL ZONE. A real zone is in the window for only `offset` hours a day (F-07), so a test using `Pacific/Kiritimati` is RED at base for at most 14 of 24 hours, and a green run would prove nothing during the other 10. Measured at review: `XXX-24` (UTC+24) gives local `2026-10-03` against UTC `2026-10-02` at every wall-clock time, and `XXX+23:59` gives local one day BEHIND UTC except during the final minute of the UTC day. Use these as the east and west cases, and have the test FAIL LOUDLY (not skip) if its precondition `local_date != utc_date` is not met, so a mis-chosen zone cannot pass silently. Real zones such as `Pacific/Kiritimati` stay acceptable in the E-01 and V-04 validation runs, where the local and UTC dates are recorded.
   - Expected outcome: `tests/test_scaffold_history_clock.py` parameterizes over an east and a west timezone and over all three plan states (scaffold only, plus one transition, plus two), asserting both no `check.lifecycle-transition-invalid` finding and a UTC `draft` date; it is pasted RED at base (with E-02/E-03 reverted) naming the east case, and GREEN after; a single-process co-run with `tests/test_specs_date_containment.py` passes, proving `TZ` was restored.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -274,25 +274,186 @@ in the transition message so whoever executes it knows to cover this site in its
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted transcript of the real `aw ipd scaffold --apply` plus `aw ipd set to-review` plus `aw check plans --agent` sequence under BOTH an east-of-UTC and a west-of-UTC timezone, showing exit 1 east and exit 0 west, with the full finding detail text quoted for the east run. For each run, the computed local date AND UTC date printed, proving a skew window was entered rather than assumed, plus the plan's filename and both history records verbatim. Plus the bare-suite baseline at the executing HEAD with its summary line pasted and its failures listed BY NAME. No assertion about any module's source text is acceptable as evidence here.
   - Observed evidence:
-  - Result: pending
+    Reproduced through the shipped CLI at executing HEAD `90abc4b62` in throwaway repositories under both east and west timezones:
 
-- [ ] V-02 validates E-02
+    1. East of UTC (`TZ=XXX-20`):
+       - Local date: 2026-10-04, UTC date: 2026-10-03 (local > UTC, skew window entered)
+       - Plan filename: `20261004-probeset-01-g7l6yt-probe-plan.ipd.md`
+       - Front-matter date line: `- Date: 2026-10-04`
+       - History records verbatim:
+         `- 2026-10-03 to-review (aw set): to to-review`
+         `- 2026-10-04 draft (probe/agent): created.`
+       - `aw check plans --agent` output (exit code 1):
+         `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"plans","findings":2,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20261004-probeset-01-g7l6yt-probe-plan.ipd.md","rule":"check.lifecycle-transition-invalid"},{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw check all"}`
+       - Quoted full finding detail text:
+         `"rule": "check.lifecycle-transition-invalid", "detail": "recorded lifecycle transition 'to-review' -> 'draft' is invalid: missing predecessor: backwards transition 'to-review' -> 'draft'"`
+
+    2. West of UTC (`TZ=Pacific/Honolulu`):
+       - Local date: 2026-10-03, UTC date: 2026-10-03
+       - Plan filename: `20261003-probeset-01-gbtpfx-probe-plan.ipd.md`
+       - Front-matter date line: `- Date: 2026-10-03`
+       - History records verbatim:
+         `- 2026-10-03 to-review (aw set): to to-review`
+         `- 2026-10-03 draft (probe/agent): created.`
+       - `aw check plans --agent` output (exit code 0):
+         `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"plans","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw ipd board"}`
+
+    3. West of UTC with skew window (`TZ=XXX+20`):
+       - Local date: 2026-10-02, UTC date: 2026-10-03 (local < UTC)
+       - Plan filename: `20261002-probeset-01-dfoh3q-probe-plan.ipd.md`
+       - Front-matter date line: `- Date: 2026-10-02`
+       - History records verbatim:
+         `- 2026-10-03 to-review (aw set): to to-review`
+         `- 2026-10-02 draft (probe/agent): created.`
+       - `aw check plans --agent` output (exit code 0, conforms).
+
+    4. Bare-suite baseline at executing HEAD `90abc4b62`:
+       Summary line:
+       `3 failed, 4906 passed, 2 skipped, 3 warnings in 615.85s (0:10:15)`
+       Failures by name (pre-existing):
+       - `tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation`
+       - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+       - `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the new parameter's signature and its docstring quoted, showing it defaults to `when` and that the documentation names BOTH authorities (`2vev8j` 4.4 for the UTC history date, `DECISIONS.md` D55 for the local name). Plus proof the default changed no byte: `tests/test_ipd_templates.py` passing with `git diff --stat` showing that file unchanged, and `tests/test_ipd_authoring.py` passing. Plus a demonstration that passing BOTH dates puts them on the two different lines, by pasting the rendered `- Date:` line and the rendered `draft` record from one skeleton built with two distinct pinned values.
   - Observed evidence:
-  - Result: pending
+    1. Signature and docstring in `agent_workflows/ipd_authoring.py`:
+       ```python
+       def build_skeleton(
+           *,
+           kind: str,
+           title: str,
+           author: str,
+           when: str,
+           set_name: Optional[str],
+           order: Optional[int],
+           plan_id: Optional[str] = None,
+           priority: Optional[str] = None,
+           work_kind: Optional[str] = None,
+           from_backlog: Optional[str] = None,
+           blocks_release: Optional[str] = None,
+           history_date: Optional[str] = None,
+       ) -> str:
+           """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order.
+           ...
+           ``history_date`` stamps the ``draft`` history record under ``## Workflow history`` and defaults
+           to ``when`` if omitted. The history date is recorded in UTC per spec ``2vev8j`` Section 4.4
+           ("One timezone for every writer"), whereas the ``- Date:`` metadata field (and the artifact's
+           filename) remain machine-local per ``DECISIONS.md`` D55 ("Human-facing timestamps use LOCAL
+           time, not UTC").
+           """
+       ```
+    2. Proof default changed no byte:
+       - `git diff --stat tests/test_ipd_templates.py` is empty (0 lines changed).
+       - Running `python3 -m pytest tests/test_ipd_templates.py tests/test_ipd_authoring.py`:
+         `39 passed in 4.56s`
+    3. Demonstration of passing both dates:
+       `build_skeleton(..., when="2026-10-04", history_date="2026-10-03")` rendered:
+       `- Date: 2026-10-04`
+       `- 2026-10-03 draft (test/agent): created.`
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: one plan produced by the real `aw ipd scaffold --apply` east of UTC, pasted far enough to show its FILENAME prefix, its `- Date:` field and its `draft` history record together, with the local and UTC dates printed alongside, so the LOCAL-name/UTC-history composition is visible in a single artifact and proven to be inside a skew window. Plus the E-01 reproduction re-run and now reporting `aw check plans --agent` exit 0 east AND west of UTC, both pasted. Plus an explicit statement of which route E-03 took (shared `artifact_core` helper reused, or inline expression written) and, if inline, that the comment naming its eventual home is present.
   - Observed evidence:
-  - Result: pending
+    1. Plan produced east of UTC (`TZ=XXX-20`):
+       - Local date: 2026-10-04, UTC date: 2026-10-03 (skew window entered)
+       - Filename: `20261004-probeset-01-d7196o-probe-plan.ipd.md` (local compact prefix `20261004`)
+       - Rendered metadata and history block:
+         ```markdown
+         # IPD: Probe Plan
 
-- [ ] V-04 validates E-04
+         - Date: 2026-10-04
+         - Kind: child
+         ...
+         ## Workflow history
+
+         - 2026-10-03 draft (probe/agent): created.
+         ```
+    2. E-01 reproduction re-run after fix:
+       - Under `TZ=XXX-20`:
+         `- 2026-10-03 to-review (aw set): to to-review`
+         `- 2026-10-03 draft (probe/agent): created.`
+         `aw check plans --agent`: exit 0 (`conforms`)
+       - Under `TZ=Pacific/Honolulu`:
+         `- 2026-10-03 to-review (aw set): to to-review`
+         `- 2026-10-03 draft (probe/agent): created.`
+         `aw check plans --agent`: exit 0 (`conforms`)
+    3. Route taken: Sibling plan `5ivkdh` E-01 has already landed at commit `3c55295a3`, providing `agent_workflows.artifact_core.utc_history_date()`. `run_scaffold` directly reused `_core.utc_history_date()` and did not duplicate an inline calculation.
+    4. Module date audit (folded from `rfyrvp` per OQ-03):
+       - `agent_workflows/ipd_authoring.py`:
+         - Line 21: `from datetime import date` (import)
+         - Line 40: `S.H_WORKFLOW_HISTORY: "- {date} draft ({author}): created."` (HISTORY, rendered with `hist_date` which defaults to UTC in `run_scaffold`)
+         - Line 506: `when = date.today().strftime("%Y-%m-%d")` (NEITHER: front-matter metadata `- Date:`, local per D55)
+         - Line 507: `history_date = _core.utc_history_date()` (HISTORY: UTC per `2vev8j` 4.4)
+         - Line 554: `date=date.today().strftime("%Y%m%d")` in `_refs.clustered_name` (FILENAME: local per D55)
+       No other date-producing calls exist in `agent_workflows/ipd_authoring.py`.
+       Both `--path` and derived-name paths converge on `build_skeleton(..., history_date=history_date)`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the new guard pasted RED AT BASE with E-02/E-03 reverted, naming the east-of-UTC two-record case and showing BOTH the wrong date and the `check.lifecycle-transition-invalid` finding, then pasted GREEN after, each run with `-o addopts=""` and every case named. Plus all three plan states shown individually so F-04's narrow window is pinned. Plus the timezone context manager's source quoted showing `time.tzset()` inside it and an unconditional `TZ` restore in a `finally`. Plus the single-process co-run with `tests/test_specs_date_containment.py` pasted, proving no `TZ` leak. Plus the bare suite with its summary line, and the two whole-suite runs under `TZ=Pacific/Kiritimati` and `TZ=Pacific/Honolulu`. Plus the before-and-after finding sets for `aw check` and `aw attention --check`, shown UNCHANGED.
   - Observed evidence:
-  - Result: pending
+    1. Guard demonstrated RED AT BASE (`python3 -m pytest -o addopts="" tests/test_scaffold_history_clock.py -v` before fix, 8 failed):
+       `test_east_timezone_one_transition` failed showing BOTH wrong date and checker finding:
+       ```
+       AssertionError: Lists differ: ['draft history date must be UTC 2026-10-0[224 chars]'"]'] != []
+       First extra element 0:
+       'draft history date must be UTC 2026-10-03, got 2026-10-04 (local: 2026-10-04)'
+       First extra element 1:
+       'check.lifecycle-transition-invalid findings: ["recorded lifecycle transition \'to-review\' -> \'draft\' is invalid: missing predecessor: backwards transition \'to-review\' -> \'draft\'"]'
+       ```
+    2. Guard demonstrated GREEN AFTER FIX (`python3 -m pytest -o addopts="" tests/test_scaffold_history_clock.py -v`):
+       ```
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_explicit_path_branch_west PASSED [ 12%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_east_timezone_two_transitions PASSED [ 25%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_east_timezone_scaffold_only PASSED [ 37%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_west_timezone_two_transitions PASSED [ 50%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_west_timezone_scaffold_only PASSED [ 62%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_east_timezone_one_transition PASSED [ 75%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_west_timezone_one_transition PASSED [ 87%]
+       tests/test_scaffold_history_clock.py::ScaffoldHistoryClockTests::test_explicit_path_branch_east PASSED [100%]
+       8 passed in 0.60s
+       ```
+    3. Three plan states individually isolated:
+       - `test_east_timezone_scaffold_only`: draft date mismatch at base, 0 checker findings
+       - `test_east_timezone_one_transition`: draft date mismatch AND 1 `check.lifecycle-transition-invalid` finding at base
+       - `test_east_timezone_two_transitions`: draft date mismatch at base, 0 checker findings (due to `ordered=False` skipping validation)
+       All 3 states pass cleanly after fix.
+    4. Timezone context manager source quoted from `tests/test_scaffold_history_clock.py`:
+       ```python
+       @contextlib.contextmanager
+       def temporary_timezone(tz: str):
+           """Context manager setting process TZ for code under test with unconditional restore."""
+           old_tz = os.environ.get("TZ")
+           os.environ["TZ"] = tz
+           time.tzset()
+           try:
+               yield
+           finally:
+               if old_tz is None:
+                   os.environ.pop("TZ", None)
+               else:
+                   os.environ["TZ"] = old_tz
+               time.tzset()
+       ```
+    5. Single-process co-run with `tests/test_specs_date_containment.py` (`python3 -m pytest -o addopts="" tests/test_scaffold_history_clock.py tests/test_specs_date_containment.py`):
+       `23 passed in 3.26s`
+       Proving `TZ` was restored unconditionally and did not corrupt the local date calculations of `test_specs_date_containment.py`.
+    6. Whole suite runs:
+       - Bare suite after fix: `3 failed, 4914 passed, 2 skipped, 3 warnings in 432.21s (0:07:12)` (+8 passed, same 3 pre-existing failures)
+       - Under `TZ=Pacific/Kiritimati`: `3 failed, 4914 passed, 2 skipped, 3 warnings in 731.16s (0:12:11)` (same 3 pre-existing failures)
+       - Under `TZ=Pacific/Honolulu`: `3 failed, 4914 passed, 2 skipped, 3 warnings in 530.74s (0:08:50)` (same 3 pre-existing failures)
+    7. Before-and-after finding sets:
+       - `AW_NO_REEXEC=1 aw check plans`: 0 findings on plan `9wcei0`, finding set unchanged on pre-existing issues
+       - `AW_NO_REEXEC=1 aw attention --check`: unchanged pre-existing finding (`attention.lane-stranded: STRANDED lane; plan 76ic0k`)
+       - `AW_NO_REEXEC=1 aw sanitize --agent`: exit 0 clean (`outcome: "clean"`, 0 findings)
+  - Result: pass
 
 ## Approval and execution gate
 
