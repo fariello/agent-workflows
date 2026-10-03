@@ -6,7 +6,7 @@
 - Scope: IN: add ONE shared UTC date helper to `artifact_core` and route every HISTORY-RECORD date writer through it, so `2vev8j` 4.4 holds for all of them; unmask the two date-normalizing parity tests so the UTC property is pinned by a test instead of hidden from one; add a timezone-parameterized regression guard that fails under a local/UTC skew. OUT, each with a reason under "Deferred": FILENAME date prefixes, which `DECISIONS.md` D55 deliberately rules LOCAL and which this plan must not touch; the `aw set` family's missing `--date` override; the dispatch-fork unification owned by the `setdisp` Set; closing the six sibling carrier items.
 - Scope-Paths: agent_workflows/artifact_core.py, agent_workflows/backlog.py, agent_workflows/specs.py, agent_workflows/status_set.py, agent_workflows/releases.py, agent_workflows/readiness_recheck.py, tests/test_history_date_clock.py, tests/test_backlog.py, tests/test_history_label_parity.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: 7qvs1c
@@ -17,9 +17,9 @@
 - Readiness: go-pending-approval
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 5ivkdh
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 5ivkdh verified (set 7qvs1c, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Core defect re-reproduced at lane HEAD 4cfca3ecf under TZ=Pacific/Kiritimati (backlog --status wrote 2026-10-03, positional wrote 2026-10-02); 2vev8j 4.4 and D55 both verified. Fixed: skew-window time-of-day rule (PR-001), ipd_authoring draft record reclassified HISTORY and attributed to 9wcei0/rfyrvp (PR-002), sidecar reclassified user-visible and attributed to dmrbqa with compact variant dropped (PR-003), attention age reader attributed to 840y6i (PR-004), baseline made live (PR-005), mask-comment sweep + ayhveg overlap + TZ isolation + in-tree fixture (PR-006), gate scope fence and finalize ownership (PR-007).
 
