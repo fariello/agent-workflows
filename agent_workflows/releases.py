@@ -89,7 +89,7 @@ def plan_release(
         f"- Version: {version}\n"
         f"- Summary: {summary}\n\n"
         "## Workflow history\n\n"
-        f"- {date.today().strftime('%Y-%m-%d')} created (aw releases): {summary}\n"
+        f"- {_core.utc_history_date()} created (aw releases): {summary}\n"
     )
     return _releases_dir(repo_root) / name, body
 

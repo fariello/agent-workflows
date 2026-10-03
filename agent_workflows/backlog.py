@@ -836,7 +836,7 @@ def _render_item(
         if item.status == "blocked":
             lines.append(f"- Gate-Kind: {item.gate_kind}")
             lines.append(f"- Gate-Ref: {item.gate_ref}")
-        today = datetime.date.today().isoformat()
+        today = core.utc_history_date()
         msg = (message or "").strip() or item.summary
         lines.append("")
         lines.append("## Workflow history")
@@ -977,7 +977,7 @@ def _render_item(
         rendered_head = rendered_bullets + "\n"
 
     lines = [rendered_head.rstrip()]
-    today = datetime.date.today().isoformat()
+    today = core.utc_history_date()
     msg = (message or "").strip() or item.summary
     lines.append("")
     lines.append("## Workflow history")
@@ -1837,7 +1837,7 @@ def run_note(args) -> int:
     src = res.paths[0]
     text = src.read_text(encoding="utf-8")
     item = parse_item(text)
-    date = getattr(args, "date", None) or datetime.date.today().isoformat()
+    date = getattr(args, "date", None) or core.utc_history_date()
     record = f"- {date} note (aw backlog): {message}"
 
     # The sidecar remains a machine-local activity log and can never gate this write (E-04).
@@ -1959,7 +1959,7 @@ def _reattach_history(
     store, so it can never gate this write (see `record_history.append_advisory`).
     """
 
-    today = datetime.date.today().isoformat()
+    today = core.utc_history_date()
     msg = message.strip() or f"status -> {new_status}"
     new_record = f"- {today} {label} (aw backlog): {msg}"
     # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by

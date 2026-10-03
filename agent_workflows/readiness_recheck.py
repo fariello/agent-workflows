@@ -31,10 +31,10 @@ from __future__ import annotations
 
 import argparse
 import os
-from datetime import date as _date
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import plan_readiness as PR
 
 #: Dispositions swept when no selector is given. A TERMINAL plan (`executed/`, `superseded/`,
@@ -207,7 +207,7 @@ def run_recheck_readiness(args: argparse.Namespace) -> int:
     apply = bool(getattr(args, "apply", False))
     want_stale = bool(getattr(args, "stale_findings", False))
     actor = _actor(args)
-    today = _date.today().isoformat()
+    today = _core.utc_history_date()
     head = _head(repo_root)
 
     selectors = list(getattr(args, "selectors", None) or [])

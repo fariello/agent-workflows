@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime
 import re
 import shlex
 import sys
@@ -998,7 +997,7 @@ def apply_status_change(
         .lower()
     )
     is_same_status = old_status == norm_status.strip().lower()
-    today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
+    today = _core.utc_history_date()
 
     untooled_transition = False
     if is_same_status:

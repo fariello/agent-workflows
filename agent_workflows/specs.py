@@ -872,7 +872,7 @@ def run_set(args) -> int:
         out = _remove_gate_fields(out)  # gate fields forbidden on a non-deferred status
 
     out = _set_status(out, new)
-    date = getattr(args, "date", None) or _today()
+    date = getattr(args, "date", None) or core.utc_history_date()
     msg = args.message
     if msg is not None:
         # E-03 (IPD uz05bl): Line-integrity guard for --message
@@ -1227,7 +1227,7 @@ def run_migrate(args) -> int:
             )
             return 1
 
-    date = getattr(args, "date", None) or _today()
+    date = getattr(args, "date", None) or core.utc_history_date()
     hist_msg = f"normalized status to `{new}`"
     if old_prose:
         hist_msg += f" (was: {A.escape_detail(old_prose)[:160]})"
@@ -1276,7 +1276,7 @@ def run_note(args) -> int:
             return 2
 
     lines = _lines(text)
-    date = getattr(args, "date", None) or _today()
+    date = getattr(args, "date", None) or core.utc_history_date()
     from agent_workflows.status_set import same_status_message_is_duplicate
 
     if not same_status_message_is_duplicate(
@@ -1302,7 +1302,14 @@ def _existing_spec_ids(repo_root: Path) -> set:
     return ids
 
 
-def _render_new_spec(*, title: str, id6: str, date_iso: str, summary: str) -> str:
+def _render_new_spec(
+    *,
+    title: str,
+    id6: str,
+    date_iso: str,
+    summary: str,
+    history_date_iso: Optional[str] = None,
+) -> str:
     """A minimal but contract-conformant spec skeleton (IPD ha55fi E-01).
 
     Carries a bare-enum `- Status: draft`, the minted `- Id:`, and a conformant
@@ -1318,11 +1325,12 @@ def _render_new_spec(*, title: str, id6: str, date_iso: str, summary: str) -> st
     ]
     if summary:
         lines.append(f"- Scope: {summary}")
+    hdate = history_date_iso or date_iso
     lines += [
         "",
         "## Workflow history",
         "",
-        f"- {date_iso} created (aw specs): {summary or title}",
+        f"- {hdate} created (aw specs): {summary or title}",
         "",
     ]
     return "\n".join(lines).rstrip() + "\n"
@@ -1388,7 +1396,16 @@ def run_new(args) -> int:
     # The regex is a format check, not a calendar check (it accepts e.g. 9999-99-99).
     # Per OQ-01, validate format first, then calendar validity via datetime.date.fromisoformat,
     # refusing both with exit 2 and the same message shape.
-    date_iso = (getattr(args, "date", None) or "").strip() or _today()
+    explicit_date = getattr(args, "date", None)
+    if explicit_date is not None:
+        date_iso = explicit_date.strip()
+        history_date = date_iso
+    else:
+        # DECISIONS.md D55: Human-facing timestamps use LOCAL time, so the filename prefix remains local.
+        date_iso = _today()
+        # Spec 2vev8j Section 4.4: Every writer records UTC for history records.
+        history_date = core.utc_history_date()
+
     if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
         sys.stderr.write(
             f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
@@ -1442,7 +1459,11 @@ def run_new(args) -> int:
         return 2
 
     rendered = _render_new_spec(
-        title=title, id6=id6, date_iso=date_iso, summary=summary
+        title=title,
+        id6=id6,
+        date_iso=date_iso,
+        summary=summary,
+        history_date_iso=history_date,
     )
 
     if not getattr(args, "apply", False):

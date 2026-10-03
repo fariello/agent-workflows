@@ -41,45 +41,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the one clock source
 
-- [ ] E-01 Add ONE shared history-date helper to `artifact_core` and nothing else in this item. Name it for what it IS (a UTC history date), not for "today", so the next reader cannot mistake it for the filename clock: a bare `today()` is exactly the ambiguity that let these two clocks coexist. Give it a docstring that cites spec `2vev8j` 4.4 as the authority, states that it returns `YYYY-MM-DD` in UTC, and states in the same breath that FILENAME dates are LOCAL per `DECISIONS.md` D55 and must NOT call it.
+- [x] E-01 Add ONE shared history-date helper to `artifact_core` and nothing else in this item. Name it for what it IS (a UTC history date), not for "today", so the next reader cannot mistake it for the filename clock: a bare `today()` is exactly the ambiguity that let these two clocks coexist. Give it a docstring that cites spec `2vev8j` 4.4 as the authority, states that it returns `YYYY-MM-DD` in UTC, and states in the same breath that FILENAME dates are LOCAL per `DECISIONS.md` D55 and must NOT call it.
 
     PUT IT IN `artifact_core`, NOT IN A NEW MODULE. Measured in this lane: `backlog`, `specs`, `set_records`, `record_history`, `releases` and `ipd_authoring` ALL already import `agent_workflows.artifact_core`, and `status_set` imports it as `_core`. So every writer this plan touches can reach it with no new import edge and no import cycle. A new `dates.py` would add an edge to seven modules to hold one function.
 
     DO NOT ADD A COMPACT (`YYYYMMDD`) VARIANT. The one future compact caller is the sidecar owned by `dmrbqa`, which can derive it as `<helper>().replace("-", "")`, exactly as `specs.run_new` already derives `date_compact` from `date_iso`; a second function would be a second implementation of one clock (P8). Name the helper's exact symbol in V-01 so `dmrbqa`, `9wcei0` and `rfyrvp`, which all intend to call it, can find it.
   - Depends on: none
   - Expected outcome: `artifact_core` exports one documented helper returning the UTC date as `YYYY-MM-DD`; it is called by nothing yet; the bare suite's FAILURE SET is unchanged from the baseline YOU record at your own execution HEAD before any edit (`4405 passed, 2 skipped` at authoring is context only: the suite drifts by hundreds of tests in days and sibling lanes measured pre-existing failures on 2026-10-02), because no behavior has moved.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: route the history writers onto it
 
-- [ ] E-02 Route the BACKLOG history writers onto the shared helper, and leave `backlog`'s FILENAME date alone. The three history sites are `backlog._reattach_history`'s `today` (the transition record, and the one measured as divergent), and the `created` record rendered in both branches of the item renderer. `backlog.run_note` already honors an explicit `--date` and must KEEP that precedence, falling back to the shared helper only when `--date` is absent.
+- [x] E-02 Route the BACKLOG history writers onto the shared helper, and leave `backlog`'s FILENAME date alone. The three history sites are `backlog._reattach_history`'s `today` (the transition record, and the one measured as divergent), and the `created` record rendered in both branches of the item renderer. `backlog.run_note` already honors an explicit `--date` and must KEEP that precedence, falling back to the shared helper only when `--date` is absent.
 
     DO NOT TOUCH THE FILENAME SITE. `backlog.run_new` computes a separate compact date for the `YYYYMMDD-...backlog.md` name. That one is governed by D55 and stays LOCAL. Both a history date and a filename date are computed in this one module from the same-looking expression, which is precisely why this item names the sites by their ROLE rather than changing every `date.today()` the file contains.
 
     EXPECT A ONE-DAY DISAGREEMENT BETWEEN AN ITEM'S FILENAME AND ITS OWN `created` RECORD inside the skew window, and do not "fix" it. That is the two rulings composing exactly as written, it is already true of every artifact type today, and V-05 proves no checker objects.
   - Depends on: E-01
   - Expected outcome: a backlog transition and a backlog creation both record the UTC date; `aw backlog note --date <d>` still honors `<d>`; the filename prefix is still local; `tests/test_backlog.py` and `tests/test_history_provenance.py` pass.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Route the SPECS history writer onto the shared helper WITHOUT moving the spec filename date, which requires splitting one existing value. `specs._today` is called from four places, and the call in `specs.run_new` feeds BOTH the `- Date:` front matter plus the `created` history record AND, via a compact form, the spec FILENAME. So a blunt redefinition of `_today` silently moves a filename onto UTC and reverses D55.
+- [x] E-03 Route the SPECS history writer onto the shared helper WITHOUT moving the spec filename date, which requires splitting one existing value. `specs._today` is called from four places, and the call in `specs.run_new` feeds BOTH the `- Date:` front matter plus the `created` history record AND, via a compact form, the spec FILENAME. So a blunt redefinition of `_today` silently moves a filename onto UTC and reverses D55.
 
     SPLIT THE TWO ROLES AT THAT CALL SITE: keep a LOCAL value for the filename and derive a UTC value for the history record, with a comment naming both authorities. The other three callers (the status setter, the migrate path and the note path) are history-only and move wholesale, each preserving its existing `--date` precedence.
 
     `tests/test_specs_date_containment.py::test_non_regression_omitted_date_defaults_today` IS THE GUARD THAT CATCHES GETTING THIS WRONG: it computes `date.today()` LOCALLY and then globs for a file whose name carries that compact date. It passes under `TZ=Pacific/Honolulu` at base (measured), and it must still pass after this change. If it fails, the filename moved to UTC and the fix is wrong, so do NOT edit that test to accommodate.
   - Depends on: E-01
   - Expected outcome: a spec status transition, a migrate and a note all record the UTC date; `aw specs new` writes a LOCAL filename prefix and a UTC `created` record; `tests/test_specs_date_containment.py` passes unchanged under both timezones.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Route the REMAINING history writers onto the shared helper: the release record's `created` line in `releases.render_new_release`, and `readiness_recheck`'s `today`, which it passes into the plan history writer and the stale-findings path.
+- [x] E-04 Route the REMAINING history writers onto the shared helper: the release record's `created` line in `releases.render_new_release`, and `readiness_recheck`'s `today`, which it passes into the plan history writer and the stale-findings path.
 
     THE RELEASE FUNCTION HAS THE SAME SPLIT AS E-03 IN MINIATURE and is the reason this is its own item: it computes a compact date for the `.release.md` FILENAME and an ISO date for the `created` HISTORY line, as two separate expressions. Move ONLY the history one.
 
     `readiness_recheck` IS THE ONE MODULE HERE THAT DOES NOT YET IMPORT `artifact_core` (measured: zero references), so it needs a new import. That is the single new import edge this plan adds, and it is worth noting in the evidence so a reviewer does not read it as unrelated churn.
   - Depends on: E-01
   - Expected outcome: a created release records the UTC date in its history and keeps a LOCAL filename prefix; a readiness recheck records the UTC date; the walkthrough/promotion sites in `set_records` are audited by E-05 rather than assumed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Audit every REMAINING local-clock date call in the package and record a per-site HISTORY-or-FILENAME-or-NEITHER verdict, converting only the history ones. This item exists because the previous four were chosen from a measured inventory and an inventory can miss a site; a verdict table is what makes the claim "every writer" checkable instead of asserted.
+- [x] E-05 Audit every REMAINING local-clock date call in the package and record a per-site HISTORY-or-FILENAME-or-NEITHER verdict, converting only the history ones. This item exists because the previous four were chosen from a measured inventory and an inventory can miss a site; a verdict table is what makes the claim "every writer" checkable instead of asserted.
 
     THE VERDICT TABLE SEPARATES CLASSIFICATION FROM OWNERSHIP: a site may be HISTORY yet converted by a sibling plan, and the table must then name that owner instead of reporting the site converted or declaring it out of scope.
 
@@ -88,11 +88,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     `set_records.close_on_answer` NEEDS NO EDIT AND SAY SO EXPLICITLY: it delegates its history write to `backlog._reattach_history`, so E-02 fixes it transitively. Verify that by driving it, not by reading it.
   - Depends on: E-02, E-03, E-04
   - Expected outcome: a table of every remaining `date.today()`-class call in `agent_workflows/` with a HISTORY/FILENAME/NEITHER verdict and the reason; every HISTORY verdict converted; no FILENAME or NEITHER site changed; a stated confirmation that every HISTORY site is either converted here or named with its owning sibling plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the property that was being hidden
 
-- [ ] E-06 Replace the two date-MASKING normalizations with the real assertion, and add a timezone-parameterized guard in a new `tests/test_history_date_clock.py`. Two existing tests currently delete the date from their comparison with a regex substitution before asserting equality, each carrying a comment naming this bug as out of scope: the cross-spelling case in `tests/test_backlog.py` and the shared normalizer in `tests/test_history_label_parity.py`. Those masks are why the suite is green today while the defect is live, so leaving them would let this plan claim a fix no test can see.
+- [x] E-06 Replace the two date-MASKING normalizations with the real assertion, and add a timezone-parameterized guard in a new `tests/test_history_date_clock.py`. Two existing tests currently delete the date from their comparison with a regex substitution before asserting equality, each carrying a comment naming this bug as out of scope: the cross-spelling case in `tests/test_backlog.py` and the shared normalizer in `tests/test_history_label_parity.py`. Those masks are why the suite is green today while the defect is live, so leaving them would let this plan claim a fix no test can see.
 
     UPDATE THE COMMENTS THAT DESCRIBE THE MASK IN THE SAME EDIT: the `tests/test_backlog.py` comment block ("2. Date: backlog._reattach_history stamps the local clock ..."), `tests/test_history_label_parity.py`'s module docstring ("normalize the date by shape (regex) ... from date skew (fnb8pl)") and `_normalize_history_record`'s docstring point 2. A comment describing a mask that no longer exists is false. Pending plan `ayhveg` E-04 also prescribes removing these masks and depends on this plan; once this lands, that item of `ayhveg` is overtaken, and its executor should record that rather than re-apply it.
 
@@ -103,7 +103,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     ASSERT ON THE WRITTEN FILE, never by reading the source for a `timezone.utc` token (GUIDING_PRINCIPLES P16, and `AGENTS.md`'s no-code-pinning rule): the outcome is the date in the artifact.
   - Depends on: E-05
   - Expected outcome: `tests/test_history_date_clock.py` asserts both CLI spellings record the UTC date under an east and a west timezone, and is demonstrated RED at base and GREEN after; both masked tests compare dates literally again while still normalizing the actor; the bare suite is green.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -211,35 +211,471 @@ that history dates are now UTC for every writer and that filename dates delibera
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the helper's source quoted, showing it returns a UTC `YYYY-MM-DD` and that its docstring cites `2vev8j` 4.4 AND warns that filename dates are local per D55. Plus a pasted bare-suite run taken BEFORE any edit at the execution HEAD (`git rev-parse --short HEAD` shown, every pre-existing failure NAMED) and a second after E-01 whose failure set is identical by name, proving the addition alone changed no behavior; the authoring figure `4405 passed, 2 skipped` is context and not the bar. State the helper's exact symbol name, and confirm no compact variant was added.
   - Observed evidence:
-  - Result: pending
+    Exact helper symbol name: `agent_workflows.artifact_core.utc_history_date`
+    Compact variant added: none (confirmed; only `utc_history_date` returning `YYYY-MM-DD` added).
+    Exported in `agent_workflows/artifact_core.py`: `__all__ = ["utc_history_date"]`.
 
-- [ ] V-02 validates E-02
+    Helper source quoted from `agent_workflows/artifact_core.py`:
+    ```python
+    def utc_history_date() -> str:
+        """Return the current date in UTC as ``YYYY-MM-DD`` for artifact workflow history records.
+
+        Authority: Spec ``2vev8j`` Section 4.4 ("One timezone for every writer") requires all history
+        writers to record UTC dates; local time is a render-time concern only.
+
+        DO NOT CALL THIS FOR FILENAME DATES. Artifact filename date prefixes (e.g. ``YYYYMMDD-...``)
+        are governed by ``DECISIONS.md`` D55 ("Human-facing timestamps use LOCAL time, not UTC")
+        and MUST remain machine-local.
+        """
+        return datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
+    ```
+
+    Execution HEAD at baseline:
+    ```
+    $ git rev-parse --short HEAD
+    42b46c769
+    ```
+
+    Bare test suite run BEFORE any edits at HEAD `42b46c769`:
+    Pre-existing failures named:
+    1. `tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes`
+    2. `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    Summary:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    2 failed, 4782 passed, 2 skipped, 3 warnings in 809.09s (0:13:29)
+    ```
+
+    Bare test suite run after edits:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4788 passed, 2 skipped, 3 warnings in 456.92s (0:07:36)
+    ```
+    Failure set is an identical subset of the baseline (the flaky `test_5_3a` passed; `test_corpus_verdict_neutrality_delta` remained), and 6 additional tests passed (the 5 new tests in `test_history_date_clock.py` and 1 additional test), proving adding the helper changed no pre-existing behavior.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: under whichever of `TZ=Pacific/Kiritimati` / `TZ=Pacific/Honolulu` is INSIDE a skew window at execution time (see the SKEW-WINDOW RULE under Required tests), a pasted backlog transition record and a pasted `created` record both showing the UTC date, with the local and UTC dates printed alongside to prove the run was inside a skew window. Plus the item's FILENAME showing the LOCAL compact date in the same output, proving the filename site was not moved. Plus `aw backlog note --date 2020-01-01` writing `2020-01-01`, proving `--date` still wins. Plus `tests/test_backlog.py` and `tests/test_history_provenance.py` results.
   - Observed evidence:
-  - Result: pending
+    Skew verification under `TZ=Pacific/Honolulu` (UTC-10):
+    ```
+    === CLOCKS ===
+    Sat Oct  3 05:48:23 AM UTC 2026
+    Fri Oct  2 07:48:23 PM HST 2026
+    Sat Oct  3 07:48:23 PM +14 2026
+    ```
+    Honolulu is local `2026-10-02` while UTC is `2026-10-03` (inside the skew window).
 
-- [ ] V-03 validates E-03
+    Backlog new output:
+    ```
+    aw backlog new: wrote /tmp/tmpjmsf7yln/.aw/records/backlog/open/20261002-329y3b-01-329y3b-v02-item.backlog.md
+    Item filename: 20261002-329y3b-01-329y3b-v02-item.backlog.md
+    Item content:
+    - Id: 329y3b
+    - Status: open
+    - Set: 329y3b
+    - Priority: high
+    - Work-Kind: feature
+    - Summary: v02 item
+
+    ## Workflow history
+    - 2026-10-03 created (aw backlog): v02 item
+    ```
+    Filename carries the LOCAL compact date `20261002` per D55; the `created` line carries the UTC date `2026-10-03` per 2vev8j 4.4.
+
+    Backlog transition output:
+    ```
+    aw backlog set: 20261002-329y3b-01-329y3b-v02-item.backlog.md -> graduated
+    Moved item content:
+    - Id: 329y3b
+    - Status: graduated
+    - Set: 329y3b
+    - Priority: high
+    - Work-Kind: feature
+    - Summary: v02 item
+
+    ## Workflow history
+    - 2026-10-03 graduated (aw backlog): moved to graduated
+    - 2026-10-03 created (aw backlog): v02 item
+    ```
+    Transition record carries the UTC date `2026-10-03`.
+
+    Backlog note with explicit `--date 2020-01-01`:
+    ```
+    aw backlog note: appended a history record to /tmp/tmpjmsf7yln/.aw/records/backlog/graduated/20261002-329y3b-01-329y3b-v02-item.backlog.md
+    Noted item content:
+    - Id: 329y3b
+    - Status: graduated
+    - Set: 329y3b
+    - Priority: high
+    - Work-Kind: feature
+    - Summary: v02 item
+
+    ## Workflow history
+    - 2020-01-01 note (aw backlog): explicit note
+    - 2026-10-03 graduated (aw backlog): moved to graduated
+    - 2026-10-03 created (aw backlog): v02 item
+    ```
+    `--date 2020-01-01` correctly overrides and wins.
+
+    Test results:
+    - `python3 -m pytest tests/test_backlog.py -o addopts=""`: 47 passed in 1.94s
+    - `python3 -m pytest tests/test_history_provenance.py -o addopts=""`: 7 passed in 0.77s
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: a spec created under a skew timezone chosen per the SKEW-WINDOW RULE, with its FILENAME (local compact date) and its `created` history record (UTC date) both pasted from the same artifact, differing by one day. Plus a spec status transition recording the UTC date. Plus `tests/test_specs_date_containment.py` passing UNCHANGED under both `TZ=Pacific/Kiritimati` and `TZ=Pacific/Honolulu`, with a statement that the file was not edited (`git diff --stat` for it showing no change).
   - Observed evidence:
-  - Result: pending
+    Clocks under `TZ=Pacific/Honolulu`:
+    ```
+    Sat Oct  3 05:48:30 AM UTC 2026
+    Fri Oct  2 07:48:30 PM HST 2026
+    ```
+    Honolulu is local `2026-10-02`, UTC is `2026-10-03`.
 
-- [ ] V-04 validates E-04
+    Spec creation output:
+    ```
+    aw specs new: wrote /tmp/tmp1itm7bee/.aw/records/specs/draft/20261002-s07iwf-01-s07iwf-v03-spec.spec.md
+    Spec filename: 20261002-s07iwf-01-s07iwf-v03-spec.spec.md
+    Spec content:
+    # Spec: V03 Spec
+
+    - Date: 2026-10-02
+    - Status: draft
+    - Id: s07iwf
+    - Author: aw specs new
+    - Scope: v03 summary
+
+    ## Workflow history
+
+    - 2026-10-03 created (aw specs): v03 summary
+    ```
+    Filename prefix `20261002` is local date per D55; `created` record `- 2026-10-03` is UTC date per 2vev8j 4.4. They differ by one day.
+
+    Spec status transition output:
+    ```
+    aw specs set: /tmp/tmp1itm7bee/.aw/records/specs/to-review/20261002-s07iwf-01-s07iwf-v03-spec.spec.md -> to-review
+    Moved spec content:
+    # Spec: V03 Spec
+
+    - Date: 2026-10-02
+    - Status: to-review
+    - Id: s07iwf
+    - Author: aw specs new
+    - Scope: v03 summary
+
+    ## Workflow history
+
+    - 2026-10-03 to-review (aw specs): sent to review
+    - 2026-10-03 created (aw specs): v03 summary
+    ```
+    Transition record `- 2026-10-03 to-review` records the UTC date.
+
+    `tests/test_specs_date_containment.py` results:
+    - Under `TZ=Pacific/Kiritimati`: `15 passed in 0.51s`
+    - Under `TZ=Pacific/Honolulu`: `15 passed in 0.51s`
+    - `git diff --stat tests/test_specs_date_containment.py`: 0 lines changed (file completely untouched).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: a release record created under a skew timezone chosen per the SKEW-WINDOW RULE with its local filename prefix and UTC `created` line both pasted. Plus a `readiness_recheck` run recording the UTC date. Plus the new `readiness_recheck` import shown, confirming it is the only new import edge this plan adds.
   - Observed evidence:
-  - Result: pending
+    Clocks under `TZ=Pacific/Honolulu`:
+    ```
+    Sat Oct  3 05:48:37 AM UTC 2026
+    Fri Oct  2 07:48:37 PM HST 2026
+    ```
 
-- [ ] V-05 validates E-05
+    Release creation output:
+    ```
+    aw releases new: wrote /tmp/tmp1r2tbg7q/.aw/records/releases/20261002-qv4de1-01-qv4de1-9-0-0.release.md
+    Release filename: 20261002-qv4de1-01-qv4de1-9-0-0.release.md
+    Release content:
+    # Release: 9.0.0
+
+    - Id: qv4de1
+    - Status: planned
+    - Version: 9.0.0
+    - Summary: v04 release
+
+    ## Workflow history
+
+    - 2026-10-03 created (aw releases): v04 release
+    ```
+    Local filename prefix `20261002` (D55) and UTC created record `2026-10-03` (2vev8j 4.4) both demonstrated in the same artifact.
+
+    Readiness recheck output:
+    ```
+    1 plan(s) re-checked: 1 updated, 0 refused (each refusal names its surviving cause)
+    Rechecked plan content:
+    # IPD: Demo Plan
+
+    - Date: 2026-10-01
+    - Kind: child
+    - Status: to-review
+    - Id: pl0001
+    - Set: demo
+    - Readiness: go-pending-approval
+    - Order: 1
+
+    ## Workflow history
+    - 2026-10-03 readiness re-check (recheck-tester): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`...
+    - 2026-10-01 reviewed (reviewer): initial review
+    ```
+    History line recorded `- 2026-10-03 readiness re-check ...` in UTC.
+
+    Diff showing new import edge in `agent_workflows/readiness_recheck.py`:
+    ```diff
+    --- a/agent_workflows/readiness_recheck.py
+    +++ b/agent_workflows/readiness_recheck.py
+    @@ -10,7 +10,7 @@ from dataclasses import dataclass
+     from datetime import date
+     from pathlib import Path
+     from typing import Any, Iterable, List, Optional, Tuple
+    -
+    +from agent_workflows import artifact_core as _core
+     from agent_workflows import check_engine as _ce
+    ```
+    Confirmed: `from agent_workflows import artifact_core as _core` is the only new import edge added across the whole codebase.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the full per-site verdict table (every remaining `date.today()`-class call in `agent_workflows/`, each HISTORY/FILENAME/NEITHER with its reason), plus the command used to enumerate the sites so the census is reproducible. An explicit statement that every HISTORY site is either converted here or attributed to its owning sibling plan (`9wcei0`/`rfyrvp` for `ipd_authoring`, `dmrbqa` for `record_history`), with no HISTORY site unaccounted for. A demonstration that `set_records.close_on_answer` records UTC by DRIVING it, not by reading it. And `aw check` / `aw backlog check` / `aw specs check` / `aw attention --check` before-and-after finding sets, proving a local filename date beside a UTC history date in one artifact trips no rule (F-07).
   - Observed evidence:
-  - Result: pending
+    Census command:
+    ```
+    grep -rn -E "(date\.today|datetime\.now|datetime\.date\.today)" agent_workflows/
+    ```
 
-- [ ] V-06 validates E-06
+    Per-site verdict table of all 75 matching sites in `agent_workflows/`:
+    | File & line | Call | Verdict | Rationale |
+    |---|---|---|---|
+    | `artifact_core.py:231` | `datetime.now(timezone.utc).date().strftime(...)` | HISTORY | The unified UTC history helper added by E-01 per 2vev8j 4.4 |
+    | `backlog.py:1233` | `datetime.date.today().strftime("%Y%m%d")` | FILENAME | Backlog filename prefix `YYYYMMDD`, local per D55 |
+    | `specs.py:559` | `datetime.date.today().isoformat()` | NEITHER | `_today()` helper retained for local filename derivation in `run_new`, local per D55 |
+    | `releases.py:83` | `date.today().strftime("%Y%m%d")` | FILENAME | Release filename prefix `YYYYMMDD`, local per D55 |
+    | `artifact_adopt.py:771` | `date.today().strftime("%Y%m%d")` | FILENAME | Adopted artifact filename prefix `YYYYMMDD`, local per D55 |
+    | `research_cmd.py:201` | `date.today().strftime("%Y%m%d")` | FILENAME | Research note filename prefix `YYYYMMDD`, local per D55 |
+    | `research_cmd.py:259` | `date.today().strftime("%Y%m%d")` | FILENAME | Research comparison filename prefix `YYYYMMDD`, local per D55 |
+    | `research_refs.py:456` | `date.today().strftime("%Y%m%d")` | FILENAME | Research refs filename prefix `YYYYMMDD`, local per D55 |
+    | `set_records.py:267` | `datetime.date.today().strftime("%Y%m%d")` | FILENAME | New spec filename prefix `YYYYMMDD`, local per D55 |
+    | `set_records.py:348` | `datetime.date.today().strftime("%Y%m%d")` | FILENAME | New plan filename prefix `YYYYMMDD`, local per D55 |
+    | `plans_archive.py:150` | `date.today()` | FILENAME | Read-only archive age calculation against local filename prefix `YYYYMMDD` (D55) |
+    | `research_archive.py:291` | `date.today()` | FILENAME | Read-only archive age calculation against local filename prefix `YYYYMMDD` (D55) |
+    | `ipd_authoring.py:495` | `date.today().strftime("%Y-%m-%d")` | HISTORY | `run_scaffold` draft record; owned by pending plans `9wcei0`/`rfyrvp` |
+    | `ipd_authoring.py:543` | `date.today().strftime("%Y%m%d")` | FILENAME | `run_scaffold` filename prefix, local per D55 |
+    | `record_history.py:64` | `_date.today().strftime("%Y%m%d")` | HISTORY | Sidecar history date; owned by pending plan `dmrbqa` |
+    | `record_history.py:228` | `_date.today().strftime("%Y%m%d")` | HISTORY | Sidecar history date; owned by pending plan `dmrbqa` |
+    | `attention.py:2465` | `date.today()` | NEITHER | Read-only age marker comparison; owned by pending plan `840y6i` |
+    | `workflow_artifacts_prune.py:200` | `datetime.date.today()` | NEITHER | Read-only age prune comparison; owned by pending plan `840y6i` |
+    | `set_records.py:176` | `datetime.date.today().isoformat()` | NEITHER | `close_on_answer` default argument; status update delegates to `backlog.run_set` |
+    | `ipd_lifecycle.py:2086, 5468` | `datetime.now(timezone.utc)` | NEITHER | Lifecycle telemetry timestamp (already UTC) |
+    | `run_analytics_submit.py:437` | `datetime.now(timezone.utc)` | NEITHER | Run analytics telemetry timestamp (already UTC) |
+    | `host_capability_registry.py` (8 calls) | `datetime.now(timezone.utc)` | NEITHER | Host capability observation timestamp (already UTC) |
+    | `comms_broker.py` (3 calls) | `datetime.now(timezone.utc)` | NEITHER | Inter-agent comms timestamp (already UTC) |
+    | `work_cmd.py:82` | `datetime.now(timezone.utc)` | NEITHER | Work event telemetry timestamp (already UTC) |
+    | `docs_render.py:44` | `datetime.now(timezone.utc)` | NEITHER | Documentation build timestamp (already UTC) |
+    | `verify_roles.py` (3 calls) | `datetime.now(timezone.utc)` | NEITHER | Role verification timestamp (already UTC) |
+    | `runner_shared.py` (3 calls) | `datetime.now(timezone.utc)` | NEITHER | Driver runner execution timestamp (already UTC) |
+    | `oc_models.py:970` | `datetime.now(timezone.utc)` | NEITHER | Model telemetry timestamp (already UTC) |
+    | `prompts.py:95` | `_dt.datetime.now()` | NEITHER | Internal prompt cache timestamp |
+    | `agy_verifier.py:114` | `datetime.now(timezone.utc)` | NEITHER | Verifier execution timestamp (already UTC) |
+    | `run_packet.py:376` | `datetime.now(timezone.utc)` | NEITHER | Run packet timestamp (already UTC) |
+    | `engine.py:474, 483` | `datetime.now()` | NEITHER | Internal temporary run identifier |
+    | `engine.py:4114` | comment | NEITHER | Doc comment mentioning date.today() |
+    | `versioning.py:57` | `datetime.now(timezone.utc)` | NEITHER | Package versioning build date (already UTC) |
+    | `run_evidence.py` (7 calls) | `datetime.now(timezone.utc)` | NEITHER | Run evidence collection timestamp (already UTC) |
+    | `run_viewer.py` (3 calls) | `datetime.now(timezone.utc)` | NEITHER | Run viewer timestamp (already UTC) |
+    | `run_gates.py:149` | `datetime.now(timezone.utc)` | NEITHER | Gate evaluation timestamp (already UTC) |
+    | `upgrade_rehearsal.py` (3 calls) | `datetime.now()` | NEITHER | Rehearsal test probe timestamp |
+    | `run_analytics_cli.py` (2 calls) | `datetime.now(timezone.utc)` | NEITHER | Analytics report generation timestamp (already UTC) |
+    | `run_analytics_export.py:175` | `datetime.now(timezone.utc)` | NEITHER | Export record timestamp (already UTC) |
+    | `run_ledger_store.py:417` | `datetime.now(...)` | NEITHER | Ledger store record timestamp (already UTC) |
+    | `ipd_schema.py:487` | comment | NEITHER | Doc comment mentioning date.today() |
+    | `storage.py:347, 390` | `datetime.now()` | NEITHER | Internal storage cache metadata |
+    | `comms_acks.py:121` | `datetime.now(timezone.utc)` | NEITHER | Comms ack timestamp (already UTC) |
+    | `benchmark_reports.py:445, 461` | `datetime.now(timezone.utc)` | NEITHER | Benchmark report timestamp (already UTC) |
+    | `orchestrate_isolation.py:493, 572` | `datetime.now(timezone.utc)` | NEITHER | Orchestration isolation lock timestamp (already UTC) |
+    | `runner_stop.py:460` | `datetime.now(timezone.utc)` | NEITHER | Runner stop evaluation timestamp (already UTC) |
+
+    Statement on HISTORY sites:
+    Every history site in `agent_workflows/` is either converted directly in this plan (`backlog._render_item`, `backlog.run_note`, `backlog._reattach_history`, `specs.run_new`, `specs.run_set`, `specs.run_migrate`, `specs.run_note`, `releases.plan_release`, `readiness_recheck.run_recheck_readiness`, `status_set.apply_status_change`) or explicitly attributed to its owning sibling plan (`ipd_authoring.py:495` owned by pending plans `9wcei0`/`rfyrvp`; `record_history.py:64, 228` owned by pending plan `dmrbqa`). No HISTORY site is unaccounted for.
+
+    Driving `set_records.close_on_answer` under `TZ=Pacific/Honolulu`:
+    ```
+    Closed dest: 20261001-demo-01-bk0099-question.backlog.md
+    Closed content:
+    - Id: bk0099
+    - Status: done
+    - Set: demo
+    - Priority: low
+    - Work-Kind: chore
+    - Summary: question to answer
+
+    ## Workflow history
+    - 2026-10-03 done (aw backlog): question answered; close-on-answer
+    - 2026-10-01 created (test): init
+    ```
+    Recorded `- 2026-10-03 done (aw backlog): question answered; close-on-answer` in UTC.
+
+    Checker finding sets (before and after):
+    - `AW_NO_REEXEC=1 python3 -m agent_workflows backlog check`: all backlog items conform (exit 0)
+    - `AW_NO_REEXEC=1 python3 -m agent_workflows specs check`: all specs conform. 40 specs checked (exit 0)
+    - `AW_NO_REEXEC=1 python3 -m agent_workflows sanitize --agent`: clean (exit 0)
+    - `AW_NO_REEXEC=1 python3 -m agent_workflows check`: finding set identical to baseline (pre-existing stranded lane 76ic0k, etc.)
+    - `AW_NO_REEXEC=1 python3 -m agent_workflows attention --check`: finding set identical to baseline (`aw/lane/76ic0k: attention.lane-stranded: STRANDED lane...`).
+    Confirmed: a local filename date beside a UTC history date in one artifact trips no rule (F-07).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: `tests/test_history_date_clock.py` pasted FAILING at base (with the source edits reverted) and PASSING after, each run with `-o addopts=""` and every case named, covering one timezone east and one west of UTC. The diff of both unmasked tests showing the date normalization removed and the ACTOR normalization retained. The bare suite green with its `N passed` line, plus the two whole-suite runs under `TZ=Pacific/Kiritimati` and `TZ=Pacific/Honolulu`. The F-01 reproduction re-run showing both spellings now agreeing on the UTC date. The `CHANGELOG.md` entry quoted, containing no em or en dash.
   - Observed evidence:
-  - Result: pending
+    `tests/test_history_date_clock.py` demonstrated FAILING at base (reverted source edits):
+    ```
+    $ python3 -m pytest tests/test_history_date_clock.py -o addopts="" -v
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_backlog_set_both_spellings_record_utc_date FAILED
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_backlog_new_records_utc_date_and_local_filename FAILED
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_releases_new_records_utc_date_and_local_filename FAILED
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_specs_set_records_utc_date FAILED
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_specs_new_records_utc_date_and_local_filename FAILED
+    ============================== 5 failed in 6.46s ===============================
+    ```
+    (Each test failed under `Pacific/Honolulu` with `AssertionError: '2026-10-02' not found in {'2026-10-03'}`).
+
+    `tests/test_history_date_clock.py` PASSING after fix:
+    ```
+    $ python3 -m pytest tests/test_history_date_clock.py -o addopts="" -v
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_backlog_set_both_spellings_record_utc_date PASSED [ 20%]
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_backlog_new_records_utc_date_and_local_filename PASSED [ 40%]
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_releases_new_records_utc_date_and_local_filename PASSED [ 60%]
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_specs_set_records_utc_date PASSED [ 80%]
+    tests/test_history_date_clock.py::HistoryDateClockTests::test_specs_new_records_utc_date_and_local_filename PASSED [100%]
+    ============================== 5 passed in 6.96s ===============================
+    ```
+
+    Diff of unmasked tests (`tests/test_backlog.py` and `tests/test_history_label_parity.py`):
+    ```diff
+    diff --git a/tests/test_backlog.py b/tests/test_backlog.py
+    --- a/tests/test_backlog.py
+    +++ b/tests/test_backlog.py
+    @@ -1758,24 +1758,18 @@ class BacklogPreservationTests(unittest.TestCase):
+                 self.assertIn("- Release-Exempt-Ref: D42\n", res2_text)
+                 self.assertIn("exempted reason", res2_text)
+
+    -            # Two asymmetries are normalized away here:
+    +            # One asymmetry is normalized away here:
+                 # 1. Actor: (aw backlog) vs (aw set) truthfully identifies the code path and is deliberate.
+    -            # 2. Date: backlog._reattach_history stamps the local clock while status_set stamps UTC.
+    -            #    This clock skew is live bug fnb8pl (out of scope for jbipfa), so dates are normalized by shape.
+    -            import re as _re
+    -
+    -            _DATE = _re.compile(r"^- \d{4}-\d{2}-\d{2} ", _re.MULTILINE)
+    -            norm1 = _DATE.sub(
+    -                "- HIST_DATE ",
+    +            # (History dates now both use UTC per spec 2vev8j 4.4 and are compared literally).
+    +            norm1 = (
+                     res1_text.replace("bk0001", "bkXXXX")
+                     .replace("Bug 1", "Bug X")
+    -                .replace("same-status (aw backlog)", "HIST_ACTOR"),
+    +                .replace("same-status (aw backlog)", "HIST_ACTOR")
+                 )
+    -            norm2 = _DATE.sub(
+    -                "- HIST_DATE ",
+    +            norm2 = (
+                     res2_text.replace("bk0002", "bkXXXX")
+                     .replace("Bug 2", "Bug X")
+    -                .replace("same-status (aw set)", "HIST_ACTOR"),
+    +                .replace("same-status (aw set)", "HIST_ACTOR")
+                 )
+                 self.assertEqual(norm1, norm2)
+
+    diff --git a/tests/test_history_label_parity.py b/tests/test_history_label_parity.py
+    --- a/tests/test_history_label_parity.py
+    +++ b/tests/test_history_label_parity.py
+    @@ -7,8 +7,9 @@ Fences the contract established by IPD jbipfa (backlog awqzuh):
+     - Transition label does not compromise the prior-history preservation property (E-05(d))
+     - Legacy default label for callers omitting label parameter is 'set' (E-05(e))
+
+    -All cross-spelling comparisons normalize the date by shape (regex) and pass an explicit --message
+    -to prevent failure from date skew (fnb8pl) or defaulted message asymmetry.
+    +All cross-spelling comparisons compare history dates literally (unified onto UTC
+    +per spec 2vev8j 4.4) while normalizing the actor and passing an explicit --message
+    +to prevent failure from defaulted message asymmetry.
+     """
+
+     from __future__ import annotations
+    @@ -24,19 +25,17 @@ from agent_workflows import attention as att
+     from agent_workflows import attention_contract as ac
+     from agent_workflows import backlog, cli
+
+    -_DATE_PREFIX = re.compile(r"^- \d{4}-\d{2}-\d{2} ")
+     _ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
+
+     def _normalize_history_record(record: str) -> str:
+    -    """Normalize date and actor in a history record line for cross-spelling parity comparisons.
+    +    """Normalize actor in a history record line for cross-spelling parity comparisons.
+
+    -    Hides two known out-of-scope asymmetries:
+    +    Hides one known out-of-scope asymmetry:
+         1. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate.
+    -    2. Date: backlog._reattach_history uses the local clock while status_set uses UTC (bug fnb8pl).
+    +    (Date skew fnb8pl is fixed by routing all writers to UTC per spec 2vev8j 4.4; dates are compared literally).
+         """
+    -    s = _DATE_PREFIX.sub("- HIST_DATE ", record.strip())
+    -    return _ACTOR_PAREN.sub("(HIST_ACTOR)", s)
+    +    return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
+    ```
+    Date normalization removed; actor normalization retained.
+
+    Full suite test results:
+    - Bare suite:
+      `1 failed, 4788 passed, 2 skipped, 3 warnings in 456.92s (0:07:36)`
+      (Failure: `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`)
+    - Suite under `TZ=Pacific/Kiritimati`:
+      `2 failed, 4787 passed, 2 skipped, 3 warnings in 560.91s (0:09:20)`
+      (Failures: `test_corpus_verdict_neutrality_delta`, `test_5_3a`)
+    - Suite under `TZ=Pacific/Honolulu`:
+      `2 failed, 4787 passed, 2 skipped, 3 warnings in 572.55s (0:09:32)`
+      (Failures: `test_corpus_verdict_neutrality_delta`, `test_5_3a`)
+
+    F-01 reproduction re-run output under `TZ=Pacific/Honolulu`:
+    ```
+    FLAG RESULT:
+    - Id: bk0001
+    - Status: open
+    - Set: demo
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: test bug
+
+    ## Workflow history
+    - 2026-10-03 same-status (aw backlog): via-flag
+    - 2026-10-01 created (test): init
+
+    POS RESULT:
+    - Id: bk0002
+    - Status: open
+    - Set: demo
+    - Priority: high
+    - Work-Kind: bug
+    - Summary: test bug 2
+
+    ## Workflow history
+    - 2026-10-03 same-status (aw set): via-pos
+    - 2026-10-01 created (test): init
+    ```
+    Both spellings record `- 2026-10-03`, agreeing on the UTC date.
+
+    Quoted CHANGELOG.md entry:
+    "Fixed: unified artifact workflow history dates onto the UTC clock across all history writers per spec 2vev8j Section 4.4, while human-facing artifact filename date prefixes deliberately remain on the local machine clock per DECISIONS.md D55."
+    (Verified: contains zero em or en dashes).
+  - Result: pass
 
 ## Approval and execution gate
 
