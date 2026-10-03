@@ -1,5 +1,5 @@
 - Id: rcp8c4
-- Status: graduated
+- Status: done
 - Graduated-To: rcp8c4
 - Set: rcp8c4
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: runner_shared.py cites the deleted tests/test_run_flag_surface.py as its guard in seven comments
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 8wpjeq executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-rcp8c4-01-8wpjeq-strike-the-seven-dangling-test-run-flag-surface-citations-in.ipd.md); evidence .aw/records/plans/executed/20261001-rcp8c4-01-8wpjeq-strike-the-seven-dangling-test-run-flag-surface-citations-in.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: 8wpjeq
 - 2026-09-29 created (aw backlog): runner_shared.py cites the deleted tests/test_run_flag_surface.py as its guard in seven comments
 

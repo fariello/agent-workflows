@@ -115,7 +115,8 @@ having been bent: the 34 are PROVEN-IDENTICAL EXISTING bodies moved without edit
 by `tests/test_runner_shared.py`. This block is NEW code that never existed in either runner, so it
 has no pre-move fingerprint to match and is deliberately absent from that fixture. The former guard
 (`tests/test_run_flag_surface.py`, which drove assertions from `RUN_POLICY_FLAGS` as data) was deleted in
-`19313eed`, so the flag surface currently has no such data-driven test (coverage carrier: backlog `xvp5vx`).
+`19313eed`, so the flag surface currently has no such data-driven test
+(audit: backlog `xvp5vx`, done; no restoration is planned).
 """
 
 from __future__ import annotations
@@ -1125,7 +1126,8 @@ def add_output_mode_flags(
 
     DELIBERATELY NOT IN `RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
     declares; the data-driven test guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
-    and the surface is currently unguarded (carrier: backlog `xvp5vx`), but the closed contract stands.
+    and the surface is currently unguarded (audit: backlog `xvp5vx`, done; no restoration is planned),
+    but the closed contract stands.
 
     `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
     OMITTED flag on resume leaves the frozen value untouched rather than resetting it to 0 - the same
@@ -14725,8 +14727,8 @@ def validate_manifest(
 # exists to end is not "a flag is missing", it is "the documented contract and the shipped command
 # drifted and nothing noticed". A hand-written registration per flag reproduces that: the ninth flag
 # the spec grows is added to the spec, not to two parsers, and no test fails. Driving registration
-# AND the contract test from ONE table makes the drift a test failure instead of an archaeology
-# project.
+# and contract tests from ONE table was designed to make the drift a test failure instead of an
+# archaeology project, though no live test currently checks this.
 
 
 class RunPolicyFlag(NamedTuple):
@@ -14751,8 +14753,8 @@ class RunPolicyFlag(NamedTuple):
                           row, and that is deliberately rare.
       * ``implemented`` - whether the flag's BEHAVIOR ships. False means registered-and-refusing:
                           the flag parses, appears in `--help`, and REFUSES with `not yet
-                          implemented`. Carried as data so the contract test can assert the refusal
-                          rather than trusting the help text.
+                          implemented`. Carried as data so a contract test could assert the refusal
+                          rather than trusting the help text, though no live test currently checks it.
       * ``owner``       - the artifact that owns the behavior, named in the refusal so an operator
                           who hits it can find the work item rather than filing a duplicate.
       * ``help``        - the `--help` text. Where the shipped semantics DIVERGE from the spec (an
@@ -14823,24 +14825,25 @@ DEFAULT_ON_CONFLICT = ON_CONFLICT_DROP
 #: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
 #: refusal with no sanctioned override is how an operator learns to work around a gate instead of
 #: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
-#: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
-#: that spec 2.1 declare every row here in the same change remains in force.
+#: was deleted in `19313eed` and is currently unguarded (audit: backlog `xvp5vx`, done; no restoration is planned),
+#: but the requirement that spec 2.1 declare every row here in the same change remains in force.
 #:
 #: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
-#: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
+#: tenth arrived; the expected set is spec 2.1's own grammar and nothing currently derives or checks it.
 #:
 #: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
-#: by the row that preceded it: `uyeko5` put `--type` in the contract test's
-#: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
-#: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+#: by the row that preceded it: `uyeko5` put `--type` in the former contract test's
+#: `DECLARED_BUT_NOT_OWNED_HERE` (deleted with the file in `19313eed`) with a named reason and owner,
+#: so taking ownership MOVES that row rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
 #: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
 #: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
 #: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
 RUN_POLICY_FLAGS: tuple = (
-    # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the contract test's
-    # `DECLARED_BUT_NOT_OWNED_HERE` rather than added beside it. Spec 2.1 already DECLARED it, so no
-    # spec amendment is needed to register it here (unlike the `--allow-dirty-base` and
-    # `--allow-concurrent-driver` rows above, which had to amend 2.1 in their own change).
+    # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the former contract test's
+    # `DECLARED_BUT_NOT_OWNED_HERE` (deleted with the file in `19313eed`) rather than added beside it.
+    # Spec 2.1 already DECLARED it, so no spec amendment is needed to register it here (unlike the
+    # `--allow-dirty-base` and `--allow-concurrent-driver` rows above, which had to amend 2.1 in their
+    # own change).
     #
     # FIRST IN THE TUPLE because spec 2.1's grammar block lists it first, and this table's contract is
     # to hold the rows "in the order the spec's grammar block lists them".
@@ -15002,8 +15005,9 @@ RUN_POLICY_FLAGS: tuple = (
     # shared spec-governed table is what stops the two hosts diverging, which is the failure
     # `--full-auto` already demonstrated (default `False` on one host, `True` on the other). Spec
     # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here: the former
-    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
-    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
+    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    # (audit: backlog `xvp5vx`, done; no restoration is planned), but the requirement that spec 2.1
+    # declare every registered row in the same change remains in force.
     RunPolicyFlag(
         flag="--integration-retry-limit",
         dest="integration_retry_limit",
@@ -15024,8 +15028,9 @@ RUN_POLICY_FLAGS: tuple = (
     ),
     # orchprobe-03 (`m7gvuz`) E-05: the orchestrator coverage gate's UNATTENDED half. Spec `25kzda`
     # 2.1 and the new 2.5b are amended in the same change that registers it: the former data-driven
-    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
-    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
+    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    # (audit: backlog `xvp5vx`, done; no restoration is planned), but the requirement that spec 2.1
+    # declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, WHICH IS WHY IT IS THE TABLE'S FIRST `"str"` ROW. The risk it accepts
     # is that a parent plan's own items are reported complete having never been performed OR verified,
@@ -15050,8 +15055,9 @@ RUN_POLICY_FLAGS: tuple = (
     ),
     # runconcur-01 (`vddpml`) E-04: the integration-serialization ESCAPE HATCH. Spec `25kzda` 2.1 is
     # amended in the SAME change that registers it: the bidirectional test (`tests/test_run_flag_surface.py`)
-    # was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
-    # that spec 2.1 declare every registered row in the same change remains in force.
+    # was deleted in `19313eed` and is currently unguarded
+    # (audit: backlog `xvp5vx`, done; no restoration is planned), but the requirement that spec 2.1
+    # declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, the table's second `"str"` row, for the same reason
     # `--allow-uncovered-orchestrator-work` does: the risk it accepts is that two drivers publish to
@@ -15181,7 +15187,7 @@ def register_run_policy_flags(
     ``skip`` names dests this caller registers itself. It exists for `--full-auto`, whose long help
     text and BooleanOptionalAction both runners already declare; passing it through here would be a
     second registration and argparse would raise. Every skipped dest must still BE in the table, so
-    the contract test can prove it is registered by SOMEONE.
+    a contract test could prove it is registered by SOMEONE (no live test currently enforces this).
     """
 
     import argparse as _argparse
@@ -15315,8 +15321,8 @@ def resolve_retry_budget(
     TIER" (plan `y4adch` OQ-04). The function must stay callable at PARSE time, where a repo may not
     be resolved yet, and the pure CLI-over-default path remains a real code path with its own
     assertions. THE HONEST COST is that a production caller which FORGETS `repo` silently falls back
-    to CLI-over-default with every unit test still green, so a contract test asserts the production
-    call sites pass it.
+    to CLI-over-default with every unit test still green; the design intended for a contract test to
+    assert production call sites pass it, but no live test currently enforces this.
 
     THE MIDDLE TIER IS ONLY CONSULTED WHEN NO CLI VALUE WAS PASSED, which is what makes `--retry-budget
     0` mean zero rather than "unset": the guard is `is None`-shaped, never truthy, because `0` is a
@@ -16321,16 +16327,17 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
     the two early `resolve_retry_budget` calls in `initialize_run_core` DISCARD their value and exist
     solely for the early refusal, so the number a run actually spends is the one frozen here. Omitting
     `repo` therefore does not merely skip a nicety; it freezes the DEFAULT while a repository believes
-    its policy is in force. It stays OPTIONAL so a caller with no repository (the contract tests build
-    a bare namespace) keeps working, and a contract test asserts the production site passes it.
+    its policy is in force. It stays OPTIONAL so a caller with no repository (such as tests building
+    a bare namespace) keeps working; the design intended for a contract test to assert the production
+    site passes it, though no live test currently enforces this.
     """
 
     def _supplied(dest: str) -> Any:
         """The value for a NON-BOOL row, with a placeholder `bool` read as NOT SUPPLIED.
 
         WHY THIS EXISTS RATHER THAN A BARE `getattr`. A namespace built GENERICALLY over this table -
-        `{row.dest: False for row in RUN_POLICY_FLAGS}`, the idiom the shipped contract test uses in
-        four places - hands every row `False`, including the int and choice rows. That value never
+        such as `{row.dest: False for row in RUN_POLICY_FLAGS}` - hands every row `False`, including
+        the int and choice rows. That value never
         comes from argparse, which declares `default=None` for them precisely so "absent" is
         distinguishable, so a `bool` here can only mean "this namespace was filled in generically"
         and the correct reading is ABSENT.
@@ -16374,7 +16381,7 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             # The generic `bool(...)` arm below would freeze `True` and destroy the justification,
             # which is the entire content of this row: a reader of the ledger needs WHY the risk was
             # accepted, and "True" answers a question nobody asked. `_supplied` is used so a namespace
-            # filled in generically (the contract test's `{dest: False}` idiom) reads as ABSENT rather
+            # filled in generically (using a `{dest: False}` placeholder idiom) reads as ABSENT rather
             # than as the literal justification `False`.
             frozen[row.dest] = str(_supplied(row.dest) or "")
         else:
@@ -29334,8 +29341,9 @@ def initialize_run_core(
     #
     # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, historically: the former test
     # (`tests/test_run_flag_surface.py::test_the_mixed_type_call_site_was_not_duplicated`, deleted in
-    # `19313eed`, carrier: backlog `xvp5vx`) counted occurrences of that gate's SYMBOL in this function's
-    # source to prove it had exactly one call site. Locate each by its own call above.
+    # `b1e304bc7`; audit: backlog `xvp5vx`, done; no restoration is planned) counted occurrences of
+    # that gate's SYMBOL in this function's source to prove it had exactly one call site. Locate
+    # each by its own call above.
     #
     # WHAT "COSTS NOTHING" MEANS HERE: no agent turn, no lane worktree, no session. All three are
     # allocated downstream in `run_queue`/`execute_item`, so a refusal that raises from this line has
