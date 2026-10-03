@@ -1036,9 +1036,15 @@ class StallWatchdog(runner_shared.StallWatchdog):
         process: subprocess.Popen,
         timeout: float | None = 900.0,
         check_interval: float = 1.0,
+        *,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(
-            process, timeout, check_interval, reaper=lambda p: terminate_process(p)
+            process,
+            timeout,
+            check_interval,
+            reaper=lambda p: terminate_process(p),
+            progress_checker=progress_checker,
         )
 
 
@@ -3000,6 +3006,9 @@ def run_opencode(
             # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
             # entry signals nothing, which renders no activity cell rather than a guessed one.
             activity=activity_for_item(item),
+            runner="opencode",
+            model=options.get(model_key),
+            variant=options.get(variant_key),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # The countdown the operator sees must come from the watchdog that kills, so the
@@ -3014,6 +3023,7 @@ def run_opencode(
         # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
         # (which keeps emitting housekeeping lines) is still correctly killed.
         observer = stall_progress.SubagentProgressObserver()
+        watchdog.progress_checker = observer.poll
 
         def _subagent_progress() -> None:
             watchdog.touch()

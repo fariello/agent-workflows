@@ -162,6 +162,8 @@ def run(
 
 
 def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
+    if not repo or str(repo).strip() in {"", "."}:
+        raise HarnessError("git command requires a repository path")
     return run(["git", *args], cwd=repo, check=check)
 
 
@@ -473,6 +475,75 @@ def copy_clone(source: Path, dest: Path) -> None:
             shutil.copy2(src, dst)
 
 
+def _is_within(path: str | Path, root: str | Path) -> bool:
+    """Is ``path`` equal to or inside ``root``? Component-wise, and safe across Windows drives."""
+    try:
+        return os.path.commonpath(
+            [os.path.normcase(str(root)), os.path.normcase(str(path))]
+        ) == os.path.normcase(str(root))
+    except (ValueError, OSError):
+        return False
+
+
+def is_safe_sandbox(sandbox: Path) -> bool:
+    """Fail-closed guard ensuring target is a disposable rehearsal sandbox, never a live repo."""
+    if not sandbox or str(sandbox).strip() in {"", "."}:
+        return False
+    try:
+        resolved = sandbox.resolve()
+    except OSError:
+        return False
+
+    # 1. Never neutralize the toolkit checkout itself
+    try:
+        if resolved == tool_repo_root().resolve():
+            return False
+    except Exception:
+        pass
+
+    # 2. Never neutralize the current working directory
+    try:
+        if resolved == Path.cwd().resolve():
+            return False
+    except Exception:
+        pass
+
+    # 3. Never neutralize any configured search root
+    try:
+        for root in search_roots(fallback_to_home=False):
+            if resolved == root.resolve():
+                return False
+    except Exception:
+        pass
+
+    # 4. Positive indicators: must be verifiable as a sandbox
+    # Case A: carries the harness marker file
+    if (sandbox / MARKER_NAME).is_file():
+        return True
+
+    # Case B: name or path contains the sandbox infix (aw-upgrade-test)
+    if SANDBOX_INFIX in resolved.name or SANDBOX_INFIX in str(resolved):
+        return True
+
+    # Case C: resides under the default sandbox root
+    try:
+        default_root = default_sandbox_root().resolve()
+        if _is_within(resolved, default_root) and resolved != default_root:
+            return True
+    except Exception:
+        pass
+
+    # Case D: resides under the system temp directory (test runners)
+    try:
+        system_temp = Path(tempfile.gettempdir()).resolve()
+        if _is_within(resolved, system_temp) and resolved != system_temp:
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
 def neutralize_git(sandbox: Path) -> Dict[str, Any]:
     """Make it impossible for the sandbox to reach the real upstream (invariant 2).
 
@@ -484,6 +555,11 @@ def neutralize_git(sandbox: Path) -> Dict[str, Any]:
 
     if not is_git_repo(sandbox):
         return {"git": False, "remotes_removed": [], "verified": True}
+
+    if not is_safe_sandbox(sandbox):
+        raise HarnessError(
+            f"refusing to neutralize git on non-sandbox repository: {sandbox}"
+        )
 
     removed: List[str] = []
     for name in [r for r in git_out(sandbox, "remote").splitlines() if r.strip()]:

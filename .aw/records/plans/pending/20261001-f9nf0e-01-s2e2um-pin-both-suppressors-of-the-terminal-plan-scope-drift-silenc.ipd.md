@@ -6,7 +6,8 @@
 - Scope: IN: one behavioral test module that pins BOTH suppressors independently (the outer retired-path filter as the ACTUAL one, the inner liveness branch as DEFENSE-IN-DEPTH proven effective under a narrowed outer filter), plus a corrected docstring on `_receipt_is_live` naming the outer filter as today's suppressor. OUT, each with a reason recorded under "Deferred": changing `check_scope_drift` to `include_retired=True` (candidate direction 2, REFUSED on measured cost, see F-06/OQ-01); deleting the branch (direction 3, REFUSED, see F-05); any change to the rule's observable contract; the general trim audit `xvp5vx`.
 - Scope-Paths: tests/test_receipt_liveness_suppressors.py, agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: f9nf0e
@@ -15,9 +16,12 @@
 - Highest E allocated: 03
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: s2e2um
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
-
+- 2026-10-03 approved (aw set): status set to approved
+- 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 (all LOW, fixed). F-03/F-04/F-05 re-measured by probe and hold for all four terminal placements. Full record: `.aw/records/reviews/20261001-f9nf0e-01-s2e2um-pin-both-suppressors-of-the-terminal-plan-scope-drift-silenc.review.md`.
+- 2026-10-03 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `f9nf0e`. Every claim in the item was re-measured in this lane rather than trusted, and ONE OF THEM IS FALSE: the item asserts "direction (2) is the only one that makes the branch testable", which was the sole stated reason the choice needed a maintainer. Measured here, `_receipt_is_live` is a module-level function that a test can call DIRECTLY with a terminal plan path, and such a test is mutation-sensitive (it returns False stock, True with the branch deleted, for all three terminal dispositions). That removes the blocking decision and is why this plan proceeds on repository evidence instead of referring OQ-01 upward.
 - 2026-10-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -80,7 +84,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     It does not READ production source, parse it, or assert on its text; it substitutes a value and
     asserts on the RESULTING BEHAVIOR of a real call. `tests/test_run_finding_reachability.py`
     (`test_unreachable_binding_refusal_fires_under_perturbation`) is the in-repo precedent for exactly
-    this shape, including the `try/finally` restore and the post-restore re-assertion.
+    this shape, including the `try/finally` restore and the post-restore re-assertion. COPY ITS SHAPE,
+    NOT ITS STATUS: that test is currently RED (one of Step 0's pre-existing failures, re-confirmed at
+    review: `1 failed, 4 passed` running that module alone), and its failure is in what it asserts about
+    the finding table, not in the restore discipline, so the pattern stays valid while the test does not.
 
     RESTORE THE PATCHED ATTRIBUTE IN A `finally`, AND RE-ASSERT AFTERWARDS. `_RETIRED_PATH_SEGMENTS`
     is module-global and the suite runs under `pytest-randomly` with `-n auto`, so a leak would corrupt
@@ -175,7 +182,7 @@ The observable behavior of `aw check`, `aw doctor` and the pre-commit gate is UN
 ## Scope check
 
 - Over-scope: none. Both declared paths are edited by numbered items: `tests/test_receipt_liveness_suppressors.py` (E-01, E-02) and `agent_workflows/check_engine.py` (E-03, docstring only). The production path is declared because E-03 edits that file, even though no executable line changes; declaring it is what lets the finalize scope gate reconcile honestly.
-- Under-scope: if E-02's perturbation shows the inner branch does NOT hold under a narrowed outer filter (contradicting F-04), do not weaken the case to make it pass. Stop and report: that would mean the defense-in-depth claim E-03 is about to write is false, and the plan's conclusion would need revisiting rather than its assertion relaxing. Equally, if the executing HEAD has changed `_iter_type_files`' filtering such that terminal plans are already yielded, E-01's expected outcome inverts; record the measurement and report rather than editing the expectation to match.
+- Under-scope: if E-02's perturbation shows the inner branch does NOT hold under a narrowed outer filter (contradicting F-04), do not weaken the case to make it pass. Stop and report: that would mean the defense-in-depth claim E-03 is about to write is false, and the plan's conclusion would need revisiting rather than its assertion relaxing (a genuine changed-prerequisite stop, not a scope stop; F-04 was re-measured at review and holds: with the outer filter narrowed each terminal plan is yielded yet `check_scope_drift` reports 0 findings for all four terminal placements). Equally, if the executing HEAD has changed `_iter_type_files`' filtering such that terminal plans are already yielded, E-01's expected outcome inverts; record the measurement and report rather than editing the expectation to match.
 
 ## Required tests / validation
 
@@ -185,7 +192,7 @@ The observable behavior of `aw check`, `aw doctor` and the pre-commit gate is UN
 - MUTATION PROOF FOR E-02a, pasted: delete the three-line terminal branch from `_receipt_is_live`, confirm the direct-verdict case FAILS for all three terminal dispositions, restore, confirm it passes, and show `git diff --stat` empty after restoring.
 - MUTATION PROOF FOR E-02b, pasted: with the outer filter narrowed AND the inner branch deleted, confirm the defense-in-depth case FAILS (the rule now reports a finding for a terminal plan); restore both and confirm it passes. This is the only arrangement that proves the case is measuring the inner branch rather than the outer filter.
 - NON-VACUITY, pasted: the `pending/` positive-control rows must FAIL when `check_scope_drift` is stubbed to `return []` and when `_iter_type_files` is stubbed to yield nothing, proving the empty-set assertions are anchored.
-- TZ-FREE GLOBAL-RESTORE PROOF, pasted: run the new module together with `tests/test_check_scope_drift.py` and `tests/test_scope_drift_lane_resolution.py` in ONE process (`-o addopts=""`, no xdist), proving `_RETIRED_PATH_SEGMENTS` was restored and no neighbor that depends on the retired filter was corrupted. Then run the new module alone twice with `-p randomly` seeds differing, pasted.
+- TZ-FREE GLOBAL-RESTORE PROOF, pasted: run the new module together with `tests/test_check_scope_drift.py` and `tests/test_scope_drift_lane_resolution.py` in ONE process (`-o addopts=""`, no xdist), proving `_RETIRED_PATH_SEGMENTS` was restored and no neighbor that depends on the retired filter was corrupted. Then run the new module alone twice with differing `-p randomly --randomly-seed=<N>` values (for example `1` and `2`), pasted.
 - BEHAVIOR-UNCHANGED PROOF for E-03, pasted: `AW_NO_REEXEC=1 aw check` finding set and `AW_NO_REEXEC=1 aw doctor` finding set captured BEFORE and AFTER the docstring edit and shown IDENTICAL. Both exit nonzero on pre-existing conditions, so the bar is an unchanged SET, not exit 0. Do not fix another plan's finding or another lane's state.
 - `tests/test_check_scope_drift.py`, `tests/test_scope_drift_lane_resolution.py`, `tests/test_check_engine.py` and `tests/test_ci_check_parity.py` each run individually with results pasted, since all four touch this rule or its finding shape.
 - `AW_NO_REEXEC=1 aw sanitize --agent`, pasted.
@@ -213,14 +220,14 @@ question recurs.
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED AS DIRECTION (1) PLUS COVERAGE, AND THE REFERRAL IS WITHDRAWN ON MEASUREMENT. The item asks for a maintainer decision on one stated ground: "Direction (2) is the only one that makes the branch testable, and it changes which mechanism is authoritative, so it needs a maintainer decision rather than an agent's." THE PREMISE IS FALSE. `_receipt_is_live` is module-level and takes `(repo_root, plan_path, receipt)` explicitly, so a test calls it directly on a terminal plan path with no production change; that test is mutation-sensitive, returning False stock and True with the branch deleted, for all three terminal dispositions and the sharded form (F-05). Once the branch is testable without touching production, direction (2) retains no advantage and carries a measured cost: zero change in findings, +55% median wall time, 1067 extra plans read, inside a rule the pre-commit aggregator documents as "a fast no-op" (F-06). Direction (3) is refused because the branch is measurably effective under the one perturbation that matters (F-04) and would answer for 25 of 37 live receipts if reached (F-08). Direction (1) is therefore correct, and this plan adds what the item's framing omitted: the ACTUAL suppressor has no test either (F-03), which is the larger gap. What remains is a documentation correction and two guards, none of which changes an authority or a public contract, so nothing here is a maintainer's call. The maintainer retains the option this plan does not take: if they WANT liveness to be the authoritative gate on principle, direction (2) becomes a deliberate trade of 55% of this rule's runtime for mechanism simplicity, and F-06 is the number to decide on.
 
 ### OQ-02: Should the new guards live in `tests/test_check_scope_drift.py` beside the existing terminal rows instead of a new module?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED AS A NEW MODULE, on subject rather than on size. `tests/test_check_scope_drift.py` declares an EXPLICIT BOUND in its docstring, covering "the drift advisory's own OBSERVABLE decisions", and states that the `_receipt_is_live` unit surface is outside it and belongs to backlog `xvp5vx`. This plan's subject is precisely that excluded surface plus the `_iter_type_files` filter, which is not the drift rule at all and is used by many other `check_engine` rules. Adding these cases there would contradict a bound that file deliberately records, and would mix two plans' provenance in one module. The new module cites the existing one so a reader finds both. The existing file's attribution note, which names this backlog item as holding the uncovered branch, stays TRUE and is simply answered elsewhere.
 
 ## Validation and cross-check (verify before reporting done)
@@ -255,7 +262,8 @@ DO NOT "SIMPLIFY" THIS PLAN INTO DIRECTION (2) OR (3) DURING EXECUTION. Both wer
 with numbers recorded under "Deferred" and in OQ-01. An executor who flips `include_retired=True`
 because it looks tidier would impose a measured +55% on a pre-commit-path rule for no contract change;
 one who deletes the branch would remove a fail-safe that F-04 proves works. If either looks right at
-execution time, the honest route is to say so and stop, not to re-decide a refusal this plan recorded.
+execution time, the honest route is to record that view in the plan's Workflow history and report it,
+not to re-decide a refusal this plan recorded; the planned work proceeds as written.
 
 DO NOT WEAKEN A GUARD TO MAKE IT PASS. Each new case must be demonstrated FAILING under the stated
 mutation. This area already contains tests that look like they cover the branch and are green when it
@@ -273,7 +281,9 @@ temporarily breaking production code, and a committed mutation would be a silent
 Validation is not optional and not inferable: every `V-*` item demands pasted output from a command
 actually run, including the mutation runs in both directions.
 
-Post-gate lifecycle: on completion, run `aw ipd lint --phase pre-transition` to conforming, then move
-this plan to `.aw/records/plans/executed/` through the tooled lifecycle transition. Do not hand-edit
-the terminal state. Backlog item `f9nf0e` is handed off via `- From-Backlog:` and should reach
-`graduated`, not `done`. The item carries no `- Blocks-Release:` gate and this plan must not invent one.
+Post-gate lifecycle: on completion, run `aw ipd lint --phase pre-transition` to conforming; the plan
+then moves to `.aw/records/plans/executed/` through `aw ipd finalize`, which the RUNNER performs under
+`aw oc run` / `aw agy run` and the executor runs itself when executing by hand. Never hand-`git mv`
+or hand-edit the terminal state. Scope-Paths is a declaration: an out-of-scope edit is made and
+justified at finalize with `--scope-reason`, not a reason to stop. Backlog item `f9nf0e` is already
+`graduated` via `- From-Backlog:`; this plan does not set it `done`. The item carries no `- Blocks-Release:` gate and this plan must not invent one.

@@ -27,6 +27,7 @@ from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import plans_index as _idx
 from agent_workflows import record_history as _rh
+from agent_workflows import selectors as _selectors
 
 PLANS_DIR = ".agents/plans"
 
@@ -275,6 +276,8 @@ def plan_set_assign(
     start_order: Optional[int] = None,
     rename: bool = False,
     allow_invalid_order: bool = False,
+    repo_root: Optional[Path] = None,
+    force: bool = False,
 ) -> Tuple[Optional[List[RenamePlan]], Optional[str]]:
     """Plan a Set (re)assignment for the given plans; with ``rename`` also plan clustering renames.
 
@@ -297,12 +300,37 @@ def plan_set_assign(
     set_k = _core.kebab(set_id)
     if not set_k:
         return None, "a --set id is required"
+
+    if repo_root is None:
+        from agent_workflows.project_context import resolve_verb_repo_root
+
+        repo_root = resolve_verb_repo_root(str(plans_dir))
+
+    # IPD 87m438 E-04 / OQ-04: resolve each selector through selectors.resolve_for_mutation.
+    # An intentional multi-target (such as a setid) expands deterministically in sorted-path
+    # order before enumeration, so sequential --order renumbers the whole expanded set.
+    target_paths: List[Path] = []
+    for sel in id6s:
+        paths, amb_err = _selectors.resolve_for_mutation(
+            repo_root, "plans", sel, force=force
+        )
+        if amb_err:
+            return None, amb_err
+        if not paths:
+            return None, f"no plans artifact matched '{sel}'"
+        for p in paths:
+            p_res = p.resolve()
+            if p_res not in target_paths:
+                target_paths.append(p_res)
+
     plans: List[RenamePlan] = []
-    for i, id6 in enumerate(id6s):
-        src = _find_plan_by_id(plans_dir, id6)
-        if src is None:
-            return None, f"no plan has Id '{id6}'"
+    for i, src in enumerate(target_paths):
+        if not src.exists():
+            return None, f"no plans artifact matched '{src.name}'"
         text = src.read_text(encoding="utf-8")
+        id6 = _read_id(text)
+        if not id6:
+            return None, f"plan '{src.name}' declares no '- Id:'"
         order = (
             (start_order + i)
             if start_order is not None
@@ -556,6 +584,8 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         start_order=getattr(args, "order", None),
         rename=getattr(args, "rename", False),
         allow_invalid_order=bool(getattr(args, "allow_invalid_order", False)),
+        repo_root=repo_root,
+        force=bool(getattr(args, "force", False)),
     )
     if err:
         print(f"error: {err}")
@@ -574,12 +604,38 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
 
 def run_mv(args: argparse.Namespace) -> "MutationResult":
     repo_root, plans_dir = _dirs(args)
-    id6 = getattr(args, "id", "") or ""
-    src = _find_plan_by_id(plans_dir, id6)
-    if src is None:
-        print(f"error: no plan has Id '{id6}'")
+    selector = getattr(args, "id", "") or getattr(args, "selector", "") or ""
+    if not selector:
+        print("error: at least one <id6>, <setid>, or <path> is required")
         return MutationResult(2)
+
+    force = bool(getattr(args, "force", False))
+    paths, amb_err = _selectors.resolve_for_mutation(
+        repo_root, "plans", selector, force=force
+    )
+    if amb_err:
+        print(f"error: {amb_err}")
+        return MutationResult(2)
+    # IPD 87m438 E-03 / F-15 / OQ-05: rename mutates ONE file; a setid selecting several
+    # refuses unless --force, rather than silently renaming an arbitrary member (paths[0]).
+    if len(paths) > 1 and not force:
+        cand = "\n  ".join(str(p) for p in paths)
+        print(
+            f"error: selector '{selector}' matched multiple files; rename targets one "
+            f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
+        )
+        return MutationResult(2)
+    src = paths[0].resolve()
+    if not src.exists():
+        print(f"error: no plans artifact matched '{selector}'")
+        return MutationResult(2)
+
     text = src.read_text(encoding="utf-8")
+    id6 = _read_id(text)
+    if not id6:
+        print(f"error: plan '{src.name}' declares no '- Id:'")
+        return MutationResult(2)
+
     m = _SET_LINE_RE.search(text)
     om = _ORDER_LINE_RE.search(text)
     existing_terse = _idx.set_terse_id(m.group(1)) if m else None

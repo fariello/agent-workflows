@@ -21,6 +21,7 @@ from agent_workflows import term as _T
 class TestStatuslineBoxInvariants:
     """E-01: Box renderer invariants across swept inputs."""
 
+    @pytest.mark.timeout(240)
     def test_box_renderer_invariants_across_swept_inputs(self) -> None:
         """Assert four properties across the swept input space:
         (a) exactly 4 lines returned, joined into 4 newline-delimited lines;
@@ -755,3 +756,163 @@ class TestStatuslineClass:
             assert sl._paused
             rs.resume_active_statusline()
             assert not sl._paused
+
+
+class TestUnifiedStatuslineLayout:
+    """Verifies the unified statusline layout, model badge, and Alternative A source formatting."""
+
+    def test_format_runner_name(self) -> None:
+        assert rs.format_runner_name("agy") == "agy"
+        assert rs.format_runner_name("AGY") == "agy"
+        assert rs.format_runner_name("antigravity") == "agy"
+        assert rs.format_runner_name("oc") == "opencode"
+        assert rs.format_runner_name("OC") == "opencode"
+        assert rs.format_runner_name("opencode") == "opencode"
+        assert rs.format_runner_name("custom") == "custom"
+
+    def test_make_badge_unicode_and_ascii(self) -> None:
+        # Unicode with variant
+        c_badge, p_badge = rs.make_badge(
+            "agy", "gemini-2.5-pro", "high", divider_style="chevron", use_unicode=True
+        )
+        assert p_badge == " agy › gemini-2.5-pro (high) "
+        assert rs._strip_ansi(c_badge) == p_badge
+
+        # Unicode without variant
+        c_badge_novar, p_badge_novar = rs.make_badge(
+            "agy", "gemini-2.5-pro", None, divider_style="chevron", use_unicode=True
+        )
+        assert p_badge_novar == " agy › gemini-2.5-pro "
+        assert rs._strip_ansi(c_badge_novar) == p_badge_novar
+
+        # ASCII mode
+        c_ascii, p_ascii = rs.make_badge(
+            "oc",
+            "claude-3-7-sonnet",
+            "thinking",
+            divider_style="chevron",
+            use_unicode=False,
+        )
+        assert p_ascii == " opencode > claude-3-7-sonnet (thinking) "
+        assert rs._strip_ansi(c_ascii) == p_ascii
+        assert all(ord(c) < 128 for c in p_ascii)
+
+    def test_statusbar_labels_and_alternative_a(self) -> None:
+        tracker = rs.StreamTracker()
+        tracker.update(inp=119000, out=110700, cache=4500000, cost=6.16)
+
+        # 1. Normal turn with stdout (Alternative A: stdout is omitted)
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 1668.0,
+            item_start_ts=1700000000.0 - 1668.0,
+            last_act_ts=1700000000.0 - 8.0,
+            current_idx=1,
+            total_items=1,
+            setid="wtisoland",
+            id6="6knsrx",
+            tracker=tracker,
+            pal=rs.Palette(False),
+            stall_remaining=591.0,
+            progress_source="stdout",
+            action="Review",
+            artifact_kind="IPD",
+            runner="agy",
+            model="gemini-2.5-pro",
+            variant="high",
+        )
+        assert len(lines) == 4
+        # Top border has badge and Tokens
+        assert "agy › gemini-2.5-pro (high)" in lines[0]
+        assert "Tokens" in lines[0]
+
+        # Line 1 has Time, Timeout, and unified Tokens subheaders
+        assert "Time:    " in lines[1]
+        assert "Timeout:  00:09:51" in lines[1]
+        assert "Total" in lines[1]
+        assert "In" in lines[1]
+        assert "Out" in lines[1]
+        assert "Cache" in lines[1]
+
+        # Line 2 has Elapsed, Last, and omits 'stdout'
+        assert "Elapsed: 00:27:48" in lines[2]
+        assert "Last:     00:00:08" in lines[2]
+        assert "stdout" not in lines[2]
+        assert "4.7m" in lines[2]
+        assert "119k" in lines[2]
+        assert "110.7k" in lines[2]
+        assert "4.5m" in lines[2]
+
+        # 2. Subagent active: '(subagent)' displayed
+        subagent_lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 1668.0,
+            item_start_ts=1700000000.0 - 1668.0,
+            last_act_ts=1700000000.0 - 2.0,
+            current_idx=1,
+            total_items=1,
+            setid="wtisoland",
+            id6="6knsrx",
+            tracker=tracker,
+            pal=rs.Palette(False),
+            stall_remaining=591.0,
+            progress_source="subagent",
+            action="Review",
+            artifact_kind="IPD",
+            runner="opencode",
+            model="claude-3-7-sonnet",
+            variant="thinking",
+        )
+        assert "Last:     00:00:02 (subagent)" in subagent_lines[2]
+
+    def test_statusbar_width_never_exceeds_127(self) -> None:
+        """Assert statusbar width remains within bounds under baseline and heavy stress test."""
+        tracker_heavy = rs.StreamTracker()
+        tracker_heavy.update(inp=1200000, out=450200, cache=13100000, cost=148.50)
+
+        lines = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 5700.0,
+            item_start_ts=1700000000.0 - 2710.0,
+            last_act_ts=1700000000.0 - 12.0,
+            current_idx=1,
+            total_items=1,
+            setid="component-runner",
+            id6="9kx7pz",
+            tracker=tracker_heavy,
+            pal=rs.Palette(True),
+            stall_remaining=870.0,
+            progress_source="subagent",
+            action="Implement",
+            artifact_kind="IPD",
+            runner="opencode",
+            model="claude-3-7-sonnet",
+            variant="thinking",
+        )
+        widths = [_T.visible_width(line) for line in lines]
+        assert len(set(widths)) == 1
+        width = widths[0]
+        assert width <= 135, f"Statusbar width {width} exceeded 135 columns"
+        assert width == 134
+
+        # With default stdout (omitted source), width collapses to 123
+        lines_stdout = rs.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - 5700.0,
+            item_start_ts=1700000000.0 - 2710.0,
+            last_act_ts=1700000000.0 - 12.0,
+            current_idx=1,
+            total_items=1,
+            setid="component-runner",
+            id6="9kx7pz",
+            tracker=tracker_heavy,
+            pal=rs.Palette(True),
+            stall_remaining=870.0,
+            progress_source="stdout",
+            action="Implement",
+            artifact_kind="IPD",
+            runner="opencode",
+            model="claude-3-7-sonnet",
+            variant="thinking",
+        )
+        assert _T.visible_width(lines_stdout[0]) == 123

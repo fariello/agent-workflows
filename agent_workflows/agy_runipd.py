@@ -35,7 +35,7 @@ from typing import Any, Callable, Iterable, Optional
 # `agy_runipd.Heartbeat`. The explicit alias keeps a linter from stripping it as unused without
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
-from agent_workflows import runner_shutdown
+from agent_workflows import runner_shutdown, stall_progress
 
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
 # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
@@ -1269,9 +1269,15 @@ class StallWatchdog(runner_shared.StallWatchdog):
         process: subprocess.Popen,
         timeout: float | None = 900.0,
         check_interval: float = 1.0,
+        *,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(
-            process, timeout, check_interval, reaper=lambda p: terminate_process(p)
+            process,
+            timeout,
+            check_interval,
+            reaper=lambda p: terminate_process(p),
+            progress_checker=progress_checker,
         )
 
 
@@ -2514,13 +2520,36 @@ def run_agy_turn(
             # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
             # entry signals nothing, which renders no activity cell rather than a guessed one.
             activity=activity_for_item(item),
+            runner="agy",
+            model=options.get("model"),
+            variant=options.get("variant"),
         )
-        watchdog = StallWatchdog(process, timeout=stall_timeout)
-        # stallfp kaga7s (display parity only): show the countdown from the clock that kills.
-        # agy needs NO progress observer: its stdout stream already carries
-        # `step_type == "subagent"` events (see render_agy_event), so every subagent step
-        # already touches the watchdog below.
+        # stallfp: Observe transcript and task log updates when background tasks are active.
+        # When background tasks run (e.g. pytest in background or schedule timers), the root
+        # agent goes idle and reactive wakeups emit steps directly to transcript.jsonl with
+        # stdout staying silent. The observer polls transcript.jsonl and task-*.log files
+        # so active background work keeps the watchdog alive.
+        observer = stall_progress.AgyTranscriptProgressObserver(
+            conversation_id=session_id,
+            session_log_path=log_path,
+        )
+        watchdog = StallWatchdog(
+            process, timeout=stall_timeout, progress_checker=observer.poll
+        )
+        # stallfp kaga7s (display parity): show the countdown from the clock that kills.
         statusline.watchdog = watchdog
+
+        def _task_progress() -> None:
+            watchdog.touch()
+            source = getattr(observer, "last_progress_source", "task") or "task"
+            statusline.touch(source)
+
+        poll_interval = (
+            min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
+        )
+        poller = stall_progress.ProgressPoller(
+            observer, touch_callbacks=(_task_progress,), interval=poll_interval
+        )
         # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. NOTE the detector: agy's
         # completion signal is `step_update` with `state == "DONE"`, NOT oc's `tool_use` +
         # `part.state.status == "completed"`. The two drivers share the SEMANTICS through one helper
@@ -2631,12 +2660,20 @@ def run_agy_turn(
             # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
             # `turn_bounds` (lanectn lhmrhx) joins it too: `__enter__` starts `MAX_TURN_TIMEOUT`'s
             # clock, so entering here means it measures from child start.
-            with statusline, watchdog, force_watch, escalation_watch, turn_bounds:
+            with (
+                statusline,
+                watchdog,
+                poller,
+                force_watch,
+                escalation_watch,
+                turn_bounds,
+            ):
                 for raw_line in process.stdout:
                     log.write(raw_line)
                     log.flush()
                     statusline.touch("stdout")
                     watchdog.touch()
+                    observer.note_stdout_line(raw_line)
                     # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
                     # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
                     turn_bounds.note_progress()

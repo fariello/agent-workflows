@@ -141,3 +141,11 @@ is what that classification requires: OQ-02 now carries `- Blocking: yes` and `-
 lint gate refusing the plan at `review-finalize` was verified after the edit. OQ-01 is `resolved`.
 PR-C06 is the only finding left OPEN and it is at or above the repository's `HIGH` gate threshold, which
 is why it is escalated into the plan as a blocking question rather than reported in prose alone.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-C06 | high | IN-SCOPE | Rubric A (public contract), B/C (compatibility) | plan E-06 and OQ-02; `docs/cli-output-contract.md` Section 12; repository-wide search for a consumer branching on `aw find -p`'s exit code | The `--paths` exit code change from 1 to 2/0 is IRREVERSIBLE for out-of-tree consumers and alters a PUBLISHED exit classification, yet OQ-02 carried `Blocking: no` with `Owner: reviewer`. A reviewer may not authorize an irreversible public-contract change on their own authority, and this run had no interactive channel, so resolving it would have recorded a preference as an attestation. | C:Low; U:Medium; S:Low; F:Medium-High; Overall:Medium-High | fixed | STALE ESCALATION CLOSED 2026-10-02 by agent (aw ipd recheck-readiness). The question this finding was escalated as (OQ-02) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-C06` back-reference, not on a judgement about what the question was about. Previous decision: open. |

@@ -430,11 +430,10 @@ class BashCompletionDrivenTests(unittest.TestCase):
         self.assertEqual(wrong, [])
 
         # Script structure invariants
-        lines = self.script.split("\n")
-        esac_index = next(i for i, line in enumerate(lines) if line.strip() == "esac")
+        tail = support.final_section(self.script, "    esac", next_marker="    case ")
         after = [
             line.strip()
-            for line in lines[esac_index + 1 :]
+            for line in tail.splitlines()[1:]
             if line.strip() and not line.strip().startswith("#")
         ]
         offending = [line for line in after if line.startswith("COMPREPLY=")]

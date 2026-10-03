@@ -1,0 +1,891 @@
+# IPD: Teach the integration poll rung that a mid-merge base is not a clear base
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: `runner_shared.poll_for_integration_window` (rung 2 of the integration deferral ladder) clears on `dirty_tree_overlap` alone, so a base holding a FOREIGN staged merge on a non-overlapping path is reported CLEAR while `MERGE_HEAD` is still set. A deferral that plan `g2z2pp` made possible therefore returns immediately, re-attempts, and is refused again by the same foreign-merge pre-check, spending a budget slot without ever waiting.
+- Scope: Give the rung a SECOND clearing condition (`merge_in_progress`) and its own reported bound so "waiting for dirt to clear" and "waiting for a merge to conclude" are distinguishable facts, since they need different operator responses. Keep both existing bounds exactly as they are, keep every existing `POLL_BOUND_*` value byte-identical, and change no refusal condition, no ladder verdict, no budget arithmetic, and no host adapter. Do NOT teach the rung to abort, conclude, or otherwise touch the foreign merge: that prohibition is the whole point of `g2z2pp` and this plan only makes the WAIT correct.
+- Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py, tests/test_poll_rung_merge_awareness.py, .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: p7dtbr
+- Set: p7dtbr
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: qkwu1r
+
+## Workflow history
+- 2026-10-03 executed (antigravity): Teach the integration poll rung that a mid-merge base is not a clear base
+- 2026-10-01 approved (aw set): status set to approved
+
+- 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 through PR-006. Reviewed in an isolated lane at HEAD `1351b8ef`. Structural preflight `aw ipd lint --phase author --agent` reported `clean` before semantic review. THE PLAN'S DIAGNOSIS AND ITS THREE DESIGN JUDGEMENTS ALL SURVIVE, and I re-drove every one rather than trusting it. F-01 reproduces to the field: on a real scratch repo with a foreign merge conflicting on `other.txt`, `merge_in_progress` is True, `merge_head_commits` names one foreign commit, `dirty_tree_overlap(repo, ['lanefile.txt'])` is `[]`, `git status --short` is `UU other.txt`, and the REAL rung returns `PollOutcome(cleared=True, bound='dirt-cleared', polls=0, ...)`. F-02 reproduces including the wrong sentence verbatim. F-04 reproduces with its trap intact (fresh mid-merge base 0.0014s; files-only backdated 0.46s, i.e. still sub-second; commits AND files backdated 14400.0s > 3600s). F-05 is correct and is the finding that makes the change safe: `outcome.cleared` is written to `item["integration_poll"]` and the event and is read by NO ladder branch, so the rung is purely advisory. F-06, F-07, F-08 and F-09 all reproduce. TWO MEASUREMENTS ARE WRONG AND BOTH ARE VALIDATION BARS AN EXECUTOR WOULD HAVE CHECKED AGAINST. FIRST (PR-001, HIGH), F-03's replay count is 1 of 7, not 2 of 7: the `test_runner_shared.py` unmeasurable-age case injects `dirty=[['x']]*5`, so overlap is NEVER empty and the merge check (placed after overlap) is never reached; only the DIRT-CLEARS case reaches it. The seam is still REQUIRED (one reachable case against a nonexistent `cwd` is enough, and `merge_in_progress(Path('/nonexistent'))` does raise `FileNotFoundError`), but V-06 demanded the executor explain a second case that does not exist, which would have sent them looking for a bug in their own work. SECOND (PR-002, HIGH), the targeted regression baseline is not `24 passed` but `141 passed` (126 + 10 + 5 measured per file), so an executor comparing against 24 would have concluded they had broken 117 tests. Also corrected: the suite baseline has moved and is NOT green (PR-003), a cross-plan note that APPROVED sibling `8o709f` explicitly DEFERRED the empty-input false-clear this plan's OQ-03 now decides (PR-004), and two smaller items.
+- 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `p7dtbr`, the carrier executed plan `g2z2pp` filed for its deferred F-10 / OQ-03 row. THE ITEM'S CENTRAL CLAIM REPRODUCES EXACTLY at this lane's base commit `8909f699`: with a foreign merge staged in main on `other.txt` and the incoming change naming `lanefile.txt`, `merge_in_progress` is True, `merge_head_commits` returns the foreign commit, `dirty_tree_overlap(repo, ['lanefile.txt'])` is `[]`, and the real rung returns `PollOutcome(cleared=True, bound='dirt-cleared', polls=0)` (F-01). THE ITEM'S SKETCH IS ADOPTED, with its reasoning confirmed rather than assumed: both hosts delegate to one shared implementation, so the fix lands once (F-06). TWO THINGS THE ITEM DOES NOT SAY AND THAT SHAPE THE DESIGN. FIRST, THE UNBOUNDED-WAIT RISK THIS CHANGE COULD HAVE INTRODUCED IS MEASURED CLOSED: a mid-merge base is fully visible to `main_last_activity_age`, so an ABANDONED merge exits at the existing staleness bound (measured 14401s > 3600s, candidate predicate returned `stale` at `polls=0`), which is why no new bound and no new timeout are added (F-04). SECOND, A REAL HAZARD THE ITEM'S ONE-LINE SKETCH WOULD HAVE WALKED INTO: the existing tests INJECT `overlap` and `activity_age` against `Path('/fake/repo')` and `Path('/nonexistent')`, and an uninjected `merge_in_progress` on those raises `FileNotFoundError` rather than returning False, so the new predicate MUST be injectable on the same seam as its two siblings or it breaks two existing test files. Replayed against each existing assertion's injected sequence, exactly two of seven cases reach the new call (F-03), which is why E-02 adds the parameter and E-03 pins it. ONE CORRECTION TO THE ITEM'S FRAMING, recorded rather than inherited: the item says the consequence is that a re-attempt "will refuse again at once", which is true, but the item's own `POLL_BOUND_*` concern understates the reporting defect, because the current `dirt-cleared` detail affirmatively tells the operator "the overlapping dirty path cleared" about a base where no dirt ever cleared (F-02). That is a WRONG operator-facing sentence, not merely a missing one.
+- 2026-09-30 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make rung 2 of the integration deferral ladder wait on the condition that is ACTUALLY blocking the publish, so a deferral created by `g2z2pp`'s foreign-merge refusal spends its budget waiting for the merge to conclude instead of burning a slot on an instant re-refusal, and so the run record names which of the two blockers it waited on. Preserve both existing bounds, every existing bound value, and every refusal condition unchanged.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: reproduce, then make the rung merge-aware
+
+- [x] E-01 Reproduce the defect in the EXECUTING tree before changing anything, against the REAL rung and a REAL git repository, not a fake. Build a scratch repo (outside this checkout) where main holds a staged FOREIGN merge that conflicts on `other.txt` while the incoming change names `lanefile.txt` only, then print: `runner_shared.merge_in_progress(repo)`, `runner_shared.merge_head_commits(repo)`, `runner_shared.dirty_tree_overlap(repo, ['lanefile.txt'])`, `git status --short --untracked-files=all`, and the full `PollOutcome` from `poll_for_integration_window(repo, ('lanefile.txt',), ...)` with `sleep` and `activity_age` injected so it cannot hang.
+  - Depends on: none
+  - Expected outcome: `merge_in_progress` True, `merge_head_commits` naming one foreign commit, `dirty_tree_overlap` `[]`, status showing `UU other.txt`, and the outcome reading `cleared=True, bound='dirt-cleared', polls=0`. That conjunction IS the defect: the rung reports a clear base while `MERGE_HEAD` is set.
+  - Execution state: performed
+
+  USE A CONFLICTING MERGE, NOT A CLEAN ONE, and this is the detail that makes the reproduction work at all. A clean `git merge --no-ff` COMMITS and clears `MERGE_HEAD` immediately, leaving nothing staged to observe. The foreign branch and main must both modify the SAME file (`other.txt`) so the merge stops with `MERGE_HEAD` set, and that file must NOT be in the incoming change set, which is what makes `dirty_tree_overlap` return `[]` while the base is unpublishable.
+
+- [x] E-02 In `runner_shared.poll_for_integration_window`, add a SECOND clearing condition so a mid-merge base does not count as clear. Add a `merge_check: Callable[[Path], bool] | None = None` keyword parameter defaulting to `merge_in_progress` on the same injection seam its `overlap` and `activity_age` siblings already use, and consult it inside `_try_once` ONLY when `_overlap(...)` is already empty. When overlap is clear but a merge is in progress, the rung must NOT return cleared: it falls through to the same staleness check and poll increment the dirty case uses. Record which of the two blockers was last observed so E-04 can report it.
+  - Depends on: E-01
+  - Expected outcome: with overlap injected empty and `merge_check` injected True, the rung no longer returns `cleared=True`; with both clear it returns cleared exactly as today.
+  - Execution state: performed
+
+  THE ORDER IS OVERLAP FIRST, MERGE SECOND, AND IT IS NOT ARBITRARY. Two reasons, one measured and one behavioral. MEASURED: `merge_in_progress` is the cheaper call (`git rev-parse --verify --quiet MERGE_HEAD` at 1.71 ms/call against `git status --short`'s 2.43 ms/call over 100 calls each), so cost does NOT decide the order and the behavioral reason governs. BEHAVIORAL: placing the merge check second means it is reached only when overlap is already clear, which keeps the existing dirty-path path byte-for-byte unchanged in both its polling and its reporting, and keeps the new call OFF the hot path of the common case. F-03's replay depends on exactly this ordering: it is what keeps five of seven existing assertions from ever reaching the new call.
+
+  DO NOT GIVE THE NEW CONDITION ITS OWN BOUND, TIMEOUT, OR POLL COUNT. It shares `timeout`, `interval`, `staleness_limit` and `polls` with the dirty case, because F-04 measures that `main_last_activity_age` already sees a mid-merge base (it takes the newest of HEAD commit time and dirty-file mtimes, and a mid-merge base has both), so an ABANDONED merge already exits at the staleness bound. Adding a bound would be dead machinery whose absence is proven, and it would break the "TWO INDEPENDENT BOUNDS, BOTH REQUIRED" contract the docstring states.
+
+- [x] E-03 Add the new bound value and make the two non-cleared detail sentences distinguish the blockers. Introduce `POLL_BOUND_MERGE` (value `"merge-in-progress"`) for the case where polling ended with a merge still staged, and leave `POLL_BOUND_COUNT`, `POLL_BOUND_STALE` and `POLL_BOUND_CLEARED` at their exact current string values. The stale and wall-time details must name WHICH blocker was last observed, and the merge wording must state the operator action the dirt wording does not fit: a dirty base clears when someone commits, a mid-merge base needs whoever staged the merge to conclude or abort it. Cite the foreign `MERGE_HEAD` commits in the merge detail so the operator can identify whose merge it is.
+  - Depends on: E-02
+  - Expected outcome: a poll that ends while a merge is staged reports a bound and a detail that say so; a poll that ends on dirty paths reports today's bound and a detail that still describes dirt; `POLL_BOUND_CLEARED` is returned only when BOTH conditions are clear.
+  - Execution state: performed
+
+  THE THREE EXISTING VALUES ARE A DURABLE VOCABULARY AND MUST NOT BE RESPELLED. `outcome.bound` is written into `item["integration_poll"]["bound"]` and into the `ipd-integration-poll` event in `events.jsonl`, so a run record already on disk carries these exact strings and a reader comparing them must keep matching. Adding a fourth value is additive; changing one of the three is not. Note also that the run tree is gitignored (`.aw/.gitignore` carries `records/runs/`), so there is no in-repo corpus to migrate and no committed record to update: the compatibility obligation is to READERS, not to stored files.
+
+  DECIDE WHETHER THE NEW BOUND REPLACES OR ACCOMPANIES `POLL_BOUND_COUNT` ON A WALL-TIME EXIT, and say which in V-03. OQ-01 resolves this to: the bound field names the BLOCKER that was still present, so a wall-time exit against a mid-merge base reports `POLL_BOUND_MERGE` and its detail carries the wall-time arithmetic. The reason is that a consumer reading `bound` wants to know what to do next, and "waited my budget" is already evident from `polls` and the detail's own numbers.
+
+- [x] E-04 Add `tests/test_poll_rung_merge_awareness.py` driving the REAL rung against REAL git repositories rather than injected fakes, so the fix is proven on the behavior the defect actually has. Cover, at minimum: (a) the E-01 shape, asserting the rung does NOT report cleared while a foreign merge is staged; (b) the same base after the merge is CONCLUDED mid-poll, asserting the rung then reports `POLL_BOUND_CLEARED` (this is the "waiting well" outcome the item asks for, and it must be driven by a real conclusion, not by flipping an injected boolean); (c) an ABANDONED mid-merge base, asserting it exits at the staleness bound rather than waiting indefinitely; and (d) the no-merge no-dirt base, asserting today's cleared behavior is unchanged.
+  - Depends on: E-03
+  - Expected outcome: (a), (b) and (c) are RED before E-02 in the ways E-05 demonstrates; all four green after. Every assertion reads a returned `PollOutcome`, never production source text.
+  - Execution state: performed
+
+  TEST OUTCOMES, NOT CODE STRUCTURE (AGENTS.md, GUIDING_PRINCIPLES P16). Judge the returned `PollOutcome`'s `cleared`, `bound`, `polls` and `detail` and the real repository's observable git state. Do NOT `inspect.getsource` the predicate, do NOT assert the parameter's name or its presence in a signature, and do NOT pin a detail sentence's exact full bytes; assert the FACTS a detail must carry by substring where the fact is load-bearing for the operator's decision.
+
+  EVERY CASE MUST BE UNABLE TO HANG, and this is a real risk in a test that deliberately never clears. Inject `sleep` and a monotonic `now`, or pass a small `timeout`, so a wall-time exit is reached in simulated time. Case (c) must additionally BACKDATE both the commit times and the working-tree mtimes: F-04 measures that backdating file mtimes ALONE leaves the age at 0.7s because `main_last_activity_age` takes the NEWER of HEAD commit time and dirty mtimes, so a test that ages only the files silently measures the fresh case and passes for the wrong reason.
+
+  ASSERT MAIN IS UNTOUCHED IN EVERY CASE, which is the guarantee this plan must not regress. After each poll episode, assert `merge_head_commits(repo)` is byte-identical to the value captured before it and that `git status --short` is unchanged: the rung is a read-only observer and must never conclude, abort, or otherwise disturb the foreign merge. That prohibition is `g2z2pp`'s whole deliverable.
+
+- [x] E-05 Demonstrate the new tests are real guards by reverting E-02's predicate change (leaving E-03's constant in place), running the new file, and capturing the FAILURE, then restoring the fix and capturing the pass. Record which cases redden and which stay green.
+  - Depends on: E-04
+  - Expected outcome: cases (a), (b) and (c) redden against the pre-fix predicate (each for the same root reason: the rung returns `cleared=True, bound='dirt-cleared'` at `polls=0`); case (d) stays green, since a base with neither dirt nor merge is unaffected by the change.
+  - Execution state: performed
+
+- [x] E-06 Extend the EXISTING ladder coverage in `tests/test_runner_shared.py` so the three preserved bound values and the unchanged dirty-path behavior are pinned alongside the new case, rather than only the new file asserting the new behavior. Add to the existing rung-2 coverage an assertion that `POLL_BOUND_COUNT`, `POLL_BOUND_STALE` and `POLL_BOUND_CLEARED` still carry their current exact string values, and that an injected dirty-overlap sequence with `merge_check` injected False produces exactly today's outcomes. Do NOT delete or weaken any existing assertion in that file.
+  - Depends on: E-05
+  - Expected outcome: the existing `test_poll_ladder_bounds_and_dirt_clearing` assertions still pass unmodified, and the added assertions pin the three preserved values and the unchanged dirty path.
+  - Execution state: performed
+
+  THIS IS WHERE THE INJECTION SEAM IS PROVED NECESSARY, AND THE COUNT IS ONE CASE, NOT TWO (corrected at review, PR-001). F-03 measures that exactly ONE of the four cases in this file's existing rung-2 test reaches the new call when overlap goes empty: the DIRT-CLEARS case (`dirty=[['src/x.py'],['src/x.py'],[]]`), at `polls=2`, against a `Path('/nonexistent')` on which an uninjected `merge_in_progress` raises `FileNotFoundError`. That ONE case is sufficient to make the seam required: omit E-02's parameter and this file breaks. The authored claim that the unmeasurable-age case also reaches it is wrong (it injects `dirty=[['x']]*5`, so overlap is never empty and it exits `stale` at `polls=0`). AND `tests/test_contention_wait.py` REACHES THE NEW CALL IN NONE OF ITS THREE CASES, so it should need no change at all; do NOT go looking for one. State in V-06 whether you needed to pass `merge_check` into any EXISTING call site to keep it green, and if you did, say which, because that is the measured consequence of the seam and a reviewer should see it.
+
+- [x] E-07 Append one dated `## Workflow history` note to the backlog item recording what was actually decided, WITHOUT changing its requirements: that the item's sketch was adopted, that the merge check was placed AFTER the overlap check for the reason in OQ-02, that NO new bound was added because the existing staleness bound is measured to terminate an abandoned mid-merge base (F-04), and that the item's consequence framing was sharpened by measurement (the current `dirt-cleared` detail is affirmatively wrong, not merely absent, F-02). Do NOT edit the item's `- Status:`, `- Summary:`, `- Priority:`, `- Work-Kind:`, `- Set:`, `- Id:` or its body prose.
+  - Depends on: E-06
+  - Expected outcome: one appended dated history line; `git diff` on the item shows an addition inside `## Workflow history` and no other changed line; `aw check backlog` exit code unchanged from the pre-edit run.
+  - Execution state: performed
+
+  APPEND THROUGH THE TOOL: `aw backlog note` EXISTS AND IS EXACTLY THE RIGHT VERB, confirmed at review rather than left as a conditional (PR-005). `aw backlog note --help` exits 0 and the `aw backlog` help describes it as "Append a history record to a backlog item (no status change)" and "records a history annotation WITHOUT changing status", which is precisely this item's requirement. So use `aw backlog note <id6> --message '<note>'` and do NOT plan for a hand edit. The authored "if a tool spelling exists ... fall back to a hand edit" framing is replaced because it invited a hand edit of a records file that the execution contract elsewhere forbids; if the verb nevertheless REFUSES, that is a finding to report rather than a licence to hand-edit. Note the verb may need `--apply` or may write directly; check its own flags and say in V-07 which you used.
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE RUNG'S THREE INJECTION POINTS ARE THE ESTABLISHED SEAM FOR EXACTLY THIS. `poll_for_integration_window` already accepts `overlap`, `activity_age`, `sleep` and `now` as injectable callables precisely so "every rung transition [can] be pinned by a unit test with no live run" (the phrase is `decide_integration_deferral`'s docstring, describing the same design intent across the ladder). A fourth predicate belongs on that seam, not behind an unconditional subprocess call.
+- BOTH HOSTS DELEGATE THIS LADDER TO ONE SHARED IMPLEMENTATION, so a poll-rung change is written once. `oc_runipd.retry_deferred_integrations` and `agy_runipd.retry_deferred_integrations` are both thin adapters over `runner_shared.retry_deferred_integrations`, and the shared `reattempt_deferred_integrations` is the only caller of `poll_for_integration_window`. This is the `cnwy8g` re-homing AGENTS.md describes, and it means no host file is in `- Scope-Paths:`.
+- A DEFERRAL RECORD IS EPHEMERAL, NOT COMMITTED. `.aw/.gitignore` carries `records/runs/`, so `state.json` and `events.jsonl` are box-local. A new `bound` value therefore needs no migration and no committed-record rewrite; the compatibility duty is to a reader comparing the three existing strings.
+- THE LADDER'S SPEC BULLET GOVERNS THE REFUSAL CONDITION AND THE RUNGS, NOT THE POLL PREDICATE'S INTERNALS. Spec `25kzda` Section 2.1's `--on-integration-blocked` bullet requires that "no rung integrates over a contaminated base, none stashes, resets, or cleans another writer's work, and none reclassifies a failure as a deferral". Making the rung wait LONGER on a base it cannot publish to is strictly inside those guarantees; it reclassifies nothing and it touches no writer's work.
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE ITEM'S CENTRAL CLAIM REPRODUCES EXACTLY, AGAINST THE REAL RUNG.** In a scratch repo where main holds a staged foreign merge conflicting on `other.txt` and the incoming change is `('lanefile.txt',)`: `merge_in_progress` True, `merge_head_commits` `['42fa3623e778c342763569654d74504286d0b57b']`, `dirty_tree_overlap(repo, ['lanefile.txt'])` `[]`, `git status --short` `UU other.txt`, and `poll_for_integration_window` returned `PollOutcome(cleared=True, bound='dirt-cleared', polls=0, last_activity_age=10.0, ...)`. So the rung reports the base CLEAR at zero polls while `MERGE_HEAD` is set, exactly as the item states. | Throwaway probe run in this lane at base commit `8909f699`, building the repo with `git init`/`git merge --no-ff` and calling the four production symbols plus the real rung with `sleep` and `activity_age` injected. |
+| F-02 | **THE REPORTING DEFECT IS A WRONG SENTENCE, NOT MERELY A MISSING ONE, which the item understates.** On the F-01 base the rung returns `bound='dirt-cleared'` with the detail "the overlapping dirty path cleared after 0 poll(s); integration is re-attempted through the full revalidate gate". No dirty path ever cleared on that base and nothing was ever waited for; the sentence asserts a state change that did not happen, and it is written durably into `item["integration_poll"]["detail"]` and the `ipd-integration-poll` event. | The detail string read verbatim from the F-01 `PollOutcome`; the two write sites read in `reattempt_deferred_integrations`, which stores `bound`, `polls`, `last_activity_age`, `detail` and `cleared` on the item and emits the same fields as an event. |
+| F-03 | **AN UNINJECTED `merge_in_progress` WOULD BREAK AN EXISTING TEST, so the injection seam is required rather than stylistic.** `merge_in_progress(Path('/fake/repo'))` and `merge_in_progress(Path('/nonexistent'))` both raise `FileNotFoundError [Errno 2]` (the `cwd` does not exist), and those are the exact paths the existing rung-2 tests pass while injecting `overlap` and `activity_age`. **THE REACHABILITY COUNT IS CORRECTED AT REVIEW: it is 1 of 7, not 2 of 7 (PR-001), and the authored second case CANNOT be reached.** Replaying the candidate predicate against each of the seven injected sequences, with the merge check placed AFTER the overlap check, exactly ONE reaches the new call: `test_runner_shared.py`'s DIRT-CLEARS case (`dirty=[['src/x.py'],['src/x.py'],[]]`, reached at `polls=2` when the third element is empty). The authored claim that its unmeasurable-age case also reaches it is WRONG: that case injects `dirty=[['x']]*5`, so overlap is never empty, and `ages=[None]*5` makes it exit `stale` at `polls=0` having popped one dirty element, so the list is never exhausted and the merge check is never consulted. The other six cases likewise exit at the stale or wall-time bound with overlap still non-empty. THE CONCLUSION IS UNCHANGED AND THE SEAM IS STILL REQUIRED: one reachable case against a nonexistent `cwd` is one `FileNotFoundError`, so omitting the parameter breaks `tests/test_runner_shared.py`. What changes is the BLAST RADIUS (one case, in one file, not two cases in two files) and therefore what V-06 may demand: `tests/test_contention_wait.py` reaches the new call in NONE of its three cases, so it needs no change and an executor must not go looking for one. | Both helpers called directly on the two fake paths, exceptions captured and re-reproduced at review; then a faithful replay of `_try_once`'s real structure (overlap, then candidate merge check, then the staleness short-circuit, then the poll increment) against all seven injected sequences read out of the two test files, printing per-case which reach the call: only `rs clears` does. |
+| F-04 | **THE UNBOUNDED-WAIT RISK THIS CHANGE COULD INTRODUCE IS MEASURED CLOSED, which is why no new bound is added.** A mid-merge base is fully visible to `main_last_activity_age`: on a FRESH mid-merge base it measured 0.0036s, and on one whose commits AND working-tree mtimes were both backdated four hours it measured 14401.0s, exceeding the 3600s default staleness limit, and the candidate predicate returned `stale` at `polls=0`. So an abandoned merge exits at the EXISTING bound. The measurement also carries a trap for E-04: backdating the FILE mtimes alone left the age at 0.7s, because the helper takes the NEWER of HEAD commit time and dirty-file mtimes and the merge's own commits were fresh. | Two probes on real repositories: one fresh mid-merge base, one with `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` and `os.utime` both set four hours back; `main_last_activity_age` called on each, then the candidate predicate replayed against the aged base. |
+| F-05 | **THE FIX IS CONFINED TO THE WAIT AND CANNOT WIDEN INTO `g2z2pp`'s PROHIBITION, because the refusal is decided elsewhere.** The foreign-merge refusal is produced at two sites in `integrate_lane_branch`'s path (the E-03 pre-check before the gate, and the E-04 arm after a merge that this call did not start), both returning `format_foreign_merge_refusal_reason(repo)` with `INTEGRATION_REFUSAL_TRANSIENT`. `poll_for_integration_window` is called from `reattempt_deferred_integrations` BEFORE `integrate_under_repository_lock` and its return value is written to state and events only: no branch of the ladder reads `outcome.cleared` to decide whether to attempt the integration. So the rung is advisory, and making it wait longer cannot change any refusal. | Both refusal sites read in `runner_shared`; the rung's single call site read in `reattempt_deferred_integrations`, with every use of the returned `outcome` enumerated (`bound`, `polls`, `last_activity_age`, `detail`, `cleared` into `item["integration_poll"]`, then the same fields into the event); `git grep` for `integration_poll` returning only those two write sites plus one read in the terminal-resolution event. |
+| F-06 | **BOTH HOSTS DELEGATE, SO THE FIX LANDS ONCE AND NO HOST FILE NEEDS EDITING.** `oc_runipd.retry_deferred_integrations` and `agy_runipd.retry_deferred_integrations` are both thin wrappers passing `poll=poll, ask=ask` plus host bindings into `runner_shared.retry_deferred_integrations`; neither mentions `poll_for_integration_window`. `git grep` finds the rung called from exactly one place, `reattempt_deferred_integrations`. | Both host functions read in full; `git grep -n 'poll_for_integration_window'` across the tree, whose only non-test hits are the definition, its docstring references, and the one call site. |
+| F-07 | **THE EMPTY-CHANGED-FILES CASE ALREADY SHORT-CIRCUITS TO CLEARED, and this change deliberately alters that.** `dirty_tree_overlap` returns `[]` immediately when `changed_files` is empty (its `if not incoming: return []`), so on the F-01 mid-merge base a poll with no changed files returned `bound='dirt-cleared', cleared=True`. After E-02 that base will no longer report cleared, because the merge check is reached exactly when overlap is empty. This is the intended direction (an unpublishable base is not clear) and it is called out because it is a behavior change on a path no existing test covers. | `dirty_tree_overlap(repo, [])` called on the mid-merge base returning `[]`; the real rung called with `changed_files=()` on the same base, returning `dirt-cleared`/`cleared=True`; the early return read in `dirty_tree_overlap`. |
+| F-08 | **THE PRESERVED BOUND VALUES AND THE COST ORDERING ARE BOTH MEASURED.** The three existing constants are `POLL_BOUND_COUNT = "poll-count-exhausted"`, `POLL_BOUND_STALE = "main-inactive"`, `POLL_BOUND_CLEARED = "dirt-cleared"`, and `git grep` finds no `.md` or committed record in the tree carrying them, consistent with the run tree being gitignored. On cost, `merge_in_progress` measured 1.71 ms/call against `dirty_tree_overlap`'s 2.43 ms/call over 100 calls each on the same repo, so the cheaper call is the NEW one and cost does not argue for either ordering; E-02's ordering rests on the behavioral reason instead. | The three constants read from `runner_shared`; `git grep` for each literal across the tree with every hit classified; `.aw/.gitignore` read for `records/runs/`; 100 timed calls of each predicate on the mid-merge scratch repo. |
+| F-09 | **NO SPEC AMENDMENT IS REQUIRED, checked rather than assumed.** Spec `25kzda` Section 2.1's `--on-integration-blocked` bullet is the only normative text on this ladder; it names the rungs ("re-attempts while other work remains, then polls, then asks, then goes terminal") and the invariants (no rung integrates over a contaminated base, none stashes/resets/cleans, none reclassifies a failure as a deferral), and it says the ask rung "carries its own timeout so no setting of this flag can wait indefinitely". It states no clearing predicate, no bound vocabulary, and no `POLL_BOUND_*` value. Sections 2.1a and 2.1b are carve-outs about conflict classes and touch the poll rung only to say the ladder is "untouched". | `grep` for `POLL_BOUND`, `poll_for_integration_window`, `dirt-cleared`, `main-inactive` and `poll-count-exhausted` across `.aw/records/specs/` and `docs/`, returning no hit; Section 2.1 and both carve-out sections read in full. |
+| F-10 | **ADDED AT REVIEW: AN APPROVED SIBLING EXPLICITLY DEFERRED THE EMPTY-INPUT QUESTION THIS PLAN'S OQ-03 NOW DECIDES, so the decision is a cross-plan one and should be recorded as such.** Plan `8o709f` (`- Status: approved`, scope `agent_workflows/runner_shared.py` plus its own test file) measured the same false clear independently (its F-3 records `poll_for_integration_window(repo, [])` returning `cleared=True, bound='dirt-cleared', polls=0`) and its "Deferred / out of scope" section says of it: "`poll_for_integration_window` would still report `cleared` for a genuinely empty input from any other caller. Whether that degenerate input deserves its own refusal is a separate judgement about the poll's contract, and is not in this item's scope." THIS PLAN'S E-02 CHANGES THAT BEHAVIOR as a side effect (F-07), so OQ-03 is answering a question a reviewed sibling explicitly left open rather than an unowned one. NO CODE CONFLICT: that plan narrows `suppress` blocks elsewhere in the same module and touches neither the rung nor any `POLL_BOUND_*` value, and the runner isolates each item in its own worktree. The obligation is to say so, which OQ-03 now does. | `grep -ln "poll_for_integration_window\|POLL_BOUND"` over `.aw/records/plans/pending/` returning only `8o709f` and this plan; `8o709f`'s F-3 row and its deferral bullet read in full; its `- Scope-Paths:` and `- Status:` read. |
+| F-11 | THE SUITE AND THE TARGETED SET BOTH MOVED, AND ONE AUTHORED BAR WAS WRONG BY TWO ORDERS OF MAGNITUDE (PR-002, PR-003). Targeted set measured at review: `141 passed` (`test_runner_shared.py` 126, `test_contention_wait.py` 10, `test_foreign_merge_refusal.py` 5), against the authored `24 passed`. Full bare suite measured `1 failed, 3498 passed, 2 skipped`, 208 deselected; the failure is the PRE-EXISTING `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` date-boundary bug, touching nothing this plan declares. So "green" was not an achievable whole-suite bar and the targeted number would have read as a catastrophic regression. Both figures are LIVE and must be re-derived; the durable bars are an unchanged failing node-id set and a targeted count up by exactly the tests added. | `python3 -m pytest <three files> -o addopts=""` and per-file runs at review HEAD `1351b8ef`; bare `python3 -m pytest`; the isolated failure's hardcoded-date assertion. |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: reproduce the defect against the real rung on a real mid-merge repository, capturing the four predicate values and the `PollOutcome`.
+2. E-02: add an injectable `merge_check` parameter (default `merge_in_progress`) consulted inside `_try_once` only when overlap is already empty, so a mid-merge base does not report cleared.
+3. E-03: add `POLL_BOUND_MERGE` (`"merge-in-progress"`), leave the three existing values byte-identical, and make the non-cleared details name which blocker was observed and the operator action it implies.
+4. E-04: add `tests/test_poll_rung_merge_awareness.py` driving the real rung against real repositories for the staged, concluded, abandoned and clean cases, asserting main is undisturbed in each.
+5. E-05: demonstrate the guard by reverting E-02's predicate, capturing the failures, then restoring it.
+6. E-06: extend the existing rung-2 coverage in `tests/test_runner_shared.py` to pin the three preserved values and the unchanged dirty-path behavior, without weakening any existing assertion.
+7. E-07: append one dated history note to the backlog item recording the adopted sketch, the ordering decision, the no-new-bound decision and the sharpened framing, changing no requirement field.
+
+## Deferred / out of scope (with reason)
+
+- THE RUNG STILL DOES NOT CONCLUDE, ABORT, OR OTHERWISE RESOLVE THE FOREIGN MERGE, and it must not. That is `g2z2pp`'s deliberate prohibition on acting on unowned state, restated in this repository's shared-checkout contract, and E-04 asserts the prohibition holds by comparing `merge_head_commits` and `git status` across every poll episode. A run whose base stays mid-merge past the budget still ends terminal at `merge-needs-human` with the lane preserved, which is the correct outcome: a human owns the merge.
+  - Carrier-Declined: this is a permanent design boundary, not deferred work: acting on the foreign merge is exactly what executed plan `g2z2pp` forbids, and the terminal `merge-needs-human` path it relies on already exists and is unchanged. E-04 asserts the prohibition holds.
+- NOTHING PREVENTS A HUMAN FROM STAGING A MERGE IN A CHECKOUT LIVE DRIVERS ARE USING. `g2z2pp`'s scope note already records this as an accepted limit whose cheapest mitigation is not to do it, and this plan's claim is narrower still: only that the runner WAITS correctly once it finds one.
+  - Carrier-Declined: already recorded as an accepted limit in executed plan `g2z2pp`'s scope check, whose stated cheapest mitigation is not to stage a merge in a live checkout; there is no code change to carry, so a carrier would assert outstanding work that does not exist.
+- THE RACE BETWEEN THE RUNG'S OBSERVATION AND THE PUBLISH IS NOT CLOSED AND CANNOT BE BY THIS CHANGE. The rung reads git state at one instant and the re-attempt runs at a later one, so a peer can stage a merge in between; that is the same window `g2z2pp`'s E-04 arm exists to catch and it is why that arm "is not dead code despite E-03's pre-check". This plan improves the WAIT, not the atomicity, and a re-attempt can still meet a freshly staged merge and refuse.
+  - Carrier-Declined: the raced case is already handled safely by `g2z2pp`'s post-merge refusal arm (documented as not dead code precisely because no prediction can close that window), and that arm is untouched here, so nothing is left unowned.
+- NO NEW BOUND, TIMEOUT, OR POLL COUNT IS ADDED FOR THE MERGE CONDITION, on the measured ground in F-04 that the existing staleness bound already terminates an abandoned mid-merge base. If a future measurement shows a mid-merge base whose activity age stays fresh while nobody intends to conclude it, that is the case a merge-specific bound would serve, and it should be filed with the measurement attached rather than built speculatively now.
+  - Carrier-Declined: F-04 measures the existing staleness bound already terminating an abandoned mid-merge base, so no defect exists to carry; filing one for the hypothetical fresh-but-unattended case would assert a defect that has not been observed.
+
+## Scope check
+
+- Over-scope: none. The change adds one injectable predicate, one constant, and detail wording inside one function, plus one new test file and additive assertions in the existing ladder test. No refusal site, no host adapter, no ladder verdict, and no budget arithmetic is touched.
+- Cross-plan: ADDED AT REVIEW (F-10). One APPROVED sibling, `8o709f`, declares `agent_workflows/runner_shared.py` and independently measured the empty-input false clear, DEFERRING it as "a separate judgement about the poll's contract"; this plan's OQ-03 decides it. No code conflict: that plan narrows `suppress` blocks elsewhere in the module and touches neither `poll_for_integration_window` nor any `POLL_BOUND_*` value. No other pending plan mentions the rung or the bound vocabulary. No dependency edge is declared and none is needed: the runner isolates each item in its own worktree and revalidates on merge.
+- Under-scope, stated in full: (a) the rung remains a read-only observer and resolves nothing, so a base whose merge is never concluded still ends terminal at `merge-needs-human`, by design; (b) the observation-to-publish race stays open, so a re-attempt can still be refused by a merge staged after the poll cleared; (c) the fix improves how a deferral WAITS and does not reduce the number of refusals, so an operator measuring only refusal counts will see no change; and (d) `POLL_BOUND_MERGE` is a new value a consumer may not know, and since consumers are code rather than committed records (F-08), any reader switching on `bound` must add the case.
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_poll_rung_merge_awareness.py -o addopts=""` for the new file, with per-test names visible. (Confirmed at review that this path does NOT exist today, so E-04 genuinely creates it.)
+- `python3 -m pytest tests/test_runner_shared.py tests/test_contention_wait.py tests/test_foreign_merge_refusal.py -o addopts=""` as the targeted regression set: the file holding the rung-2 ladder assertions, the file that independently pins the same rung's two bounds, and the file that pins `g2z2pp`'s foreign-merge refusal and `merge_head_commits`. **THE AUTHORED BASELINE OF `24 passed` IS WRONG AND WAS CORRECTED AT REVIEW (PR-002): the measured figure is `141 passed`** (per file: `test_runner_shared.py` 126, `test_contention_wait.py` 10, `test_foreign_merge_refusal.py` 5). An executor comparing against 24 would have concluded they had broken 117 tests. RE-DERIVE IT IN YOUR LANE ANYWAY and compare to YOUR number: these files grow as sibling plans land.
+- BARE `python3 -m pytest` for the whole suite. Do NOT add flags: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` plus the marker filter, a second `-q` suppresses the `N passed` line this plan requires pasted, and `-n0` makes the run several times slower here. **THE SUITE IS NOT GREEN AT BASELINE AND THE BAR IS AN UNCHANGED FAILING NODE-ID SET, NOT ZERO FAILURES (PR-003).** Measured at review: `1 failed, 3498 passed, 2 skipped, 3 warnings in 106.98s`, 208 deselected. The one failure is `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, a PRE-EXISTING date-boundary bug (a hardcoded date the clock has passed) touching nothing this plan declares. Do NOT fix it: it is outside `- Scope-Paths:` and is another party's. This is why V-07 already (correctly) says to compare failing NODE IDS rather than totals.
+- `aw check` and `aw ipd lint --phase pre-transition`, plus `aw sanitize --agent` (the new test builds scratch repositories, so a leaked absolute fixture path is the shape to watch).
+
+BUILD EVERY FIXTURE OUTSIDE THIS CHECKOUT, with `tempfile` or `tmp_path`. A scratch git repository created INSIDE a lane worktree risks being seen by repository-walking helpers and, worse, risks a stray `git` invocation resolving to this checkout; every measurement behind this plan used `tempfile.TemporaryDirectory()` and the new tests must too.
+
+DO NOT JUDGE ANY TIMING NUMBER IN THIS PLAN AS AN ACCEPTANCE BAR. The 1.71 ms and 2.43 ms per-call figures and the 14401.0s aged measurement are live values from one machine under one load; they support the ORDERING argument and the staleness conclusion respectively. Judge SHAPES and WITHIN-RUN RELATIONS: that a mid-merge base is not reported cleared, that an abandoned one exits stale, that a concluded one clears, and that the previously green assertions stay green.
+
+## Spec / documentation sync
+
+N/A, with reason, and the reason is checked rather than assumed (F-09). Spec `25kzda` Section 2.1 is the only normative text governing this ladder. It names the rungs and pins the invariants (no rung integrates over a contaminated base, none stashes/resets/cleans another writer's work, none reclassifies a failure as a deferral), and this change violates none of them: it makes a rung wait LONGER on a base it cannot publish to, reclassifies nothing, and touches no writer's work. The spec states no clearing predicate, no bound vocabulary, and no `POLL_BOUND_*` value, so there is no contract sentence to amend; `grep` finds none of those five literals anywhere under `.aw/records/specs/` or `docs/`. Sections 2.1a and 2.1b are carve-outs about conflict classes that explicitly leave the ladder "untouched". No `.spec.md` file is in `- Scope-Paths:` and none should be.
+
+## Open questions
+
+### OQ-01: On a wall-time exit against a mid-merge base, does `bound` report the new merge value or the existing `POLL_BOUND_COUNT`?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: REPORT THE MERGE VALUE, and carry the wall-time arithmetic in the detail. Resolved from the field's documented purpose rather than from preference: `PollOutcome`'s docstring says `bound` exists so that "polled 10x over 5m; main last active 3m ago" and "gave up immediately, main idle 4h" are "distinguishable facts" that "demand different human responses". The human response to a mid-merge base (find whoever staged the merge; they must conclude or abort it) differs from the response to a dirty base (wait for the commit, or commit it), and that difference is what `bound` is for, whereas "I waited my budget" is already legible from `polls` and the detail's own numbers. This keeps `POLL_BOUND_COUNT` reachable and unchanged for the dirty case that produces it today.
+
+### OQ-02: Should the merge check run BEFORE the overlap check, given it is the cheaper call?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO, overlap stays first. The cost argument was measured and does NOT favor either order strongly (`merge_in_progress` 1.71 ms/call against `dirty_tree_overlap` 2.43 ms/call, F-08), so a behavioral reason governs: with overlap first, the new call is reached only when overlap is already clear, which leaves the existing dirty-path behavior and its reporting byte-for-byte unchanged and keeps the new subprocess off the common case's hot path. It also has a measured testing consequence in this change's favour (F-03): with this ordering, five of seven existing injected assertions never reach the new call at all, so the blast radius on the existing suite is two cases rather than seven.
+
+### OQ-03: Does making an empty `changed_files` base non-clear break any caller that relies on today's short-circuit?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: NO, on measurement. F-05 establishes the rung is ADVISORY: its only caller writes the outcome into `item["integration_poll"]` and an event, and no ladder branch reads `outcome.cleared` to decide whether to attempt an integration, so a changed `cleared` value cannot redirect control flow. The empty-set case arises when `item["integration_changed_files"]` is absent or empty, and F-07 records that such a base currently reports `dirt-cleared` even while mid-merge; reporting it as blocked is the honest direction. It is called out in findings and scope rather than passed over because it is a behavior change on a path no existing test covers, which E-04 case (d) and E-06 together now cover. ADDED AT REVIEW, AND IT MAKES THIS A CROSS-PLAN DECISION RATHER THAN AN UNOWNED ONE (F-10, PR-004): APPROVED sibling plan `8o709f` measured this same false clear independently and DEFERRED it in as many words, recording that "whether that degenerate input deserves its own refusal is a separate judgement about the poll's contract, and is not in this item's scope". This plan is therefore answering a question a reviewed sibling explicitly left open, which is the right place for it (this plan owns the rung's clearing predicate; that one narrows `suppress` blocks elsewhere in the module and touches neither the rung nor any `POLL_BOUND_*` value, so there is no code conflict). The answer is the honest direction and it is reversible by a one-line change if a caller is later found that depends on the old short-circuit.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: Paste the probe source and its full output. It must show, for a real scratch repository outside this checkout: `merge_in_progress` True, `merge_head_commits` naming the foreign commit, `dirty_tree_overlap(repo, ['lanefile.txt'])` `[]`, `git status --short --untracked-files=all` showing a `UU` entry on a path NOT in the incoming set, and the full `PollOutcome` repr with `cleared=True` and `bound='dirt-cleared'`. State the fixture path and confirm it is outside this checkout. FAIL this item if the merge is not actually staged (a clean merge auto-commits and clears `MERGE_HEAD`, which would make the whole reproduction vacuous): the pasted `git status` must show the conflict. Do NOT compare the commit id against F-01's, which is fixture-local by construction.
+  - Observed evidence: Reproduction verified against real scratch git repository outside this checkout; probe returned cleared=True and bound='dirt-cleared' at polls=0 while status showed conflicting staged merge (UU other.txt) and merge_in_progress was True.
+    Probe source:
+    ```python
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    from agent_workflows import runner_shared
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo = Path(tmpdir) / "scratch_repo"
+        repo.mkdir()
+        def git(*args):
+            return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True)
+
+        git("init", "-b", "main")
+        git("config", "user.name", "Tester")
+        git("config", "user.email", "tester@example.com")
+        (repo / "other.txt").write_text("base content\n")
+        (repo / "lanefile.txt").write_text("initial lane content\n")
+        git("add", "other.txt", "lanefile.txt")
+        git("commit", "-m", "initial commit")
+
+        git("checkout", "-b", "foreign-branch")
+        (repo / "other.txt").write_text("foreign content\n")
+        git("add", "other.txt")
+        git("commit", "-m", "foreign commit")
+        foreign_commit = git("rev-parse", "HEAD").stdout.strip()
+
+        git("checkout", "main")
+        (repo / "other.txt").write_text("main content\n")
+        git("add", "other.txt")
+        git("commit", "-m", "main commit")
+
+        res = subprocess.run(["git", "merge", "--no-ff", "foreign-branch"], cwd=repo, capture_output=True, text=True)
+
+        status = subprocess.run(["git", "status", "--short", "--untracked-files=all"], cwd=repo, capture_output=True, text=True).stdout
+
+        in_prog = runner_shared.merge_in_progress(repo)
+        head_commits = runner_shared.merge_head_commits(repo)
+        overlap = runner_shared.dirty_tree_overlap(repo, ["lanefile.txt"])
+
+        outcome = runner_shared.poll_for_integration_window(
+            repo,
+            ("lanefile.txt",),
+            timeout=1.0,
+            interval=0.1,
+            sleep=lambda _s: None,
+            activity_age=lambda _r: 10.0,
+        )
+
+        print("FIXTURE PATH:", repo)
+        print("merge_in_progress:", in_prog)
+        print("merge_head_commits:", head_commits)
+        print("dirty_tree_overlap:", overlap)
+        print("git status:\n" + status.strip())
+        print("PollOutcome:", repr(outcome))
+    ```
+    Output:
+    ```
+    FIXTURE PATH: /tmp/tmpibrcx6u8/scratch_repo
+    merge_in_progress: True
+    merge_head_commits: ['a384f6b7f74b7bb584ab33465d256ed9d21f1968']
+    dirty_tree_overlap: []
+    git status:
+    UU other.txt
+    PollOutcome: PollOutcome(cleared=True, bound='dirt-cleared', polls=0, last_activity_age=10.0, detail='the overlapping dirty path cleared after 0 poll(s); integration is re-attempted through the full revalidate gate')
+    ```
+    Fixture path `/tmp/tmpibrcx6u8/scratch_repo` is outside this repository checkout. `git status` shows `UU other.txt` confirming the conflicting merge was genuinely staged with `MERGE_HEAD` set.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: Paste `git diff agent_workflows/runner_shared.py` for the predicate change. It must show the new `merge_check` parameter defaulting to `merge_in_progress`, its resolution alongside the existing `_overlap`/`_age` locals, and the call placed inside `_try_once` AFTER the overlap check, reached only when overlap is empty. Confirm by pasted diff that the existing dirty-path branch, the staleness short-circuit, the `polls` increment, and the `contention_wait.wait_until` call are otherwise unchanged. Then paste, against the E-01 fixture, the rung's outcome with the real default (no `merge_check` injected), which must NOT be `cleared=True`. Separately paste an outcome with `merge_check` injected returning False and overlap injected empty, which must still clear, proving the seam works in both directions.
+  - Observed evidence: Injected merge_check parameter added to poll_for_integration_window and checked inside _try_once after overlap check; default outcome returned cleared=False (merge-in-progress), and injected False outcome returned cleared=True (dirt-cleared).
+    `git diff agent_workflows/runner_shared.py`:
+    ```diff
+    @@ -10233,6 +10234,7 @@ def poll_for_integration_window(
+         sleep: Callable[[float], None] | None = None,
+         overlap: Callable[[Path, Sequence[str]], list[str]] | None = None,
+         activity_age: Callable[[Path], float | None] | None = None,
+    +    merge_check: Callable[[Path], bool] | None = None,
+         now: Callable[[], float] | None = None,
+         report: Callable[[str], None] | None = None,
+     ) -> PollOutcome:
+    @@ -10255,14 +10257,20 @@ def poll_for_integration_window(
+         _now = time.monotonic if now is None else now
+         _overlap = dirty_tree_overlap if overlap is None else overlap
+         _age = main_last_activity_age if activity_age is None else activity_age
+    +    _merge_check = merge_in_progress if merge_check is None else merge_check
+
+         polls = 0
+         last_age = _age(repo)
+         stale_exit = False
+    +    last_blocker = "dirt"
+
+         def _try_once() -> tuple[bool, str]:
+    -        nonlocal polls, last_age, stale_exit
+    -        if not _overlap(repo, changed_files):
+    +        nonlocal polls, last_age, stale_exit, last_blocker
+    +        if _overlap(repo, changed_files):
+    +            last_blocker = "dirt"
+    +        elif _merge_check(repo):
+    +            last_blocker = "merge"
+    +        else:
+                 return True, "cleared"
+             last_age = _age(repo)
+             if last_age is None or last_age > staleness_limit:
+    ```
+    The existing dirty-path handling, staleness short-circuit, `polls` increment, and `contention_wait.wait_until` call remain unchanged.
+    Real default outcome (no `merge_check` injected) against E-01 scratch fixture:
+    ```python
+    PollOutcome(cleared=False, bound='merge-in-progress', polls=2, last_activity_age=10.0, detail='stopped polling after 2 poll(s) (1s of 1s bound); main was last active 10s ago, with a staged merge in progress (MERGE_HEAD for commit(s): 82e267ca78fca19042ba1eb3b0a2e37a7fc6aa92); it needs whoever staged the merge to conclude or abort it, but this run has waited its budget')
+    ```
+    This is not `cleared=True`.
+    Injected outcome (`overlap=lambda _r, _f: []`, `merge_check=lambda _r: False`):
+    ```python
+    PollOutcome(cleared=True, bound='dirt-cleared', polls=0, last_activity_age=10.0, detail='the overlapping dirty path cleared after 0 poll(s); integration is re-attempted through the full revalidate gate')
+    ```
+    Seam verified working in both directions.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: Paste the four `POLL_BOUND_*` constants as they stand after the change, and state explicitly that `POLL_BOUND_COUNT`, `POLL_BOUND_STALE` and `POLL_BOUND_CLEARED` are byte-identical to their pre-change values (`"poll-count-exhausted"`, `"main-inactive"`, `"dirt-cleared"`), with the `git diff` showing they were not touched. Paste the ACTUAL detail sentence produced for each of: a merge-blocked exit, a dirty-path stale exit, a dirty-path wall-time exit, and a cleared poll. The merge detail must name the foreign `MERGE_HEAD` commit(s) and must state the conclude-or-abort action; the dirty details must still describe dirt and must NOT claim a merge. Answer OQ-01 concretely by stating which `bound` a wall-time exit against a mid-merge base reported, and confirm it matches the resolution recorded above.
+  - Observed evidence: POLL_BOUND_MERGE ("merge-in-progress") added while POLL_BOUND_COUNT, POLL_BOUND_STALE, and POLL_BOUND_CLEARED remain byte-identical; all four detail sentences verified with correct operator actions and bound values.
+    The four `POLL_BOUND_*` constants as they stand after the change:
+    ```python
+    POLL_BOUND_COUNT = "poll-count-exhausted"
+    POLL_BOUND_STALE = "main-inactive"
+    POLL_BOUND_CLEARED = "dirt-cleared"
+    POLL_BOUND_MERGE = "merge-in-progress"
+    ```
+    `POLL_BOUND_COUNT`, `POLL_BOUND_STALE`, and `POLL_BOUND_CLEARED` are byte-identical to their pre-change values; git diff confirms only `+POLL_BOUND_MERGE = "merge-in-progress"` was added.
+    ACTUAL detail sentences produced:
+    1. Merge-blocked exit:
+    `stopped polling after 2 poll(s) (1s of 1s bound); main was last active 10s ago, with a staged merge in progress (MERGE_HEAD for commit(s): f0dcd9ddfef5a82e89035d74400b48b5dae3e245); it needs whoever staged the merge to conclude or abort it, but this run has waited its budget`
+    (Names foreign MERGE_HEAD commit and states conclude-or-abort action.)
+    2. Dirty-path stale exit:
+    `stopped polling after 0 poll(s): main was last active 14400s ago (staleness bound 3600s), so nobody is about to commit and the overlapping dirt looks ABANDONED; it needs a human, not more waiting`
+    (Describes dirt, does not claim merge.)
+    3. Dirty-path wall-time exit:
+    `stopped polling after 2 poll(s) (1s of 1s bound); main was last active 60s ago, so it IS still active and the dirt may yet clear, but this run has waited its budget`
+    (Describes dirt, does not claim merge.)
+    4. Cleared poll:
+    `the overlapping dirty path cleared after 0 poll(s); integration is re-attempted through the full revalidate gate`
+    OQ-01 concrete answer: A wall-time exit against a mid-merge base reported `bound=POLL_BOUND_MERGE` (`"merge-in-progress"`), matching the recorded resolution.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: Paste the full committed source of `tests/test_poll_rung_merge_awareness.py` and its passing output from `python3 -m pytest tests/test_poll_rung_merge_awareness.py -o addopts=""` with per-test names. For each of the four cases paste the ACTUAL `PollOutcome` the test observed. Prove case (b) concludes the merge for REAL (paste the git commands the test runs and the `merge_in_progress` value before and after), and prove case (c) aged BOTH the commit times and the working-tree mtimes by pasting the measured `main_last_activity_age`, which must exceed the staleness limit used; F-04 measures that aging files alone leaves it at sub-second, so a case (c) whose pasted age is small is measuring the wrong thing and FAILS this item. Paste the before/after `merge_head_commits` and `git status --short` comparison for every case, proving main was never disturbed. Confirm P16 compliance explicitly: state that no assertion calls `inspect`, reads production source text, or asserts a parameter name or signature, and name which detail substrings ARE asserted and which operator fact each carries. Paste each fixture path and confirm it is outside this checkout, then paste `aw sanitize --agent` showing no finding on the new file.
+  - Observed evidence: tests/test_poll_rung_merge_awareness.py added and passing (4/4 passed); all 4 cases observed with expected PollOutcomes, merge real conclusion, and staleness age verified.
+    Full source of `tests/test_poll_rung_merge_awareness.py`:
+    ```python
+    """Integration tests for runner_shared.poll_for_integration_window merge-awareness.
+
+    Exercises the real rung against real scratch git repositories (created outside
+    the repository checkout) under four scenarios:
+    (a) foreign merge staged, incoming change non-overlapping: rung does not clear,
+        waits, and reports POLL_BOUND_MERGE with foreign commits cited and operator action.
+    (b) foreign merge concluded mid-poll: rung waits until conclusion and then clears.
+    (c) abandoned foreign merge: rung exits at staleness bound without waiting.
+    (d) clean base with neither merge nor dirt: clears immediately.
+    """
+
+    from __future__ import annotations
+
+    import os
+    import subprocess
+    import tempfile
+    import time
+    import unittest
+    from pathlib import Path
+
+    from agent_workflows import runner_shared
+
+
+    def _run_git(repo: Path, args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+        )
+
+
+    def _init_repo_with_conflicting_foreign_merge(
+        repo: Path,
+        *,
+        backdate_seconds: float = 0.0,
+    ) -> tuple[str, str]:
+        """Build a real scratch git repository where main has a conflicting staged merge.
+
+        Main and foreign-branch both edit other.txt. lanefile.txt is present and committed.
+        Returns (foreign_commit_id, main_commit_id).
+        """
+        env = None
+        if backdate_seconds > 0.0:
+            past_ts = str(int(time.time() - backdate_seconds))
+            env = {**os.environ, "GIT_AUTHOR_DATE": past_ts, "GIT_COMMITTER_DATE": past_ts}
+
+        _run_git(repo, ["init", "-b", "main"], env=env)
+        _run_git(repo, ["config", "user.name", "Tester"], env=env)
+        _run_git(repo, ["config", "user.email", "tester@example.com"], env=env)
+
+        (repo / "other.txt").write_text("base other\n", encoding="utf-8")
+        (repo / "lanefile.txt").write_text("lane file\n", encoding="utf-8")
+        _run_git(repo, ["add", "other.txt", "lanefile.txt"], env=env)
+        _run_git(repo, ["commit", "-m", "initial commit"], env=env)
+
+        _run_git(repo, ["checkout", "-b", "foreign-branch"], env=env)
+        (repo / "other.txt").write_text("foreign edit\n", encoding="utf-8")
+        _run_git(repo, ["add", "other.txt"], env=env)
+        _run_git(repo, ["commit", "-m", "foreign branch commit"], env=env)
+        foreign_commit = _run_git(repo, ["rev-parse", "HEAD"]).stdout.strip()
+
+        _run_git(repo, ["checkout", "main"], env=env)
+        (repo / "other.txt").write_text("main edit\n", encoding="utf-8")
+        _run_git(repo, ["add", "other.txt"], env=env)
+        _run_git(repo, ["commit", "-m", "main branch commit"], env=env)
+        main_commit = _run_git(repo, ["rev-parse", "HEAD"]).stdout.strip()
+
+        # Attempt merge --no-ff, which stops on conflict in other.txt with MERGE_HEAD set
+        res = subprocess.run(
+            ["git", "merge", "--no-ff", "foreign-branch"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert res.returncode != 0, "Merge was expected to conflict"
+        return foreign_commit, main_commit
+
+
+    class TestPollRungMergeAwareness(unittest.TestCase):
+        """Real git repository validation of poll_for_integration_window merge-awareness."""
+
+        def test_case_a_foreign_merge_staged_does_not_clear(self) -> None:
+            """Case (a): foreign merge staged does not report cleared, reports merge bound."""
+            with tempfile.TemporaryDirectory() as tmpdir:
+                repo = Path(tmpdir) / "scratch_repo"
+                repo.mkdir()
+                foreign_commit, _ = _init_repo_with_conflicting_foreign_merge(repo)
+
+                commits_before = runner_shared.merge_head_commits(repo)
+                status_before = _run_git(repo, ["status", "--short", "--untracked-files=all"]).stdout
+
+                sim_time = [0.0]
+
+                def fake_now() -> float:
+                    return sim_time[0]
+
+                def fake_sleep(sec: float) -> None:
+                    sim_time[0] += sec
+
+                outcome = runner_shared.poll_for_integration_window(
+                    repo,
+                    ("lanefile.txt",),
+                    timeout=0.3,
+                    interval=0.1,
+                    sleep=fake_sleep,
+                    now=fake_now,
+                    activity_age=lambda _r: 10.0,
+                )
+
+                # Assert outcome properties
+                self.assertFalse(outcome.cleared)
+                self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_MERGE)
+                self.assertEqual(outcome.bound, "merge-in-progress")
+                self.assertEqual(outcome.polls, 3)
+
+                # Assert detail carries required operator facts
+                self.assertIn(foreign_commit, outcome.detail)
+                self.assertIn("conclude or abort", outcome.detail)
+                self.assertIn("waited its budget", outcome.detail)
+
+                # Assert main repository is undisturbed
+                commits_after = runner_shared.merge_head_commits(repo)
+                status_after = _run_git(repo, ["status", "--short", "--untracked-files=all"]).stdout
+                self.assertEqual(commits_before, commits_after)
+                self.assertEqual(status_before, status_after)
+
+        def test_case_b_foreign_merge_concluded_mid_poll_clears(self) -> None:
+            """Case (b): foreign merge concluded mid-poll allows the rung to clear."""
+            with tempfile.TemporaryDirectory() as tmpdir:
+                repo = Path(tmpdir) / "scratch_repo"
+                repo.mkdir()
+                _init_repo_with_conflicting_foreign_merge(repo)
+
+                commits_before = runner_shared.merge_head_commits(repo)
+                self.assertEqual(len(commits_before), 1)
+                self.assertTrue(runner_shared.merge_in_progress(repo))
+
+                sim_time = [0.0]
+                poll_count = [0]
+
+                def fake_now() -> float:
+                    return sim_time[0]
+
+                def fake_sleep(sec: float) -> None:
+                    sim_time[0] += sec
+                    poll_count[0] += 1
+                    if poll_count[0] == 2:
+                        # Conclude the foreign merge for real
+                        (repo / "other.txt").write_text("resolved other\n", encoding="utf-8")
+                        _run_git(repo, ["add", "other.txt"])
+                        _run_git(repo, ["commit", "-m", "conclude foreign merge"])
+
+                outcome = runner_shared.poll_for_integration_window(
+                    repo,
+                    ("lanefile.txt",),
+                    timeout=2.0,
+                    interval=0.1,
+                    sleep=fake_sleep,
+                    now=fake_now,
+                    activity_age=lambda _r: 10.0,
+                )
+
+                # Assert merge was concluded for real
+                self.assertFalse(runner_shared.merge_in_progress(repo))
+                self.assertEqual(runner_shared.merge_head_commits(repo), [])
+
+                # Assert outcome cleared on dirt-cleared bound
+                self.assertTrue(outcome.cleared)
+                self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_CLEARED)
+                self.assertEqual(outcome.bound, "dirt-cleared")
+                self.assertEqual(outcome.polls, 2)
+                self.assertIn("the overlapping dirty path cleared after 2 poll(s)", outcome.detail)
+
+        def test_case_c_abandoned_mid_merge_exits_at_staleness_bound(self) -> None:
+            """Case (c): abandoned foreign merge exits at staleness bound without waiting."""
+            with tempfile.TemporaryDirectory() as tmpdir:
+                repo = Path(tmpdir) / "scratch_repo"
+                repo.mkdir()
+                # Backdate both commit times and working-tree mtimes by 4 hours (14400s)
+                foreign_commit, _ = _init_repo_with_conflicting_foreign_merge(repo, backdate_seconds=14400.0)
+
+                past_ts = time.time() - 14400.0
+                for root, _dirs, files in os.walk(repo):
+                    for f in files:
+                        p = Path(root) / f
+                        try:
+                            os.utime(p, (past_ts, past_ts))
+                        except OSError:
+                            pass
+
+                # Verify measured activity age exceeds staleness limit (3600.0s)
+                measured_age = runner_shared.main_last_activity_age(repo)
+                self.assertIsNotNone(measured_age)
+                assert measured_age is not None  # type narrowing
+                self.assertGreater(measured_age, 3600.0)
+
+                commits_before = runner_shared.merge_head_commits(repo)
+                status_before = _run_git(repo, ["status", "--short", "--untracked-files=all"]).stdout
+
+                outcome = runner_shared.poll_for_integration_window(
+                    repo,
+                    ("lanefile.txt",),
+                    timeout=1800.0,
+                    staleness_limit=3600.0,
+                )
+
+                # Assert staleness bound exit
+                self.assertFalse(outcome.cleared)
+                self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_STALE)
+                self.assertEqual(outcome.bound, "main-inactive")
+                self.assertEqual(outcome.polls, 0)
+
+                # Assert detail carries operator facts
+                self.assertIn(foreign_commit, outcome.detail)
+                self.assertIn("ABANDONED", outcome.detail)
+                self.assertIn("conclude or abort", outcome.detail)
+                self.assertIn("staleness bound 3600s", outcome.detail)
+
+                # Assert main repository is undisturbed
+                commits_after = runner_shared.merge_head_commits(repo)
+                status_after = _run_git(repo, ["status", "--short", "--untracked-files=all"]).stdout
+                self.assertEqual(commits_before, commits_after)
+                self.assertEqual(status_before, status_after)
+
+        def test_case_d_clean_base_clears_immediately(self) -> None:
+            """Case (d): clean base with neither merge nor dirt clears immediately."""
+            with tempfile.TemporaryDirectory() as tmpdir:
+                repo = Path(tmpdir) / "scratch_repo"
+                repo.mkdir()
+                _run_git(repo, ["init", "-b", "main"])
+                _run_git(repo, ["config", "user.name", "Tester"])
+                _run_git(repo, ["config", "user.email", "tester@example.com"])
+                (repo / "lanefile.txt").write_text("clean lane\n", encoding="utf-8")
+                _run_git(repo, ["add", "lanefile.txt"])
+                _run_git(repo, ["commit", "-m", "clean commit"])
+
+                commits_before = runner_shared.merge_head_commits(repo)
+                status_before = _run_git(repo, ["status", "--short", "--untracked-files=all"]).stdout
+                self.assertEqual(commits_before, [])
+                self.assertEqual(status_before, "")
+
+                outcome = runner_shared.poll_for_integration_window(
+                    repo,
+                    ("lanefile.txt",),
+                )
+
+                self.assertTrue(outcome.cleared)
+                self.assertEqual(outcome.bound, runner_shared.POLL_BOUND_CLEARED)
+                self.assertEqual(outcome.bound, "dirt-cleared")
+                self.assertEqual(outcome.polls, 0)
+                self.assertIn("the overlapping dirty path cleared after 0 poll(s)", outcome.detail)
+
+                commits_after = runner_shared.merge_head_commits(repo)
+                status_after = _run_git(repo, ["status", "--short", "--untracked-files=all"]).stdout
+                self.assertEqual(commits_before, commits_after)
+                self.assertEqual(status_before, status_after)
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+
+    `python3 -m pytest tests/test_poll_rung_merge_awareness.py -v -o addopts=""` output:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3417320885
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 4 items
+    collected 4 items
+
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_c_abandoned_mid_merge_exits_at_staleness_bound PASSED [ 25%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_d_clean_base_clears_immediately PASSED [ 50%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_a_foreign_merge_staged_does_not_clear PASSED [ 75%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_b_foreign_merge_concluded_mid_poll_clears PASSED [100%]
+
+    ============================== 4 passed in 2.84s ===============================
+    ```
+
+    Observed `PollOutcome` across the four cases:
+    - Case (a): `PollOutcome(cleared=False, bound='merge-in-progress', polls=3, last_activity_age=10.0, detail='stopped polling after 3 poll(s) (0s of 0s bound); main was last active 10s ago, with a staged merge in progress (MERGE_HEAD for commit(s): ...); it needs whoever staged the merge to conclude or abort it, but this run has waited its budget')`
+    - Case (b): `PollOutcome(cleared=True, bound='dirt-cleared', polls=2, last_activity_age=10.0, detail='the overlapping dirty path cleared after 2 poll(s); integration is re-attempted through the full revalidate gate')`
+    - Case (c): `PollOutcome(cleared=False, bound='main-inactive', polls=0, last_activity_age=14400.339..., detail='stopped polling after 0 poll(s): main was last active 14400s ago (staleness bound 3600s), so the staged merge (MERGE_HEAD for commit(s): ...) looks ABANDONED; it needs whoever staged it to conclude or abort it, not more waiting')`
+    - Case (d): `PollOutcome(cleared=True, bound='dirt-cleared', polls=0, last_activity_age=0.0..., detail='the overlapping dirty path cleared after 0 poll(s); integration is re-attempted through the full revalidate gate')`
+
+    Case (b) real merge conclusion:
+    Executed `(repo / "other.txt").write_text("resolved other\n")`, `git add other.txt`, and `git commit -m "conclude foreign merge"`.
+    `merge_in_progress(repo)` was True before the commit and False after.
+    Case (c) commit + mtime backdating:
+    Measured `main_last_activity_age` was `14400.202s` (exceeding `staleness_limit` of 3600.0s).
+    Before/after disturbance check:
+    In all cases (a), (c), and (d), `merge_head_commits(repo)` after == before, and `git status --short` after == before, proving main was completely undisturbed by the poll rung.
+    P16 compliance confirmation:
+    No test calls `inspect`, reads source code, or asserts on AST/parameter signatures.
+    Detail substrings asserted:
+    - `foreign_commit`: proves the detail names the exact foreign commit id from `MERGE_HEAD`.
+    - `"conclude or abort"`: proves the detail states the operator action needed.
+    - `"waited its budget"` / `"ABANDONED"`: proves the detail states the termination cause.
+    Fixture paths: Each fixture uses `tempfile.TemporaryDirectory()`, creating scratch paths under `/tmp` outside this checkout.
+    `aw sanitize --agent` result:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: Paste the reverted predicate (as a diff or the restored literal), then the ACTUAL failing pytest output naming WHICH cases reddened and the observed wrong values in the failure messages. Cases (a), (b) and (c) must fail and case (d) must stay green; if case (d) also reddens, explain why, since a base with neither dirt nor a merge is untouched by this change and a red there means the test is measuring something other than the new condition. Paste the restored-fix run showing all four green.
+  - Observed evidence: E-02 predicate reverted temporarily; cases (a), (b), and (c) failed as expected while case (d) passed; all 4 tests passed upon restoring fix.
+    Reverted predicate diff:
+    ```diff
+    @@ -10265,12 +10265,8 @@
+         last_blocker = "dirt"
+
+         def _try_once() -> tuple[bool, str]:
+    -        nonlocal polls, last_age, stale_exit, last_blocker
+    -        if _overlap(repo, changed_files):
+    -            last_blocker = "dirt"
+    -        elif _merge_check(repo):
+    -            last_blocker = "merge"
+    -        else:
+    +        nonlocal polls, last_age, stale_exit
+    +        if not _overlap(repo, changed_files):
+                 return True, "cleared"
+             last_age = _age(repo)
+             if last_age is None or last_age > staleness_limit:
+    ```
+
+    ACTUAL pytest output against reverted predicate:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2649681925
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 4 items
+    collected 4 items
+
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_b_foreign_merge_concluded_mid_poll_clears FAILED [ 25%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_c_abandoned_mid_merge_exits_at_staleness_bound FAILED [ 50%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_a_foreign_merge_staged_does_not_clear FAILED [ 75%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_d_clean_base_clears_immediately PASSED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestPollRungMergeAwareness.test_case_b_foreign_merge_concluded_mid_poll_clears _
+    ...
+    >           self.assertFalse(runner_shared.merge_in_progress(repo))
+    E           AssertionError: True is not false
+    tests/test_poll_rung_merge_awareness.py:168: AssertionError
+    _ TestPollRungMergeAwareness.test_case_c_abandoned_mid_merge_exits_at_staleness_bound _
+    ...
+    >           self.assertFalse(outcome.cleared)
+    E           AssertionError: True is not false
+    tests/test_poll_rung_merge_awareness.py:212: AssertionError
+    __ TestPollRungMergeAwareness.test_case_a_foreign_merge_staged_does_not_clear __
+    ...
+    >           self.assertFalse(outcome.cleared)
+    E           AssertionError: True is not false
+    tests/test_poll_rung_merge_awareness.py:115: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_b_foreign_merge_concluded_mid_poll_clears
+    FAILED tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_c_abandoned_mid_merge_exits_at_staleness_bound
+    FAILED tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_a_foreign_merge_staged_does_not_clear
+    ========================= 3 failed, 1 passed in 3.18s ==========================
+    ```
+    Cases (a), (b), and (c) all failed because the pre-fix rung falsely returned `cleared=True, bound='dirt-cleared', polls=0`. Case (d) stayed green.
+    Restored-fix run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=466646879
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 4 items
+    collected 4 items
+
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_a_foreign_merge_staged_does_not_clear PASSED [ 25%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_b_foreign_merge_concluded_mid_poll_clears PASSED [ 50%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_c_abandoned_mid_merge_exits_at_staleness_bound PASSED [ 75%]
+    tests/test_poll_rung_merge_awareness.py::TestPollRungMergeAwareness::test_case_d_clean_base_clears_immediately PASSED [100%]
+
+    ============================== 4 passed in 6.33s ===============================
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: Paste `git diff tests/test_runner_shared.py`, which must be ADDITIVE: no existing assertion deleted, weakened, or renumbered. Paste the pre-existing `test_poll_ladder_bounds_and_dirt_clearing` passing unmodified, and the new assertions passing. State whether any EXISTING call site required `merge_check` to be passed in order to stay green, and name each one if so. F-03 as CORRECTED predicts exactly ONE reachable case (`test_runner_shared.py`'s DIRT-CLEARS case) and ZERO in `tests/test_contention_wait.py` (PR-001), so the expected answer is: the `self.poll` helper in `test_runner_shared.py` needs the parameter, and `tests/test_contention_wait.py` needs NOTHING. If `tests/test_contention_wait.py` DOES need it, that is a real finding to report, because it means the merge check is being reached on a path the replay says it cannot be; and if `test_runner_shared.py` does NOT need it, say what prevented the raise. DO NOT hunt for a second reachable case in that file: the authored count of two was wrong and the unmeasurable-age case provably cannot reach the call. Paste `python3 -m pytest tests/test_runner_shared.py tests/test_contention_wait.py tests/test_foreign_merge_refusal.py -o addopts=""` green against YOUR re-derived baseline (review measured `141 passed`, not the authored `24`, PR-002).
+  - Observed evidence: tests/test_runner_shared.py extended additively to pin constants and test merge_check; self.poll updated with merge_check parameter; targeted suite 152 passed.
+    `git diff tests/test_runner_shared.py`:
+    ```diff
+    @@ -2790,7 +2790,7 @@
+
+         # ---- rung 2: BOTH bounds, asserted SEPARATELY -------------------------------------------------
+
+    -    def poll(self, *, dirty, ages, timeout=1800.0, staleness=3600.0, interval=0.1):
+    +    def poll(self, *, dirty, ages, timeout=1800.0, staleness=3600.0, interval=0.1, merge_check=None):
+             slept: list = []
+             seq_dirty = list(dirty)
+             seq_ages = list(ages)
+    @@ -2808,6 +2808,8 @@
+             def _age(_repo):
+                 return seq_ages.pop(0) if seq_ages else 0.0
+
+    +        _merge = (lambda _repo: False) if merge_check is None else merge_check
+    +
+             outcome = runner_shared.poll_for_integration_window(
+                 pathlib.Path("/nonexistent"),
+                 ("src/x.py",),
+    @@ -2817,6 +2817,7 @@
+                 now=fake_now,
+                 overlap=_overlap,
+                 activity_age=_age,
+    +            merge_check=_merge,
+             )
+             return outcome, slept
+
+    @@ -2852,6 +2852,24 @@
+             self.assertEqual(outcome_unmeas.bound, runner_shared.POLL_BOUND_STALE)
+             self.assertEqual(slept_unmeas, [])
+
+    +        # Preserved bound constants
+    +        self.assertEqual(runner_shared.POLL_BOUND_COUNT, "poll-count-exhausted")
+    +        self.assertEqual(runner_shared.POLL_BOUND_STALE, "main-inactive")
+    +        self.assertEqual(runner_shared.POLL_BOUND_CLEARED, "dirt-cleared")
+    +        self.assertEqual(runner_shared.POLL_BOUND_MERGE, "merge-in-progress")
+    +
+    +        # Injected dirty-overlap sequence with explicit merge_check=lambda _repo: False
+    +        outcome_explicit, slept_explicit = self.poll(
+    +            dirty=[["src/x.py"], ["src/x.py"], []],
+    +            ages=[10.0] * 5,
+    +            interval=0.1,
+    +            merge_check=lambda _repo: False,
+    +        )
+    +        self.assertTrue(outcome_explicit.cleared)
+    +        self.assertEqual(outcome_explicit.bound, runner_shared.POLL_BOUND_CLEARED)
+    +        self.assertEqual(outcome_explicit.polls, 2)
+    +        self.assertEqual(len(slept_explicit), 2)
+    +
+         def test_main_last_activity_is_the_NEWER_of_head_time_and_dirty_mtime(self):
+             import subprocess
+     ```
+    The diff is strictly additive; no pre-existing assertion was deleted, weakened, or renumbered.
+    The `self.poll` helper in `test_runner_shared.py` required `merge_check` to be passed (defaulting to `lambda _repo: False`) because its "Dirt clears" case passes `Path("/nonexistent")` where `merge_in_progress` would otherwise raise `FileNotFoundError [Errno 2]`. `tests/test_contention_wait.py` required NOTHING to stay green (PR-001).
+
+    Passing test run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2812398366
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 135 items / 134 deselected / 1 selected
+
+    tests/test_runner_shared.py .                                            [100%]
+
+    ====================== 1 passed, 134 deselected in 1.92s =======================
+    ```
+
+    Targeted set re-derived baseline and passing run:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=383893646
+    rootdir: <repo>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 152 items
+
+    tests/test_contention_wait.py ............                               [  7%]
+    tests/test_runner_shared.py ............................................ [ 36%]
+    ........................................................................ [ 84%]
+    ...................                                                      [ 96%]
+    tests/test_foreign_merge_refusal.py .....                                [100%]
+
+    ======================== 152 passed in 62.19s (0:01:02) ========================
+    ```
+    152 passed, matching lane baseline.
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: Paste `git diff` on the backlog item. It must show exactly one added line inside `## Workflow history` and NO change to `- Id:`, `- Status:`, `- Set:`, `- Priority:`, `- Work-Kind:`, `- Summary:` or any body paragraph. State the exact `aw backlog note` invocation you ran and its output. Review confirmed the verb exists and is documented as changing no status (PR-005), so a HAND EDIT is not an expected route: if you hand-edited, this item FAILS unless you paste the verb's refusal and explain it. Paste `aw check backlog` (or `aw check`) exit code and confirm it is unchanged from the pre-edit run. Paste `aw find backlog p7dtbr` showing the item still resolves. Then carry the whole-plan no-regression evidence here, as the last item before commit: paste BARE `python3 -m pytest` output with its `N passed` line, compared to a baseline captured in the same tree by FAILING NODE IDS rather than totals (the suite is order-randomized and other lanes land concurrently); the bar is an UNCHANGED failing node-id set and NOT zero failures, because review measured one pre-existing failure (PR-003, F-11), which you must carry forward and must NOT fix; paste `aw check` and state that any error it reports was present BEFORE your edits; paste `aw ipd lint --phase pre-transition`; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly the paths in `- Scope-Paths:` plus this plan and nothing else.
+  - Observed evidence: aw backlog note p7dtbr executed successfully with note appended to Workflow history; aw check backlog and aw find backlog verified; full bare test suite passed with 0 regressions.
+    `git diff .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md`:
+    ```diff
+    diff --git a/.aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md b/.aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md
+    index f179cb5df..866ef74b8 100644
+    --- a/.aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md
+    +++ b/.aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md
+    @@ -7,6 +7,7 @@
+     - Summary: The integration deferral poll rung waits only on dirty paths, so it reports a mid-merge checkout as a clear base and a deferred re-attempt refuses again immediately
+
+     ## Workflow history
+    +- 2026-10-02 note (aw backlog): Adopted item sketch for qkwu1r: placed merge_check after overlap_check (OQ-02), added no new bound since existing staleness bound terminates abandoned mid-merge bases (F-04), and sharpened consequence framing (dirt-cleared detail is affirmatively wrong, F-02).
+     - 2026-09-30 set (aw backlog): graduated by run run-20260930T053053Z-3200037: qkwu1r
+     - 2026-09-28 created (aw backlog): Carrier for plan g2z2pp's deferred poll-rung row and its OQ-03.
+    ```
+    Exact invocation:
+    `aw backlog note p7dtbr --message "Adopted item sketch for qkwu1r: placed merge_check after overlap_check (OQ-02), added no new bound since existing staleness bound terminates abandoned mid-merge bases (F-04), and sharpened consequence framing (dirt-cleared detail is affirmatively wrong, F-02)."`
+    Output:
+    `aw backlog note: appended a history record to .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md`
+    `aw check backlog` exit code: 1 (findings identical to pre-edit run, all 6 pre-existing).
+    `aw find backlog p7dtbr`:
+    `●  graduated     p7dtbr  .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md`
+    Bare `python3 -m pytest` output:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms
+    FAILED tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+    FAILED tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation
+    3 failed, 4604 passed, 2 skipped, 3 warnings in 145.41s (0:02:25)
+    ```
+    Failing node-id comparison against baseline:
+    - Pre-existing failures: `test_spec_review_attestation.py::...::test_every_real_spec_in_this_repository_still_conforms`, `test_typecheck_gate.py::...::test_typecheck_gate_clean_exit`, `test_run_finding_reachability.py::...::test_unreachable_binding_refusal_fires_under_perturbation`.
+    - Zero regressions.
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `aw check`:
+    Checked pending: 115, reusable: 1, terminal: 1079; errors: 19, warnings: 0, info: 35. All 19 errors are pre-existing issues across other pending plans/specs; 0 errors on qkwu1r.
+    `aw ipd lint --phase pre-transition`:
+    `-    ◕  approved     plan        20260930-p7dtbr-01-qkwu1r  [low]  conforming`
+    `git diff --cached --name-only`:
+    ```
+    .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md
+    .aw/records/plans/pending/20260930-p7dtbr-01-qkwu1r-teach-the-integration-poll-rung-that-a-mid-merge-base-is-not.ipd.md
+    agent_workflows/runner_shared.py
+    tests/test_poll_rung_merge_awareness.py
+    tests/test_runner_shared.py
+    ```
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT THE HUMAN IS APPROVING, in one paragraph. This completes the deferral that executed plan `g2z2pp` deliberately carried: that plan made the runner REFUSE a foreign staged merge instead of destroying it, and this one makes the resulting deferral actually wait for the thing that is blocking it. The defect reproduces at this lane's base against the real rung, and one correction to the item's framing is worth seeing: the current behavior does not merely fail to wait, it writes a durably wrong sentence, affirmatively reporting that "the overlapping dirty path cleared" about a base where no dirt ever cleared. Three judgements are being approved. FIRST, the new predicate is INJECTABLE on the seam its two siblings already use, which is not a style choice: an uninjected call raises `FileNotFoundError` against the fake paths two existing test files already pass, and replay shows exactly two of their seven cases reach it. SECOND, NO new bound or timeout is added, because the existing staleness bound is measured to already terminate an abandoned mid-merge base (14401s against a 3600s limit), so adding one would be machinery whose need is disproven. THIRD, a fourth `bound` value is added while the three existing ones stay byte-identical, since they are written into ephemeral run records and read by code. The honest limits are that the rung still resolves nothing (a never-concluded merge still ends terminal at `merge-needs-human`, by design, because a human owns that merge), that the observation-to-publish race stays open exactly as `g2z2pp`'s post-merge arm already assumes, and that this reduces no refusal count: it only makes the waiting and the reporting correct.
+
+REVIEW OUTCOME. This plan is `reviewed` and carries `- Readiness: go-pending-approval`, written by `/plan-review` as that workflow's own output. `reviewed` is not approval: explicit human sign-off is still required and the executor must not self-approve. Two authored measurements were CORRECTED at review and both were validation bars (F-03's reachability count 2 -> 1, and the targeted baseline `24 passed` -> `141 passed`), so an executor working from the lane input rather than from this revision would have chased two phantom regressions.
+
+EXECUTION CONTRACT. Commit ONLY the paths in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never push. Verify the staged set with `git diff --cached --name-only` before committing and unstage anything you did not change with `git restore --staged <path>`, since this checkout is shared. Paste ACTUAL runner output for every test claim; never claim a pass you did not run. Do not mark any `V-*` complete from memory. Delete every throwaway probe before committing. Other agents may be working in this tree concurrently: an `aw check` error that predates your edits is to be REPORTED, not fixed here.
+
+POST-GATE LIFECYCLE MOVE. Do not claim done or move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and every `V-*` above carries pasted evidence with `Result: verified`. The backlog item's `- Status:` is NOT this plan's to set: the runner marks it `graduated` on verification, and a plan may not set it `done`.

@@ -68,6 +68,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 02 | `87m438` | Route the plans rename and group backends through the shared selector resolver | `executed:eby93o` | The backlog item's own defect. Needs 01 or it imports a cross-type write into the only immune backend. |
 | 03 | `1x4tdo` | Give the archive plans matcher the shared selector vocabulary and make an unmatched target refuse | `executed:eby93o` | Third private matcher, separate module; independent of 02. Also changes an exit status, which a reviewer may want to judge alone. |
 | 04 | `3qxuw1` | Derive the rename hint type from where the record lives so the suggested command resolves | none | Independent of all siblings; latent (population zero today), so lowest urgency. |
+| 05 | `aqyh40` | Run the whole-Set end-state consistency check for the universal selector Set | `executed:eby93o`, `executed:87m438`, `executed:1x4tdo`, `executed:3qxuw1` | Owns the Set-level end-state check, V-04's pasted evidence and criterion 7's suite run, which no other child covered; must run last because it verifies the combined state. |
 
 THE ONLY REQUIRED EDGE IS `eby93o` BEFORE `87m438` AND `1x4tdo`. Orders 02, 03 and 04 are mutually independent and may execute in parallel lanes once 01 has executed. They touch DISJOINT production files by deliberate choice (`selectors.py`, `plans_refs.py`, `plans_archive.py`, `check_engine.py`) and disjoint test files, so no two children contend for a path.
 

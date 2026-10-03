@@ -90,3 +90,11 @@ test was not written for. That weighing is the maintainer's, not the reviewer's.
 ONCE ANSWERED, this plan needs no fresh review: set the field the answer implies, resolve OQ-01, and run
 `aw ipd recheck-readiness t5txjk` to reach `GO - PENDING HUMAN APPROVAL`. The `no-go` recorded here is a
 MOMENT, not a judgement on the plan's quality, which is high.
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-002 | high | IN-SCOPE | G. Executability; release-gate contract | plan OQ-01 `- Blocking: no`; `AGENTS.md` "Every live bug gates the next release"; measured `release_gate_work_kinds` absent from `.aw/config/project.json` | **OQ-01 IS A RELEASE-GATE QUESTION AND THEREFORE BLOCKING, so `- Blocking: no` was wrong.** The plan correctly declines to invent a gate and correctly routes the classification to the maintainer; the error is the label. The repository's contract is that a LIVE artifact whose `- Work-Kind:` is in the gating set (default `bug`, confirmed by the absent config key) MUST carry `- Blocks-Release:`. So the answer decides a FRONT-MATTER FIELD on this very plan, and executing under the wrong answer ships a release-gating defect with no gate recorded, which is precisely the silent gap that contract exists to prevent. That is not a classification nicety an executor may proceed past. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | fixed | STALE ESCALATION CLOSED 2026-10-02 by agent (aw ipd recheck-readiness). The question this finding was escalated as (OQ-01) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-002` back-reference, not on a judgement about what the question was about. Previous decision: open. |

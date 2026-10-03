@@ -217,6 +217,10 @@ The gate has five honest limits:
 - Tests assert behavior, never code structure: follow `GUIDING_PRINCIPLES.md` P16
   ("Test outcomes and behavior, never code structure or text"); the mechanical guard
   in `tests/test_no_code_structure_pins.py` refuses new production-source reads in tests.
+- Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
+  P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
+  shape, the mandatory `why` column, when to tabulate, and runner-dependent row
+  verdicts.
 
 ## Adding a CLI command: the output-contract checklist
 

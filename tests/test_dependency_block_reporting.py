@@ -24,6 +24,8 @@ from agent_workflows.render_stream import (
     record_refusal,
     render_run_summary_table,
 )
+from agent_workflows.review_findings import GatingBlock
+from agent_workflows.run_selection_policy import strip_dependency_reason_prefix
 from agent_workflows.runner_shared import (
     AGY_HOST_LABELS,
     EXECUTION_SUCCESS_STATES,
@@ -33,10 +35,12 @@ from agent_workflows.runner_shared import (
     ORCH_REASON_DEAD_CHILDREN,
     ORCH_REASON_UNFINISHED_CHILDREN,
     TERMINAL_STATES,
+    TRANSIENT_DEPENDENCY_WAIT_KEY,
     OrchestratorDispatch,
     cascade_dependency_blocked,
     dependency_status_detailed,
     dispatch_orchestrator_item,
+    render_transient_dependency_waits,
     write_report,
 )
 
@@ -195,8 +199,12 @@ def test_drain_and_cascade_mapped_reasons_rendered_once(tmp_path: Path) -> None:
     drain_diags = _diag_lines(drain_out)
     assert len(drain_diags) == 1
     assert "(blocked)" not in drain_diags[0]
-    # Reason mapped from dependency_status_detailed appears in output
-    assert un_reasons[drain_token] in drain_diags[0]
+    # Reason mapped from dependency_status_detailed appears in output, de-duplicated
+    expected_drain_reason = strip_dependency_reason_prefix(
+        drain_token, un_reasons[drain_token]
+    )
+    assert expected_drain_reason in drain_diags[0]
+    assert drain_diags[0].count(drain_token) == 1
 
     # Post-E-01 cascade item: produced by calling cascade_dependency_blocked
     prereq = {
@@ -497,3 +505,243 @@ def test_drain_and_cascade_report_renders_correct_host_attribution(
             "aw agy runipd resume" if host_name == "oc" else "aw oc runipd resume"
         )
         assert other_cmd not in report_text
+
+
+@pytest.mark.parametrize(
+    "case_name",
+    [
+        "case_i_drain_external",
+        "case_ii_findings_gate",
+        "case_iii_cascade_token_free",
+        "case_iv_frozen_record",
+        "case_v_report_and_transient_waits",
+        "case_vi_mid_sentence_no_overstrip",
+        "case_vii_declared_bare_id6",
+    ],
+)
+def test_dependency_reason_rendering_all_producer_shapes(
+    case_name: str, tmp_path: Path
+) -> None:
+    """Tabled coverage for all seven reason shapes from the three live producers (E-06).
+
+    Asserts token occurrence counts in rendered output across summary table,
+    write_report, and render_transient_dependency_waits.
+    """
+    pending = tmp_path / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    if case_name == "case_i_drain_external":
+        # (i) Drain/external shape from dependency_status_detailed against synthesized root
+        (pending / "20260919-s-01-c1dep1-dep.ipd.md").write_text(
+            "# IPD: dep\n\n- Id: c1dep1\n- Status: approved\n", encoding="utf-8"
+        )
+        token = "executed:c1dep1"
+        item = {
+            "position": 1,
+            "id6": "c1itm1",
+            "setid": "test",
+            "action": "execute",
+            "status": "fail-depend",
+            "dependencies": [token],
+        }
+        state = {"queue": [item], "repo": str(tmp_path), "run_id": "run-case-1"}
+        sat, un_deps, un_reasons = dependency_status_detailed(item, state)
+        assert not sat
+        item["unsatisfied_dependencies"] = un_deps
+        item["unsatisfied_dependency_reasons"] = un_reasons
+
+        diags = _diag_lines(render_run_summary_table(state, pal=Palette(False)))
+        assert len(diags) == 1
+        # Token occurrence count in rendered line is exactly 1 (stripped from reason)
+        assert diags[0].count(token) == 1
+        assert un_reasons[token] not in diags[0]
+        assert strip_dependency_reason_prefix(token, un_reasons[token]) in diags[0]
+
+    elif case_name == "case_ii_findings_gate":
+        # (ii) Findings-gate shape: prefix is bare id6, not token
+        gb = GatingBlock("c2dep2", "F-01", "high", "open", "finding", "", "")
+        reason = gb.describe()
+        token = "executed:c2dep2"
+        item = {
+            "position": 1,
+            "id6": "c2itm1",
+            "setid": "test",
+            "action": "execute",
+            "status": "fail-depend",
+            "unsatisfied_dependencies": [token],
+            "unsatisfied_dependency_reasons": {token: reason},
+        }
+        state = {"queue": [item], "run_id": "run-case-2"}
+        diags = _diag_lines(render_run_summary_table(state, pal=Palette(False)))
+        assert len(diags) == 1
+        # Token occurrence count is exactly 1, and bare target id6 count is exactly 1
+        assert diags[0].count(token) == 1
+        assert diags[0].count("c2dep2") == 1
+        assert reason not in diags[0]
+        assert strip_dependency_reason_prefix(token, reason) in diags[0]
+
+    elif case_name == "case_iii_cascade_token_free":
+        # (iii) cascade_dependency_blocked token-free shape, byte-identical to HEAD
+        prereq = {
+            "position": 1,
+            "id6": "aaa111",
+            "status": "reviewed",
+            "action": "execute",
+        }
+        cas = {
+            "position": 2,
+            "id6": "cas001",
+            "setid": "test",
+            "status": "queued",
+            "action": "execute",
+            "dependencies": ["executed:aaa111"],
+        }
+        state = {"queue": [prereq, cas], "run_id": "run-case-3"}
+        cascade_dependency_blocked(state, run_dir=tmp_path)
+        diags = _diag_lines(
+            render_run_summary_table(
+                {"queue": [cas], "run_id": "run-case-3-view"}, pal=Palette(False)
+            )
+        )
+        assert len(diags) == 1
+        assert (
+            diags[0]
+            == "  • cas001: fail-depend (executed:aaa111 (target aaa111 is reviewed))"
+        )
+        assert diags[0].count("executed:aaa111") == 1
+
+    elif case_name == "case_iv_frozen_record":
+        # (iv) Frozen-record item (embedded reason, no map)
+        item = {
+            "position": 1,
+            "id6": "eee555",
+            "setid": "test",
+            "action": "execute",
+            "status": "dependency-blocked",
+            "unsatisfied_dependencies": ["executed:aaa111 (target reviewed)"],
+        }
+        state = {"queue": [item], "run_id": "run-case-4"}
+        out = render_run_summary_table(state, pal=Palette(False))
+        diags = _diag_lines(out)
+        assert len(diags) == 1
+        assert (
+            diags[0]
+            == "  • eee555: dependency-blocked (executed:aaa111 (target reviewed))"
+        )
+        assert "(blocked)" not in out
+        assert diags[0].count("executed:aaa111") == 1
+
+    elif case_name == "case_v_report_and_transient_waits":
+        # (v) write_report and render_transient_dependency_waits for drain item
+        (pending / "20260919-s-01-c5dep1-dep.ipd.md").write_text(
+            "# IPD: dep\n\n- Id: c5dep1\n- Status: approved\n", encoding="utf-8"
+        )
+        token = "executed:c5dep1"
+        item = {
+            "position": 1,
+            "id6": "c5itm1",
+            "setid": "test",
+            "action": "execute",
+            "status": "fail-depend",
+            "dependencies": [token],
+        }
+        state = {"queue": [item], "repo": str(tmp_path), "run_id": "run-case-5"}
+        _, un_deps, un_reasons = dependency_status_detailed(item, state)
+        item["unsatisfied_dependencies"] = un_deps
+        item["unsatisfied_dependency_reasons"] = un_reasons
+
+        # write_report check
+        rep_dir = tmp_path / "rep"
+        rep_dir.mkdir()
+        write_report(rep_dir, state, labels=OC_HOST_LABELS)
+        rep_text = (rep_dir / "execution-report.md").read_text()
+        rep_lines = [line for line in rep_text.splitlines() if f"- `{token}`:" in line]
+        assert len(rep_lines) == 1
+        # Token occurrence count is exactly 1 (backtick label only)
+        assert rep_lines[0].count(token) == 1
+        assert strip_dependency_reason_prefix(token, un_reasons[token]) in rep_lines[0]
+
+        # render_transient_dependency_waits check
+        trans_item = {
+            "position": 1,
+            "id6": "c5itm1",
+            "setid": "test",
+            "action": "execute",
+            "status": "queued",
+            TRANSIENT_DEPENDENCY_WAIT_KEY: {
+                "unsatisfied_dependencies": [token],
+                "unsatisfied_dependency_reasons": un_reasons,
+                "detail": f"{token}: prerequisite drain wait detail",
+            },
+        }
+        t_lines = render_transient_dependency_waits({"queue": [trans_item]})
+        t_dep_lines = [line for line in t_lines if f"- `{token}`:" in line]
+        assert len(t_dep_lines) == 1
+        # Token occurrence count is exactly 1
+        assert t_dep_lines[0].count(token) == 1
+        assert (
+            strip_dependency_reason_prefix(token, un_reasons[token]) in t_dep_lines[0]
+        )
+        # Why this is not terminal line loses leading token prefix
+        detail_lines = [line for line in t_lines if "Why this is not terminal:" in line]
+        assert len(detail_lines) == 1
+        assert detail_lines[0].count(token) == 0
+        assert "prerequisite drain wait detail" in detail_lines[0]
+
+    elif case_name == "case_vi_mid_sentence_no_overstrip":
+        # (vi) Mid-sentence token mention preserved
+        token = "executed:bbb222"
+        reason = "executed:bbb222: waits on executed:aaa111 which is pending"
+        item = {
+            "position": 1,
+            "id6": "c6itm1",
+            "setid": "test",
+            "action": "execute",
+            "status": "fail-depend",
+            "unsatisfied_dependencies": [token],
+            "unsatisfied_dependency_reasons": {token: reason},
+        }
+        state = {"queue": [item], "run_id": "run-case-6"}
+        diags = _diag_lines(render_run_summary_table(state, pal=Palette(False)))
+        assert len(diags) == 1
+        # Token occurrence count is exactly 1
+        assert diags[0].count(token) == 1
+        # Inner mid-sentence token is preserved intact
+        assert "executed:aaa111" in diags[0]
+        assert "waits on executed:aaa111 which is pending" in diags[0]
+
+    elif case_name == "case_vii_declared_bare_id6":
+        # (vii) Declared bare-id6 shape (F-11 / PR-001)
+        (pending / "20260919-s-01-c7dep1-dep.ipd.md").write_text(
+            "# IPD: dep\n\n- Id: c7dep1\n- Status: approved\n", encoding="utf-8"
+        )
+        bare_token = "c7dep1"
+        item = {
+            "position": 1,
+            "id6": "c7itm1",
+            "setid": "test",
+            "action": "execute",
+            "status": "fail-depend",
+            "dependencies": [bare_token],
+        }
+        state = {"queue": [item], "repo": str(tmp_path), "run_id": "run-case-7"}
+        sat, un_deps, un_reasons = dependency_status_detailed(item, state)
+        assert not sat
+        assert un_deps == [bare_token]
+        # Map key is the bare id6 AS DECLARED
+        assert list(un_reasons.keys()) == [bare_token]
+        # Reason itself begins with canonical prefix
+        assert un_reasons[bare_token].startswith(f"executed:{bare_token}:")
+
+        item["unsatisfied_dependencies"] = un_deps
+        item["unsatisfied_dependency_reasons"] = un_reasons
+        diags = _diag_lines(render_run_summary_table(state, pal=Palette(False)))
+        assert len(diags) == 1
+        # Canonical prefix is stripped, so executed:c7dep1 does not appear in line
+        assert diags[0].count(f"executed:{bare_token}") == 0
+        # id6 occurrence count in rendered line falls from 3 to 2 (unstripped would be 3)
+        assert diags[0].count(bare_token) == 2
+        assert (
+            strip_dependency_reason_prefix(bare_token, un_reasons[bare_token])
+            in diags[0]
+        )

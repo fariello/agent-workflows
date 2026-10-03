@@ -16,6 +16,7 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 from agent_workflows import research_cmd as C
 from agent_workflows import research_index as I
+from tests import support
 
 
 def _write(
@@ -126,7 +127,7 @@ class IndexBuildTests(unittest.TestCase):
         entries, _ = I._scan_docs(self.rroot)
         md = I.build_index_md(entries, limit=2)
         # "Most recent" section should list only 2 bullets.
-        recent_block = md.split("## Most recent")[1]
+        recent_block = support.final_section(md, "## Most recent", next_marker="## ")
         bullets = [ln for ln in recent_block.splitlines() if ln.startswith("- `")]
         self.assertEqual(len(bullets), 2)
 

@@ -181,6 +181,7 @@ class GateTests(unittest.TestCase):
         self.assertFalse(A.is_safe_descriptive("line1\nline2"))
         self.assertFalse(A.is_safe_descriptive("bell\x07here"))
         self.assertFalse(A.is_safe_descriptive("esc\x1b[31mred"))
+        self.assertFalse(A.is_safe_descriptive("bidi\u202ereversed\u202c"))
 
 
 class HistoryTests(unittest.TestCase):

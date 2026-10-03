@@ -3263,7 +3263,21 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 plan.rename(executed)
                 return 0, "finalized"
 
+            v_outcome = run_dir / "outcomes" / "01-wir001-verification.json"
+
             def fake_run(*a, **k):
+                if k.get("fresh_session"):
+                    v_outcome.write_text(
+                        json.dumps(
+                            {
+                                "verdict": "VERIFIED",
+                                "tests_run": [
+                                    "python3 -m unittest tests.test_from_backlog -v"
+                                ],
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
                 return 0, "ses1", str(run_dir / "log"), ["oc"]
 
             with (
@@ -3361,12 +3375,29 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
+            v_outcome = run_dir / "outcomes" / "01-wir001-verification.json"
+
+            def fake_run(*a, **k):
+                if k.get("fresh_session"):
+                    v_outcome.write_text(
+                        json.dumps(
+                            {
+                                "verdict": "VERIFIED",
+                                "tests_run": [
+                                    "python3 -m unittest tests.test_from_backlog -v"
+                                ],
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                return 0, "ses1", str(run_dir / "log"), ["oc"]
+
             with (
                 mock.patch.object(driver, "driver_begin", lambda r, i, a: (0, "ok")),
                 mock.patch.object(
                     driver,
                     "run_opencode",
-                    lambda *a, **k: (0, "ses1", str(run_dir / "log"), ["oc"]),
+                    fake_run,
                 ),
                 mock.patch.object(
                     driver,
@@ -6853,6 +6884,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                     "self_finalize": True,
                     "isolate_worktree": True,
                     "no_audit": False,
+                    "retry_budget": 0,
                 },
             }
 
@@ -6879,6 +6911,9 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
             def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
                 work_dir = kwargs.get("work_dir")
                 if kwargs.get("fresh_session"):
+                    (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
+                        json.dumps({"verdict": "CORRECTION_REQUIRED"}), encoding="utf-8"
+                    )
                     return 0, "vses", str(run_dir / "vlog"), ["oc"]
                 wt = Path(work_dir) if work_dir else repo
                 (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -6950,6 +6985,7 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                     "self_finalize": True,
                     "isolate_worktree": True,
                     "no_audit": False,
+                    "retry_budget": 0,
                 },
             }
 
@@ -6978,6 +7014,9 @@ class VerifierGateAndRunnerBugTests(unittest.TestCase):
                 work_dir = kwargs.get("work_dir")
                 if kwargs.get("fresh_session"):
                     # EXIT 0, which is the whole point: a tidy exit with an unreadable verdict.
+                    (run_dir / "outcomes" / "01-unr001-verification.json").write_text(
+                        '{"verdict": "VERI', encoding="utf-8"
+                    )
                     return 0, "vses", str(run_dir / "vlog"), ["oc"]
                 wt = Path(work_dir) if work_dir else repo
                 (wt / "src").mkdir(parents=True, exist_ok=True)
@@ -7181,14 +7220,8 @@ class PerArtifactDispositionLineTests(unittest.TestCase):
     def _disposition_lines(self, out: str) -> list:
         from agent_workflows import run_selection_policy as pol
 
-        lines = out.splitlines()
-        start = lines.index(pol.DISPOSITION_HEADER)
-        block = []
-        for line in lines[start + 1 :]:
-            if not line.startswith("- "):
-                break
-            block.append(line)
-        return block
+        lines = support.section_lines(out, pol.DISPOSITION_HEADER, pol.SUMMARY_HEADER)
+        return [ln for ln in lines[1:] if ln.startswith("- ")]
 
     def test_an_approval_blocked_queue_explains_itself_instead_of_showing_a_bare_reviewed(
         self,
@@ -7322,7 +7355,7 @@ class EndOfRunDispositionSummaryTests(unittest.TestCase):
             self._entry(4, "ddd444", status="queued", dependencies=["executed:aaa111"]),
         ]
         out_mixed = self._run_and_capture(queue_mixed)
-        block = out_mixed[out_mixed.index(pol.SUMMARY_HEADER) :].splitlines()
+        block = support.section(out_mixed, pol.SUMMARY_HEADER, "  total: ").splitlines()
         counted = sum(
             int(m.group(2))
             for line in block

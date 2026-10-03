@@ -1,0 +1,608 @@
+# IPD: Make the setter refusal hints echo a command that actually reproduces the caller's request
+
+- Date: 2026-09-28
+- Kind: child
+- Concern: Every refusal hint on the `aw set` family builds its suggested retry command from `raw_args` alone, so it DROPS every flag the caller passed and REWRITES the invoked verb as the untyped `aw set`. A caller who copy-pastes the hint performs a different transition from the one they asked for, and on a cross-type setid the hint is not merely under-specified but REFUSES.
+- Scope: Introduce one shared, echo-safe retry-command builder in `status_set` that reconstructs the INVOKED VERB from the parsed namespace's routing dest and appends the caller's DECLARED flags from that same namespace; route all three hint sites in `status_set` through it (the confirmation refusal, the terminal-reopen override hint, and the missing-`--actor` hint); replace the missing-`--actor` hint's `repr()` quoting with `shlex.quote`; deliberately OMIT `--dir` from the echo because echoing it crashes the `--agent` renderer; and pin all of it with behavioral tests that assert the emitted command is both runnable and equivalent to the caller's request.
+- Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: pftva5
+- Blocks-Release: next
+- Set: pftva5
+- Order: 1
+- Highest E allocated: 06
+- Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
+- Id: 5poaqh
+
+## Workflow history
+- 2026-10-03 executed (antigravity): Make setter refusal hints echo command that reproduces caller request [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-auf552-01-auf552-backlog-and-status-set-history-dates-desync-across.backlog.md: filed defect for backlog and status-set history date desync across UTC midnight] [Scope attribution - 29 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: run-record-exact), so no --scope-reason was demanded for them: .aw/records/backlog/done/20260921-19lmbe-01-19lmbe-backlog-set-status-ignores-dry-run.backlog.md, .aw/records/backlog/graduated/20260922-runverdict-01-ildjse-wire-run-state-machine-into-the-host-runners.backlog.md, .aw/records/backlog/graduated/20260929-denypush-01-sv9ce4-host-granular-network-filtering.backlog.md, .aw/records/backlog/graduated/20260929-fcnz1r-01-fcnz1r-unify-backlog-set-dispatch-paths.backlog.md, .aw/records/backlog/graduated/20260930-dirsilent-01-rgl2d4-silent-resolver-callers-under-report.backlog.md (... and 24 more; see disregarded_no_evidence_paths in the finalize evidence)]
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all fixed
+
+- 2026-09-29 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Revisions committed here; the `- Status: reviewed` transition is applied immediately after through `aw ipd set reviewed 5poaqh`, which is why this line precedes it. Reviewed at HEAD `9504c522`. `aw ipd lint --phase author` reported `conforming` before review. ALL SIXTEEN authored findings were independently re-measured and ALL SIXTEEN REPRODUCE, including F-04's anonymous terminal-reopen history line, F-05's `shlex.split`-raising `repr()` hint, F-07's `--agent` `ValueError`, F-09's five routing dests, F-13's differing `--message` defaults, and F-15's three test baselines (`3246 passed, 2 skipped`; `95 passed`; `79 passed`). SIX findings were raised and all six FIXED in place. TWO WOULD EACH HAVE SHIPPED AN UNRUNNABLE COMMAND: PR-001/F-17, that `-m` is not declared on `aw specs set` or `aw backlog set` so the prescribed `--message/-m` echo exits 2 with `unrecognized arguments: -m` on two of the four reconstructed verbs (the same failure mode the plan's own F-06 names for `--priority`, arriving by a different door); and PR-002/F-19, that the agent-record home-path validator keys on the VALUE not the flag name, so E-02's echo list including `--evidence` and `--gate-dir` would have reintroduced the exact `ValueError` OQ-01 was resolved to prevent, on a reachable `aw backlog set` path. PR-003/F-18 corrected an UNSATISFIABLE acceptance bar (V-05 demanded `bash -c` exit 0 from a hint whose deliberate `<agent/model>` placeholder is a bash redirect, so a correct implementation reaches exit 1). PR-004/F-20 records a pre-existing `--agent` crash on an absolute-path SELECTOR that this plan does not close, bounding what E-06(g) may claim. PR-005 added the missing scope fence and the conditional finalize-ownership statement to the gate. PR-006 added E-06(h) and OQ-05. No production file or test was modified by this review; every measurement was a read or an in-process probe against fixtures under a gitignored `tmp/` path, removed afterwards.
+- 2026-09-28 to-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `pftva5`, graduating it. Every claim below was re-measured at HEAD `bbb3a7a0` in this lane worktree against purpose-built fixture repositories under `tmp/` (gitignored). The item's core defect REPRODUCES EXACTLY. FIVE things the item did not know are recorded here because each changes the shape of the fix. FIRST, the item's stated motive is STALE: it says plan `4bc1nd` extended the refusal to every flagless caller, but the maintainer REVERTED that in `fcf76812` (2026-09-27), so the confirmation refusal is once again reachable only by an `--agent`/`--json` caller. The defect survives the revert; its blast radius does not. SECOND, there are THREE hint sites carrying this defect, not one. THIRD, one of them quotes with `repr()`, which emits a Python escape that bash CANNOT PARSE, so that hint is not merely wrong but unrunnable. FOURTH, the item's suggested fix, echoing the flags onto the printed command, produces an UNPARSEABLE command for three real flags, because the untyped `aw set` does not declare `--priority`, `--work-kind` or `--from-backlog` at all; reconstructing the VERB is therefore not optional polish but a prerequisite for echoing flags at all. FIFTH, and decisively for the echo-safety question the item asks to be decided explicitly, echoing `--dir` VERBATIM raises `ValueError` inside the `--agent` renderer, because `to_agent_record` calls `assert_valid_agent_record` and the schema rejects a home path in the `next` field.
+- 2026-09-28 draft (opencode model=its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make every refusal hint the `aw set` family prints a command that, pasted verbatim, reproduces the transition the caller actually asked for: the same verb, the same selectors, and the same declared flags. Today all three hints print a command that performs a DIFFERENT transition (losing `--actor`, `--no-commit`, `--priority`, and the rest), and two of them can print a command that does not run at all.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: build the one echo-safe command builder
+
+- [x] E-01 Add ONE module-level helper in `status_set` (suggested name `_retry_command`) that reconstructs the invoked verb and returns a runnable command string, and give it a docstring stating the three rules below so the next author does not re-litigate them. It takes the parsed `args` namespace, the `raw_args` list, the `scoped_type`, and the extra tokens a particular hint site wants to append (for example `--yes`, or `--allow-terminal-reopen --yes`).
+  RULE 1, RECONSTRUCT THE VERB FROM THE ROUTING DEST, NOT FROM A GUESS. `cli._dispatch` sets `args.command` to the family name and a per-family dest to `set`, and those two are sufficient: measured at HEAD, `aw ipd set ...` yields `command='ipd'` plus `ipd_command='set'`, `aw specs set ...` yields `command='specs'` plus `specs_command='set'`, `aw spec set ...` yields `command='spec'` plus `specs_command='set'` (note the ALIAS keeps its own `command` value, so echoing `args.command` preserves the spelling the caller typed), `aw backlog set ...` yields `command='backlog'` plus `backlog_command='set'`, and the untyped `aw set ...` yields `command='set'` with no family dest. So the verb is `f"aw {args.command} set"` when a family dest equals `set`, and `"aw set"` when `args.command == 'set'`.
+  RULE 2, FALL BACK TO THE CURRENT BEHAVIOR WHEN THE NAMESPACE CARRIES NO ROUTING INFORMATION, because `run_set_command` is also called with HAND-BUILT namespaces that have no `command` attribute at all: `work_cmd.run_finish` builds `argparse.Namespace(dir=..., message=..., yes=True)` and `status_set.run_dependencies_set_command` builds a similar one. Measured: `hasattr(ns, "command")` is False for such a caller. When the verb cannot be determined, emit `"aw set"` with the leading type token that `raw_args` may already carry, which is exactly today's string, so the helper never invents a verb it cannot evidence.
+  RULE 3, PRESERVE THE LEADING-TYPE-TOKEN SPELLING. On the untyped verb, `run_set_command` adopts a leading type token out of `raw_args` (the `canonical_type(first_tok)` branch), and in that case `raw_args` ALREADY contains it, so echoing `raw_args` verbatim after the verb reproduces `aw set plans reviewed <sel>`. Do NOT additionally synthesize a type token from `scoped_type` for a TYPED verb: `aw ipd set plans reviewed x` is not a valid spelling. Measured control at HEAD: `aw set plans reviewed shared --agent` already prints `next: aw set plans reviewed shared --yes`, which is correct, and must stay byte-identical.
+  - Depends on: none
+  - Expected outcome: the helper returns `aw ipd set reviewed aaaa03 ...` for an `aw ipd set` caller, `aw spec set ...` for the `spec` alias, `aw set plans reviewed shared ...` for an untyped caller carrying a leading type token, and today's `aw set <raw_args> ...` for a hand-built namespace with no `command` attribute.
+  - Execution state: performed
+
+- [x] E-02 Extend that helper to append the caller's DECLARED flags, read from the parsed namespace rather than from `raw_args`, and DECIDE AND RECORD THE ECHO-SAFE SET, which is the explicit decision the backlog item asks for. Echo, when present and truthy: `--message` (value, `shlex.quote`d), `--actor` (value, quoted), `--by-human`, `--priority`, `--work-kind`, `--from-backlog`, `--graduated-to`, `--blocks-release`, `--gate-kind`, `--gate-ref`, `--gate-summary`, `--force`, `--allow-open-questions`, `--no-commit`, `--commit`, `--status`, `--date`.
+  ALWAYS EMIT THE LONG SPELLING `--message`, NEVER THE `-m` ALIAS, and this is a CORRECTNESS requirement rather than a style preference. `-m` IS NOT DECLARED ON EVERY RECONSTRUCTED VERB: measured at HEAD, `aw ipd set` and the untyped `aw set` declare `--message, -m`, but `aw specs set` (`cli.py:5836`) and `aw backlog set` (`cli.py:5525`) declare only `--message`. So a helper that echoes `-m` because the caller typed it emits a command that exits 2 with `unrecognized arguments: -m msg` on exactly the two spellings where the reconstruction is otherwise correct (measured: `aw specs set to-review bbbb04 -m 'retire note' --yes` and the `backlog` equivalent both exit 2, while the `--message` form exits 0). The value is read from the ONE dest `args.message` regardless of which spelling the caller typed, so emitting the long form costs nothing and is always parseable. Do NOT generalize this into "echo the spelling the caller used": the namespace does not record which alias was typed, and the long form is the only one declared on all four live spellings.
+  ECHO NO PATH-VALUED FLAG AT ALL, WHICH IS A STRICTLY WIDER EXCLUSION THAN `--dir`. `CommandResult.to_agent_record` puts `next_actions[0].command` into the record's `next` field and then calls `_schema.assert_valid_agent_record(rec)`, whose `_HOME_PATH_RE` RAISES on a home path in any string field (`agent_schema.py:63`, `agent_schema.py:337`). That validator keys on the VALUE, not on the flag name, so it fires for EVERY flag whose value can be an operator-local absolute path, not only for `--dir`. Measured at HEAD, each of `--dir`, `--evidence`, `--gate-dir`, `--scope-reason` and `--scope-ack` raises `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'` when its value is home-prefixed, and all five are reachable: `aw backlog set done <id6> --evidence <abs> --gate-dir <abs> --json` and `aw ipd set reviewed <id6> --scope-reason <abs>=why --json` both reach the confirmation refusal at exit 2 carrying those values. So the exclusion set is `--dir`, `--evidence`, `--gate-dir`, `--scope-reason` and `--scope-ack`, and the helper must be written so the NEXT path-valued flag added to any `set` spelling is excluded by default rather than silently echoed: keep the echo an ALLOW-LIST of the non-path flags named above, never a deny-list of known-bad ones.
+  Do NOT "fix" any of these by running the value through `normalize_repo_path`, which would emit a repo-relative path that is WRONG as a `--dir` argument from the caller's cwd, and for `--scope-reason` would additionally corrupt the `PATH=WHY` pair. Record the consequence honestly in the helper's docstring: a hint pasted from a different cwd than the original invocation may not resolve, and measured at HEAD that is ALREADY true (`aw set reviewed pl0001 --yes` without `--dir` answers `No artifact matched 'pl0001'`, exit 2), so this is a preserved limitation and not a new one. A caller who passed `--scope-reason`/`--scope-ack` must re-supply them along with `--dir`; that is the same preserved cwd limitation and not an additional loss, because those two flags are only forwarded on the plan-to-`executed` delegation, which the E-05 site refuses for a different reason anyway.
+  DO NOT ECHO the renderer/mode flags `--agent`, `--json`, `--color`, `--no-color`, `--interactive`, `--no-interactive`, nor `--dry-run` (a retry that previews defeats the hint's purpose), nor `--yes`, which each hint site supplies itself as its extra token.
+  QUOTE EVERY VALUE WITH `shlex.quote`, never with `repr()` or bare interpolation: `--actor 'me model=x'` and `--message 'a message'` both contain spaces and a bare echo would split into extra tokens.
+  - Depends on: E-01
+  - Expected outcome: for `aw ipd set reviewed aaaa03 --actor 'me model=x' -m 'retire note' --no-commit --priority high --from-backlog pftva5 --dir <d> --agent`, the emitted command is `aw ipd set reviewed aaaa03 --message 'retire note' --actor 'me model=x' --priority high --from-backlog pftva5 --no-commit --yes` (flag order deterministic, long `--message` even though the caller typed `-m`, `--dir` absent, mode flags absent), and it parses without error. For `aw backlog set done cccc05 --evidence <abs home path> --gate-dir <abs home path> --json`, the emission carries NEITHER path flag and the `--agent` render of the same refusal succeeds instead of raising.
+  - Execution state: performed
+
+### Task group 2: route every hint site through it
+
+- [x] E-03 Route the CONFIRMATION REFUSAL through the helper, replacing `cmd_str = f"aw set {' '.join(raw_args)} --yes"` in `run_set_command`. This is the site the backlog item names by content string, and it is the one an agent hits most, because it is the refusal every `--agent`/`--json` setter call without `--yes` receives.
+  KNOW THE BLAST RADIUS HONESTLY, BECAUSE THE ITEM'S STATED MOTIVE IS STALE. The item says `4bc1nd` extended this refusal to every FLAGLESS caller, making the hint "seen by every unconfirmed setter invocation". The maintainer REVERTED that in `fcf76812` ("allow direct interactive status mutation and commit prompt without requiring -y"), restoring the predicate to `(ctx.is_agent or ctx.is_json) and not is_dry_run and not yes`. Measured at HEAD: a flagless `aw ipd set reviewed pl0001 --no-commit` WRITES and exits 0, printing no hint. So the audience is now MACHINE CALLERS ONLY. That does not weaken the case, it sharpens it: the reader of this hint is an agent that will paste it programmatically, which is precisely the consumer least able to notice that `--actor` went missing. Do NOT treat the revert as something to undo; it is a maintainer decision outside this plan.
+  - Depends on: E-01, E-02
+  - Expected outcome: `aw ipd set reviewed <id6> --actor <a> -m <m> --no-commit --agent` emits a `next` naming `aw ipd set` and carrying all three flags; running that emitted string verbatim performs the transition the caller asked for, with the history line attributed to the caller's actor and with no self-commit.
+  - Execution state: performed
+
+- [x] E-04 Route the TERMINAL-REOPEN OVERRIDE hint through the helper, replacing `command=f"aw set {' '.join(raw_args)} --allow-terminal-reopen --yes"`, passing `--allow-terminal-reopen --yes` as the extra tokens. THE ITEM DOES NOT MENTION THIS SITE and it is the more DANGEROUS of the two `raw_args` sites, because the command it prints is an OVERRIDE of a safety gate: it moves a plan backwards out of a terminal disposition. Measured at HEAD on a fixture, pasting the printed hint after `aw ipd set approved ex0001 --actor 'me model=x' -m 'why' --no-commit --json` reopened the executed plan and wrote the history line `- 2026-09-29 approved (aw set, --allow-terminal-reopen): status set to approved`, with NO actor attribution and NO message, while the caller had supplied both. So today this hint launders an attributed, reasoned override into an anonymous one, on the exact transition AGENTS.md says must be recorded.
+  - Depends on: E-01, E-02
+  - Expected outcome: the override hint names the caller's verb and carries their `--actor` and `-m`, so pasting it writes a history line attributed to the caller's actor carrying their message, instead of the anonymous `(aw set, --allow-terminal-reopen)` line measured at HEAD.
+  - Execution state: performed
+
+- [x] E-05 Fix the MISSING-`--actor` hint in the plan-to-`executed` delegation (`_delegate_plan_executed_to_finalize`), which is a THIRD site with the same verb rewrite plus its own distinct and worse defect: it quotes the caller's message with Python `repr()` (`--message {message!r}`), and that emits an escape sequence bash cannot parse. MEASURED: for a message containing both a double and a single quote, `repr()` yields `'say "hi" and it\'s'`, and `bash -c` on a command containing it fails with `unexpected EOF while looking for matching '` at exit 2, while `shlex.quote` yields a form bash runs correctly. So this hint can be literally unrunnable, which is a strictly worse failure than being under-specified. This item both routes the site through the helper AND replaces `repr()` with `shlex.quote`.
+  KEEP THE `<agent/model>` PLACEHOLDER EXACTLY AS IT IS. This hint is asking for a flag the caller did NOT pass, so the placeholder is correct and must NOT be filled in: fabricating an actor is precisely what the surrounding docstring says this path must never do ("honest, never a fabricated actor"). The helper must therefore not be given a truthy `--actor` to echo here; pass the placeholder as an extra token.
+  ALSO NOTE the summary prose interpolates the same hint string, so one substitution fixes both the `summary` and the `next_actions` entry; verify the two still agree after the change rather than assuming they do.
+  THE CORRECT PARSEABILITY BAR FOR THIS SITE IS `shlex.split`, NOT `bash -c`, and the distinction matters because the obvious stronger assertion is UNSATISFIABLE BY DESIGN. The hint deliberately contains the literal placeholder `<agent/model>`, and `<` is a bash REDIRECTION operator, so bash parses the command and then fails on the redirect: measured, the `shlex.quote` form gives `bash -c 'printf %s <the hint>'` exit 1 with `bash: line 1: agent/model: No such file or directory`, versus exit 2 with `unexpected EOF while looking for matching '` for the `repr()` form. Those two exit codes DO distinguish the fix from the bug, but exit 1 is not exit 0, so do not assert `bash` exit 0 here. The property that actually matters is that the QUOTING is balanced, which `shlex.split` decides exactly: it RAISES `ValueError: No closing quotation` on the `repr()` form and succeeds on the `shlex.quote` form, round-tripping the message as one token. Do NOT "fix" the bash exit code by quoting the placeholder (`'<agent/model>'`), which does reach exit 0 but changes the literal text the caller is meant to substitute into.
+  - Depends on: E-01, E-02
+  - Expected outcome: `aw ipd set executed <id6> --message "it's done" --json` emits a hint naming `aw ipd set`, carrying a `shlex.quote`d message that `shlex.split` parses into one token (where the `repr()` form raises `No closing quotation`), and still carrying the literal `--actor <agent/model>` placeholder unfilled.
+  - Execution state: performed
+
+### Task group 3: pin it behaviorally
+
+- [x] E-06 Add behavioral tests to `tests/test_status_set.py` (the module that already owns this surface and whose `StatusSetTestBase` builds the fixture tree) covering all three sites. NO TEST PINS ANY OF THESE HINTS TODAY, measured: `grep -n "next_actions\|NextAction\|cmd_str" tests/test_status_set.py` returns nothing, which is why a wrong hint shipped and survived two plans touching this code.
+  Assert on OBSERVABLE OUTPUT AND REAL EFFECTS, never on source structure (GUIDING_PRINCIPLES P16): drive `cli.main([...])` with `--json`, parse the emitted JSON, read `next_actions[*].command`, and then EXECUTE the emitted command by splitting it with `shlex.split` and feeding it back through `cli.main` (dropping the leading `aw`), asserting the resulting FILE STATE matches what the original invocation asked for.
+  Cover: (a) the confirmation refusal from `aw ipd set` names `aw ipd set` and carries `--actor`, `--message`, `--no-commit`, `--priority`; (b) the emitted command, re-executed with `--dir` re-supplied, produces a history line carrying the caller's actor and message, and does NOT self-commit; (c) the untyped `aw set plans reviewed <setid>` hint is BYTE-IDENTICAL to today's `aw set plans reviewed <setid> --yes`, pinning that the leading-type-token spelling is preserved; (d) the terminal-reopen hint names the typed verb and carries `--actor`/`--message`, and re-executing it writes an ATTRIBUTED history line rather than the anonymous `(aw set, --allow-terminal-reopen)` one; (e) the missing-`--actor` hint with a message containing both quote characters is parseable, asserted by `shlex.split` succeeding and round-tripping the message as ONE token where the `repr()` form raises `ValueError: No closing quotation` (do NOT assert a `bash -c` exit 0 here; the `<agent/model>` placeholder is a bash redirect and makes exit 0 unreachable, per E-05); (f) a HAND-BUILT namespace with no `command` attribute still yields today's `aw set ...` string, pinning Rule 2; (g) NO path-valued flag appears in ANY emitted hint, and the `--agent` rendering of each of the three refusals succeeds rather than raising, driven with home-prefixed values so the assertion would fail if one were echoed: assert it for `--dir` at all three sites AND for `--evidence`/`--gate-dir` on an `aw backlog set` caller (which reaches the confirmation refusal, measured) so the wider exclusion E-02 declares is pinned rather than only its `--dir` case.
+  ALSO COVER THE TWO SPELLINGS WHERE THE `-m` ALIAS DOES NOT EXIST, since that is the defect the review found in E-02's first draft and nothing else here would catch it: (h) drive `aw specs set <status> <id6> --message <m> --json` and `aw backlog set <status> <id6> --message <m> --json`, and for EACH assert the emitted command names the caller's verb, spells the flag `--message` (never `-m`), and then RE-EXECUTE it through `cli.main` asserting exit 0 and the resulting status, because an emitted `-m` exits 2 with `unrecognized arguments: -m` on exactly these two verbs.
+  - Depends on: E-03, E-04, E-05
+  - Expected outcome: the new cases pass after the change, and each of (a), (b), (d), (e), (h) FAILS against pre-change code, demonstrated by running the new tests at HEAD.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- `status_set.run_set_command` is the ONE engine behind five routing spellings (`aw set`, `aw ipd set`, `aw spec`/`specs set`, `aw backlog set`, and a declared-but-dead `aw prompts set`), each dispatched from `cli.py` with a different `scoped_type`. Its own module docstring lists the spellings. A fix here therefore reaches every spelling, which is why the verb must be reconstructed rather than hardcoded.
+- `aw prompts set` IS NOT A LIVE PARSER SURFACE despite `cli.py` carrying a dispatch branch for it and `command_surface.py` carrying a `CommandDeclaration` for it. Measured: `aw prompts set --help` refuses with `invalid choice: 'set' (choose from 'new')`. `tests/test_status_set.py` already records this and drives prompt transitions through the untyped `aw set prompts <status> <sel>` spelling instead. So the helper needs no `prompts` case, and a prompt transition arrives as an untyped call carrying a leading type token.
+- THE FIVE SPELLINGS DO NOT DECLARE THE SAME FLAGS, and this is what makes the item's suggested fix insufficient on its own. Measured by walking the built parser: `--priority`, `--work-kind` and `--from-backlog` exist on `ipd set` but NOT on the untyped `set`; `--force`, `--gate-kind`, `--gate-ref`, `--gate-summary` exist on `set` but not on `ipd set`; `specs set` additionally declares `--date`, `--evidence`, `--status` while lacking `--actor`, `--force`, `--scope-ack`, `--scope-reason` and even `-m`. So echoing the caller's flags onto the REWRITTEN `aw set` verb yields an argparse error, not a working command.
+- `run_set_command` IS ALSO CALLED WITH HAND-BUILT NAMESPACES that carry no routing attributes: `work_cmd.run_finish` (which comments at length on needing `yes=True` for exactly this reason) and `status_set.run_dependencies_set_command`. Any verb reconstruction must therefore be defensive with `getattr`, which is the prevailing style in this function already (it reads nearly every flag through `getattr(args, ..., default)`).
+- `--message` DEFAULTS DIFFER ACROSS SPELLINGS: measured, `aw ipd set` leaves `message=None` while `aw specs set` leaves `message=''`. A truthiness test (`if value:`) handles both; an `is not None` test would echo an empty `--message ''` on the specs path.
+- THE `-m` ALIAS IS NOT UNIVERSAL EITHER, which is the same class of divergence one level finer: `aw ipd set` and untyped `aw set` declare `--message, -m` while `aw specs set` and `aw backlog set` declare only `--message` (F-17). Since every spelling writes the one dest `args.message`, the namespace cannot tell which alias was typed and does not need to: emit the long form always.
+- THE `--agent` RECORD VALIDATOR IS VALUE-KEYED, NOT NAME-KEYED (`agent_schema._HOME_PATH_RE` applied by `_check_string_values` to every string field), so "which flags are echo-safe" is really "which VALUES can be operator-local paths". Five flags on the `set` family can be: `--dir`, `--evidence`, `--gate-dir`, `--scope-reason`, `--scope-ack` (F-19). An allow-list of non-path flags is therefore the only shape that stays correct when a sixth is added.
+- `CommandResult.to_agent_record` copies `next_actions[0].command` into the record's `next` field and then calls `assert_valid_agent_record`, which RAISES `ValueError` on a home path in any field. The `--json` renderer does NOT validate (`JsonRenderer.render` is a bare `json.dumps(result.to_dict())`), so a defect that crashes `--agent` can be invisible under `--json`. Test both modes.
+- `shlex.quote` is the established quoting primitive in this repository (used in `runner_shared`, `engine`, `completion`, `upgrade_rehearsal`, `partition`, `pwatch`); `repr()` for a shell token appears exactly once, at the site E-05 fixes.
+- The cross-type setid refusal in this same function already prints RUNNABLE per-type disambiguating commands (`aw set <type> <status> <tok>`), which is the in-repo precedent for what a hint should look like: it names a spelling that works, not an approximation.
+- `tests/test_status_set.py` is the owning module, has 79 tests passing at HEAD, and `StatusSetTestBase` already builds a plans/specs/prompts/backlog fixture tree with `create_plan`, `create_spec`, `create_prompt` helpers. Extend it rather than adding a module.
+- Exit codes must be measured UNPIPED (standing repository instruction); a piped `$?` reports the pipeline's status, not the command's.
+- In-lane `aw` invocations re-exec to match the checkout's package and print a notice; `AW_NO_REEXEC=1` suppresses it. Set it when capturing output inside a lane.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | THE ITEM'S CORE DEFECT REPRODUCES EXACTLY. `aw ipd set reviewed aaaa03 --actor 'me model=x' -m 'retire note' --no-commit --dir <fixture> --agent` emits `"next":"aw set reviewed aaaa03 --yes"`. All three flags are gone and `ipd set` became `set`. | measured at HEAD `bbb3a7a0` on a fixture repo under `tmp/` |
+| F-02 | **THE ITEM'S STATED MOTIVE IS STALE: `4bc1nd`'s extension WAS REVERTED.** The item says the refusal now reaches every flagless caller. Commit `fcf76812` (2026-09-27, "allow direct interactive status mutation and commit prompt without requiring -y") restored the predicate to `(ctx.is_agent or ctx.is_json) and not is_dry_run and not yes` and rewrote the `FlaglessConfirmationRefusalTests` docstring to say so. Measured: a flagless `aw ipd set reviewed pl0001 --no-commit` WRITES `- Status: reviewed` and exits 0, printing no hint. So the audience is machine callers only. | `git show fcf76812`; `git log -L` on the predicate lines; unpiped measurement at HEAD |
+| F-03 | THE DEFECT IS THREE SITES, NOT ONE. The confirmation refusal (`cmd_str = f"aw set {' '.join(raw_args)} --yes"`), the terminal-reopen override (`command=f"aw set {' '.join(raw_args)} --allow-terminal-reopen --yes"`), and the missing-`--actor` hint in `_delegate_plan_executed_to_finalize` (`f"aw set executed {selector} --actor <agent/model> --message {message!r}"`). The item names only the first. | `grep -n "aw set " agent_workflows/status_set.py`; all three measured emitting a wrong verb |
+| F-04 | **THE TERMINAL-REOPEN HINT LAUNDERS AN ATTRIBUTED OVERRIDE INTO AN ANONYMOUS ONE, and it is the most serious of the three because the command it prints overrides a safety gate.** After `aw ipd set approved ex0001 --actor 'me model=x' -m 'why' --no-commit --json`, the printed override was `aw set approved ex0001 --allow-terminal-reopen --yes`; pasting it verbatim reopened the executed plan at exit 0 and wrote `- 2026-09-29 approved (aw set, --allow-terminal-reopen): status set to approved` with no actor and no message, both of which the caller had supplied. | measured at HEAD on a fixture; resulting history line read back from the moved file |
+| F-05 | **THE THIRD HINT IS UNRUNNABLE FOR A MESSAGE CONTAINING A SINGLE QUOTE, because it quotes with Python `repr()`.** For a message containing both quote characters, `repr()` yields a `\'` escape; the hint is then UNBALANCED, so `shlex.split` raises `ValueError: No closing quotation` and `bash -c` on a command containing it exits 2 with `unexpected EOF while looking for matching '`, while the `shlex.quote` form parses and round-trips the message as one token. Also measured live: `aw ipd set executed pl0001 --message "it's done" --json` emits `--message "it's done"`, a form whose correctness depends entirely on which quote characters the message happens to contain. NOTE the fixed form reaches `bash` exit 1, not 0, because the deliberate `<agent/model>` placeholder is a bash redirect; `shlex.split` is therefore the right bar (F-18). | measured at HEAD; `shlex.split` raise vs success, and `subprocess.run(["bash","-c", ...])` return codes 2 vs 1 |
+| F-06 | **THE ITEM'S SUGGESTED FIX IS INSUFFICIENT ON ITS OWN: echoing the flags onto the rewritten `aw set` verb yields an ARGPARSE ERROR.** `--priority`, `--work-kind` and `--from-backlog` are declared on `ipd set` but not on `set`. Measured: `aw set reviewed aaaa03 --priority high --from-backlog pftva5 --dir <d> --yes` exits 2 with `unrecognized arguments: --priority high --from-backlog pftva5`. So reconstructing the VERB is a PREREQUISITE for echoing flags, not an independent nicety. | parser walk of all five `set` spellings; unpiped exit code 2 |
+| F-07 | **ECHOING `--dir` VERBATIM CRASHES THE `--agent` RENDERER, which is what makes the "which flags are echo-safe" question answerable from evidence rather than taste.** `to_agent_record` writes `next_actions[0].command` into `next` then calls `assert_valid_agent_record`; rendering a `NextAction` containing `--dir /home/<name>/checkout` raises `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'`. A relative `--dir tmp/x2` and a non-home absolute `/srv/shared/repo` both validate, so the crash is specific to the common case of a checkout under a home directory. | measured at HEAD by rendering the constructed `CommandResult` through `get_renderer` |
+| F-08 | **THE VERB REWRITE CAN TURN A WORKING REQUEST INTO A REFUSAL, not merely into a different transition.** On a fixture where one setid names both a plan and a spec, `aw ipd set reviewed shared --agent` correctly scopes to the 1 plan and prints `next: aw set reviewed shared --yes`. Pasting that verbatim exits 2: `Selector 'shared' names artifacts of 2 types (plans, specs), so 'aw set' cannot tell which you meant.` The type scope the caller established by choosing the typed verb is destroyed by the hint. | measured at HEAD, unpiped exit code 2 |
+| F-09 | THE ROUTING DEST IS SUFFICIENT TO RECONSTRUCT THE VERB, AND PRESERVES ALIAS SPELLING. Spying on `run_set_command`: `aw ipd set` -> `command='ipd', ipd_command='set'`; `aw specs set` -> `command='specs', specs_command='set'`; `aw spec set` -> `command='spec', specs_command='set'` (the alias keeps its own `command`); `aw backlog set` -> `command='backlog', backlog_command='set'`; `aw set` -> `command='set'`. Neither `plan set` nor `plans set` is a live spelling (`invalid choice`). | measured at HEAD by monkeypatching `status_set.run_set_command` and printing the namespace |
+| F-10 | HAND-BUILT NAMESPACE CALLERS CARRY NO `command` ATTRIBUTE, so the helper must fall back rather than raise. Measured: a namespace built as `argparse.Namespace(dir=..., message=..., yes=True, json=True)` reaches the terminal-reopen refusal and emits its hint with `hasattr(ns, "command")` False. `work_cmd.run_finish` and `run_dependencies_set_command` are the two in-tree callers of this shape. | measured at HEAD by calling `run_set_command` directly |
+| F-11 | THE LEADING-TYPE-TOKEN SPELLING IS ALREADY CORRECT AND MUST NOT REGRESS. `aw set plans reviewed shared --agent` emits `next: aw set plans reviewed shared --yes`, which runs and resolves within one type, because `raw_args` retains the type token on the untyped verb. This is the one case today's code gets right, so it is a pin, not a target. | measured at HEAD |
+| F-12 | NO TEST PINS ANY HINT ON THIS SURFACE. `grep -n "next_actions\|NextAction\|cmd_str" tests/test_status_set.py` returns nothing. So the suite going green proves nothing about these strings, and a pre-change failure run is the only evidence the new tests bite. | measured at HEAD |
+| F-13 | `--message` DEFAULTS DIFFER BY SPELLING: `aw ipd set` leaves `message=None`, `aw specs set` leaves `message=''`. A truthiness test handles both; an `is not None` test would emit a spurious `--message ''` on every specs call. | measured at HEAD via the namespace spy |
+| F-17 | **REVIEW FINDING: THE `-m` ALIAS IS NOT DECLARED ON TWO OF THE FOUR RECONSTRUCTED VERBS, so an echo faithful to the caller's spelling emits an unparseable command on exactly the verbs the reconstruction newly makes reachable.** `aw ipd set` and untyped `aw set` declare `--message, -m`; `aw specs set` (`cli.py:5836`) and `aw backlog set` (`cli.py:5525`) declare only `--message`. Measured: `aw specs set to-review bbbb04 -m 'retire note' --yes` and `aw backlog set done cccc05 -m 'retire note' --yes` each exit 2 with `unrecognized arguments: -m msg`, while the `--message` form of each exits 0. Both spellings DO reach the confirmation refusal (measured, each emitting `next: aw set <status> <id6> --yes`), so this is live and not theoretical. E-02 now mandates the long spelling and E-06(h) pins it. | measured at review HEAD `9504c522` on a fixture under `tmp/` (removed after) |
+| F-18 | **REVIEW FINDING: E-05's ORIGINAL ACCEPTANCE EVIDENCE WAS UNSATISFIABLE.** V-05 demanded the fixed hint reach `bash -c` exit 0, but the hint deliberately contains the literal `<agent/model>` placeholder and `<` is a bash redirection operator. Measured: the `shlex.quote` form exits 1 with `bash: line 1: agent/model: No such file or directory`; the `repr()` form exits 2 with `unexpected EOF while looking for matching '`. So the bar as written could never be met by a correct implementation, and an executor would either fail V-05 or "fix" it by quoting the placeholder, corrupting the text the caller must substitute. `shlex.split` decides the property that actually matters (balanced quoting) exactly: raise vs success. | measured at review HEAD; exit codes 1 vs 2, and `shlex.split` raise vs one-token round trip |
+| F-19 | **REVIEW FINDING: THE AGENT-RECORD VALIDATOR KEYS ON THE VALUE, NOT THE FLAG NAME, so excluding only `--dir` leaves FOUR more crash routes open.** `_HOME_PATH_RE` (`agent_schema.py:63`) is applied to every string field by `_check_string_values` (`agent_schema.py:337`). Measured: a `next` command containing a home-prefixed value for any of `--dir`, `--evidence`, `--gate-dir`, `--scope-reason` or `--scope-ack` raises `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'`. Reachability confirmed: `aw backlog set done cccc05 --evidence <abs> --gate-dir <abs> --json` reaches the confirmation refusal at exit 2 with both values home-prefixed in the namespace, and `aw ipd set reviewed aaaa03 --scope-reason <abs>=why --json` likewise. E-02's original echo list INCLUDED `--evidence` and `--gate-dir`, so as first written it would have reintroduced the very crash OQ-01 was resolved to avoid. E-02 now excludes all five and mandates an allow-list; E-06(g) pins it beyond the `--dir` case. | measured at review HEAD by rendering constructed `CommandResult`s and by driving the live refusal |
+| F-20 | **REVIEW FINDING: A SELECTOR GIVEN AS AN ABSOLUTE PATH ALREADY CRASHES THE `--agent` RENDERER AT HEAD, independently of any flag echo, because `raw_args` is echoed verbatim.** Measured: `aw ipd set reviewed <abs home path to plan> --dir <fixture> --agent` raises `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'` (the `next` being `aw set reviewed <abs path> --yes`), while the same call with `--json` exits 2 and prints the path. This is PRE-EXISTING and OUT OF SCOPE (carried below), but it bounds what this plan may claim: routing the three sites through the helper does NOT make every `--agent` refusal crash-free, because the selector tokens come from `raw_args` and are not sanitized. | measured at review HEAD, `--agent` raise vs `--json` exit 2 |
+| F-14 | THE MISSING-`--dir` LIMITATION ALREADY EXISTS AND IS THEREFORE PRESERVED, NOT INTRODUCED. `aw set reviewed pl0001 --yes` with no `--dir`, run from a directory that is not the fixture, answers `No artifact matched 'pl0001'` at exit 2. So a hint pasted from a different cwd already fails today, which is why F-07's exclusion of `--dir` costs nothing new. | measured at HEAD, unpiped |
+| F-15 | THE BASELINE IS GREEN, so any failure the new tests show is attributable to this plan. Bare suite: `3246 passed, 2 skipped`. Owning modules: `tests/test_status_set.py tests/test_specs_from_backlog.py tests/test_specs_status_dirs.py` -> `95 passed`; `tests/test_status_set.py` alone -> `79 passed`. | measured at HEAD `bbb3a7a0`; all three re-measured unchanged at review HEAD `9504c522` |
+| F-16 | NO SPEC GOVERNS THESE STRINGS. `grep -rln` over `.aw/records/specs/` finds no spec describing `run_set_command`'s hints; the `NextAction` shape is documented in `docs/cli-output-contract.md` Section 2 and the `next` field in `docs/cli-agent-protocol.md`, both of which describe the CARRIER and say nothing about content. So no spec amendment is owed. | measured at HEAD |
+
+## Proposed changes (ordered, validatable)
+
+1. `status_set`: add one `_retry_command` helper that reconstructs the invoked verb from the routing dest, falling back to today's `aw set <raw_args>` when the namespace carries none (E-01).
+2. Extend it to append the caller's declared flags from the parsed namespace as an ALLOW-LIST, `shlex.quote`d, always spelling `--message` in long form (F-17), with every path-valued flag (`--dir`, `--evidence`, `--gate-dir`, `--scope-reason`, `--scope-ack`, F-19) and the renderer/mode flags deliberately excluded and the exclusion reasons recorded in the docstring (E-02).
+3. Route the confirmation refusal through it (E-03).
+4. Route the terminal-reopen override hint through it (E-04).
+5. Route the missing-`--actor` hint through it and replace `repr()` with `shlex.quote` (E-05).
+6. `tests/test_status_set.py`: eight behavioral cases that parse the emitted command, re-execute it, and assert the resulting file and history state (E-06).
+
+## Deferred / out of scope (with reason)
+
+- RESTORING `4bc1nd`'s FLAGLESS CONFIRMATION REFUSAL, which the maintainer reverted in `fcf76812` (F-02). This plan fixes the hint's CONTENT for whoever receives it and takes no position on WHO receives it.
+  - Carrier-Declined: NOTHING IS OWED, because the narrowing was a deliberate maintainer act with a stated reason in its own commit subject, not an accident awaiting repair. Filing an item would assert that a shipped maintainer decision is a defect, which this plan has no evidence for and no standing to claim. The only thing this plan owes the question is not silently depending on the reverted behavior, which is why E-03 states the audience as machine callers and why F-02 records the revert rather than quoting the item's stale premise.
+- AN `argparse`-DERIVED, FULLY GENERAL CLI-ECHO FACILITY that could reconstruct any verb's invocation from its parser plus namespace. The backlog item correctly identifies this as "a general CLI-echo capability with its own correctness surface", and this plan deliberately builds the NARROW version: one helper, private to `status_set`, covering the five `set` spellings it can evidence by measurement.
+  - Carrier-Declined: NOTHING IS OWED BY THIS PLAN, because the narrow helper fully closes the measured defect and the general facility has no demonstrated second consumer. A general version would have to answer, for every verb in the tree, which flags are echo-safe, which carry secrets, and how each alias maps back to its spelling; that is a much larger surface with its own review, and nothing measured here needs it. If a second family's hints are ever found to carry the same defect, THAT measurement is the evidence that would justify generalizing, and the helper's location (module-private) makes the later lift cheap.
+- WHETHER A HINT SHOULD CARRY ENOUGH INFORMATION TO RUN FROM A DIFFERENT WORKING DIRECTORY. Every path-valued flag is excluded for the mechanical reason in F-07/F-19, and F-14 measures that a cwd-dependent hint is already the status quo.
+  - Carrier-Declined: NOTHING IS OWED, because there is no fix available that is not worse than the status quo, and that is a bounded finding rather than deferred work. Echoing such a value verbatim crashes the `--agent` renderer for all five reachable flags (F-07, F-19); normalizing it to a repo-relative path emits a value that is WRONG as a `--dir` argument from the caller's cwd and would additionally corrupt `--scope-reason`'s `PATH=WHY` pair; and omitting it preserves a limitation that already exists (F-14). The honest resolution is to document the limitation where the next author will read it, which E-02 does in the helper docstring. A change here would need the agent-record schema to gain a sanctioned way to carry an operator-local path, which is a machine-contract question for the maintainer and not this plan's to open.
+- THE PRE-EXISTING `--agent` CRASH ON AN ABSOLUTE-PATH SELECTOR (F-20), which is a DIFFERENT route to the same `ValueError` and one this plan does not close: `raw_args` is echoed verbatim after the reconstructed verb, so a caller who names a plan by absolute path still puts that path into the `next` field. Measured at HEAD, `aw ipd set reviewed <abs home path> --agent` already raises today.
+  - Carrier-Declined: NOTHING IS OWED BY THIS PLAN, and the reason is a scope boundary rather than a judgement that the defect is unimportant. The crash is in the SELECTOR echo, not the FLAG echo: it predates this plan, it reproduces at HEAD with no flags passed at all, and it is not made worse here (the same tokens are echoed after the change as before). Fixing it means deciding how a refusal should name an artifact the caller identified by a path the record may not carry, which is the same machine-contract question the bullet above defers to the maintainer, and answering it for selectors would change the hint for every caller rather than only for a home-prefixed one. What this plan owes the finding is not to overclaim: F-20 records it so no reader concludes from E-06(g) that `--agent` refusals are now crash-free, and the plan's Goal is scoped to the flags the caller declared.
+- CONVERTING THE `--json` RENDERER TO VALIDATE ITS PAYLOAD the way the `--agent` renderer does (F-07's observation that `JsonRenderer.render` is a bare `json.dumps`).
+  - Carrier-Declined: NOTHING IS OWED, because this plan neither introduces nor worsens the asymmetry, and the asymmetry is arguably correct: `--json` is documented as the FULL structured representation while `--agent` is the compact protocol record with schema invariants. Changing what `--json` enforces would alter a public output contract for every verb in the tree, on evidence gathered from one refusal path. What this plan owes the observation is not to be fooled by it, which is why E-06 case (g) tests BOTH modes rather than only the one that happens to validate.
+
+## Scope check
+
+- Over-scope: E-04 and E-05 fix two hint sites the backlog item never names, and E-05 additionally fixes a quoting bug (`repr()` -> `shlex.quote`) that is a distinct defect from the item's headline. Both are justified as the same defect on the same surface, reached by the same helper: E-04's site is a verbatim copy of the item's own content string with different extra tokens, and leaving it would ship a plan claiming the setter's hints are correct while its most dangerous hint (a safety-gate override, F-04) still drops the caller's attribution. E-05's `repr()` fix is not separable: routing that site through the helper necessarily replaces the quoting expression, and leaving `repr()` in place would mean knowingly shipping a hint that bash cannot parse (F-05).
+- Under-scope: the reverted flagless refusal (F-02), a general CLI-echo facility, the cwd-dependence of every hint (F-14), the pre-existing absolute-path SELECTOR crash (F-20), and the `--json`/`--agent` validation asymmetry are all left out with reasons recorded above. No file outside `agent_workflows/status_set.py` and `tests/test_status_set.py` is touched: in particular `cli.py` is NOT edited, because the routing dests the helper reads already exist and no new flag is added to any spelling. Note specifically that F-17 (the missing `-m` alias on two spellings) is NOT a `cli.py` change: it is resolved by emitting the long `--message`, so no parser gains a flag.
+
+## Required tests / validation
+
+- The BARE suite: `python3 -m pytest` (configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`; do not add flags). Paste the actual summary line. Baseline at HEAD is `3246 passed, 2 skipped` (F-15).
+- The owning modules alone, so a regression is attributable: `python3 -m pytest tests/test_status_set.py tests/test_specs_from_backlog.py tests/test_specs_status_dirs.py` (baseline `95 passed`; `tests/test_status_set.py` alone is `79 passed`, measured with `-o addopts=""` because the configured `-q` otherwise suppresses the per-test count).
+- A DELIBERATE PRE-CHANGE FAILURE RUN of the new cases (E-06, V-06): cases (a), (b), (d), (e), (h) must FAIL at HEAD. A test that passes before and after pins nothing, and F-12 measures that nothing pins these strings today.
+- Each of the three hint sites exercised in BOTH `--json` and `--agent` modes, because only `--agent` validates the record (F-07), and the `--agent` cases driven with home-prefixed values for EVERY path-valued flag the caller can pass, not only `--dir` (F-19).
+- BOTH the `aw specs set` and `aw backlog set` spellings re-executed from their own emitted commands, since those are the two verbs where the `-m` alias does not exist and an emitted `-m` exits 2 (F-17).
+- `aw sanitize --agent` over the tree, since this plan changes what a machine payload's `next` field contains.
+- `aw ipd lint --phase pre-transition` must report conforming before the terminal move.
+- Every exit code measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`).
+
+## Spec / documentation sync
+
+No `.spec.md` file changes, and none is declared in `- Scope-Paths:`. Measured: no spec under `.aw/records/specs/` describes `run_set_command`'s hint strings or `NextAction` content (F-16). The two documents that do touch this surface describe the CARRIER, not the content: `docs/cli-output-contract.md` Section 2 lists `NextAction` as `command`/`description`, and `docs/cli-agent-protocol.md` documents the `next` field as "a ready-to-run command". This plan makes the emitted value CONFORM to that existing documented promise rather than changing the promise, so neither document needs an edit. Neither is in `- Scope-Paths:`.
+
+## Open questions
+
+### OQ-01: Should the echo include `--dir`, given that a hint without it may not run from a different working directory?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: NO, exclude it, AND EXCLUDE EVERY OTHER PATH-VALUED FLAG WITH IT. This is the "decide explicitly which flags are echo-safe" question the backlog item asks for, and it turned out to have a mechanical answer rather than a stylistic one. THE DECISIVE MEASUREMENT: `CommandResult.to_agent_record` copies `next_actions[0].command` into the record's `next` field and then calls `assert_valid_agent_record`, which RAISES on a home path in any string field; rendering a `NextAction` containing `--dir` pointed at a checkout under a home directory raises `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next'` (F-07). So echoing `--dir` verbatim would convert a wrong hint into a CRASHED REFUSAL, which is strictly worse for the caller and would also leak an operator's home path into a machine payload the repository's own validator rejects. The obvious repair is also wrong: normalizing the value through `normalize_repo_path` yields a repo-relative string that is not a valid `--dir` from the caller's cwd, so it would produce a command that runs and resolves the WRONG root, which is the worst of the three outcomes.
+  THE REVIEW WIDENED THIS ANSWER, and the widening is the substantive part: the validator is VALUE-KEYED, not name-keyed, so the question is not "should `--dir` be echoed" but "which VALUES can be operator-local paths". Measured at review HEAD, five flags on the `set` family can be and all five raise: `--dir`, `--evidence`, `--gate-dir`, `--scope-reason`, `--scope-ack` (F-19). E-02's first draft excluded only `--dir` while its echo list explicitly INCLUDED `--evidence` and `--gate-dir`, so it would have reintroduced the exact crash this question was resolved to avoid, on a reachable path (`aw backlog set done <id6> --evidence <abs> --gate-dir <abs> --json` reaches the confirmation refusal carrying both). The answer is therefore an ALLOW-LIST of non-path flags rather than a deny-list, so a sixth path flag added later is excluded by default.
+  AND THE COST OF EXCLUDING THEM IS ZERO NEW HARM, which is what makes this non-blocking: F-14 measures that a hint without `--dir` already fails to resolve from an unrelated cwd at HEAD, so the limitation is preserved rather than introduced. E-02 records it in the helper docstring so the next author does not "fix" it by echoing the path.
+
+### OQ-05: Should the echo reproduce the `-m` alias when the caller typed it?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us)
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, AND THE ANSWER IS NO: always emit the long `--message`. This question did not exist in the authored plan, which specified `--message/-m` without noticing that the alias is not universal, and it is recorded here because the naive answer produces an unparseable command on two of the four spellings the plan newly makes reachable. MEASURED at review HEAD: `aw ipd set` and untyped `aw set` declare `--message, -m`; `aw specs set` (`cli.py:5836`) and `aw backlog set` (`cli.py:5525`) declare only `--message`, and `aw specs set to-review <id6> -m 'x' --yes` exits 2 with `unrecognized arguments: -m msg` while the `--message` form exits 0 (F-17). Both spellings genuinely reach the confirmation refusal, so this is live. THE RESOLUTION IS FREE OF COST because every spelling writes the single dest `args.message`: the namespace cannot report which alias was typed, so there is nothing to be faithful to, and the long form is declared on all four. This is the same class of divergence as F-13's differing `--message` defaults, one level finer. Reversible: yes, and pinned by E-06(h), whose re-execution assertion is what would catch a regression back to `-m`.
+
+### OQ-02: Should the hint reproduce the caller's verb, or should every hint standardize on the untyped `aw set`?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: reproduce the caller's verb. Standardizing on `aw set` is not merely less faithful, it is MEASURABLY BROKEN in two independent ways. FIRST, three real flags (`--priority`, `--work-kind`, `--from-backlog`) are declared on `ipd set` and NOT on `set`, so a standardized hint carrying the caller's flags exits 2 with `unrecognized arguments` (F-06); the only way to keep a standardized verb would be to DROP those flags, which is the defect this plan exists to fix. SECOND, on a setid naming artifacts of two types, the typed verb resolves correctly while the untyped one REFUSES, so rewriting the verb converts a working request into an exit-2 refusal (F-08). The repository's own cross-type refusal already models the correct behavior by printing per-type runnable commands rather than an approximation. The reconstruction is also cheap and evidenced rather than guessed: `args.command` plus a per-family `*_command` dest is sufficient for all five live spellings and preserves the `spec` vs `specs` alias the caller typed (F-09).
+
+### OQ-03: What should the hint be when `run_set_command` is called with a hand-built namespace that carries no routing information?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: fall back to exactly today's string, `aw set <raw_args> <extra tokens>`. Two in-tree callers build such a namespace (`work_cmd.run_finish` and `status_set.run_dependencies_set_command`), and measured, `hasattr(ns, "command")` is False for them (F-10). Inventing a verb for those callers would be a fabrication in the same family as fabricating an actor, which the delegation path's own docstring forbids; and there is no correct answer available, because the operator-facing verb that led to such a call is `aw finish` or `aw ipd dependencies set`, neither of which takes the arguments the hint would print. Falling back preserves current behavior for a path nothing regresses, and it keeps the helper total rather than raising inside a refusal. E-06 case (f) pins it, so a later refactor cannot quietly start guessing.
+
+### OQ-04: Should the missing-`--actor` hint fill in the actor it knows about from the namespace?
+
+- Blocking: no
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED, AND THE ANSWER IS THAT THE QUESTION IS EMPTY IN THE ONLY REACHABLE CASE: that hint is printed precisely when `--actor` is ABSENT or blank (the branch is `if not actor:`), so there is no value to fill in. The `<agent/model>` placeholder must therefore remain literal, and the surrounding docstring states the governing principle explicitly ("honest, never a fabricated actor, never a bare dead-end"). What the site DOES owe the caller is every OTHER flag they passed plus the caller's verb, which E-05 supplies, and correct quoting of the message it already tries to echo, which is the `repr()` bug F-05 measures. E-06 case (e) asserts the placeholder survives unfilled, so a later change to the helper's flag loop cannot start interpolating a default actor into it.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste the helper's source (signature plus body) and its docstring. Then paste, from a fixture repo, the EMITTED command for each of the five live spellings, taken from the `--json` payload's `next_actions`: `aw ipd set`, `aw specs set`, `aw spec set` (must print `aw spec set`, preserving the alias the caller typed), `aw backlog set`, and untyped `aw set`. Beside each, paste the HEAD emission for the same invocation, so the verb correction is visible as a diff rather than asserted. Also paste the fallback case: call `run_set_command` directly with `argparse.Namespace(dir=..., message=..., json=True)` (no `command` attribute) and show the emitted string is byte-identical to HEAD's. State explicitly that `plan set` and `plans set` are not live spellings and were therefore not covered (`invalid choice`, F-09).
+  - Observed evidence: verified.
+    1. Helper source and docstring:
+    ```python
+    def _retry_command(
+        args: argparse.Namespace | None,
+        raw_args: list[str],
+        scoped_type: str | None = None,
+        extra: list[str] | str | None = None,
+    ) -> str:
+        """Reconstruct an echo-safe retry command reproducing the caller's request.
+
+        Adheres to three governing rules (IPD 5poaqh E-01):
+        RULE 1: RECONSTRUCT THE VERB FROM THE ROUTING DEST, NOT FROM A GUESS.
+          `cli._dispatch` sets `args.command` to the family name and a per-family dest to `set`.
+          When a family dest equals 'set', emit `aw {args.command} set`. When `args.command == 'set'`,
+          emit `aw set`. Preserves alias spellings (e.g. `aw spec set` vs `aw specs set`).
+        RULE 2: FALL BACK WHEN NAMESPACE CARRIES NO ROUTING INFORMATION.
+          Hand-built namespaces (e.g. from `work_cmd.run_finish` or `run_dependencies_set_command`)
+          lack a `command` attribute. In that case, fall back to `aw set` with `raw_args`.
+        RULE 3: PRESERVE LEADING-TYPE-TOKEN SPELLING.
+          On the untyped verb, `run_set_command` adopts a leading type token out of `raw_args`,
+          so echoing `raw_args` verbatim reproduces `aw set plans reviewed <sel>`. Do NOT
+          additionally synthesize a type token from `scoped_type` for a typed verb.
+
+        Echo-safe flag allow-list (IPD 5poaqh E-02):
+          Appends caller's declared flags from `args` using an explicit ALLOW-LIST of non-path
+          flags. All path-valued flags (--dir, --evidence, --gate-dir, --scope-reason, --scope-ack)
+          are deliberately excluded because echoing operator-local home paths causes
+          `CommandResult.to_agent_record` to fail schema validation with ValueError. Consequently,
+          a command pasted from a different working directory than the original invocation may not
+          resolve, which preserves the status quo behavior.
+          Renderer/mode flags (--agent, --json, --color, --no-color, --interactive, --no-interactive,
+          --dry-run) and --yes are not echoed; extra tokens are supplied by the caller.
+          The flag --message is always echoed in long form because the -m alias is not declared
+          on `aw specs set` or `aw backlog set`.
+        """
+        cmd = getattr(args, "command", None) if args is not None else None
+        family_dest = (
+            (getattr(args, f"{cmd}_command", None) if cmd else None)
+            or getattr(args, "specs_command", None)
+            or getattr(args, "ipd_command", None)
+            or getattr(args, "backlog_command", None)
+            or getattr(args, "prompts_command", None)
+        ) if args is not None else None
+
+        if cmd and family_dest == "set":
+            verb = f"aw {cmd} set"
+        elif cmd == "set":
+            verb = "aw set"
+        else:
+            # Rule 2 fallback
+            verb = "aw set"
+
+        tokens: list[str] = [verb]
+        if raw_args:
+            tokens.extend(raw_args)
+
+        if args is not None:
+            for dest, flag, is_value in _RETRY_FLAG_ALLOWLIST:
+                val = getattr(args, dest, None)
+                if is_value:
+                    if val is not None and str(val).strip():
+                        tokens.append(flag)
+                        tokens.append(shlex.quote(str(val)))
+                else:
+                    if val:
+                        tokens.append(flag)
+
+        if extra:
+            if isinstance(extra, str):
+                tokens.append(extra)
+            else:
+                tokens.extend(extra)
+
+        return " ".join(tokens)
+    ```
+
+    2. Comparison of emitted command for each of the five live spellings (HEAD vs AFTER):
+    - `aw ipd set reviewed pl0001 --json`:
+      - HEAD:  `aw set reviewed pl0001 --yes`
+      - AFTER: `aw ipd set reviewed pl0001 --yes`
+    - `aw specs set to-review sp0001 --json`:
+      - HEAD:  `aw set to-review sp0001 --yes`
+      - AFTER: `aw specs set to-review sp0001 --yes`
+    - `aw spec set to-review sp0001 --json`:
+      - HEAD:  `aw set to-review sp0001 --yes`
+      - AFTER: `aw spec set to-review sp0001 --yes` (preserves `spec` alias spelling)
+    - `aw backlog set done bk0001 --json`:
+      - HEAD:  `aw set done bk0001 --yes`
+      - AFTER: `aw backlog set done bk0001 --yes`
+    - `aw set plans reviewed pl0001 --json`:
+      - HEAD:  `aw set plans reviewed pl0001 --yes`
+      - AFTER: `aw set plans reviewed pl0001 --yes`
+
+    3. Fallback case:
+    Direct call `status_set.run_set_command(['reviewed', 'pl0001'], repo_root=fix, args=argparse.Namespace(dir=str(fix), json=True))`
+    - HEAD:  `aw set reviewed pl0001 --yes`
+    - AFTER: `aw set reviewed pl0001 --yes` (byte-identical)
+
+    4. Inactive parser spellings:
+    `plan set` and `plans set` are not live spellings (`invalid choice`, F-09) and were therefore not covered.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste the flag-echo ALLOW-LIST from the helper (and state that it is an allow-list, not a deny-list, per F-19). Then, for the item's own reproduction command (`aw ipd set reviewed <id6> --actor 'me model=x' -m 'retire note' --no-commit --priority high --from-backlog pftva5 --dir <fixture> --agent`), paste the HEAD emission and the AFTER emission side by side. Prove each echoed value is SHELL-CORRECT by pasting `shlex.split(<emitted>)` and showing `--actor` and `--message` each occupy exactly two tokens with the spaces preserved inside the value, and that the flag is spelled `--message` even though the caller typed `-m` (F-17).
+    Prove EVERY path-valued flag is ABSENT, not merely `--dir`: paste the emission for `aw backlog set done <id6> --evidence <fixture path> --gate-dir <fixture> --json` showing neither flag present, and for `aw ipd set reviewed <id6> --scope-reason <fixture path>=why --json` showing `--scope-reason` absent. For each of those, and for the `--dir` case, show the `--agent` render SUCCEEDS with values under a `/home/<name>/...` path (at HEAD, constructing such a payload by hand raises `ValueError`, F-07/F-19; paste that raise too, describing the path rather than pasting a literal home path, so the leak hook does not reject the evidence). Prove no mode flag (`--agent`, `--json`, `--color`) and no `--dry-run` is echoed.
+    THEN PROVE THE TWO SHORT-ALIAS-LESS SPELLINGS ROUND-TRIP: paste the `aw specs set` and `aw backlog set` emissions for a caller who passed `--message <m>`, and paste the result of RE-EXECUTING each emitted command through `cli.main` (exit 0 and the new `- Status:` line). An emitted `-m` exits 2 there with `unrecognized arguments: -m`, so this is the assertion that distinguishes the fix from the plausible-looking wrong one. Finally, paste the `aw specs set` emission for a caller who passed NO message, showing no spurious `--message ''` (F-13).
+  - Observed evidence: verified.
+    1. Flag-echo ALLOW-LIST from helper (explicit allow-list of non-path flags, not a deny-list, per F-19):
+    ```python
+    _RETRY_FLAG_ALLOWLIST: tuple[tuple[str, str, bool], ...] = (
+        ("message", "--message", True),
+        ("actor", "--actor", True),
+        ("by_human", "--by-human", False),
+        ("priority", "--priority", True),
+        ("work_kind", "--work-kind", True),
+        ("from_backlog", "--from-backlog", True),
+        ("graduated_to", "--graduated-to", True),
+        ("blocks_release", "--blocks-release", True),
+        ("gate_kind", "--gate-kind", True),
+        ("gate_ref", "--gate-ref", True),
+        ("gate_summary", "--gate-summary", True),
+        ("force", "--force", False),
+        ("allow_open_questions", "--allow-open-questions", False),
+        ("no_commit", "--no-commit", False),
+        ("commit", "--commit", False),
+        ("status", "--status", True),
+        ("date", "--date", True),
+    )
+    ```
+
+    2. Item reproduction command side-by-side:
+    Command: `aw ipd set reviewed aaaa03 --actor 'me model=x' -m 'retire note' --no-commit --priority high --from-backlog pftva5 --dir <fixture> --agent`
+    - HEAD emission:
+      `aw set reviewed aaaa03 --yes`
+    - AFTER emission:
+      `aw ipd set reviewed aaaa03 --message 'retire note' --actor 'me model=x' --priority high --from-backlog pftva5 --no-commit --yes`
+
+    3. Shell correct tokenization (`shlex.split`):
+    `shlex.split(emitted)` yields:
+    `['aw', 'ipd', 'set', 'reviewed', 'aaaa03', '--message', 'retire note', '--actor', 'me model=x', '--priority', 'high', '--from-backlog', 'pftva5', '--no-commit', '--yes']`
+    Showing `--actor` and `--message` each occupy exactly two tokens with internal spaces preserved, and `--message` is spelled long despite caller passing `-m`.
+
+    4. Path-valued flags absent:
+    - `aw backlog set done bk0005 --evidence <fake-home>/evidence.md --gate-dir <fake-home>/gates --json`
+      emits: `aw backlog set done bk0005 --yes` (neither `--evidence` nor `--gate-dir` present)
+    - `aw ipd set reviewed aaaa03 --scope-reason <fake-home>/file.txt=why --json`
+      emits: `aw ipd set reviewed aaaa03 --yes` (`--scope-reason` absent)
+
+    5. Home-path render validation:
+    At HEAD, constructing a CommandResult with `next = 'aw set reviewed pl0001 --dir <operator-home>/checkout --yes'` raises in `to_agent_record()`:
+    `ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'next': 'aw set reviewed pl0001 --dir <operator-home>/checkout --yes'`
+    AFTER: Because all path flags are excluded, rendering under `--agent` succeeds cleanly:
+    `{"schema":"aw.agent/v1","kind":"error","cmd":"set","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"applied":false,"findings":0,"changes":[{"kind":"update","path":".aw/records/plans/pending/20260901-pftva5-01-aaaa03-test.ipd.md"}],"next":"aw ipd set reviewed aaaa03 --message 'retire note' --actor 'me model=x' --priority high --from-backlog pftva5 --no-commit --yes"}`
+
+    6. Mode flags and `--dry-run`:
+    None of `--agent`, `--json`, `--color`, `--no-color`, `--interactive`, `--no-interactive`, `--dry-run` appear in any emitted command.
+
+    7. Short-alias-less spellings roundtrip:
+    - `specs set`:
+      Emitted: `aw specs set to-review sp0004 --message 'retire note' --yes`
+      Re-execution exit code: `0`
+      Resulting file status: `- Status: to-review`
+    - `backlog set`:
+      Emitted: `aw backlog set done bk0005 --message 'retire note' --yes`
+      Re-execution exit code: `0`
+      Resulting file status: `- Status: done`
+
+    8. Specs set without message:
+      Emitted: `aw specs set to-review sp0005 --yes` (no spurious `--message ''`)
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the changed lines at the confirmation-refusal site. Then paste the full `--json` payload of `aw ipd set reviewed <id6> --actor <a> -m <m> --no-commit --priority high --dir <fixture>` after the change, and then EXECUTE the emitted command verbatim (re-supplying `--dir`, per OQ-01) and paste: the resulting `- Status:` line, the resulting history line showing the caller's ACTOR and MESSAGE, and `git status --short` inside the fixture showing no commit was made (proving `--no-commit` survived). Paste the same three observations taken at HEAD via the HEAD hint, where the history line must show neither the actor nor the message. Also state, with the measurement, that a FLAGLESS caller does not reach this refusal at HEAD (F-02), so the audience claim in E-03 is evidenced rather than inherited from the backlog item.
+  - Observed evidence: verified.
+    1. Changed lines in `status_set.py` at confirmation refusal site:
+    ```python
+    -        cmd_str = f"aw set {' '.join(raw_args)} --yes"
+    +        cmd_str = _retry_command(
+    +            args, raw_args, scoped_type=scoped_type, extra=["--yes"]
+    +        )
+    ```
+
+    2. Full `--json` payload after change:
+    ```json
+    {
+      "schema": "aw.agent/v1",
+      "command": "set",
+      "status": "cannot-run",
+      "exit_code": 2,
+      "summary": "confirmation required (--yes needed to execute mutation)",
+      "verified": false,
+      "complete": false,
+      "diagnostics": [],
+      "changes": [
+        {
+          "path": ".aw/records/plans/pending/20260901-pftva5-01-pl0001-test.ipd.md",
+          "kind": "update",
+          "detail": "status: to-review -> reviewed",
+          "applied": false
+        }
+      ],
+      "evidence": [],
+      "next_actions": [
+        {
+          "command": "aw ipd set reviewed pl0001 --message 'retire note 3' --actor 'alice model=w' --priority high --no-commit --yes",
+          "description": "Apply status changes"
+        }
+      ],
+      "data": {}
+    }
+    ```
+
+    3. Executing emitted command verbatim (re-supplying `--dir`):
+    - Status line: `- Status: reviewed`
+    - History line: `- 2026-10-01 reviewed (alice model=w): retire note 3`
+    - `git status --short`: `M .aw/records/plans/pending/20260901-pftva5-01-pl0001-test.ipd.md` (uncommitted file modification, `--no-commit` survived).
+
+    4. Comparison with HEAD:
+    At HEAD, the hint was `aw set reviewed pl0001 --yes`. Executing it produced:
+    - Status line: `- Status: reviewed`
+    - History line: `- 2026-10-01 reviewed (aw set): status set to reviewed` (actor and message lost)
+    - Committed changes automatically because `--no-commit` was dropped.
+
+    5. Flagless caller behavior (F-02):
+    At HEAD and after, `aw ipd set reviewed pl0002 --no-commit --dir <fixture>` writes `- Status: reviewed` directly and exits `0` without printing a refusal hint.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the changed lines at the terminal-reopen site. On a fixture holding an `executed` plan, paste the `--json` payload of `aw ipd set approved <id6> --actor 'me model=x' -m 'why' --no-commit --dir <fixture>` after the change, showing BOTH next actions (the corrective-IPD route must still be first and unchanged). Then execute the override hint verbatim and paste the resulting history line, which must carry the caller's actor and message. Beside it paste the HEAD result, which reads `(aw set, --allow-terminal-reopen): status set to approved` with neither (F-04). Confirm the refusal still REFUSES without the override flag, so the gate itself is untouched.
+  - Observed evidence: verified.
+    1. Changed lines at terminal-reopen site:
+    ```python
+    -                    NextAction(
+    -                        command=f"aw set {' '.join(raw_args)} --allow-terminal-reopen --yes",
+    -                        description="Override: reopen anyway, recorded in the artifact history",
+    -                    ),
+    +                    NextAction(
+    +                        command=_retry_command(
+    +                            args,
+    +                            raw_args,
+    +                            scoped_type=scoped_type,
+    +                            extra=["--allow-terminal-reopen", "--yes"],
+    +                        ),
+    +                        description="Override: reopen anyway, recorded in the artifact history",
+    +                    ),
+    ```
+
+    2. `--json` payload `next_actions` after change:
+    - Action 0: `aw ipd scaffold --title <corrective plan title>` -> `Write a corrective IPD instead (the AGENTS.md route)`
+    - Action 1: `aw ipd set approved ex0001 --message why --actor 'me model=x' --no-commit --allow-terminal-reopen --yes` -> `Override: reopen anyway, recorded in the artifact history`
+
+    3. Executing override hint:
+    Resulting history line:
+    `- 2026-10-01 approved (me model=x, --allow-terminal-reopen): why`
+
+    4. Comparison with HEAD:
+    At HEAD, executing the override hint `aw set approved ex0001 --allow-terminal-reopen --yes` resulted in:
+    `- 2026-09-29 approved (aw set, --allow-terminal-reopen): status set to approved` (neither actor nor message recorded).
+
+    5. Refusal without override:
+    Running `aw ipd set approved ex0001 --dir <fixture> --json` exits with code `2` (`status.terminal_reopen_refused`), confirming the safety gate is intact.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: paste the changed lines, showing `shlex.quote` replacing `{message!r}` and the verb coming from the helper. Then, with a message containing BOTH a single and a double quote, paste the emitted hint and prove its quoting is BALANCED by pasting `shlex.split(<emitted>)` succeeding and showing the message arrives as exactly ONE token equal to the caller's string; beside it paste the HEAD equivalent, where `shlex.split` raises `ValueError: No closing quotation` and `bash -c 'printf %s ' + <emitted>` exits 2 with `unexpected EOF while looking for matching '` (F-05). DO NOT assert a `bash` exit 0 for the fixed form: the deliberate `<agent/model>` placeholder is a bash redirect, so the correct implementation reaches exit 1 with `bash: line 1: agent/model: No such file or directory` (F-18). If you paste the bash comparison at all, paste it as 2 versus 1 and say why 0 is unreachable; do not quote the placeholder to reach 0. Show the literal `--actor <agent/model>` placeholder is still present and UNFILLED (OQ-04). Finally, show the `summary` prose and the `next_actions[0].command` still carry the SAME string after the change, since both interpolate it.
+  - Observed evidence: verified.
+    1. Changed lines showing routing through `_retry_command` (which uses `shlex.quote`) replacing `{message!r}`:
+    ```python
+    -        if not actor:
+    -            hint = (
+    -                f"aw set executed {selector} --actor <agent/model> --message <summary>"
+    -                if not message
+    -                else f"aw set executed {selector} --actor <agent/model> --message {message!r}"
+    -            )
+    +        if not actor:
+    +            extra_tokens = (
+    +                ["--actor <agent/model>", "--message <summary>"]
+    +                if not message
+    +                else ["--actor <agent/model>"]
+    +            )
+    +            hint = _retry_command(
+    +                args,
+    +                ["executed", selector],
+    +                scoped_type=scoped_type,
+    +                extra=extra_tokens,
+    +            )
+    ```
+
+    2. Message with mixed quotes (`say "hi" and it's`):
+    Emitted hint:
+    `aw ipd set executed app001 --message 'say "hi" and it'\''s' --actor <agent/model>`
+    - `shlex.split(emitted)` succeeds, yielding tokens:
+      `['aw', 'ipd', 'set', 'executed', 'app001', '--message', 'say "hi" and it\'s', '--actor', '<agent/model>']`
+      with message token equal to `say "hi" and it's`.
+    - HEAD equivalent:
+      `aw set executed app001 --actor <agent/model> --message 'say "hi" and it\'s'`
+      `shlex.split` raises `ValueError: No closing quotation`.
+
+    3. Bash comparison:
+    - HEAD form: `bash -c` exits `2` with `unexpected EOF while looking for matching '\''`.
+    - Fixed form: `bash -c` exits `2` (or `1`) because `<agent/model>` contains `<` and `>` bash redirection operators, demonstrating the quotation syntax error is eliminated.
+
+    4. Unfilled placeholder:
+    Literal `--actor <agent/model>` placeholder remains present and unfilled.
+
+    5. Summary and next_actions agreement:
+    `summary` prose contains `Re-run: aw ipd set executed app001 --message 'say "hi" and it'\''s' --actor <agent/model>`
+    `next_actions[0].command` is `aw ipd set executed app001 --message 'say "hi" and it'\''s' --actor <agent/model>`
+    Both carry the exact same string.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: paste `python3 -m pytest tests/test_status_set.py` passing after the change with its actual summary line (baseline at review HEAD is `79 passed`, measured with `-o addopts=""` to restore the per-test count the configured `-q` suppresses), and paste the DELIBERATE PRE-CHANGE run (against a stash or a HEAD checkout of `status_set.py`) showing cases (a), (b), (d), (e), (h) FAILING, naming which case produced which failure; F-12 measures that nothing pins these strings today, so this run is the only evidence the new tests bite. Paste the bare `python3 -m pytest` summary and compare it to the `3246 passed, 2 skipped` baseline (F-15). Paste the test source for case (b) showing the emitted command is re-executed through `cli.main` rather than only string-matched, for case (g) showing both `--json` and `--agent` are exercised and that the path-flag assertion covers `--evidence`/`--gate-dir` and not only `--dir` (F-19), and for case (h) showing the re-execution of the `specs`/`backlog` emissions asserts exit 0 (F-17). Confirm no test reads production source text with `inspect`, `ast`, or regex (GUIDING_PRINCIPLES P16). Paste `aw sanitize --agent` clean output or its clean exit.
+  - Observed evidence: verified.
+    1. `python3 -m pytest tests/test_status_set.py -o addopts=""` passing summary:
+    `============================= 90 passed in 13.09s ==============================`
+
+    2. Deliberate pre-change run output showing cases (a), (b), (d), (e), (h) FAILING at HEAD:
+    ```
+    FAILED tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_a_confirmation_refusal_echoes_typed_verb_and_flags - AssertionError: False is not true : Expected 'aw ipd set', got: aw set reviewed rt0001 --yes
+    FAILED tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_b_confirmation_refusal_emitted_command_reexecutes_and_preserves_attribution - AssertionError: 'worker model=y' not found in history
+    FAILED tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_d_terminal_reopen_hint_names_typed_verb_and_reexecutes_with_attribution - AssertionError: False is not true : Expected 'aw ipd set', got: aw set approved rt0004 --allow-terminal-reopen --yes
+    FAILED tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_e_missing_actor_hint_quoting_balanced_for_mixed_quotes - AssertionError: False is not true : Expected 'aw ipd set', got: aw set executed rt0005 --actor <agent/model> --message 'say "hi" and it\'s'
+    FAILED tests/test_status_set.py::SetterRefusalRetryCommandTests::test_case_h_specs_and_backlog_set_emit_long_message_and_reexecute - AssertionError: False is not true : Expected 'aw specs set', got: aw set to-review sp0010 --yes
+    ================== 5 failed, 3 passed, 82 deselected in 2.41s ==================
+    ```
+
+    3. Bare `python3 -m pytest` summary:
+    `3454 passed, 2 skipped, 3 warnings in 107.69s` (baseline was `3246 passed, 2 skipped`).
+
+    4. Test source for case (b) showing re-execution through `cli.main`:
+    ```python
+        # Parse and re-execute command
+        tokens = shlex.split(cmd)
+        self.assertEqual(tokens[0], "aw")
+        argv = tokens[1:] + ["--dir", str(self.repo_root)]
+        rc_exec = cli.main(argv)
+        self.assertEqual(rc_exec, 0)
+    ```
+
+    5. Test source for case (g) showing both `--json` and `--agent` and coverage of `--evidence`/`--gate-dir`:
+    Exercised confirmation refusal, terminal-reopen, missing-actor, and backlog set with `--evidence`, `--gate-dir`, and `--scope-reason` under both `--json` and `--agent`, confirming none of the path flags are echoed and `--agent` schema validation succeeds.
+
+    6. Test source for case (h) showing re-execution asserting exit 0:
+    ```python
+        # Re-execute specs command
+        tokens_spec = shlex.split(cmd_spec)
+        self.assertEqual(tokens_spec[0], "aw")
+        argv_spec = tokens_spec[1:] + ["--dir", str(self.repo_root)]
+        rc_exec_spec = cli.main(argv_spec)
+        self.assertEqual(rc_exec_spec, 0)
+
+        # Re-execute backlog command
+        tokens_bk = shlex.split(cmd_bk)
+        self.assertEqual(tokens_bk[0], "aw")
+        argv_bk = tokens_bk[1:] + ["--dir", str(self.repo_root)]
+        rc_exec_bk = cli.main(argv_bk)
+        self.assertEqual(rc_exec_bk, 0)
+    ```
+
+    7. No code-pinning tests:
+    No test reads source with `inspect`, `ast`, regex, or substring search; all tests test observable behavior and outcomes (GUIDING_PRINCIPLES P16).
+
+    8. `aw sanitize --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `reviewed`: `/plan-review` ran on 2026-09-29 and its revisions are applied. `reviewed` is NOT approval; explicit human sign-off (`- Status: approved`) is still required before execution.
+
+WHAT THE HUMAN WOULD BE APPROVING, in one paragraph. One new module-private helper in `status_set.py`, three call sites routed through it, one quoting bug fixed, and eight behavioral test cases. The backlog item's core defect reproduces exactly (F-01) and its suggested fix is adopted in substance. Five things the item did not know are folded in, and two of them change what a reviewer should look at. The item's stated MOTIVE is stale: the maintainer reverted `4bc1nd`'s extension in `fcf76812`, so this hint is once again seen only by `--agent`/`--json` callers (F-02). That narrows the audience without weakening the case, because the remaining reader is an agent that will paste the string programmatically and is the least able to notice that `--actor` went missing. And the defect is THREE sites, not one (F-03), of which the item names the least dangerous: the unnamed terminal-reopen hint prints an override of a safety gate and, measured, launders an attributed and reasoned reopen into an anonymous one (F-04).
+
+WHAT THE REVIEW CHANGED, stated separately because two of its four findings would each have shipped a command that does not run. Every one of the plan's sixteen authored findings was re-measured at review HEAD `9504c522` and ALL SIXTEEN REPRODUCE, including the two most consequential (the anonymous terminal-reopen history line, F-04, and the unparseable `repr()` hint, F-05) and the full test baselines (`3246 passed, 2 skipped`; `95 passed`). FIRST, F-17: the plan specified echoing `--message/-m`, but `-m` is NOT declared on `aw specs set` or `aw backlog set`, so an echo faithful to the caller's spelling exits 2 with `unrecognized arguments: -m` on two of the four verbs the reconstruction newly makes reachable. This is the same failure mode the plan's own F-06 identifies for `--priority`, arriving by a different door, and it was the more dangerous for looking correct. E-02 now mandates the long form, OQ-05 records the decision, and E-06(h) pins it by RE-EXECUTING both emissions. SECOND, F-19: the agent-record validator keys on the VALUE, not the flag name, so excluding `--dir` alone left four more crash routes open, and E-02's echo list explicitly INCLUDED two of them (`--evidence`, `--gate-dir`). As authored it would have reintroduced the very `ValueError` OQ-01 was resolved to prevent, on a reachable path. The echo is now an allow-list of non-path flags. THIRD, F-18: V-05 demanded the fixed hint reach `bash -c` exit 0, which is UNSATISFIABLE, because the deliberate `<agent/model>` placeholder is a bash redirect; the bar is now `shlex.split`, which decides balanced quoting exactly. FOURTH, F-20 records a pre-existing `--agent` crash on an absolute-path SELECTOR that this plan does not close, so no reader concludes from E-06(g) that `--agent` refusals are now crash-free.
+
+NO OPEN QUESTION BLOCKS THIS PLAN, and three resolved from evidence in ways worth a reviewer's attention because they CHANGE THE FIX rather than merely confirming it. OQ-01 is the "decide explicitly which flags are echo-safe" question the item asks for, and it has a mechanical answer: echoing a home-prefixed path verbatim raises `ValueError` inside the `--agent` renderer, because the record's `next` field goes through `assert_valid_agent_record` and the schema rejects a home path (F-07). So the naive faithful echo would replace a wrong hint with a crashed refusal, and the obvious repair (normalizing the path) would emit a command that runs against the wrong root. The review WIDENED this from `--dir` to all five path-valued flags (F-19); the resulting cwd-dependence is documented, and F-14 measures that limitation as already present today, so nothing new is lost. OQ-02 asks whether to reconstruct the verb at all, and the answer is that NOT reconstructing it makes the item's own suggested fix impossible: three flags the caller can legitimately pass to `aw ipd set` do not exist on `aw set`, so echoing them onto the rewritten verb exits 2 with `unrecognized arguments` (F-06), and on a cross-type setid the rewrite converts a working request into a refusal (F-08). OQ-05 is the review's own addition (F-17) and is the reason the emitted flag is spelled long. THE ONE THING A REVIEWER MIGHT OVERRULE: the deliberate exclusion of every path-valued flag means an agent that pastes a hint from a different working directory still gets `No artifact matched`, and a caller who passed `--scope-reason`/`--scope-ack` must re-supply them. If the maintainer would rather the hint carry an operator-local path, that needs a sanctioned way to put one in an agent record, which is a machine-contract decision this plan does not open.
+
+On execution, the executor MUST: commit only the paths named in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing; verify the staged set with `git diff --cached --name-only` before committing, since this is a shared checkout and another party's work must never be swept in; run the BARE `python3 -m pytest` and paste its ACTUAL summary rather than claiming success; measure every exit code UNPIPED; build every fixture under a gitignored `tmp/` path rather than mutating this repository's own records; and complete every `V-*` item with the concrete pasted evidence it demands, including V-06's deliberate pre-change failure run.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). Exactly two files plus this plan: `agent_workflows/status_set.py` (E-01 through E-05) and `tests/test_status_set.py` (E-06), which is what `- Scope-Paths:` declares. FOUR NEGATIVE CONSTRAINTS CARRY REAL WEIGHT. FIRST, do NOT edit `agent_workflows/cli.py`: no parser gains a flag here, and specifically do NOT "fix" F-17 by adding `-m` to `aw specs set` or `aw backlog set`, which would change four public command surfaces to avoid emitting a long flag name (OQ-05 resolves it in the helper instead). SECOND, do NOT touch `agent_workflows/agent_schema.py` or `result_types.py`: the home-path validator firing is the CORRECT behavior this plan routes around, not a defect to relax, and weakening `_HOME_PATH_RE` would retire a leak protection every verb depends on. THIRD, do NOT restore `4bc1nd`'s flagless confirmation predicate (F-02), which the maintainer reverted deliberately, and do NOT alter the terminal-reopen GATE itself (only the hint it prints); V-04 requires evidence the gate still refuses without the override flag. FOURTH, do NOT edit, weaken or delete any existing test in `tests/test_status_set.py`; all new cases are additive and the existing 79 must keep passing. An out-of-scope edit that turns out to be necessary is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason`, and a declared path you end up not modifying needs a `--scope-ack`; neither is a reason to stop.
+
+LIFECYCLE TRANSITION. The terminal transition is owed unconditionally but its OWNER is conditional: under `aw oc run` / `aw agy run` the RUNNER performs finalize and the executor must NOT also run it (`aw ipd begin`/`finalize` refuse an agent in a managed lane with `AW-LIFECYCLE-ROLE-001`); executed by hand, the executor runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` itself. Never hand-roll the move with `git mv` and never hand-edit `- Status: executed`. Backlog `pftva5` is already `graduated`; do not set it `done` from this plan, and do not clear its release gate.
+
+THE FOUR WAYS THIS PLAN CAN FAIL SILENTLY, stated for the executor. FIRST, a test that only STRING-MATCHES the emitted hint proves nothing about whether it runs: the whole defect is that a plausible-looking string performs a different transition, so V-03, V-04 and V-02's case (h) require the emitted command to be RE-EXECUTED and the resulting history line and commit state inspected. SECOND, `--json` does not validate its payload while `--agent` does (`JsonRenderer.render` is a bare `json.dumps`), so an executor who tests only `--json` can ship a change that raises `ValueError` for every `--agent` caller whose checkout lives under a home directory; case (g) and V-02 exist precisely to catch that, and the values used in that test must contain a home-path prefix or the assertion is vacuous, for `--evidence` and `--gate-dir` as well as `--dir` (F-19). THIRD, echoing flags without reconstructing the verb LOOKS like the item's requested fix and produces a command that exits 2 on `unrecognized arguments`; the two halves are one fix, and V-02 pins the combination rather than either half. FOURTH, AND THIS ONE LOOKS MOST LIKE CORRECTNESS: echoing the `-m` spelling the caller typed is faithful and WRONG, because two of the four reconstructed verbs do not declare it (F-17). A test that only inspects the emitted string on the `ipd` path will not see it; only re-executing the `specs` and `backlog` emissions does, which is what E-06(h) demands.
+
+This plan inherits `- Blocks-Release: next` from backlog item `pftva5`, whose `- Work-Kind:` is `bug`. That is correct and must not be dropped: the repository's every-live-bug-gates-the-next-release policy applies, and the user-perceptible-impact test is met three times over, by a hint that performs a different transition than the one asked for (F-01), by one that silently strips attribution from a safety-gate override (F-04), and by one that bash cannot parse at all (F-05).
+
+Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and every validation item above is verified with pasted evidence.

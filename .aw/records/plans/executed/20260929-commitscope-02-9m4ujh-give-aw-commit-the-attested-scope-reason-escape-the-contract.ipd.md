@@ -1,0 +1,889 @@
+# IPD: Give aw commit the attested --scope-reason escape the contract already promises, recorded durably for finalize to consume
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: Backlog `v45wb7` reports that `aw commit <plan>` offers NO way to justify a legitimately-required out-of-scope path, while `aw ipd finalize` accepts `--scope-reason PATH=WHY` and AGENTS.md instructs an agent to "MAKE THE EDIT AND JUSTIFY IT". VERIFIED END-TO-END in this lane at HEAD `0d30004c`: with a real lane worktree and a real begin receipt, `aw commit abc123 -- agent_workflows/demo.py` (a declared path) is refused exit 1 on `check.scope-drift` naming a previously-committed undeclared path, with the staged set literally `[]`, so the refusal cannot be narrowed by committing the offender separately. Sibling plan `ygb3nk` (Order 01, same Set) fixes the REACHABILITY half by routing that finding to advisory; it deliberately declines the attested escape, and MEASUREMENT SHOWS THAT DECLINE LEAVES A HOLE: with `ygb3nk`'s routing staged in memory, the governed commit succeeds AND the finalize reconciliation then reports `out_of_scope_paths: []` with the path merely `disregarded_unowned_paths`, so the out-of-scope edit is never justified by anyone.
+- Scope: Give `aw commit` the `--scope-reason PATH=WHY` spelling `aw ipd finalize` already uses, reusing `ipd_lifecycle._parse_scope_reason_flags` rather than forking a parser, and RECORD each accepted reason durably in the plan's begin receipt so `finalize` consumes it instead of demanding the same justification twice. The commit-time refusal REMAINS fail-closed: a staged or named out-of-scope path with no supplied reason still refuses exactly as today, and only a path carrying an explicit reason proceeds. This deliberately does NOT change `check_engine.check_scope_drift`, does NOT change that rule's registered severity, does NOT touch `aw check`, CI, `aw doctor` or the opt-in pre-commit hook, and does NOT change which findings BLOCK the commit gate (that partition is `ygb3nk`'s single change and this plan must not also make it).
+- Scope-Paths: agent_workflows/work_cmd.py, agent_workflows/ipd_lifecycle.py, agent_workflows/cli.py, tests/test_scope_match.py, tests/test_commit_scope_reason.py
+- Item-Dependencies: executed:ygb3nk
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: v45wb7
+- Blocks-Release: next
+- Set: commitscope
+- Order: 2
+- Highest E allocated: 07
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: 9m4ujh
+
+## Workflow history
+- 2026-10-03 executed (antigravity): Support --scope-reason at aw commit and persist to begin receipt [Scope reconciliation - in-scope-unmodified tests/test_scope_match.py: tested-no-changes]
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-607 all FIXED. The plan's core measurements (F-01, F-04, F-06, F-07, F-08, F-09) all reproduced, F-04 key for key. Three HIGH corrections: (1) F-01's refusal is the ENGINE gate's wording, not run_commit's own branch, so E-03's exemption alone leaves the escape refused and Item-Dependencies is now executed:ygb3nk rather than none (F-15); (2) _reconcile_scope has exactly ONE in-package call site and status_set plus the runner both reach it through finalize, so the plan's 'other consumers untouched' claim is inverted and the merge order is the sole protection (F-16); (3) _parse_scope_reason_flags silently returns {} and raises nothing, so E-03's inherited exit-2 refusal must be built as a token-count comparison (F-17). Plus F-18: every fixture's lane must be named for the plan id or it resolves to None and the refusing commit succeeds at exit 0, a false green review hit on its own first probe.
+
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `v45wb7`. Every measurement taken fresh in this lane at HEAD `0d30004c`; none carried over from `v45wb7`, from `ldy1al`, or from the sibling plan `ygb3nk`. The item's core claim is VERIFIED (F-01). TWO of `ygb3nk`'s stated reasons for refusing this route are FALSIFIED by measurement (F-06, F-07), and its fix is measured to leave the justification never demanded (F-04), which is the gap this plan closes. The receipt is measured to tolerate the additive store `ygb3nk` assumed it could not carry (F-08).
+- 2026-09-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make the sanctioned escape REACHABLE AND ATTESTED from the mandated commit verb. After this plan an agent that genuinely must touch a path outside its declared fence says so ONCE, at the moment it commits, in the same grammar finalize already accepts (`--scope-reason PATH=WHY`); the reason is recorded durably in the begin receipt; and finalize consumes that record rather than re-demanding it or silently excusing the path. The user-visible effect is that a contract-following agent is no longer pushed onto `aw commit --no-plan`, which the tool itself announces SKIPS Scope-Paths enforcement and plan validation, and that the permanent finalize record carries a real human-authored justification for every out-of-scope path instead of a cohesion-derived excuse.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: accept the flag without breaking selector recovery
+
+- [x] E-01 Add `--scope-reason` to the `commit` parser leaf in `cli.py`, with the SAME spelling, `action="append"` and `dest="scope_reason"` the three existing finalize-side declarations use. Locate them by content: `cli.py` carries three `dest="scope_reason"` declarations already, and the new one must match their `metavar`/help shape so one grammar covers both ends of the lifecycle.
+
+  DO NOT ALSO EDIT `command_surface.py`, AND THIS IS A CORRECTION TO THE SIBLING PLAN'S STATED COST. `ygb3nk` F-13 asserts a flag route "requires coordinated edits to `_recover_commit_flags`, `cli.py` and `command_surface.py` or `test_zero_undeclared_parser_leaves` fails closed". MEASURED FALSE for the `command_surface.py` half (F-06): that test enumerates parser LEAVES, not flags, and adding a flag to the ALREADY-DECLARED `commit` leaf leaves `find_undeclared_leaves` returning `[]`. `legacy_flags` is also not a required inventory of every flag: no test asserts completeness of that tuple, and the four tests that read it each assert one named flag for their own command. So `agent_workflows/command_surface.py` is NOT in `- Scope-Paths:` and must not be committed.
+  - Depends on: none
+  - Expected outcome: `aw commit --help` lists `--scope-reason`, `args.scope_reason` is an appendable list, and `command_surface.find_undeclared_leaves` still returns an empty set with no edit to `command_surface.py`.
+  - Execution state: performed
+
+- [x] E-02 Add `--scope-reason` to the value-taking option tuple in `work_cmd._recover_commit_flags`, whose body reads `valued = ("-m", "--message", "--dir")`.
+
+  THIS IS LOAD-BEARING, NOT TIDYING, AND IT IS THE ONE HALF OF `ygb3nk` F-13 THAT REPRODUCES. Measured in this lane: `_recover_commit_flags(['--scope-reason', 'a/b.py=why', '--', 'x.py'])` returns the selector `'a/b.py=why'`, i.e. the flag's VALUE is misparsed as the plan selector, because the scan treats any non-option token as the selector unless the preceding option is known to take a value. Without this edit, `aw commit --scope-reason a/b.py=why abc123 -- x.py` resolves a nonsense plan. Note the misparse is ORDER-DEPENDENT (F-07): with the selector FIRST the recovery is already correct, which is exactly why this must be fixed rather than worked around by documenting an argument order.
+
+  ALSO HANDLE THE `=` FORM, beside the existing `--message=`/`--dir=` prefix arm: `--scope-reason=a/b.py=why` is a single token and must not be treated as the selector either (measured already correct today because it starts with `-`, so this arm is a no-op guard; add it only if the implementation makes it necessary, and do not add dead code).
+  - Depends on: E-01
+  - Expected outcome: `_recover_commit_flags` returns the plan selector (or `None`) for every argument order that includes `--scope-reason`, and never returns a `PATH=WHY` token as the selector.
+  - Execution state: performed
+
+### Task group 2: honor the reason at the commit gate, still fail-closed
+
+- [x] E-03 In `work_cmd.run_commit`, parse the supplied reasons with `ipd_lifecycle._parse_scope_reason_flags` (reuse; do NOT fork a second `PATH=WHY` parser) and exempt ONLY a path carrying a non-empty reason from the out-of-scope refusal. The refusal site is the `elif scope_paths and not is_grandfathered:` branch whose body computes `out_of_scope` from `_staged_paths(repo_root)` and `req_out` from the argv `paths`, and prints `refusing - out-of-scope change(s) present`.
+
+  FAIL CLOSED IS THE INVARIANT, AND `v45wb7` SAYS SO EXPLICITLY: "Do NOT simply weaken the refusal: fail-closed is right, and what is missing is the attested escape, not the gate." So an out-of-scope path with NO reason must still refuse with the identical message, and an empty or whitespace-only reason counts as no reason.
+
+  THE MALFORMED-TOKEN REFUSAL MUST BE BUILT, NOT INHERITED, AND THIS CORRECTS THIS PLAN'S OWN CLAIM (F-17). `_parse_scope_reason_flags` does NOT reject a malformed token: its entire body `continue`s past a token with no `=` and skips any token whose path or why is empty after stripping, returning `{}` and raising nothing. Review measured `['noequals'] -> {}`, `['=why'] -> {}`, `['a/b.py='] -> {}` and `['a/b.py=  '] -> {}`, all silent. So there is no error to surface, and the exit-2 refusal E-06(d) and V-03(c) require must be ADDED in `run_commit`: compare the number of `--scope-reason` tokens supplied against the size of the parsed map, and when a token produced no entry, refuse exit 2 NAMING that token. STILL REUSE THE PARSER for the parsing itself; the addition is a count comparison at the call site, not a second `PATH=WHY` parser, and writing one would violate this item's own reuse instruction. A flag that accepts input and silently drops it is the failure mode the sibling plan's OQ-01 rightly warns about, and inheriting a silent parser would be exactly that.
+
+  THE ESCAPE IS NOT USER-VISIBLE UNTIL `ygb3nk` LANDS, AND THAT IS NOW A DECLARED DEPENDENCY RATHER THAN AN ASSUMPTION (F-15). R1 (this item's branch) and R2 (the `_validate_plan_via_engine` block immediately after) are CONSECUTIVE: passing R1 lands on R2, which is where `check.scope-drift` arrives at `error` severity and refuses. Review measured this directly: with this item's exemption staged in memory and the partition untouched, the same command still exits 1 with `refusing - 1 finding(s) on <plan>`. So implement this item as specified, but do NOT report the escape as working end to end on a tree where `ygb3nk` has not yet executed, and do NOT "fix" the shortfall by also editing `_validate_plan_via_engine`, which is that plan's single change and is forbidden by this plan's scope fence.
+
+  EXTEND THE REMEDY TEXT rather than replacing it. The current remedy names two routes (`--no-plan`, or declare the path in `Scope-Paths`). Add the third, which is now the sanctioned one: `--scope-reason <path>=<why>`. `tests/test_scope_match.py::WorkCmdRefusalRemedyTests::test_out_of_scope_refusal_contains_remedy_hint` asserts the substrings `--no-plan` and `Scope-Paths` are present, so an ADDITIVE edit keeps it green; do not remove either substring.
+  - Depends on: E-02
+  - Expected outcome: `aw commit <plan> --scope-reason <out-of-scope path>=<why> -- <paths>` proceeds and commits; the same command without the flag still refuses exit 1 with the existing message plus the new third remedy; a malformed `--scope-reason` token exits 2 naming the malformation.
+  - Execution state: performed
+
+### Task group 3: record the reason durably so finalize consumes it rather than re-demanding it
+
+- [x] E-04 Add a receipt writer to `ipd_lifecycle` that merges commit-time scope justifications into the plan's EXISTING begin receipt under a new additive key, alongside the reader `finalize` will use. Model it on `refreeze_receipt`, which is the established pattern for amending a live receipt in place: it reads the receipt, mutates specific keys, appends an auditable record, and re-writes with `_atomic_write_json`, keeping `base_head` untouched.
+
+  THE RECEIPT IS THE RIGHT STORE AND `ygb3nk` F-14's OBJECTION IS MEASURABLY WEAKER THAN IT STATES (F-08). Its two grounds were that the receipt is gitignored and that it is single-use, deleted by `_complete_after_commit`. Both are true and neither disqualifies it: the reason must survive from commit time to finalize time WITHIN one execution, which is exactly the receipt's lifetime, and the durable permanent record is the `## Workflow history` note finalize already writes via `_reconciliation_history_note`. Measured: an unknown additive key round-trips through `read_receipt`, leaves `receipt_is_current` True (the validity key is `frozen_region_digest`, a hash over PLAN TEXT and not over the receipt dict), and `finalize_precheck` still returns exit 0. So no schema bump is forced and no existing receipt is invalidated.
+
+  ANCHOR ON THE CHECKOUT, NOT THE LANE, WHICH IS WHY THIS WORKS AT ALL. `receipt_dir` resolves through `checkout_control_root`, so a receipt written by an in-lane `aw commit` and one read by a coordinator-side `aw ipd finalize` are the SAME FILE. Do not compose the path by hand; call `receipt_path_for`.
+
+  A MISSING OR UNREADABLE RECEIPT IS NOT AN ERROR HERE. `aw commit <plan>` is legitimately usable with no begin receipt at all (there is no `aw ipd begin` requirement on it), so when no receipt exists the reason simply has nowhere to be recorded: accept the commit, and WARN that the reason could not be persisted and will have to be supplied again at finalize. Do not refuse, and do not create a receipt, which would mint execution authority `aw ipd begin` alone may issue.
+  - Depends on: E-03
+  - Expected outcome: A writer that merges `{path: reason}` into a live receipt idempotently (a second call for the same path overwrites with the newer reason and records both in an auditable list) and a reader returning the recorded map; a plan with no receipt gets a warning and a successful commit.
+  - Execution state: performed
+
+- [x] E-05 Have `run_commit` call E-04's writer for every reason it ACCEPTED, and have `finalize`'s reconciliation treat a recorded reason as satisfying that path's demand. The consumption point is `finalize`'s call to `_reconcile_scope`, which receives `scope_reasons=scope_reasons` from the CLI; merge the receipt-recorded reasons UNDER the explicitly-passed ones so an explicit `--scope-reason` at finalize time still wins.
+
+  MERGE, DO NOT REPLACE, AND DO NOT TOUCH `_reconcile_scope` ITSELF. Leave that function's own semantics alone and supply it a fuller `scope_reasons` map at finalize's single call site.
+
+  BUT UNDERSTAND WHAT THAT DOES AND DOES NOT PROTECT, BECAUSE THIS PLAN ORIGINALLY STATED IT BACKWARDS (F-16). `_reconcile_scope` has exactly ONE in-package call site, inside `finalize`; review measured the census as two hits total, its `def` and that call. `status_set` reaches it only by CALLING `finalize` (`status_set._delegate_plan_executed_to_finalize` invoking `_life.finalize(..., scope_reasons=scope_reasons, ...)`), and `runner_shared.compute_scope_reconciliation` never calls it at all - it calls `finalize_precheck` to BUILD a reasons map the driver then hands to `finalize`. So editing that one call site changes behavior for ALL THREE consumers; there is no untouched path. WHAT ACTUALLY PROTECTS THE RUNNER IS THE MERGE ORDER AND NOTHING ELSE (F-11): receipt-recorded reasons go UNDER explicitly-passed ones, so the runner's auto-reconciliation map still wins and a receipt-recorded human reason only fills a path the runner did not name. Get the merge order wrong and you silently change what every runner-driven finalize records. V-05(a) is therefore a check on the ORDER, not on which function was edited.
+
+  THE RECORDED REASON MUST REACH THE PERMANENT RECORD, which is the whole point of attestation. `_reconciliation_history_note` renders each reason verbatim into the plan's `## Workflow history` at finalize, so a merged-in reason lands there automatically. VERIFY that rather than assuming it (V-05 demands the rendered line), because a reason collected and then dropped would be worse than no flag at all: it would assert an attestation that is not in the record.
+  - Depends on: E-04
+  - Expected outcome: An out-of-scope path justified once at commit time finalizes with NO `--scope-reason` re-supplied and its reason appears verbatim in the plan's `## Workflow history` scope-reconciliation note; a path never justified still refuses at finalize.
+  - Execution state: performed
+
+### Task group 4: pin the behavior mechanically, in both directions
+
+- [x] E-06 Add a new test module `tests/test_commit_scope_reason.py` covering the commit-gate surface in BOTH directions, driving the real CLI with real temp repos rather than mocking the engine.
+
+  ASSERT FOUR CASES, and the negative ones are what make the positive ones mean anything: (a) ACCEPTED - an out-of-scope path named with a matching `--scope-reason` commits (exit 0) and `git show --name-only HEAD` lists it; (b) STILL REFUSED - the same path with NO flag exits 1 with `out-of-scope change(s) present` and HEAD unchanged; (c) NOT A BLANKET KEY - a `--scope-reason` for path A does NOT exempt an unjustified out-of-scope path B (exit 1); (d) MALFORMED - a token with no `=` exits 2 and names the malformation.
+
+  ALSO ASSERT THE SELECTOR-RECOVERY ARM DIRECTLY, as a unit test on `_recover_commit_flags`, for every argument order: flag before selector, flag after selector, `=` form, and no flag at all. Measured (and re-measured at review, all four shapes reproducing exactly), the flag-before-selector orders are the only ones broken today, so a test that only covers flag-after-selector would pass on unmodified code.
+
+  NAME EVERY FIXTURE'S LANE FOR THE PLAN ID, WHICH IS A HARD REQUIREMENT AND NOT A STYLE CHOICE (F-18). `check_engine._plan_execution_tree` resolves the lane through `worktree_lease.inspect_lane(repo_root, plan_id)`, so the lane id MUST be the plan's id6: `allocate_worktree(root, "abc123")` for a plan whose `- Id:` is `abc123`. Review built this plan's own F-01 scenario with a differently-named lane and measured a FALSE GREEN - `_plan_execution_tree` None, `check_scope_drift` 0 findings, and the commit that must refuse succeeding at exit 0 - then reproduced the refusal exactly by renaming the lane to the plan id. So assert the lane RESOLVES (`_plan_execution_tree(...) is not None`) in the fixture itself, rather than trusting that creating a worktree was enough.
+  - Depends on: E-03
+  - Expected outcome: A new test module proving the accept/refuse/partial/malformed matrix at CLI level and the selector recovery for four argument orders.
+  - Execution state: performed
+
+- [x] E-07 Add an END-TO-END lifecycle test to the same module proving the reason SURVIVES commit and is CONSUMED by finalize, which is the claim no unit test can make.
+
+  BUILD IT WITH THE SUITE'S OWN FIXTURES, not a hand-written plan: `tests/test_ipd_lifecycle_cli.py` exports `_completed_plan_text`, `_init_git`, `_commit_all` and `_write_plan`, which produce a plan that lints conforming at the pre-transition checkpoint, and `worktree_lease.allocate_worktree(root, <plan id6>)` gives the real lane. A hand-rolled plan is refused by the pre-execution gate, and `check_scope_drift` reports NOTHING for a plan with no RESOLVABLE lane (`check_engine._plan_execution_tree` returns None), so a fixture without one silently measures nothing. THE LANE ID MUST BE THE PLAN ID (F-18), because `_plan_execution_tree` resolves it via `inspect_lane(repo_root, plan_id)`; review measured a differently-named lane producing a false green in which the commit that must refuse exited 0. Also call `ipd_lifecycle.begin(lane, lane_plan, actor, timestamp=...)` with those exact parameter names: `begin` takes the plan PATH (not a selector) and has NO `env` keyword, so a fixture written from memory raises `TypeError` before measuring anything (review hit exactly that).
+
+  ASSERT THE WHOLE LOOP: begin, commit an out-of-scope path through `aw commit --scope-reason`, then `finalize(..., apply=False)` with NO `scope_reasons` argument returns exit 0 for that path, and the SAME scenario with the reason never supplied returns exit 1 demanding it. Then assert with `apply=True` that the reason text appears in the moved plan's `## Workflow history`.
+
+  PASS `env={}` TO `finalize`. Measured in this lane: `finalize` refuses `AW-LIFECYCLE-ROLE-001` when `AW_EXECUTION_ROLE=worker` is set in the ambient environment, which it is inside a runner lane, and the refusal happens before any scope logic. A test that omits this measures the role gate and not this plan.
+  - Depends on: E-05, E-06
+  - Expected outcome: A lifecycle test proving a commit-time reason satisfies finalize with nothing re-supplied, that its absence still refuses, and that the reason text reaches the plan's permanent `## Workflow history`.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- CODE IS CITED BY SYMBOL, NOT BY BARE OFFSET (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). This plan cites `work_cmd.run_commit`, `work_cmd._recover_commit_flags`, `work_cmd._in_scope`, `ipd_lifecycle._parse_scope_reason_flags`, `ipd_lifecycle._reconcile_scope`, `ipd_lifecycle.refreeze_receipt`, `ipd_lifecycle.receipt_path_for` and `check_engine._plan_execution_tree` by symbol, and locates each edited site by quoted content.
+- THE SUITE RUNS BARE. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. Measured on a clean tree at HEAD `0d30004c`: `3246 passed, 2 skipped, 3 warnings in 50.69s`; re-measured at review at HEAD `4ba158fc`: `3322 passed, 2 skipped, 3 warnings in 103.05s`, both with 207 deselected by the configured markers. TREAT BOTH AS CONTEXT AND RE-DERIVE YOUR OWN; the tree moved 76 tests in one day, which is the measured basis for that instruction rather than a guess.
+- A SHARED CHECKOUT MEANS NO SPECULATIVE FILE MUTATION. Every measurement in this plan that required altered behavior was staged IN MEMORY (rebinding `work_cmd._validate_plan_via_engine` from a script under the gitignored `.aw/state/probe/`; review used the equally gitignored `tmp/` for the same purpose, confirmed by `git check-ignore -v`), and every fixture repo was built in a fresh temp dir. `git status --short` was verified empty after each probe. The same method is mandated for the mutation proofs below. Review used `unittest.mock.patch.object` as a CONTEXT MANAGER for each staged change, which is the preferable spelling because it restores on exit including on exception.
+- `check_scope_drift` REPORTS NOTHING WITHOUT A LANE, which decides how every fixture in this plan must be built. `check_engine._plan_execution_tree` returns the plan's isolated lane worktree or `None`, and the rule skips the plan entirely on `None`. Measured: the identical scenario built WITHOUT a lane returned zero findings and `aw commit` succeeded (a false green), and built WITH a lane returned the one finding and the exit-1 refusal. A fixture without a lane measures nothing.
+- FINALIZE MUST BE MEASURED AGAINST THE TREE HOLDING THE COMMITS. Measured: `finalize_precheck(main_checkout, plan)` on a lane-executed plan reported `attribution_source: none-fail-closed` and `disregarded_unowned_paths: ['.aw/worktrees/']`, while `finalize_precheck(lane, lane_plan)` on the same state reported `attribution_source: commit-cohesion` and the real path. Point it at the lane.
+- THE RECEIPT IS ANCHORED ON THE CHECKOUT, NOT THE CALLER'S TREE. `receipt_dir` resolves through `checkout_control_root` (derived from `git rev-parse --git-common-dir`), so `receipt_path_for(lane, id6)` and `receipt_path_for(main, id6)` are the same file. That is what makes a lane-side commit and a coordinator-side finalize agree on one store without this plan moving anything.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE ITEM'S CORE CLAIM IS VERIFIED END-TO-END, INCLUDING THE EMPTY STAGED SET. REPRODUCED VERBATIM AT REVIEW.** In a temp repo with a REAL lane worktree NAMED FOR THE PLAN ID (F-18: any other lane name silently measures nothing), a plan declaring `agent_workflows/demo.py, tests/test_demo.py` committed the undeclared `agent_workflows/render.py` in the lane, then ran `aw commit abc123 -- agent_workflows/demo.py`. Result: `aw commit: refusing - 1 finding(s) on 20260824-demo-01-abc123-demo.ipd.md` / `check.scope-drift: 1 changed path is outside the plan's declared Scope-Paths: 'agent_workflows/render.py'`, exit 1, with `_staged_paths(lane)` returning `[]` at refusal time. So the refusal is driven by the execution DIFF and cannot be escaped by committing the offender separately, exactly as `v45wb7` states. **READ THE REFUSAL'S WORDING CAREFULLY, BECAUSE IT NAMES WHICH GATE FIRED.** `refusing - N finding(s) on <plan>` is the ENGINE refusal (R2, `_validate_plan_via_engine`), NOT `run_commit`'s own `refusing - out-of-scope change(s) present` (R1) which E-03 edits. `ygb3nk` F-02 made exactly this distinction. This is why E-03 alone does not deliver a working escape (F-15) and why this plan now declares a dependency on `ygb3nk`. | Probe script under the gitignored `tmp/` scratch tree building the repo with the suite's own `_completed_plan_text`/`_init_git`/`_write_plan`, allocating a lane via `worktree_lease.allocate_worktree(root, "abc123")`, running `ipd_lifecycle.begin` (exit 0, `base_head` recorded), committing the out-of-scope path in the LANE, then calling `work_cmd.run_commit` from the lane; printed refusal text, exit code, and the empty staged list. Re-run at review with the receipt's 12 keys and `scope_paths` printed. |
+| F-02 | **`aw commit` HAS NO `scope_reason` SPELLING AND FINALIZE HAS THREE, so the grammar gap `v45wb7` reports is literal.** `rg -n scope_reason agent_workflows/` returns 8 hits in `ipd_lifecycle.py` (the `scope_reasons` parameter on `_reconcile_scope` and `finalize`, the `_parse_scope_reason_flags` parser, and its two CLI reads), 2 in `status_set.py`, 3 `dest="scope_reason"` declarations in `cli.py`, and ZERO in `work_cmd.py`, which implements `aw commit`. | `rg -n scope_reason agent_workflows/` with the per-file counts above; `grep -n 'def _parse_scope_reason_flags' agent_workflows/ipd_lifecycle.py` locating the reusable parser. |
+| F-03 | **THE ONLY ROUTE LEFT IS THE ONE THE TOOL ITSELF ANNOUNCES AS LESS PROTECTED, which is what makes this a defect and not the gate working.** `run_commit`'s `--no-plan` branch prints that "two plan-derived protections are SKIPPED: Scope-Paths enforcement and plan validation". So an agent following AGENTS.md's instruction to make and justify a required out-of-scope edit is pushed from the governed path onto that one for the remainder of its lane. | Read of the `if no_plan:` notice in `run_commit`; the refusal in F-01 leaving no other spelling that accepts the path. |
+| F-04 | **THE SIBLING PLAN'S FIX MAKES THE COMMIT USABLE BUT LEAVES THE JUSTIFICATION NEVER DEMANDED, which is the gap this plan closes and the reason `v45wb7` is not a duplicate of `ldy1al`.** With `ygb3nk`'s routing staged IN MEMORY (moving `check.scope-drift` from `blocking` to `advisory`), the same F-01 scenario prints `note - 1 advisory (warning) finding(s)` then `committed 1 path(s)`, exit 0. Measuring finalize against the LANE afterwards: `attribution_source: commit-cohesion`, `out_of_scope_paths: []`, `disregarded_unowned_paths: ['agent_workflows/render.py']`, `committed_paths: ['agent_workflows/demo.py', 'agent_workflows/render.py']`. So the out-of-scope path is EXCUSED rather than demanded, and no `--scope-reason` is ever required by anyone. `v45wb7`'s instruction was the opposite: "what is missing is the attested escape, not the gate." | Probe script rebinding `work_cmd._validate_plan_via_engine` in memory to route the rule to advisory, running the full begin -> out-of-scope commit -> `aw commit` -> `finalize_precheck(lane, lane_plan)` sequence, and printing the `scope_audit` keys above; `git status --short` verified empty afterwards. |
+| F-05 | **THE EXCUSE IS THE COHESION FALLBACK, AND `ygb3nk` MAKES IT MORE REACHABLE RATHER THAN LESS.** `finalize_precheck`'s committed-half ownership test is a trailer first, then commit COHESION, falling back to `True` (owned, reason required) only when `cohesive.anchored` is False - the `# FAIL CLOSED WHEN COHESION KNOWS NOTHING` arm. The in-scope commit that `ygb3nk` restores is precisely what ANCHORS cohesion, which is why F-04's measurement shows the path moving from demanded to excused. `ygb3nk`'s own review recorded this (its F-17) and deferred it to backlog `s9z85a`; this plan closes it from the other end, by making the reason EXIST, rather than by re-deciding the cohesion fallback. | Read of the `owned = True if p in trailered.paths else (...)` expression and its `FAIL CLOSED WHEN COHESION KNOWS NOTHING` comment in `ipd_lifecycle.py`; F-04's measured `attribution_source: commit-cohesion`; `ygb3nk` F-17 and backlog `s9z85a`. |
+| F-06 | **`ygb3nk` F-13's `command_surface.py` COST IS MEASURABLY FALSE, which removes one of the two grounds on which the flag route was refused.** It states a flag route "also requires edits to ... `command_surface.py`'s `commit` declaration ... or `test_zero_undeclared_parser_leaves` fails closed". Measured: that test enumerates parser LEAVES via `find_undeclared_leaves`, and adding `--scope-reason` to the ALREADY-DECLARED `commit` subparser leaves it returning `set()`. `legacy_flags` is likewise not a required census of every flag: no test asserts its completeness, and the four tests that read it (`test_backlog_handoff_close.py`, `test_installer.py`, `test_prompts_new.py`, `test_runs_repo_alias.py`, `test_workflow_artifacts_prune.py`) each assert one named flag for their own command. So this plan's surface cost is `cli.py` alone. | Probe calling `cli._build_parser()`, adding `--scope-reason` to `subs[0].choices['commit']`, then `command_surface.find_undeclared_leaves(p)` -> `[]`; `rg -n legacy_flags tests/ agent_workflows/command_surface.py` showing no completeness assertion. |
+| F-07 | **`ygb3nk` F-13's MISPARSE HALF IS REAL BUT ORDER-DEPENDENT, so it is a one-line fix and not a design obstacle.** Measured on four argument shapes: `['--scope-reason','a/b.py=why','--','x.py']` -> selector `'a/b.py=why'` (BROKEN, the value is taken as the selector); `['--scope-reason','a/b.py=why','abc123','--','x.py']` -> selector `'a/b.py=why'` (BROKEN); `['abc123','--scope-reason','a/b.py=why','--','x.py']` -> selector `'abc123'` (already correct); `['abc123','--scope-reason=a/b.py=why','--','x.py']` -> selector `'abc123'` (already correct, the `=` form starts with `-`). The fix is adding the flag to the `valued = ("-m", "--message", "--dir")` tuple in `_recover_commit_flags`. | Direct calls to `work_cmd._recover_commit_flags` on the four argv shapes, printed; read of the `valued` tuple and of the `if tok in valued: i += 2` arm that consumes an option's value. |
+| F-08 | **THE RECEIPT TOLERATES THE ADDITIVE STORE `ygb3nk` F-14 ASSUMED IT COULD NOT CARRY, which removes the second ground for refusing this route.** Measured: writing an unknown key `scope_justifications` into a live receipt and re-reading it leaves the key intact through `read_receipt`, leaves `receipt_is_current(receipt, plan_text)` True, and leaves `finalize_precheck` at exit 0 with its normal message. The validity key is `frozen_region_digest`, a hash over PLAN TEXT, so nothing in the receipt dict is digested and no `RECEIPT_SCHEMA_VERSION` bump is forced. The receipt's measured key set is `['actor','base_head','frozen_region_digest','kind','plan_content_digest','plan_id','plan_path','pre_execution','requirement_digest','schema_version','scope_paths','timestamp']`. | Probe writing the extra key into `receipt_path_for(tmp,'abc123')`, then printing `read_receipt` key presence (True), `receipt_is_current` (True), and `finalize_precheck` exit (0) with the precheck message. |
+| F-09 | **`ygb3nk` F-14's TWO STATED DISQUALIFIERS ARE TRUE FACTS THAT DO NOT DISQUALIFY, and stating why is what makes the store choice reviewable.** The receipt IS gitignored (`.aw/.gitignore` line `/state/` covers `.aw/state/`, confirmed by `git check-ignore -v`) and IS single-use (`_complete_after_commit` calls `receipt_path_for(repo_root, plan_id).unlink()` on the clean path). Both are correct and neither matters: the reason must survive only from commit time to finalize time WITHIN one execution, which is exactly the receipt's lifetime, and the DURABLE record is the `## Workflow history` note `_reconciliation_history_note` renders at finalize (which labels each path `out-of-scope <path>: <reason>` verbatim). The transient store feeds the permanent one. | `git check-ignore -v .aw/state/ipd-lifecycle/x` -> `.aw/.gitignore:62:/state/`; read of the `unlink()` in `_complete_after_commit`; read of `_reconciliation_history_note` showing the verbatim per-path rendering. |
+| F-10 | **`refreeze_receipt` IS THE ESTABLISHED IN-PLACE RECEIPT-AMENDMENT PATTERN, so E-04 copies a shape rather than inventing one.** It reads the receipt, rewrites only specific keys, appends an auditable `refrozen` list entry carrying the previous values plus a reason and actor, keeps `base_head` deliberately untouched (its docstring explains that a fresh `begin` would make every already-committed path invisible to the scope reconciliation), and re-writes via `_atomic_write_json`. E-04's writer should mirror all four properties. | Read of `ipd_lifecycle.refreeze_receipt` in full, including its `receipt.setdefault("refrozen", []).append({...})` and `_atomic_write_json(rcpt_path, receipt)` calls and the docstring paragraph on why `base_head` is kept. |
+| F-11 | **THE RUNNER ALREADY AUTO-REASONS OUT-OF-SCOPE PATHS, so this plan must not make a runner-driven execution demand a second answer.** `runner_shared.compute_scope_reconciliation` builds `{p: "changed by the plan's approved execution (auto-reconciled by <host>)"}` for every `out_of_scope_paths` entry and hands it to finalize. E-05's merge order (receipt-recorded reasons UNDER explicitly-passed ones) is what keeps that working unchanged: the runner's explicit map still wins, and a receipt-recorded human reason only fills a path the runner did not name. | Read of `runner_shared.compute_scope_reconciliation` showing the reasons dict construction and the `widened` branch; read of `finalize`'s single `_reconcile_scope(..., scope_reasons=scope_reasons, ...)` call site. |
+| F-12 | **THE EXISTING REMEDY-TEXT TEST CONSTRAINS THE E-03 EDIT TO BE ADDITIVE, and it is the only shipped test on this refusal.** `tests/test_scope_match.py::WorkCmdRefusalRemedyTests::test_out_of_scope_refusal_contains_remedy_hint` asserts exit 1, the literal `aw commit: refusing - out-of-scope change(s) present:`, and the substrings `--no-plan` and `Scope-Paths`. Adding a third remedy sentence keeps all four assertions true; rewording the existing two would break it. REPRODUCED AT REVIEW: all four assertions read exactly as quoted. | Read of that test in full, quoting its four assertions; re-read at review. |
+| F-15 | **ADDED AT REVIEW, AND IT IS THE FINDING THAT CHANGES THIS PLAN'S DEPENDENCY CLAIM. E-03's EXEMPTION ALONE DOES NOT MAKE THE ESCAPE REACHABLE: THE ENGINE GATE REFUSES IMMEDIATELY AFTER IT.** The plan asserts (Deferred row 1, OQ-03, and `- Item-Dependencies: none`) that "E-03's exemption applies to a refusal site `ygb3nk` does not touch" and that "either may execute first". Measured at review: with E-03's exemption staged IN MEMORY (rebinding `work_cmd._in_scope` so the reasoned path counts as in-scope, the minimal shape of the edit) and the `_validate_plan_via_engine` partition left untouched, `aw commit abc123 -- agent_workflows/render.py` on a real lane STILL returns exit 1, printing `aw commit: refusing - 1 finding(s) on 20260824-demo-01-abc123-demo.ipd.md` / `check.scope-drift: 1 changed path is outside the plan's declared Scope-Paths: 'agent_workflows/render.py'`. The two refusals are consecutive in `run_commit`: R1 is the `elif scope_paths and not is_grandfathered:` branch, R2 is the `_validate_plan_via_engine` block right after it. Passing R1 lands on R2. `ygb3nk`'s OWN F-02 already established this ("F-01's measured refusal is R2's text, not R1's"), and this plan's F-01 transcript is R2's wording (`N finding(s)`), NOT R1's (`out-of-scope change(s) present`). CONSEQUENCE: until `ygb3nk` routes `check.scope-drift` to advisory, this plan's flag is accepted, recorded and then overridden by a refusal it does not touch, so the user-visible escape does not exist. The dependency is therefore REAL and is now declared. | Review probe: E-03's exemption staged via `mock.patch.object(work_cmd, "_in_scope", ...)` on a real lane with a real begin receipt, printing `rc: 1` and R2's refusal text; `ygb3nk` F-02 read in full; the two consecutive refusal sites read in `run_commit` |
+| F-16 | **ADDED AT REVIEW. `_reconcile_scope` HAS EXACTLY ONE IN-PACKAGE CALL SITE, SO THE PLAN'S "SHARED ARBITER, DO NOT TOUCH IT" REASONING PROTECTS THE WRONG THING AND ITS SAFETY CLAIM IS INVERTED.** E-05, the Scope check and V-05 all state that `_reconcile_scope` is "the shared arbiter for the CLI, `status_set`, and the runner's `compute_scope_reconciliation`", and conclude that supplying a fuller map at finalize's ONE call site "achieves the goal with no change to what it means" for the other consumers. Measured: `grep -n "_reconcile_scope(" agent_workflows/` returns exactly TWO hits, both in `ipd_lifecycle.py` - its `def` and ONE call, inside `finalize`. `status_set` reaches it only by CALLING `finalize` (`status_set._delegate_plan_executed_to_finalize` -> `_life.finalize(...)`, passing its own `scope_reasons=`), and `runner_shared.compute_scope_reconciliation` does not call it at all: it calls `finalize_precheck` to BUILD a reasons map that the driver then hands to `finalize`. So editing finalize's single call site changes behavior for ALL THREE consumers, which is the opposite of what the plan tells a reviewer. The MERGE ORDER is what actually preserves the runner (F-11 is correct about that), not the choice of call site. State it that way, because a reviewer who believes the other two consumers are untouched will not check the merge order, which is the only thing protecting them. | Review re-run of the `_reconcile_scope` census (2 hits, both in `ipd_lifecycle.py`); `status_set.py:1566` `result = _life.finalize(` with `scope_reasons=scope_reasons` at 1572; `runner_shared.compute_scope_reconciliation` calling `ipd_lifecycle.finalize_precheck` and returning maps rather than reconciling |
+| F-17 | **ADDED AT REVIEW. `_parse_scope_reason_flags` SILENTLY DROPS A MALFORMED TOKEN AND RAISES NOTHING, so E-03's "surface its error as a usage refusal (exit 2)" CANNOT be satisfied by reuse alone and V-03/E-06's malformed case would fail as specified.** E-03 says "`_parse_scope_reason_flags` already rejects a malformed token; surface its error as a usage refusal (exit 2)". Measured: the function's whole body is a `for` loop that `continue`s on a token with no `=` and skips any token whose path or why is empty after stripping. Review measured `['noequals'] -> {}`, `['=why'] -> {}`, `['a/b.py='] -> {}`, `['a/b.py=  '] -> {}`, all with no exception and no diagnostic. There is no error to surface. The malformed-input refusal E-06(d) and V-03(c) demand must therefore be implemented in `run_commit` by COMPARING the supplied token count against the parsed map size (a token that produced no entry is malformed) and naming the offending token, with the parser still REUSED for the parsing itself. This is a small addition, not a fork, and stating it prevents an executor either writing a second parser (which E-03 forbids) or quietly dropping the malformed case (which V-03 requires). | Review probe calling `ipd_lifecycle._parse_scope_reason_flags` on six inputs and printing each result; read of the function's full body showing `if "=" not in raw: continue` and the `if path and why:` guard with no `raise` anywhere |
+| F-18 | **ADDED AT REVIEW. EVERY FIXTURE IN THIS PLAN MUST NAME ITS LANE FOR THE PLAN ID, AND THE PLAN NEVER SAYS SO - A LANE UNDER ANY OTHER NAME IS THE SAME FALSE GREEN THE PLAN WARNS ABOUT.** The plan correctly insists a fixture must have a REAL lane (Step 0 convention 3, V-06(c)), because `check_engine._plan_execution_tree` returns `None` without one and the rule then reports nothing. What it omits is that the lane is resolved by `worktree_lease.inspect_lane(repo_root, plan_id)`, keyed on the PLAN ID as the lane id. Measured at review by building F-01's scenario exactly as the plan describes but allocating the lane as `allocate_worktree(root, "cs-f01-lane")`: `_plan_execution_tree` returned `None` from every tree, `check_scope_drift` returned 0 findings, and `aw commit` SUCCEEDED at exit 0 - a false green indistinguishable from a fixed defect. Re-running the identical scenario with `allocate_worktree(root, "abc123")` reproduced F-01's refusal exactly. So `allocate_worktree(root, <plan_id>)` is a hard requirement of every fixture here, and V-06(c)/V-07 must assert the lane RESOLVES (`_plan_execution_tree` is not None) rather than merely that one was created. | Review probe run twice, differing only in the lane id: `"cs-f01-lane"` -> `_plan_execution_tree` None, 0 findings, `run_commit` rc 0; `"abc123"` -> the F-01 refusal at rc 1. `worktree_lease.inspect_lane`'s `lane_id` parameter and `lane_branch_name(lane_id)` |
+| F-13 | THE BASELINE IS FULLY GREEN, so any failure after this plan is this plan's to explain. Authoring: bare `python3 -m pytest` at HEAD `0d30004c` with `git status --short` empty gave `3246 passed, 2 skipped, 3 warnings in 50.69s`, 207 deselected. Review re-ran it at HEAD `4ba158fc`: `3322 passed, 2 skipped, 3 warnings in 103.05s`, same 207 deselected, tree clean. Green at both. **TREAT THE DIGITS AS CONTEXT, NOT AS THE BAR**; the total moved by 76 passes in one day on a shared tree, which is the concrete reason every delta below is stated against a baseline YOU re-derive rather than against either figure here. | Both bare runs with their HEADs; `git rev-parse --short HEAD`. |
+| F-14 | **`finalize` REFUSES BEFORE ANY SCOPE LOGIC WHEN THE AMBIENT ROLE IS `worker`, which is a fixture trap this plan's tests must avoid.** Measured: `finalize(..., apply=False)` in this lane returned exit 2 with `AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes` because `AW_EXECUTION_ROLE` is set in a runner turn's environment; measured again from a lane it returned exit 2 `no-driver-attestation`. `finalize` accepts an `env` parameter that exists precisely so the role refusal is testable without mutating global process state, so E-07 must pass `env={}`. | Probe calling `finalize` with and without `env={}` and printing both refusals; read of the `env` parameter's docstring note in `finalize` and of the `worker_role_active(os.environ if env is None else env)` gate. |
+
+## Proposed changes (ordered, validatable)
+
+1. Declare `--scope-reason` on the `commit` parser leaf in `cli.py`, matching the three existing finalize-side declarations, with no `command_surface.py` edit (E-01, per F-02 and F-06).
+2. Teach `work_cmd._recover_commit_flags` that `--scope-reason` takes a value, so its `PATH=WHY` argument is never misparsed as the plan selector (E-02, closing F-07).
+3. Parse the reasons with the existing `ipd_lifecycle._parse_scope_reason_flags` and exempt ONLY a reasoned path from `run_commit`'s out-of-scope refusal, keeping the unreasoned case fail-closed and adding the third remedy line (E-03, closing F-01 within F-12's constraint).
+4. Add a receipt writer/reader for commit-time scope justifications, modelled on `refreeze_receipt` (E-04, on the strength of F-08, F-09 and F-10).
+5. Record accepted reasons at commit time and merge them under the explicit map at finalize's single `_reconcile_scope` call site, so one justification satisfies both ends and reaches the permanent history (E-05, closing F-04 and F-05 while preserving F-11).
+6. Pin the commit-gate matrix (accepted / still-refused / partial / malformed) and the selector recovery for four argument orders (E-06).
+7. Pin the end-to-end loop: justified once at commit, consumed at finalize, rendered into the plan's `## Workflow history` (E-07, per F-14's `env={}` requirement).
+
+## Deferred / out of scope (with reason)
+
+- WHICH FINDINGS BLOCK THE COMMIT GATE IS `ygb3nk`'s CHANGE, NOT THIS PLAN'S, and the two must not both edit `work_cmd._validate_plan_via_engine`. That plan's single behavioral change routes `check.scope-drift` from `blocking` to `advisory`; this plan changes only `run_commit`'s OWN staged/named comparison and the finalize-side consumption. The two are complementary rather than alternative: `ygb3nk` makes the verb usable, this plan makes the escape attested. `ygb3nk` EXECUTES FIRST, which is now declared as `- Item-Dependencies: executed:ygb3nk` and is a CORRECTION applied at review (F-15). The original text asserted the two refusals were "independent sites" and inferred either could run first; they ARE distinct sites but they are CONSECUTIVE in `run_commit`, so passing R1 lands on R2. Review measured E-03's exemption alone still refusing at the engine gate, which means this plan executed first would deliver a flag with no user-visible effect. `ygb3nk` is `approved` today, so the edge is satisfiable and not a stall.
+  - Carrier: ygb3nk
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-commitscope-01-ygb3nk-reach-the-sanctioned-out-of-scope-escape-from-aw-commit-by-s.ipd.md
+- CHANGING `check_engine.check_scope_drift` OR ITS REGISTERED SEVERITY IS OUT OF SCOPE. `v45wb7` says explicitly "Do NOT simply weaken the refusal: fail-closed is right", and the rule's time-window measurement is its documented design with four consumers (`aw check`, CI, `aw doctor`, the opt-in pre-commit hook). Nothing in this plan touches `check_engine.py`, and E-03's exemption is keyed on an explicit per-path human reason rather than on a severity.
+  - Carrier-Declined: No obligation is left outstanding. The rule answers the execution-wide question correctly; what was missing was a spelling in which an agent could answer it.
+- FINALIZE'S COHESION-DERIVED EXCUSE FOR AN UNJUSTIFIED OUT-OF-SCOPE PATH IS NARROWED BY THIS PLAN BUT NOT CLOSED. F-04 and F-05 measure that a cohesion-anchored path is excused with no reason demanded, and this plan makes the JUSTIFIED case attested without re-deciding what should happen to an UNJUSTIFIED one. Whether an unattributable path should fail toward demanding or excusing is a maintainer ruling about every executed plan's permanent record, and it is carried.
+  - Carrier: s9z85a
+- ADDING `--scope-ack` TO `aw commit` IS NOT DONE HERE. The ack answers the OPPOSITE delta (a declared path the execution did NOT modify), which is only knowable once the execution is over, so commit time is the wrong moment for it and no measurement suggests an agent is blocked for want of it. Finalize keeps sole ownership of that half.
+  - Carrier-Declined: No obligation is left outstanding. `v45wb7` asks for the `--scope-reason` escape specifically, and the ack has no commit-time meaning.
+- THE `aw commit --no-plan` ROUTE IS LEFT EXACTLY AS IT IS. It remains legitimate for a commit no plan governs, and this plan neither removes it nor changes its notice; it simply stops being the ONLY route for a justified out-of-scope edit. Making `--no-plan` stamp an `AW-Item` trailer is one of the shapes `s9z85a` lists and belongs with that decision.
+  - Carrier: s9z85a
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/cli.py` receives ONE added flag declaration on the `commit` leaf. `agent_workflows/work_cmd.py` receives the `valued`-tuple edit, the reason parse, the malformed-token count check (F-17), the per-path exemption, the third remedy line, and the writer call. `agent_workflows/ipd_lifecycle.py` receives the additive receipt writer/reader plus the merge at `finalize`'s single `_reconcile_scope` call site; `_reconcile_scope` ITSELF is not changed. BE PRECISE ABOUT WHAT THAT PRESERVES (F-16, correcting this plan's original claim): that call site is the ONLY one in the package, and `status_set` and the runner both reach it THROUGH `finalize`, so the edit is felt by all three consumers. What keeps the runner's behavior identical is the MERGE ORDER, not the choice of call site. `tests/test_scope_match.py` receives no new test and no edit unless E-03's additive remedy line requires one (it must not: F-12 measures the existing assertions survive an additive edit). `tests/test_commit_scope_reason.py` is new. `agent_workflows/check_engine.py`, `agent_workflows/command_surface.py`, `agent_workflows/status_set.py`, `agent_workflows/runner_shared.py` and `agent_workflows/hooks/precommit_scope_gate.py` are NOT in `- Scope-Paths:` and must not be committed, even though E-01 and F-11 READ from them.
+- Under-scope: Four gaps are recorded as decisions above rather than closed. (1) The commit gate's blocking partition is `ygb3nk`'s single change and is untouched here, so until that plan lands the engine-side refusal F-01 measures still fires and this plan's escape has NO USER-VISIBLE EFFECT. Review measured that directly (F-15), which is why `- Item-Dependencies:` now reads `executed:ygb3nk` instead of the original `none`; the earlier claim that "neither blocks the other" was wrong in the execution-order direction. (2) `check_scope_drift` and its severity are untouched, which `v45wb7` explicitly demands. (3) Finalize's cohesion excuse for an UNJUSTIFIED path is narrowed but not closed, carried by `s9z85a`. (4) No `--scope-ack` is added to `aw commit`. After this plan, an execution that legitimately touches an out-of-scope path can justify it ONCE, at commit time, in the grammar the contract already promises, and that justification reaches the plan's permanent record.
+
+## Required tests / validation
+
+All validation runs BARE (`python3 -m pytest`), per the execution contract and the `addopts` already configured in `pyproject.toml`.
+
+RE-DERIVE YOUR OWN BEFORE-BASELINE; DO NOT TRANSCRIBE THE DIGITS HERE. Authoring measured `3246 passed, 2 skipped, 3 warnings in 50.69s` at HEAD `0d30004c`; review measured `3322 passed, 2 skipped, 3 warnings in 103.05s` at HEAD `4ba158fc` (F-13). Both green, 76 apart in a day. Run a bare `python3 -m pytest` FIRST, record that number, and state every delta against YOUR number.
+
+1. TARGETED: `python3 -m pytest tests/test_commit_scope_reason.py tests/test_scope_match.py -o addopts=""` passes, with the new tests in the selected set and the counts stated against your own re-derived per-file baselines.
+2. FULL BARE SUITE: `python3 -m pytest` passes with ZERO failures and a count increased over YOUR baseline by exactly the number of added tests, stated per E-item.
+3. FAIL-CLOSED PROOF, the load-bearing evidence for E-03: the SAME scenario with the `--scope-reason` flag omitted must still refuse exit 1 with `out-of-scope change(s) present` and leave HEAD unchanged. A change that accepts an out-of-scope path without a reason has not fixed this defect, it has removed the gate, which is the one outcome `v45wb7` forbids.
+4. PARTIAL-EXEMPTION PROOF: a `--scope-reason` naming path A must NOT exempt an unjustified out-of-scope path B. Without this the flag is a blanket key and the fence is gone for any execution that justifies one path.
+5. SELECTOR-RECOVERY PROOF: `_recover_commit_flags` must return the correct selector for all four argument orders in F-07, and the BROKEN-today order (flag before selector) must be shown failing before the fix and passing after.
+6. END-TO-END CONSUMPTION PROOF, the only evidence a human reads as the contract loop being closed: begin, commit an out-of-scope path with `--scope-reason`, then `finalize(..., apply=False, env={})` with NO `scope_reasons` argument returns exit 0 for that path; the same scenario with the reason never supplied returns exit 1 demanding it. Paste both.
+7. PERMANENT-RECORD PROOF: with `apply=True`, the supplied reason text appears verbatim in the moved plan's `## Workflow history` scope-reconciliation note. A reason collected and then dropped would assert an attestation that is not in the record, which is worse than no flag.
+8. NON-REGRESSION PROOF: paste `git diff -- agent_workflows/check_engine.py agent_workflows/command_surface.py` EMPTY, proving neither the rule registry nor the command inventory was touched, and paste the existing `WorkCmdRefusalRemedyTests` passing unmodified.
+9. `aw ipd lint --phase pre-transition` conforms, and `aw check` reports no NEW drift. RE-DERIVE the pre-existing finding set rather than trusting a count.
+
+METHOD RULE FOR EVERY MUTATION OR BEFORE/AFTER PROOF. Stage the "before" IN MEMORY, not by editing a tracked file: rebind the function from a scratch script under the gitignored `.aw/state/`, or use `mock.patch.object`. `agent_workflows/work_cmd.py` and `agent_workflows/ipd_lifecycle.py` are shared-checkout files, and a `git checkout` restore after a minute-long suite run silently discards whatever a co-worker wrote in the interval. Paste `git status --short` empty before and after each proof. Every measurement in this plan was taken that way.
+
+LEAK RULE FOR EVERY PASTED PROOF. The end-to-end proofs run in temp directories whose absolute paths include the checkout path. Redact any absolute path to `<tmp>` or `<repo-root>` BEFORE pasting into an `Observed evidence` block, and run `aw sanitize --agent` before the final commit. The evidence blocks are committed, so a leak there is permanent.
+
+## Spec / documentation sync
+
+N/A with reason, and the reason matters because a contract IS adjacent. The nearest governing document is the `draft` catalog spec `pqsx96`, whose I-01 row describes the commit-time invariant in terms of the STAGED index and whose I-05 row charters the execution-wide comparison to finalize's reconciliation. This plan changes neither invariant's meaning: it adds an ATTESTED EXEMPTION to the commit-time refusal (a path a human justified by name) and makes finalize consume that attestation, so I-01 still holds for every unjustified path and I-05's reconciliation still runs. The approved runner spec `25kzda` Section 5.5a governs additive scope widening at finalize and is untouched: no finalize spelling changes, `_reconcile_scope`'s semantics are unchanged, and `runner_shared.compute_scope_reconciliation` keeps precedence (F-11). No `.spec.md` file is therefore declared in `- Scope-Paths:`, and per the repository rule that a plan amending a spec must declare it, the absence of such a path is itself the assertion that none is amended.
+
+USER-FACING DOCUMENTATION IS A JUDGEMENT THE REVIEWER SHOULD CHECK RATHER THAN A SETTLED N/A. This plan adds a PUBLIC FLAG to a verb AGENTS.md mandates, and AGENTS.md's execution contract currently names only `aw commit <plan> -- <paths>` and `aw commit --no-plan -m <msg> -- <paths>` as the available spellings. A reviewer may reasonably decide the new escape belongs there, since the whole defect is that the contract told agents to justify an out-of-scope edit without naming a commit-time spelling that accepts one. It is NOT included here because `AGENTS.md`'s relevant text sits inside a MANAGED BLOCK installed from `engine.py`, so editing the file alone would be reverted by the next install and the honest change is a template edit with its own blast radius across every managed repo. Flagged explicitly rather than silently omitted; if the reviewer wants it, it should be its own plan in this Set.
+
+## Open questions
+
+### OQ-01: Where should a commit-time scope justification be stored so finalize can consume it?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, no human input required: THE EXISTING BEGIN RECEIPT, under an additive key. The sibling plan `ygb3nk` refused this route partly on the claim that no suitable store exists and that the receipt is disqualified by being gitignored and single-use (its F-14). Both facts are TRUE and neither disqualifies it (F-08, F-09): the reason needs to survive from commit time to finalize time WITHIN one execution, which is exactly the receipt's lifetime, and the DURABLE record is the `## Workflow history` note finalize already renders verbatim per path. Measured, an unknown additive key round-trips through `read_receipt`, leaves `receipt_is_current` True (the validity key digests PLAN TEXT, not the receipt dict) and leaves `finalize_precheck` at exit 0, so no schema bump is forced and no existing receipt is invalidated. `refreeze_receipt` is the established in-place amendment pattern to copy (F-10), and `receipt_dir`'s anchoring on `checkout_control_root` means a lane-side write and a coordinator-side read hit ONE file with no new plumbing. REVERSIBLE: yes; the key is additive and a reader that does not find it behaves exactly as today.
+
+### OQ-02: Should a commit with no begin receipt refuse the flag, or accept it with a warning?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED: ACCEPT THE COMMIT AND WARN. `aw commit <plan>` carries no `aw ipd begin` prerequisite and is legitimately used outside a begun execution, so refusing would break a working case in order to protect a record that is not being kept. Creating a receipt instead is worse and is refused outright: a begin receipt IS execution authority, and minting one from a commit verb would let `aw commit` grant what `aw ipd begin` exists to gate (the same reasoning `ipd_lifecycle` applies when it declines to treat receipt ABSENCE as success, on the ground that fail-closed must not invert to fail-open). So the reason is honored for THIS commit's refusal and the warning states plainly that it could not be persisted and must be supplied again at finalize. REVERSIBLE: yes.
+
+### OQ-03: Should this plan and `ygb3nk` be merged into one, since both address the same backlog pair?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED: KEEP THEM SEPARATE, as Order 01 and Order 02 of one Set. They change DIFFERENT sites and answer DIFFERENT halves: `ygb3nk` changes which findings BLOCK the commit gate (`_validate_plan_via_engine`'s partition) and makes the verb usable again; this plan adds the attested escape to `run_commit`'s own comparison and makes the justification durable. Merging them would put two independent behavioral changes behind one review and one revert, and `ygb3nk` is already APPROVED (review re-read its front matter at 2026-09-30: `- Status: approved`, `- Readiness: go-pending-approval`; this plan originally described it as `reviewed`), so folding this in would discard both a completed review and a human approval. CORRECTED AT REVIEW, AND THIS IS THE SUBSTANTIVE CHANGE: the two are NOT independent in execution ORDER, and `- Item-Dependencies:` is now `executed:ygb3nk` rather than `none`. The original reasoning said "E-03's exemption applies to a refusal site `ygb3nk` does not touch, and either may execute first"; the first clause is true and the SECOND DOES NOT FOLLOW, because the two refusal sites are CONSECUTIVE. Review measured E-03's exemption staged in memory with the partition untouched still refusing exit 1 on the engine gate (F-15), so executing this plan first would ship a flag that is accepted, recorded, and then overridden - the escape would not be user-visible. Separate plans, ordered. REVERSIBLE: yes; if a reviewer prefers one change, this plan can be retired as superseded without touching the sibling.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: (a) PASTE `aw commit --help` showing `--scope-reason` listed, and PASTE the `git diff -- agent_workflows/cli.py` hunk confirming the new declaration matches the three existing `dest="scope_reason"` declarations in spelling and `action="append"`. (b) PASTE the output of a probe calling `command_surface.find_undeclared_leaves(cli._build_parser())` showing an EMPTY set AFTER the flag is added, and PASTE `git diff -- agent_workflows/command_surface.py` EMPTY. Without (b) the plan's claim that F-06 corrected `ygb3nk` F-13 is unverified, and a reviewer cannot tell a measured cost from an assumed one. (c) PASTE YOUR OWN CLEAN-TREE BARE BASELINE FIRST, then the FULL BARE `python3 -m pytest` summary after the change, with the delta accounted for per E-item; do NOT state a delta against either figure transcribed here (F-13 records `3246 passed` at authoring and `3322 passed` at review, 76 apart in one day, which is why only your own number is the bar).
+  - Observed evidence: PASS. Verified; details below.
+    (a) `python3 -m agent_workflows commit --help` output listing `--scope-reason`:
+    ```
+    options:
+      -h, --help            show this help message and exit
+      --no-color            Disable ANSI color (also honored via NO_COLOR).
+      --color               Force ANSI color on even when stdout is not a terminal
+                            (beats NO_COLOR).
+      --no-interactive      Disable interactive prompting (declining confirmations
+                            and taking non-interactive defaults).
+      --interactive         Force interactive prompting on even when streams are
+                            non-interactive.
+      --agent               Machine-readable output (aw.agent/v1 JSONL).
+      --json                Emit full structured JSON representation.
+      --fields FIELDS       Comma-separated field projection for --agent output
+                            (envelope fields are preserved).
+      --dir DIR             Repo root (default: current directory).
+      --message, -m MESSAGE
+                            Commit message.
+      --no-commit           Preview only; do not commit.
+      --no-plan             Commit paths no plan governs. Skips Scope-Paths
+                            enforcement and plan validation (named in the output),
+                            keeps every other protection, and requires -m. Refused
+                            together with a <plan> selector.
+      --scope-reason PATH=WHY
+                            Record a reason for an out-of-scope changed path
+                            (repeatable). Justifies the change at the commit gate
+                            and records it in the begin receipt for finalize to
+                            consume.
+    ```
+    `git diff -- agent_workflows/cli.py` hunk:
+    ```diff
+    @@ -1975,6 +1975,15 @@ def _build_parser() -> argparse.ArgumentParser:
+                 "together with a <plan> selector."
+             ),
+         )
+    +    p_commit.add_argument(
+    +        "--scope-reason",
+    +        dest="scope_reason",
+    +        action="append",
+    +        default=None,
+    +        metavar="PATH=WHY",
+    +        help="Record a reason for an out-of-scope changed path (repeatable). Justifies the change "
+    +        "at the commit gate and records it in the begin receipt for finalize to consume.",
+    +    )
+         # dest is `path_argv` (NOT `command`); it captures the WHOLE tail including the optional plan
+         # selector, which `work_cmd.run_commit` splits on the `--` marker.
+         p_commit.add_argument(
+    ```
+    Matches existing finalize `dest="scope_reason"` declarations in spelling and `action="append"`.
+
+    (b) Probe `command_surface.find_undeclared_leaves(cli._build_parser())`:
+    ```
+    $ python3 -c "from agent_workflows import cli, command_surface; print('find_undeclared_leaves:', command_surface.find_undeclared_leaves(cli._build_parser()))"
+    find_undeclared_leaves: set()
+    ```
+    `git diff -- agent_workflows/command_surface.py`: empty.
+
+    (c) Clean-tree bare baseline before change:
+    `3558 passed, 2 skipped, 3 warnings in 97.92s (0:01:37)`, 208 deselected.
+    Full bare `python3 -m pytest` summary after change:
+    `3570 passed, 2 skipped, 3 warnings in 84.83s (0:01:24)`, 208 deselected.
+    Delta is +12 passed, 0 failures, 0 regressions.
+    Delta breakdown per E-item (all 12 in `tests/test_commit_scope_reason.py`):
+    - 4 tests in `CommitFlagRecoveryTests` (E-02, E-06)
+    - 4 tests in `CommitScopeReasonGateTests` (E-03, E-06)
+    - 3 tests in `ReceiptScopeReasonTests` (E-04, E-05)
+    - 1 test in `LifecycleEndToEndTests` (E-05, E-07)
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: (a) PASTE the `git diff -- agent_workflows/work_cmd.py` hunk for the `valued` tuple. (b) PASTE the new unit test's source and its passing run, and CONFIRM BY QUOTING that it covers all FOUR argument orders from F-07: flag before selector, flag between selector and `--`, the `--scope-reason=` single-token form, and no flag at all. (c) BEFORE/AFTER PROOF, the load-bearing evidence: with the tuple edit reverted IN MEMORY (do NOT edit the file), PASTE the flag-before-selector case returning the selector `'a/b.py=why'`, then PASTE it returning the correct selector unpatched. A test that passes on unmodified code has not closed F-07, because three of the four orders are ALREADY correct today. PASTE `git status --short` empty for both runs.
+  - Observed evidence: PASS. Verified; details below.
+    (a) `git diff -- agent_workflows/work_cmd.py` hunk for `valued`:
+    ```diff
+    @@ -162,7 +162,7 @@ def _recover_commit_flags(raw: List[str]) -> Tuple[Optional[str], bool, List[str
+         selector: Optional[str] = None
+         saw_no_plan = False
+         # Options that TAKE a value, so the token after them is never the selector.
+    -    valued = ("-m", "--message", "--dir")
+    +    valued = ("-m", "--message", "--dir", "--scope-reason")
+         i = 0
+         while i < len(pre):
+             tok = pre[i]
+    ```
+
+    (b) Unit tests in `tests/test_commit_scope_reason.py::CommitFlagRecoveryTests`:
+    ```python
+    class CommitFlagRecoveryTests(unittest.TestCase):
+        """Unit tests pinning selector recovery in _recover_commit_flags for four argument orders."""
+
+        def test_selector_recovered_when_flag_before_selector(self) -> None:
+            """Flag before selector: selector must be recovered, not the flag's value."""
+            raw = ["--scope-reason", "a/b.py=why", "abc123", "--", "x.py"]
+            selector, saw_no_plan, pre = work_cmd._recover_commit_flags(raw)
+            self.assertEqual(selector, "abc123")
+            self.assertFalse(saw_no_plan)
+
+        def test_selector_recovered_when_flag_after_selector(self) -> None:
+            """Flag after selector: selector must still be recovered correctly."""
+            raw = ["abc123", "--scope-reason", "a/b.py=why", "--", "x.py"]
+            selector, saw_no_plan, pre = work_cmd._recover_commit_flags(raw)
+            self.assertEqual(selector, "abc123")
+            self.assertFalse(saw_no_plan)
+
+        def test_selector_recovered_when_equals_form(self) -> None:
+            """Single-token --scope-reason=PATH=WHY form must not be treated as selector."""
+            raw = ["abc123", "--scope-reason=a/b.py=why", "--", "x.py"]
+            selector, saw_no_plan, pre = work_cmd._recover_commit_flags(raw)
+            self.assertEqual(selector, "abc123")
+            self.assertFalse(saw_no_plan)
+
+        def test_selector_recovered_with_no_flag(self) -> None:
+            """Baseline order with no --scope-reason flag."""
+            raw = ["abc123", "--", "x.py"]
+            selector, saw_no_plan, pre = work_cmd._recover_commit_flags(raw)
+            self.assertEqual(selector, "abc123")
+            self.assertFalse(saw_no_plan)
+    ```
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_commit_scope_reason.py -k CommitFlagRecoveryTests -o addopts=""
+    tests/test_commit_scope_reason.py .... [100%]
+    4 passed in 0.05s
+    ```
+    Quotes confirming all four argument orders:
+    1. Flag before selector: `raw = ["--scope-reason", "a/b.py=why", "abc123", "--", "x.py"]`
+    2. Flag between selector and `--`: `raw = ["abc123", "--scope-reason", "a/b.py=why", "--", "x.py"]`
+    3. `--scope-reason=` single-token form: `raw = ["abc123", "--scope-reason=a/b.py=why", "--", "x.py"]`
+    4. No flag at all: `raw = ["abc123", "--", "x.py"]`
+
+    (c) Before/After in-memory proof:
+    Before (in-memory revert of valued tuple without `"--scope-reason"`):
+    `_recover_commit_flags(["--scope-reason", "a/b.py=why", "abc123", "--", "x.py"])` returned selector: `'a/b.py=why'` (BROKEN)
+    After (unpatched with `"--scope-reason"` in `valued`):
+    `_recover_commit_flags(["--scope-reason", "a/b.py=why", "abc123", "--", "x.py"])` returned selector: `'abc123'` (CORRECT)
+    `git status --short` empty for both runs.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: (a) PASTE the `git diff -- agent_workflows/work_cmd.py` hunk for the refusal branch and CONFIRM BY INSPECTION that the exemption is keyed on a NON-EMPTY per-path reason and on nothing else: not on the flag's mere presence, not on a severity, and not on a count. A diff that exempts a path because ANY `--scope-reason` was supplied FAILS V-03 (that is the blanket-key failure (c) tests). (b) PASTE the ACCEPTED case: `aw commit <plan> --scope-reason <out-of-scope path>=<why> -- <paths>` exit 0 with `git show --name-only HEAD` listing the paths. STATE WHICH GATE THE ACCEPTANCE PASSED: if `ygb3nk` has not executed on the tree under test, the engine refusal (R2) still fires and (b) will read exit 1 for a reason that is NOT this plan's defect (F-15). In that case paste the R1-only proof (the `out-of-scope change(s) present` refusal is GONE for the reasoned path) and say plainly that the end-to-end acceptance awaits `ygb3nk`; do NOT report the escape as working, and do NOT edit `_validate_plan_via_engine` to make (b) green. (c) PASTE THE THREE NEGATIVE CASES, each of which is what makes (b) mean anything: the same path with NO flag still exits 1 with `out-of-scope change(s) present` and HEAD unchanged; a reason for path A does NOT exempt unjustified path B (exit 1); a malformed token with no `=` exits 2 naming the malformation. (d) PASTE the amended remedy text verbatim and CONFIRM the substrings `--no-plan` and `Scope-Paths` are both still present, then PASTE `tests/test_scope_match.py::WorkCmdRefusalRemedyTests` passing UNMODIFIED (F-12). (e) CONFIRM by quoting the diff that `ipd_lifecycle._parse_scope_reason_flags` is REUSED for PARSING and that no second `PATH=WHY` parser was written, AND that the malformed-token refusal is a COUNT COMPARISON at the call site rather than a parser change: the shared parser returns `{}` silently and raises nothing (F-17), so a diff claiming to "surface its error" has misread it.
+  - Observed evidence: PASS. Verified; details below.
+    (a) `git diff -- agent_workflows/work_cmd.py` refusal branch:
+    ```diff
+    @@ -684,14 +712,22 @@ def run_commit(args: argparse.Namespace) -> int:
+                 for p in paths
+                 if not _in_scope(str(Path(p)).replace("\\", "/"), scope_paths, plan_rel)
+             ]
+    -        if out_of_scope or req_out:
+    +        unjustified_out = [p for p in out_of_scope if not parsed_scope_reasons.get(p)]
+    +        unjustified_req = [
+    +            p
+    +            for p in req_out
+    +            if not parsed_scope_reasons.get(str(Path(p)).replace("\\", "/"))
+    +            and not parsed_scope_reasons.get(p)
+    +        ]
+    +        if unjustified_out or unjustified_req:
+                 print("aw commit: refusing - out-of-scope change(s) present:")
+    -            for p in sorted(set(out_of_scope + req_out)):
+    +            for p in sorted(set(unjustified_out + unjustified_req)):
+                     print(f"  {p}")
+                 print("  declared Scope-Paths: " + ", ".join(scope_paths))
+                 print(
+                     "  remedy: commit the path in a separate 'aw commit --no-plan -m <msg> -- <paths>', "
+    -                "or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it."
+    +                "or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it, "
+    +                "or supply --scope-reason <path>=<why>."
+                 )
+                 return 1
+    ```
+    Confirmed: exemption is keyed on `parsed_scope_reasons.get(p)` (non-empty per-path reason), not presence of flag, not count, not severity.
+
+    (b) ACCEPTED case:
+    `ygb3nk` has executed on this repository tree (status executed in `.aw/records/plans/executed/`), routing `check.scope-drift` to advisory. The command proceeds through both R1 and R2, exiting 0:
+    ```
+    $ aw commit abc123 --dir <tmp>/lane --scope-reason agent_workflows/render.py="needed for render" -- agent_workflows/render.py
+    aw commit: note - 1 advisory (warning) finding(s) on 20260824-demo-01-abc123-demo.ipd.md (not blocking):
+      check.scope-drift: 1 changed path is outside the plan's declared Scope-Paths: 'agent_workflows/render.py'
+    aw commit: committed 1 path(s): <commit-sha>
+    ```
+    `git show --name-only HEAD` output:
+    ```
+    agent_workflows/render.py
+    ```
+
+    (c) Three negative cases:
+    Case 1 (no flag exits 1 with HEAD unchanged):
+    ```
+    aw commit: refusing - out-of-scope change(s) present:
+      agent_workflows/render.py
+      declared Scope-Paths: agent_workflows/demo.py
+      remedy: commit the path in a separate 'aw commit --no-plan -m <msg> -- <paths>', or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it, or supply --scope-reason <path>=<why>.
+    HEAD unchanged: True (exit code 1)
+    ```
+    Case 2 (partial: reason for path A does not exempt path B):
+    ```
+    aw commit: refusing - out-of-scope change(s) present:
+      agent_workflows/extra.py
+      declared Scope-Paths: agent_workflows/demo.py
+      remedy: commit the path in a separate 'aw commit --no-plan -m <msg> -- <paths>', or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it, or supply --scope-reason <path>=<why>.
+    (exit code 1)
+    ```
+    Case 3 (malformed token exits 2):
+    ```
+    error: aw commit: malformed --scope-reason 'agent_workflows/render.py_no_equals'; expected PATH=WHY
+    (exit code 2)
+    ```
+
+    (d) Remedy text:
+    `"  remedy: commit the path in a separate 'aw commit --no-plan -m <msg> -- <paths>', or declare it in the plan's - Scope-Paths: if the approved work genuinely requires it, or supply --scope-reason <path>=<why>."`
+    Contains `--no-plan` and `Scope-Paths`.
+    `tests/test_scope_match.py::WorkCmdRefusalRemedyTests` passing unmodified:
+    ```
+    tests/test_scope_match.py .. [100%]
+    2 passed, 4 deselected in 0.62s
+    ```
+
+    (e) Reused parser and count comparison diff:
+    ```diff
+    +    from agent_workflows import ipd_lifecycle as _life
+    +
+    +    parsed_scope_reasons = _life._parse_scope_reason_flags(raw_scope_reasons)
+    +    if len(parsed_scope_reasons) < len(raw_scope_reasons):
+    +        for raw_tok in raw_scope_reasons:
+    +            if not _life._parse_scope_reason_flags([raw_tok]):
+    +                print(
+    +                    f"error: aw commit: malformed --scope-reason {raw_tok!r}; expected PATH=WHY"
+    +                )
+    +                return 2
+    ```
+    Confirmed: `ipd_lifecycle._parse_scope_reason_flags` is reused; malformed refusal compares counts (`len(parsed_scope_reasons) < len(raw_scope_reasons)`) and identifies offending token.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: (a) PASTE the new writer's and reader's source. CONFIRM BY QUOTING that the writer keeps `base_head` untouched, appends an AUDITABLE record rather than overwriting history silently, and uses `_atomic_write_json` and `receipt_path_for` (not a hand-composed path), mirroring `refreeze_receipt` (F-10). (b) PASTE a probe showing IDEMPOTENCE: writing a reason for the same path twice leaves the newer reason effective and BOTH visible in the audit list. (c) PASTE the NO-RECEIPT case: `aw commit <plan> --scope-reason ...` on a plan with no begin receipt exits 0, commits, and WARNS that the reason could not be persisted; CONFIRM no receipt file was created, by pasting the absence of `receipt_path_for(...)`. Creating one would let a commit verb mint execution authority, which OQ-02 refuses. (d) PASTE a probe confirming the additive key does not invalidate the receipt: `receipt_is_current` True and `finalize_precheck` exit 0 with the key present (re-derive F-08 against YOUR implementation rather than citing the authoring probe).
+  - Observed evidence: PASS. Verified; details below.
+    (a) Source of `record_scope_reasons` and `read_scope_reasons` in `agent_workflows/ipd_lifecycle.py`:
+    ```python
+    def record_scope_reasons(
+        repo_root: Path,
+        plan_id: str,
+        reasons: Dict[str, str],
+        *,
+        timestamp: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Merge commit-time scope justifications into the plan's EXISTING begin receipt.
+
+        Keeps ``base_head`` untouched, merges ``reasons`` into the additive
+        ``scope_justifications`` key, appends an auditable entry to
+        ``scope_justifications_audit``, and writes via ``_atomic_write_json`` at
+        ``receipt_path_for(repo_root, plan_id)``.
+
+        Returns ``(ok, detail)``. If no readable receipt exists, returns ``(False, reason)``
+        without creating a new receipt (never mints execution authority).
+        """
+        if not plan_id:
+            return False, "no plan_id provided"
+        rcpt_path = receipt_path_for(repo_root, plan_id)
+        try:
+            receipt = json.loads(rcpt_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False, f"no readable begin receipt at {rcpt_path}"
+
+        if not isinstance(receipt, dict):
+            return False, f"invalid receipt format at {rcpt_path}"
+
+        # base_head is kept untouched: a fresh begin would make already-committed paths
+        # invisible to scope reconciliation.
+        current_reasons = receipt.setdefault("scope_justifications", {})
+        if not isinstance(current_reasons, dict):
+            current_reasons = {}
+            receipt["scope_justifications"] = current_reasons
+
+        from datetime import datetime, timezone
+
+        ts = timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        audit_entries = []
+        for path, reason in sorted(reasons.items()):
+            previous_reason = current_reasons.get(path)
+            current_reasons[path] = reason
+            audit_entries.append({
+                "path": path,
+                "reason": reason,
+                "previous_reason": previous_reason,
+                "timestamp": ts,
+            })
+
+        receipt.setdefault("scope_justifications_audit", []).extend(audit_entries)
+        _atomic_write_json(rcpt_path, receipt)
+        return True, f"recorded {len(reasons)} scope reason(s) in begin receipt for {plan_id}"
+
+
+    def read_scope_reasons(repo_root: Path, plan_id: str) -> Dict[str, str]:
+        """Read commit-time scope justifications recorded in the begin receipt for ``plan_id``."""
+        receipt = read_receipt(repo_root, plan_id)
+        if not receipt or not isinstance(receipt, dict):
+            return {}
+        justifications = receipt.get("scope_justifications")
+        if not isinstance(justifications, dict):
+            return {}
+        return {str(k): str(v) for k, v in justifications.items() if str(v).strip()}
+    ```
+    Quotes confirming requirements:
+    - base_head untouched: `# base_head is kept untouched: a fresh begin would make already-committed paths invisible to scope reconciliation.`
+    - auditable record: `receipt.setdefault("scope_justifications_audit", []).extend(audit_entries)`
+    - uses `_atomic_write_json` and `receipt_path_for`: `rcpt_path = receipt_path_for(repo_root, plan_id)` ... `_atomic_write_json(rcpt_path, receipt)`
+
+    (b) Probe showing idempotence:
+    ```
+    Effective reason for render.py: second reason
+    Audit entries count: 3
+      audit: {'path': 'agent_workflows/render.py', 'previous_reason': None, 'reason': 'first reason', 'timestamp': '2026-08-24T10:05:00Z'}
+      audit: {'path': 'agent_workflows/render.py', 'previous_reason': 'first reason', 'reason': 'second reason', 'timestamp': '2026-08-24T10:10:00Z'}
+      audit: {'path': 'other.py', 'previous_reason': None, 'reason': 'other reason', 'timestamp': '2026-08-24T10:10:00Z'}
+    ```
+    Newer reason is effective; both are visible in audit trail.
+
+    (c) No-receipt case:
+    ```
+    aw commit: warning - could not persist scope reason(s) to begin receipt: no readable begin receipt at <tmp>/.aw/state/ipd-lifecycle/abc123.receipt.json; reason(s) will have to be supplied again at finalize
+    aw commit: committed 2 path(s): <commit-sha>
+    Receipt exists: False
+    ```
+    Exit 0, commit succeeded, warning issued, and `receipt_path_for(root, plan_id).is_file()` remained False.
+
+    (d) Additive key does not invalidate receipt:
+    ```
+    receipt_is_current: True
+    finalize_precheck exit_code: 0 precheck_msg: precheck passed (receipt valid, pre-transition conforming; scope delta computed).
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: (a) PASTE the `git diff -- agent_workflows/ipd_lifecycle.py` hunk at `finalize`'s `_reconcile_scope` call site and CONFIRM BY INSPECTION that `_reconcile_scope` ITSELF is unchanged AND that the merge order puts receipt-recorded reasons UNDER explicitly-passed ones. THE MERGE ORDER IS THE WHOLE PROTECTION AND MUST BE SHOWN EXPLICITLY, not inferred from the call site: that call site is the ONLY one in the package and both `status_set` and the runner reach it through `finalize` (F-16, correcting this plan's earlier claim that they were untouched), so an order that lets receipt reasons WIN would silently change what every runner-driven finalize records. Quote the dict-merge expression itself and state which side wins. (b) END-TO-END CONSUMPTION PROOF: PASTE `finalize(..., apply=False, env={})` returning exit 0 for a path justified ONLY at commit time with NO `scope_reasons` argument supplied, and PASTE the SAME scenario with the reason never supplied returning exit 1 with `out-of-scope path needs a --scope-reason`. Both halves are required: the first alone is satisfied by a change that stops demanding reasons at all. (c) PERMANENT-RECORD PROOF: with `apply=True`, PASTE the moved plan's `## Workflow history` line containing the reason text VERBATIM. A reason collected and dropped asserts an attestation that is not in the record; without (c) this plan's central claim is unverified. (d) CONFIRM `env={}` was passed and say why (F-14), since a test that omits it measures the role gate instead of this plan.
+  - Observed evidence: PASS. Verified; details below.
+    (a) `git diff -- agent_workflows/ipd_lifecycle.py` at `finalize`'s `_reconcile_scope` call site:
+    ```diff
+    @@ -4457,13 +4523,26 @@ def finalize(
+         # rcptwiden `63425h` E-04: paths ADDED to `Scope-Paths` under an accepted additive widening each
+         # demand their own reason, unconditionally and independently of `out_of_scope`.
+         widened = list(audit.get("widened_paths", []))
+    +    plan_id = str(evidence.get("plan_id") or "")
+    +    if not plan_id and plan_path.is_file():
+    +        try:
+    +            from agent_workflows import ipd_lint as _lint
+    +
+    +            plan_id = (
+    +                _lint.parse(plan_path.read_text(encoding="utf-8")).meta_fields.get("Id")
+    +                or ""
+    +            ).strip()
+    +        except OSError:
+    +            plan_id = ""
+    +    receipt_reasons = read_scope_reasons(repo_root, plan_id) if plan_id else {}
+    +    effective_scope_reasons = {**receipt_reasons, **(scope_reasons or {})}
+         reconcile = _reconcile_scope(
+             plan_selector or (plan_path.name),
+             actor,
+             message,
+             out_of_scope,
+             in_scope_unmodified,
+    -        scope_reasons=scope_reasons,
+    +        scope_reasons=effective_scope_reasons,
+             scope_acks=scope_acks,
+             interactive=interactive,
+             prompt=prompt,
+    ```
+    `_reconcile_scope` itself is unchanged.
+    Dict-merge expression: `effective_scope_reasons = {**receipt_reasons, **(scope_reasons or {})}`
+    State which side wins: explicitly-passed `scope_reasons` is unpacked SECOND, so any key present in `scope_reasons` overwrites `receipt_reasons`. Explicit reasons win over receipt-recorded reasons, preserving runner and status_set semantics.
+
+    (b) End-to-end consumption proof:
+    Justified only at commit time, finalized with NO `scope_reasons` argument:
+    ```
+    res_preview = LC.finalize(lane, lane_plan, actor=actor, message="complete execution", apply=False, env={}, driver_attestation=attestation)
+    # Output:
+    Finalize apply=False exit_code: 0 precheck + reconciliation passed; re-run with --apply to perform the terminal transaction.
+    ```
+    Unjustified contrast case (reason never supplied):
+    ```
+    res_preview = LC.finalize(lane, lane_plan, actor=actor, message="complete execution", apply=False, env={}, driver_attestation=attestation)
+    # Output:
+    Finalize apply=False exit_code: 1: precheck + reconciliation failed; resolve findings and re-run. Findings: ['out-of-scope path needs a --scope-reason: agent_workflows/render.py']
+    ```
+
+    (c) Permanent-record proof (`apply=True`):
+    Line in moved plan's `## Workflow history`:
+    ```
+    - 2026-10-01 executed (opencode/test): complete execution [Scope reconciliation - out-of-scope agent_workflows/render.py: needed for specialized rendering output]
+    ```
+    The reason text `"needed for specialized rendering output"` is rendered verbatim.
+
+    (d) `env={}` was passed to isolate against ambient `AW_EXECUTION_ROLE=worker` which causes `AW-LIFECYCLE-ROLE-001` role gate refusal before scope logic runs (F-14).
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: (a) PASTE the new module's source and its passing run. (b) CONFIRM BY QUOTING that all four CLI cases are asserted (accepted / still-refused / partial / malformed) and that the still-refused case asserts HEAD UNCHANGED and not merely a nonzero exit. (c) CONFIRM the fixtures build a REAL lane worktree via `worktree_lease.allocate_worktree(root, <plan id6>)` and a REAL receipt via `ipd_lifecycle.begin`, and PASTE proof the lane RESOLVES: `check_engine._plan_execution_tree(tree, <plan_id>, base_head)` returning a path and NOT None. ASSERTING THE LANE RESOLVES IS THE REQUIREMENT, NOT MERELY THAT ONE WAS CREATED, because the lane is looked up by `inspect_lane(repo_root, plan_id)` and a lane under any other name resolves to None, the rule reports nothing, and the commit that must refuse SUCCEEDS at exit 0 - a false green review measured directly by building this plan's own F-01 scenario with a lane named `cs-f01-lane` (F-18). (d) CONFIRM the fixtures reuse `tests/test_ipd_lifecycle_cli.py`'s `_completed_plan_text`/`_init_git`/`_commit_all`/`_write_plan` rather than a hand-written plan, which the pre-execution gate refuses, and that `begin` is called as `begin(lane, lane_plan, actor, timestamp=...)` (it takes the plan PATH and has no `env` keyword).
+  - Observed evidence: PASS. Verified; details below.
+    (a) Source of `tests/test_commit_scope_reason.py` (429 lines) implements:
+    - `CommitFlagRecoveryTests` (4 unit tests)
+    - `CommitScopeReasonGateTests` (4 CLI integration tests)
+    - `ReceiptScopeReasonTests` (3 receipt unit/integration tests)
+    - `LifecycleEndToEndTests` (2 lifecycle end-to-end integration tests)
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_commit_scope_reason.py -o addopts=""
+    tests/test_commit_scope_reason.py ............ [100%]
+    12 passed in 1.15s
+    ```
+
+    (b) Quotes confirming all 4 CLI cases in `CommitScopeReasonGateTests`:
+    - Case (a) ACCEPTED:
+      ```python
+      def test_out_of_scope_accepted_with_scope_reason(self) -> None:
+          """Case (a): an out-of-scope path named with a matching --scope-reason commits (exit 0)."""
+          args = self.parser.parse_args([
+              "commit", "--dir", str(self.lane), "--scope-reason",
+              "agent_workflows/render.py=needed for render functionality",
+              self.plan_id, "--", "agent_workflows/render.py",
+          ])
+          self.assertEqual(rc, 0)
+          self.assertIn("committed 1 path(s)", out)
+          self.assertIn("agent_workflows/render.py", show_out.strip())
+      ```
+    - Case (b) STILL REFUSED (asserting HEAD UNCHANGED):
+      ```python
+      def test_out_of_scope_still_refused_without_scope_reason(self) -> None:
+          """Case (b): same out-of-scope path with NO flag exits 1 with out-of-scope change(s) present and HEAD unchanged."""
+          head_before = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.lane, text=True).strip()
+          ...
+          self.assertEqual(rc, 1)
+          self.assertIn("refusing - out-of-scope change(s) present:", out)
+          head_after = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.lane, text=True).strip()
+          self.assertEqual(head_before, head_after, "HEAD must not move when commit is refused")
+      ```
+    - Case (c) PARTIAL (not a blanket key):
+      ```python
+      def test_partial_reason_does_not_exempt_unjustified_path(self) -> None:
+          """Case (c): a reason for path A does NOT exempt unjustified out-of-scope path B."""
+          ...
+          self.assertEqual(rc, 1)
+          self.assertIn("refusing - out-of-scope change(s) present:\n  agent_workflows/extra.py", out)
+      ```
+    - Case (d) MALFORMED:
+      ```python
+      def test_malformed_scope_reason_exits_2_naming_token(self) -> None:
+          """Case (d): a token with no '=' exits 2 and names the malformation."""
+          ...
+          self.assertEqual(rc, 2)
+          self.assertIn("malformed --scope-reason 'agent_workflows/render.py_no_equals'; expected PATH=WHY", out)
+      ```
+
+    (c) Real lane worktree and resolution proof in fixture `setUp`:
+    ```python
+    self.lane = worktree_lease.allocate_worktree(self.root, self.plan_id).path
+    self.lane_plan = self.lane / ".aw" / "records" / "plans" / "pending" / self.plan_name
+    self.actor = "opencode/test"
+    res = LC.begin(self.lane, self.lane_plan, self.actor, timestamp="2026-08-24T00:00:00Z")
+    self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+
+    base_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.lane, text=True).strip()
+    resolved = check_engine._plan_execution_tree(self.lane, self.plan_id, base_head)
+    self.assertIsNotNone(
+        resolved,
+        f"Lane '{self.lane}' for plan '{self.plan_id}' must resolve in check_engine._plan_execution_tree",
+    )
+    ```
+    Proof `_plan_execution_tree` resolves to a path and not None:
+    In test execution, `resolved` resolves to `<tmp>/root/.aw/worktrees/abc123` (is not None).
+
+    (d) Fixtures reuse:
+    Imported from `tests.test_ipd_lifecycle_cli`: `_commit_all`, `_completed_plan_text`, `_init_git`, `_write_plan`.
+    Called as:
+    `res = LC.begin(self.lane, self.lane_plan, self.actor, timestamp="2026-08-24T00:00:00Z")`
+    Plan path is passed (not a selector), and keyword is `timestamp`, no `env`.
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: (a) PASTE the lifecycle test's source and its passing run. (b) CONFIRM BY QUOTING that it asserts BOTH directions (reason recorded -> finalize satisfied with nothing re-supplied; reason absent -> finalize refuses) and the `## Workflow history` rendering. (c) MUTATION PROOF, the load-bearing evidence: neuter the E-05 merge IN MEMORY (make the receipt reader return an empty map) and PASTE this test RED, then PASTE the GREEN re-run unpatched, with `git status --short` empty for both. A test that stays green when the receipt reader returns nothing is not testing consumption; it is testing that finalize excused the path for the cohesion reason F-04 measures, which is the very defect this plan closes. (d) PASTE `git diff -- agent_workflows/check_engine.py agent_workflows/command_surface.py` EMPTY.
+  - Observed evidence: PASS. Verified; details below.
+    (a) Source of `LifecycleEndToEndTests` in `tests/test_commit_scope_reason.py`:
+    ```python
+    class LifecycleEndToEndTests(unittest.TestCase):
+        """End-to-end tests proving commit-time reasons survive and are consumed by finalize."""
+
+        def setUp(self) -> None:
+            support.declare_execution_role(self)
+            self._tmp = tempfile.TemporaryDirectory()
+            self.root = Path(self._tmp.name)
+            _init_git(self.root)
+
+            self.plan_id = "abc123"
+            self.plan_name = f"20260824-demo-01-{self.plan_id}-demo.ipd.md"
+            self.plan_text = _completed_plan_text(
+                plan_id=self.plan_id,
+                scope_paths="agent_workflows/demo.py",
+            )
+            self.plan_path = _write_plan(self.root, self.plan_text, self.plan_name)
+            (self.root / "agent_workflows").mkdir(parents=True, exist_ok=True)
+            (self.root / "agent_workflows" / "demo.py").write_text("print('demo')\n", encoding="utf-8")
+            (self.root / "agent_workflows" / "render.py").write_text("print('render')\n", encoding="utf-8")
+            _commit_all(self.root, "init")
+
+            self.lane = worktree_lease.allocate_worktree(self.root, self.plan_id).path
+            self.lane_plan = self.lane / ".aw" / "records" / "plans" / "pending" / self.plan_name
+            self.actor = "opencode/test"
+            res = LC.begin(self.lane, self.lane_plan, self.actor, timestamp="2026-08-24T00:00:00Z")
+            self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+
+            run_id = "run-20260824T000000Z-123456"
+            run_dir = self.root / ".aw" / "records" / "runs" / run_id
+            run_dir.mkdir(parents=True, exist_ok=True)
+            self.attestation = LC.mint_driver_attestation(run_dir)
+
+            self.parser = cli._build_parser()
+
+        def tearDown(self) -> None:
+            self._tmp.cleanup()
+
+        def test_end_to_end_reason_survives_commit_and_satisfies_finalize(self) -> None:
+            """An out-of-scope path justified once at commit time finalizes without re-supplying the reason."""
+            (self.lane / "agent_workflows" / "demo.py").write_text("print('demo edited')\n", encoding="utf-8")
+            (self.lane / "agent_workflows" / "render.py").write_text("print('render justified')\n", encoding="utf-8")
+
+            # 1. Commit out-of-scope path with --scope-reason (alongside declared in-scope path)
+            reason_text = "needed for specialized rendering output"
+            args = self.parser.parse_args([
+                "commit",
+                "--dir",
+                str(self.lane),
+                "--scope-reason",
+                f"agent_workflows/render.py={reason_text}",
+                self.plan_id,
+                "--",
+                "agent_workflows/demo.py",
+                "agent_workflows/render.py",
+            ])
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = work_cmd.run_commit(args)
+            out = buf.getvalue()
+            self.assertEqual(rc, 0, f"Expected rc 0, got {rc}. Output:\n{out}")
+
+            # 2. Check receipt store has the reason
+            stored = LC.read_scope_reasons(self.lane, self.plan_id)
+            self.assertEqual(stored.get("agent_workflows/render.py"), reason_text)
+
+            # 3. Finalize precheck/reconciliation with NO scope_reasons re-supplied passes (exit 0)
+            res_preview = LC.finalize(
+                self.lane,
+                self.lane_plan,
+                actor=self.actor,
+                message="complete execution",
+                apply=False,
+                env={},
+                driver_attestation=self.attestation,
+            )
+            self.assertEqual(res_preview.exit_code, LC.EXIT_OK)
+
+            # 4. Finalize with apply=True passes and records reason in ## Workflow history
+            res_apply = LC.finalize(
+                self.lane,
+                self.lane_plan,
+                actor=self.actor,
+                message="complete execution",
+                apply=True,
+                env={},
+                driver_attestation=self.attestation,
+            )
+            self.assertEqual(res_apply.exit_code, LC.EXIT_OK)
+
+            # Check moved plan in executed/ has the reason text verbatim in history
+            executed_plan = self.lane / ".aw" / "records" / "plans" / "executed" / self.plan_name
+            self.assertTrue(executed_plan.is_file())
+            content = executed_plan.read_text(encoding="utf-8")
+            self.assertIn("out-of-scope agent_workflows/render.py: " + reason_text, content)
+
+        def test_end_to_end_unjustified_path_refuses_at_finalize(self) -> None:
+            """Contrast: when no reason is supplied, finalize refuses with exit 1 demanding it."""
+            (self.lane / "agent_workflows" / "demo.py").write_text("print('demo edited')\n", encoding="utf-8")
+            (self.lane / "agent_workflows" / "render.py").write_text("print('render unjustified')\n", encoding="utf-8")
+            subprocess.run(["git", "add", "agent_workflows/demo.py", "agent_workflows/render.py"], cwd=self.lane, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "unjustified change"], cwd=self.lane, check=True)
+
+            res_preview = LC.finalize(
+                self.lane,
+                self.lane_plan,
+                actor=self.actor,
+                message="complete execution",
+                apply=False,
+                env={},
+                driver_attestation=self.attestation,
+            )
+            self.assertEqual(res_preview.exit_code, LC.EXIT_FINDINGS)
+            self.assertTrue(
+                any("out-of-scope path needs a --scope-reason: agent_workflows/render.py" in f for f in res_preview.findings),
+            )
+    ```
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_commit_scope_reason.py -k LifecycleEndToEndTests -o addopts=""
+    tests/test_commit_scope_reason.py .. [100%]
+    2 passed in 0.90s
+    ```
+
+    (b) Quotes confirming both directions and history rendering:
+    - Reason recorded -> finalize satisfied:
+      `res_preview = LC.finalize(self.lane, self.lane_plan, actor=self.actor, message="complete execution", apply=False, env={}, driver_attestation=self.attestation)`
+      `self.assertEqual(res_preview.exit_code, LC.EXIT_OK)`
+    - Reason absent -> finalize refuses:
+      `self.assertEqual(res_preview.exit_code, LC.EXIT_FINDINGS)`
+      `self.assertTrue(any("out-of-scope path needs a --scope-reason: agent_workflows/render.py" in f for f in res_preview.findings))`
+    - History rendering:
+      `self.assertIn("out-of-scope agent_workflows/render.py: " + reason_text, content)`
+
+    (c) Mutation proof (load-bearing evidence):
+    Neutered `LC.read_scope_reasons` in-memory via mock to return `{}`:
+    ```
+    FAIL: test_end_to_end_reason_survives_commit_and_satisfies_finalize (tests.test_commit_scope_reason.LifecycleEndToEndTests)
+    AssertionError: 1 != 0 : Preview finalize should pass exit 0; got 1: precheck + reconciliation failed; resolve findings and re-run. Findings: ['out-of-scope path needs a --scope-reason: agent_workflows/render.py']
+    ```
+    (RED: fails because without reading from receipt, finalize refuses exit 1).
+    Unpatched re-run:
+    ```
+    tests/test_commit_scope_reason.py .. [100%]
+    2 passed in 0.90s
+    ```
+    (GREEN).
+    `git status --short` empty before and after both runs.
+
+    (d) `git diff -- agent_workflows/check_engine.py agent_workflows/command_surface.py`: empty.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `reviewed`. `/plan-review` ran on 2026-09-30 and recorded `- Readiness: go-pending-approval`, which is the review's own output and the only legitimate writer of that field; the author correctly left it absent. A human has NOT yet approved it, and it must not be executed until one does. The executor must not self-approve and must not alter the `- Readiness:` value.
+
+WHAT A HUMAN WOULD BE APPROVING, in one paragraph. A new PUBLIC FLAG on a verb the execution contract mandates: `aw commit <plan> --scope-reason PATH=WHY -- <paths>`, using the same spelling `aw ipd finalize` already accepts, so one grammar covers both ends of the lifecycle. The reason is recorded in the plan's existing begin receipt under an additive key and consumed by finalize, so an agent justifies a required out-of-scope edit ONCE and that justification reaches the plan's permanent `## Workflow history`. THE GATE IS NOT WEAKENED, and this is the thing to scrutinize: an out-of-scope path with NO reason still refuses with the identical message; an empty reason counts as none; a reason for one path does not exempt another; and `check_engine.check_scope_drift`, its registered severity, `aw check`, CI, `aw doctor` and the opt-in pre-commit hook are all untouched. `v45wb7` asked for exactly this and explicitly forbade the alternative ("Do NOT simply weaken the refusal: fail-closed is right, and what is missing is the attested escape, not the gate").
+
+WHY THIS EXISTS ALONGSIDE `ygb3nk`, WHICH A REVIEWER WILL ASK FIRST. Order 01 of this Set graduates the near-duplicate item `ldy1al` and fixes the REACHABILITY half by routing `check.scope-drift` to advisory at the commit gate; it explicitly REFUSES the flag route this plan takes, and OQ-03 records why both should exist. The decisive point is measured, not argued: with `ygb3nk`'s routing staged in memory, the governed commit succeeds AND finalize then reports `out_of_scope_paths: []` with the path merely `disregarded_unowned_paths`, so the out-of-scope edit is never justified by anyone (F-04, reproduced key for key at review). `ygb3nk`'s own review found the same thing from the other side (its F-17) and deferred it to backlog `s9z85a`. So Order 01 makes the verb usable and Order 02 makes the escape attested.
+
+THE TWO PLANS TOUCH DISJOINT SITES BUT ARE NOT ORDER-INDEPENDENT, AND THIS PARAGRAPH ORIGINALLY SAID OTHERWISE. Review measured E-03's exemption staged alone, with the partition untouched, still refusing exit 1 at the ENGINE gate (F-15), because R1 and R2 are consecutive in `run_commit` and passing R1 lands on R2. So `- Item-Dependencies:` is now `executed:ygb3nk` rather than `none`. `ygb3nk` is `approved` today, so this is an ordering edge and not a stall. What a human is approving is therefore the SECOND half of a two-step fix: on its own this plan records an attestation that a gate it does not touch will still override.
+
+TWO OF THE SIBLING PLAN'S STATED REASONS FOR REFUSING THIS ROUTE ARE FALSIFIED, AND A REVIEWER SHOULD CHECK BOTH RATHER THAN TAKE THEM ON TRUST. FIRST, `ygb3nk` F-13 claims a flag route forces a `command_surface.py` edit or `test_zero_undeclared_parser_leaves` fails closed; measured, that test enumerates parser LEAVES, and adding a flag to the already-declared `commit` leaf leaves `find_undeclared_leaves` returning an empty set (F-06), so the surface cost is `cli.py` alone. SECOND, `ygb3nk` F-14 claims there is no durable store; measured, an additive receipt key round-trips, leaves `receipt_is_current` True and `finalize_precheck` at exit 0, because the validity key digests PLAN TEXT and not the receipt dict (F-08). Its two underlying facts (the receipt is gitignored and single-use) are TRUE and do not disqualify it: the reason needs the receipt's lifetime, and the durable record is the history note finalize already writes (F-09). The ONE half of F-13 that DOES reproduce is the selector misparse, and it is order-dependent and a one-line fix (F-07), which E-02 makes and V-02 proves with a before/after.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). Five paths plus this plan: `agent_workflows/cli.py` (E-01), `agent_workflows/work_cmd.py` (E-02, E-03, E-05's writer call), `agent_workflows/ipd_lifecycle.py` (E-04, E-05), `tests/test_commit_scope_reason.py` (E-06, E-07) and `tests/test_scope_match.py` (declared only because E-03's additive remedy line touches the file that owns its assertions; F-12 measures no edit should be needed, so if you modify nothing there, `--scope-ack` it at finalize). FIVE NEGATIVE CONSTRAINTS CARRY REAL WEIGHT. FIRST, `agent_workflows/check_engine.py` MUST NOT BE COMMITTED: the rule and its severity are correct and `v45wb7` forbids weakening them. SECOND, `agent_workflows/command_surface.py` MUST NOT BE COMMITTED: F-06 measures no declaration change is needed, and editing it would smuggle in the very coupling this plan disproved. THIRD, do NOT touch `work_cmd._validate_plan_via_engine`: that partition is `ygb3nk`'s single change and two plans editing one function is how a Set produces a merge conflict and a double-counted behavior change. FOURTH, do NOT change `_reconcile_scope`'s semantics; hand it a fuller map at its single call site instead. Note WHY that is safe, since this plan originally gave the wrong reason (F-16): that call site is the ONLY one in the package and `status_set` and the runner both reach it THROUGH `finalize`, so the edit IS felt by all three; what preserves them is the MERGE ORDER (receipt reasons under explicit ones), which is therefore the thing to get right and the thing V-05(a) checks. FIFTH, do NOT weaken or delete any existing test; `WorkCmdRefusalRemedyTests` must keep passing unmodified. An out-of-scope edit that turns out to be necessary is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason` (and after this plan, at `aw commit` too); a declared path you end up not modifying needs a `--scope-ack`; neither is a reason to stop.
+
+EXECUTION CONTRACT. Commit only the five files in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`, never `git add -A` and never with `--no-verify`. Do not push. EVERY BEFORE/AFTER AND MUTATION PROOF IS STAGED IN MEMORY, NOT BY EDITING A FILE: `work_cmd.py` and `ipd_lifecycle.py` are shared-checkout files, and a `git checkout` restore after a minute-long suite run silently discards a co-worker's concurrent edit. The execution contract's "verify what you are actually about to commit" step is not optional here, and a co-worker's unstaged edit to any of the five files must not be swept in. Redact absolute temp paths to `<tmp>` in every pasted evidence block and run `aw sanitize --agent` before committing.
+
+LIFECYCLE TRANSITION. The terminal transition is owed unconditionally but its OWNER is conditional: under `aw oc run` / `aw agy run` the runner performs finalize and the executor must NOT also run it; executed by hand, the executor runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-roll a `git mv` to `executed/`.
+
+THE ONE WAY THIS PLAN CAN FAIL SILENTLY, stated for the executor: by turning `--scope-reason` into a BLANKET KEY or a NO-OP. Four specific shapes do that and all four are guarded. Exempting a path because the flag was supplied at all, rather than because THAT path carries a reason, removes the fence for every execution that justifies one path; V-03(c)'s partial case catches it. Accepting an out-of-scope path with no reason removes the fence outright; V-03(c)'s no-flag case catches it. Collecting the reason and never persisting it makes the flag cosmetic and leaves finalize excusing the path for the cohesion reason F-04 measures; V-07(c)'s mutation proof is the only evidence that distinguishes real consumption from that excuse, which is why it must be RUN and shown RED rather than reasoned about. Writing the reason into a NEW receipt when none exists would let a commit verb mint execution authority; V-04(c) asserts no receipt is created. A green suite is NOT sufficient evidence for this plan; V-02(c), V-03(c), V-05(b) and V-07(c) are.
+
+A FIFTH SHAPE WAS FOUND AT REVIEW AND IT IS THE ONE MOST LIKELY TO FOOL A TEST RATHER THAN A HUMAN: A FIXTURE WHOSE LANE DOES NOT RESOLVE. `check_engine._plan_execution_tree` looks the lane up by `inspect_lane(repo_root, plan_id)`, so a lane allocated under any name other than the plan's id6 resolves to None, `check_scope_drift` reports nothing, and the commit that MUST refuse succeeds at exit 0. That green is indistinguishable from a working escape. Review built this plan's own F-01 scenario that way by accident and measured exactly it (F-18). So every fixture allocates `allocate_worktree(root, <plan id6>)` and ASSERTS the lane resolves; V-06(c) requires the non-None proof pasted. A sixth, milder shape: reporting V-03(b)'s acceptance as green on a tree where `ygb3nk` has not executed. It cannot be green there (F-15), and the honest report says so rather than reaching for `_validate_plan_via_engine`.

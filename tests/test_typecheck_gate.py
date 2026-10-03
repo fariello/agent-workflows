@@ -10,6 +10,8 @@ import subprocess
 import sys
 import unittest
 
+import pytest
+
 from agent_workflows.runner_shared import (
     RecoveryDisposition,
     build_verify_and_continue_notice,
@@ -68,6 +70,7 @@ class VerifyAndContinueNoticeTests(unittest.TestCase):
 class TypecheckGateTests(unittest.TestCase):
     """Pin the configured static type gate exit status (E-05)."""
 
+    @pytest.mark.timeout(300)
     def test_typecheck_gate_clean_exit(self) -> None:
         """The configured narrowed mypy gate exits 0 over agent_workflows/."""
         repo_root = Path(__file__).resolve().parent.parent

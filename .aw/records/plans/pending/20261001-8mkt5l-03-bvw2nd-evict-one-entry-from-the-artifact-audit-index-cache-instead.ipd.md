@@ -6,7 +6,8 @@
 - Scope: Replace the wholesale `clear()` with single-entry LRU eviction so crossing the cap costs ONE entry instead of all of them, and pin the two properties that keep the cache a cache. IN: the `_INDEX_CACHE` declaration and the eviction branch of `artifact_audit.build_index`, the `_INDEX_CACHE` commentary's `RESIDUAL LIMIT 2` paragraph naming this item as carrier, and a new `tests/test_artifact_audit_cache_eviction.py`. OUT: `_dir_signature` (untouched), `build_index`'s enumeration, `find_artifact`'s tiers, the tier-one identity verification plan `0a7v0x` adds (carrier `ieg7q6`), `audit_artifact`'s fresh status read, `run_viewer`'s explicit-index threading, and `_INDEX_CACHE_MAX`'s VALUE, which F-06 shows is the knob that actually moves the measured workload and which F-07 declines to turn on memory grounds.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_cache_eviction.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
+- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: an1a33
@@ -15,8 +16,11 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bvw2nd
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
+- 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (RESIDUAL LIMIT 2 mislabels over-invalidation with an1a33; rewrite leaves the trade carrier-less), PR-002 (hot-root test needs >= MAX+2 interleaved fresh roots or insert-only mutation stays green), PR-003 (counts not the bar), PR-004 (after-change perf re-measure removed as unowned), PR-005 (gate finalize/paste/scope-reason; OQ owners; 0a7v0x pop compatibility). Cliff re-measured at lane HEAD cae85d5d5: [1..8,1,2].
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `an1a33`. Every number below was MEASURED in this lane at HEAD `e1da9ae84` on an `ext2/ext3` filesystem; none is transcribed from the item. The item's reproduction HOLDS EXACTLY and its central OPEN QUESTION is now ANSWERED, which changes what this plan claims.
   CONFIRMED: the eviction reproduces precisely as the item states (cache size `1..8` then `1,2` over 10 distinct roots, ending at 2), and the cold-versus-warm gap is real and large (median 4326ms rebuild against a 20ms hit, 214x; the item measured roughly 92x and the direction is the same).
@@ -86,7 +90,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
   DO NOT RAISE `_INDEX_CACHE_MAX`. F-06 measures it as the knob that would actually have improved the real trace and F-07 declines it on memory; turning both knobs at once would also make E-03's before/after comparison unreadable. Leave the constant at 8.
 
-  REWRITE `RESIDUAL LIMIT 2` TO SAY WHAT IS NOW TRUE: the paragraph currently describes over-invalidation from the deliberately-wide signature walk and names `an1a33` as carrier for the wholesale clear. After this change the over-invalidation trade (a wide walk, accepted because a rebuild is slow but never wrong) is UNCHANGED and must be preserved, while the wholesale-clear carrier is CLOSED and must no longer be advertised as open. Record that eviction is now single-entry LRU, and record the measured reason the cap was NOT raised, so the next reader does not redo F-07's reasoning.
+  REWRITE `RESIDUAL LIMIT 2` TO SAY WHAT IS NOW TRUE: the paragraph is headed `RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`)` and its body describes ONLY the over-invalidation from the deliberately-wide signature walk, yet names `an1a33` (whose subject is the wholesale clear, not over-invalidation) as carrier twice. That carrier attribution is a mislabel inherited from `dea7dr`, which accepted the over-invalidation as a TRADE and filed `an1a33` for the separate eviction defect (dea7dr's Deferred row "FIXING `_INDEX_CACHE_MAX`'s WHOLESALE `clear()` EVICTION ... Carrier: an1a33"). So after this change the over-invalidation text must stand as an ACCEPTED TRADE WITH NO CARRIER (do not invent one, and do not leave `an1a33` attached to it), and eviction must be described separately as now single-entry LRU. After this change the over-invalidation trade (a wide walk, accepted because a rebuild is slow but never wrong) is UNCHANGED and must be preserved, while the wholesale-clear carrier is CLOSED and must no longer be advertised as open. Record that eviction is now single-entry LRU, and record the measured reason the cap was NOT raised, so the next reader does not redo F-07's reasoning.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `git diff -- agent_workflows/artifact_audit.py` shows `_INDEX_CACHE` as an `OrderedDict`, a `move_to_end` on the hit path, a `while`-guarded `popitem(last=False)` on the insert path, no change to the key construction or the `cached[0] == sig` comparison, `_INDEX_CACHE_MAX` still 8, and the `RESIDUAL LIMIT 2` paragraph rewritten; re-running E-01's fixture now shows the size series rising to the cap and STAYING there (`...,8,8,8`) instead of collapsing to 1.
   - Execution state: pending
@@ -95,9 +99,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 ADD `tests/test_artifact_audit_cache_eviction.py` WITH FOUR OUTCOME TESTS. Clear `_INDEX_CACHE` in `setUp` AND `tearDown`, following `tests/test_artifact_audit_index_cache.py`: the cache is module-level shared state and `pyproject.toml`'s `addopts` randomizes order, so an entry left by a neighbour would make these pass or fail for the wrong reason.
 
+  ALSO NOTE THE SIBLING'S CACHE TOUCH: approved-track plan `0a7v0x` E-03 POPS a key from `_INDEX_CACHE` before rebuilding. `OrderedDict.pop` behaves identically to `dict.pop`, so the two plans compose in either merge order; do not change the container to anything lacking `pop`/`get`/`__getitem__`, which `tests/test_artifact_audit_index_cache.py` also uses (`_audit._INDEX_CACHE[key][1]`).
+
   FIRST, THE BOUNDED-SIZE TEST: index `_INDEX_CACHE_MAX + 2` distinct temporary roots and assert the cache size equals the cap afterwards, never dropping to 1 or 2. Read the cap from the module; do not hardcode 8.
 
-  SECOND, THE HOT-ROOT TEST, WHICH IS THE ONE THAT ACTUALLY PINS LRU AND MUST NOT BE OMITTED: prime a root, then interleave re-queries of that hot root with queries of enough fresh roots to cross the cap, and assert the hot root's index is STILL the SAME OBJECT at the end (`assertIs`). This is the behavior the whole plan exists to buy, and it is the test that fails against an insert-only ordering as well as against the shipped `clear()`, which is exactly the distinction E-04 warns about.
+  SECOND, THE HOT-ROOT TEST, WHICH IS THE ONE THAT ACTUALLY PINS LRU AND MUST NOT BE OMITTED: prime a root, then interleave re-queries of that hot root with queries of AT LEAST `_INDEX_CACHE_MAX + 2` fresh roots (one fresh root between each re-query; read the cap from the module). The count is load-bearing: with fewer than `_INDEX_CACHE_MAX` fresh roots an insert-only queue never evicts the hot entry, so the test would pass without promotion-on-hit and miss F-10's mutation (measured at review: with `_INDEX_CACHE_MAX + 2` fresh roots the shipped `clear()` already fails this check, `hot retained (clear): False`), and assert the hot root's index is STILL the SAME OBJECT at the end (`assertIs`). This is the behavior the whole plan exists to buy, and it is the test that fails against an insert-only ordering as well as against the shipped `clear()`, which is exactly the distinction E-04 warns about.
 
   THIRD, THE NO-REBUILD-ON-A-HIT TEST: assert the existing memoization still holds, by wrapping `selectors._iter_paths` with a counter (restoring it in a `finally`, as the predecessor file does), looking the same unchanged root up twice, and asserting the traversal count does not move and the returned index is the same object. This is what stops a cache "fix" that quietly stops caching.
 
@@ -167,7 +173,7 @@ RE-DERIVE A BASELINE IN THE EXECUTION LANE BEFORE CHANGING ANYTHING, and compare
 
 The new file must also be run alone with the configured defaults cleared, `python3 -m pytest -o addopts="" tests/test_artifact_audit_cache_eviction.py -v`, because per-test names are required and the configured `-q` suppresses them. That is the one sanctioned way to clear them per `AGENTS.md`.
 
-THE PREDECESSOR'S CACHE TESTS MUST PASS UNCHANGED: `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py tests/test_artifact_audit.py -v`. They pin the memoization and invalidation behavior `dea7dr` established (measured green at this head in F-11, `30 passed`), and this plan's whole claim is that it changes which entry is evicted WITHOUT disturbing when an entry is valid, so a regression there is this plan's and must not be absorbed by editing those files.
+THE PREDECESSOR'S CACHE TESTS MUST PASS UNCHANGED: `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py tests/test_artifact_audit.py -v`. They pin the memoization and invalidation behavior `dea7dr` established (measured green at authoring in F-11; re-derive the count in the lane before the change), and this plan's whole claim is that it changes which entry is evicted WITHOUT disturbing when an entry is valid, so a regression there is this plan's and must not be absorbed by editing those files.
 
 RED-BEFORE-GREEN IS REQUIRED, NOT OPTIONAL. The bounded-size and hot-root tests must each be shown FAILING against the pre-E-04 code and PASSING after it, with `git status --short agent_workflows/` proving the restoration between runs.
 
@@ -175,7 +181,7 @@ THE INSERT-ONLY MUTATION MUST ALSO BE SHOWN RED, and this is the one adversarial
 
 THE NO-REBUILD-ON-A-HIT TEST MUST BE SHOWN RED FOR ITS OWN OPPOSITE MUTATION: with the cache-hit lookup disabled in a scratch copy, paste it failing. Without that, a change that stopped caching entirely would pass every other test in the file.
 
-Performance must be re-measured after the change per E-02 and E-03 and reported against both root sizes, so the record states the honest prize (about one 1.26ms rebuild on the live trace) rather than the repository-root figure.
+E-01's fixture is re-run after the change (V-04). E-02 and E-03 are pre-change measurements that establish the honest prize (about one 1.26ms rebuild on the live trace); they need not be repeated after the change, since E-04 changes no rebuild cost and the simulation already models LRU.
 
 `aw ipd lint` on this plan must report conforming. `aw sanitize --agent` must be clean. No `aw check` family run is required beyond what the suite covers, since no records artifact other than this plan is edited.
 
@@ -193,14 +199,14 @@ No user-facing document changes. `docs/` is untouched, and the prose this plan e
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED AS POLICY-ONLY, ON MEASUREMENT, and recorded because it is the one real design choice here and a reviewer may legitimately disagree. The cap is demonstrably the more effective knob ON THE MEASURED WORKLOAD: F-06's sweep shows LRU first beating `clear()` at a cap of 16 and both reaching the distinct-key floor at 32, while at the shipped cap of 8 the two tie at 30 misses. So if the goal were to minimize rebuilds on today's trace, raising the cap would be the change to make. It is declined because the prize is tiny and the cost is not: F-03 bounds the entire improvement at ONE avoidable rebuild, F-05 prices that rebuild at a median 1.26ms because the multi-root roots are 3-record fixtures rather than the 2258-record repository, and F-07 measures one cached index at about 1.34 MiB, so a cap of 16 or 32 would admit roughly 21 or 43 MiB. Tens of megabytes for a millisecond is the wrong trade. The policy change, by contrast, costs no memory and removes an UNBOUNDED worst case (F-06's hot-root shape, where `clear()` rebuilds 29 or 57 times against LRU's 1), which is the right half of the pair to take even though it shows no win on today's trace. E-04 writes this reasoning into the code comment so it is not re-derived.
 
 ### OQ-02: Does the measured evidence justify promoting this item from `chore` to `bug`?
 
 - Blocking: no
 - Status: resolved
-- Owner: none
+- Owner: plan author
 - Resolution or deferral rationale: RESOLVED AS NO, and the item explicitly asked for this to be measured rather than assumed ("Measure that before promoting this to `bug`"). The measurement came back AGAINST promotion, which is worth stating because the item's cold-versus-warm figure makes promotion look likely. `AGENTS.md`'s test is user-perceptible impact measured on the end-to-end command a user actually runs. Here the only live consumer that crosses the cap is the TEST SUITE (F-02), the avoidable work on that trace is one rebuild (F-03) worth about 1.26ms because the roots are 3-record fixtures (F-05), and no shipped `aw` command crosses the cap at all because each is one-shot on a single root. A millisecond inside a test process is not something a human waits on, so `chore` is correct on evidence. The item's own instinct that the 92x-to-214x cold/warm gap implies perceptibility is right about the ratio and wrong about the denominator: that ratio applies to the repository root, which no multi-root caller indexes. F-08 records what would move it to `bug` (a long-lived or multi-root shipped consumer), so a future reader has the trigger rather than the conclusion alone.
 
 ## Validation and cross-check (verify before reporting done)
@@ -223,22 +229,22 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` and confirm affirmatively, point by point: `_INDEX_CACHE` is an `OrderedDict`; the cache-HIT branch promotes with `move_to_end`; the insert path evicts with a `while`-guarded `popitem(last=False)`; the key construction and its `OSError` fallback are UNCHANGED; the `cached[0] == sig` validity comparison is UNCHANGED; `_INDEX_CACHE_MAX` is still 8; and `_dir_signature` is untouched. Also paste the re-run of E-01's fixture showing the size series now rising to the cap and STAYING there rather than collapsing. For the comment edit, prove the surgical scope affirmatively: the `RESIDUAL LIMIT 2` paragraph is rewritten to record single-entry LRU and the measured reason the cap was not raised, while the `RESIDUAL LIMIT 1` paragraph (sibling `0a7v0x`'s surface), the `record_dirs` cost warning, and the fresh-status claim are all UNTOUCHED. A careless rewrite of a neighbouring paragraph is the likely failure mode here, so show the surrounding block.
+  - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` and confirm affirmatively, point by point: `_INDEX_CACHE` is an `OrderedDict`; the cache-HIT branch promotes with `move_to_end`; the insert path evicts with a `while`-guarded `popitem(last=False)`; the key construction and its `OSError` fallback are UNCHANGED; the `cached[0] == sig` validity comparison is UNCHANGED; `_INDEX_CACHE_MAX` is still 8; and `_dir_signature` is untouched. Also paste the re-run of E-01's fixture showing the size series now rising to the cap and STAYING there rather than collapsing. For the comment edit, prove the surgical scope affirmatively: the `RESIDUAL LIMIT 2` paragraph is rewritten to record single-entry LRU and the measured reason the cap was not raised, and that the over-invalidation text no longer names `an1a33` (or any carrier) while still recording the accepted trade, while the `RESIDUAL LIMIT 1` paragraph (sibling `0a7v0x`'s surface), the `record_dirs` cost warning, and the fresh-status claim are all UNTOUCHED. A careless rewrite of a neighbouring paragraph is the likely failure mode here, so show the surrounding block.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_cache_eviction.py -v` showing all four tests passing by name, PLUS the four adversarial runs, each with the mutation described and the pasted failure: (a) bounded-size and hot-root tests RED against the pre-E-04 code; (b) the hot-root test RED against an insert-only variant (hit-path `move_to_end` removed, `OrderedDict` and single-entry eviction kept), which is what proves an LRU was delivered rather than an insertion-order queue per F-10; (c) the no-rebuild-on-a-hit test RED with the cache lookup disabled. Also paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py tests/test_artifact_audit.py -v` showing the predecessor's 30 tests still passing, and confirm affirmatively that the new file reads no production source text (no `inspect`, no `ast`, no reading `artifact_audit.py`) and asserts no `OrderedDict` type. Finally paste the bare `python3 -m pytest` summary line and compare failures BY NODE ID against the lane baseline, confirming none names `artifact_audit`, `build_index` or the index cache.
+  - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_cache_eviction.py -v` showing every test passing, with a mapping from each test to the property it pins (bounded size, hot-root retention, no rebuild on a hit, invalidation; names and counts are pointers, not the bar), PLUS the four adversarial runs, each with the mutation described and the pasted failure: (a) bounded-size and hot-root tests RED against the pre-E-04 code; (b) the hot-root test RED against an insert-only variant (hit-path `move_to_end` removed, `OrderedDict` and single-entry eviction kept), which is what proves an LRU was delivered rather than an insertion-order queue per F-10; (c) the no-rebuild-on-a-hit test RED with the cache lookup disabled. Also paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py tests/test_artifact_audit.py -v` before AND after the change, showing every predecessor test passing with the same collected count both times (F-11's `30 passed` is authoring context, not the bar), and confirm affirmatively that the new file reads no production source text (no `inspect`, no `ast`, no reading `artifact_audit.py`) and asserts no `OrderedDict` type. Finally paste the bare `python3 -m pytest` summary line and compare failures BY NODE ID against the lane baseline, confirming none names `artifact_audit`, `build_index` or the index cache.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
-This plan is `to-review` and requires explicit human approval before execution; no `- Readiness:` field is written here, because that field is an output of `/plan-review` and writing one by hand would forge a review that has not happened.
+This plan requires explicit human approval before execution. Its `- Readiness:` field was written by `/plan-review` (2026-10-02), the field's legitimate producer.
 
 The executor must honor the repository execution contract: commit ONLY the two declared `- Scope-Paths:` files through `aw commit <plan> -- <paths>`, never `git add -A`, never `-a`, never `--no-verify`, and never push. The scratch scripts E-01, E-02 and E-03 produce live under the gitignored `tmp/` and must not be committed. Verify the staged set with `git diff --cached --name-only` before committing, and re-verify after any failed raw commit, since a rejecting hook can leave unstaged paths in the index.
 
-Do not claim this plan done or move it to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and EVERY `V-*` item carries concrete pasted evidence, including the three adversarial red runs the validation section requires (pre-change, insert-only, and cache-lookup-disabled). The insert-only run is the one that proves this plan delivered an LRU rather than an insertion-order queue; without it the central claim is unverified.
+Do not claim this plan done or move it to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and EVERY `V-*` item carries concrete pasted evidence, including the three adversarial red runs the validation section requires (pre-change, insert-only, and cache-lookup-disabled). The insert-only run is the one that proves this plan delivered an LRU rather than an insertion-order queue; without it the central claim is unverified. The move is ALWAYS made by `aw ipd finalize`, never a hand `git mv`: under `aw oc run` / `aw agy run` follow the runner's lifecycle notice (self-finalize when it tells you to, otherwise the driver finalizes); when executing by hand, run `aw ipd finalize` yourself. When reporting tests passed, paste the ACTUAL runner output. An edit outside `- Scope-Paths:` is permitted when the work requires it and must be justified at finalize with a `--scope-reason`.
 
 - Size assessment: standard
 - Cohesion rationale: not required
