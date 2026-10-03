@@ -1069,22 +1069,21 @@ def _run_start(args: argparse.Namespace) -> int:
     actor = getattr(args, "actor", None) or "runtime"
 
     try:
-        with engine.lease():
-            runnable_ids = {s.step_id for s in engine.get_runnable_steps()}
-            step = engine.reconstruct_state().steps.get(step_id)
-            if step is None:
-                return _emit_error(
-                    args, f"unknown step '{step_id}'", EXIT_INVALID_INVOCATION
-                )
-            if step.state == run_state.STATE_PENDING and step_id not in runnable_ids:
-                return _emit_error(
-                    args,
-                    f"step '{step_id}' is not runnable (unsatisfied dependencies or gates)",
-                    EXIT_BLOCKED,
-                )
-            if step.state == run_state.STATE_PENDING:
-                engine.release_step(step_id, actor=actor)
-            engine.start_step(step_id, actor=actor)
+        runnable_ids = {s.step_id for s in engine.get_runnable_steps()}
+        step = engine.reconstruct_state().steps.get(step_id)
+        if step is None:
+            return _emit_error(
+                args, f"unknown step '{step_id}'", EXIT_INVALID_INVOCATION
+            )
+        if step.state == run_state.STATE_PENDING and step_id not in runnable_ids:
+            return _emit_error(
+                args,
+                f"step '{step_id}' is not runnable (unsatisfied dependencies or gates)",
+                EXIT_BLOCKED,
+            )
+        if step.state == run_state.STATE_PENDING:
+            engine.release_step(step_id, actor=actor)
+        engine.start_step(step_id, actor=actor)
     except store.LedgerLockError as exc:
         return _emit_error(args, f"lock contention: {exc}", EXIT_OPERATIONAL)
     except run_state.RunStateError as exc:
@@ -1185,8 +1184,7 @@ def _run_record(args: argparse.Namespace) -> int:
 
     try:
         # Advance a runnable step through pending -> runnable -> running before recording the
-        # outcome, so a single CLI invocation records a durable step_attempt. Running is ephemeral
-        # (not persisted), so it must be re-derived within this same process before the append.
+        # outcome, so a single CLI invocation records both a durable step_started and step_attempt.
         step = engine.reconstruct_state().steps.get(step_id)
         if step is None:
             return _emit_error(

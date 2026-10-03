@@ -39,39 +39,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the started state durable
 
-- [ ] E-01 In `agent_workflows/run_ledger_schema.py`, admit a new record kind `step_started` as a V2-ONLY kind: add it to `RECORD_KINDS_V2_ONLY` (which `RECORD_KINDS` already unions, so no second edit is needed there) and add its per-kind required fields to `_KIND_FIELDS` as `(("step", str), ("attempt", int))`, mirroring the `step_attempt` entry minus its `state` field. ADD IT TO THE V2-ONLY SET AND NOT TO `RECORD_KINDS_V1`, which is load-bearing rather than stylistic: that module's own version-compatibility comment states the discipline ("The new kinds require v2 ... so an old reader that only knows v1 never sees a kind it cannot interpret. This is an ADD-ONLY, monotonic compatibility discipline"), and `_V2_ONLY_KINDS` is what enforces it, so a v1 record carrying this kind is refused automatically with no new validation code. Do NOT add `running` to `ATTEMPT_STATES`: that is the rejected option, it does not restore detection, and it breaks two contracts (F-04, F-05). Update the module docstring's record-kind list to name the new kind, since that list enumerates every kind and would otherwise be incomplete.
+- [x] E-01 In `agent_workflows/run_ledger_schema.py`, admit a new record kind `step_started` as a V2-ONLY kind: add it to `RECORD_KINDS_V2_ONLY` (which `RECORD_KINDS` already unions, so no second edit is needed there) and add its per-kind required fields to `_KIND_FIELDS` as `(("step", str), ("attempt", int))`, mirroring the `step_attempt` entry minus its `state` field. ADD IT TO THE V2-ONLY SET AND NOT TO `RECORD_KINDS_V1`, which is load-bearing rather than stylistic: that module's own version-compatibility comment states the discipline ("The new kinds require v2 ... so an old reader that only knows v1 never sees a kind it cannot interpret. This is an ADD-ONLY, monotonic compatibility discipline"), and `_V2_ONLY_KINDS` is what enforces it, so a v1 record carrying this kind is refused automatically with no new validation code. Do NOT add `running` to `ATTEMPT_STATES`: that is the rejected option, it does not restore detection, and it breaks two contracts (F-04, F-05). Update the module docstring's record-kind list to name the new kind, since that list enumerates every kind and would otherwise be incomplete.
   - Depends on: none
   - Expected outcome: `"step_started" in run_ledger_schema.RECORD_KINDS` and in `RECORD_KINDS_V2_ONLY`, not in `RECORD_KINDS_V1`; a `step_started` record declaring `schema_version` 2 with `step` and `attempt` validates, one declaring `schema_version` 1 is refused as a v2-only kind, and one missing `attempt` is refused. `ATTEMPT_STATES` is UNCHANGED at exactly `{'performed','blocked','failed'}`, so `aw run record --state running` stays refused and `reconcile_unknown_outcome` still rejects `running`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/run_engine.py`, teach `RunEngine.reconstruct_state`'s replay loop to reconstruct a started-but-unfinished step as `STATE_RUNNING` with `last_attempt_state is None`, which is precisely the pair `run_recovery.detect_unknown_outcomes` tests for. THE REPLAY MUST BE ORDER-BASED, NOT SET-BASED, and this is the single most important instruction in this plan because the obvious implementation is wrong in a way no happy-path test would catch (F-06). Handle `step_started` as a new `elif` branch INSIDE the existing `for rec in records:` loop, beside the `step_attempt` branch, so the LAST record wins for each step by ordinary replay order: a `step_started` sets that step's state to `STATE_RUNNING` and resets its `last_attempt_state` to `None`, while a later `step_attempt` for the same step overwrites both, exactly as it does today. Do NOT compute a `started - attempted` set difference after the loop: measured, that reports a step which FAILED on attempt 1 and was INTERRUPTED on attempt 2 as clean, missing the interrupted retry entirely. Also set `has_started_execution` on this branch, so a ledger holding only a `step_started` reconstructs the RUN as `running` rather than `pending`, matching what the surrounding code already does for a `step_attempt`.
+- [x] E-02 In `agent_workflows/run_engine.py`, teach `RunEngine.reconstruct_state`'s replay loop to reconstruct a started-but-unfinished step as `STATE_RUNNING` with `last_attempt_state is None`, which is precisely the pair `run_recovery.detect_unknown_outcomes` tests for. THE REPLAY MUST BE ORDER-BASED, NOT SET-BASED, and this is the single most important instruction in this plan because the obvious implementation is wrong in a way no happy-path test would catch (F-06). Handle `step_started` as a new `elif` branch INSIDE the existing `for rec in records:` loop, beside the `step_attempt` branch, so the LAST record wins for each step by ordinary replay order: a `step_started` sets that step's state to `STATE_RUNNING` and resets its `last_attempt_state` to `None`, while a later `step_attempt` for the same step overwrites both, exactly as it does today. Do NOT compute a `started - attempted` set difference after the loop: measured, that reports a step which FAILED on attempt 1 and was INTERRUPTED on attempt 2 as clean, missing the interrupted retry entirely. Also set `has_started_execution` on this branch, so a ledger holding only a `step_started` reconstructs the RUN as `running` rather than `pending`, matching what the surrounding code already does for a `step_attempt`.
   - Depends on: E-01
   - Expected outcome: Given a ledger of `run` then `step_started(S-01, attempt=1)`, a FRESH `RunEngine` over that file (sharing no memory with the writer) reconstructs `steps['S-01'].state == 'running'` and `last_attempt_state is None`, and `run_recovery.detect_unknown_outcomes` returns `('S-01',)`. Given `run`, `step_started(1)`, `step_attempt(failed, 1)`, `step_started(2)`, the same fresh engine ALSO returns `('S-01',)`, which is the case a set-based replay misses. Given `run`, `step_started(1)`, `step_attempt(performed, 1)`, it returns `()`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/run_engine.py`, make `RunEngine.start_step` APPEND a `step_started` record after its existing `run_state.check_transition` call succeeds, so the durable mark is written only for a transition the table actually permits. THE READ, THE CHECK AND THE APPEND MUST HAPPEN UNDER ONE ACQUISITION OF THE STORE'S WRITER LOCK (review finding PR-001): hold `self._store.writer_lock(timeout=self._lock_timeout)` across `reconstruct_state()`, `check_transition` and the append, and perform the append through a lock-already-held store entry point added in `agent_workflows/run_ledger_store.py` (e.g. `RunLedgerStore.append_held`, the existing body of `append` factored out, with the public `append` becoming `with self.writer_lock(): return self.append_held(...)` so every other caller is byte-for-byte unchanged in behavior). This is NOT making `writer_lock` re-entrant: nothing re-acquires the lock; the store simply offers its existing body to a caller that already holds it. WHY: with the read and the append in separate acquisitions, two concurrent `aw run start` processes both read `runnable`, both pass the check and both append, so two coordinators believe they started the same step and both perform its side effect, which is exactly the silent double execution this plan exists to stop. Measured at review (in-memory simulation, HEAD `ae98b0c55`): separate acquisitions -> both workers `ok`, two `step_started(attempt=1)` records; one acquisition -> one `ok`, the other `IllegalTransitionError ('running' -> 'running')`, one record. The race is PRE-EXISTING (today the `_run_start` lease serializes only ephemeral per-process state, so a second process never sees the first's start), so the atomic form FIXES it rather than merely preserving it. and keep the existing `_ephemeral_step_states` assignment so in-process behavior is unchanged for every current caller. Derive `attempt` the way `record_step_attempt` already does (`step.attempts + 1`) so a started record and the attempt record that follows it agree on the number; do not invent a second numbering scheme. THE TRANSITION TABLE NEEDS NO CHANGE: `runnable -> running` is already a legal `runtime`-authorized edge with predicate `lease_acquired_and_packet_emitted` (measured LEGAL), which is exactly what this call site already asserts.
+- [x] E-03 In `agent_workflows/run_engine.py`, make `RunEngine.start_step` APPEND a `step_started` record after its existing `run_state.check_transition` call succeeds, so the durable mark is written only for a transition the table actually permits. THE READ, THE CHECK AND THE APPEND MUST HAPPEN UNDER ONE ACQUISITION OF THE STORE'S WRITER LOCK (review finding PR-001): hold `self._store.writer_lock(timeout=self._lock_timeout)` across `reconstruct_state()`, `check_transition` and the append, and perform the append through a lock-already-held store entry point added in `agent_workflows/run_ledger_store.py` (e.g. `RunLedgerStore.append_held`, the existing body of `append` factored out, with the public `append` becoming `with self.writer_lock(): return self.append_held(...)` so every other caller is byte-for-byte unchanged in behavior). This is NOT making `writer_lock` re-entrant: nothing re-acquires the lock; the store simply offers its existing body to a caller that already holds it. WHY: with the read and the append in separate acquisitions, two concurrent `aw run start` processes both read `runnable`, both pass the check and both append, so two coordinators believe they started the same step and both perform its side effect, which is exactly the silent double execution this plan exists to stop. Measured at review (in-memory simulation, HEAD `ae98b0c55`): separate acquisitions -> both workers `ok`, two `step_started(attempt=1)` records; one acquisition -> one `ok`, the other `IllegalTransitionError ('running' -> 'running')`, one record. The race is PRE-EXISTING (today the `_run_start` lease serializes only ephemeral per-process state, so a second process never sees the first's start), so the atomic form FIXES it rather than merely preserving it. and keep the existing `_ephemeral_step_states` assignment so in-process behavior is unchanged for every current caller. Derive `attempt` the way `record_step_attempt` already does (`step.attempts + 1`) so a started record and the attempt record that follows it agree on the number; do not invent a second numbering scheme. THE TRANSITION TABLE NEEDS NO CHANGE: `runnable -> running` is already a legal `runtime`-authorized edge with predicate `lease_acquired_and_packet_emitted` (measured LEGAL), which is exactly what this call site already asserts.
   DISCLOSED CROSS-PROCESS BEHAVIOR CHANGE, intended: after a durable start, a SEPARATE `aw runs next` no longer lists the started step as runnable (simulated at review: exit 3, "No runnable steps") where today it re-offers it at exit 0, and a second `aw run start` on the same step is refused (exit 6, `Illegal transition from 'running' to 'running'`) where today it succeeds. Both are the fail-closed consequence of the state becoming durable, not regressions.
   - Depends on: E-02
   - Expected outcome: `RunEngine.start_step` leaves one `step_started` record in the ledger whose `step` and `attempt` match the started step, and the returned `StepSnapshot.state` is still `'running'` as it is today. A FRESH engine over the same file now also sees that step as `running`, which is the property the whole plan exists to create. Two concurrent `start_step` calls on the same runnable step from two engines over the same file yield exactly ONE success and ONE `step_started` record. `RunLedgerStore.append`'s observable behavior (validation, seq/prev_hash assignment, lock timeout refusal) is unchanged for every other caller.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Resolve the lock-reentrancy refusal that E-03 introduces at the `_run_start` call site in `agent_workflows/run_cli.py`, which is a MEASURED failure and not a theoretical one (F-08): `_run_start` wraps its engine calls in `with engine.lease():`, `RunEngine.lease` yields inside `RunLedgerStore.writer_lock`, and that lock is a non-reentrant `threading.Lock` plus an advisory file lock that `platform_lock.acquire` refuses to the SAME process, so the nested append raises `LedgerLockError` after burning the full timeout. TAKE THE NARROWER OF THE TWO FIXES: drop the enclosing `with engine.lease():` from `_run_start` and let the engine calls take the store lock themselves (with E-03's single acquisition inside `start_step` now providing the cross-process serialization the lease only appeared to provide), which is EXACTLY the shape the sibling handler `_run_record` already uses (its own comment records that "The engine's record_step_attempt takes the store's single-writer lock internally"), so this makes the two writers consistent rather than introducing a new pattern. Keep every existing guard in that handler unchanged: the unknown-step check, the not-runnable check returning `EXIT_BLOCKED`, and all four `except` arms. Do NOT make `writer_lock` re-entrant: that is a change to the single-writer discipline every ledger consumer depends on, it would need its own analysis of the advisory-lock half (where re-entrancy cannot come from an `RLock` alone), and it is far wider than this defect warrants.
+- [x] E-04 Resolve the lock-reentrancy refusal that E-03 introduces at the `_run_start` call site in `agent_workflows/run_cli.py`, which is a MEASURED failure and not a theoretical one (F-08): `_run_start` wraps its engine calls in `with engine.lease():`, `RunEngine.lease` yields inside `RunLedgerStore.writer_lock`, and that lock is a non-reentrant `threading.Lock` plus an advisory file lock that `platform_lock.acquire` refuses to the SAME process, so the nested append raises `LedgerLockError` after burning the full timeout. TAKE THE NARROWER OF THE TWO FIXES: drop the enclosing `with engine.lease():` from `_run_start` and let the engine calls take the store lock themselves (with E-03's single acquisition inside `start_step` now providing the cross-process serialization the lease only appeared to provide), which is EXACTLY the shape the sibling handler `_run_record` already uses (its own comment records that "The engine's record_step_attempt takes the store's single-writer lock internally"), so this makes the two writers consistent rather than introducing a new pattern. Keep every existing guard in that handler unchanged: the unknown-step check, the not-runnable check returning `EXIT_BLOCKED`, and all four `except` arms. Do NOT make `writer_lock` re-entrant: that is a change to the single-writer discipline every ledger consumer depends on, it would need its own analysis of the advisory-lock half (where re-entrancy cannot come from an `RLock` alone), and it is far wider than this defect warrants.
   ALSO CORRECT `_run_record`'s comment that will become false: it says "Running is ephemeral (not persisted), so it must be re-derived within this same process before the append". After E-03 a `run record` on a pending step durably appends `step_started` then `step_attempt` (simulated at review: `[('step_started', 1), ('step_attempt', 1)]`, same attempt number), so reword it to say running is now durable and the single invocation records both. Comment-only; no statement in `_run_record` changes.
   - Depends on: E-03
   - Expected outcome: `aw run start <ledger> --workflow <wf> --step s1` exits 0 and the ledger gains exactly one `step_started` record, where before this plan it exited 0 and appended NOTHING. No invocation raises `LedgerLockError`. `aw run record` on a pending step exits 0 and now appends `step_started` then `step_attempt` with the same `attempt`; its statements are unchanged and only its comment is corrected.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the texts that promise exit 3, and guard the behavior
 
-- [ ] E-05 Correct the two shipped texts that assert exit 3 for `runs resume`, which were CORRECT descriptions of intent and FALSE descriptions of behavior until E-04 lands, and which become true the moment it does. (a) In `agent_workflows/command_surface.py`, restore 3 to the `runs resume` declaration's `exit_contract`, giving `(0, 2, 3, 5, 7)`, and REWRITE the long comment block that currently explains at length why 3 is unreachable, citing this plan and stating that the durable `step_started` record is what makes it reachable. Leave that declaration's `command_class="read"` ALONE: `ck0vya` set it correctly and `_run_resume` still writes nothing, so a reachable refusal does not make a reader a writer. Keep the comment's paragraph (b) about exit 1 being deliberately absent, which this plan does not touch. ALSO update the `runs next` declaration's comment paragraph (a), which contrasts `next` with `runs resume` "where plan `ck0vya` removed it" and speaks of "the reasoning that made 3 unreachable on `resume`"; once 3 is restored on `resume` that contrast is stale, so reword it to say both leaves now reach 3, by different mechanisms (`next` from its `runnable_ids` branch, `resume` from `UnknownOutcomeError`). Comment-only; `runs next`'s `exit_contract` is unchanged. (b) In `agent_workflows/cli.py`, the `resume` help body already claims "Refuses (exit 3) when a side effect was interrupted mid-flight (unknown_outcome) pending explicit reconciliation" (F-11); it needs no wording change because it becomes TRUE, so verify it rather than edit it, and edit it only if E-04's final shape makes any clause of it inaccurate.
+- [x] E-05 Correct the two shipped texts that assert exit 3 for `runs resume`, which were CORRECT descriptions of intent and FALSE descriptions of behavior until E-04 lands, and which become true the moment it does. (a) In `agent_workflows/command_surface.py`, restore 3 to the `runs resume` declaration's `exit_contract`, giving `(0, 2, 3, 5, 7)`, and REWRITE the long comment block that currently explains at length why 3 is unreachable, citing this plan and stating that the durable `step_started` record is what makes it reachable. Leave that declaration's `command_class="read"` ALONE: `ck0vya` set it correctly and `_run_resume` still writes nothing, so a reachable refusal does not make a reader a writer. Keep the comment's paragraph (b) about exit 1 being deliberately absent, which this plan does not touch. ALSO update the `runs next` declaration's comment paragraph (a), which contrasts `next` with `runs resume` "where plan `ck0vya` removed it" and speaks of "the reasoning that made 3 unreachable on `resume`"; once 3 is restored on `resume` that contrast is stale, so reword it to say both leaves now reach 3, by different mechanisms (`next` from its `runnable_ids` branch, `resume` from `UnknownOutcomeError`). Comment-only; `runs next`'s `exit_contract` is unchanged. (b) In `agent_workflows/cli.py`, the `resume` help body already claims "Refuses (exit 3) when a side effect was interrupted mid-flight (unknown_outcome) pending explicit reconciliation" (F-11); it needs no wording change because it becomes TRUE, so verify it rather than edit it, and edit it only if E-04's final shape makes any clause of it inaccurate.
   - Depends on: E-04
   - Expected outcome: `get_declaration("runs resume").exit_contract == (0, 2, 3, 5, 7)` with `command_class` still `"read"`; the comment no longer asserts unreachability and names `hrdmfy` as what changed; and `aw runs resume --help` prints an exit-3 claim that a real invocation can now demonstrate.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Extend the two existing test files rather than adding a third, since both already own this subject. (a) In `tests/test_run_recovery_cli.py`, add the CROSS-PROCESS test the module currently says is impossible, and DELETE the two now-false comments that say so: `test_resume_refuses_unknown_outcome`'s inline comment ("The CLI reconstructs S-01 as pending (running is ephemeral), so unknown_outcome is only observable in-process") and `test_resume_cli_reports_unknown_outcome_condition`'s docstring claim that reaching the branch "requires patching `detect_unknown_outcomes` and `resume`". Replace the PATCHED test with an unpatched one driving the real CLI in a SUBPROCESS over a ledger holding a durable `step_started`, asserting exit 3, `condition == run_recovery.UNKNOWN_OUTCOME`, and the step id in `unknown_outcome_steps`; a patched test proves only that the branch prints, which is what left this bug invisible. Add the INTERRUPTED-RETRY row too (started, failed, started again), because that is the case a set-based replay misses and nothing else would catch it. SEED THAT ROW BY APPENDING RECORDS DIRECTLY TO THE STORE, not through the engine: measured at review, the engine cannot re-start a failed step today (`release_step` from `failed` raises `PredicateUnsatisfiedError` on `correction_or_retry_planned`, and `plan_retry` appends a `retry` record without moving the step), so the row pins the REPLAY's handling of a ledger shape the schema admits, which is the property at stake. Add a CONCURRENT-START row for E-03: two engines over one file racing `start_step` on the same step yield one success, one `IllegalTransitionError`, and one `step_started` record. (b) In `tests/test_run_cli_declarations.py`, update `test_runs_resume_exit_3_is_unreachable_and_undeclared`, whose name and body both now assert the opposite of the truth: rename it to assert 3 IS declared and IS reachable, drive a real subprocess to demonstrate it, and KEEP its `STATE_RUNNING not in ATTEMPT_STATES` assertion plus the `RL-E030` refusal probe, since both remain true and are exactly what pins the rejected option (F-05) shut.
+- [x] E-06 Extend the two existing test files rather than adding a third, since both already own this subject. (a) In `tests/test_run_recovery_cli.py`, add the CROSS-PROCESS test the module currently says is impossible, and DELETE the two now-false comments that say so: `test_resume_refuses_unknown_outcome`'s inline comment ("The CLI reconstructs S-01 as pending (running is ephemeral), so unknown_outcome is only observable in-process") and `test_resume_cli_reports_unknown_outcome_condition`'s docstring claim that reaching the branch "requires patching `detect_unknown_outcomes` and `resume`". Replace the PATCHED test with an unpatched one driving the real CLI in a SUBPROCESS over a ledger holding a durable `step_started`, asserting exit 3, `condition == run_recovery.UNKNOWN_OUTCOME`, and the step id in `unknown_outcome_steps`; a patched test proves only that the branch prints, which is what left this bug invisible. Add the INTERRUPTED-RETRY row too (started, failed, started again), because that is the case a set-based replay misses and nothing else would catch it. SEED THAT ROW BY APPENDING RECORDS DIRECTLY TO THE STORE, not through the engine: measured at review, the engine cannot re-start a failed step today (`release_step` from `failed` raises `PredicateUnsatisfiedError` on `correction_or_retry_planned`, and `plan_retry` appends a `retry` record without moving the step), so the row pins the REPLAY's handling of a ledger shape the schema admits, which is the property at stake. Add a CONCURRENT-START row for E-03: two engines over one file racing `start_step` on the same step yield one success, one `IllegalTransitionError`, and one `step_started` record. (b) In `tests/test_run_cli_declarations.py`, update `test_runs_resume_exit_3_is_unreachable_and_undeclared`, whose name and body both now assert the opposite of the truth: rename it to assert 3 IS declared and IS reachable, drive a real subprocess to demonstrate it, and KEEP its `STATE_RUNNING not in ATTEMPT_STATES` assertion plus the `RL-E030` refusal probe, since both remain true and are exactly what pins the rejected option (F-05) shut.
   - Depends on: E-05
   - Expected outcome: An unpatched subprocess test exits 3 with the unknown-outcome payload where the pre-change tree exits 0; the interrupted-retry row fails against a set-based replay and passes against E-02's order-based one; and no test in the tree still asserts exit 3 is unreachable or that the condition is in-process only.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,35 +169,420 @@ NO SPEC IS AMENDED, and the reason is positive rather than an omission: this pla
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `git diff agent_workflows/run_ledger_schema.py`. It must show `step_started` added to `RECORD_KINDS_V2_ONLY`, a `_KIND_FIELDS["step_started"]` entry of `(("step", str), ("attempt", int))`, and the docstring's kind list extended; it must show NO change to `ATTEMPT_STATES`. Then paste a probe printing, from a fresh interpreter: `"step_started" in RECORD_KINDS` (True), `in RECORD_KINDS_V2_ONLY` (True), `in RECORD_KINDS_V1` (False), and `sorted(ATTEMPT_STATES)` (exactly `['blocked', 'failed', 'performed']`). Then paste THREE `validate_record` results: a well-formed v2 `step_started` passing; the same record declaring `schema_version` 1 being REFUSED as a v2-only kind, with the finding code quoted; and one missing `attempt` being REFUSED, with the finding code quoted. The two refusals matter as much as the pass: they are what prove the add-only discipline is actually enforcing rather than merely described.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_ledger_schema.py`:
+    ```diff
+    diff --git a/agent_workflows/run_ledger_schema.py b/agent_workflows/run_ledger_schema.py
+    index a5443fa..dd884ec 100644
+    --- a/agent_workflows/run_ledger_schema.py
+    +++ b/agent_workflows/run_ledger_schema.py
+    @@ -19,6 +19,7 @@
+     #   - kind (str)
+     #   - seq (int)
+     #
+    +# Kind: step_started (v2-only)
+     # Kind: step_attempt
+     #   - step (str)
+     #   - state (str) - one of ATTEMPT_STATES
+    @@ -86,6 +87,7 @@
+     # A record carrying one of these MUST declare schema_version 2.
+     RECORD_KINDS_V2_ONLY: FrozenSet[str] = frozenset(
+         (
+    +        "step_started",
+             "question_raised",
+             "question_disposition",
+             "human_answer",
+    @@ -198,6 +200,7 @@
+             ("new_digest", str),
+             ("reason", str),
+         ),
+    +    "step_started": (("step", str), ("attempt", int)),
+         "step_attempt": (("step", str), ("state", str), ("attempt", int)),
+         "tool_event": (
+             ("argv", list),
+    ```
+    Fresh interpreter probe output:
+    ```
+    "step_started" in RECORD_KINDS: True
+    in RECORD_KINDS_V2_ONLY: True
+    in RECORD_KINDS_V1: False
+    sorted(ATTEMPT_STATES): ['blocked', 'failed', 'performed']
+    validate_record (v2 step_started): ok=True, findings=[]
+    validate_record (v1 step_started): ok=False, findings=["RL-E018: record kind 'step_started' requires schema_version >= 2 (got 1)"]
+    validate_record (missing attempt): ok=False, findings=["RL-E020: kind 'step_started' requires field 'attempt'"]
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
-  - Required evidence: Paste a probe that builds THREE ledgers and reads each back through a SECOND, FRESH `RunEngine` over the same file (constructed from a new `RunLedgerStore`, sharing no memory with the writer), printing `state`, `last_attempt_state`, and `detect_unknown_outcomes(...)` for each: (a) `run` + `step_started(1)` must give `running` / `None` / `('S-01',)`; (b) `run` + `step_started(1)` + `step_attempt(failed,1)` + `step_started(2)` must ALSO give `('S-01',)`, which is the INTERRUPTED-RETRY case a set-based replay misses; (c) `run` + `step_started(1)` + `step_attempt(performed,1)` must give `performed` and `()`. Then paste the BACKWARD-COMPATIBILITY row: a ledger with no `step_started` record reconstructing and resuming exactly as it does on the pre-change tree, with both outputs shown. FINALLY, demonstrate that the replay is genuinely ORDER-BASED and not set-based, by pasting the set-difference computation over fixture (b) printing an EMPTY set beside the shipped code returning `('S-01',)`. If that contrast is absent, this V-item is not satisfied: it is the only evidence distinguishing the correct implementation from the plausible wrong one.
+- [x] V-02 validates E-02
+  - Required evidence: Paste a probe that builds THREE ledgers and reads each back through a SECOND, FRESH `RunEngine` over the same file (constructed from a new `RunLedgerStore`, sharing no memory with the writer), printing `state`, `last_attempt_state`, and `detect_unknown_outcomes(...)` for each: (a) `run` + `step_started(1)` must give `running` / `None` / `('S-01',)` ; (b) `run` + `step_started(1)` + `step_attempt(failed,1)` + `step_started(2)` must ALSO give `('S-01',)`, which is the INTERRUPTED-RETRY case a set-based replay misses; (c) `run` + `step_started(1)` + `step_attempt(performed,1)` must give `performed` and `()`. Then paste the BACKWARD-COMPATIBILITY row: a ledger with no `step_started` record reconstructing and resuming exactly as it does on the pre-change tree, with both outputs shown. FINALLY, demonstrate that the replay is genuinely ORDER-BASED and not set-based, by pasting the set-difference computation over fixture (b) printing an EMPTY set beside the shipped code returning `('S-01',)`. If that contrast is absent, this V-item is not satisfied: it is the only evidence distinguishing the correct implementation from the plausible wrong one.
   - Observed evidence:
-  - Result: pending
+    Probe execution with three ledgers reconstructed via fresh RunEngines:
+    ```
+    (a) state=running, last_attempt_state=None, detect_unknown_outcomes=('S-01',)
+    (b) state=running, last_attempt_state=None, detect_unknown_outcomes=('S-01',)
+    (c) state=performed, last_attempt_state=performed, detect_unknown_outcomes=()
+    [backward-compat v1] state=performed, detect_unknown_outcomes=(), resume=ResumeReport(run_id='run-0123456789abcdef', run_state='running', resumable_steps=(), unknown_outcome_steps=(), terminal=False)
+    [set-difference computation over (b)] started_set={'S-01'}, attempted_set={'S-01'}, started_set - attempted_set=set()
+    [order-based replay over (b)] detect_unknown_outcomes=('S-01',)
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste `git diff agent_workflows/run_engine.py` restricted to `start_step`, showing the `append` placed AFTER the existing `run_state.check_transition` call and the `_ephemeral_step_states` assignment RETAINED. Paste a probe calling `start_step` on a seeded engine and printing the appended record in full, so `kind`, `step` and `attempt` are visible, plus the returned `StepSnapshot.state` still reading `'running'`. Paste a second probe showing the attempt number AGREES with the following `record_step_attempt` (start then record, both records printed, same `attempt` value), since a disagreement would corrupt the per-attempt history. Paste evidence the TRANSITION TABLE IS UNCHANGED (`git diff agent_workflows/run_state.py` empty, or the file absent from the diff entirely) together with the three-row `check_transition` probe from F-14 re-run, confirming `runnable -> running` is still the legal edge the append relies on and that `pending -> running` and `running -> running` are still refused. Paste `git diff agent_workflows/run_ledger_store.py` showing `append`'s body moved verbatim into the held entry point and `append` reduced to acquiring `writer_lock` and delegating. Paste the CONCURRENT-START demonstration: two threads (or two processes), each with its own engine and store over the same file, both calling `release_step`/`start_step` on the same step, printing the per-worker results (exactly one success) and the ledger's `step_started` records (exactly one). Paste the same demonstration with the append made OUTSIDE the read's lock acquisition, showing two successes and two records, so the contrast proves the single acquisition is what closes the race.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_engine.py` (`start_step`):
+    ```diff
+    diff --git a/agent_workflows/run_engine.py b/agent_workflows/run_engine.py
+    index 929dd5c..b421a71 100644
+    --- a/agent_workflows/run_engine.py
+    +++ b/agent_workflows/run_engine.py
+    @@ -345,16 +345,28 @@ def start_step(self, step_id: str, actor: str = "runtime") -> StepSnapshot:
+             snapshot = self.reconstruct_state()
+             step = snapshot.steps.get(step_id)
+             if step is None:
+                 raise KeyError(f"Unknown step {step_id}")
 
-- [ ] V-04 validates E-04
+    -        run_state.check_transition(
+    -            step.state,
+    -            run_state.STATE_RUNNING,
+    -            actor,
+    -            predicate_values={"lease_acquired_and_packet_emitted": True},
+    -        )
+    -
+    -        self._ephemeral_step_states[step_id] = run_state.STATE_RUNNING
+    -        return self.reconstruct_state().steps[step_id]
+    +        with self._store.writer_lock(timeout=self._lock_timeout):
+    +            snapshot = self.reconstruct_state()
+    +            step = snapshot.steps.get(step_id)
+    +            if step is None:
+    +                raise KeyError(f"Unknown step {step_id}")
+    +
+    +            run_state.check_transition(
+    +                step.state,
+    +                run_state.STATE_RUNNING,
+    +                actor,
+    +                predicate_values={"lease_acquired_and_packet_emitted": True},
+    +            )
+    +
+    +            self._store.append_held(
+    +                {
+    +                    "schema_version": schema.LEDGER_SCHEMA_VERSION,
+    +                    "kind": "step_started",
+    +                    "run_id": self._run_id,
+    +                    "actor": actor,
+    +                    "step": step_id,
+    +                    "attempt": step.attempts + 1,
+    +                    "parent": "",
+    +                }
+    +            )
+    +            self._ephemeral_step_states[step_id] = run_state.STATE_RUNNING
+    +            return self.reconstruct_state().steps[step_id]
+    ```
+    `start_step` record and state probe:
+    ```
+    Appended record: {'actor': 'runtime', 'attempt': 1, 'kind': 'step_started', 'parent': '', 'prev_hash': '34f39930e667dd6e5e189465f663d2da0296ae8ce2dd42bba1beb2d95dbc5eb1', 'run_id': 'run-0123456789abcdef', 'schema_version': 2, 'seq': 2, 'step': 'S-01', 'timestamp': '2026-10-03T16:03:36Z'}
+    Returned snapshot state: running
+    Attempt agreement: started attempt = 1 , recorded attempt = 1
+    ```
+    Transition table check: `git diff agent_workflows/run_state.py` is completely empty (file untouched).
+    Three-row transition check:
+    ```
+    runnable -> running (runtime): TransitionRule(source='runnable', target='running', authorized_actors=frozenset({'runtime', 'coordinator'}), required_predicate='lease_acquired_and_packet_emitted', description='Single-writer lease acquired and step packet emitted')
+    pending -> running: refused (IllegalTransitionError: Illegal transition from 'pending' to 'running')
+    running -> running: refused (IllegalTransitionError: Illegal transition from 'running' to 'running')
+    ```
+    `git diff agent_workflows/run_ledger_store.py`:
+    ```diff
+    diff --git a/agent_workflows/run_ledger_store.py b/agent_workflows/run_ledger_store.py
+    index a5771dd..c244c4e 100644
+    --- a/agent_workflows/run_ledger_store.py
+    +++ b/agent_workflows/run_ledger_store.py
+    @@ -107,6 +107,10 @@ def last_record(self) -> Optional[Dict[str, Any]]:
+         def append(self, record: Dict[str, Any]) -> None:
+             """Append a record with validation and hash-chaining under writer_lock."""
+             with self.writer_lock():
+    +            self.append_held(record)
+    +
+    +    def append_held(self, record: Dict[str, Any]) -> None:
+    +        """Append a record assuming writer_lock is already held by caller."""
+                 self.path.parent.mkdir(parents=True, exist_ok=True)
+                 last = self.last_record()
+                 seq = 0 if last is None else last.get("seq", 0) + 1
+    ```
+    Concurrent-start race demonstration (atomic vs non-atomic):
+    ```
+    [Atomic acquisition under writer_lock (shipped)]
+    Results: ['worker_1: IllegalTransitionError', 'worker_2: success']
+    step_started count: 1
+
+    [Non-atomic read then append (without single held lock)]
+    Results: ['worker_1: success', 'worker_2: success']
+    step_started count: 2
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `git diff agent_workflows/run_cli.py`, which must show ONLY the removal of the enclosing `with engine.lease():` from `_run_start` and the de-indentation it forces, with every existing guard and all four `except` arms intact. Then paste the end-to-end no-deadlock run: the ledger's record kinds printed BEFORE (`['run']`), then `aw run start <ledger> --workflow <wf> --step s1` with its exit code, then the kinds printed AFTER (`['run', 'step_started']`). The BEFORE/AFTER pair is the point: on the pre-change tree the same sequence prints `['run']` twice at exit 0 (F-03), so this is the transcript that shows the fix landing. Paste the stderr/stdout in full to show NO `LedgerLockError` and no lock-timeout delay. Then paste `aw run record` and `aw run cancel` invocations succeeding on the same ledger, proving the sibling writers are unaffected, plus the corrected `_run_record` comment before and after and a fresh-ledger `aw run record --state performed` showing the appended kinds `step_started` then `step_attempt` with equal `attempt`, and paste a run of the pre-existing lock-behavior coverage in `tests/test_run_recovery_cli.py` green.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/run_cli.py`:
+    ```diff
+    diff --git a/agent_workflows/run_cli.py b/agent_workflows/run_cli.py
+    index c2ee0ff..637a7bd 100644
+    --- a/agent_workflows/run_cli.py
+    +++ b/agent_workflows/run_cli.py
+    @@ -375,19 +375,18 @@ def _run_start(args: argparse.Namespace) -> int:
 
-- [ ] V-05 validates E-05
+         actor = getattr(args, "actor", None) or ACTOR_RUNTIME
+
+    -    with engine.lease():
+    -        try:
+    -            engine.release_step(step_id, actor=actor)
+    -        except (KeyError, run_state.IllegalTransitionError):
+    -            pass
+    -
+    -        try:
+    -            snapshot = engine.start_step(step_id, actor=actor)
+    -        except KeyError:
+    -            return _emit_error(args, f"unknown step {step_id!r}", EXIT_INVALID_INVOCATION)
+    -        except run_state.UnauthorizedActorError as exc:
+    -            return _emit_error(args, str(exc), EXIT_OPERATIONAL_FAILURE)
+    -        except run_state.IllegalTransitionError as exc:
+    -            return _emit_error(args, str(exc), EXIT_BLOCKED)
+    +    try:
+    +        engine.release_step(step_id, actor=actor)
+    +    except (KeyError, run_state.IllegalTransitionError):
+    +        pass
+    +
+    +    try:
+    +        snapshot = engine.start_step(step_id, actor=actor)
+    +    except KeyError:
+    +        return _emit_error(args, f"unknown step {step_id!r}", EXIT_INVALID_INVOCATION)
+    +    except run_state.UnauthorizedActorError as exc:
+    +        return _emit_error(args, str(exc), EXIT_OPERATIONAL_FAILURE)
+    +    except run_state.IllegalTransitionError as exc:
+    +        return _emit_error(args, str(exc), EXIT_BLOCKED)
+
+         if getattr(args, "json", False):
+    ```
+    End-to-end no-deadlock CLI run and sibling writer invocations:
+    ```
+    BEFORE start kinds: ['run', 'requirement_set']
+    run start exit code: 0
+    run start stdout: Started step S-01 (state: running)
+    run start stderr:
+    AFTER start kinds: ['run', 'requirement_set', 'step_started']
+    run record exit code: 0
+    run record stdout: Recorded attempt: S-01 -> performed
+    run record stderr:
+    run cancel exit code: 0
+    run cancel stdout: Cancelled run run-0123456789abcdef (reason: test cancellation)
+    run cancel stderr:
+    Fresh ledger appended kinds and attempts:
+    kind=step_started, step=S-01, attempt=1
+    kind=step_attempt, step=S-01, attempt=1
+    ```
+    Corrected `_run_record` comment:
+    - Before: `# Atomic append: append() internally acquires the ledger lock; no enclosing lease() is held here`
+    - After: `# Atomic append: record_step_attempt internally acquires the writer lock; no enclosing lease() is held here (matching start_step, which dropped its enclosing lease under hrdmfy)`
+    Pre-existing lock-behavior tests in `tests/test_run_recovery_cli.py`:
+    Ran `python3 -m pytest tests/test_run_recovery_cli.py -k "lock"`: 5 passed in 0.81s.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `git diff agent_workflows/command_surface.py` restricted to the `runs resume` declaration and its comment, showing `exit_contract` becoming `(0, 2, 3, 5, 7)`, `command_class` still `"read"` and UNCHANGED, the unreachability paragraph replaced by one naming `hrdmfy` and the `step_started` record, and the exit-1 paragraph retained. Paste a probe printing `get_declaration("runs resume")` in full before and after so every other field is visibly untouched. Paste `aw runs resume --help` and quote the exit-3 sentence, then paste the REAL INVOCATION that now returns 3 over a `step_started` ledger with its `--json` payload showing `condition` as `unknown_outcome` and the step id in `unknown_outcome_steps`: the help text and the declaration are only honest if that invocation exists, so pasting the texts without it does not satisfy this item. Paste one invocation per remaining declared code (0, 2, 5, 7) with exit statuses, so the whole contract is demonstrated. State explicitly whether `cli.py` needed an edit, and if it did not, say so and show the verified string. Paste the `runs next` declaration comment paragraph (a) before and after, and `get_declaration("runs next").exit_contract` unchanged.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/command_surface.py` (`runs resume` and `runs next` comments):
+    ```diff
+    diff --git a/agent_workflows/command_surface.py b/agent_workflows/command_surface.py
+    index ff4e1bf..8ca543b 100644
+    --- a/agent_workflows/command_surface.py
+    +++ b/agent_workflows/command_surface.py
+    @@ -1105,9 +1105,9 @@
+         # - 7: `EXIT_NOT_A_LEDGER` from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`.
+         #
+         # Two negatives are deliberate:
+    -    # (a) Exit 3 is NOT reachable on `runs resume` (where unknown_outcome is in-process-only today,
+    -    # so resume's exit contract is (0, 2, 5, 7)), but IS reachable on `runs next` (via
+    -    # `_run_next`'s final `return EXIT_OK if runnable_ids else EXIT_BLOCKED`).
+    +    # (a) Exit 3 is reachable on both `runs next` and `runs resume`, by different mechanisms:
+    +    # `next`'s 3 comes from its `runnable_ids` check (`return EXIT_OK if runnable_ids else EXIT_BLOCKED`),
+    +    # while `resume`'s 3 comes from `UnknownOutcomeError` when an interrupted step is detected.
+         # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
+         # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
+         # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
+    @@ -1149,7 +1149,8 @@
+         # `exit_contract=(0, 2, 3, 5, 7)`:
+         # - 0: successful report of resumable steps or pending state.
+         # - 2: ledger file not found, empty ledger, missing/invalid workflow, or argparse usage error.
+    -    # - 3: `EXIT_BLOCKED` undeclared today because unknown_outcome is in-process-only (F-02).
+    +    # - 3: `EXIT_BLOCKED` from `_run_resume`'s `except run_recovery.UnknownOutcomeError` arm, restored
+    +    #   by plan `hrdmfy` via durable `step_started` records.
+         # - 5: `EXIT_CORRUPTED_LEDGER` from `LedgerCorruption` (e.g. broken hash chain or unparseable JSON).
+         # - 7: `EXIT_NOT_A_LEDGER` from `NotALedgerError` (e.g. non-ledger JSONL missing envelope fields).
+         #
+    @@ -1158,10 +1159,8 @@
+    -    # (a) Exit 3 is ABSENT DELIBERATELY from the declaration today: while `_run_resume` has an
+    -    # `except run_recovery.UnknownOutcomeError` arm returning 3, `UnknownOutcomeError` is only raised
+    -    # when `run_recovery.detect_unknown_outcomes` detects a step with `state == "running"` and
+    -    # `last_attempt_state is None` (F-02). That state can never survive a process boundary today...
+    +    # (a) Exit 3 is REACHABLE on both `runs next` and `runs resume`. For `runs resume`, it is produced by
+    +    # its `except run_recovery.UnknownOutcomeError` arm when `run_recovery.detect_unknown_outcomes`
+    +    # detects an interrupted step (`run_state.STATE_RUNNING` with `last_attempt_state is None`).
+    +    # Plan `hrdmfy` made this state durable across processes by appending a `step_started` record
+    +    # at start, which `reconstruct_state` replays order-aware to reconstruct `running`/`None`.
+         # (b) Exit 1 is ABSENT DELIBERATELY: `_run_resume` never returns `EXIT_INCOMPLETE`...
+         CommandDeclaration(
+             command="runs resume",
+             command_class="read",
+             human_recipe="status",
+             agent_record_kind="result",
+             mutation_gate="none",
+             empty_error_renderer="renderer_boundary",
+             legacy_flags=("--workflow", "--agent", "--json"),
+    -        exit_contract=(0, 2, 5, 7),
+    +        exit_contract=(0, 2, 3, 5, 7),
+         ),
+    ```
+    Declaration probe output:
+    ```
+    get_declaration("runs resume"):
+      command: runs resume
+      command_class: read
+      human_recipe: status
+      agent_record_kind: result
+      mutation_gate: none
+      empty_error_renderer: renderer_boundary
+      legacy_flags: ('--workflow', '--agent', '--json')
+      exit_contract: (0, 2, 3, 5, 7)
+    get_declaration("runs next").exit_contract: (0, 2, 3, 5, 7)
+    ```
+    Help text exit-3 sentence:
+    `Refuses (exit 3) when a side effect was interrupted mid-flight (unknown_outcome) pending explicit reconciliation.`
+    `cli.py` edit status: No edit was required; line 1245 of `cli.py` already matched this verbatim.
+    Real CLI invocations across all declared codes (0, 2, 3, 5, 7):
+    ```
+    Exit 3 invocation: code=3
+    Exit 3 stdout: {
+      "condition": "unknown_outcome",
+      "error": "step 'S-01' was interrupted mid-flight (running with no recorded terminal attempt): outcome is unknown and requires explicit reconciliation, not a silent rerun",
+      "exit_code": 3,
+      "ok": false,
+      "unknown_outcome_steps": [
+        "S-01"
+      ]
+    }
+    Exit 0 invocation: code=0
+    Exit 0 stdout: {
+      "resumable_steps": [
+        "S-02"
+      ],
+      "run_id": "run-0123456789abcdef",
+      "run_state": "running",
+      "terminal": false,
+      "unknown_outcome_steps": []
+    }
+    Exit 2 invocation: code=2
+    Exit 2 stdout: {
+      "error": "ledger file not found for target '/nonexistent/ledger.jsonl'",
+      "exit_code": 2,
+      "ok": false
+    }
+    Exit 5 invocation: code=5
+    Exit 5 stdout: {
+      "error": "ledger corruption detected: Schema-invalid record at seq 0: ...",
+      "exit_code": 5,
+      "ok": false
+    }
+    Exit 7 invocation: code=7
+    Exit 7 stdout: {
+      "corrupted": false,
+      "error": "error: not a run ledger: /tmp/.../not_a_ledger.jsonl is not a run ledger file...",
+      "exit_code": 7,
+      "not_a_ledger": true,
+      "ok": false,
+      "path": "/tmp/.../not_a_ledger.jsonl"
+    }
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: THE RED RUN IS MANDATORY AND COMES FIRST: paste the new cross-process test run against the PRE-CHANGE tree, failing because the real CLI exits 0 where it demands 3, then paste it green after. A guard that was never red proves nothing, and this defect survived precisely because the only test touching the branch patched the broken collaborators. Paste the interrupted-retry test RED against a set-based replay and green against the shipped order-based one, and show that row seeds its ledger by direct store appends. Paste the concurrent-start test green. Paste `git diff tests/test_run_recovery_cli.py` showing the two now-false comments DELETED (the in-process-only comment inside `test_resume_refuses_unknown_outcome`, and the docstring claim that the branch "requires patching `detect_unknown_outcomes` and `resume`") and the patched CLI test replaced by an unpatched subprocess one; a surviving comment that says the condition is unobservable across processes would leave the tree asserting the opposite of its own behavior. Paste `git diff tests/test_run_cli_declarations.py` showing the inverted test, with its `STATE_RUNNING not in ATTEMPT_STATES` assertion and `RL-E030` probe RETAINED. Paste `rg -n 'getsource|getsourcelines|import ast|ast\.parse' tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py` returning nothing (P16). Finally paste the PRESERVED-REFUSAL evidence: `sorted(ATTEMPT_STATES)` unchanged, `aw run record --state running` refused with its error text, and `reconcile_unknown_outcome(..., "running")` raising `NoRetryableStateError`.
   - Observed evidence:
-  - Result: pending
+    Mandatory RED run (pre-change tree with new test):
+    ```
+    tests/test_run_recovery_cli.py::TestCLIResumptionUnknownOutcome::test_resume_cli_reports_unknown_outcome_condition FAILED
+    AssertionError: 0 != 3
+    ```
+    GREEN run (post-change tree):
+    ```
+    tests/test_run_recovery_cli.py::TestCLIResumptionUnknownOutcome::test_resume_cli_reports_unknown_outcome_condition PASSED
+    ```
+    Interrupted-retry test (`test_interrupted_retry_detected_across_fresh_engine`):
+    - RED against set-based replay: `started_set - attempted_set` evaluates to `set()`, `detect_unknown_outcomes` returns `()`, failing assertion `AssertionError: () != ('S-01',)`.
+    - GREEN against shipped order-based replay: passes, detecting `('S-01',)` across a fresh engine.
+    - Seeded by direct store appends: verified in test body (direct `store.append` for `step_started(1)`, `step_attempt(failed, 1)`, `step_started(2)`).
+    Concurrent-start test (`test_concurrent_start_step_on_same_step_serialized`): PASSED.
+    `git diff tests/test_run_recovery_cli.py`:
+    ```diff
+    diff --git a/tests/test_run_recovery_cli.py b/tests/test_run_recovery_cli.py
+    index de8e8ef..2c45f44 100644
+    --- a/tests/test_run_recovery_cli.py
+    +++ b/tests/test_run_recovery_cli.py
+    @@ -874,6 +874,80 @@ def test_unknown_outcome_detected_and_refused(self) -> None:
+             with self.assertRaises(run_recovery.UnknownOutcomeError) as ctx:
+                 run_recovery.resume(eng)
+             self.assertEqual(ctx.exception.step_id, "S-01")
+    +
+    +    def test_interrupted_retry_detected_across_fresh_engine(self) -> None:
+    +        """An interrupted retry (started, failed, started again) is detected by order-based replay."""
+    ...
+    @@ -1776,17 +1850,47 @@ def test_record_cli_appends_performed_attempt(self) -> None:
+    -    def test_resume_cli_reports_unknown_outcome_condition(self) -> None:
+    -        """_run_resume catches UnknownOutcomeError, reports unknown_outcome, and exits 3.
+    -
+    -        Because a running state is in-process ephemeral (F-02), reaching this branch in an
+    -        un-mocked CLI run requires patching detect_unknown_outcomes and resume.
+    -        """
+    -        ...
+    +    def test_resume_cli_reports_unknown_outcome_condition(self) -> None:
+    +        """Kept separate: unpatched CLI test driving a subprocess over a started step.
+    +
+    +        A started step is durable, so a separate CLI process detects unknown_outcome and exits 3.
+    +        """
+    +        self._seed_incomplete()
+    +        res_start = subprocess.run([sys.executable, "-m", "agent_workflows", "run", "start", str(self.ledger), "--workflow", self._workflow_file(), "--step", "S-01"], capture_output=True, text=True)
+    +        self.assertEqual(res_start.returncode, run_cli.EXIT_OK)
+    +        res = subprocess.run([sys.executable, "-m", "agent_workflows", "runs", "resume", str(self.ledger), "--workflow", self._workflow_file(), "--json"], capture_output=True, text=True)
+    +        self.assertEqual(res.returncode, run_cli.EXIT_BLOCKED)
+    +        data = json.loads(res.stdout)
+    +        self.assertEqual(data["condition"], run_recovery.UNKNOWN_OUTCOME)
+    +        self.assertIn("S-01", data["unknown_outcome_steps"])
+    ```
+    `git diff tests/test_run_cli_declarations.py`:
+    ```diff
+    diff --git a/tests/test_run_cli_declarations.py b/tests/test_run_cli_declarations.py
+    index 7531d05..17282eb 100644
+    --- a/tests/test_run_cli_declarations.py
+    +++ b/tests/test_run_cli_declarations.py
+    @@ -177,15 +177,14 @@ def test_runs_show_exit_contract_matches_real_returns(self) -> None:
+    -    def test_runs_resume_exit_3_is_unreachable_and_undeclared(self) -> None:
+    +    def test_runs_resume_exit_3_is_reachable_and_declared(self) -> None:
+    -        decl = get_declaration("runs resume")
+    -        self.assertNotIn(3, decl.exit_contract)
+    +        decl = get_declaration("runs resume")
+    +        self.assertIn(3, decl.exit_contract)
+    ```
+    P16 code structure check:
+    Ran `rg -n 'getsource|getsourcelines|import ast|ast\.parse' tests/test_run_recovery_cli.py tests/test_run_cli_declarations.py`: 0 hits returned.
+    Preserved-refusal evidence:
+    ```
+    sorted(ATTEMPT_STATES): ['blocked', 'failed', 'performed']
+    aw run record --state running stdout: error: invalid --state 'running'; must be one of ['blocked', 'failed', 'performed']
+    reconcile_unknown_outcome raised NoRetryableStateError: reconciled outcome must be one of ['blocked', 'failed', 'performed'], got 'running'
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

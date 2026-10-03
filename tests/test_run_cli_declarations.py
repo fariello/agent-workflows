@@ -185,18 +185,18 @@ def test_runs_resume_declared_exit_codes_are_reachable(tmp_path: Path) -> None:
     assert 7 in decl.exit_contract
 
 
-def test_runs_resume_exit_3_is_unreachable_and_undeclared(tmp_path: Path) -> None:
-    """Exit 3 is absent from exit_contract, and mechanically unreachable."""
+def test_runs_resume_exit_3_is_reachable_and_declared(tmp_path: Path) -> None:
+    """Exit 3 is declared in exit_contract, and reachable via durable step_started."""
     decl = get_declaration("runs resume")
     assert decl is not None
     assert (
-        3 not in decl.exit_contract
-    ), f"exit code 3 must not be in exit_contract: {decl.exit_contract}"
+        3 in decl.exit_contract
+    ), f"exit code 3 must be in exit_contract: {decl.exit_contract}"
 
-    # (i) Data comparison over runtime constants
+    # (i) Data comparison over runtime constants: STATE_RUNNING remains excluded from ATTEMPT_STATES
     assert STATE_RUNNING not in ATTEMPT_STATES
 
-    # (ii) Exercising the schema refusal RL-E030
+    # (ii) Exercising the schema refusal RL-E030 on step_attempt carrying state='running'
     ledger_path = tmp_path / "ledger_unreachable.jsonl"
     store = RunLedgerStore(ledger_path)
     store.append(
@@ -228,6 +228,70 @@ def test_runs_resume_exit_3_is_unreachable_and_undeclared(tmp_path: Path) -> Non
         )
     findings = exc_info.value.findings
     assert any(f.code == "RL-E030" for f in findings)
+
+    # (iii) Demonstrating exit 3 is reachable in a real subprocess over a step_started ledger
+    wf_path = tmp_path / "wf.json"
+    wf_path.write_text(
+        json.dumps(
+            {
+                "id": "wf",
+                "steps": [
+                    {
+                        "id": "s1",
+                        "action": "setup",
+                        "depends_on": [],
+                        "satisfies": ["r1"],
+                    }
+                ],
+                "requirements": [{"id": "r1"}],
+            }
+        )
+    )
+    ledger_3 = tmp_path / "ledger_3.jsonl"
+    store_3 = RunLedgerStore(ledger_3)
+    store_3.append(
+        {
+            "schema_version": 2,
+            "kind": "run",
+            "run_id": "run-0000abcd",
+            "actor": "runtime",
+            "parent": "",
+            "workflow_digest": "sha256:" + "0" * 64,
+            "requirement_digest": "sha256:" + "0" * 64,
+            "repo": "test-repo",
+            "head": "0000abcd",
+        }
+    )
+    store_3.append(
+        {
+            "schema_version": 2,
+            "kind": "step_started",
+            "run_id": "run-0000abcd",
+            "actor": "runtime",
+            "step": "s1",
+            "attempt": 1,
+            "parent": "",
+        }
+    )
+    res_3 = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows",
+            "runs",
+            "resume",
+            str(ledger_3),
+            "--workflow",
+            str(wf_path),
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res_3.returncode == 3
+    data = json.loads(res_3.stdout)
+    assert data["condition"] == "unknown_outcome"
+    assert "s1" in data["unknown_outcome_steps"]
 
 
 def _create_terminal_ledger(
