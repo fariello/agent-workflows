@@ -5135,6 +5135,10 @@ class HostReviewAliasExpansionTests(unittest.TestCase):
             ):
                 alias.pop(volatile, None)
                 canon.pop(volatile, None)
+            if isinstance(alias.get("host_capabilities"), dict):
+                alias["host_capabilities"].pop("observed_at", None)
+            if isinstance(canon.get("host_capabilities"), dict):
+                canon["host_capabilities"].pop("observed_at", None)
             self.assertEqual(alias["options"], canon["options"])
             self.assertEqual(alias["selectors"], canon["selectors"])
             self.assertEqual(alias["queue"], canon["queue"])
