@@ -594,7 +594,10 @@ GATE_SUMMARY_RE = re.compile(r"^- Gate-Summary:[ \t]*(?P<value>.+?)[ \t]*$")
 # Output-safety (Section 8.8): descriptive fields are single-line, bounded, control-char-free.
 MAX_DESCRIPTIVE_LEN = 300
 # C0 (except we never allow tab/newline inside a field) + C1 + DEL; ANSI ESC included.
-_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# Also matches the nine bidi overrides and isolates (U+202A..U+202E LRE/RLE/PDF/LRO/RLO and
+# U+2066..U+2069 LRI/RLI/FSI/PDI): category Cf format characters that act as display-order
+# controls (Trojan Source presentation attacks) and must be rejected from descriptive fields.
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
 _HTTP_URL_RE = re.compile(r"^https?://\S+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TODO_ID_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
