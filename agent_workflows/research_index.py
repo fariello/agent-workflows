@@ -529,6 +529,7 @@ STALE_STATE_RULE = "stale-state-to-promote"
 DANGLING_CONSUMED_RULE = "dangling-consumed-by"
 ADOPTED_NO_CONSUMER_RULE = "adopted-without-consumer"
 UNRECOGNIZED_MODEL_RULE = "unrecognized-model"
+FRONTMATTER_KEY_REPEATED_RULE = "research.frontmatter-key-repeated"
 
 
 def check_drift(
@@ -666,6 +667,47 @@ def check_drift(
                             f"model '{e.model}' is unrecognized; bless with 'aw research add-model {m_res.value or e.model}'",
                         ),
                         recovery=f"aw research add-model {m_res.value or e.model}",
+                    )
+                )
+
+    # Repeated frontmatter keys (Set jnpl08 / IPD 7d4bgs E-02).
+    # Emitted in check_drift ONLY (never in _doc_entry, _scan_docs, or validate_frontmatter),
+    # so manifest regeneration is not blocked and offending docs are not dropped from INDEX.
+    # Reads raw text because parse_frontmatter destroys key duplicates by last-wins assignment.
+    for e in entries:
+        doc_file = research_root / e.path
+        try:
+            raw_text = doc_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        lines = raw_text.splitlines()
+        if not lines or lines[0].strip() != "---":
+            continue
+        key_counts: Dict[str, int] = {}
+        seen_closing = False
+        for line in lines[1:]:
+            if line.strip() == "---":
+                seen_closing = True
+                break
+            if ":" not in line:
+                continue
+            key = line.partition(":")[0].strip()
+            if not key:
+                continue
+            if key in ("blocks_release", "Blocks-Release"):
+                key = "blocks-release"
+            key_counts[key] = key_counts.get(key, 0) + 1
+        if not seen_closing:
+            continue
+        for key, count in key_counts.items():
+            if count > 1:
+                drift.append(
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            FRONTMATTER_KEY_REPEATED_RULE,
+                            f"frontmatter key '{key}' appears {count} times",
+                        )
                     )
                 )
     return drift

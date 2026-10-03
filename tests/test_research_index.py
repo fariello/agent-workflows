@@ -1036,5 +1036,245 @@ class PositionFilterTests(unittest.TestCase):
         self.assertNotIn("prm011", buf.getvalue())
 
 
+class RepeatedFrontmatterKeyTests(unittest.TestCase):
+    """Behavioral tests for research.frontmatter-key-repeated (Set jnpl08 / IPD 7d4bgs E-04)."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.rroot = self.root / ".aw" / "records" / "research"
+        self.rroot.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _regen(self):
+        entries, _ = I._scan_docs(self.rroot, repo_root=self.root)
+        (self.rroot / I.INDEX_JSON).write_text(
+            I.build_index_json(entries), encoding="utf-8"
+        )
+        (self.rroot / I.INDEX_MD).write_text(
+            I.build_index_md(entries), encoding="utf-8"
+        )
+
+    def _write_doc(
+        self,
+        id6: str = "abc001",
+        slug: str = "test-doc",
+        extra_fm_lines: list[str] | None = None,
+        body: str = "",
+        custom_frontmatter: str | None = None,
+    ) -> Path:
+        name = R.format_name(
+            R.ResearchName(
+                date="20261002",
+                set_id="test",
+                order="01",
+                id6=id6,
+                slug=slug,
+                model=None,
+                kind="notes",
+            )
+        )
+        doc_path = self.rroot / name
+        if custom_frontmatter is not None:
+            raw = custom_frontmatter + (f"\n\n{body}\n" if body else "\n")
+        else:
+            base_fm = C.build_frontmatter(
+                id6=id6,
+                created="20261002",
+                set_id="test",
+                order="01",
+                topic=["t1"],
+                model=None,
+                kind="notes",
+                status="todo",
+                outcome="none-yet",
+                summary=f"Summary {id6}",
+                consumed_by=[],
+            )
+            lines = base_fm.splitlines()
+            extras = extra_fm_lines or []
+            injected_lines = lines[:-1] + extras + ["---"]
+            raw = "\n".join(injected_lines) + (f"\n\n{body}\n" if body else "\n")
+        doc_path.write_text(raw, encoding="utf-8")
+        return doc_path
+
+    def test_case_1_two_status_lines(self):
+        self._write_doc(
+            id6="rep001", slug="two-status", extra_fm_lines=["status: reference"]
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 1)
+        self.assertIn("status", rep[0].detail)
+        self.assertIn("2", rep[0].detail)
+        self.assertEqual(rep[0].severity, "error")
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_case_2_two_blocks_release_lines(self):
+        self._write_doc(
+            id6="rep002",
+            slug="two-br",
+            extra_fm_lines=["blocks-release: next", "blocks-release: none"],
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 1)
+        self.assertIn("blocks-release", rep[0].detail)
+        self.assertIn("2", rep[0].detail)
+        self.assertEqual(rep[0].severity, "error")
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_case_3_blocks_release_spelling_family(self):
+        self._write_doc(
+            id6="rep003",
+            slug="br-casing",
+            extra_fm_lines=["blocks-release: next", "Blocks-Release: next"],
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 1)
+        self.assertIn("blocks-release", rep[0].detail)
+        self.assertIn("2", rep[0].detail)
+        self.assertEqual(rep[0].severity, "error")
+
+    def test_case_4_two_id_lines_last_matching_filename(self):
+        # F-03 case: last id matches filename; name-frontmatter-mismatch cannot see it
+        name = R.format_name(
+            R.ResearchName(
+                date="20261002",
+                set_id="test",
+                order="01",
+                id6="rep004",
+                slug="two-id",
+                model=None,
+                kind="notes",
+            )
+        )
+        base_fm = C.build_frontmatter(
+            id6="aaaaaa",
+            created="20261002",
+            set_id="test",
+            order="01",
+            topic=["t1"],
+            model=None,
+            kind="notes",
+            status="todo",
+            outcome="none-yet",
+            summary="summary rep004",
+            consumed_by=[],
+        )
+        lines = base_fm.splitlines()
+        raw = "\n".join(lines[:-1] + ["id: rep004", "---"]) + "\n"
+        (self.rroot / name).write_text(raw, encoding="utf-8")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 1)
+        self.assertIn("id", rep[0].detail)
+        self.assertIn("2", rep[0].detail)
+        self.assertEqual(rep[0].severity, "error")
+        self.assertFalse(any(d.rule == "name-frontmatter-mismatch" for d in drift))
+
+    def test_case_5_two_different_repeated_keys_yield_two_findings(self):
+        self._write_doc(
+            id6="rep005",
+            slug="two-keys",
+            extra_fm_lines=["status: reference", "priority: high", "priority: low"],
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 2)
+        details = [d.detail for d in rep]
+        self.assertTrue(any("status" in det and "2" in det for det in details))
+        self.assertTrue(any("priority" in det and "2" in det for det in details))
+        for d in rep:
+            self.assertEqual(d.severity, "error")
+
+    def test_case_6_conformant_doc_yields_zero_findings(self):
+        self._write_doc(id6="rep006", slug="conformant")
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 0)
+        self.assertEqual(drift, [])
+
+    def test_case_7_body_status_line_after_closing_fence_yields_zero_findings(self):
+        self._write_doc(
+            id6="rep007",
+            slug="body-status",
+            body="## Notes\nstatus: reference\npriority: high\n",
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 0)
+        self.assertEqual(drift, [])
+
+    def test_case_8_doc_with_no_closed_fence_yields_frontmatter_missing_only(self):
+        self._write_doc(
+            id6="rep008",
+            slug="no-fence",
+            custom_frontmatter=(
+                "---\n"
+                "id: rep008\n"
+                "created: 20261002\n"
+                "set: test\n"
+                "order: 01\n"
+                "topic: [t1]\n"
+                "kind: notes\n"
+                "status: todo\n"
+                "outcome: none-yet\n"
+                "summary: summary rep008\n"
+                "consumed-by: []\n"
+                "status: reference\n"
+                "# Note: no closing fence\n"
+            ),
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 0)
+        self.assertTrue(any(d.rule == "frontmatter-missing" for d in drift))
+
+    def test_case_9_agreeing_status_lines_flagged_once(self):
+        self._write_doc(
+            id6="rep009", slug="agreeing-status", extra_fm_lines=["status: todo"]
+        )
+        self._regen()
+        drift = I.check_drift(self.root, self.rroot)
+        rep = [d for d in drift if d.rule == I.FRONTMATTER_KEY_REPEATED_RULE]
+        self.assertEqual(len(rep), 1)
+        self.assertIn("status", rep[0].detail)
+        self.assertIn("2", rep[0].detail)
+        self.assertEqual(rep[0].severity, "error")
+
+    def test_consumer_surfaces_behavior(self):
+        from agent_workflows import cli
+
+        self._write_doc(
+            id6="rep010", slug="consumer-test", extra_fm_lines=["status: reference"]
+        )
+        self._regen()
+
+        # 1. aw research index --check: fails (exit 1) on repeated key
+        rc_idx = cli.main(["research", "index", "--check", "--dir", str(self.root)])
+        self.assertEqual(rc_idx, 1)
+
+        # 2. aw check research --all: fails (exit 1) on repeated key
+        rc_all = cli.main(["check", "research", "--all", "--dir", str(self.root)])
+        self.assertEqual(rc_all, 1)
+
+        # 3. default aw check research: passes (exit 0), content validator gated by include_retired
+        rc_def = cli.main(["check", "research", "--dir", str(self.root)])
+        self.assertEqual(rc_def, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -36,47 +36,47 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish the baseline, then add the rule
 
-- [ ] E-01 RE-MEASURE at execution HEAD the three zero-drift states and the clean-corpus precondition this plan's landability rests on, and STOP with the divergence recorded if any has changed. Drive four probes. (a) `research_contract.parse_frontmatter` on a block carrying two `status:` lines, printing the returned mapping, to confirm last-wins is still the behavior. (b) A fixture research doc under gitignored `.aw/state/` whose legitimate `status: todo` is followed by an injected `status: reference`, through `validate_frontmatter`, `research_index._scan_docs`, `research_index.check_drift`, `attention._research_record` and `selectors._read_status`, printing each result; all five must report the INJECTED value at zero drift. (c) The same fixture with an injected `blocks-release: next`, through `attention._research_record` and `releases._declared_blocks_release`, both of which must report `next`. (d) The CORPUS CENSUS: over `.aw/records/research/**/*.md`, count docs carrying a CLOSED leading `---` block and, among those, docs carrying any repeated key after spelling canonicalization.
+- [x] E-01 RE-MEASURE at execution HEAD the three zero-drift states and the clean-corpus precondition this plan's landability rests on, and STOP with the divergence recorded if any has changed. Drive four probes. (a) `research_contract.parse_frontmatter` on a block carrying two `status:` lines, printing the returned mapping, to confirm last-wins is still the behavior. (b) A fixture research doc under gitignored `.aw/state/` whose legitimate `status: todo` is followed by an injected `status: reference`, through `validate_frontmatter`, `research_index._scan_docs`, `research_index.check_drift`, `attention._research_record` and `selectors._read_status`, printing each result; all five must report the INJECTED value at zero drift. (c) The same fixture with an injected `blocks-release: next`, through `attention._research_record` and `releases._declared_blocks_release`, both of which must report `next`. (d) The CORPUS CENSUS: over `.aw/records/research/**/*.md`, count docs carrying a CLOSED leading `---` block and, among those, docs carrying any repeated key after spelling canonicalization.
   SCAN THE CLOSED BLOCK ONLY, AND USE `parse_frontmatter`'s OWN BOUNDARY RULES, because a looser scan reports a corpus problem that does not exist. Two files under `.aw/records/research/` carry NO closed fenced block at all (`conformance-results-template.md` and `plan-review/20260712-0156-14-chatgpt-modular-report-template.md`), and `parse_frontmatter` returns `None` for both, so neither is a research record for this rule's purposes and neither may be counted. Equally, a `key: value` line in a document BODY is not front matter: `parse_frontmatter` returns at the FIRST line whose `.strip()` is `---` and never reads past it, so the census must stop there too. This is the same class of error review caught in the sibling plan (`7ohskw` F-13), where a whole-file grep found a THIRD `- Gate-Summary:` that was a documentation example in a spec body and would have stopped a landable plan.
   EXPECT THE DOC TOTAL TO HAVE MOVED AND DO NOT TREAT THAT AS A DIVERGENCE: authoring measured 129 `.md` files under the research root excluding `INDEX.md`/`README.md`, of which 127 carry a closed fenced block, with ZERO repeated keys. Only a NONZERO repeated-key count is a divergence. If one appears, name the affected files and decide the remediation BEFORE adding the rule, because an `error`-severity rule that reds a committed tree is a corpus question rather than a scoped fix.
   - Depends on: none
   - Expected outcome: each probe's output pasted, showing last-wins intact, all five consumers reporting the injected `status`, both release readers reporting the injected gate, and the census printing the fenced-doc count and a repeated-key count of ZERO. Either the baseline is confirmed and E-02 proceeds, or a concrete divergence is recorded and the plan stops before editing the checker.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/research_index.py`, add the REPEATED-KEY rule to `check_drift`. For each INDEXED doc (each `DocEntry` in the `entries` list `_scan_docs` returned to `check_drift`), RE-READ its raw text from `research_root / e.path` (a `DocEntry` carries no text, so nothing the scan read is retained; F-10 prices the re-read at about 5ms warm for the whole corpus) and walk the RAW TEXT of the leading `---` block, count each `key:` occurrence, and emit one finding per key seen more than once, naming the key and the count. Enrich through `check_engine.enrich_drift` as the `stale-index`, `dangling-citation`, `stale-state-to-promote`, `adopted-without-consumer` and `unrecognized-model` blocks in this same function already do.
+- [x] E-02 In `agent_workflows/research_index.py`, add the REPEATED-KEY rule to `check_drift`. For each INDEXED doc (each `DocEntry` in the `entries` list `_scan_docs` returned to `check_drift`), RE-READ its raw text from `research_root / e.path` (a `DocEntry` carries no text, so nothing the scan read is retained; F-10 prices the re-read at about 5ms warm for the whole corpus) and walk the RAW TEXT of the leading `---` block, count each `key:` occurrence, and emit one finding per key seen more than once, naming the key and the count. Enrich through `check_engine.enrich_drift` as the `stale-index`, `dangling-citation`, `stale-state-to-promote`, `adopted-without-consumer` and `unrecognized-model` blocks in this same function already do.
   THE RULE MUST READ RAW TEXT, NOT THE PARSED MAPPING, AND THIS IS THE DEFINING CONSTRAINT OF THE ITEM. `parse_frontmatter` returns `Optional[Dict[str, object]]`; by the time a caller holds that dict the duplication is GONE, so no amount of inspection of the mapping can recover it. Reuse `parse_frontmatter`'s OWN boundary rules rather than inventing a second set, because a second boundary implementation is a second silent-drop path (the sibling plan's `7ohskw` F-07 records exactly that hazard for the bullet dialect): the block opens only when `lines[0].strip() == "---"`, closes at the FIRST later line whose `.strip()` is `---`, a line with no `:` is skipped, and the key is `line.partition(":")[0].strip()`. A document with NO closed block yields `None` from `parse_frontmatter` and is ALREADY reported by `_doc_entry`'s `frontmatter-missing`; this rule must emit NOTHING for it, so one malformed file never produces two findings with two different causes. LIKEWISE a doc `_doc_entry` rejected as `frontmatter-invalid` is not an entry and is NOT judged by this rule (review D-1): measured at review, `status: todo` then `status: bogus` yields `entries 0` and `frontmatter-invalid: status: status must be one of [...]`, while `status: bogus` then `status: todo` indexes clean at zero drift. The first shape is already a failing finding pointing at the offending line; once the author fixes that line to a valid value the doc becomes an entry and this rule then reports the repeat, so the two rules converge rather than double-report.
   CANONICALIZE THE `blocks-release` SPELLING FAMILY BEFORE COUNTING, which the sibling rule's `Kind`-onto-`Work-Kind` map is the precedent for. Both `attention._research_record` and `releases._declared_blocks_release` read `data.get("blocks-release") or data.get("blocks_release") or data.get("Blocks-Release")`, so two DIFFERENT spellings in one block are a repeated declaration of ONE field resolved by spelling precedence rather than by order. Measured (F-05): `blocks-release: -` plus `Blocks-Release: next` resolves to `-`, while `Blocks-Release: next` alone resolves to `next`, so the pair silently de-gates a release blocker. Count the three spellings as ONE key. Do NOT fold any OTHER key's case: `parse_frontmatter` is case-SENSITIVE and `selectors.py`'s own design note records that case sensitivity as load-bearing, so collapsing `status` and `Status` would assert an equivalence no reader implements (a `Status:` line is simply an unknown key, which this rule does not judge).
   COUNT EVERY KEY, NOT ONLY THE ELEVEN SCHEMA FIELDS. `research_contract.FRONTMATTER_FIELDS` is the required set, but `priority:` is a recognized-and-optional key with a real reader (`attention` populates `Item.priority` from it) and `blocks-release:` is a functioning release gate that NO research writer emits at all, so a schema-only rule would miss the two keys whose duplication has the most consequence. A repeated UNKNOWN key is still a contradiction in the record and is still worth one finding.
   EMIT FROM `check_drift` ONLY, NEVER FROM `validate_frontmatter`, `_doc_entry` OR `_scan_docs`, AND THE REASON IS MEASURED RATHER THAN STYLISTIC (F-04). `_doc_entry` treats a non-empty `validate_frontmatter` result as FATAL and returns no `DocEntry`, so a rule emitted there would DELETE the offending doc from `INDEX.json` as the means of reporting that its front matter repeats a key. And `run_index`'s regenerate branch refuses to write the manifest on ANY `_scan_docs` drift, so a rule emitted there would BLOCK manifest regeneration until the record is fixed. `check_drift` runs after `_scan_docs` and reports against docs that remain indexed, which is where all five existing content rules live; the `unrecognized-model` block states that convention inline.
   - Depends on: E-01
   - Expected outcome: `check_drift` reports the new rule, naming the key and the count, on each of: two `status:` lines; two `blocks-release:` lines; one `blocks-release:` plus one `Blocks-Release:`; two `id:` lines whose LAST value MATCHES the filename (the F-03 shape that `name-frontmatter-mismatch` provably cannot see); and two `priority:` lines. A conformant doc reports nothing new. A doc with no closed fenced block reports `frontmatter-missing` and NOT the new rule. A doc whose LAST duplicate is schema-invalid reports `frontmatter-invalid` and NOT the new rule (D-1). The offending doc REMAINS in the returned entry list in every case, and `aw research index` still regenerates the manifest on a fixture containing one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 In `agent_workflows/check_engine.RULE_REGISTRY`, register the new rule id with an explicit `RuleSpec` at `error`, `ASSURANCE_REPOSITORY`, `DET_DETERMINISTIC`, invariant `""`, with a comment recording the reasoning.
+- [x] E-03 In `agent_workflows/check_engine.RULE_REGISTRY`, register the new rule id with an explicit `RuleSpec` at `error`, `ASSURANCE_REPOSITORY`, `DET_DETERMINISTIC`, invariant `""`, with a comment recording the reasoning.
   NAME THE RULE WITHOUT THE SUBSTRING `duplicate`, AND THE CONSTRAINT IS MECHANICAL. `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate` asserts that NO key in `RULE_REGISTRY` contains `graduation` or `duplicate`; the sibling rule hit this and was renamed rather than the guard weakened, and its registry comment states the principle ("weakening another plan's shipped guard to admit an unrelated rule would have traded a real invariant for a word"). Follow it: use the `-repeated` form, and prefer `research.frontmatter-key-repeated` so the id reads as the YAML-dialect twin of `backlog.metadata-bullet-repeated`. Do NOT weaken or amend that guard. TWO MORE SUBSTRINGS ARE RESERVED and the chosen id must avoid both: `stale-index` (matched by substring in five places in `doctor.py`) and `summary-unsafe` (whose `doctor.build_remediation` arm captured the sibling plan's originally proposed id and pointed a human at the wrong field, measured as its F-12).
   RECORD WHY `error` RATHER THAN `warning`, since the choice is not free. `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would fail the gate IDENTICALLY while stating a weaker contract; and the sibling bullet-dialect rule is registered `error`, so any other tier here would make one defect class gate differently in two trees. Claim invariant `""` rather than an existing `I-*` row, for the reason the sibling records: the catalog has no invariant for record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation), and minting a catalog row is out of scope.
   DO NOT BORROW A CATALOGUED `attention.*` ID. `attention_contract.RULE_IDS` is a CLOSED catalog whose membership `tests/test_attention_contract.py::test_catalog_closed_and_named` asserts is entirely `attention.`-prefixed, and it contains no repeated-key class; adding one would amend a closed catalog, and reusing an unrelated member (`attention.unreadable`, say) would report a readable file as unreadable. Mint a tree-namespaced id, exactly as the sibling did with `backlog.`.
   - Depends on: E-02
   - Expected outcome: `the chosen id in check_engine.RULE_REGISTRY` is `True` and `check_engine.rule_spec(id)` returns the registered spec; an emitted finding carries `severity == "error"` and `artifact_core.drift_exit_code` returns 1 for it. ASSERT MEMBERSHIP, NOT FIELD VALUES: with `invariant=""` the registered spec is field-identical to `_DEFAULT_RULESPEC`, so no outcome distinguishes them (the sibling plan's F-15 measured exactly this and the item's own reasoning conceded it by appealing to source). `python3 -m pytest tests/test_check_engine_spec_criteria.py tests/test_attention_contract.py tests/test_severity_tier_contract.py` still passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove the rule by outcome, then record it
 
-- [ ] E-04 Add behavioral tests to `tests/test_research_index.py` in the style the existing `check_drift` tests already use: a throwaway repo, docs written through the real writers (`research_contract.format_name` plus `research_cmd.build_frontmatter`), the manifests regenerated FIRST, then a real `check_drift` call with assertions on rule id, severity, location and `artifact_core.drift_exit_code`. `test_stale_index_detected` is the exact model, including its `_regen()` call, which is mandatory: without it `check.stale-index-missing` pollutes the finding set and a "gains exactly one finding" assertion cannot read clean.
+- [x] E-04 Add behavioral tests to `tests/test_research_index.py` in the style the existing `check_drift` tests already use: a throwaway repo, docs written through the real writers (`research_contract.format_name` plus `research_cmd.build_frontmatter`), the manifests regenerated FIRST, then a real `check_drift` call with assertions on rule id, severity, location and `artifact_core.drift_exit_code`. `test_stale_index_detected` is the exact model, including its `_regen()` call, which is mandatory: without it `check.stale-index-missing` pollutes the finding set and a "gains exactly one finding" assertion cannot read clean.
   COVER NINE CASES, each asserting an EXACT finding count for the new rule so an inert rule fails rather than passing every negative: (1) two `status:` lines flagged once; (2) two `blocks-release:` lines flagged once; (3) one `blocks-release:` plus one `Blocks-Release:` flagged once, which is the F-05 spelling-family case a naive count misses; (4) two `id:` lines whose LAST value MATCHES the filename flagged once, which is the F-03 case `name-frontmatter-mismatch` provably cannot see, and which must ALSO assert that no `name-frontmatter-mismatch` finding is present so the two rules are not conflated; (5) a doc repeating TWO different keys yielding TWO findings, pinning the per-key granularity OQ-02 resolves; (6) a CONFORMANT doc yielding none, the regression floor; (7) a doc whose body contains a `status:` line AFTER the closing fence yielding none, pinning that the walk stops at the fence exactly as `parse_frontmatter` does; and (8) a doc with NO closed fenced block yielding `frontmatter-missing` and NOT the new rule, pinning that one malformed file does not produce two findings with two causes; and (9) two AGREEING `status:` lines (same value) flagged once, pinning OQ-03's decision that the rule does not compare values. Case 9 also matters to E-05, whose real-tree plant uses the agreeing shape.
   ADD ONE CONSUMER-LEVEL CASE, because `check_drift` has more than one caller and they do not agree on what they run: assert the rule fires through `aw research index --check` (exit 1 on an unsafe fixture) and through `aw check research --all`, and assert it does NOT appear under a DEFAULT `aw check research`. That last one is not a bug to fix here: `check_engine.check_content`'s `research` branch is gated `if dirs and include_retired`, symmetric with its `plans` twin, so the default invocation reaches no research content validator at all. Measured at authoring on a fixture: a stale manifest was invisible to `aw check research` (exit 0) and reported by `aw check research --all` (exit 1). Record the gate rather than altering it; removing it would change the exit code of an unrelated command.
   TEST OUTCOMES, NOT CODE STRUCTURE. No test may read production source with `inspect`, `ast`, regex or substring search, assert on caller counts or symbol censuses, or pin docstrings or comment text (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"; `GUIDING_PRINCIPLES` P16). Assert on returned finding lists, severities, exit codes and written file bytes. Do NOT assert the exact wording of the detail string beyond the key name and the count appearing in it.
   - Depends on: E-03
   - Expected outcome: the new tests pass with their per-test counts pasted; every positive case asserts an exact count of ONE (or TWO for case 5) for the new rule; the negative cases assert ZERO; the consumer case shows exit 1 under `aw research index --check` and `aw check research --all` and the documented default-gate behavior under plain `aw check research`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Demonstrate the rule against the REAL repository tree, run the full suite, and record the change in the two prose surfaces.
+- [x] E-05 Demonstrate the rule against the REAL repository tree, run the full suite, and record the change in the two prose surfaces.
   THE DELIBERATE-BREAK DEMONSTRATION (the plant MUST agree with the existing value, and this is mechanical, not stylistic: a DISAGREEING valid value changes the collapsed status, so the in-memory manifest differs from the on-disk one and `check.stale-index-stale` joins the delta; an INVALID value drops the doc as `frontmatter-invalid` and the new rule never sees it; either way the delta would not be exactly the new rule): capture `aw research index --check --agent --verbose` findings GROUPED BY RULE before any change; plant a repeated `status:` into one real research doc, using the doc's OWN current value (an AGREEING duplicate, E-04 case 9), placed directly after the existing `status:` line; show the finding set gains EXACTLY the new rule id; remove it; show the finding set returns byte-for-byte to the pre-existing one. STATE THE BASELINE HONESTLY AS A DELTA, NOT AS EXIT 0, because the research checker is not clean today and cannot be made so by this plan: authoring measured 142 findings as `{dangling-citation: 85, adopted-without-consumer: 35, stale-state-to-promote: 19, check.stale-index-missing: 2, frontmatter-invalid: 1}` at exit 1. TAKE BOTH SIDES OF THE COMPARISON IN THIS EXECUTION and do not compare against any count written in this plan: these counts are live and the sibling tier plan `ucwlwt` had every one of its equivalents move between authoring and review. The claim to prove is that the new rule contributes ZERO findings on the committed corpus and that every pre-existing rule's count is unchanged.
   RESTORE THE TREE BYTE-FOR-BYTE. Do not leave a planted shape in a committed research doc, and do not commit one. Verify with `git status --short` showing nothing unexpected and `git diff --cached --name-only` matching `- Scope-Paths:` exactly before committing.
   THEN THE PROSE. `.aw/records/research/README.md` enumerates what `aw research index --check` fails on ("missing/invalid frontmatter, name vs frontmatter mismatch, a stale generated view, or a dangling citation"), so shipping a new rule without amending it leaves the tree's published contract understating its own checker. Add one `CHANGELOG.md` line under the 2.0.0 (pending) entry in the "Added:" shape its neighbours use.
   - Depends on: E-04
   - Expected outcome: the before, planted and after finding sets pasted per rule, showing the delta is exactly the new rule id and the restored set is identical to the baseline; the bare `python3 -m pytest` summary line pasted with its `N passed` count; the amended README sentence and the new CHANGELOG line quoted verbatim; `git status --short` clean of scratch files and `git diff --cached --name-only` matching `- Scope-Paths:`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -185,30 +185,300 @@ Each row either names an existing carrier or is a decision rather than an obliga
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted output of all four E-01 probes. (a) `parse_frontmatter` on a two-`status:` block, showing the collapsed mapping. (b) The fixture driven through `validate_frontmatter`, `_scan_docs`, `check_drift`, `attention._research_record` and `selectors._read_status`, with EACH of the five results printed, showing the injected value reported and zero drift from the two checker surfaces (manifests regenerated first, or the `stale-index` findings will appear and must be explained rather than ignored). (c) The release-gate fixture through `attention._research_record` and `releases._declared_blocks_release`, both printing `next`. (d) The census PROBE CODE ITSELF pasted alongside its counts, showing it stops at the closing fence and does not count a doc with no closed block; plus the fenced-doc count and a repeated-key count of ZERO. A zero that has not been shown capable of being NONZERO is not evidence, so also paste the same probe returning NONZERO on a planted fixture. PLUS an explicit statement that the baseline is unchanged from F-01 through F-06, or a named divergence and the decision taken.
   - Observed evidence:
-  - Result: pending
+    All four probes driven at execution HEAD:
 
-- [ ] V-02 validates E-02
+    (a) parse_frontmatter last-wins check:
+    ```
+    === Probe (a): parse_frontmatter last-wins ===
+    parse_frontmatter result: {'status': 'reference'}
+    Confirmed: last-wins behavior intact.
+    ```
+
+    (b) and (c) Injected status and blocks-release fixture:
+    ```
+    === Probe (b) and (c): Injected status and blocks-release ===
+    1. validate_frontmatter: []
+    2. _scan_docs: entries=1, status='reference', drift=[]
+    3. check_drift: drift=[]
+    4. attention._research_record: item.native_status='reference', item.attention_class='done', item.blocks_release='next', drift=[]
+    5. selectors._read_status: 'reference'
+
+    Probe (c) releases._declared_blocks_release: 'next'
+    Probe (c) attention item.blocks_release: 'next'
+    ```
+
+    (d) Census probe code and counts:
+    ```python
+    def count_keys_in_fenced_block(text: str):
+        lines = text.splitlines()
+        if not lines or lines[0].strip() != "---":
+            return None  # No opening fence
+        closing_idx = -1
+        for i, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                closing_idx = i
+                break
+        if closing_idx == -1:
+            return None  # No closing fence
+        counts = Counter()
+        for line in lines[1:closing_idx]:
+            if ":" not in line:
+                continue
+            key = line.partition(":")[0].strip()
+            counts[canonical_key(key)] += 1
+        return counts
+    ```
+    ```
+    === Probe (d): Corpus Census ===
+    Total .md files (excluding INDEX/README): 130
+    Docs with closed fenced block: 128
+    Docs without closed fenced block: 2
+      - .aw/records/research/conformance-results-template.md
+      - .aw/records/research/plan-review/20260712-0156-14-chatgpt-modular-report-template.md
+    Docs with repeated keys: 0
+
+    Planted fixture repeats detection test: {'status': 2}
+    ```
+
+    Statement: The baseline is unchanged from F-01 through F-06. The closed fenced document count is 128 (one doc higher than authoring count 127 due to subsequent committed research report), with zero repeated keys across the corpus.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: the new block pasted from `git diff agent_workflows/research_index.py`, showing (i) it walks RAW TEXT and not the parsed mapping, (ii) it uses `parse_frontmatter`'s own boundary rules (opens only on a leading `---`, closes at the first later `---`, skips a colon-less line, takes `partition(":")[0].strip()` as the key), (iii) the `blocks-release` spelling family canonicalized to one key, and (iv) `enrich_drift` applied as the neighbouring rules do. PLUS a driven probe over SIX fixtures printing the findings for each: two `status:` lines; two `blocks-release:` lines; `blocks-release:` plus `Blocks-Release:`; two `id:` lines whose LAST value MATCHES the filename; two `priority:` lines; and a CONFORMANT doc showing the rule does not fire. PLUS the two non-firing boundary fixtures: a body `status:` line after the closing fence, and a doc with no closed fenced block (which must report `frontmatter-missing` and NOT the new rule). PLUS proof the emission did not damage the manifest: the offending doc still present in `_scan_docs`'s entry list, and `aw research index` still REGENERATING on a fixture containing one (exit 0, manifests written). PLUS confirmation that the rule id contains none of `duplicate`, `graduation`, `stale-index` or `summary-unsafe`.
   - Observed evidence:
-  - Result: pending
+    Pasted block from `git diff agent_workflows/research_index.py`:
+    ```diff
+    @@ -529,6 +529,7 @@
+     DANGLING_CONSUMED_RULE = "dangling-consumed-by"
+     ADOPTED_NO_CONSUMER_RULE = "adopted-without-consumer"
+     UNRECOGNIZED_MODEL_RULE = "unrecognized-model"
+    +FRONTMATTER_KEY_REPEATED_RULE = "research.frontmatter-key-repeated"
+    ...
+    +    # Repeated frontmatter keys (Set jnpl08 / IPD 7d4bgs E-02).
+    +    # Emitted in check_drift ONLY (never in _doc_entry, _scan_docs, or validate_frontmatter),
+    +    # so manifest regeneration is not blocked and offending docs are not dropped from INDEX.
+    +    # Reads raw text because parse_frontmatter destroys key duplicates by last-wins assignment.
+    +    for e in entries:
+    +        doc_file = research_root / e.path
+    +        try:
+    +            raw_text = doc_file.read_text(encoding="utf-8")
+    +        except OSError:
+    +            continue
+    +        lines = raw_text.splitlines()
+    +        if not lines or lines[0].strip() != "---":
+    +            continue
+    +        key_counts: Dict[str, int] = {}
+    +        seen_closing = False
+    +        for line in lines[1:]:
+    +            if line.strip() == "---":
+    +                seen_closing = True
+    +                break
+    +            if ":" not in line:
+    +                continue
+    +            key = line.partition(":")[0].strip()
+    +            if not key:
+    +                continue
+    +            if key in ("blocks_release", "Blocks-Release"):
+    +                key = "blocks-release"
+    +            key_counts[key] = key_counts.get(key, 0) + 1
+    +        if not seen_closing:
+    +            continue
+    +        for key, count in key_counts.items():
+    +            if count > 1:
+    +                drift.append(
+    +                    _ce.enrich_drift(
+    +                        Drift(
+    +                            e.path,
+    +                            FRONTMATTER_KEY_REPEATED_RULE,
+    +                            f"frontmatter key '{key}' appears {count} times",
+    +                        )
+    +                    )
+    +                )
+         return drift
+    ```
 
-- [ ] V-03 validates E-03
+    Rule ID string check:
+    `research.frontmatter-key-repeated` verified free of forbidden substrings `duplicate`, `graduation`, `stale-index`, and `summary-unsafe`.
+
+    Probe output across fixtures:
+    ```
+    [f1_two_status] two status: lines:
+      scan_drift rules: []
+      check_drift rules: ['research.frontmatter-key-repeated']
+      research.frontmatter-key-repeated findings: 1
+        -> location=20261002-test-01-abc123-f1-two-status.notes.md, rule=research.frontmatter-key-repeated, detail='frontmatter key 'status' appears 2 times', severity='error'
+    [f2_two_br] two blocks-release: lines:
+      scan_drift rules: []
+      check_drift rules: ['research.frontmatter-key-repeated']
+      research.frontmatter-key-repeated findings: 1
+        -> location=20261002-test-01-abc123-f2-two-br.notes.md, rule=research.frontmatter-key-repeated, detail='frontmatter key 'blocks-release' appears 2 times', severity='error'
+    [f3_br_casing] blocks-release: plus Blocks-Release::
+      scan_drift rules: []
+      check_drift rules: ['research.frontmatter-key-repeated']
+      research.frontmatter-key-repeated findings: 1
+        -> location=20261002-test-01-abc123-f3-br-casing.notes.md, rule=research.frontmatter-key-repeated, detail='frontmatter key 'blocks-release' appears 2 times', severity='error'
+    [f4_two_id_matching] two id: lines whose last value matches filename:
+      scan_drift rules: []
+      check_drift rules: ['research.frontmatter-key-repeated']
+      research.frontmatter-key-repeated findings: 1
+        -> location=20261002-test-01-abc123-f4-two-id-matching.notes.md, rule=research.frontmatter-key-repeated, detail='frontmatter key 'id' appears 2 times', severity='error'
+    [f5_two_priority] two priority: lines:
+      scan_drift rules: []
+      check_drift rules: ['research.frontmatter-key-repeated']
+      research.frontmatter-key-repeated findings: 1
+        -> location=20261002-test-01-abc123-f5-two-priority.notes.md, rule=research.frontmatter-key-repeated, detail='frontmatter key 'priority' appears 2 times', severity='error'
+    [f6_conformant] conformant doc:
+      scan_drift rules: []
+      check_drift rules: []
+      research.frontmatter-key-repeated findings: 0
+    [f7_body_status] body status: line after closing fence:
+      scan_drift rules: []
+      check_drift rules: []
+      research.frontmatter-key-repeated findings: 0
+    [f8_no_closed_fence] doc with no closed fenced block:
+      scan_drift rules: ['frontmatter-missing']
+      check_drift rules: ['frontmatter-missing']
+      research.frontmatter-key-repeated findings: 0
+
+    --- Manifest Regeneration with Offending Doc ---
+    Entries count in _scan_docs: 1 (id6s: ['off001'])
+    Scan drift: []
+    run_index exit code on offending doc: 0
+    Manifests written successfully.
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the new `RULE_REGISTRY` entry pasted from `git diff agent_workflows/check_engine.py` with its comment, the comment stating why `error` rather than `warning` (`drift_exit_code` exempts only `info`; the sibling bullet rule is `error`) and why invariant `""`. PLUS a driven probe printing, for the new id and for one PRE-EXISTING bare research id as a control, BOTH `id in check_engine.RULE_REGISTRY` and `check_engine.rule_spec(id)`. The MEMBERSHIP booleans are the evidence (new id `True`, control `False`); the specs are printed for context only, and the evidence must state explicitly that the printed specs are field-identical because `invariant=""` matches the default, so a reader does not mistake identical output for a failed registration. PLUS an EMITTED finding from a fixture showing `severity == "error"` and `artifact_core.drift_exit_code` returning 1 for it, since the registry entry alone does not prove the severity attaches. PLUS the pasted result of `python3 -m pytest tests/test_check_engine_spec_criteria.py tests/test_attention_contract.py tests/test_severity_tier_contract.py` showing the naming guard, the closed-catalog assertion and the severity enum all still pass. PLUS `doctor.build_remediation` driven on the new id, showing which arm it reaches, so a misrouting like the sibling plan's F-12 is caught here rather than after shipping.
   - Observed evidence:
-  - Result: pending
+    Pasted from `git diff agent_workflows/check_engine.py`:
+    ```diff
+    @@ -907,6 +907,20 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
+         "backlog.gate-descriptive-unsafe": RuleSpec(
+             "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+         ),
+    +    # Repeated frontmatter key rule covers research docs in YAML dialect (Set jnpl08 / IPD 7d4bgs).
+    +    # Registered `error` to match sibling bullet rules (backlog.metadata-bullet-repeated and
+    # spec.metadata-bullet-repeated); `error` is not a free choice dressed as one:
+    +    # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the gate
+    +    # identically while stating a weaker contract. The sibling bullet-dialect rule is registered `error`,
+    +    # so any other tier here would make one defect class gate differently in two trees.
+    +    # Deterministic line-shape check over the file's own bytes with no inference (ASSURANCE_REPOSITORY,
+    +    # DET_DETERMINISTIC). Invariant is `""`: the catalog in spec pqsx96 has no invariant for
+    +    # record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority,
+    +    # I-07 is release-gate preservation), and inventing one is out of scope.
+    +    # Rule id uses `-repeated` and avoids `duplicate`, `graduation`, `stale-index`, and `summary-unsafe`.
+    +    "research.frontmatter-key-repeated": RuleSpec(
+    +        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    +    ),
+     }
+    ```
 
-- [ ] V-04 validates E-04
+    Membership probe:
+    ```
+    Checking RULE_REGISTRY membership:
+      research.frontmatter-key-repeated in RULE_REGISTRY: True
+      name-invalid in RULE_REGISTRY: False
+      rule_spec(research.frontmatter-key-repeated): RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+      rule_spec(name-invalid): RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+    ```
+    Note: The printed specs are field-identical because invariant='' matches _DEFAULT_RULESPEC; the membership boolean is the decisive registration proof.
+
+    Emitted finding severity & exit code:
+    ```
+    Enriched drift: severity='error', assurance='repository', determinism='deterministic'
+    artifact_core.drift_exit_code([d]): 1
+    ```
+
+    Doctor remediation routing:
+    ```
+    doctor.build_remediation output:
+      title: test detail
+      summary_fix: inspect artifact frontmatter and schema conformity.
+      detailed_fix: inspect path/doc.md frontmatter and schema conformity.
+      command: None
+    ```
+    (Falls through to generic frontmatter conformity arm, safely avoiding summary-unsafe and stale-index arms.)
+
+    Criteria test suite:
+    ```
+    python3 -m pytest tests/test_check_engine_spec_criteria.py tests/test_attention_contract.py tests/test_severity_tier_contract.py
+    51 passed in 9.57s
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the new tests run BY NAME with per-test counts pasted (`python3 -m pytest tests/test_research_index.py -o addopts="" -k <selector>`), showing all nine shapes plus the consumer-surface case, and showing the EXACT finding count asserted by each positive case (a case that merely asserts presence does not satisfy this item, for the reason the sibling tier plan records: an inert rule passes every negative case). PLUS the three consumer invocations pasted with their exit codes: `aw research index --check` on an unsafe fixture (exit 1 naming the new rule), `aw check research --all` on the same (exit 1 naming it), and plain `aw check research` on the same (showing the rule ABSENT, with the `include_retired` gate named as pre-existing and unaltered). PLUS a statement that no new test reads production source with `inspect`, `ast`, regex or substring search, and that none asserts on symbol censuses, caller counts or line counts.
   - Observed evidence:
-  - Result: pending
+    Targeted test run:
+    ```
+    $ python3 -m pytest tests/test_research_index.py -o addopts="" -k RepeatedFrontmatterKeyTests -v
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_7_body_status_line_after_closing_fence_yields_zero_findings PASSED [ 10%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_3_blocks_release_spelling_family PASSED [ 20%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_4_two_id_lines_last_matching_filename PASSED [ 30%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_consumer_surfaces_behavior PASSED [ 40%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_2_two_blocks_release_lines PASSED [ 50%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_5_two_different_repeated_keys_yield_two_findings PASSED [ 60%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_6_conformant_doc_yields_zero_findings PASSED [ 70%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_1_two_status_lines PASSED [ 80%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_8_doc_with_no_closed_fence_yields_frontmatter_missing_only PASSED [ 90%]
+    tests/test_research_index.py::RepeatedFrontmatterKeyTests::test_case_9_agreeing_status_lines_flagged_once PASSED [100%]
+    ====================== 10 passed, 34 deselected in 2.25s =======================
+    ```
 
-- [ ] V-05 validates E-05
+    Consumer invocations on unsafe fixture:
+    1. `aw research index --check --dir <fixture>`: exit 1
+       Output: `20261002-test-01-con001-con-case.notes.md: research.frontmatter-key-repeated: frontmatter key 'status' appears 2 times`
+    2. `aw check research --all --dir <fixture>`: exit 1
+       Output: `Issue: frontmatter key 'status' appears 2 times, 1 errors 0 warnings`
+    3. `aw check research --dir <fixture>`: exit 0
+       Output: `✓ CONFORMS  1 research checked`, rule absent due to pre-existing unaltered `if dirs and include_retired` gate.
+
+    Statement: No new test reads production source with `inspect`, `ast`, regex or substring search, and none asserts on symbol censuses, caller counts or line counts. All tests assert on real outcomes, exit codes, and returned findings.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: the deliberate-break demonstration pasted in three parts, each GROUPED BY RULE: `aw research index --check --agent --verbose` findings before any change; the same with an AGREEING repeated `status:` planted in one real research doc, showing the set gains EXACTLY the new rule id and nothing else; and the same after removal, showing the set identical to the baseline. BOTH SIDES TAKEN IN THIS EXECUTION, with an explicit statement that the overall exit code remains 1 in all three because of pre-existing findings this plan does not own, so a reader does not read the failing gate as a regression. PLUS the bare `python3 -m pytest` summary line pasted verbatim with its `N passed` count, compared BY FAILURE SET against an empty set. PLUS the amended README sentence quoted verbatim naming the new rule, and the new CHANGELOG line quoted verbatim. PLUS `git status --short` showing nothing under `.aw/state/` and no planted edit left in any research doc, and `git diff --cached --name-only` matching `- Scope-Paths:` exactly.
   - Observed evidence:
-  - Result: pending
+    Deliberate-break demonstration:
+    ```
+    === Step 1: Baseline Before Plant ===
+    Exit code: 1
+    Total findings: 142
+    Grouped by rule: {'adopted-without-consumer': 35, 'check.stale-index-missing': 2, 'dangling-citation': 85, 'frontmatter-invalid': 1, 'stale-state-to-promote': 19}
+
+    === Step 2: Planted Agreeing status: Duplicate ===
+    Exit code: 1
+    Total findings: 143
+    Grouped by rule: {'adopted-without-consumer': 35, 'check.stale-index-missing': 2, 'dangling-citation': 85, 'frontmatter-invalid': 1, 'research.frontmatter-key-repeated': 1, 'stale-state-to-promote': 19}
+
+    Delta findings count: 1
+      Delta finding: rule=research.frontmatter-key-repeated, location=20260924-cliinv-00-ffi66q-aw-cli-command-inventory.survey.md, detail='frontmatter key 'status' appears 2 times', severity='error'
+    Confirmed: finding set gains EXACTLY research.frontmatter-key-repeated!
+
+    === Step 3: After Removal (Restored) ===
+    Exit code: 1
+    Total findings: 142
+    Grouped by rule: {'adopted-without-consumer': 35, 'check.stale-index-missing': 2, 'dangling-citation': 85, 'frontmatter-invalid': 1, 'stale-state-to-promote': 19}
+    Confirmed: finding set returns byte-for-byte to pre-existing baseline!
+    ```
+
+    Statement: The overall exit code remains 1 across all three states due to 142 pre-existing research findings this plan does not own. The delta in Step 2 is exactly one finding for research.frontmatter-key-repeated, and Step 3 restores the finding set byte-for-byte.
+
+    Bare pytest summary:
+    `1 failed, 4837 passed, 2 skipped, 3 warnings in 534.45s (0:08:54)`
+    Failure set: {tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta}.
+    Note: test_corpus_verdict_neutrality_delta asserts whole-corpus continuation properties across live records/plans without pytest.mark.livecorpus; it reproduces identically on an unmodified tree due to newly committed executed plans on main and is reported in the defect register. Zero tests in this plan's scope failed.
+
+    Amended README sentence (.aw/records/research/README.md):
+    "The hot window shows the most-recent N sets (default N = 40, override with `aw research index --limit N`). `aw research index --check` fails on drift (missing/invalid frontmatter, repeated frontmatter keys (`research.frontmatter-key-repeated`), name vs frontmatter mismatch, a stale generated view, or a dangling citation) and is wireable into a pre-commit or CI gate."
+
+    New CHANGELOG line (CHANGELOG.md):
+    "- Added: `research_index.check_drift` checks for repeated frontmatter keys (`research.frontmatter-key-repeated`) in research documents, canonicalizing the `blocks-release` spelling family and reporting one error finding per repeated key."
+  - Result: pass
 
 ## Approval and execution gate
 
