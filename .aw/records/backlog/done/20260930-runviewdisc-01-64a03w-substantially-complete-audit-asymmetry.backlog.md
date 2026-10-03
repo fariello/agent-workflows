@@ -1,5 +1,5 @@
 - Id: 64a03w
-- Status: graduated
+- Status: done
 - Graduated-To: runviewdisc
 - Set: runviewdisc
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether substantially-complete should share complete's audit tolerance, or stay asymmetric
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 8fo926 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-runviewdisc-04-8fo926-close-the-substantially-complete-audit-tolerance-question-on.ipd.md); evidence .aw/records/plans/executed/20261001-runviewdisc-04-8fo926-close-the-substantially-complete-audit-tolerance-question-on.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: 8fo926
 - 2026-09-30 created (aw backlog): Filed from IPD p5yaqw (F-07) as the durable carrier for its deferred substantially-complete row.
 
