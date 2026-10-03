@@ -6,7 +6,7 @@
 - Scope: Add ONE capability, `supports_egress_filtering`, decided by an executed two-sided hermetic probe that creates a network namespace, proves egress is denied by default, and proves a parent-held control channel remains reachable. The probe needs no external network. The capability gates NO action, adds NO finding code, and is NOT named for push denial.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, tests/test_host_sandbox_profile.py, tests/test_host_capability_extension.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: sv9ce4
 - From-Spec: 25kzda
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nxh5s4
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): plan-review revisions applied; see review record
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008 all fixed; OQ-03 (naming, non-blocking, maintainer, carried by `wcbpqf`) left open (review record 20261001-netnsfilter-01-nxh5s4-...review.md).

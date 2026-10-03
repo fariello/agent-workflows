@@ -6,7 +6,7 @@
 - Scope: Replace the full cartesian product with a deterministic in-repo pairwise (2-way) covering array that preserves every single-value and every value-pair, and move the exhaustive product into a separate `slow`-marked test carrying its own explicit `@pytest.mark.timeout`. No production module is touched.
 - Scope-Paths: tests/test_statusline_behavior.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: mat9bt
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): plan-review revisions applied; see review record
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008, PR-009 (review record 20261002-8sr0or-01-mat9bt-...review.md).

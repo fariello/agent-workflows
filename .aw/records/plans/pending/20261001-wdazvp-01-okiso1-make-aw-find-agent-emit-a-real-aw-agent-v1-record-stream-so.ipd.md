@@ -6,7 +6,7 @@
 - Scope: Make `--agent` on `aw find` a real `aw.agent/v1` stream: one `item` record per matched row carrying `path`, `type`, `id6`, `status` and `set`, terminated by one `summary` record carrying `total`/`emitted`/`omitted`/`complete` and, when truncated, a `next` continuation command, with `--limit` bounding emission and `--fields` projecting each record. Keep `--paths`/`-p` EXACTLY as it is today, byte for byte, as the bare-path script surface `docs/cli-output-contract.md` Section 12 sanctions. Carry the existing `find.id6-collision` finding into the new `summary` record's `diagnostics` instead of the `aw-find-warning:` stderr line that exists only because the record path was unreachable. Reconcile the one normative sentence in `docs/cli-output-contract.md` Section 12 that currently mandates bare paths under `--agent`, and correct the `--limit` row in `docs/cli-human-guide.md` only if execution measures it still wrong. Does NOT change which artifacts match, the selector grammar or precedence, the human row format, the `--json` payload, the exit codes, or `aw search`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/renderers.py, tests/test_find_agent_stream.py, docs/cli-output-contract.md, docs/cli-agent-protocol.md, docs/cli-human-guide.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: okiso1
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 - 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003 (HIGH, fixed), PR-004, PR-005, PR-006 (MEDIUM, fixed), PR-007 (LOW, fixed). Measured in process: the renderer cannot carry `diagnostics` and drops `next` under `--fields`, so E-03 was unreachable within scope and `--limit --fields` would lose the continuation (renderers.py added to scope); a `{` in a selector crashes `next_template.format`; zero-match `--agent` shape now specified as a lone summary. Full record: `.aw/records/reviews/20261002-wdazvp-01-okiso1-make-aw-find-agent-emit-a-real-aw-agent-v1-record-stream-so.review.md`.
 - 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

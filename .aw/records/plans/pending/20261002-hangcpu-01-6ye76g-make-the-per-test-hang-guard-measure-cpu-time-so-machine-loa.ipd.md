@@ -6,7 +6,7 @@
 - Scope: Change the hang guard's cost dimension from wall clock alone to a DUAL budget: a load-invariant CPU budget (`ITIMER_PROF`, counting user+sys) that measures the work a test actually does, plus a generous wall ceiling retained because a zero-CPU deadlock is provably invisible to a CPU timer. Add the first tests the guard has ever had. No production module is touched.
 - Scope-Paths: conftest.py, tests/test_hang_guard_budget.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 6ye76g
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review revisions applied; see review record
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008 (review record 20261002-hangcpu-01-6ye76g-...review.md).

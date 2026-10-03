@@ -6,7 +6,7 @@
 - Scope: Delete the dead field and the dead plumbing that feeds it. IN: `collect`'s return type narrows from `Tuple[List[_att.Item], List[str]]` to `List[_att.Item]` and its one `return` drops the literal `[]`; `run_partition`'s single call site stops unpacking a two-tuple; the `"unknown"` entry is removed from the `is_agent` record and from the `is_json` payload; the six unpacking test call sites stop unpacking and the one assertion pinning the key's presence is INVERTED to assert its absence, so the removal is guarded rather than merely performed; a `Changed` CHANGELOG entry records the surface change. OUT: every other output key (`shards`, `commands`, `split_components`, `cycles`) is untouched in name, order and value; no selector, filter, ordering, packing or formatting behavior changes; the eleven `ValueError` raise sites and their messages are untouched, including both "unknown selector" messages, which are the refusal path and are NOT this key; `partition`'s unredacted `commands` leak is `z7ci8k`'s work and is not touched here; and `partition`'s total non-support for `--fields` projection is a separate pre-existing gap recorded in Deferred.
 - Scope-Paths: agent_workflows/partition.py, tests/test_partition.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0hz005
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. All load-bearing claims re-measured at HEAD `45529f342` and hold (one return in `collect`, five `unknown` hits, exit 2 with no record, no tag contains `309bc7909`, 22 tests pass, mypy clean). Fixed: wrong helper name for the `Tuple` use, a grep classification that named a producer the grep cannot see, a no-op en/em dash grep, an unconditional begin/finalize instruction, a test count used as a bar, and two self-resolved questions with `Owner: none`.

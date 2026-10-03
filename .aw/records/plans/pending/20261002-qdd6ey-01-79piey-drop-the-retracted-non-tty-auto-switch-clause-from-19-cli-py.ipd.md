@@ -6,7 +6,7 @@
 - Scope: Correct the false clause at all 19 source sites in `agent_workflows/cli.py` (16 epilog `OUTPUT & EXITS` lines, 2 parser `description=` strings, 1 internal docstring), and add one behavior test that fails if any help surface re-asserts the retracted auto-switch.
 - Scope-Paths: agent_workflows/cli.py, tests/test_help_nontty_claim.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 79piey
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at lane HEAD e28ab5005: 16/3/16 site counts and 12/2/1/1 shapes; parser walk 17 raw vs 18 normalized (agy profile list); all 18 accept --agent and --json. Fixed: re-derived suite baseline (PR-001) and Agent-mode count (PR-002); ANSI strip, claim-shape regex, positive limb and reworded/deletion negative controls in E-03/V-03 (PR-003); gate scope fence + conditional finalize (PR-004); rg -rn typo and OQ-01 owner (PR-005).
 
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

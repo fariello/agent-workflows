@@ -6,7 +6,7 @@
 - Scope: Replace `_rewrite_line`'s two POSIX-only substitutions with a delegation to the already-landed `agent_schema.redact_home_paths`, which covers all three classes drive-preservingly; stop the rewriter firing on the placeholder forms the detector deliberately allows; and pin one row per detector rule in the fix path. Does NOT unify the two duplicated detector definitions, does NOT change any detection pattern, severity, allowlist or exit-code contract, and does NOT touch the identity/private-repo/session classes that are correctly left for a human.
 - Scope-Paths: agent_workflows/leak_sanitizer.py, tests/test_leak_sanitizer.py, CONTRIBUTING.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: g8q99a
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review complete; REVIEWED - OPEN QUESTIONS (OQ-01 non-blocking, maintainer)
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (LOW, fixed), PR-005 (LOW, fixed). Re-verified at lane HEAD `2f22724d1`: F-02 reproduces (`fix_working_tree` on `see c:/Users/<user>/proj/a.md` writes `see c:~/proj/a.md`, returns `(['a.md'], [])`); F-04 reproduces; `_rewrite_line` has one caller; baseline `14 passed`. Changed: a whole-line delegation to `redact_home_paths` would DELETE trailing punctuation (`see /home/<user>.` -> `see ~`), so E-01 now specifies a detector-span mechanism demonstrated on 18 inputs (PR-001); E-04's placeholder-only row passed on pre-change code because `fix_working_tree` skips finding-free files, now a mixed row (PR-002); `_rewrite_line` also ignored the line allowlist, now an `allow` parameter (PR-003); V-04's `git stash` and fixed-count bar replaced (PR-004); OQ-01's command corrected and OQ-02 owner fixed (PR-005). OQ-01 stays open and non-blocking for the maintainer. Record: `.aw/records/reviews/20261002-9cff1j-01-g8q99a-make-aw-sanitize-fix-rewrite-the-windows-home-class-it-alrea.review.md`.

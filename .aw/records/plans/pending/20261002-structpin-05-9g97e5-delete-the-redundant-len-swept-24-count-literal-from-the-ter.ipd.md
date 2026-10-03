@@ -6,7 +6,7 @@
 - Scope: Delete exactly ONE source line, `self.assertEqual(len(swept), 24)`, from that one test, adding no replacement. KEEP the preceding `assertEqual(swept, set(...))` statement, the `swept` binding, and every other line, even though F-03 proves that surviving assertion is vacuous; the reason that tautology is retained rather than cleaned up is argued in OQ-01 and is deliberately a REFUSAL of an adjacent tidy-up, because this plan's file is also declared by the `to-review` plan `8fo926` (F-06) and a minimal one-line diff is what keeps the two from colliding. EXCLUDES the docstring line "22 other members", which is a prose count in the same test; it is measured as CURRENTLY ACCURATE (F-05) and left alone with reasons, since P16 governs assertions and not comments, and editing prose while claiming a pure deletion invites the hollowing-out V-01 exists to detect. EXCLUDES `tests/test_terminal_status_vocabulary.py`, which this plan only READS and whose own `len(TERMINAL_STATES_CANONICAL) == 14` literal is the separately-filed live item `rdtme9` (F-07). EXCLUDES any production change, any new test, and any mechanical guard against a count literal returning (undecidable syntactically; owned by `76ic0k`).
 - Scope-Paths: tests/test_artifact_audit.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 01
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 9g97e5
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review revisions applied; see review record
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003 (review record 20261002-structpin-05-9g97e5-...review.md).

@@ -7,7 +7,7 @@
   OUT: resolving `issue` and `external` (not resolvable in-tree, settled below and recorded in the spec amendment rather than left as a reader's inference) and `date` (shape IS its semantics; a past date is not a defect this plan judges); ADDING FILE IO TO `attention_contract`, which is deliberately data-plus-validators and whose `class_of` is documented PURE, so resolution stays in `check_engine` per the shipped dangling-family split; CHANGING `validate_gate_ref` or any per-kind regex (this plan adds resolution beside shape validation and alters no shape); UNBLOCKING `adgtqb` or editing either `deferred` spec, because this plan builds the DETECTOR and a maintainer decides each disposition (E-07 reports them, and `adgtqb` carries a release gate whose close is predicate-governed); resolving `Release-Exempt-Kind:`/`Release-Exempt-Ref:`, which `jge900` F-15 handed here and which is deliberately still deferred below for a measured reason; and re-deriving the runner/queue behavior `AGENTS.md` already settles.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_gate_ref_resolution.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: feature
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: jdaozp
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Re-verified the three discharged live gates at lane HEAD a30553683. Contained the path probe (todo refs admit ..), added an unknown verdict for an empty index and a non-id6 todo ref, fixed contradictory case (12), restricted sweeps to live carriers, replaced pinned live counts with a re-derived census set, required the decision-rule severity asymmetry be stated, and completed the execution contract.
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `2rnswc`. Answered the item's OPEN question (which kinds to resolve, at what severity) from driven repository evidence rather than leaving it for the reviewer, and CORRECTED three stale measurements the item carries (its `Gate-Ref: TODO.md` claim, its D156 figure, and its one-gate count), the first of which review `jge900` explicitly asked this item's taker to re-measure. Found a defect the item did not anticipate: all three live gates are not merely unresolved but DISCHARGED, including a release-blocking bug gated behind a plan executed 23 days ago. Two rules at two severities, with the split argued from the shipped registry precedents.

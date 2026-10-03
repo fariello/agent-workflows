@@ -6,7 +6,7 @@
 - Scope: Replace the dangling citation in `inspect_lane`'s docstring with a citation to a NEW behavioral guard, and add that guard at `tests/test_worktree_lease_stdlib_only.py`. The guard asserts the OUTCOME (importing `worktree_lease` pulls in no first-party module beyond the package `__init__`'s own) in an isolated subprocess, reading no production source text. It also positively asserts that `lane_merged_into_target`'s function-local `runner_shared` import still works, so the guard cannot be satisfied by breaking the lazy delegation. EXCLUDES the two OTHER dangling citations of the same dead file that authoring measured in `runner_shared.py` (the signal-handler ones), which the rollup item `iosmvn` owns, and EXCLUDES re-adding the deleted test's `append_jsonl(`/`run_dir` substring assertions, which are source-parses.
 - Scope-Paths: agent_workflows/worktree_lease.py, tests/test_worktree_lease_stdlib_only.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: d8sc5n
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (LOW, fixed). Re-verified at lane HEAD `ad815ed28`: citation still dangling (`worktree_lease.py` `inspect_lane` docstring), `git log -S stays_stdlib_only --all -- tests/` -> `80db6750c`, `7a6bc48ac`; `merge-base --is-ancestor 80db6750c 19313eed7` rc 0; deleted body's `read_text` line confirmed; zero module-level first-party imports, one function-local in `lane_merged_into_target`; no surviving guard. E-03 as written would fail in-process (34 test modules import `runner_shared` at module level), so it now mandates a `pinned_env()` subprocess, demonstrated `BEFORE=False RET=False AFTER=True` (PR-001). E-04 now mutation-proves E-03 too (PR-002). Gate's unconditional `aw ipd finalize` made runner/executor-conditional and honesty rule added (PR-003). Seed-flag wording corrected (PR-004). Record: `.aw/records/reviews/20261002-lanedangling-02-d8sc5n-restore-a-behavioral-stdlib-only-guard-for-worktree-lease-an.review.md`.

@@ -9,7 +9,7 @@
 - Scope: Remove the cwd sensitivity from the landing question by resolving the integration target against the CHECKOUT rather than against whichever worktree invoked the predicate, and make an unanswerable anchor fail toward PRESERVATION instead of toward a trivially-true ancestry. IN: a three-valued common-dir primitive extracted from the git resolution `ipd_lifecycle.checkout_control_root` already performs (so the rule is not forked, spec `7ckptx` R6.1); target anchoring in `lane_work_has_landed` and in its sibling `lane_work_landed_by_content`; correcting the three docstrings that currently assert `HEAD` is unconditionally the honest default; and a behavioral regression test that drives a real `git worktree` and pins the main-tree and in-lane answers EQUAL for both an unmerged and a genuinely merged lane. OUT: changing `LANE_INTEGRATION_TARGET_FALLBACK`'s VALUE to a literal branch name (the fallback's own comment argues `HEAD` is right because a fork may use `master`/`trunk`, and authoring confirmed no config or run-record field names a real target, so `"main"` is the one wrong answer); changing `reclaimable`, `lane_is_recovered_and_reclaimable`, `teardown_worktree` or `reclaim_lane_through_gate` logic; the SEPARATE owner-record anchoring defect that pending plan `tjags7` owns for backlog `voxbcx`; and unifying `attention._resolve_runs_repo_root`, the third bespoke anchoring workaround, which no measurement here implicates.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, agent_workflows/worktree_lease.py, tests/test_lane_landing_anchor.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 7ckptx
 - Work-Kind: bug
@@ -21,8 +21,10 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 3mv7li
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Review record: .aw/records/reviews/20261002-cjrjtu-01-3mv7li-anchor-the-lane-landing-predicate-s-target-on-the-checkout-s.review.md
 - 2026-10-02 same-status (aw set): status unchanged (to-review)
 

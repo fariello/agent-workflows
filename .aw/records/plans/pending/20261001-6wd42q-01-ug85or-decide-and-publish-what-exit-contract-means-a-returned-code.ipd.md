@@ -13,7 +13,7 @@
   OUT, each for a stated reason. ADDING `130` OR `143` TO ANY DECLARATION, which is the rejected answer and is refused on the evidence in F-03/F-04/F-06, not on taste. CHANGING ANY RUNTIME EXIT CODE OR SIGNAL HANDLER: `cli.main`'s `130`, the drivers' `143`/`130`, `pwatch`'s `0` and `render_stream.install_exit_signal_handler` all stay exactly as they are, and this plan edits none of those modules. CORRECTING `oc runipd`/`agy runipd` TO ADMIT THE MEASURED EXIT `3`, which is approved pending plan `u28vqb`'s E-02 and must not be pre-empted; this plan does not change either tuple. WIDENING `pwatch`'s DECLARATION to admit its signal-path `0`, which it already declares, so there is nothing to do. THE SIX OTHER OUT-OF-RANGE DECLARATIONS and the run-execution vocabulary generally, owned by `u28vqb` and `69rdv6`. A TREE-WIDE `exit_contract` VALIDATION GATE, which executed plan `1mnit8` already built; this plan adds one test to the file `1mnit8` created rather than founding a second surface. AMENDING SPEC `25kzda` 5.6's `130` ROW, whose three false statements `u28vqb` E-07 already owns and corrects; `- Scope-Paths:` therefore carries NO `.spec.md`, which is deliberate.
 - Scope-Paths: agent_workflows/command_surface.py, docs/cli-output-contract.md, tests/test_exit_contract_conformance.py, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Backlog: 6wd42q
 - Work-Kind: chore
@@ -23,8 +23,10 @@
 - Highest E allocated: 05
 - Author: opencode
 - Id: ug85or
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-03 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured at HEAD `02de25cfc`: census 163 declarations, 0 containing 130/143; in-process `cli.main` 130 on both exception types; real SIGINT to `doctor` 130, SIGTERM -15. Readiness: GO - PENDING HUMAN APPROVAL.

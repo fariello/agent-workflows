@@ -6,7 +6,7 @@
 - Scope: Produce (a) a COMMITTED, re-runnable read-only auditor that censuses `done/` items whose close dropped a release gate, so the numbers in this plan can be re-derived next week by a different agent on a different machine rather than being thrown-away shell output; (b) a durable `.findings.md` audit REPORT under `.aw/records/research/` recording the population, its per-item adjudication, and the evidence each decision rests on; and (c) behavioral tests pinning the auditor's classification on synthetic fixtures. EXCLUDES mutating ANY already-closed item: no gate is written onto, cleared from, or re-asserted on a `done` record, because `AGENTS.md` states the release-gate rule governs LIVE items only and that gating an already-done item "would assert a history that did not happen". EXCLUDES changing `evaluate_blocking_close`, its three legitimacy paths, its severities, or `_carrier_is_executed`. EXCLUDES any change to `check.blocking-item-closed-without-gate` or its at-rest cutover, and EXCLUDES adding the advisory `info` rule that reports this grandfathered population through `aw check`: moving the cutover would turn `aw check` red on 53 historical items at once, and the advisory rule is pending plan `heh05a`'s deliverable (carrier `pa0mjn`). EXCLUDES re-opening, re-gating, or re-closing any item the audit finds, and EXCLUDES editing `AGENTS.md`.
 - Scope-Paths: tools/gate_drop_audit.py, tests/test_gate_drop_audit.py, .aw/records/research/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: aw oc run model=opencode
 - Id: 1hrlp3
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008. Population re-measured at HEAD `45529f342`: still 53 (46/7; 47 bug), still 0 from `aw check release-gates`. Fixed: stale staged-only mechanism (b24o3q at-rest arm now exists, grandfathered by cutover), stale `--evidence` not-persisted claim (f7igdu), E-03 premise (predicate already takes `carrier_index=`), `graduated` wrongly counted as a close tag and a `status -> done`-only reading of the flag spelling, reason-class vocabulary mismatch, live counts used as bars, unconditional finalize, missing NEEDS-LOOK/GRANDFATHERED precedence and Close-Evidence fixture, day-granular boundary comparison unstated (PR-008).

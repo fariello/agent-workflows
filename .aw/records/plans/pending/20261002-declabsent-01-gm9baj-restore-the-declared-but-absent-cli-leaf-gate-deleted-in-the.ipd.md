@@ -6,7 +6,7 @@
 - Scope: IN: (1) add a BEHAVIORAL gate asserting that every command in `COMMAND_INVENTORY` is actually INVOKABLE (its `--help` does not die with an argparse `invalid choice`), with an explicit per-command allow-set for the two measured exceptions, each citing its owning item; (2) correct the two in-code comments that cite the deleted test and the "asserted elsewhere" claim as if the gate were live. OUT: this plan does NOT register the `prompts set` subparser, does NOT touch `status_set.TYPE_STATUSES`, and does NOT touch the prompts writer: all three are `7z3ovv`'s declared scope and duplicating them would collide. It does NOT delete the `upgrade-test` root declaration or fix its wrong `agent_record_kind` (that is `lbbo9s`). It does NOT widen, narrow, or re-home `EXEMPTION_REGISTRY`, does NOT change `build_matrix`'s behavior, and adds NO coverage row for any absent command.
 - Scope-Paths: tests/test_command_surface_declarations.py, tests/conformance_matrix.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gm9baj
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: `--help`/`invalid choice` detector has measured false negatives under `set`/`backlog set`/`runs`; E-01 now resolves tokens through the parser dispatch table), PR-002 (MEDIUM, fixed: E-04/V-04 baseline re-derived same-session), PR-003 (LOW, fixed: `68sur3` already graduated), PR-004 (LOW, fixed: finalize ownership), PR-005 (LOW, fixed: V-01 import wording). Record: `.aw/records/reviews/20261002-declabsent-01-gm9baj-restore-the-declared-but-absent-cli-leaf-gate-deleted-in-the.review.md`.

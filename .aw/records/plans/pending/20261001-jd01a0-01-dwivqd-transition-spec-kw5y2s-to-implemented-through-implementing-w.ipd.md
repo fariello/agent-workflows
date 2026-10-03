@@ -6,7 +6,7 @@
 - Scope: IN: re-measure the four evidence points plus the two newly measured mechanics at the executing HEAD, with explicit stop conditions if any has inverted; move `kw5y2s` `approved -> implementing` recording the `wslayout` Set via `--graduated-to`; move `implementing -> implemented` with a resolvable `--evidence` citation naming the executed `wslayout` orchestrator; confirm `aw attention` reclassifies the spec from `ready` to `done` and that `aw check`/`aw specs check` stay clean across both hops; verify the two relocations landed as git renames and that no stale copy remains in `approved/` or `implementing/`. OUT: every WORD of the spec's body, which this plan does not edit (plan `xx5b7a` owns the text corrections and must land first); Section 3.4's traversal-exclusion widening, declared out of scope by the spec itself; any code, test, or `AGENTS.md` change, since the lifecycle machinery is working exactly as specified and the only thing missing is the transition; and the `- Status:` of any other spec.
 - Scope-Paths: .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md, .aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md, .aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
 - Item-Dependencies: executed:xx5b7a
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: kw5y2s
 - Work-Kind: chore
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dwivqd
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (stop condition 5 / E-05 / V-05 required `aw attention` `valid: true`, but the view is `valid: false` on 14 PRE-EXISTING violations unrelated to kw5y2s, so the plan could never complete; rebarred to an unchanged violation set), PR-002 (`rg -rn` is replace-mode and mangles output; corrected to `rg -n`), PR-003 (`aw specs check` is NOT clean today: one pre-existing `89xjll` finding; rebarred to no NEW finding), PR-004 (`git status --porcelain` shows `D`+`??`, never `R`, until staged; V-03 rename evidence redefined), PR-005 (`implemented` is terminal: `SPEC_TRANSITIONS['implemented']` = deferred/superseded only, so E-04 is one-way; stated), PR-006 (default commit path: pass `--no-commit` on both hops, commit once via `aw commit`; verified offer_commit tolerates the vanished intermediate path and records one rename), PR-007 (dependency on xx5b7a now satisfied, xx5b7a executed). Premises re-measured at lane HEAD 5a2415e03: all four evidence points hold, graph unchanged, evidence resolves, two-hop dry run moves the file.
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
 

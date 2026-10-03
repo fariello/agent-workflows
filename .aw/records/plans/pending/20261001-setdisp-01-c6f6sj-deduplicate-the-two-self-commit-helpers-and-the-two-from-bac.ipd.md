@@ -6,7 +6,7 @@
 - Scope: IN: collapse each duplicated pair to ONE implementation reached by both callers, preserving today's observable behavior on every axis EXCEPT the one misattributed output prefix, which is corrected to name the verb that actually ran; author outcome tests driving both spellings for both behaviors. OUT, each with a reason recorded under "Deferred": any change to WHICH engine a spelling dispatches to (that is children 04 and 05, and it is gated on spec `wy9aru`); the self-commit message LABEL, which legitimately differs per record type; every axis Section 7 of `wy9aru` assigns elsewhere (clock, history label, dedup, sidecar order, dry-run `apply` read).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/specs.py, tests/test_set_dispatch_dedup.py, tests/test_releases_line_writers.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: wy9aru
 - Work-Kind: chore
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: c6f6sj
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (E-04(e)/V-02 demanded exit 0 on an UNRESOLVABLE --from-backlog, which both spellings deliberately refuse per izh17y; retargeted to a resolvable UNGATED item), PR-002 (existing tests/test_releases_line_writers.py pins the old `aw set:` prefix on the --status path; added to scope and E-04), PR-003 (case (c) probe unsatisfiable: `scope` is offer_commit's default, so the probe now flips it to `refuse`), PR-004 (shared helpers' home module and text-in/text-out signature named), PR-005 (a transition MOVES the spec, so the staged-set assertion is a single rename), PR-006 (OQ-01 resolved from evidence), PR-007 (gate: begin/finalize ownership, scope-reason, addopts), PR-008 (CHANGELOG has two pending headings; named the target). Re-verified at lane HEAD b4ca10b1f.
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
 

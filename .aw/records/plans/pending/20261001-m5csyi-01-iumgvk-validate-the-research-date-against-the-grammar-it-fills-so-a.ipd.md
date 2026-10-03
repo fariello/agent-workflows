@@ -6,7 +6,7 @@
 - Scope: Validate `date_str` at `research_cmd.plan_new` and `research_cmd.plan_new_comparison` against the date slot of the grammar those functions fill (`\A\d{8}\Z` plus a calendar check), refusing through each function's EXISTING `(None, error)` return channel before any id6 is minted or any path is derived; then assert destination containment in `research_cmd._emit_and_write`, the one preview-and-apply funnel both planners feed, so a derived path outside the resolved research root is refused on BOTH the `--apply` and the dry-run arm. DELIBERATELY NOT COVERED: `aw research set-assign`, whose identical traversal MOVES an existing record and is already carried by open backlog item `0ougsh`; the descriptive-field injection through `--summary`, `--topic` and `--consumed-by`, which plan `deftzy` owns; and `prompts.run_new`'s format-only guard, which this plan does not upgrade (see Deferred).
 - Scope-Paths: agent_workflows/research_cmd.py, tests/test_research_date_containment.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: iumgvk
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review complete; APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (LOW, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed). Re-verified at lane HEAD `6d48f3f94` in nested scratch fixtures: F-01, F-02 and F-09 reproduce, `strptime` refuses `99999999`, `20261332` and `20260230`, and the `today = date_str or ...` siting holds in both planners. Changed: the fixture-depth safety bound was INSUFFICIENT. A scratch repo with no `.aw/records/research` resolves its research root under `$HOME/.aw/projects/...`, and a review probe with a fixture-safe depth wrote `$HOME/.aw/ESC-x1-00-dkj15o-x1.findings.md` outside the temp base. E-04 now requires a pre-created research dir, isolated `HOME`/`XDG_CONFIG_HOME`, and a target computed from the resolved root (PR-001). The regex is now ASCII-only `[0-9]{8}` (PR-002). The E-05(e) committed pin of the live `set-assign` escape would break when `plb8jx` lands, so it is now V-05 scratch evidence (PR-003). The byte-identical non-regression is now id6-pinned (PR-004). The nonexistent `run_new_from_plan` caller is removed, and the archive proof is replaced with a direct shard-path call, since archive bypasses `_emit_and_write` (PR-005). ACTION FOR THE HUMAN: the stray file `$HOME/.aw/ESC-x1-00-dkj15o-x1.findings.md` and the directory `$HOME/.aw/projects/repo-7c3bc1/` were written by this review's probe and are outside this lane's permissions to delete. Record: `.aw/records/reviews/20261002-m5csyi-01-iumgvk-validate-the-research-date-against-the-grammar-it-fills-so-a.review.md`.

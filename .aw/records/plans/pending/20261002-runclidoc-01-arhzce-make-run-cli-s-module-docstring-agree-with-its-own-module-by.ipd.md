@@ -13,7 +13,7 @@
   OUT, each for a stated reason: RENUMBERING any `EXIT_*` constant, which is a consumed contract pinned by `tests/test_run_cli_corruption_exit.py` and `tests/test_run_cli_declarations.py` and refused by `u28vqb` F-05 on the same evidence; the `Redacts sensitive values in both human and machine outputs` claim, MEASURED FALSE but owned by security item `94op6l` with its own release gate, because the honest fix is wiring redaction into the human path (a behavior change) and not deleting the sentence (F-04); the two-table divergence between `run_cli`'s codes and spec `25kzda` 5.6's run-aggregate table, which is `858lhj`'s subject and `u28vqb`'s mandate and which this plan must not pre-empt by declaring either table canonical; DOCUMENTING the run vocabulary in `docs/`, which is `u28vqb` E-05's declared deliverable and whose destination is itself contested (`2cqs11`); `u28vqb`'s own `### 3.1` collision, filed as `2cqs11` because editing an approved sibling plan's checklist is outside a docstring fix; the unreachable-`EXIT_BLOCKED`-on-`runs resume` defect, owned by `tzqvjn` and pending plan `hrdmfy`, which also declares `run_cli.py` in scope (see F-06 on why that is not a conflict); and converting this module's bare machine payloads into `aw.agent/v1` records, which `run_cli._emit_error`'s own docstring records as "a real gap on a different contract".
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_recovery_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -23,8 +23,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: arhzce
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Reviewed at HEAD `cd69009f0`; `aw ipd lint --phase author` and `--phase review-finalize` both clean. F-01..F-03 re-measured and reproduced (constants 0..7, docstring `[0, 1, 2, 5, 7]`; driven `finalize` rc=4 `EV-FAILED-EXIT`; driven `record` rc=6 `Illegal transition from 'performed' to 'performed'`). PR-001: OQ-02 resolved, the `__doc__` absence guard is a P16 docstring pin and is dropped. PR-002: the behavioral half duplicated existing `INVOCATIONS` rows, so E-04 is now one row for the uncovered `RunStateError` arm (F-09), and Scope-Paths now swaps the new file for `tests/test_run_recovery_cli.py`. PR-003: the read-only correction is bounded by the measured six-leaf probe and by `write_index` (F-10). PR-004: the gate now has a scope fence, the `aw ipd begin`/`finalize` ownership rules, and the `h9kgjp` close path. Review record: `.aw/records/reviews/20261002-runclidoc-01-arhzce-make-run-cli-s-module-docstring-agree-with-its-own-module-by.review.md`.

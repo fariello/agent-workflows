@@ -6,7 +6,7 @@
 - Scope: IN: add an appendable `step_started` record kind (v2-only, so no v1 ledger changes meaning) that durably marks a step as started; teach `run_engine.reconstruct_state`'s replay to reconstruct `STATE_RUNNING` with `last_attempt_state is None` from it, ORDER-BASED so an interrupted RETRY is detected too (F-06, a set-based replay silently misses it); make `run_engine.start_step` append that record; resolve the lock-reentrancy hazard that append creates inside `_run_start`'s enclosing `engine.lease()` (F-08, measured as a real `LedgerLockError`, not a theoretical one); correct the two shipped texts that currently assert exit 3 for `runs resume`, namely the `cli.py` help body and the `command_surface` declaration `ck0vya` set to `(0, 2, 5, 7)` with a comment saying 3 is unreachable; and leave behind a cross-process regression test that is RED before this change. OUT, each for a stated reason: deciding whether a DRIVER run writes a ledger at all, which is backlog `ye28s6`'s question and is explicitly fenced off by `runner_shared`'s own `retrywire` comment (F-09); wiring `run_recovery` into the host drivers, which is Set `runwire`'s subject and its orchestrator's OQ-01; any change to the `run_state` transition table, which already admits `runnable -> running` as a legal runtime edge (measured LEGAL, so nothing there needs moving); and migrating existing ledgers, which need no migration because this kind is purely ADDITIVE and its absence reconstructs exactly today's behavior (F-10).
 - Scope-Paths: agent_workflows/run_ledger_schema.py, agent_workflows/run_ledger_store.py, agent_workflows/run_engine.py, agent_workflows/run_cli.py, agent_workflows/command_surface.py, agent_workflows/cli.py, tests/test_run_recovery_cli.py, tests/test_run_cli_declarations.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: c4gd2h
 - Work-Kind: bug
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: hrdmfy
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: E-03 start now reads, checks and appends under ONE writer-lock acquisition via a held-append store entry point, closing a measured pre-existing concurrent double-start race; `run_ledger_store.py` added to Scope-Paths), PR-002 (MEDIUM, fixed: `_run_record` "Running is ephemeral" comment corrected in E-04), PR-003 (LOW, fixed: `runs next` comment contrast updated in E-05), PR-004 (LOW, fixed: interrupted-retry fixture must be seeded by direct appends), PR-005 (LOW, fixed: cross-process `runs next`/second `run start` behavior change disclosed). Core design re-verified by in-memory simulation: 164 targeted tests green with the change applied. Record: `.aw/records/reviews/20261001-exitblocked-01-hrdmfy-make-a-step-s-running-state-durable-so-the-unknown-outcome-r.review.md`.
 - 2026-10-01 same-status (aw set): status unchanged (to-review)

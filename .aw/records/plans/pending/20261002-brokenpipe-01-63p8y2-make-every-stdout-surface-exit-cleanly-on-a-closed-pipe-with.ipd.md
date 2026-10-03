@@ -6,7 +6,7 @@
 - Scope: Add ONE top-level `BrokenPipeError` guard at the single process entry point `cli.main`, which all three console scripts (`aw`, `agentwf`, `agent-workflows`) and `python -m agent_workflows` already route through, so every stdout surface becomes clean at once instead of loop by loop. The guard catches `BrokenPipeError` SPECIFICALLY (never bare `OSError`), redirects the stdout file descriptor to `os.devnull` so the interpreter's shutdown flush cannot re-raise, and returns an exit code chosen by whether the command's own verdict is knowable (F-06). Add the first broken-pipe regression coverage this repository has (measured: zero tests mention `BrokenPipeError`, F-04), driving real subprocesses through a closed pipe. Correct `docs/cli-output-contract.md` Section 7 so its mechanism matches the code. Does NOT rewrite any bare `print` loop, does NOT change any command's output bytes, does NOT change a non-pipe exit code, and does NOT touch `renderers.BaseRenderer.emit`, whose existing guard stays as the renderer-local fast path.
 - Scope-Paths: agent_workflows/cli.py, tests/test_broken_pipe_exit.py, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 63p8y2
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: verdict preservation is not general, attention --all exits 1 unpiped and 0 piped; limit now documented, F-12), PR-002 (HIGH, fixed: argparse SystemExit path skips the flush so --help stays at 120; guarded flush plus re-raise added, F-11), PR-003 (MEDIUM, fixed: deterministic pre-closed pipe, slow marker, -m slow runs), PR-004 (MEDIUM, fixed: ENOSPC probe moved off renderer surfaces, F-13), PR-005 (LOW, fixed: conditional lifecycle, fence, OQ owners). Review record .aw/records/reviews/20261002-brokenpipe-01-63p8y2-make-every-stdout-surface-exit-cleanly-on-a-closed-pipe-with.review.md.
 
 - 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

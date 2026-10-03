@@ -6,7 +6,7 @@
 - Scope: `render_stream.render_run_summary_table`'s `Status` cell and the column-width computation feeding it, the two remaining Unicode leaks in that function's ASCII mode (banner `│` separators, progress bar), the `use_unicode` wiring at the seven driver call sites that reach it, and the tests pinning all of it.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_run_summary_lifecycle_glyph.py, tests/test_run_summary_malformed_entry.py, tests/test_zero_dispatch_outcome.py, tests/test_zero_dispatch_progress_denominator.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: agent
 - Id: qhpov0
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002, PR-003, PR-004, PR-005 (MEDIUM, fixed), PR-006, PR-007 (LOW, fixed). A review prototype of E-01..E-03 (reverted) broke 6 tests in 3 files, not 1, and failed the mypy gate; the table's ASCII mode still leaks `│`/`█` (new E-06); all seven call sites omit `use_unicode`. Full record: `.aw/records/reviews/20261002-phdpbf-01-qhpov0-render-the-section-5-lifecycle-glyph-in-the-run-summary-tabl.review.md`.
 - 2026-10-02 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 - 2026-10-02 draft (agent): created.

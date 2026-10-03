@@ -6,7 +6,7 @@
 - Scope: Mark the two offending test methods `livecorpus` so the default fast suite stops paying for a whole-corpus sweep, and add synthetic-repo twins in the same two files so the compact-versus-verbose key contract and the `--fields` projection contract keep failing in the fast suite when they regress. Two test files only; no production module and no suite configuration is touched.
 - Scope-Paths: tests/test_verbose_flag_reach.py, tests/test_fields_flag_reach.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode
 - Id: kxwpqf
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; readiness go-pending-approval
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Readiness go-pending-approval. Premise re-measured at HEAD `e094aa0c2`: 30.92s and 15.38s isolated, `7 passed in 47.22s`.

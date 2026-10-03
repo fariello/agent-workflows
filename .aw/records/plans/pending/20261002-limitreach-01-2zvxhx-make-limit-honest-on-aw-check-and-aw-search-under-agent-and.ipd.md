@@ -6,7 +6,7 @@
 - Scope: Make `--limit` do what Section 6 promises on exactly two verbs. For `aw check`, bound the `diagnostics` array emitted in its `result` record and report `total`/`emitted`/`omitted` plus a `next` continuation in that same record, which `agent_schema` already preserves through a `--fields` projection (F-07). For `aw search`, first make the agent record carry its hits at all (through the same agent-path helper, since `to_agent_record` copies no `data` payload key into the compact record; measured at review) (a `findings` count equal to the real hit count, matching what `--json` already reports), then bound that hit emission under `--limit` with the same counts and continuation. Decide and implement one non-positive `--limit` behavior on both verbs, matching the `run_analytics_query._parse_limit` refusal precedent. Does NOT change which artifacts are checked or searched, the human output of either verb, either verb's `--json` payload, either verb's exit codes, the `--limit` hot-window meaning on `aw index` or `aw research index` (F-05 proves that one already works), `aw find` (owned by plan `okiso1`), or the four remaining `--limit` leaves (`group`, `rename`, `runs analyze`, `runs query`).
 - Scope-Paths: agent_workflows/cli.py, tests/test_limit_reach_check_search.py, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 2zvxhx
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Re-measured at HEAD `45529f342`: both defects reproduce (`check plans --agent --limit 1` 76 of 76 diagnostics; `search` agent `findings: 0` vs `--json` 603), F-07 holds. Fixed: a truncated search record left at `outcome: clean` would crash or greenwash; `complete` handling unstated; no workable mechanism (slicing at `CommandResult` changes `findings` and `--json`; `to_agent_record` carries no payload key) replaced by a demonstrated agent-path helper; `--source-citations`/`--source-anchors` are separate emit sites; hit `text` is a crash site; non-integer already refused; unconditional lifecycle; `Owner: none`.

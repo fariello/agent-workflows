@@ -6,7 +6,7 @@
 - Scope: Apply the shared `attention_contract.is_safe_descriptive` predicate to every value the research write paths interpolate into a record and do not already validate, refusing BEFORE any filesystem write, through the helper shape `backlog._refuse_unsafe_descriptive` already ships. Guard at the PLANNER (`plan_new`, `plan_new_comparison`, `plan_set_outcome`) rather than at the CLI handler, because `aw adopt` reaches `plan_new` directly and a verb-only guard would leave that path open (F-08). Bounded descriptive fields (`--summary`, and each `--topic` and `--consumed-by` TOKEN) get the full predicate. THE COVERAGE CLAIM IS ENUMERATED, NOT ASSERTED: `--kind`, `--model` and `--priority` already refuse through `normalize_kind`/`normalize_model`/`PRIORITIES`, `--slug` and `--set` are already safe through `R.kebab`, `--order` is an argparse `int`, `--to` on `promote`/`set-outcome`/`set-priority` is already enum-checked, and `add-model`'s tokens already match `^[a-z0-9-]+$`; so `--summary`, `--topic` and `--consumed-by` are the complete unguarded remainder of the research front-matter writer set (F-09). DELIBERATELY NOT COVERED: `--date`, whose defect is a path traversal that `is_safe_descriptive` provably cannot detect and which backlog item `m5csyi` already carries; and the CHECKER half, carried by `cvxbbu`.
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, tests/test_research_descriptive_safety.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: deftzy
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (LOW, fixed), PR-005 (LOW, fixed). Re-verified at lane HEAD `db3126a69`: `research_cmd` still has no `_refuse_unsafe_descriptive`; `build_frontmatter` with the injected summary and crafted topic parses `status=reference`, `blocks-release=next`, `topic=['a']`, `junk=['x']` with `validate_frontmatter` `[]`; `update_frontmatter_fields` with the crafted consumed-by parses `status=active` at zero drift; `backlog._refuse_unsafe_descriptive` outputs match the plan's quoted strings; `_first_heading` passes ESC through; `plan_adoption` returns `(None, err)` and `run_adopt` emits it with exit 2. Changed: E-01 now FORWARDS to the shared owner instead of porting a fourth copy, since `uz05bl` executed and hoist `685iq8` is pending (PR-001); pre-fix counterparts pinned to a recorded `<base>` sha (PR-002); vacuous `_existing_id6s` assertion replaced by a no-write listing check (PR-003); adopt heading-case refusal now names its source, adding `artifact_adopt.py` to Scope-Paths (PR-004); addopts quote corrected (PR-005). Dependent `wjvn8a` already says to check before adding the `attention_contract` import, so it stays compatible. Record: `.aw/records/reviews/20261001-7w6zsl-01-deftzy-refuse-an-unsafe-descriptive-value-at-every-research-write-p.review.md`.

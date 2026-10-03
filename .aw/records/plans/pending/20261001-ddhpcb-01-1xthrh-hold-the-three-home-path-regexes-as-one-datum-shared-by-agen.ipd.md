@@ -6,7 +6,7 @@
 - Scope: IN: introduce a single stdlib-only leaf datum module naming the three home-path classes once (pattern body plus the cheap required-substring prefilter each needs), and derive BOTH existing surfaces from it with ZERO change to any pattern byte, any rule name, or any rule ORDER; add a cross-module agreement test that is SENSITIVE to divergence (perturbing the datum must move both derived surfaces together, and a corpus differential must fail if either copy drifts). OUT: the REWRITE patterns on either side, namely `agent_schema._REDACT_WINDOWS_HOME_RE` / `_REDACT_POSIX_HOME_RE` / `_REDACT_USERS_HOME_RE` and `leak_sanitizer._HOME_ANY_RE` / `_USERS_ANY_RE`, whose bodies DELIBERATELY differ from the detectors (they carry capture groups and lookaheads and intentionally drop the placeholder exemptions, because a rewrite must neutralize a path the detector is content to ignore) and which `tests/test_json_surface_leak_posture.py` already pins against the detector; the five NON-home rows of `_FAIL_PATTERNS` (`vc-home`, `private-repo`, `other-account`, `session-id`, `handle`) and their `_REQUIRED_RULE_SUBSTRINGS` entries, which encode maintainer-specific fragments unrelated to home paths; `run_analytics_privacy.pseudonymize_paths`' own path regexes, which pseudonymize rather than detect and answer to a different contract; the per-rule severity model, allowlists, and config gating in `build_ruleset`; and any change to WHICH inputs are detected.
 - Scope-Paths: agent_workflows/home_path_patterns.py, agent_workflows/agent_schema.py, agent_workflows/leak_sanitizer.py, tests/test_home_path_pattern_source.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1xthrh
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured at HEAD `45529f342`: F-01 byte identity `True`, flags 32, first three `_FAIL_PATTERNS` keys and prefilters as stated, prefilter coherence holds, `_ALLOWED_PATHS` as stated, pattern-literal rows scan clean, the six regression modules give `119 passed`, `aw sanitize --agent` clean. Fixed: a mutation test that could not detect a re-forked consumer (replaced with subprocess derivation sensitivity plus a fork proof), a docstring-example leak trap, an order-hiding `sorted` in V-01, STOP-on-scope wording and missing lifecycle/commit-verification contract, `Owner: none` on a self-resolved question.

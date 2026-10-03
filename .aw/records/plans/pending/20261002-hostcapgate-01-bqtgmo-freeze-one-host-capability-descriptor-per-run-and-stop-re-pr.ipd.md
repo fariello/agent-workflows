@@ -13,7 +13,7 @@
   EXCLUDES, and this fence is what keeps Order 02 honest: this plan adds NO `ACTION_CAPABILITY_REQUIREMENTS` row, adds no mapping row to `RUNNER_ACTION_TO_CONTRACT_ACTION`, and therefore changes NOTHING an operator can observe about which items run. After it lands the gate still refuses nothing, exactly as `iot7hc` left it. Also excluded: a persisted cross-run descriptor cache with TTL/expiry (that is `host_capability_registry`'s concern, and its expiry model is deliberately not imported here, as `probe_runner_safety_capabilities`' docstring already notes); changing any probe's verdict logic; changing `supports_commit_gateway`'s declared-never-probed status; and amending spec `25kzda`.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, tests/test_hostcapgate_descriptor_freeze.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -23,8 +23,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: bqtgmo
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (live per-turn probe in oc_runipd._apply_execution_profile on every profile: added E-06/V-06/F-12, oc_runipd.py to Scope-Paths), PR-002 (E-02 shape (i) fails open on unrecognized argv; recommended thread-identity delegation), PR-003 (named state key, timed init cost), PR-004 (finalize ownership). Hazard re-measured at lane HEAD 990fb4aa: 76834 stop-before-launch refusals.
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `s8veyk` in lane worktree `s8veyk` at HEAD `6310b3e4`. THIS PLAN EXISTS BECAUSE THE BACKLOG ITEM'S OWN STATED PRECONDITION TURNED OUT TO BE FALSIFIABLE AND I FALSIFIED IT. The item says the fix "is NOT merely adding a row" and that the work includes establishing "that hosts in real use actually pass the probe, or the row turns a working configuration into a refused one". I measured the probe and it PASSES on this host (`supports_fresh_verifier_session=True`, with the note "a distinct-identity run finalized and a reused-identity run was REFUSED"), and it passes for all three of `opencode`, `antigravity` and `scripted`. So the item's stated blocker is clear. What I found INSTEAD, and which the item does not mention, is a separate and sharper hazard in the path a row would activate: the per-item descriptor call mutates `subprocess.Popen` process-wide, and a run process is multi-threaded. That is why this Set is two children rather than one, and why this one is Order 01.

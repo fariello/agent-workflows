@@ -6,7 +6,7 @@
 - Scope: Replace the non-recursive glob in `agy_run.resolve_spec` by DELEGATING enumeration to `specs._spec_files`, the single existing definition of "which files are this repository's specs", so the recursive walk, the ignored-path filter, the `README.md`/`INDEX.md`/`STATUS.md` skip, the legacy `.agents/docs/specs` read path and the resolved-path dedup all come from one place rather than being re-implemented a second time. Add the behavioral test coverage the symbol has never had (measured: zero tests reference `resolve_spec`'s subdirectory case, which is why this shipped broken), placing it under `tests/` because `pyproject.toml` sets `testpaths = ["tests"]` and CI runs `python -m pytest tests/`, so the existing `tools/test_agy_run.py` module is NOT collected by the default suite or by CI. Does NOT change the matching semantics (exact-name-or-substring), the ambiguity error, the `direct.is_file()` early return, the function signature, or any caller. Does NOT fix the same latent defect in the sibling `resolve_ipd` (measured and real, but it needs a different enumeration source and is handed off, see the deferred section).
 - Scope-Paths: agent_workflows/agy_run.py, tests/test_agy_run_resolve_spec_recursive.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: a6ootg
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (review record 20261002-8jl0rx-01-a6ootg-...review.md).
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review revisions applied; see review record
 

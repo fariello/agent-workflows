@@ -6,7 +6,7 @@
 - Scope: Bring both rules' composed `detail` inside the bound WITHOUT losing a locator and WITHOUT truncating (Section 8.8 forbids truncation), by three changes inside `check_engine`: (a) make the finished-carrier remedy SINGLE-LINE, replacing the three newline-joined lines in `evaluate_carrier_obligation`'s two discharged-carrier branches with one clause that keeps the pasteable `- Carrier-Evidence: <path>` and the `Carrier-Declined` warning; (b) drop the per-row clause the remedy already states, so the remedy is not said twice per row; (c) in `evaluate_durable_carrier`, GROUP obligations that share an identical reason body under one comma-joined locator list, and replace the fixed five-locator cap with a BUDGET-DRIVEN cap that shows as many groups as fit under `MAX_DESCRIPTIVE_LEN` and counts the rest as `(and N more)`. Add a test pinning `is_safe_descriptive` on what the real evaluator composes. OUT: changing `attention_contract.is_safe_descriptive` or `MAX_DESCRIPTIVE_LEN`; making `core.Drift` validate its own `detail` (that is `0livgf`, and doing it here would red other rules); changing any VERDICT, rule id, severity, `legitimate` value, or `fixes` tuple; truncating any value; and repairing the records that currently trigger the findings.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_carrier_detail_descriptive_bound.py, .aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: lxcexr
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review: APPROVE WITH REVISIONS APPLIED; readiness go-pending-approval
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007, PR-008. Readiness go-pending-approval. Re-measured at HEAD `8c14feb1f`: 102 diagnostics, 29 failing `is_safe_descriptive` (14 finished-carrier all newline-bearing, worst 2258; 14 uncarried, worst 942; 1 `check.ipd-lint-diagnostic` at 650).

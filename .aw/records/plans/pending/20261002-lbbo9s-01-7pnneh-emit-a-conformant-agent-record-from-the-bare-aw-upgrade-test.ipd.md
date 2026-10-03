@@ -6,7 +6,7 @@
 - Scope: IN: (1) replace the bespoke `print_help()`-then-`return 2` branch in `cli._dispatch`'s `upgrade-test` arm with the shared `cli._show_family_help` helper that the other 18 roots already use, so the `--agent` surface emits a schema-valid `cannot-run` error record and the human surface keeps its help page plus gains a next-action line; (2) DELETE the `upgrade-test` root declaration from `COMMAND_INVENTORY`, because a family root is not a parser leaf and `COMMAND_INVENTORY` declares leaves, which is why no other root is declared; (3) delete the now-dead `EXEMPTION_REGISTRY["upgrade-test"]` entry whose citation is this item; (4) add a behavioral test driving the bare group as a real subprocess on both surfaces. OUT: this plan does NOT change any of the six `upgrade-test` SUBCOMMANDS, their declarations, or `agent_workflows/upgrade_rehearsal.py`; it does NOT touch `tools/aw_upgrade_test.py`, whose own parser already uses `required=True`; it does NOT change `_show_family_help` itself, nor any other family root; it does NOT fix the two OTHER non-conforming roots this plan measured (`runs` and `config exclude`, see F-10, each handed off to a filed item); and it does NOT widen `agent_schema.VALID_OUTCOMES`, add a `command_class`, or change `required_scenarios`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_aw_upgrade_test.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7pnneh
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Re-verified at lane HEAD f035f874c: defect reproduces (rc 2, 39 stdout lines on --agent), declaration present, EXEMPTION_REGISTRY 27, universe 42, declared_absent ['prompts set','upgrade-test']. Fixed: handler site is cli._dispatch not cli.main; --json parity with sibling roots stated and evidenced; registry and universe bars re-derived as before/after deltas since siblings vfv2db and gm9baj edit the same file; subprocess test pinned to cwd=REPO_ROOT and its convention citation corrected; OQ owners and lifecycle ownership fixed; CHANGELOG decision confirmed by git tag --contains. Review record: .aw/records/reviews/20261002-lbbo9s-01-7pnneh-emit-a-conformant-agent-record-from-the-bare-aw-upgrade-test.review.md.
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from open backlog item `lbbo9s`; every finding measured in lane `lbbo9s` at HEAD `b8e1e0157`.

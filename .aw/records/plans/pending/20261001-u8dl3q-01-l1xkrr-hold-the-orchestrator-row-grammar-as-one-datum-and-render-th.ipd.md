@@ -6,7 +6,7 @@
 - Scope: IN: introduce a single grammar DATUM in `ipd_lint` and derive `_ORCH_ROW_RE`'s pattern and `ORCH_ROW_CANONICAL`'s string from it, with ZERO change to either value's bytes; add a public renderer that emits a conforming row from typed field values; consume that renderer in `ipd_authoring`'s orchestrator skeleton so the scaffold row is rendered rather than hand-written; add tests that are SENSITIVE to the derivation (perturbing the datum must move both derived surfaces together). OUT: the rule LOGIC in `orchestrator_row_conformance`, which is correct and whose behavior must not change by one diagnostic; `_ORCH_ROW_BLOCKING_CHECKPOINTS`, owned by approved plan `zojfn6`; the refusal MESSAGE wording and its three R7 content constants, which are already held as data and already have one renderer (`render_orchestrator_row_refusal`); the DOCUMENTATION surface, which OQ-01 lists but which does not exist to render (measured: the `ipd-spec` document states the grammar nowhere) and whose creation is a separate editorial decision recorded in OQ-01 below; the child skeleton; and the pre-existing orchestrator corpus.
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/ipd_authoring.py, tests/test_orchestrator_row_grammar_source.py, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md
 - Item-Dependencies: executed:zojfn6
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: r07vma
 - Work-Kind: chore
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: l1xkrr
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED
 - 2026-10-02 /plan-review (opencode/its_direct-pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002 (HIGH, fixed), PR-003, PR-004, PR-005 (MEDIUM, fixed), PR-006 (LOW, fixed). The sensitivity proof could not detect a literal revert (added a binding limb and required callable derivations); `aw specs note` cannot edit OQ-01's body (retargeted to a history record, added E-06/V-06); `zojfn6` has landed so E-04's landed branch is live, and the placeholder id6 is now single-sourced too. Full record: `.aw/records/reviews/20261002-u8dl3q-01-l1xkrr-hold-the-orchestrator-row-grammar-as-one-datum-and-render-th.review.md`.
 - 2026-10-01 same-status (aw set): status unchanged (to-review)

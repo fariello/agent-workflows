@@ -6,7 +6,7 @@
 - Scope: CLOSE the question with a recorded NO (keep the status outside `_RUN_SUCCESS_STATUSES`) on the measured ground that the asymmetry does not exist and that the only lever able to change it is unsafe; and FENCE that answer behaviorally in `tests/test_artifact_audit.py` with (a) a symmetry pin asserting `substantially-complete` and `complete` are indistinguishable across the plans lifecycle shape matrix, (b) a fail-gate-family pin asserting that EACH of the three legacy spellings that canonicalize to `fail-gate`, and `fail-gate` itself, is indistinguishable from the non-success reference `complete`, naming every member that diverges, so a future one-line tolerance edit cannot pass unnoticed, and (c) a comment in `agent_workflows/artifact_audit.py` recording the decision and the collateral-tolerance hazard beside `_RUN_SUCCESS_STATUSES`. NO behavior changes.
 - Scope-Paths: tests/test_artifact_audit.py, agent_workflows/artifact_audit.py
 - Item-Dependencies: executed:p5yaqw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: low
@@ -16,8 +16,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8fo926
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at lane HEAD fbb729c65: _status_disagrees absent; RUN_SUCCESS {'executed'}; symmetry sweep 270/0; legacy-spelling mutation 270/0 (no-op); fail-gate mutation sym 270/168. KEY FIX: E-03 as authored (members equal each other) CANNOT fail under the fail-gate mutation (measured fam+fg 270/0) because all four canonicalize together; rewritten to compare each member to the non-success reference complete (each diverges 168/270 under mutation, 0 at HEAD); OQ-02 corrected. Review record: .aw/records/reviews/20261002-runviewdisc-04-8fo926-close-the-substantially-complete-audit-tolerance-question-on.review.md.
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `64a03w`. The item's demanded measurement was PERFORMED during authoring (F-01..F-08) and it dissolves the premise rather than confirming it: the quoted predicate no longer exists, and the live mechanism treats the two statuses identically everywhere. The plan therefore closes the question with a recorded NO plus a regression fence, instead of changing a tolerance list, which is exactly what the item's own prohibition demanded of whoever measured first.

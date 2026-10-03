@@ -6,7 +6,7 @@
 - Scope: Decide and implement the reporting surface for the GRANDFATHERED residue: items the at-rest arm deliberately skips because they closed before the cutover, but which the close predicate judges illegitimate. Ship (a) a new `info`-severity advisory rule reporting that population whole-tree, registered in `RULE_REGISTRY` so its severity is contractual rather than defaulted; (b) an opt-in plumbing path so the population is reportable on demand without changing any default exit code; and (c) behavioral tests over synthetic fixtures pinning both the advisory's findings and the unchanged default. EXCLUDES mutating ANY closed backlog record (no gate written onto, cleared from, or re-asserted on a `done` item), because `AGENTS.md` states the gate rule governs LIVE items only and that gating an already-done item "would assert a history that did not happen". EXCLUDES changing `evaluate_blocking_close`, its three legitimacy paths, `_carrier_is_executed`, or the severity of the existing `check.blocking-item-closed-without-gate`. EXCLUDES moving the repository's `release_gate_at_rest` cutover date, which would retroactively convert all 53 into exit-blocking errors and is the exact blast radius this plan exists to avoid. EXCLUDES the per-item adjudication of WHICH of the 53 are genuine drops, which is plan `1hrlp3`'s deliverable.
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_check_engine_release_gate.py, AGENTS.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: aw oc run model=opencode
 - Id: heh05a
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review complete; APPROVE WITH REVISIONS APPLIED
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed). Re-verified at lane HEAD `97c25afd1` with the shipped symbols: 581 done items, 303 gated, 53 illegitimate, cutover `20261001`, max close `20260926`, 0 undatable, 0 at or after the cutover. `aw check release-gates` conforms with exit 0. So the E-01 branch holds; the done counts drifted by one since authoring, which E-01 already re-derives. Changed: `drift_exit_code` reads the severity ON the drift and the CLI scores the RAW list, so registry `info` alone still exits 1, and E-02/E-03 now require `severity="info"` at construction (PR-001). The flag is now also threaded through `check_types`, so `aw check all --grandfathered` is not silently ignored (PR-002). The OQ-01 cohort classification is now a requirement in E-03 (PR-003). The no-cutover complement and the `RELEASE_GATE_RULES` membership are specified (PR-004). The gate gained the honesty rule, the scope fence and conditional runner ownership (PR-005). Record: `.aw/records/reviews/20261002-pa0mjn-01-heh05a-report-the-grandfathered-release-gate-close-population-throu.review.md`.

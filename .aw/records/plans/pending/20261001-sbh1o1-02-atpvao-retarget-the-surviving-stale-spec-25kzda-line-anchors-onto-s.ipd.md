@@ -8,7 +8,7 @@
 - Scope: Retarget every SURVIVING stale `25kzda` line anchor in live source and tests onto the STABLE SECTION TOKEN that actually carries the cited claim, DESCOPED AT REVIEW (PR-001): this plan NO LONGER promotes the detector; that decision and its wiring are handed to backlog `1vd74h` (see Deferred). TWO things remain, the old (3)/(4) being struck. (1) Re-derive the census mechanically with `aw check specs --source-anchors` (shipped by prerequisite `mt54wr` E-03/E-05) and record it, since the item's own numbers are stale and its file list is wrong. (2) Rewrite each surviving site to cite `spec 25kzda Section <N.N>` with NO offset, keeping every quoted sentence and every technical claim byte-identical in substance; the sites are in `runner_shared.RunPolicyFlag`, `expand_dependency_closure`, `refuse_frozen_flags_on_resume`, `freeze_run_policy_flags`, `initialize_run_core`, `edge_satisfied`, `run_evidence`'s `NON_MASKABLE_CLASSES` block plus `NonMaskableClass`/`non_maskable_classes`/`aggregate_run_exit`/`validate_non_maskable_table`, `host_sandbox_profile`'s two module-level comments, and `tests/test_host_capability_extension.py`'s `SPEC_MESSAGE` comment. (3) and (4) [the promotion and its gating regression] REMOVED at review and carried by backlog `1vd74h`. EXCLUDES the three `:166` sites inside `closure_target_admission` and `enforce_mixed_type_gate` owned by pending plan `yu47nf` E-07, and the `closure_target_admission` refusal string owned by `mt54wr` E-04; EXCLUDES editing spec `25kzda` itself, which carries no stale citation and is not in `- Scope-Paths:`; EXCLUDES the `oc_runipd.py`/`agy_runipd.py` cross-file `oc_runipd.py:NNNN` citations, which are not spec anchors; EXCLUDES terminal records under `plans/executed/` and `backlog/done/`, whose citations were correct when written; and EXCLUDES building any new detector capability, since `mt54wr` ships it.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_evidence.py, agent_workflows/host_sandbox_profile.py, tests/test_host_capability_extension.py
 - Item-Dependencies: executed:mt54wr, executed:yu47nf
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -18,8 +18,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: atpvao
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (review record 20261002-sbh1o1-02-atpvao-...review.md). Promotion (E-05/E-06) descoped to backlog 1vd74h.
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review revisions applied; see review record
 - 2026-10-01 same-status (aw set): status unchanged (to-review)

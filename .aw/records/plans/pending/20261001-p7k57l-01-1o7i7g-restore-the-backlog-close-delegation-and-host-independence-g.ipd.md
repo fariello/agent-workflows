@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new `tests/test_runner_delegation_and_host_independence.py` carrying TWO behavioral guard classes, each exercising real callables and asserting observable outcomes: the DELEGATION guard, which proves each of the four backlog-close wrappers on BOTH hosts resolves `runner_shared.<same name>` AT CALL TIME, forwards its return value, and injects THIS host's `run_checked` rather than the peer's; and the HOST-INDEPENDENCE guard, which proves in a FRESH SUBPROCESS that each host driver imports and performs real work while its PEER is blocked from importing at all. (b) Correct the four `SharedNotCopied` citations to name the new guard where it covers the claim, and to state plainly where it does not. OUT: restoring `tests/test_runner_layering.py`'s `CLASSIFICATION` table, `FROZEN_OC_TO_AGY_IMPORTS`, `MOVE_UNSETTLED`, or any part of its AST machinery, all of which are code pins forbidden by maintainer ruling and by `GUIDING_PRINCIPLES` P16; restoring `tests/test_runner_backlog_close.py`'s own 2703 lines, whose behavioral coverage is a separate and far larger population owned by `xvp5vx`/`oyh28b`; the host-label defect itself (`2kspdy`/`nf71bz`, already executed); any change to close ELIGIBILITY, to the verdict, to the release-gate predicate, or to the lane-versus-main write tree; any change to an executable statement in the three production files, which V-06 proves by AST comparison.
 - Scope-Paths: tests/test_runner_delegation_and_host_independence.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1o7i7g
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Review record: .aw/records/reviews/20261001-p7k57l-01-1o7i7g-restore-the-backlog-close-delegation-and-host-independence-g.review.md
 - 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `p7k57l`. Every measurement taken in this lane at HEAD `cebbcd0f6`. GATE NOTE: the item carries no `- Blocks-Release:`, so this plan inherits none; `- Work-Kind: chore` and `- Priority: medium` are INHERITED and both remain correct, because no computed behavior is wrong and no operator waits on anything (the cost falls on a future maintainer and on the next change to these wrappers, which is the repository's own test for `chore` over `bug`). THE ITEM'S CENTRAL CLAIMS ALL VERIFY, and one of its two named properties turns out to be ALREADY COVERED while the other is not, which is the authoring finding that shaped the scope (F-03, F-04). THE ITEM'S IMPLICIT FRAMING IS CORRECTED IN ONE WAY THAT CHANGES THE WORK: it asks to restore the guards "deleted with" two files, but most of what those files held were CODE PINS that three separate maintainer rulings forbid restoring (F-05), so this plan restores the two PROPERTIES behaviorally rather than the two FILES, and says so. BOTH new guards were DRIVEN END TO END AND MUTATION-TESTED at authoring before being specified (F-08, F-09), so their feasibility and their sensitivity are measured rather than argued. No open question is blocking.

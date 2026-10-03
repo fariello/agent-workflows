@@ -6,7 +6,7 @@
 - Scope: Add `next` to `agent_schema._PRESERVED_FIELDS` so no projection can remove a record's continuation command, extend `tests/test_agent_field_projection.py` with outcome-level coverage that drives real CLI commands and asserts on emitted records rather than on the constant's contents, and amend the `--fields` bullet in both user-facing documents that enumerate what a projection retains. Does NOT change what any command emits WITHOUT `--fields`, does NOT add `next` to any record that lacks it, does NOT change `validate_agent_record`, does NOT introduce per-kind or `complete`-conditional projection logic, and does NOT touch `run_analytics_cli._emit_query_agent`, whose deliberate no-context summary call this fix makes unnecessary as a paging workaround but which remains correct on its own semantic grounds.
 - Scope-Paths: agent_workflows/agent_schema.py, tests/test_agent_field_projection.py, docs/cli-agent-protocol.md, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: kkjrqr
@@ -17,8 +17,10 @@
 - Readiness: go-pending-approval
 - Author: opencode
 - Id: 6rcby1
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at lane HEAD 51c5a7bbf: _PRESERVED_FIELDS lacks next; the releases show / runs query / find strandings reproduce (next present unprojected, absent under --fields findings); render_summary call sites match F-15; Sections 11.1 and 11.4 MUSTs quoted correctly; d6u2hz open and committed; 8jeh4x owns the reachability failure. Fixed: in-process --agent placement and --dir fixture for E-01 (PR-001), Proposed-changes renumbering against E-ids (PR-002), d6u2hz staging contradiction (PR-003), reachability-failure owner and E-01-only count (PR-004), gate scope fence + conditional finalize (PR-005).
 
 - 2026-10-01 to-review (opencode): authored from backlog item `kkjrqr`. Every measurement in the item was re-verified against this worktree rather than carried over, and the item's reproduction reproduced verbatim (F-01). Authoring MATERIALLY WIDENED the finding in two ways the item does not contain, and both change which candidate fix is correct. FIRST, the stranding is LIVE ON SHIPPED COMMANDS TODAY, not latent: `aw check plans`, `aw find <no-match>`, `aw releases show <bogus>` and `aw runs query <bogus-view>` each emit a non-null `next` unprojected and lose it under `--fields findings` (F-03). The item was authored believing the `summary` path was the exposure, and it reasoned about `run_analytics_query` alone. SECOND, the item's three candidate fixes were written before plan `75ic2f` wired `--fields` onto the shared output-mode parents, taking the flag from 4 parser leaves to 140 (F-04); that is what converts this from a latent gap into a live one. Candidate (b), conditional preservation on `complete: false`, is therefore REFUTED BY MEASUREMENT rather than merely rejected on design grounds: two of the four live strandings carry `complete: true` (F-05), so (b) would leave them stranded while the commit claimed the defect fixed. Candidate (a) was implemented behind a probe and measured to introduce ZERO new suite failures against a re-derived baseline (F-08).

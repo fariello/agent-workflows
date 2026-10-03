@@ -6,7 +6,7 @@
 - Scope: IN: put the history-date age READER `attention._age_marker` on the UTC clock with an injectable `today` seam (the run-id reader `workflow_artifacts_prune` was REMOVED at review, PR-001: the run ids it parses are LOCAL per D55), matching the shipped `docs_render._as_of` precedent, and add the outcome tests neither has today. OUT, each with a reason recorded under "Deferred": every history WRITER (owned by `5ivkdh`, `9wcei0`, `rfyrvp`, `dmrbqa`); the cross-spelling writer guard (`ayhveg`); the lifecycle-gate coverage companion (`5xq2ng`); the duplicate-item convergence (`qjm4bg`); the `plans_archive`, `research_archive` and `workflow_artifacts_prune` age readers, whose inputs stay LOCAL per D55; the 30-day threshold and the `older_than_days` default, which are policy this plan must not move; and the three pre-existing suite failures.
 - Scope-Paths: agent_workflows/attention.py, tests/test_history_date_clock_readers.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 2vev8j
 - Work-Kind: bug
@@ -18,8 +18,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 840y6i
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review revisions applied; see review record
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005 (review record 20261002-doe2fo-01-840y6i-...review.md).

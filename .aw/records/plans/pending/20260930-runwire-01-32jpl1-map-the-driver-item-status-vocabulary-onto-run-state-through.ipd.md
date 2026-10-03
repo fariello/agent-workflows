@@ -10,7 +10,7 @@
   EXCLUDES, and each exclusion has a measured reason. (1) NO TOKEN RENAMED, REMOVED, OR RE-SPELLED. `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` must be member-identical after this change; `run_viewer`, `runner_shutdown`, `artifact_audit` and the attention mapping all read these tokens. (2) NO REFUSAL. See OQ-01; promoting the check to a gate is a follow-on that needs corpus evidence first. (3) NO LEDGER, NO `run_engine`, NO `run_recovery`. Those are unreachable without a substrate decision this plan is forbidden from taking (parent `i18yaz` OQ-01). (4) NO `verify_roles` WORK. Session independence and verifier authority are sibling Order 02 (`eow7p4`); this plan supplies the POSITION its authority check needs and stops there. (5) NO REQUEUE (`1bfppy` OQ-01).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runwire_state_translation.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -20,8 +20,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 32jpl1
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER, fixed: strict single-edge check fires on the coarse success path `queued->running->executed`; E-03 now checks `runtime`-authorized reachability and skips unchanged positions, D-1), PR-002 (HIGH, fixed: check must never raise, persists in the same write, violations accumulate), PR-003 (HIGH, fixed: E-05 cited a deleted source-inspecting guard; now behavioral across both hosts), PR-004 (MEDIUM, fixed: false-friend spellings, recommended rows, no `cancelled` row), PR-005 (MEDIUM, fixed: conditional lifecycle ownership and declaration-style fence), PR-006 (LOW, fixed: count drift, addopts, redundant enumeration). Review record `.aw/records/reviews/20261002-runwire-01-32jpl1-map-the-driver-item-status-vocabulary-onto-run-state-through.review.md`.
 
 - 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `ildjse` in lane worktree `ildjse` at HEAD `cedab274`. All structural claims measured in-process rather than read off the item. THE ITEM'S PHRASE "the runners still carry their own status vocabulary ... in parallel" IS TRUE AND ITS IMPLIED REMEDY IS WRONG: measured, the two vocabularies share ONE token of 14 and 11 because they are indexed on different axes, so adopting one vocabulary is not available and a rename would break five readers. That is why this plan builds a one-way translation plus a report-only check, and why E-01's expected outcome forbids touching any existing token. ALSO MEASURED: `runner_shared.save_state` is called 60 times in that module and is the single funnel both drivers route through (each host's `save_state` is a two-line wrapper supplying `write_report`), which is what makes a check possible at ONE site instead of at 60 call sites; the alternative of instrumenting every `item["status"] = ...` assignment was rejected for that reason and is recorded as rejected in E-02.

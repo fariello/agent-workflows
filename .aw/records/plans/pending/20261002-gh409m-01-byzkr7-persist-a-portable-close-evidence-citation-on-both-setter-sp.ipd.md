@@ -6,7 +6,7 @@
 - Scope: IN: (1) make the positional spelling (`status_set.apply_status_change`, reached from `cli.py`'s `backlog set` fork when `args.status is None`) write `- Close-Evidence:` on a backlog record whose close the shared predicate legitimized via `SATISFIED`, through the SAME `backlog.set_close_evidence_line` helper the `--status` spelling already calls, so there is one writer and no second implementation; (2) NORMALIZE the citation to a repo-relative POSIX path before persisting it, at the one shared normalization point both spellings reach, so the stored value is portable across checkouts and cannot carry a machine path into a tracked file; (3) RECONCILE the writer's and the reader's notion of a value so a citation the setter accepts is one the predicate can read, which is a one-regex change plus a validator rule that refuses the unreadable shape at rest; (4) behavioral tests pinning all three, in the paired-spelling style the existing suite already uses; (5) a CHANGELOG line. OUT: changing WHAT counts as a resolvable citation (`check_engine.resolve_evidence_artifact` is untouched, including its `.aw/records/`-or-`/.agents/` containment test); changing the three legitimacy routes, their ORDER (`DE-GATED`, `HANDOFF`, `SATISFIED`), or their severities; any RETROACTIVE backfill of a citation onto an already-closed item, which `AGENTS.md` forbids as asserting a history that did not happen and which plan `1hrlp3` separately declines; adjudicating the 53 historical items `1hrlp3` audits (this plan changes the FORWARD path only); widening `check.blocking-item-closed-without-gate`'s scope, already deferred with reasoning by `1hrlp3`; the `HANDOFF` spec-carrier question owned by pending plan `5eygjt`; and the three stale prose sites owned by pending plan `jf3j4q`.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, .aw/records/backlog/README.md, tests/test_backlog_positional_close_gate.py, tests/test_backlog_handoff_close.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: byzkr7
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD `127464310`; `aw ipd lint` author and review-finalize both clean. Re-driven at review on scratch repos with an active cutover (`20260101`): `--status` close CE=True and 0 at-rest findings; positional close CE=False and 1 `check.blocking-item-closed-without-gate` (F-02/F-03); absolute citation stored verbatim, reading `False error None` after a copytree (F-05); space citation exits 0, writes the bullet, and `validate_item` returns `[]` with 1 at-rest finding (F-07). Sound design. PR-001: Proposed changes and several cross-references cited the pre-split E numbers, so they were renumbered to E-02..E-09. PR-002: the reader is also unbounded, so a body-quoted bullet legitimizes a close; E-05 and V-05 now bound it to `_metadata_region` (F-11). PR-003: E-02 now normalizes against the root the predicate resolved against (`gate_root` under `--gate-dir`). PR-004: V-07's `stash` instruction was replaced with shared-checkout-safe alternatives, and the count-based bars in V-06 and the baseline now compare by name/location. PR-005: the gate gained `aw ipd begin`, `aw commit byzkr7`, a scope fence, conditional finalize ownership and the `gh409m` close path, and E-08's leak fixture must be built from runtime fragments.

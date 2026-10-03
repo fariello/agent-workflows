@@ -6,7 +6,7 @@
 - Scope: Make a finalize whose execution modified NONE of its declared `Scope-Paths` SAY SO, loudly and permanently, WITHOUT refusing it. Two changes. FIRST, compute the empty-delta fact once in `finalize_precheck`'s scope audit as an additive `all_declared_unmodified` key, so one predicate serves every consumer. SECOND, render it into the attributed history message beside the two notes already folded there, so the fact reaches the executed plan AND the lifecycle commit rather than dying in a transient dict. The originally authored THIRD change (widening `runner_shared.handle_zero_work_retry` past its `partial`-only guard) was REMOVED at review because it is unreachable and could never fire (F-13); the run-level signal is deferred to `gmbdxe`. THIS DELIBERATELY DOES NOT REFUSE: the census (F-07) measures 6 real auto-acked all-unmodified finalizes and EVERY ONE of them legitimately landed work before its begin baseline, so a refusal would have failed 6 valid executions to catch 0 real losses. OQ-01 hands the refuse-or-warn direction to the maintainer with that measurement. EXCLUDES any change to the auto-ack itself (correct in the ordinary case, per `_reconcile_scope`'s own comment), to `out_of_scope_paths`, to orchestrator retirement (F-08 measures it bypasses this code entirely), and to the uncommitted-work half (F-06), whose carrier is `z8ex9f`.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finalize_empty_declared_scope.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: a8e2l8
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-04 zero-work widening unreachable: receipt consumed after self-finalize and the conjunctive predicate refuses any turn that made the lifecycle commit; removed, runner_shared.py dropped from Scope-Paths, run-level signal deferred to gmbdxe, F-13 added), PR-002 (E-05 renumbered E-04, behaviours a-f with a volume-cap case replacing the unreachable f/g, mutation iii retargeted), PR-003 (V-01 adds the dirty-uncommitted shape; E-01 notes the widened-path edge), PR-004 (gate: removed stop-and-report scope wording, added finalize ownership). Mechanism claims F-01..F-08 re-verified at lane HEAD 601c3be29.
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `gmbdxe`, inheriting its `- Blocks-Release: next`. EVERY measurement was taken fresh in this lane at HEAD `77723f97d`; none was carried over from the item or from `olmvgw`. The item's THREE MECHANISM CLAIMS ALL REPRODUCE (F-01, F-02, F-03) and I confirmed the end-to-end consequence the item only inferred (F-04, exit 0). THE ITEM'S WORKED INSTANCE IS MIS-ATTRIBUTED AND I CORRECTED IT RATHER THAN REPEATING IT (F-05, F-06): `9iiqmm`'s record carries no reconciliation note, which it WOULD have had the auto-ack fired, and both the renderer and the auto-ack existed at its lifecycle commit; its work was dirty-and-never-committed, which `z8ex9f` already owns. I RESOLVED THE ITEM'S OWN DESIGN QUESTION FROM REPOSITORY EVIDENCE rather than deferring it: the item lists three candidate shapes and warns that (c) may misfire on records-only plans, so I ran the census (F-07) and it decides the direction empirically: a bare refusal would have refused 6 legitimate executions and caught 0 losses, so this plan does (b) plus the (c) SIGNAL with no refusal. The item's stated objection to (c) via orchestrator retirement is measured NON-APPLICABLE (F-08).

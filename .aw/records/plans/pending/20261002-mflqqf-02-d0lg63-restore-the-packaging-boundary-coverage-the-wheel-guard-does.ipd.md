@@ -6,7 +6,7 @@
 - Scope: Add the packaging properties the restored wheel guard does not reach, as one new test file that builds the SDIST and asserts the distribution-contents properties neither artifact currently has a caller for: the sdist allowlist carries the package, the data tree and the browser assets; the wheel registers its three console scripts; and the browser assets are present AND non-empty in both artifacts, with the declared asset list kept honest against `run_analytics_spa.REQUIRED_ASSETS` rather than hand-maintained. Out of scope: the two properties `tests/test_packaging.py` already covers (the ship-versus-dev boundary and the runtime-dependency allowlist), which are NOT re-asserted anywhere here; the deleted `tests/test_run_analytics_packaging.py` performance-baseline arms, which are benchmarks and not packaging (carrier below); the `.gitignore`-injected-into-sdist nit `pyproject.toml` already documents as accepted; and the security-hardening half of the item, which is Order 01 of this Set.
 - Scope-Paths: tests/test_packaging_distribution.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: high
@@ -16,8 +16,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d0lg63
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003 (review record 20261002-mflqqf-02-d0lg63-...review.md).
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review revisions applied; see review record
 

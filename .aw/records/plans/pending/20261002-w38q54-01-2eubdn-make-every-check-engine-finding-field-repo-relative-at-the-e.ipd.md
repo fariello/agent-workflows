@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_finding_path_relativity.py, docs/cli-output-contract.md
 - Item-Dependencies: none
 - Readiness: go-pending-approval
-- Status: reviewed
+- Status: approved
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: w38q54
@@ -17,8 +17,10 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 2eubdn
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Reproduced in the review lane: `aw check all --json` on this tree carries the absolute root in 9 `data.policy_findings[].recovery` (8 `check.ipd-lint-diagnostic`, 1 `check.system-layout-missing`; authoring measured 7+1, population drift) plus `data.repo_root`; a pending+executed placement fixture under `$HOME` makes `aw check all --agent` exit 1 with 0 stdout bytes and `ValueError ... diagnostics[2].location`; `normalize_repo_path` leaves the composite unchanged; all cited symbols, both lint recovery sites, the collision detail strings, the `aw install {root}` string, `finding_dict`, F-08's test assertions and the `data` exemption sentence resolve. Fixed: deferred-helper carrier was this plan's own source item (re-carried to new backlog `qv0fi1`); E-06 now also asserts no absolute-root substring (a `/tmp` fixture leaks 22x without tripping `_HOME_PATH_RE`) and skips `data.repo_root`; V-04's terminal-date fixture preconditions made explicit; E-03 cites the doctor precedent.

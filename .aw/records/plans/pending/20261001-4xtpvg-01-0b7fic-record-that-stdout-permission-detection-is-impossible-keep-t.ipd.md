@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/lane_containment.py, tests/test_permission_bound_disabled.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md
 - Item-Dependencies: none
 - Readiness: go-pending-approval
-- Status: reviewed
+- Status: approved
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: 4xtpvg
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0b7fic
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Verified in code: the `PERMISSION_TIMEOUT` `#:` block text E-02 quotes, `TurnBoundWatch` (`check_interval` clamp, `_expired`, `_run`), the only `note_progress()` callers in both drivers and no `note_permission_request(` caller, the `if work_dir:` deny scoping, spec R4.4b/A10b/A10c text, carriers `8ctu3u`/`e6zeta` open and `3vh74b`/`uuh71v` approved-pending, research `7so8uz` front matter; `aw sanitize --agent` clean. Prototyped E-05's four behaviors plus the required `_expired` mutation in the lane (`tmp/pr/permprobe.py`): real `b` fired at 0.104s, mutant `b` empty at the 2.002s ceiling, a/c/d empty both ways. Fixed: E-01's corpora are unreachable from an isolated lane (runs/ gitignored, log outside the workspace and external_directory denied), so the STOP-blocked branch made the plan runner-unexecutable; now proceeds citing `7so8uz` as a dated measurement. Also: bounded wait plus explicit small check_interval in E-05, residual limits named in E-02, R4.4(a) 30s default reconciled in E-04, spec history via `aw specs note`, per-test pytest invocation, 3vh74b overlap cross-note.

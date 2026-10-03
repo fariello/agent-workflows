@@ -6,7 +6,7 @@
 - Scope: Define the backlog transition vocabulary that does not exist yet, publish it as ONE table beside `SPEC_TRANSITIONS`, and consult it from BOTH setter spellings so an unenumerated move fails closed. The design is fenced by MEASUREMENT rather than by the doc diagram: the live corpus and the shipped test suite both require `done -> open` and `graduated -> open` to stay legal, so this plan enumerates a table that PERMITS corrective reopening and refuses only what nothing uses.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, tests/test_backlog_transition_gate.py, .aw/records/backlog/README.md, docs/artifact-lifecycles.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: cc2m29
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD `9e2b5a359`; `aw ipd lint` author and review-finalize both clean. Every cited symbol re-located: `status_set.validate_transition_allowed` (specs branch, `->blocked` gate-pair message), `backlog.run_set` (`item.status = new_status` with no prior read), `attention_contract.SPEC_TRANSITIONS`/`transition_allowed`, `lifecycle_dirs.LIFECYCLE_SUBDIRS["backlog"]`, the runner `--status open` rollback, and the two `test_route_d_done_to_open_*` fence tests. The design and fence method were sound. PR-001: the plan never named the edges it REFUSES; a review recorder over the bare suite fixed the candidate table and its four-edge refused set (F-16), and the gate now STOPS if the refused set is empty. PR-002: the bars were count-based on a suite with 4 pre-existing failures, so they now compare failure names, and `stash` was removed. PR-003: the flag spelling lacked the case-fold and the before-dry-run siting that E-07 (g)/(h) assert for both spellings. PR-004: pending `vhiqo6` may make `backlog.run_set` delegate first, so E-05 is now conditional. PR-005: the gate gained `aw ipd begin`, `aw commit cc2m29`, a scope fence naming the dependent siblings `tm8k2n`/`miimjb`, and the `t1gbwg` close command.
