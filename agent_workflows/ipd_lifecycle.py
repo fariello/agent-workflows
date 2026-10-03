@@ -362,6 +362,46 @@ def clear_checkout_control_root_cache() -> None:
     _CONTROL_ROOT_CACHE.clear()
 
 
+def checkout_git_common_dir(start: Path) -> Optional[Path]:
+    """The checkout's shared git common directory (backlog ``cjrjtu`` / spec ``7ckptx`` R6.1).
+
+    Returns the checkout's ABSOLUTE git common directory (``Path``), or ``None`` when:
+    * ``start`` is not a directory
+    * git cannot be spawned (``OSError``)
+    * git exits nonzero (not inside a git repository)
+    * git output is empty
+
+    Every linked worktree of a checkout shares one common dir, whose ``HEAD`` is the main worktree's
+    HEAD. Unlike :func:`checkout_control_root`, this primitive answers for ANY layout whose common dir
+    exists (normal checkout, ``git init --separate-git-dir``, submodule, and bare repository with linked
+    worktrees), without enforcing that the common dir be named ``.git`` or that its parent be a directory.
+    """
+    base = Path(start)
+    if not base.is_dir():
+        return None
+    try:
+        rc, out, _err = _git(
+            base, ["rev-parse", "--path-format=absolute", "--git-common-dir"]
+        )
+    except OSError:
+        # git is absent or the OS refused to spawn it.
+        return None
+    if rc != 0:
+        return None
+    raw = (out or "").strip()
+    if not raw:
+        return None
+    common_dir = Path(raw)
+    if not common_dir.is_absolute():
+        common_dir = (base / common_dir).resolve()
+    if not common_dir.is_dir():
+        return None
+    return common_dir
+
+
+checkout_common_dir = checkout_git_common_dir
+
+
 def checkout_control_root(start: Path) -> Path:
     """The checkout's ONE ``.aw`` control root for any path inside it (backlog ``dh0uno``).
 
@@ -378,9 +418,9 @@ def checkout_control_root(start: Path) -> Path:
 
     Behavior, and the honest limits of it:
 
-    * INSIDE a Git checkout -> the MAIN worktree's ``.aw``, derived from ``git rev-parse
-      --git-common-dir`` (every linked worktree of a checkout shares one common dir). That collapse
-      IS the fix.
+    * INSIDE a Git checkout -> the MAIN worktree's ``.aw``, derived from
+      :func:`checkout_git_common_dir` (every linked worktree of a checkout shares one common dir). That
+      collapse IS the fix.
     * NOT in a Git checkout, or a bare/exotic ``GIT_DIR`` where no main worktree can be established
       -> ``start/.aw`` unchanged. There is no checkout identity to collapse to, hence no fork to
       fix, and this keeps temp-directory callers (much of the test suite) byte-compatible.
@@ -414,24 +454,15 @@ def checkout_control_root(start: Path) -> Path:
         cached = _CONTROL_ROOT_CACHE.get(key)
         if cached is not None:
             return cached
-    try:
-        rc, out, _err = _git(
-            base, ["rev-parse", "--path-format=absolute", "--git-common-dir"]
-        )
-    except OSError:
-        # git is absent or the OS refused to spawn it. Not cached: the condition is transient in the
-        # EAGAIN case, and a permanently cached fallback would be a worse failure than a retry.
-        return base / ".aw"
-    if rc != 0:
-        return base / ".aw"
-    raw = (out or "").strip()
-    if not raw:
-        return base / ".aw"
-    common_dir = Path(raw)
+    common_dir = checkout_git_common_dir(base)
     # For a normal (non-bare) checkout the common dir is `<main>/.git`, so the main worktree is its
     # parent. Anything else (bare repo, GIT_DIR override) has no product worktree to anchor on, so
     # fall back rather than guess a location.
-    if common_dir.name == ".git" and common_dir.parent.is_dir():
+    if (
+        common_dir is not None
+        and common_dir.name == ".git"
+        and common_dir.parent.is_dir()
+    ):
         resolved = common_dir.parent / ".aw"
         if key:
             if len(_CONTROL_ROOT_CACHE) >= _CONTROL_ROOT_CACHE_MAX:
