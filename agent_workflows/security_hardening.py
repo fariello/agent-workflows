@@ -34,6 +34,7 @@ Pure stdlib (D138); no runtime YAML (D139). Python 3.9+.
 from __future__ import annotations
 
 import importlib.util
+import ipaddress
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -112,7 +113,22 @@ def check_local_server_binding(
     address, or an unauthenticated endpoint, FAILS closed.
     """
     normalized = (bind_host or "").strip().lower()
-    is_loopback = normalized in LOOPBACK_HOSTS or normalized.startswith("127.")
+    # Address-based loopback check replacing the prefix test `normalized.startswith("127.")`.
+    # Per OQ-01, "127.0.0.0/8" in LOOPBACK_HOSTS is kept holding for compatibility.
+    # Deliberate flips: "127.0.0.1:8080" (host:port) and "127.1" (inet_aton shorthand)
+    # now refuse rather than passing via string prefix.
+    # Guard against IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) across Python versions (PR-001).
+    if normalized in LOOPBACK_HOSTS:
+        is_loopback = True
+    else:
+        try:
+            addr = ipaddress.ip_address(normalized)
+            if addr.version == 6 and addr.ipv4_mapped is not None:
+                is_loopback = False
+            else:
+                is_loopback = addr.is_loopback
+        except ValueError:
+            is_loopback = False
     if not is_loopback:
         return BoundaryResult(
             boundary=BOUNDARY_SERVER_BINDING,

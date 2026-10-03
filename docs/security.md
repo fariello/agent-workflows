@@ -2,9 +2,8 @@
 
 This document describes the hardened security boundaries of the execution runtime and host
 integration, and the runbooks that prove each one. The checkers live in
-`agent_workflows/security_hardening.py`. The dedicated threat-model test suite was deleted on
-2026-09-24 (commit 19313eed), so the boundaries below are enforced in production by the checkers
-without dedicated test coverage (tracked in backlog item mflqqf).
+`agent_workflows/security_hardening.py` and are covered by dedicated threat-model tests in
+`tests/test_security_hardening.py` and `tests/test_host_runner_redaction.py`.
 
 Leak and secret checks REUSE the repository's canonical tooling. There is no forked scanner:
 
@@ -15,17 +14,19 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
 ## The boundaries
 
 1. Local servers bind loopback and require auth. `check_local_server_binding` refuses a bind to
-   a routable address and refuses an unauthenticated loopback endpoint. A local headless server
-   may be unauthenticated by default on some hosts; the integration must bind 127.0.0.1 (or ::1)
-   AND require a token.
+   a routable address, refuses non-loopback hostnames or host:port strings, and refuses an
+   unauthenticated loopback endpoint. A local headless server may be unauthenticated by default
+   on some hosts; the integration must bind a genuine loopback address (such as 127.0.0.1,
+   127.0.0.0/8, ::1, or localhost) AND require a token.
 2. External files are consented and contained. `check_external_file_access` refuses an access
    with no explicit consent and refuses a path that escapes the consented base (it reuses the
    containment guard `host_capability_registry.assert_contained`).
 3. Skills are least privilege. `check_skill_least_privilege` refuses a skill entry point that
    inlines the canonical authoritative body or fails package validation.
-4. Evidence is redacted. `check_evidence_redaction` applies the ledger redaction policy and then
-   runs the CANONICAL leak sanitizer over the redacted text; if a secret survives, it fails
-   closed.
+4. Evidence is redacted. `check_evidence_redaction` applies the ledger redaction policy (masking
+   sensitive keys) and then runs the CANONICAL leak sanitizer over the payload; maintainer or machine
+   identifying info (such as a home path) fails closed with findings in evidence, while credential
+   detection in free text is not evaluated by this boundary today (backlog lfko0e).
 5. The real HOME is excluded from probes. `check_real_home_excluded` reuses
    `assert_isolated_base`, which refuses a base equal to or containing the real home.
 6. Untrusted text is isolated as data. `check_untrusted_text_isolated` refuses any path that
