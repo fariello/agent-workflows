@@ -217,6 +217,7 @@ def build_skeleton(
     work_kind: Optional[str] = None,
     from_backlog: Optional[str] = None,
     blocks_release: Optional[str] = None,
+    history_date: Optional[str] = None,
 ) -> str:
     """Return a conformant IPD skeleton for ``kind`` from the schema's H2 order.
 
@@ -224,6 +225,12 @@ def build_skeleton(
     carries the ``unresolved`` sentinel, which is what the byte-pinned templates contain and what the
     ready-to-execute gate refuses; ``aw ipd scaffold`` itself never omits them (it refuses instead).
     ``from_backlog``/``blocks_release`` are written only when given.
+
+    ``history_date`` stamps the ``draft`` history record under ``## Workflow history`` and defaults
+    to ``when`` if omitted. The history date is recorded in UTC per spec ``2vev8j`` Section 4.4
+    ("One timezone for every writer"), whereas the ``- Date:`` metadata field (and the artifact's
+    filename) remain machine-local per ``DECISIONS.md`` D55 ("Human-facing timestamps use LOCAL
+    time, not UTC").
 
     ``plan_id`` is the stable ``- Id:`` handle (6-char base36); when omitted a fresh one is
     generated. Deterministic output for tests can pin ``plan_id``.
@@ -248,6 +255,7 @@ def build_skeleton(
         # not rely on this default being unchecked.
         plan_id = _core.mint_id6(_core.repo_root_of(Path.cwd()))
     author = normalize_author(author)
+    hist_date = history_date if history_date is not None else when
     order_seq = S.H2_ORDER_BY_KIND[kind]
     lines: List[str] = []
     lines.append(f"# IPD: {title}")
@@ -314,6 +322,9 @@ def build_skeleton(
             lines.append("- Resolution or deferral rationale: TODO.")
         elif h == S.H_APPROVAL_GATE:
             lines.append(_gate_body())
+        elif h == S.H_WORKFLOW_HISTORY:
+            body = _SECTION_BODY.get(h, "TODO.")
+            lines.append(body.format(date=hist_date, author=author))
         else:
             body = _SECTION_BODY.get(h, "TODO.")
             lines.append(body.format(date=when, author=author))
@@ -493,6 +504,10 @@ def run_scaffold(args: argparse.Namespace) -> int:
         )
         return 2
     when = date.today().strftime("%Y-%m-%d")
+    # History records record UTC per spec 2vev8j Section 4.4 (reusing artifact_core.utc_history_date,
+    # added by 5ivkdh E-01); human-facing names (- Date: and filename prefixes) remain machine-local
+    # per DECISIONS.md D55.
+    history_date = _core.utc_history_date()
     # An explicit --path is validated against the clustering grammar unless --legacy-name is passed.
     # When --path is omitted, we DERIVE the canonical clustered `.ipd.md` name into `.aw/records/plans/pending/`.
     if target:
@@ -561,6 +576,7 @@ def run_scaffold(args: argparse.Namespace) -> int:
         work_kind=work_kind,
         from_backlog=from_backlog,
         blocks_release=blocks_release,
+        history_date=history_date,
     )
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
