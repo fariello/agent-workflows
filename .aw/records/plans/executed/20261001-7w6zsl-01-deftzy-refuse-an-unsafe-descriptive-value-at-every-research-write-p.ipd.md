@@ -6,7 +6,7 @@
 - Scope: Apply the shared `attention_contract.is_safe_descriptive` predicate to every value the research write paths interpolate into a record and do not already validate, refusing BEFORE any filesystem write, through the helper shape `backlog._refuse_unsafe_descriptive` already ships. Guard at the PLANNER (`plan_new`, `plan_new_comparison`, `plan_set_outcome`) rather than at the CLI handler, because `aw adopt` reaches `plan_new` directly and a verb-only guard would leave that path open (F-08). Bounded descriptive fields (`--summary`, and each `--topic` and `--consumed-by` TOKEN) get the full predicate. THE COVERAGE CLAIM IS ENUMERATED, NOT ASSERTED: `--kind`, `--model` and `--priority` already refuse through `normalize_kind`/`normalize_model`/`PRIORITIES`, `--slug` and `--set` are already safe through `R.kebab`, `--order` is an argparse `int`, `--to` on `promote`/`set-outcome`/`set-priority` is already enum-checked, and `add-model`'s tokens already match `^[a-z0-9-]+$`; so `--summary`, `--topic` and `--consumed-by` are the complete unguarded remainder of the research front-matter writer set (F-09). DELIBERATELY NOT COVERED: `--date`, whose defect is a path traversal that `is_safe_descriptive` provably cannot detect and which backlog item `m5csyi` already carries; and the CHECKER half, carried by `cvxbbu`.
 - Scope-Paths: agent_workflows/research_cmd.py, agent_workflows/artifact_adopt.py, tests/test_research_descriptive_safety.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: deftzy
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: deftzy verified (set 7w6zsl, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
