@@ -10,7 +10,7 @@
 - Scope: Give `plans_archive`'s plan-date resolution the SAME tiers `plans_refs._preserved_date` now has, so a plan whose `- Date:` is absent or unparseable is shelved and aged by the date its own FILENAME already records instead of by a fabricated constant. The tier order here is deliberately FRONT MATTER FIRST, then the clustered filename, then the legacy `YYYYMMDD-HHMM-NN` filename, then the historical `20260101` last resort; OQ-01 resolves that this INVERTS `949enf`'s order on purpose and measures why. Route both consumers (`plan_shard_move` and `sweep_candidates`) through the one resolver so the two sites cannot drift. Add the shard-placement and sweep-age regression coverage this module has never had, in `tests/test_plans_archive.py`. EXCLUDES: changing the `20260101` last-resort constant or making the archive verb REFUSE instead of falling back (OQ-02); repairing the one already-mis-shelved `qrokie` record or moving ANY committed plan (carried by `tf4jz5`); making `aw ipd lint` flag an unparseable `- Date:` value (carried by `5h8u3z`, plan `fqcax0`); adding an `aw check` rule for a shard that disagrees with a plan's date, or for a filename date that disagrees with metadata (carried by `mt6j1p`); `plans_refs.py`, `research_archive.py`, and `check_engine.py`, all of which stay byte-unchanged; and changing which plans are ELIGIBLE for archival (`_at_disposition_root`), the one-shot stickiness that makes a wrong shard permanent, or the shard grammar itself.
 - Scope-Paths: agent_workflows/plans_archive.py, tests/test_plans_archive.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -21,9 +21,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6i8knl
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6i8knl verified (set dkfthf, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: filename tiers accept impossible dates such as 20261399, which would shard to 202613 and age 0; calendar validation plus guard test added), PR-002 (LOW, fixed: conditional lifecycle ownership, gate text). Claims re-verified; corpus replay re-measured 0 changed over 1082 terminal plans. Review record .aw/records/reviews/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.review.md.
 
