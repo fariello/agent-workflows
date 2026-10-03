@@ -5504,5 +5504,300 @@ class RecordsRootReadmeResolvableReferenceTests(unittest.TestCase):
         )
 
 
+# Historical records-root README templates (closed census of 5 commits, 3 distinct hashes; F-02).
+# These are immutable historical artifacts, not current production source.
+# Retired v1 (commit f296f6f4 and earlier; hash 7bc1cdde...):
+_RETIRED_V1_TEXT = (
+    "# .agents/\n\n"
+    "Agent tooling for this repository.\n\n"
+    "- **`workflows/`** holds the installed agent-workflows framework (managed by `aw install`;\n"
+    "  do not hand-edit - changes are overwritten/pruned on the next install). See\n"
+    "  `workflows/index.md` for the catalog of workflows and how to run them.\n"
+    "- **`plans/`** holds YOUR Implementation Plan Documents (IPDs) through their lifecycle.\n"
+    "  See `plans/README.md`.\n\n"
+    "You own `plans/`; the framework owns `workflows/`.\n"
+)
+
+# Retired v2 (commit e2a362bf; hash d31ab028...):
+_RETIRED_V2_TEXT = (
+    "# .aw/records/\n\n"
+    "Agent tooling for this repository.\n\n"
+    "- **`workflows/`** holds the installed agent-workflows framework (managed by `aw install`;\n"
+    "  do not hand-edit - changes are overwritten/pruned on the next install). See\n"
+    "  `workflows/index.md` for the catalog of workflows and how to run them.\n"
+    "- **`plans/`** holds YOUR Implementation Plan Documents (IPDs) through their lifecycle.\n"
+    "  See `plans/README.md`.\n\n"
+    "You own `plans/`; the framework owns `workflows/`.\n"
+)
+
+
+class ClassifyRecordsRootReadmeUnitTests(unittest.TestCase):
+    """Unit tests for engine.classify_records_root_readme across variations (IPD xqf71x E-04)."""
+
+    def setUp(self):
+        self.expected = (
+            REPO_ROOT
+            / ".aw"
+            / "system"
+            / "workflows"
+            / "templates"
+            / "agents-README.md"
+        ).read_text(encoding="utf-8")
+
+    def test_retired_hash_literals_match_historical_texts(self):
+        """Self-check: pinned hash literals in engine.py match normalized fixture texts."""
+        v1_hash = INS.manifest_mod.hash_content(_RETIRED_V1_TEXT)
+        v2_hash = INS.manifest_mod.hash_content(_RETIRED_V2_TEXT)
+        self.assertEqual(
+            INS.RETIRED_RECORDS_ROOT_README_HASHES,
+            frozenset({v1_hash, v2_hash}),
+            "RETIRED_RECORDS_ROOT_README_HASHES in engine.py does not match computed hashes of historical texts",
+        )
+
+    def test_current_template_classifies_current(self):
+        """Current template text classifies as 'current'."""
+        self.assertEqual(
+            INS.classify_records_root_readme(self.expected, self.expected), "current"
+        )
+
+    def test_current_template_with_appended_line_classifies_user_owned(self):
+        """Current template with substantive appended line classifies as 'user-owned'."""
+        modified = self.expected + "\n- **`notes/`** extra user notes\n"
+        self.assertEqual(
+            INS.classify_records_root_readme(modified, self.expected), "user-owned"
+        )
+
+    def test_empty_content_classifies_user_owned(self):
+        """Empty content classifies as 'user-owned'."""
+        self.assertEqual(
+            INS.classify_records_root_readme("", self.expected), "user-owned"
+        )
+
+    def test_hand_written_content_classifies_user_owned(self):
+        """Hand-written user content classifies as 'user-owned'."""
+        hand_written = (
+            "# My Custom README\n\nThis is my own repository documentation.\n"
+        )
+        self.assertEqual(
+            INS.classify_records_root_readme(hand_written, self.expected), "user-owned"
+        )
+
+    def test_retired_v1_classifies_known_stale(self):
+        """Retired v1 (commit f296f6f4) classifies as 'known-stale'."""
+        self.assertEqual(
+            INS.classify_records_root_readme(_RETIRED_V1_TEXT, self.expected),
+            "known-stale",
+        )
+
+    def test_retired_v2_classifies_known_stale(self):
+        """Retired v2 (commit e2a362bf) classifies as 'known-stale'."""
+        self.assertEqual(
+            INS.classify_records_root_readme(_RETIRED_V2_TEXT, self.expected),
+            "known-stale",
+        )
+
+    def test_retired_v1_crlf_classifies_known_stale(self):
+        """Retired v1 with CRLF line endings classifies as 'known-stale'."""
+        crlf_text = _RETIRED_V1_TEXT.replace("\n", "\r\n")
+        self.assertEqual(
+            INS.classify_records_root_readme(crlf_text, self.expected), "known-stale"
+        )
+
+    def test_retired_v2_crlf_classifies_known_stale(self):
+        """Retired v2 with CRLF line endings classifies as 'known-stale'."""
+        crlf_text = _RETIRED_V2_TEXT.replace("\n", "\r\n")
+        self.assertEqual(
+            INS.classify_records_root_readme(crlf_text, self.expected), "known-stale"
+        )
+
+    def test_retired_v1_trailing_whitespace_classifies_known_stale(self):
+        """Retired v1 with trailing whitespace on every line classifies as 'known-stale'."""
+        trailing = "\n".join(line + "   " for line in _RETIRED_V1_TEXT.splitlines())
+        self.assertEqual(
+            INS.classify_records_root_readme(trailing, self.expected), "known-stale"
+        )
+
+    def test_retired_v2_trailing_whitespace_classifies_known_stale(self):
+        """Retired v2 with trailing whitespace on every line classifies as 'known-stale'."""
+        trailing = "\n".join(line + "   " for line in _RETIRED_V2_TEXT.splitlines())
+        self.assertEqual(
+            INS.classify_records_root_readme(trailing, self.expected), "known-stale"
+        )
+
+    def test_retired_v1_blank_lines_inserted_classifies_known_stale(self):
+        """Retired v1 with inserted blank lines classifies as 'known-stale'."""
+        blanks = _RETIRED_V1_TEXT.replace("\n\n", "\n\n\n\n")
+        self.assertEqual(
+            INS.classify_records_root_readme(blanks, self.expected), "known-stale"
+        )
+
+    def test_retired_v2_blank_lines_inserted_classifies_known_stale(self):
+        """Retired v2 with inserted blank lines classifies as 'known-stale'."""
+        blanks = _RETIRED_V2_TEXT.replace("\n\n", "\n\n\n\n")
+        self.assertEqual(
+            INS.classify_records_root_readme(blanks, self.expected), "known-stale"
+        )
+
+    def test_retired_v1_line_removed_classifies_user_owned(self):
+        """Retired v1 with a line removed classifies as 'user-owned'."""
+        removed = "\n".join(_RETIRED_V1_TEXT.splitlines()[:-2])
+        self.assertEqual(
+            INS.classify_records_root_readme(removed, self.expected), "user-owned"
+        )
+
+    def test_retired_v2_line_removed_classifies_user_owned(self):
+        """Retired v2 with a line removed classifies as 'user-owned'."""
+        removed = "\n".join(_RETIRED_V2_TEXT.splitlines()[:-2])
+        self.assertEqual(
+            INS.classify_records_root_readme(removed, self.expected), "user-owned"
+        )
+
+    def test_retired_v2_with_description_line_classifies_known_stale_blindness(self):
+        """Retired v2 with added description: line classifies as 'known-stale' (documented blindness).
+
+        Normalization drops 'description:' lines per manifest.normalize_for_hash (the M13 invariant).
+        The backup taken before repair (E-02) is the recovery path for such user edits.
+        """
+        desc_added = _RETIRED_V2_TEXT + "\ndescription: customized description note\n"
+        self.assertEqual(
+            INS.classify_records_root_readme(desc_added, self.expected), "known-stale"
+        )
+
+    def test_retired_v2_with_reindented_lines_classifies_known_stale_blindness(self):
+        """Retired v2 with reindented lines classifies as 'known-stale' (documented blindness).
+
+        Normalization strips per-line whitespace per manifest.normalize_for_hash (the M13 invariant).
+        The backup taken before repair (E-02) is the recovery path for such user edits.
+        """
+        reindented = "\n".join(
+            "    " + line if line.strip() else ""
+            for line in _RETIRED_V2_TEXT.splitlines()
+        )
+        self.assertEqual(
+            INS.classify_records_root_readme(reindented, self.expected), "known-stale"
+        )
+
+
+class RecordsRootReadmeRepairBehavioralTests(unittest.TestCase):
+    """Behavioral tests covering records-root README repair and preservation (IPD xqf71x E-03).
+
+    Covers all five measured classification cases against a real scratch install:
+    (1) Retired v1 (heading '# .agents/') is replaced with current template.
+    (2) Retired v2 (heading '# .aw/records/') is replaced with current template, and backed up.
+    (3) Current template is left untouched.
+    (4) Hand-written README is byte-identical afterwards (no-clobber preserved).
+    (5) Retired text with user line appended is byte-identical afterwards.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_case_1_retired_v1_replaced_with_current_template(self):
+        """Case 1: Retired v1 (heading '# .agents/') is replaced with shipped template."""
+        repo = init_repo(self.base / "c1")
+        proc1 = run_installer(repo)
+        self.assertEqual(proc1.returncode, 0, proc1.stderr)
+        readme = repo / ".aw" / "records" / "README.md"
+        shipped_template = (
+            repo / ".aw" / "system" / "workflows" / "templates" / "agents-README.md"
+        ).read_text(encoding="utf-8")
+
+        # Plant retired v1 content over .aw/records/README.md
+        readme.write_text(_RETIRED_V1_TEXT, encoding="utf-8")
+
+        proc2 = run_installer(repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+
+        # File is repaired: content equals the shipped template
+        self.assertEqual(readme.read_text(encoding="utf-8"), shipped_template)
+        # Installer reports it as overwrite
+        self.assertIn("[overwrite] .aw/records/README.md", proc2.stdout)
+
+    def test_case_2_retired_v2_replaced_and_backed_up(self):
+        """Case 2: Retired v2 (heading '# .aw/records/') is replaced and backed up."""
+        repo = init_repo(self.base / "c2")
+        proc1 = run_installer(repo)
+        self.assertEqual(proc1.returncode, 0, proc1.stderr)
+        readme = repo / ".aw" / "records" / "README.md"
+        shipped_template = (
+            repo / ".aw" / "system" / "workflows" / "templates" / "agents-README.md"
+        ).read_text(encoding="utf-8")
+
+        # Plant retired v2 content over .aw/records/README.md
+        readme.write_text(_RETIRED_V2_TEXT, encoding="utf-8")
+
+        proc2 = run_installer(repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+
+        # File is repaired: content equals the shipped template
+        self.assertEqual(readme.read_text(encoding="utf-8"), shipped_template)
+        self.assertIn("[overwrite] .aw/records/README.md", proc2.stdout)
+
+        # Backup is verified: exactly one backup copy under backups dir holds retired v2 text
+        backups_dir = repo / ".agent-workflows-installer-backups"
+        backup_files = list(backups_dir.rglob("README.md"))
+        self.assertEqual(
+            len(backup_files),
+            1,
+            f"Expected exactly 1 backup README.md, found {len(backup_files)}: {backup_files}",
+        )
+        self.assertEqual(
+            backup_files[0].read_text(encoding="utf-8"),
+            _RETIRED_V2_TEXT,
+        )
+
+    def test_case_3_current_template_untouched(self):
+        """Case 3: Current template is left untouched without repair line."""
+        repo = init_repo(self.base / "c3")
+        proc1 = run_installer(repo)
+        self.assertEqual(proc1.returncode, 0, proc1.stderr)
+        readme = repo / ".aw" / "records" / "README.md"
+        content_before = readme.read_text(encoding="utf-8")
+
+        proc2 = run_installer(repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+
+        self.assertEqual(readme.read_text(encoding="utf-8"), content_before)
+        self.assertNotIn("[overwrite] .aw/records/README.md", proc2.stdout)
+
+    def test_case_4_hand_written_readme_preserved_byte_identical(self):
+        """Case 4: Hand-written user README is byte-identical afterwards (no-clobber preserved)."""
+        repo = init_repo(self.base / "c4")
+        proc1 = run_installer(repo)
+        self.assertEqual(proc1.returncode, 0, proc1.stderr)
+        readme = repo / ".aw" / "records" / "README.md"
+
+        custom_bytes = (
+            b"# My Project Records\n\nCustom user-authored front door documentation.\n"
+        )
+        readme.write_bytes(custom_bytes)
+
+        proc2 = run_installer(repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+
+        self.assertEqual(readme.read_bytes(), custom_bytes)
+
+    def test_case_5_retired_text_with_user_line_appended_preserved(self):
+        """Case 5: Retired text with user line appended is byte-identical afterwards."""
+        repo = init_repo(self.base / "c5")
+        proc1 = run_installer(repo)
+        self.assertEqual(proc1.returncode, 0, proc1.stderr)
+        readme = repo / ".aw" / "records" / "README.md"
+
+        custom_bytes = (
+            _RETIRED_V2_TEXT + "\n- **`custom/`** user added directory.\n"
+        ).encode("utf-8")
+        readme.write_bytes(custom_bytes)
+
+        proc2 = run_installer(repo)
+        self.assertEqual(proc2.returncode, 0, proc2.stderr)
+
+        self.assertEqual(readme.read_bytes(), custom_bytes)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import (
     Callable,
     Dict,
+    Iterable,
     List,
     Mapping,
     NamedTuple,
@@ -840,7 +841,7 @@ def decide(
         response_or_flag: Optional[str],
         refuse: bool = False,
     ) -> Verdict:
-        return Verdict(
+        return Verdict(  # type: ignore[call-arg]  # checker-limitation: WAIVES class constant misread as NamedTuple field
             proceed=proceed,
             reason=reason,
             gate_applied=gate_applied,
@@ -1139,7 +1140,7 @@ def decide_draft_admission(
         preview: str = "",
         message: Optional[str] = None,
     ) -> DraftVerdict:
-        return DraftVerdict(
+        return DraftVerdict(  # type: ignore[call-arg]  # checker-limitation: WAIVES class constant misread as NamedTuple field
             admitted=admitted,
             excluded_complete=excluded,
             skipped_incomplete=incomplete,
@@ -1372,18 +1373,22 @@ SKIP_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
 #:
 #: The two deliberate ABSENCES from the backlog item's list of six, each with the measurement:
 #:
-#:   * "GATE REFUSED" IS NOT ONE REASON AND MOSTLY IS NOT PER-ARTIFACT AT ALL. Measured at HEAD
-#:     `7562ca6c` by reading `runner_shared.initialize_run_core`: of the five gates it runs before the
-#:     run directory exists, FOUR refuse the WHOLE RUN by raising `DriverError` (the mixed-type gate,
-#:     the requested-action legality check, the dependency preflight, and `refuse_unimplemented_run_flags`),
-#:     so no artifact of that run ever reaches a per-artifact line and a reason value for them could
-#:     never render. They are excluded for that reason. The FIFTH, the draft-admission gate, genuinely
-#:     excludes PER ARTIFACT (`enforce_draft_admission_gate` returns a filtered `queue_ids` and
-#:     contains no `raise`) - but it runs at offset 70 of `initialize_run_core` while the run directory
-#:     is not created until offset 134, so an excluded draft never enters the queue, has no queue entry
-#:     and no disposition. Its exclusion is ALREADY reported, verbatim from spec 2.5a, by
-#:     `render_drafts_exclusion` above, which is the renderer this module already owns and which this
-#:     one therefore does NOT duplicate.
+#:   * "GATE REFUSED" IS NOT ONE REASON AND MOSTLY IS NOT PER-ARTIFACT AT ALL. Measured at execution
+#:     HEAD by reading `runner_shared.initialize_run_core`: of the gates it runs before the run
+#:     directory is created by `mint_run_dir`, twelve refuse the WHOLE RUN by raising `DriverError`
+#:     or a subclass (`refuse_unimplemented_run_flags`, `refuse_unsweepable_run_types`,
+#:     `refuse_type_scoping_outside_the_review_sweep`, `expand_dependency_closure`,
+#:     `enforce_dependency_preflight_fn`, `enforce_requested_action`, `enforce_mixed_type_gate`,
+#:     `refuse_unrunnable_selected_types`, `enforce_no_active_runner_conflict`,
+#:     `enforce_freeze_time_refusal`, `enforce_orchestrator_shape_gate`, and the queue-build
+#:     unresolvable-IPD check `unresolvable_ipds`), so no artifact of that run ever reaches a
+#:     per-artifact line and a reason value for them could never render. They are excluded for that
+#:     reason. The thirteenth, the draft-admission gate (`enforce_draft_admission_gate`), genuinely
+#:     excludes PER ARTIFACT (it returns a filtered `queue_ids` and contains no `raise`) - but it
+#:     runs ahead of queue building and ahead of `mint_run_dir`, so an excluded draft never enters
+#:     the queue, has no queue entry and no disposition. Its exclusion is ALREADY reported, verbatim
+#:     from spec 2.5a, by `render_drafts_exclusion` above, which is the renderer this module already
+#:     owns and which this one therefore does NOT duplicate.
 #:   * `host_capability_unavailable` IS per-artifact by construction
 #:     (`host_sandbox_profile.preflight_host_capabilities` returns `aborts_run=False`,
 #:     `cascade_dependents=True`) and IS spec-named, so it is KEPT in the vocabulary above.
@@ -1630,9 +1635,57 @@ DISPOSITION_MALFORMED_ENTRY = "malformed_entry"
 DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
 
 
+def strip_dependency_reason_prefix(token: object, reason: object) -> str:
+    """Return reason with a leading self-referential token prefix removed, else unchanged.
+
+    Strips at most ONE of:
+      1. `<token>:`
+      2. `<token's CANONICAL rewrite>:` (derived without parser import by matching
+         the reason's leading run when it ends in ':' and its last colon field equals
+         token's last colon field)
+      3. `<token's last colon-separated field>:`
+    Matching only at position 0.
+    """
+    if reason is None:
+        return ""
+    r_str = str(reason)
+    if token is None:
+        return r_str
+    tok_str = str(token).strip()
+    if not tok_str or not r_str:
+        return r_str
+
+    token_target = tok_str.split(":")[-1].strip()
+    if not token_target:
+        return r_str
+
+    cand1 = f"{tok_str}:"
+
+    # Candidate 2: Canonical rewrite derived from reason's leading non-whitespace run
+    # without importing a parser (PR-001, Decision D-1).
+    cand2: Optional[str] = None
+    parts = r_str.split(None, 1)
+    if parts:
+        first_word = parts[0]
+        if first_word.endswith(":") and len(first_word) > 1:
+            candidate_target = first_word[:-1].split(":")[-1].strip()
+            if candidate_target and candidate_target == token_target:
+                cand2 = first_word
+
+    cand3 = f"{token_target}:"
+
+    for cand in (cand1, cand2, cand3):
+        if cand and r_str.startswith(cand):
+            return r_str[len(cand) :].lstrip(" ")
+
+    return r_str
+
+
 def derive_item_disposition(
     entry: Mapping[str, object],
     refusal_reader: Optional[Callable[..., object]] = None,
+    *,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> ItemDisposition:
     """Decide ONE matched artifact's disposition from the facts the runner already computed.
 
@@ -1654,6 +1707,12 @@ def derive_item_disposition(
          "not runnable" answer.
       6. Otherwise the artifact was acted on (or is still in flight) and carries
          :data:`DISPOSITION_ACTED_ON`, whose line text is :data:`ACTED_REASON_LABEL`.
+
+    ``in_queue_id6s`` is an optional membership signal (`8mohre` `zhqt51` E-01). When supplied,
+    it overrides the reason-prose substring match: an unmet edge whose target id6 is in the queue
+    resolves to :data:`SKIP_DEPENDENCY_NOT_MET`, and only an edge whose target is known and absent
+    from the queue resolves to :data:`SKIP_DEPENDENCY_NOT_MET_EXTERNAL`. Unparseable tokens fail soft
+    toward in-run (membership unknown).
     """
 
     if not isinstance(entry, Mapping):
@@ -1709,15 +1768,37 @@ def derive_item_disposition(
         # shape (`reasons.get(d, "blocked")`) and the same wart; that block is outside this
         # plan's fence, so the divergence is REPORTED rather than edited here.
         named = ", ".join(
-            "{0} ({1})".format(d, why[d]) if d in why else str(d) for d in deps
+            "{0} ({1})".format(d, strip_dependency_reason_prefix(d, why[d]))
+            if d in why
+            else str(d)
+            for d in deps
         )
-        # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
-        # writes for a target outside the queue, rather than by a second computation here.
-        code = (
-            SKIP_DEPENDENCY_NOT_MET_EXTERNAL
-            if "not in this run" in named
-            else SKIP_DEPENDENCY_NOT_MET
-        )
+        if in_queue_id6s is not None:
+            # Function-local import to avoid import cycle (F-07).
+            from agent_workflows.runner_shared import (
+                dependency_target_id6 as _dep_target_id6,
+            )
+
+            members = {
+                str(
+                    x.get("id6") or x.get("identity") if isinstance(x, Mapping) else x
+                ).strip()
+                for x in in_queue_id6s
+                if x is not None
+            }
+            targets = [_dep_target_id6(d) for d in deps]
+            if any(t is None or t in members for t in targets):
+                code = SKIP_DEPENDENCY_NOT_MET
+            else:
+                code = SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+        else:
+            # The EXTERNAL variant is distinguished by the reason text `edge_satisfied` already
+            # writes for a target outside the queue, rather than by a second computation here.
+            code = (
+                SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+                if "not in this run" in named
+                else SKIP_DEPENDENCY_NOT_MET
+            )
         return ItemDisposition(
             code,
             "{0} ({1}; unmet: {2})".format(code, skip_reason_text(code), named),
@@ -1749,6 +1830,7 @@ def render_queue_dispositions(
     # narrower parameter type here would make the real call site a type error for no behavioral gain.
     # This module must not import `render_stream` to name that type (see `reason_from_refusal`).
     refusal_reader: Optional[Callable[..., object]] = None,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> List[str]:
     """Render ONE line per matched artifact, from the facts the runner already computed.
 
@@ -1777,7 +1859,9 @@ def render_queue_dispositions(
     lines: List[str] = []
     for entry in entries:
         if not isinstance(entry, Mapping):
-            decided = derive_item_disposition(entry, refusal_reader)
+            decided = derive_item_disposition(
+                entry, refusal_reader, in_queue_id6s=in_queue_id6s
+            )
             lines.append(
                 render_item_disposition(
                     "?",
@@ -1788,7 +1872,9 @@ def render_queue_dispositions(
             )
             continue
         get = entry.get
-        decided = derive_item_disposition(entry, refusal_reader)
+        decided = derive_item_disposition(
+            entry, refusal_reader, in_queue_id6s=in_queue_id6s
+        )
         lines.append(
             render_item_disposition(
                 str(get("id6") or get("identity") or "?"),
@@ -1796,7 +1882,7 @@ def render_queue_dispositions(
                 str(get("status") or "").strip(),
                 decided.reason,
                 position=(
-                    int(get("position"))  # type: ignore[arg-type]
+                    int(get("position"))  # type: ignore[arg-type,call-overload]  # checker-limitation: get() returns object despite isinstance guard
                     if isinstance(get("position"), int)
                     else None
                 ),
@@ -1974,6 +2060,8 @@ SUMMARY_ALL_ACTED_VERDICT = (
 def summarize_dispositions(
     entries: Sequence[Mapping[str, object]],
     refusal_reader: Optional[Callable[..., object]] = None,
+    *,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> "Tuple[Tuple[str, int, Optional[str]], ...]":
     """Count matched artifacts per DISPOSITION, with each disposition's remedy, in render order.
 
@@ -1987,6 +2075,8 @@ def summarize_dispositions(
     reported for its code. First record wins for a given code, so a second item refused under the
     same code cannot silently replace the remedy the reader is shown.
 
+    ``in_queue_id6s`` is forwarded unchanged to :func:`derive_item_disposition`.
+
     Ordered by :data:`SKIP_REASONS` first (the documented reason order), then any refusal codes in
     first-seen order, then :data:`DISPOSITION_ACTED_ON` LAST, so the things needing attention are
     read first and the acted-on total closes the list.
@@ -1996,7 +2086,9 @@ def summarize_dispositions(
     remedies: Dict[str, Optional[str]] = {}
     seen_order: List[str] = []
     for entry in entries:
-        decided = derive_item_disposition(entry, refusal_reader)
+        decided = derive_item_disposition(
+            entry, refusal_reader, in_queue_id6s=in_queue_id6s
+        )
         code = decided.code
         if code not in counts:
             counts[code] = 0
@@ -2020,6 +2112,7 @@ def render_disposition_summary(
     *,
     header: str = SUMMARY_HEADER,
     refusal_reader: Optional[Callable[..., object]] = None,
+    in_queue_id6s: Optional[Iterable[object]] = None,
 ) -> List[str]:
     """The closing block: an honest verdict, per-disposition counts, and each remedy.
 
@@ -2038,7 +2131,7 @@ def render_disposition_summary(
     construction rather than by test.
     """
 
-    rows = summarize_dispositions(entries, refusal_reader)
+    rows = summarize_dispositions(entries, refusal_reader, in_queue_id6s=in_queue_id6s)
     if not rows:
         return []
 

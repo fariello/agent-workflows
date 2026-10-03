@@ -183,6 +183,7 @@ Four checks span the children and cannot be performed by any child alone, which 
   - Carrier: ariaau
 - THE REMAINING HOSTILE-AGENT JUSTIFICATION COMMENTS ELSEWHERE IN THE PACKAGE (`ipd_lifecycle`'s module header, `orchestrate_isolation`'s docstring). Measured and owned by a sibling plan in the `malgate` Set, which excludes the region Order 02 deletes, so the two do not collide.
   - Carrier: dmjp0u
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-malgate-03-dmjp0u-reframe-every-determined-same-user-and-malicious-agent-justi.ipd.md
 - MAKING THE NEW CHECK A HARD BOUNDARY. Out of scope by construction rather than preference: P15 says "If real isolation is ever required, it comes from the operating system (a separate user, a sandbox such as the opt-in hardened profile), never from checks in our own code." The backlog item's own honest-limits section states the same: this is guidance for honest actors and is not meant to be a security boundary.
   - Carrier-Declined: Nothing is owed because filing it would assert the repository intends to build a mechanism its own guiding principle forbids, which is the exact machinery this Set is deleting.
 - A DURABLE MACHINE FIELD IN `state.json`, IN ADDITION TO `driver.lock`. D3 scopes the fix to the lock record, where the machine sits beside the pid it qualifies and is written under the lock that proves the writer is the holder. A second copy with no reader is the duplication GUIDING_PRINCIPLES P6 forbids.

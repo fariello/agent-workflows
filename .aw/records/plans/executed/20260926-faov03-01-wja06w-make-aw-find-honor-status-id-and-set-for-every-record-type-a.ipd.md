@@ -452,7 +452,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     - `aw find specs`: EXIT 0, 38 lines (first: `◕  approved      5tapom  .aw/records/specs/approved/20260824-5tapom-01-5tapom-research-lifecycle-reliability.spec.md`)
     - `aw find specs --status to-review`: EXIT 0, 1 line (`◔  to-review     llbr2b  .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md`) -> direct re-derived count: 1
     - `aw find specs --status bogusvalue`: EXIT 2, 1 line (`FAIL     Unrecognized --status 'bogusvalue' for specs. Valid statuses: approved, deferred, draft, implemented, implementing, parked, reviewed, superseded, to-review.`)
-    - `aw find specs --id 4sd62s`: EXIT 0, 1 line (`◑  reviewed      4sd62s  .aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md`) -> direct re-derived count: 1
+    - `aw find specs --id 4sd62s`: EXIT 0, 1 line (`◑  reviewed      4sd62s  .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md`) -> direct re-derived count: 1
     - `aw find backlog`: EXIT 0, 635 lines (first: `⚠︎  blocked       adgtqb  .aw/records/backlog/blocked/20260908-idxuntrack-01-adgtqb-finalize-leaves-tracked-index-dirty.backlog.md`)
     - `aw find backlog --set closescope`: EXIT 0, 1 line (`✓  done          rwhbci  .aw/records/backlog/done/20260923-closescope-01-rwhbci-handoff-close-ignores-plan-scope.backlog.md`) -> direct re-derived count: 1
     - `aw find backlog --status open`: EXIT 0, 178 lines (first: `◕  open          hg2oop  .aw/records/backlog/open/20260910-bklghist-01-hg2oop-backlog-set-same-status-destroys-history.backlog.md`) -> direct re-derived count: 178

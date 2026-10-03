@@ -50,6 +50,7 @@ def _make_scratch_repo(root: Path) -> Path:
         repo / ".aw" / "records" / "specs" / "implemented",
     ):
         p.mkdir(parents=True, exist_ok=True)
+        (p / ".gitkeep").touch()
 
     rel_file = (
         repo
@@ -1083,7 +1084,14 @@ class BacklogGateDirSplitTests(unittest.TestCase):
         os.environ["XDG_CONFIG_HOME"] = str(self.xdg_home)
 
         self.main_repo = _make_scratch_repo(tmp / "main_repo")
-        self.lane_repo = _make_scratch_repo(tmp / "lane_repo")
+        lane_path = tmp / "lane_repo"
+        subprocess.run(
+            ["git", "worktree", "add", "-b", "lane", str(lane_path), "main"],
+            cwd=self.main_repo,
+            check=True,
+            capture_output=True,
+        )
+        self.lane_repo = lane_path
 
     def tearDown(self) -> None:
         if self._prev_aw_home is not None:
@@ -1385,6 +1393,8 @@ class BacklogGateDirSplitTests(unittest.TestCase):
         decl = cs.get_declaration("backlog set")
         self.assertIsNotNone(decl)
         self.assertIn("--gate-dir", decl.legacy_flags)
+        self.assertIn("--lane-carrier-ref", decl.legacy_flags)
+        self.assertIn("--lane-carrier-path", decl.legacy_flags)
         backlog_parser = None
         for action in _build_parser()._actions:  # noqa: SLF001
             choices = getattr(action, "choices", None)
@@ -1423,3 +1433,245 @@ class BacklogGateDirSplitTests(unittest.TestCase):
         self.assertIn("--gate-dir", stderr_text)
         self.assertIn("not an agent-workflows project root", stderr_text)
         self.assertNotIn("item01", stderr_text)
+
+    def test_case_6_single_carrier_with_lane_carrier_override_allowed(self) -> None:
+        """(6) Single carrier with verified override: gate against main passes (rc 0), move in lane."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.main_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        plan_exec = (
+            self.lane_repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260926-testset-01-plan01-test-plan.ipd.md"
+        )
+        plan_exec.write_text(
+            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "execute plan01 in lane", "-q"],
+            cwd=self.lane_repo,
+            check=True,
+        )
+
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--lane-carrier-ref",
+                "lane",
+                "--lane-carrier-path",
+                ".aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md",
+                "--message",
+                "close single carrier with override",
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertFalse(item_lane.exists())
+        done_path = (
+            self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+        )
+        self.assertTrue(done_path.exists())
+
+    def test_case_6b_single_carrier_without_override_refused_proves_tightening(
+        self,
+    ) -> None:
+        """(6b) Single carrier without override: gate against main refuses (rc 1, carrier not executed), proving tightening."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.main_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        plan_exec = (
+            self.lane_repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260926-testset-01-plan01-test-plan.ipd.md"
+        )
+        plan_exec.write_text(
+            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "execute plan01 in lane", "-q"],
+            cwd=self.lane_repo,
+            check=True,
+        )
+
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--message",
+                "close single carrier without override",
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("carrier is not executed/implemented", stderr_text)
+        self.assertTrue(item_lane.exists())
+        done_path = (
+            self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+        )
+        self.assertFalse(done_path.exists())
+
+    def test_case_7_two_carrier_sibling_unexecuted_with_override_refused(self) -> None:
+        """(7) Sibling unexecuted guard: override on plan01 refuses (rc 1) because plan02 sibling is pending."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.main_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        _write_plan(
+            self.main_repo,
+            "plan02",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        plan_exec = (
+            self.lane_repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260926-testset-01-plan01-test-plan.ipd.md"
+        )
+        plan_exec.write_text(
+            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "execute plan01 in lane", "-q"],
+            cwd=self.lane_repo,
+            check=True,
+        )
+
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--lane-carrier-ref",
+                "lane",
+                "--lane-carrier-path",
+                ".aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md",
+                "--message",
+                "close sibling unexecuted",
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("carrier is not executed/implemented", stderr_text)
+        self.assertTrue(item_lane.exists())
+        done_path = (
+            self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+        )
+        self.assertFalse(done_path.exists())
+
+    def test_case_8_forged_assertion_refused(self) -> None:
+        """(8) Forged assertion: override naming ref showing pending carrier is refused (rc 1)."""
+        item_lane = _write_backlog_item(
+            self.lane_repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.main_repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        plan_exec = (
+            self.lane_repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "executed"
+            / "20260926-testset-01-plan01-test-plan.ipd.md"
+        )
+        plan_exec.write_text(
+            "# IPD: Test plan plan01\n\n- Id: plan01\n- Status: executed\n- From-Backlog: item01\n- Blocks-Release: next\n- Set: testset\n- Scope: T\n- Scope-Paths: x\n\n## Goal\nTest\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", str(plan_exec)], cwd=self.lane_repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "execute plan01 in lane", "-q"],
+            cwd=self.lane_repo,
+            check=True,
+        )
+
+        # Ref 'main' still has plan01 in pending/
+        rc, stdout_text, stderr_text = self._run_cli(
+            [
+                "backlog",
+                "set",
+                "item01",
+                "--status",
+                "done",
+                "--dir",
+                str(self.lane_repo),
+                "--gate-dir",
+                str(self.main_repo),
+                "--lane-carrier-ref",
+                "main",
+                "--lane-carrier-path",
+                ".aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md",
+                "--message",
+                "close forged assertion",
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("carrier is not executed/implemented", stderr_text)
+        self.assertTrue(item_lane.exists())
+        done_path = (
+            self.lane_repo / ".aw" / "records" / "backlog" / "done" / item_lane.name
+        )
+        self.assertFalse(done_path.exists())

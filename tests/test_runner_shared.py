@@ -31,6 +31,7 @@ STATUS OF THE ORIGINAL THREE STRUCTURAL ASSERTIONS:
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import copy
 import inspect
@@ -38,12 +39,16 @@ import io
 import json
 import pathlib
 import re
+import sys
 import tempfile
 import unittest
 from typing import Any
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from support import REPO_ROOT, load_module  # noqa: E402
 
 BOTH = ("oc_runipd", "agy_runipd")
 _MODULES = {
@@ -2399,28 +2404,189 @@ class VerificationDestAsymmetryPerHostTests(unittest.TestCase):
                     f"oc start must accept {flag} as an alias of validate=True",
                 )
 
-    def test_contradictory_pair_handling_refused_on_agy_and_order_dependent_on_oc(self):
-        """Pin operator consequence 2: contradictory pair refused on agy, order-dependent on oc."""
+    def test_contradictory_pair_handling_refused_on_both_hosts(self):
+        """Pin operator consequence 2: contradictory verification flags refused on both hosts (zdgc6t)."""
+        # agy start: --no-verify --validate retains shipped wording (E-05 ordering)
         agy_parser = agy_runipd.build_parser()
         args = agy_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
         with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
             agy_runipd.verification_flag_tristate(args)
         self.assertIn("contradict each other", str(ctx.exception))
+        self.assertTrue(
+            str(ctx.exception).startswith(
+                "--no-verify (or --no-audit) and --validate contradict each other:"
+            )
+        )
 
+        # agy start: hand-built partial namespace retains shipped refusal
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(
+                argparse.Namespace(no_verify=True, validate=True)
+            )
+        self.assertIn("contradict each other", str(ctx.exception))
+
+        # agy start: both orders of --validate --no-validate refuse (F-06, E-05)
+        for flags in (["--validate", "--no-validate"], ["--no-validate", "--validate"]):
+            with self.subTest(agy_flags=flags):
+                args = agy_parser.parse_args(["start", "demo", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    agy_runipd.verification_flag_tristate(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
+
+        # oc start: both orders refuse and name the typed spellings
         oc_parser = oc_runipd.build_parser()
-        oc_args1 = oc_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
-        self.assertIs(
-            oc_args1.validate,
-            True,
-            "oc start --no-verify --validate must resolve validate=True (last flag wins)",
-        )
+        for flags in (["--no-verify", "--validate"], ["--validate", "--no-verify"]):
+            with self.subTest(oc_start_flags=flags):
+                args = oc_parser.parse_args(["start", "demo", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_contradictory_verification_flags(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
 
-        oc_args2 = oc_parser.parse_args(["start", "demo", "--validate", "--no-verify"])
-        self.assertIs(
-            oc_args2.validate,
-            False,
-            "oc start --validate --no-verify must resolve validate=False (last flag wins)",
+        # oc resume: both orders refuse and name the typed spellings
+        for flags in (["--no-verify", "--validate"], ["--validate", "--no-verify"]):
+            with self.subTest(oc_resume_flags=flags):
+                args = oc_parser.parse_args(["resume", "run-123", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_contradictory_verification_flags(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
+
+        # oc start: abbreviated pair (--no-aud --vali) canonicalizes and refuses (F-03)
+        args_abbrev = oc_parser.parse_args(["start", "demo", "--no-aud", "--vali"])
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            runner_shared.refuse_contradictory_verification_flags(args_abbrev)
+        self.assertIn("contradict each other", str(ctx.exception))
+        self.assertIn("--no-audit", str(ctx.exception))
+        self.assertIn("--validate", str(ctx.exception))
+
+        # Same-polarity repeats, single flag, and bare invocation are NOT refused
+        # oc start:
+        args_rep1 = oc_parser.parse_args(["start", "demo", "--validate", "--verify"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep1)
+        self.assertIs(args_rep1.validate, True)
+
+        args_rep2 = oc_parser.parse_args(["start", "demo", "--verify", "--audit"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep2)
+        self.assertIs(args_rep2.validate, True)
+
+        args_rep3 = oc_parser.parse_args(["start", "demo", "--no-verify", "--no-audit"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep3)
+        self.assertIs(args_rep3.validate, False)
+
+        args_single = oc_parser.parse_args(["start", "demo", "--validate"])
+        runner_shared.refuse_contradictory_verification_flags(args_single)
+        self.assertIs(args_single.validate, True)
+
+        args_bare = oc_parser.parse_args(["start", "demo"])
+        runner_shared.refuse_contradictory_verification_flags(args_bare)
+        self.assertIsNone(args_bare.validate)
+
+        # agy start same-polarity repeats in both orders:
+        for flags in (
+            ["--no-verify", "--no-validate"],
+            ["--no-validate", "--no-verify"],
+        ):
+            with self.subTest(agy_same_polarity=flags):
+                args_agree = agy_parser.parse_args(["start", "demo", *flags])
+                self.assertIs(agy_runipd.verification_flag_tristate(args_agree), False)
+
+    def test_subcommands_other_than_start_and_resume_declare_no_verification_flags(
+        self,
+    ):
+        """Assert no subcommand other than start/resume on oc and start on agy has verification flags."""
+        parsers = {
+            "oc": oc_runipd.build_parser(),
+            "agy": agy_runipd.build_parser(),
+        }
+        subcommands_with_none = {
+            "oc": ("status", "report", "stop", "integrate", "audit"),
+            "agy": ("resume", "status", "report", "stop", "integrate", "audit"),
+        }
+        for host, sub_names in subcommands_with_none.items():
+            subs = self._get_subparsers(parsers[host])
+            for sub_name in sub_names:
+                sub = subs[sub_name]
+                for action in sub._actions:
+                    for opt in getattr(action, "option_strings", []):
+                        self.assertNotIn(
+                            opt,
+                            self.VERIFICATION_SPELLINGS,
+                            f"{host} {sub_name} must not declare verification flag {opt}",
+                        )
+
+    def test_end_to_end_contradictory_refusal_leaves_no_run_dir_and_byte_identical_resume_state(
+        self,
+    ):
+        """Pin operator consequence: refused start creates no run dir, refused resume preserves state.json."""
+        import tempfile
+        import os
+        import io
+        import contextlib
+        from unittest import mock
+
+        probe = VerificationPolarityTests(
+            "test_verification_polarity_matrix_and_agreement"
         )
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home}, clear=False):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = probe.make_repo(pathlib.Path(td), id6="e2e001")
+                    stderr_start = io.StringIO()
+                    with contextlib.redirect_stderr(stderr_start):
+                        rc_start = oc_runipd.main(
+                            [
+                                "start",
+                                "e2e001",
+                                "--repo",
+                                str(repo),
+                                "--no-verify",
+                                "--validate",
+                            ]
+                        )
+                    self.assertEqual(rc_start, 2, "refused oc start must exit 2")
+                    self.assertIn("contradict each other", stderr_start.getvalue())
+                    runs_dir = repo / ".aw" / "records" / "runs"
+                    self.assertEqual(
+                        list(runs_dir.glob("run-*")) if runs_dir.exists() else [],
+                        [],
+                        "refused oc start must create no run directory",
+                    )
+
+                    oc_parser = oc_runipd.build_parser()
+                    valid_args = oc_parser.parse_args(
+                        ["start", "e2e001", "--repo", str(repo)]
+                    )
+                    valid_args.prepare_only = True
+                    run_dir = oc_runipd.initialize_run(valid_args)
+                    state_path = run_dir / "state.json"
+                    self.assertTrue(state_path.exists())
+                    state_bytes_before = state_path.read_bytes()
+
+                    stderr_resume = io.StringIO()
+                    with contextlib.redirect_stderr(stderr_resume):
+                        rc_resume = oc_runipd.main(
+                            [
+                                "resume",
+                                str(run_dir),
+                                "--no-verify",
+                                "--validate",
+                                "--full-auto",
+                            ]
+                        )
+                    self.assertEqual(rc_resume, 2, "refused oc resume must exit 2")
+                    self.assertIn("contradict each other", stderr_resume.getvalue())
+
+                    state_bytes_after = state_path.read_bytes()
+                    self.assertEqual(
+                        state_bytes_before,
+                        state_bytes_after,
+                        "refused resume must leave state.json byte-identical, including options.full_auto",
+                    )
 
     def test_resume_subcommand_verification_flag_handling_per_host(self):
         """Pin operator consequence 3: agy resume rejects all verification flags (exit 2), oc resume accepts them."""
@@ -4931,6 +5097,85 @@ class LegacySpecEditsStateTests(unittest.TestCase):
             self.assertIn("leg002", rendered_refused)
 
 
+def _parse_module_tree(mod_or_path: Any) -> ast.Module:
+    """Parse an AST module tree from a module object or file path."""
+    if isinstance(mod_or_path, (str, pathlib.Path)):
+        return ast.parse(pathlib.Path(mod_or_path).read_text(encoding="utf-8"))
+    if hasattr(mod_or_path, "__file__") and mod_or_path.__file__:
+        return ast.parse(pathlib.Path(mod_or_path.__file__).read_text(encoding="utf-8"))
+    raise ValueError(f"Cannot parse AST from {mod_or_path!r}")
+
+
+def _top_level_defs(tree: ast.Module) -> dict[str, ast.stmt]:
+    """Extract top-level FunctionDef, AsyncFunctionDef, and ClassDef statements."""
+    defs: dict[str, ast.stmt] = {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            defs[node.name] = node
+    return defs
+
+
+def find_dead_codefined_symbols(
+    shared_mod: Any,
+    oc_mod: Any,
+    agy_mod: Any,
+    *,
+    is_pure_delegation_fn: Any = None,
+) -> tuple[list[str], dict[str, dict[str, bool]]]:
+    """Sweep three modules for dead def-or-class symbols in shared that neither host reaches.
+
+    A symbol fails if ALL THREE conditions hold:
+      1. neither_resolves: neither host's attribute resolves (getattr identity) to the shared object
+      2. neither_delegates: neither host's definition is a sanctioned delegation
+      3. has_shared: a definition exists in the shared module
+
+    Returns:
+      (co_defined_symbols, failures_dict)
+    """
+    if is_pure_delegation_fn is None:
+        scanner = load_module(
+            "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+        )
+        is_pure_delegation_fn = scanner.is_pure_delegation
+
+    shared_tree = _parse_module_tree(shared_mod)
+    oc_tree = _parse_module_tree(oc_mod)
+    agy_tree = _parse_module_tree(agy_mod)
+
+    shared_defs = _top_level_defs(shared_tree)
+    oc_defs = _top_level_defs(oc_tree)
+    agy_defs = _top_level_defs(agy_tree)
+
+    common_names = sorted(
+        set(shared_defs.keys()) & set(oc_defs.keys()) & set(agy_defs.keys())
+    )
+    failures: dict[str, dict[str, bool]] = {}
+
+    for name in common_names:
+        shared_obj = getattr(shared_mod, name, None)
+        oc_obj = getattr(oc_mod, name, None)
+        agy_obj = getattr(agy_mod, name, None)
+
+        oc_resolves = oc_obj is shared_obj
+        agy_resolves = agy_obj is shared_obj
+        neither_resolves = not oc_resolves and not agy_resolves
+
+        oc_delegates = is_pure_delegation_fn(oc_defs[name])
+        agy_delegates = is_pure_delegation_fn(agy_defs[name])
+        neither_delegates = not oc_delegates and not agy_delegates
+
+        has_shared = name in shared_defs and shared_obj is not None
+
+        if neither_resolves and neither_delegates and has_shared:
+            failures[name] = {
+                "neither_resolves": neither_resolves,
+                "neither_delegates": neither_delegates,
+                "has_shared": has_shared,
+            }
+
+    return common_names, failures
+
+
 class FullAutoDurableHistoryPinTests(unittest.TestCase):
     """Pin the durable-history auto-approval contract and prevent divergent shared constants.
 
@@ -4978,6 +5223,165 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
                 "Found divergent co-defined module-level constant(s) in runner_shared:\n"
                 + "\n".join(failures)
             )
+
+    def test_codefined_constants_host_vs_host_equality(self) -> None:
+        """Mechanically ensure co-defined constants across runner hosts do not disagree (90z361 E-03).
+
+        Enumerates common UPPER_CASE module attributes across oc_runipd and agy_runipd via vars()
+        (and NOT with ast.parse or any production source inspection, honoring GUIDING_PRINCIPLES P16).
+
+        This closes the gap in test_no_divergent_codefined_constants_in_runner_shared: that sweep
+        compares the shared value against each host and fails only when it matches neither host,
+        so it is structurally blind to the case where the two hosts disagree with each other.
+
+        The authored expectation is captured in EXPECTED_HOST_VARYING: constants that legitimately
+        vary per host (such as the runner actor provenance) are asserted to remain unequal, ensuring
+        the exemption cannot silently become vacuous. All other co-defined UPPER_CASE attributes
+        are automatically swept for value equality.
+
+        Bounds and characteristics:
+        1. Enumeration with vars() reaches common UPPER_CASE names across both hosts. Most of these
+           are the identical shared object in both hosts (is identity True, re-exports for which
+           divergence is impossible); the sweep's real subjects are those that are not identical objects.
+           Per P16, we assert on value outcomes and do not pin census counts.
+        2. Non-UPPER_CASE co-defined symbols (such as _close_process_streams) are not reached by
+           isupper(); both hosts bind the identical runner_shutdown._close_process_streams object (is True).
+        3. This test reads no production .py source text or ASTs by any mechanism, exercising only
+           module attribute values via getattr().
+        """
+        EXPECTED_HOST_VARYING = {"DEPENDENCY_BLOCK_RECOVERY_HINT", "FULL_AUTO_ACTOR"}
+
+        common_names = sorted(
+            k for k in vars(oc_runipd) if k.isupper() and k in vars(agy_runipd)
+        )
+        failures: list[str] = []
+
+        for name in common_names:
+            v_oc = getattr(oc_runipd, name)
+            v_agy = getattr(agy_runipd, name)
+
+            if name in EXPECTED_HOST_VARYING:
+                if v_oc == v_agy:
+                    failures.append(
+                        f"Expected host-varying constant {name} unexpectedly equal across hosts: {v_oc!r}"
+                    )
+            else:
+                if v_oc != v_agy:
+                    failures.append(f"{name}: oc={v_oc!r} agy={v_agy!r}")
+
+        if failures:
+            self.fail(
+                "Found divergent co-defined module-level constant(s) between oc_runipd and agy_runipd:\n"
+                + "\n".join(failures)
+            )
+
+    def test_full_auto_approval_message_reintroduced_constant_value_pin(self) -> None:
+        """Pin the shared runner_shared.FULL_AUTO_APPROVAL_MESSAGE literal value (90z361 E-04).
+
+        Anti-regression guard for the defect gjni4c resolved: legacy FULL_AUTO_APPROVAL_MESSAGE
+        was deleted from runner_shared because it held a third, divergent value matching neither host
+        ('Auto-approved via --full-auto (review passed all gates)'). Reintroducing the name is safe
+        only while its value matches what both hosts expect.
+
+        Asserts that runner_shared.FULL_AUTO_APPROVAL_MESSAGE matches the expected literal string
+        spelled in the test, and is neither the deleted legacy phrase nor any string containing
+        'passed all gates'.
+        """
+        expected_msg = "auto-approved by --full-auto: review readiness cleared (not human approval)"
+        msg = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
+        self.assertEqual(
+            msg,
+            expected_msg,
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE does not match expected literal",
+        )
+        self.assertNotEqual(
+            msg,
+            "Auto-approved via --full-auto (review passed all gates)",
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE must not revert to deleted gjni4c legacy value",
+        )
+        self.assertNotIn(
+            "passed all gates",
+            msg,
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE must not contain 'passed all gates'",
+        )
+
+    def test_no_dead_codefined_def_or_class_symbols_in_runner_shared(self) -> None:
+        """Mechanically ensure no dead def-or-class body exists in runner_shared.
+
+        Twin to test_no_divergent_codefined_constants_in_runner_shared (plan gjni4c E-01),
+        added by plan vbhat9 (Set deadshared) E-02.
+        Collects top-level FunctionDef/AsyncFunctionDef/ClassDef co-defined in runner_shared,
+        oc_runipd, and agy_runipd, and fails if any symbol has:
+          1. Neither host's attribute resolves (getattr identity) to the runner_shared object
+          2. Neither host's definition is a sanctioned delegation under is_pure_delegation
+          3. A runner_shared definition exists
+        """
+        scanner = load_module(
+            "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+        )
+        common_names, failures = find_dead_codefined_symbols(
+            runner_shared,
+            oc_runipd,
+            agy_runipd,
+            is_pure_delegation_fn=scanner.is_pure_delegation,
+        )
+        self.assertGreater(
+            len(common_names),
+            0,
+            "Sweep collected an empty population; expected non-trivial three-way co-defined symbols.",
+        )
+        if failures:
+            lines = [
+                f"  {name}: neither_resolves={details['neither_resolves']}, "
+                f"neither_delegates={details['neither_delegates']}, "
+                f"has_shared={details['has_shared']}"
+                for name, details in failures.items()
+            ]
+            self.fail(
+                "Found dead co-defined def-or-class symbol(s) in runner_shared:\n"
+                + "\n".join(lines)
+            )
+
+    def test_dead_codefined_symbols_guard_is_discriminating_negative_test(self) -> None:
+        """Prove the def-or-class sweep in E-02 fails on the exact historical defect (plan vbhat9 E-03).
+
+        Builds three synthetic module sources under tmp_path: a shared module defining f,
+        and two host modules each defining their own real-bodied f that does not resolve
+        to the shared one. Drives find_dead_codefined_symbols over the synthetic modules and
+        asserts the sweep reports f.
+        """
+        with tempfile.TemporaryDirectory(prefix="test_dead_codefined_") as tmp_dir:
+            tmp_path = pathlib.Path(tmp_dir)
+            shared_file = tmp_path / "synthetic_shared.py"
+            oc_file = tmp_path / "synthetic_oc.py"
+            agy_file = tmp_path / "synthetic_agy.py"
+
+            shared_file.write_text("def f():\n    return 'shared'\n", encoding="utf-8")
+            oc_file.write_text(
+                "def f():\n    return 'oc_real_body'\n", encoding="utf-8"
+            )
+            agy_file.write_text(
+                "def f():\n    return 'agy_real_body'\n", encoding="utf-8"
+            )
+
+            mod_shared = load_module("synthetic_shared", shared_file)
+            mod_oc = load_module("synthetic_oc", oc_file)
+            mod_agy = load_module("synthetic_agy", agy_file)
+
+            scanner = load_module(
+                "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+            )
+            common_names, failures = find_dead_codefined_symbols(
+                mod_shared,
+                mod_oc,
+                mod_agy,
+                is_pure_delegation_fn=scanner.is_pure_delegation,
+            )
+            self.assertIn("f", common_names)
+            self.assertIn("f", failures)
+            self.assertTrue(failures["f"]["neither_resolves"])
+            self.assertTrue(failures["f"]["neither_delegates"])
+            self.assertTrue(failures["f"]["has_shared"])
 
     def test_set_plan_approved_durable_history_pin(self) -> None:
         """Pin the exact argv, no-defaults, and host defaults for set_plan_approved (gjni4c E-03, E-04, E-05).
@@ -5507,6 +5911,221 @@ class DanglingCommitSearchTests(unittest.TestCase):
             bool(matching_shas),
             f"Expected candidate starting with 0abc01d9 in results: {results}",
         )
+
+
+class HostCommandRemedyGuardTests(unittest.TestCase):
+    """Guard against doubled verbs and malformed subcommands in host remedies.
+
+    Pins the whole class of doubled-verb bugs (e.g. `run run`, `resume resume`)
+    by ensuring that every host-command-carrying remedy produces only commands
+    whose token immediately following the host prefix is either absent, a flag,
+    a placeholder, a member of the host parser live subcommand choices, or the
+    distinctive id6 passed to the remedy.
+    """
+
+    DISTINCTIVE_ID6 = "x9y8z7"
+
+    @staticmethod
+    def _get_live_subcommands(host_id: str) -> set[str]:
+        mod = oc_runipd if host_id in ("oc", "fallback") else agy_runipd
+        parser = mod.build_parser()
+        choices: set[str] = set()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                choices.update(action.choices.keys())
+        return choices
+
+    def _classify_next_token(
+        self,
+        cmd_str: str,
+        command_prefix: str,
+        legal_subcommands: set[str],
+        distinctive_id6: str,
+    ) -> str:
+        """Classify the token following command_prefix in cmd_str into one of five closed classes."""
+        self.assertTrue(
+            cmd_str.startswith(command_prefix),
+            f"Command {cmd_str!r} does not start with prefix {command_prefix!r}",
+        )
+        remainder = cmd_str[len(command_prefix) :].strip()
+        tokens = remainder.split()
+        if not tokens:
+            return "ABSENT"
+        next_token = tokens[0]
+        if next_token.startswith("-"):
+            return f"FLAG:{next_token}"
+        if next_token.startswith("<"):
+            return f"PLACEHOLDER:{next_token}"
+        if next_token in legal_subcommands:
+            return f"SUBCOMMAND:{next_token}"
+        if next_token == distinctive_id6:
+            return f"ID6:{next_token}"
+        return f"ILLEGAL:{next_token}"
+
+    def _assert_valid_command(
+        self,
+        cmd_str: str,
+        command_prefix: str,
+        legal_subcommands: set[str],
+        distinctive_id6: str,
+    ) -> None:
+        """Assert that cmd_str has no doubled verb, no adjacent duplicate tokens, and a legal next token."""
+        # Direct regression pin for F-01
+        self.assertNotIn(
+            "run run",
+            cmd_str,
+            f"'run run' found in remedy command: {cmd_str!r}",
+        )
+
+        # Generalized adjacent duplicate token check (pins resume resume, start start, etc.)
+        tokens = cmd_str.split()
+        for i in range(len(tokens) - 1):
+            self.assertNotEqual(
+                tokens[i],
+                tokens[i + 1],
+                f"Adjacent duplicate token {tokens[i]!r} in remedy command: {cmd_str!r}",
+            )
+
+        # Classify next token after host command prefix
+        classification = self._classify_next_token(
+            cmd_str,
+            command_prefix,
+            legal_subcommands,
+            distinctive_id6,
+        )
+        self.assertFalse(
+            classification.startswith("ILLEGAL:"),
+            f"Illegal token following command prefix {command_prefix!r} in {cmd_str!r}: {classification}",
+        )
+
+    def test_host_command_carrying_remedies_render_valid_commands(self):
+        """Every host-command-carrying remedy renders valid commands for both hosts and fallback."""
+        cases = [
+            ("oc", runner_shared.OC_HOST_LABELS, runner_shared.OC_HOST_LABELS.command),
+            (
+                "agy",
+                runner_shared.AGY_HOST_LABELS,
+                runner_shared.AGY_HOST_LABELS.command,
+            ),
+            ("fallback", None, "aw oc run"),
+        ]
+
+        for host_id, labels, prefix in cases:
+            legal_subcommands = self._get_live_subcommands(host_id)
+
+            remedies: list[tuple[str, str]] = [
+                (
+                    "finalize_retry_remedy(retry=True)",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, True
+                    ),
+                ),
+                (
+                    "finalize_retry_remedy",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+                (
+                    "finalize_retry_remedy(lock_contention=True)",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False, lock_contention=True
+                    ),
+                ),
+                (
+                    "turn_retry_remedy(retry=True)",
+                    runner_shared.turn_retry_remedy(labels, self.DISTINCTIVE_ID6, True),
+                ),
+                (
+                    "turn_retry_remedy",
+                    runner_shared.turn_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+                (
+                    "zero_work_retry_remedy(retry=True)",
+                    runner_shared.zero_work_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, True
+                    ),
+                ),
+                (
+                    "zero_work_retry_remedy",
+                    runner_shared.zero_work_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+            ]
+            if labels is not None:
+                remedies.extend(
+                    [
+                        (
+                            "probe_refusal_remedy",
+                            runner_shared.probe_refusal_remedy(
+                                labels, self.DISTINCTIVE_ID6
+                            ),
+                        ),
+                        (
+                            "probe_unavailable_remedy",
+                            runner_shared.probe_unavailable_remedy(labels),
+                        ),
+                    ]
+                )
+
+            for remedy_name, text in remedies:
+                with self.subTest(host=host_id, remedy=remedy_name):
+                    cmds = [
+                        c
+                        for c in re.findall(r"`([^`]+)`", text)
+                        if c.startswith(prefix)
+                    ]
+                    for cmd in cmds:
+                        self._assert_valid_command(
+                            cmd,
+                            prefix,
+                            legal_subcommands,
+                            self.DISTINCTIVE_ID6,
+                        )
+
+    def test_negative_controls_class_doubling_and_invalid_tokens(self):
+        """Negative controls: guard must catch adjacent duplicates and non-subcommand tokens."""
+        legal_subcommands = self._get_live_subcommands("oc")
+        prefix = "aw oc run"
+
+        # Control 1: F-01 regression string
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} run resume <run-id>",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 2: resume resume
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} resume resume <run-id>",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 3: start start
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} start start",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 4: run abc123 (verifying id6 allowance does not accept non-matching token)
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} run abc123",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
 
 
 if __name__ == "__main__":

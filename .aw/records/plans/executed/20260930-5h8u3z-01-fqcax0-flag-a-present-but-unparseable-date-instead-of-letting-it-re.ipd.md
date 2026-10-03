@@ -1,0 +1,470 @@
+# IPD: Flag a present-but-unparseable - Date: instead of letting it reach the date fabricator unreported
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: `- Date:` is a REQUIRED IPD metadata field (`ipd_schema.META_REQUIRED` contains `Date`) whose VALUE nothing validates. `ipd_schema.validate_metadata` checks only PRESENCE for each required field, so a line like `- Date: 2026-07-23 (fleshed later)` produces no diagnostic at all, while the same line DELETED yields `IPD-M101: Date: required field missing`. That is the dangerous direction, because every date consumer parses with an anchored pattern and treats a no-match EXACTLY like an absent field: `plans_refs._plan_date` and `plans_archive._plan_date` both FABRICATE the literal `20260101`, and the cutover gates (`ipd_lint._m105_terminal_date_applies`, `ipd_lint._citation_anchor_applies`, `check_engine._plan_date_compact`) silently treat the plan as pre-cutover. So an unparseable value is invisible to the one tool that would have told the author, and is then substituted for by five separate consumers. It is not hypothetical: `.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` carries exactly that line and its filename now records the fabricated `20260101` instead of its real `20260723` (the casualty itself is carried by `tf4jz5`).
+- Scope: Close the lint-side half of the defect, and ONLY that half. Add one value check for `- Date:` to `ipd_schema.validate_metadata`, so a PRESENT-but-unparseable value is reported with the same authority a missing one already has, and pin it with a behavioral test row in each of the two existing tables that own this surface. The accepted grammar is the `YYYY-MM-DD` shape PLUS a real calendar check, and the one reserved exemption is the byte-pinned template placeholder `<YYYY-MM-DD>`. This plan changes NO consumer: the `20260101` fabricators (`plans_refs`, carried by `949enf`; `plans_archive`, carried by `dkfthf`) and every cutover reader stay byte-unchanged, because the backlog item's fix shape is explicitly the LINTER, and a plan that both flags a value and changes what reads it could not show which half produced the effect.
+- Scope-Paths: agent_workflows/ipd_schema.py, tests/test_ipd_schema.py, tests/test_ipd_lint.py, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 5h8u3z
+- Blocks-Release: next
+- Set: 5h8u3z
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode/claude-opus
+- Id: fqcax0
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fqcax0 verified (set 5h8u3z, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-8sr0or-01-8sr0or-statusline-swept-input-test-exceeds-90s-test-hang-.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
+- 2026-10-01 approved (aw set): status set to approved
+- 2026-10-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201 (MEDIUM, fixed), PR-202 (MEDIUM, fixed), PR-203 (MEDIUM, fixed), PR-204 (LOW, fixed). Readiness recorded in `- Readiness:`. Detail on the `reviewed (aw set)` record below and in `.aw/records/reviews/20260930-5h8u3z-01-fqcax0-...review.md`.
+- 2026-10-01 reviewed (aw set): APPROVE WITH REVISIONS APPLIED; PR-201 (MEDIUM, fixed), PR-202 (MEDIUM, fixed), PR-203 (MEDIUM, fixed), PR-204 (LOW, fixed). This is the strongest-evidenced plan in this sweep and every load-bearing claim reproduced independently at review HEAD cebbcd0f6. Verified end to end: the defect direction (malformed Date lints conforming with zero diagnostics while an absent Date errors IPD-M101), the presence-only root cause, all five consumers (both 20260101 fabricators, the three cutover gates), the impossible-calendar propagation including _age_days returning 0.0, the date.fromisoformat width on the ISO week form and the compact form, the mandatory template placeholder exemption, the IPD-M104 routing chain, the test-table full-pair-set contract, and the synthetic compact fixture that never lints. I additionally prototyped the whole E-03 check in process: all five malformed shapes flip to error carrying exactly IPD-M104 and not IPD-M101, the placeholder and good control stay conforming, both byte-pinned templates stay conforming, and a full before/after author-phase sweep over all 1143 tracked plans reported ZERO changed diagnostic sets. Four findings: the corpus triple 1089/1/0 has drifted to 1142/1/0 so E-04 and V-04 now re-derive it and assert two invariants instead; 949enf has EXECUTED rather than being in review and its shipped _preserved_date docstring now cites this very defect, which strengthens the fence; Section 4.4 required-fields enumeration is ALSO wrong about Id, a second unowned drift in the same section that E-05 is now told explicitly not to touch; and the suite baseline moved 3387 to 3665.
+
+- 2026-09-30 draft (opencode/claude-opus): created.
+- 2026-09-30 to-review (opencode/claude-opus): authored from backlog item `5h8u3z` with the defect reproduced, the fix prototyped, and the full-suite blast radius measured at zero (F-01 through F-12).
+
+## Goal
+
+Make `aw ipd lint` report a `- Date:` whose value cannot be parsed, so the author hears about it at authoring time instead of the value silently reaching five consumers that each substitute their own answer for it. One value check is added to `ipd_schema.validate_metadata` beside the `Kind`, `Status`, `Readiness` and `Id` checks that already live there, routed to the existing `IPD-M104` metadata-field code rather than a new one, and the governing spec section is amended in the same change to state the field rule the code now enforces.
+
+The measured effect is narrow and provable: the exact production string `- Date: 2026-07-23 (fleshed later)` goes from `conforming` with zero diagnostics to `error` with `IPD-M104: Date: ...`, while the whole live plan corpus, both byte-pinned templates, and the full test suite are unaffected.
+
+WHAT THIS GOAL DELIBERATELY DOES NOT CLAIM. It does not repair any consumer, so a plan whose `- Date:` is unparseable STILL yields `20260101` from `plans_refs._plan_date` and `plans_archive._plan_date` after this change (F-09); those are `949enf` and `dkfthf`. It does not repair the one already-misnamed record in the corpus (`tf4jz5`). It does not make any checker compare a filename date against the plan's own metadata, which is the wider question the backlog item explicitly raises and does not answer (F-10, OQ-03). What it delivers is the thing whose absence made all of those silent: a required field whose value is now validated.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: pin the defect before changing it
+
+- [x] E-01 ADD THE FAILING SCHEMA-LEVEL ROWS FIRST, in `tests/test_ipd_schema.py`'s existing `MetadataValidationTests.CASES` table, so the gap is demonstrated at the layer that owns it rather than asserted. Add one NEGATIVE row per malformed shape, each expecting a `("Date", <message>)` pair: the production casualty string `2026-07-23 (fleshed 2026-07-26 from research)`, the plausible hand-typed `2026-7-23`, the compact `20260723`, a non-date `TBD`, and the impossible-calendar `2026-13-45`. Add ONE POSITIVE row for the template placeholder `<YYYY-MM-DD>` expecting `[]`.
+  THE TABLE'S OWN CONTRACT DECIDES THE SHAPE, so read its docstring before adding a row: each row asserts the FULL sorted `(field, message)` set via `_pairs`, deliberately and not merely that some expected error is present, because the old `any(e.field == "X")` form passed even when the validator over-fired on valid input. Build each map with the module's `_meta(Date=...)` helper (it copies `VALID_CHILD_META` and replaces one field) and use directory `"pending"`, matching every neighbouring row.
+  EVERY NEGATIVE ROW MUST FAIL AT HEAD and the positive row must pass at HEAD. That contrast is the whole point: at HEAD `validate_metadata` returns `[]` for all six, because its only `Date` logic is the `for req in META_REQUIRED` presence loop, so the five negative rows report `[] != [("Date", ...)]` and the placeholder row already passes. A negative row that passes at HEAD is not pinning this defect.
+  DO NOT ADD A ROW FOR AN ABSENT `Date`: `_meta(Status=None)`'s sibling case already covers the required-field-missing direction for the required set, and `IPD-M101` already owns it. This plan's subject is the PRESENT-but-unparseable direction only.
+  - Depends on: none
+  - Expected outcome: Five new negative rows in `MetadataValidationTests.CASES` FAILING at HEAD (each showing `validate_metadata` returning no error for an unparseable `Date`), plus one placeholder row PASSING at HEAD.
+  - Execution state: performed
+
+- [x] E-02 ADD THE FAILING END-TO-END LINT ASSERTION, separately from E-01, in `tests/test_ipd_lint.py`, because `validate_metadata` returning a `MetaError` is not the same claim as `aw ipd lint` reporting a diagnostic and flipping a disposition. The routing between them is `ipd_lint.check_metadata`'s message-substring `if` chain (`"missing" in me.message` -> `IPD-M101`, the `Status`/`directory` and `Set`/`"characters, over the"` special cases, else `IPD-M104`), so a message worded with the substring `missing` in it would silently land on the WRONG code. Assert on a full plan text that the malformed-`Date` case yields `DISPOSITION_ERROR` carrying code `IPD-M104`, and that the same plan with a good `- Date:` is `conforming`.
+  USE THE FILE'S OWN CONFORMING-PLAN FIXTURE AND ITS `.replace("- Date: 2026-08-03", ...)` IDIOM, which the module already uses in four places (`_pre_cutover`, `_post_cutover`, and the two date-parameterized helpers around them); do not build a new plan text by hand. `checkpoint="author"`, `directory="pending"`, matching those neighbours.
+  ASSERT THE CODE, NOT THE MESSAGE PROSE. A test that pins the message string would refuse a later reword of a diagnostic, which is not the invariant; the invariant is that the malformed value reaches the metadata-field code and flips the disposition to `error`.
+  - Depends on: none
+  - Expected outcome: One new test FAILING at HEAD showing `lint_text` returns `conforming` with ZERO diagnostics for a plan whose `- Date:` is `2026-07-23 (fleshed later)`, beside its good-`Date` control PASSING at HEAD.
+  - Execution state: performed
+
+### Task group 2: add the missing value check
+
+- [x] E-03 ADD THE `Date` VALUE CHECK TO `ipd_schema.validate_metadata`, placed with the other value checks it belongs beside (the `Kind`, `Status`, `Readiness` and `Id` blocks that follow the required-presence loop), and NOT in `ipd_lint`. The siting is the module's shipped rule, stated in `validate_metadata`'s own `Readiness` comment: a vocabulary DEFINED IN THIS MODULE is validated here exactly as `Kind` and `Status` are, while `Priority`/`Work-Kind` sit in the `aw check` surface only because their vocabulary is owned by `backlog`. A date grammar is owned by nobody else, and `validate_metadata` is PURE, which this check must stay: no repository read, no cutover lookup, no `datetime.date.today()`.
+  ACCEPT EXACTLY `YYYY-MM-DD` PLUS A REAL CALENDAR CHECK, and reject everything else. The shape half is `^\d{4}-\d{2}-\d{2}$`, which is what every downstream consumer's anchored pattern accepts on the ISO side. The calendar half must be an explicit `datetime.date(y, m, d)` (or an equivalent) rather than `date.fromisoformat`, because `fromisoformat` is WIDER than the consumers on this exact axis: measured, it accepts the ISO week form `2026-W01-1` (returning 2025-12-29) and the compact `20260929`, so using it would admit two shapes the shape check exists to refuse. The calendar half matters on its own evidence: `2026-13-45` passes a shape-only check, and reaches `plans_refs._plan_date` as `20261345`, `artifact_core.shard_for_date` as shard `202613`, and `plans_archive._age_days` as `0.0` days old.
+  EXEMPT THE LITERAL `<YYYY-MM-DD>` PLACEHOLDER, and this is a HARD CONSTRAINT rather than a nicety. Both byte-pinned templates carry `- Date: <YYYY-MM-DD>` verbatim, and `tests/test_ipd_templates.py` asserts BOTH that each template is byte-identical to `build_skeleton`'s output AND that each lints `conforming` at the `author` checkpoint. Measured: without the exemption both template tests fail. Do NOT resolve this by editing a template or by relaxing that test; the placeholder is the correct value for a template and the exemption is the correct expression of that.
+  COMPARE AFTER `.strip()` AND DO NOT PUT THE SUBSTRING `missing` IN THE MESSAGE, for the E-02 routing reason: `ipd_lint.check_metadata` selects `IPD-M101` on `"missing" in me.message`. Word it as a positive statement of the accepted form, e.g. `Date must be an ISO calendar date (YYYY-MM-DD)`.
+  ROUTE TO THE EXISTING `IPD-M104`, NOT A NEW CODE, and record the choice because the module's own `C_SETID_LENGTH` comment argues the opposite way for its case. That comment's test is DIAGNOSABILITY: a setid-length refusal earned `IPD-M109` because it has a specific mechanical remedy a consumer can route on. A malformed required-field VALUE has no such distinct remedy (fix the value), and `IPD-M104` is already exactly the "metadata field invalid" bucket carrying `Kind`, `Status`, `Readiness`, `Id` and `Order` value failures, which is the set this joins. Adding a code would also oblige a spec catalog entry for no gain in what an author can do about it.
+  - Depends on: E-01, E-02
+  - Expected outcome: One value check in `validate_metadata`; every E-01 negative row and the E-02 test now pass; the E-01 placeholder row, the E-02 good-`Date` control, and both `tests/test_ipd_templates.py` template tests still pass. Authoring prototyped this exact check in-process and measured: `2026-07-23 (fleshed later)`, `2026-7-23`, `20260929`, `TBD` and empty all report `IPD-M104`; both templates stay `conforming`.
+  - Execution state: performed
+
+### Task group 3: prove the corpus and the suite survive it
+
+- [x] E-04 PROVE THE LIVE CORPUS IS UNAFFECTED, by re-running the author-phase measurement over every tracked plan AFTER the change and comparing the per-file diagnostic code lists against the same measurement before it. This item exists because promoting a required field from presence-checked to value-checked is a CORPUS MIGRATION RISK, which the module's own tests say in as many words (`tests/test_ipd_schema.py`: "adding a field to META_REQUIRED is a corpus migration, never a one-line change"); the same hazard applies to newly validating a value.
+  THE EXPECTED RESULT IS ZERO CHANGED FILES, and the reason it is safe is measured rather than assumed: exactly ONE plan in the whole corpus carries a malformed `- Date:`, it is the `qrokie` casualty, and it sits in `executed/` where `lint_text` returns the `legacy` disposition with no diagnostics before any metadata check runs. No pending or reusable plan is malformed, and no plan uses the compact form.
+  RE-DERIVE THE BREAKDOWN; DO NOT EXPECT A LITERAL TRIPLE. The authoring figures (1090 with a date line, 1089 ISO, 187 pending) had already drifted by review two days later to 1143 / 1142 / 190 as intervening lanes merged (review F-16), so the counts are a live population and belong in the report as context, never as the bar. THE BAR IS THE TWO INVARIANTS: exactly one malformed file, and that file in a terminal disposition directory. Both held at authoring and at review, and the review independently re-ran the full before/after comparison over all 1143 files and measured ZERO changed diagnostic sets (F-17).
+  IF THE COUNT IS NOT ZERO, STOP AND REPORT rather than editing a plan to fit. A newly-flagged pending plan means a live record has an unparseable date, which is a finding about the corpus that a human should see, and silently repairing records is not this plan's scope.
+  - Depends on: E-03
+  - Expected outcome: A measured before/after comparison over all tracked `.ipd.md` files showing ZERO files whose author-phase diagnostic set changed, with the malformed / well-formed / compact breakdown RE-DERIVED from the post-change tree and reported as context, and with the two invariants (one malformed file, in a terminal directory) explicitly confirmed.
+  - Execution state: performed
+
+- [x] E-05 AMEND THE GOVERNING SPEC IN THE SAME CHANGE, adding the `Date` field rule to the "Field rules" list in Section 4.4 of `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`, beside the `Kind`, `Status`, `Set` and `Order` entries that are already there. State the accepted form (`YYYY-MM-DD`, a real calendar date), the `<YYYY-MM-DD>` template exemption and why it exists, and that a present-but-unparseable value is an `IPD-M104` error while an absent field remains `IPD-M101`.
+  THIS IS REQUIRED, NOT OPTIONAL, and the evidence is that the spec is currently WRONG BY OMISSION in a way this change makes load-bearing: Section 4.4 lists `Date` as required and then gives per-field value rules for `Kind`, `Status`, `Set` and `Order` while saying NOTHING about what a `Date` value may be. Section 16.1's acceptance list likewise has a bullet for "invalid or missing required metadata field" whose invalid half `Date` has never satisfied. AGENTS.md's plan-may-amend-a-spec rule makes carrying the amendment here the correct route, and the spec path is declared in `Scope-Paths` so both runners announce the spec edit before the run.
+  THE SPEC IS `implemented`, SO DO NOT CHANGE ITS STATUS OR ITS HISTORY BEYOND THE AMENDMENT. Append a dated `## Workflow history` line recording the amendment and this plan's id6, following the convention the `x75obw` and `lkexaw` amendments in this same section already use (both are in-place amendments naming their plan and date). Do not touch any other spec.
+  AMEND THE "Field rules" LIST ONLY, AND LEAVE THE REQUIRED-FIELDS ENUMERATION ALONE even though it is measurably wrong two paragraphs above (review F-19): it reads "Required fields (all IPDs): `Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`." while `ipd_schema.META_REQUIRED` also contains `Id`, and the spec claims `Id` is required nowhere. That is a SECOND, unowned drift in a DIFFERENT sentence making a DIFFERENT claim (an enumeration of which fields are required, not a value rule for one of them), and correcting it here would be an undeclared second spec-contract change smuggled into a value-rule amendment, which is exactly what the scope-reconciliation gate exists to surface. Leave it; it is recorded in Deferred.
+  - Depends on: E-03
+  - Expected outcome: Section 4.4's "Field rules" list carries a `Date` entry stating the accepted form, the placeholder exemption, and the `IPD-M104`/`IPD-M101` split; a dated history line names this plan. The required-fields enumeration sentence is byte-unchanged, no other spec file is modified, and the spec's `- Status:` is unchanged.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- `ipd_schema.validate_metadata` is PURE by contract (no repository, no I/O), which is why the setid LENGTH rule splits its error tier into this module and its advisory tier into `ipd_lint.lint_file`. A check needing a cutover date or a repo read cannot live here.
+- Value-check SITING in this module follows vocabulary OWNERSHIP, stated in `validate_metadata`'s `Readiness` comment: a vocabulary defined in `ipd_schema` is validated in `ipd_schema` (`Kind`, `Status`, `Readiness`, `Id`), while `Priority`/`Work-Kind` live in the `aw check` surface because `backlog` owns their vocabulary.
+- `ipd_lint.check_metadata` routes a `MetaError` to a code by MESSAGE SUBSTRING (`"missing"` -> `IPD-M101`; `Status`+`"directory"` -> `IPD-M105`; `Set`+`"characters, over the"` -> `IPD-M109`; else `IPD-M104`), so diagnostic message WORDING is load-bearing for routing.
+- Both byte-pinned templates (`.aw/system/workflows/assess/templates/ipd.md` and `orchestrator-ipd.md`) are asserted byte-identical to `ipd_authoring.build_skeleton` output AND `conforming` at `author` by `tests/test_ipd_templates.py`. Any new always-on metadata check must accept whatever placeholder those templates carry.
+- The two test surfaces here are TABLE-DRIVEN and their docstrings state the contract a new row must satisfy: `tests/test_ipd_schema.py::MetadataValidationTests` asserts the FULL sorted `(field, message)` set per row via `_pairs`, with the disposition directory as a column and clean rows deliberately included.
+- Tests must assert OBSERVABLE BEHAVIOR, never code structure: no `inspect`/`ast`/regex reads of production source, no symbol censuses (AGENTS.md, GUIDING_PRINCIPLES P16). Every test this plan adds calls `validate_metadata` or `lint_text` and asserts on returned errors, codes and dispositions.
+- The suite is run BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`. Do not add `-n0`, a second `-q`, or `-p no:randomly` (AGENTS.md).
+- Commit through `aw commit <plan> -- <paths>`, never `git add -A`; verify the staged set, since this checkout is shared (AGENTS.md).
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | THE DEFECT REPRODUCES AT HEAD `86486f1d` THROUGH THE REAL CLI, in the dangerous direction: a plan carrying `- Date: 2026-07-23 (fleshed later)` lints `conforming` with exit 0 and no `Date` complaint of any kind, while the SAME plan with the line DELETED yields `! IPD-M101: Date: required field missing` and exit 1. So deleting a required field is caught and corrupting it is not. | `aw ipd lint` on two variants of one real pending plan: malformed -> `conforming`, rc 0; absent -> `error`, rc 1 with `IPD-M101`. |
+| F-02 | ROOT CAUSE IS A PRESENCE-ONLY LOOP: `ipd_schema.validate_metadata`'s only `Date` logic is `for req in META_REQUIRED: if req not in fields`, which tests membership and never the value. The same function DOES value-check `Kind`, `Status`, `Readiness` and `Id` immediately below that loop, so the missing check is an omission in an otherwise-populated pattern rather than a deliberate design. | `ipd_schema.validate_metadata`, its required-presence loop and the four value-check blocks that follow it; `ipd_schema.META_REQUIRED` contains `Date`. |
+| F-03 | FIVE CONSUMERS EACH SUBSTITUTE THEIR OWN ANSWER for an unparseable value, which is why silence here is expensive. Two FABRICATE: `plans_refs._plan_date` and `plans_archive._plan_date` are separate functions with the same `return "20260101"` no-match branch. Three GATE: `ipd_lint._m105_terminal_date_applies`, `ipd_lint._citation_anchor_applies` and `check_engine._plan_date_compact` return False/None on no-match and so treat the plan as pre-cutover, suppressing their rules. | Measured on `- Date: 2026-07-23 (fleshed 2026-07-26 from research)`: `plans_refs._plan_date` -> `20260101`, `plans_archive._plan_date` -> `20260101`, `check_engine._plan_date_compact` -> `None`, `_m105_terminal_date_applies` -> `False`. |
+| F-04 | THE THREE GATING CONSUMERS DOCUMENT THEIR OWN DEPENDENCE ON THIS PLAN'S FIX, each in a comment saying a plan with no parseable `- Date:` is treated as pre-cutover "because `IPD-M101` already owns the missing-`Date` complaint, so this rule must not invent a second consequence for the same defect". That reasoning is SOUND for an ABSENT field and FALSE today for a malformed one, since `IPD-M101` does not fire on it, so the deferral points at a complaint nobody makes. This plan is what makes those three comments true. | The identical comment in `ipd_lint._m105_terminal_date_applies`, `ipd_lint._citation_anchor_applies` and `check_engine.carrier_severity_for_plan`; the same sentence appears in spec `ipd-structure-and-linting` Section 10.2. |
+| F-05 | IT ALREADY COST THIS REPOSITORY A DATE. `.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` carries the malformed line and its filename records the fabricated `20260101` rather than its real `20260723`. It is the ONLY `20260101-`prefixed plan in the corpus. | `rglob` over `.aw/records/plans` for `20260101-*`: exactly 1 file; its `- Date:` line quoted in full in the backlog item. |
+| F-06 | THE CORPUS IS SAFE TO TIGHTEN, measured rather than assumed: of 1090 tracked `.ipd.md` files carrying a `- Date:` line, 1089 are well-formed `YYYY-MM-DD`, 1 is malformed (the F-05 casualty), and ZERO use the compact `YYYYMMDD` form. Pending is entirely clean (187 plans, 0 malformed) and `reusable/` holds no `.ipd.md` at all. | Scan of the first `- Date:` line of every `.aw/records/plans/**/*.ipd.md` against `^\d{4}-\d{2}-\d{2}$` and `^\d{8}$`; per-directory breakdown of the single malformed hit. |
+| F-07 | THE ONE MALFORMED FILE CANNOT BE FLAGGED ANYWAY, so the corpus impact is structurally zero and not merely arithmetically small: it sits in `executed/`, and `ipd_lint.lint_text` returns `DISPOSITION_LEGACY` with an EMPTY diagnostic list for any terminal-directory plan before any metadata check runs (unless the checkpoint is `post-transition`). Measured: `aw ipd lint` on that file reports `legacy/not evaluated`, rc 0. Only with `--legacy` does it evaluate, and it then reports nine PRE-EXISTING errors having nothing to do with the date. | `ipd_lint.lint_text`'s terminal-dir short-circuit and `_is_terminal_dir`; `aw ipd lint` on that path -> `legacy/not evaluated`; with `--legacy` -> `IPD-M101: Kind`, `IPD-M104: Approval`, five `IPD-H202`, `IPD-M108`, `IPD-S404`. |
+| F-08 | THE PROTOTYPE IS CLEAN ON THE WHOLE SUITE, so this is measured and not projected. An ISO-shape check with the `<YYYY-MM-DD>` exemption, applied to `validate_metadata` in the working tree, leaves the bare suite at exactly its baseline count with zero failures; the same 3 failures appear in the `slow or livecorpus` selection BOTH with and without the prototype, so they are pre-existing and unrelated. | Baseline bare `python3 -m pytest`: `3387 passed, 2 skipped, 3 warnings in 66.85s`. With prototype: `3387 passed, 2 skipped, 3 warnings in 172.58s`. `-m "slow or livecorpus"`: `3 failed, 204 passed` identically before and after, naming `test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`, `test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw`, `test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory`. Prototype reverted; `git status --porcelain` empty. |
+| F-09 | THE TEMPLATE PLACEHOLDER EXEMPTION IS MANDATORY, and is the one constraint that would have broken a naive fix. Both byte-pinned templates carry `- Date: <YYYY-MM-DD>` verbatim, and `tests/test_ipd_templates.py` asserts each is byte-identical to `build_skeleton` output AND `conforming` at `author`. Measured: with the exemption both remain `conforming`; the placeholder reaches `validate_metadata` as the literal string `<YYYY-MM-DD>`. | `.aw/system/workflows/assess/templates/ipd.md` and `orchestrator-ipd.md` third line; `tests/test_ipd_templates.py::TemplateParityTests` and `::TemplateLintTests`; `lint_text` on both templates with the prototype -> `conforming`, no diagnostics. |
+| F-10 | A SHAPE-ONLY CHECK IS NOT ENOUGH, which is why E-03 mandates a calendar check too: `2026-13-45` satisfies `^\d{4}-\d{2}-\d{2}$` and is accepted by every consumer's anchored pattern, so it propagates as a real date. Measured: `plans_refs._plan_date` -> `20261345`, `check_engine._plan_date_compact` -> `20261345`, `artifact_core.shard_for_date` -> shard `202613`, and `plans_archive._age_days` -> `0.0` (its `strptime` raises and the function returns zero, so an impossible date reads as authored today and is never sweep-eligible). | Each of those four calls on `2026-13-45`; the prototype's shape-only variant left `2026-13-45` reporting `conforming`. |
+| F-11 | `date.fromisoformat` IS THE WRONG CALENDAR PRIMITIVE HERE, stated because it is the obvious one to reach for. It is WIDER than the consumers on exactly the axis this check polices: measured, it accepts the ISO week form `2026-W01-1` (yielding 2025-12-29) and the compact `20260929`, both of which the shape half exists to refuse, so using it alone would admit two shapes as valid dates. An explicit `datetime.date(y, m, d)` on the three captured groups does not. | `date.fromisoformat` on `2026-W01-1` -> `2025-12-29` and on `20260929` -> `2026-09-29`; shape-then-`date(y,m,d)` rejects both. |
+| F-12 | THE ONE COMPACT-`YYYYMMDD` USE IS A SYNTHETIC TEST FIXTURE THAT NEVER LINTS, so refusing the compact form costs nothing. `tests/test_ipd_set_plan.py` builds plans carrying `- Date: 20260823`, and that module imports `ipd_set_plan` and `orchestrate_isolation` only, never `ipd_lint` or `ipd_schema`, so its fixtures are never validated. The suite result in F-08 confirms it empirically. | The `- Date: 20260823` fixture line and that module's import list; F-08's zero-failure run with the compact form refused. |
+| F-13 | THE SPEC IS INCOMPLETE ON THIS EXACT POINT, which is why E-05 amends it rather than citing it. Section 4.4 lists `Date` among the required fields and then gives per-field VALUE rules under "Field rules" for `Kind`, `Status`, `Set` and `Order` while saying nothing about `Date`. Section 16.1's acceptance list carries "invalid or missing required metadata field", whose INVALID half `Date` has never satisfied. Section 4.4 also has in-place precedent for a plan amending it: the `x75obw` setid-length and `lkexaw` Priority/Work-Kind amendments both sit there naming their plan and date. | Spec `20260802-1904-01-ipd-structure-and-linting.spec.md` Section 4.4 "Field rules" list and Section 16.1 bullet; the two dated in-place amendments in that same section. |
+| F-14 | `IPD-M104` IS THE CORRECT CODE and the module's own reasoning says why, even though its `C_SETID_LENGTH` comment argues for a dedicated code in its case. That comment's stated test is a specific mechanical remedy a consumer can route on (pick a shorter Set, or regroup). A malformed required-field value has no distinct remedy beyond fixing the value, and `IPD-M104` is documented there as "the catch-all metadata field invalid bucket already carrying `Kind`, `Status`, `Readiness`, `Id` and `Order` failures", which is exactly the set a `Date` value failure joins. | `ipd_lint.C_SETID_LENGTH`'s adjacent comment, quoted; `ipd_lint.check_metadata`'s code-selection chain with `IPD-M104` as its else branch. |
+| F-15 | THE FIX BELONGS TO THIS PLAN AND NOT TO `k9awrq` OR `949enf`, so the fence is not arbitrary. `k9awrq` made the `IPD-*` family REACHABLE from `aw check plans` (`check_engine.check_ipd_lint_reach`, rule `check.ipd-lint-diagnostic`), but its Scope explicitly excludes "any change to lint RULES themselves", and reachability cannot surface a rule that does not fire. `949enf` fixes the rename-side filename fabrication and explicitly names this item as the carrier of the lint half. | `check_engine.check_ipd_lint_reach` and the `check.ipd-lint-diagnostic` RuleSpec; plan `949enf`'s "Deferred / out of scope" entry naming `Carrier: 5h8u3z`, and its F-08 recording this measurement. |
+| F-16 | REVIEW FINDING (2026-10-01): THE CORPUS FIGURES HAVE DRIFTED BUT THE STRUCTURAL CLAIM IS INTACT, AND THE DISTINCTION IS WHAT MATTERS. Re-measured at review HEAD `cebbcd0f6`: 1143 plans carry a `- Date:` line (not 1090), 1142 are well-formed ISO (not 1089), pending holds 190 plans (not 187), and `superseded/` plus `not-executed/` carry 38 and 5. The counts moved because intervening lanes merged. WHAT DID NOT MOVE is every load-bearing property: exactly ONE malformed value in the whole corpus, it is still the same `qrokie` casualty, it is still the only `20260101-`prefixed plan, ZERO plans use the compact form, and ZERO pending plans are malformed. So the migration risk is still structurally zero. The plan already instructs E-04 to re-measure and V-04 to restate the breakdown from the post-change tree, which is the right posture; what is corrected here is only that the specific triple `1089/1/0` is now `1142/1/0` and must not be used as the expected value. | Scan of the first `- Date:` line of every `.aw/records/plans/**/*.ipd.md` against `^\d{4}-\d{2}-\d{2}$` and `^\d{8}$`: `1143 total, 1142 ISO, 0 compact, 1 malformed`, per-directory `{executed: 910, superseded: 38, pending: 190, not-executed: 5}` with the single malformed hit in `executed/`. | E-04 and V-04 are amended to require the breakdown be RE-DERIVED and to drop `1089/1/0` as a literal expectation, keeping the two invariants that actually matter as the bar: exactly one malformed file, and it must be in a terminal directory. The ZERO-changed-file expectation is unchanged and was independently confirmed at review (see F-17). |
+| F-17 | REVIEW FINDING (2026-10-01): THE WHOLE FIX AND ITS ZERO-IMPACT CLAIM WERE RE-VERIFIED INDEPENDENTLY AT REVIEW, so the plan's feasibility is measured twice rather than once. Applying the E-03 check as an in-process monkeypatch (ISO shape plus explicit `datetime.date(y, m, d)`, exempting the literal `<YYYY-MM-DD>`, message free of the substring `missing`) and driving `ipd_lint.lint_text` at `checkpoint="author", directory="pending"`: the good control stays `conforming` with zero diagnostics, and ALL FIVE malformed shapes the plan names (`2026-07-23 (fleshed later)`, `2026-7-23`, `20260723`, `TBD`, `2026-13-45`) flip to `error` carrying exactly `IPD-M104` and NOT `IPD-M101`, confirming both the fix and the message-routing constraint E-03 and OQ-02 turn on. The `<YYYY-MM-DD>` row stays `conforming`, and BOTH byte-pinned templates lint `conforming` with zero diagnostics under the patch, confirming F-09's mandatory exemption. Then the full author-phase corpus comparison over all 1143 tracked `.ipd.md` files, before versus after, reported ZERO files whose diagnostic set changed. | The monkeypatch transcript with one line per shape; both template results; a before/after `lint_text` sweep over 1143 files diffing sorted diagnostic-code lists, reporting `CHANGED diagnostic sets: 0`. Targeted suites `tests/test_ipd_schema.py tests/test_ipd_lint.py tests/test_ipd_templates.py -o addopts=""` reported `91 passed` on the unmodified tree. | Raises confidence in the plan materially and changes no item. Recorded because an executor who cannot reproduce the FAILING-FIRST contrast the evidence contract demands should suspect their own harness before concluding the premise is in doubt, and because the `IPD-M104`-not-`IPD-M101` result is the one the message wording can silently break. |
+| F-18 | REVIEW FINDING (2026-10-01): `949enf` HAS EXECUTED, NOT "IN REVIEW", AND ITS SHIPPED CODE NOW CITES THIS PLAN'S DEFECT AS ITS OWN REASON, which strengthens the fence rather than weakening it. The Deferred entry says the `plans_refs` fallback is "already carried and in review"; it is in `.aw/records/plans/executed/` with `- Status: executed`. Critically, the `20260101` fallback IS STILL THERE: `plans_refs._plan_date` still returns the literal `20260101` on no-match. What `949enf` added is `plans_refs._preserved_date`, which consults the FILENAME first and falls back to `_plan_date` only last, and whose docstring states the reason in terms of THIS defect: the front-matter date "cannot be trusted ahead of the name here because its own failure mode is a FABRICATED CONSTANT ('20260101') rather than an absent value (and a malformed - Date: escapes lint without complaint)". So the executed plan's own code comment asserts the gap this plan closes, and the under-scope disclosure that an unparseable date STILL yields `20260101` from `_plan_date` remains literally true after `949enf`. | `ls .aw/records/plans/executed/ | grep 949enf` and its `- Status: executed`; its `- Scope-Paths:` naming `agent_workflows/plans_refs.py` and `tests/test_group_verb_policy.py`; `inspect.getsource(plans_refs._plan_date)` still showing `return "20260101"`; `inspect.getsource(plans_refs._preserved_date)` quoting the docstring above. | The Deferred entry's status wording is corrected and its `Carrier-Evidence` is confirmed to resolve. The fence is UNCHANGED: `plans_refs.py` stays out of `- Scope-Paths:`, because `_plan_date`'s fallback is still owned there and this plan still changes no consumer. Worth a reader's attention because a citation that a carrier is "in review" when it has shipped invites the wrong conclusion that the consumer half is unfixed in general. |
+| F-19 | REVIEW FINDING (2026-10-01): SECTION 4.4's REQUIRED-FIELDS LINE IS ALSO WRONG ABOUT `Id`, A SECOND OMISSION IN THE SAME SENTENCE E-05 EDITS, AND IT IS UNOWNED. The spec reads "Required fields (all IPDs): `Date`, `Kind`, `Concern`, `Scope`, `Status`, `Author`." while `ipd_schema.META_REQUIRED` is `('Date', 'Kind', 'Concern', 'Scope', 'Status', 'Author', 'Id')`. So `Id` is enforced by the linter and absent from the spec's own required list, and the spec mentions `Id` as required NOWHERE (grep for the backticked token finds no required-field claim). No pending plan and no open backlog item references `META_REQUIRED` or claims this drift. This is NOT in this plan's fence and is NOT folded in: E-05's subject is the `Date` VALUE rule in the "Field rules" list, whereas this is the required-field ENUMERATION two paragraphs above, a different sentence making a different claim. | `grep -n 'Required fields (all IPDs)'` on the spec beside `python3 -c 'from agent_workflows import ipd_schema; print(ipd_schema.META_REQUIRED)'`; `grep -n '\`Id\`'` over the spec returning no required-field claim; `grep -rln META_REQUIRED` over `.aw/records/plans/pending/` and `.aw/records/backlog/open/` matching only this plan and `fhinri`. | Recorded so the next author of that sentence has the measurement, and added to Deferred as declined rather than carried, because filing an item is a maintainer judgement (the drift is in an `implemented` spec's prose, breaks nothing, and may be a deliberate omission from when `Id` was introduced). E-05 is given one explicit instruction: amend the "Field rules" list only, and do NOT silently correct the required-fields enumeration while in the neighbourhood, because an undeclared second spec claim change is exactly what the scope-reconciliation gate exists to surface. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add five failing negative rows and one passing placeholder row for `- Date:` to `tests/test_ipd_schema.py::MetadataValidationTests.CASES` (E-01).
+2. Add one failing end-to-end lint assertion plus its good-`Date` control to `tests/test_ipd_lint.py`, pinning that the malformed value flips the disposition to `error` under code `IPD-M104` (E-02).
+3. Add the `Date` value check to `ipd_schema.validate_metadata`: `YYYY-MM-DD` shape plus an explicit calendar check, exempting the literal `<YYYY-MM-DD>` template placeholder, with a message that avoids the substring `missing` so it routes to `IPD-M104` (E-03).
+4. Measure the live corpus before and after, expecting zero files whose author-phase diagnostics change (E-04).
+5. Amend spec Section 4.4's "Field rules" list with the `Date` rule and append a dated history line (E-05).
+
+## Deferred / out of scope (with reason)
+
+- THE `20260101` FABRICATING FALLBACK IN `plans_refs._plan_date`. Out of fence because this plan changes the LINTER only, which is the fix shape the backlog item names, and because a plan that both flagged the value and changed what reads it could not show which half produced an observed effect. ITS CARRIER HAS EXECUTED AND THE FALLBACK IS STILL THERE (review F-18, correcting this entry's original "already carried and in review"): `949enf` is in `.aw/records/plans/executed/` with `- Status: executed`, and `plans_refs._plan_date` still returns the literal `20260101` on no-match. What it added is `plans_refs._preserved_date`, which consults the filename FIRST and reaches `_plan_date` only last, and whose docstring names THIS defect as the reason ("its own failure mode is a FABRICATED CONSTANT ('20260101') rather than an absent value (and a malformed - Date: escapes lint without complaint)"). So the fence is unchanged and the under-scope disclosure stays literally true.
+  - Carrier: 949enf
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.ipd.md
+- SECTION 4.4's REQUIRED-FIELDS ENUMERATION OMITTING `Id` (review F-19). The spec lists six required fields while `ipd_schema.META_REQUIRED` enforces seven, and it claims `Id` is required nowhere. Out of fence because it is a different sentence making a different claim from the one E-05 amends: E-05 adds a VALUE rule for `Date` to the "Field rules" list, while this is the ENUMERATION of which fields are required. Folding it in would change a second spec contract undeclared, and E-05 now carries an explicit instruction not to.
+  - Carrier-Declined: Nothing is owed by this plan. Recorded with its measurement so the next author of that sentence has it; whether to file an item is a maintainer judgement, since the drift sits in an `implemented` spec's prose, breaks no behavior (the linter is the authority and already enforces `Id`), and may be a deliberate omission from when `Id` was introduced.
+- THE SECOND COPY OF THAT FALLBACK IN `plans_archive._plan_date`, which drives archive shard placement and sweep age. Out of fence for the same reason, and it is a genuinely separate decision (whether the ARCHIVE verb should consult a filename at all) with its own blast radius.
+  - Carrier: dkfthf
+- REPAIRING THE ONE ALREADY-MISNAMED RECORD (F-05). It is an EXECUTED plan whose name is cited in `DECISIONS.md` and in a spec, so a repair is a reference-rewriting change to committed history, and the execution contract forbids changing what a plan in `executed/` records. This plan renames nothing.
+  - Carrier: tf4jz5
+- MAKING ANY CHECKER COMPARE A PLAN'S FILENAME DATE AGAINST ITS OWN `- Date:` metadata. This is the wider question the backlog item raises in its last sentence and explicitly does not answer, and it is a different rule with a different subject (a DISAGREEMENT between two sources, each individually well-formed, rather than one unparseable value). FILED AT AUTHORING with its measurement and its unresolved design question, so the gap is tracked rather than recorded only in this plan's prose; see OQ-03 for the false-positive profile that makes it a judgement a human must settle first. Filed `followup`/low with NO release gate deliberately, because all five date consumers read front matter (F-03), so a wrong FILENAME date is currently cosmetic plus self-perpetuating rather than load-bearing.
+  - Carrier: mt6j1p
+- RETROFITTING THE THREE CUTOVER CONSUMERS to distinguish "absent" from "malformed" now that the malformed case is flagged (F-04). Deliberately not done: their pre-cutover treatment of an unparseable date is CONSERVATIVE (it suppresses their own rule rather than firing wrongly), and their stated reason for it becomes true once this plan lands, so there is no defect left to fix. Changing them would alter three unrelated rules' firing sets for no measured gain.
+  - Carrier-Declined: no defect remains once `IPD-M101`'s sibling complaint exists; their suppression is conservative and their comments become accurate.
+- WIDENING THE CHECK TO ANY OTHER REQUIRED FIELD (`Concern`, `Scope`, `Author`). Out of scope because those are FREE PROSE with no grammar to validate, so there is nothing to check beyond the presence already enforced; only `Date` among the unvalidated required fields has a machine-readable form that consumers parse.
+  - Carrier-Declined: no grammar exists to validate for a prose field; presence is the whole contract.
+
+## Scope check
+
+- Over-scope: none. The four declared paths are the module holding the omission, the two test modules that own the two surfaces this must be pinned at, and the spec whose Section 4.4 the change makes accurate.
+- THE SPEC PATH IS DELIBERATELY IN `Scope-Paths` and is an AMENDMENT, not an accident: F-13 measures Section 4.4 as incomplete on exactly this field, and AGENTS.md's plan-may-amend-a-spec rule requires declaring the path so both runners announce the spec edit before the run and reconcile it afterwards. The spec's `- Status:` is NOT changed.
+- Under-scope: the fix does NOT repair any consumer, so an unparseable date still yields `20260101` from both fabricators after this change (F-03; `949enf`, `dkfthf`); it does not repair the one misnamed record (`tf4jz5`); it does not make any checker compare a filename date against metadata (OQ-03); and it does not touch the three cutover readers whose comments it makes true (F-04).
+- NOT CONSULTED AND DELIBERATELY SO: no repository read, no cutover date, and no `date.today()` enter the new check. `validate_metadata` is pure by contract, and that purity is what lets the ERROR tier apply with no repo present (the setid rule splits its tiers across two modules for exactly this reason). A cutover-gated variant was considered and rejected: F-06/F-07 measure the corpus impact at structurally zero, so there is no legacy population for a cutover to protect.
+
+## Required tests / validation
+
+- The six new rows in `tests/test_ipd_schema.py::MetadataValidationTests.CASES` (five malformed shapes expecting a `Date` error, one `<YYYY-MM-DD>` placeholder expecting none), each asserting the FULL sorted `(field, message)` set as that table's contract requires.
+- The two new assertions in `tests/test_ipd_lint.py`: the malformed-`Date` plan is `DISPOSITION_ERROR` carrying `IPD-M104`, and its good-`Date` control is `conforming`.
+- FAILING-FIRST CONTRAST IS MANDATORY, not optional: run the new rows and tests against UNFIXED source and paste the failures, then against the fixed tree and paste the passes. All five malformed schema rows and the one lint test MUST be observed failing before E-03. The placeholder row and the good-`Date` control MUST pass in BOTH runs, which is what proves the change refused only what it was aimed at. A fix whose tests were never seen to fail has not been demonstrated.
+- `tests/test_ipd_templates.py` passing unchanged, which is the F-09 constraint: both templates must stay byte-identical to `build_skeleton` output AND `conforming` at `author`. If either fails, the placeholder exemption is wrong or missing, and the remedy is the exemption, never a template edit or a relaxed template test.
+- The corpus measurement from E-04: before/after author-phase diagnostic sets over every tracked `.ipd.md`, with a ZERO changed-file count and the malformed/well-formed breakdown restated from the post-change tree.
+- Bare `python3 -m pytest` before and after, with both summary lines pasted. MEASURE YOUR OWN BASELINE ON A CLEAN TREE and compare against that, not against F-08's `3387`, which drifts with every intervening commit. The bar is ZERO FAILURES and a passed-count delta of exactly the new cases. THE DRIFT THIS INSTRUCTION ANTICIPATES ALREADY HAPPENED, which is the reason to obey it rather than shortcut it: review measured `3665 passed, 2 skipped, 3 warnings in 120.85s` on a clean tree at HEAD `cebbcd0f6`, 278 above F-08's figure, two days later.
+- `python3 -m pytest tests/test_ipd_schema.py tests/test_ipd_lint.py tests/test_ipd_templates.py -o addopts=""` for the per-test counts on the three modules this plan touches or constrains, which is the fastest signal that the placeholder exemption and the two new surfaces are right. Review measured `91 passed` on the unmodified tree; after the change the count must rise by exactly the new cases and nothing may fail.
+- `aw ipd lint` on this plan reporting `conforming` at `--phase pre-transition` before the terminal move.
+- Negative proof that the fence held: `git diff --stat` lists only the four declared paths, and specifically not `plans_refs.py`, `plans_archive.py`, `check_engine.py`, `ipd_lint.py`, or either template.
+- `aw sanitize --agent` clean (no maintainer or machine identifiers in anything authored).
+
+## Spec / documentation sync
+
+A SPEC AMENDMENT IS REQUIRED AND IS CARRIED HERE, in `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` (declared in `Scope-Paths`). The reason is F-13: Section 4.4 lists `Date` among the required fields and then gives per-field VALUE rules under "Field rules" for `Kind`, `Status`, `Set` and `Order` while saying nothing at all about what a `Date` value may be, and Section 16.1's acceptance list carries an "invalid or missing required metadata field" bullet whose invalid half `Date` has never satisfied. Landing the check without the amendment would leave the spec describing a linter that no longer matches it, which is precisely the drift the plan-may-amend-a-spec rule exists to prevent.
+
+WHAT THE AMENDMENT SAYS (E-05): a `Date` entry in Section 4.4's "Field rules" list stating the accepted form (`YYYY-MM-DD`, a real calendar date), the reserved `<YYYY-MM-DD>` template-placeholder exemption and why it exists (the byte-pinned templates carry it and are asserted `conforming`), and the code split (a PRESENT-but-unparseable value is `IPD-M104`; an ABSENT field remains `IPD-M101`). Section 4.4 has in-place precedent for exactly this shape of amendment: the `x75obw` setid-length paragraph and the `lkexaw` Priority/Work-Kind paragraph both sit in that section naming their plan and date.
+
+WHY THE CODE SPLIT BELONGS IN THE SPEC rather than only in a comment: three separate live rules DEFER to `IPD-M101` in prose, and Section 10.2 repeats that deferral verbatim ("a plan with no parseable `- Date:` is treated as pre-cutover, because the missing-`Date` complaint is already owned by `IPD-M101` and this rule must not invent a second consequence for it"). That sentence is sound for an absent field and, before this change, false for a malformed one (F-04). The amendment is what makes the spec's own cross-reference true.
+
+NO OTHER SPEC IS TOUCHED, and the spec's `- Status: implemented` is NOT changed: this is an amendment to a living contract, not a lifecycle transition. No user-facing documentation or help string changes, because no CLI surface, flag, or output format changes; the only behavioral delta is one additional diagnostic on input that was previously accepted silently.
+
+IF THE EXECUTOR FINDS a spec, README, or DECISIONS entry asserting that an unparseable `- Date:` is INTENDED to pass lint, that discovery changes this section: stop, add the file to `Scope-Paths`, amend it in the same change, and say why here.
+
+## Open questions
+
+### OQ-01: Should the accepted grammar also admit the compact `YYYYMMDD` form, which two consumers already parse?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as NO, accept `YYYY-MM-DD` only. Three measurements decide it. (1) THE CORPUS IS UNANIMOUS: of 1090 plans carrying a `- Date:` line, 1089 are `YYYY-MM-DD` and ZERO use the compact form (F-06), so admitting it would sanction a shape no live plan uses. (2) THE AUTHORING PATH ONLY EMITS ISO: `ipd_authoring` writes `when` as `date.today().strftime("%Y-%m-%d")` and both templates carry `<YYYY-MM-DD>`, so every plan this repository creates is ISO by construction. (3) THE CONSUMERS DISAGREE WITH EACH OTHER ON THE COMPACT FORM, which is the decisive point: `plans_refs._plan_date` and `plans_archive._plan_date` accept it, but `check_engine._plan_date_compact`, `ipd_lint._m105_terminal_date_applies` and `ipd_lint._citation_anchor_applies` all match `^(\d{4})-(\d{2})-(\d{2})$` and REJECT it. Measured on `- Date: 20260823`: `plans_refs` -> `20260823` while `_plan_date_compact` -> `None` and `_m105_terminal_date_applies` -> `False`, i.e. a compact date silently disables three cutover rules. Blessing it in the linter would bless that split. THE COST OF REFUSING IT IS ZERO, measured: the only compact use in the tree is a synthetic fixture in `tests/test_ipd_set_plan.py` that never reaches the linter (F-12), and the F-08 suite run with the compact form refused is green. E-01 pins `20260723` as a NEGATIVE row so a later reader cannot quietly widen the grammar without a test failure. NOTE the honest residue: this makes the LINTER stricter than two consumers, which is the correct direction (the linter should accept only what ALL consumers agree on), and unifying the five consumers' patterns is not this plan's job.
+
+### OQ-02: Should a malformed `- Date:` get its own rule code instead of the generic `IPD-M104`?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED as NO, reuse `IPD-M104`, recorded because the module contains a documented argument the OTHER way for a different case and a reader will otherwise think this contradicts it. `ipd_lint.C_SETID_LENGTH`'s adjacent comment chose a dedicated `IPD-M109` over `IPD-M104` and states its test explicitly: a dedicated code is right when the rule has "a specific, mechanical remedy" a consumer can route on and a test can assert without matching prose (there, pick a shorter Set or regroup). Applying that same test here gives the opposite answer: the remedy for a malformed required-field value is to fix the value, which is exactly what `IPD-M104` already means, and that comment itself describes `IPD-M104` as the bucket "already carrying `Kind`, `Status`, `Readiness`, `Id` and `Order` failures" (F-14). A `Date` value failure is a member of that set by construction. A new code would also oblige a spec catalog entry and a new stable identifier that can never be recycled, for no gain in what an author can do. The ROUTING CONSTRAINT this creates is real and E-03 carries it: `check_metadata` selects `IPD-M101` on `"missing" in me.message`, so the message must not contain that substring, and E-02 pins the resulting code so a later reword cannot silently re-route the diagnostic.
+
+### OQ-03: Should `aw check plans` report a filename date that disagrees with the plan's own `- Date:` metadata?
+
+- Blocking: no
+- Status: deferred
+- Owner: maintainer
+- Resolution or deferral rationale: DEFERRED TO THE MAINTAINER as a scope decision, not resolved here, and FILED so the deferral is tracked rather than left in this plan's prose. This is the wider gap the backlog item raises in its final sentence and explicitly does not answer. Measured at authoring: a plan whose filename says `20260101` while nothing else does passes `aw check plans` with rc 0 and no date finding, and the corpus contains exactly one such file (F-05). WHY IT IS A DIFFERENT RULE rather than a widening of this one: its subject is a DISAGREEMENT between two sources, both individually well-formed, whereas this plan's subject is a single value that cannot be parsed at all. The two have different false-positive profiles, which is the DESIGN QUESTION A HUMAN MUST SETTLE before the rule can exist: a legitimate regroup may change a member's filename date, since spec `agents-artifact-organization` Section 4.2 calls the leading date "the SET's canonical date, shared by all members", and 31 of 589 live clustered Sets already carry members with differing leading dates, so a naive equality rule would fire on dozens of healthy Sets (measured 31 of 589 clustered Sets at authoring and 40 of 688 at review 2026-10-01, so the ratio holds while both counts drift; the point is the population is non-trivial, never the particular number). It is filed `followup`/low with NO release gate because all five consumers read front matter (F-03), so a wrong FILENAME date is cosmetic plus self-perpetuating rather than load-bearing; what would promote it to a bug is a measured disagreement NOT explained by set-canonical grouping that a consumer acts on. NOT BLOCKING: this plan stands alone and closes the unparseable-value hole regardless of how the disagreement question is decided.
+- Carrier: mt6j1p
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: The pytest output for `tests/test_ipd_schema.py::MetadataValidationTests` run against UNFIXED source, pasted verbatim, showing the five malformed-`Date` rows FAILING with the actual observed result (expected a `("Date", ...)` pair, got `[]`). A PASS here is a FAILURE of this validation: a row that does not fail at HEAD is not pinning this defect. Plus the `<YYYY-MM-DD>` placeholder row shown PASSING in that same pre-fix run, and an explicit statement that each row asserts the FULL sorted pair set (not `any(...)`), as that table's contract requires.
+  - Observed evidence: PASS. Five malformed Date rows failed against unfixed source and placeholder passed:
+```
+$ python3 -m pytest tests/test_ipd_schema.py::MetadataValidationTests -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=666494680
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 2 items
+
+tests/test_ipd_schema.py F.                                              [100%]
+
+=================================== FAILURES ===================================
+_ MetadataValidationTests.test_each_metadata_case_reports_exactly_its_expected_errors _
+...
+validate_metadata mishandled 5 of 34 metadata cases.
+  a Date carrying trailing prose (the production casualty) [directory='pending']:
+    - expected exactly [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')], got []; MISSING [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')] (the rule did not fire)
+    this row exists because: THE PRODUCTION CASUALTY: a malformed Date line that escapes lint silently reaches five consumers, two of which substitute the fabricated '20260101'
+  a hand-typed Date with unpadded month (2026-7-23) [directory='pending']:
+    - expected exactly [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')], got []; MISSING [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')] (the rule did not fire)
+    this row exists because: unpadded components fail the anchored ISO regex and would reach the cutover gates as non-matching
+  a compact Date without hyphens (20260723) [directory='pending']:
+    - expected exactly [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')], got []; MISSING [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')] (the rule did not fire)
+    this row exists because: the compact form is accepted by plans_refs/plans_archive but rejected by check_engine and cutover gates; refusing it in lint keeps all consumers unified on ISO
+  a non-date Date value (TBD) [directory='pending']:
+    - expected exactly [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')], got []; MISSING [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')] (the rule did not fire)
+    this row exists because: a prose placeholder is not a date and must not reach consumers
+  an impossible calendar Date (2026-13-45) [directory='pending']:
+    - expected exactly [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')], got []; MISSING [('Date', 'Date must be an ISO calendar date (YYYY-MM-DD)')] (the rule did not fire)
+    this row exists because: passes shape regex but fails calendar construction; without calendar check it propagates to shard 202613 and age 0.0 days
+
+tests/test_ipd_schema.py:856: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_ipd_schema.py::MetadataValidationTests::test_each_metadata_case_reports_exactly_its_expected_errors
+========================= 1 failed, 1 passed in 0.40s ==========================
+```
+Each row in `MetadataValidationTests.CASES` asserts the FULL sorted `(field, message)` pair set via `_pairs` (and not `any(...)`), as required by that table's contract. The `<YYYY-MM-DD>` placeholder row passed in this pre-fix run with 0 clean rows broken (`clean_rows_broken == 0`).
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: The new `tests/test_ipd_lint.py` test shown FAILING against unfixed source, pasted, with the observed `conforming` disposition and empty diagnostic list for a plan whose `- Date:` is `2026-07-23 (fleshed later)`, beside its good-`Date` control PASSING in the same pre-fix run. State in one explicit sentence that this is a SEPARATE claim from V-01: `validate_metadata` returning a `MetaError` does not by itself mean `lint_text` reports a diagnostic under the intended code, because `check_metadata` routes by message substring.
+  - Observed evidence: PASS. End-to-end lint test failed against unfixed source showing conforming disposition on malformed Date beside passing good control:
+```
+$ python3 -m pytest tests/test_ipd_lint.py::DateMetadataLintTests -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1147804046
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 1 item
+
+tests/test_ipd_lint.py F                                                 [100%]
+
+=================================== FAILURES ===================================
+_ DateMetadataLintTests.test_malformed_date_yields_error_with_ipd_m104_beside_conforming_control _
+
+self = <tests.test_ipd_lint.DateMetadataLintTests testMethod=test_malformed_date_yields_error_with_ipd_m104_beside_conforming_control>
+
+    def test_malformed_date_yields_error_with_ipd_m104_beside_conforming_control(self):
+        good_text = _conforming_child()
+        malformed_text = good_text.replace(
+            "- Date: 2026-08-03", "- Date: 2026-07-23 (fleshed later)"
+        )
+
+        res_good = L.lint_text(good_text, checkpoint="author", directory="pending")
+        self.assertEqual(res_good.disposition, S.DISPOSITION_CONFORMING)
+        self.assertEqual(res_good.diagnostics, [])
+
+        res_malformed = L.lint_text(
+            malformed_text, checkpoint="author", directory="pending"
+        )
+>       self.assertEqual(res_malformed.disposition, S.DISPOSITION_ERROR)
+E       AssertionError: 'conforming' != 'error'
+E       - conforming
+E       + error
+
+tests/test_ipd_lint.py:3696: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_ipd_lint.py::DateMetadataLintTests::test_malformed_date_yields_error_with_ipd_m104_beside_conforming_control
+============================== 1 failed in 0.23s ===============================
+```
+This is a separate claim from V-01 because `validate_metadata` returning a `MetaError` does not by itself mean `lint_text` reports a diagnostic under the intended code, since `check_metadata` routes diagnostics by message substring (`"missing"` to `IPD-M101` vs generic to `IPD-M104`).
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: All five E-01 rows and the E-02 test now PASSING, pasted. Plus the `git diff` of `ipd_schema.py` showing the check sited with the other value checks, the shape test AND the explicit calendar construction (not `date.fromisoformat`, per F-11), the `<YYYY-MM-DD>` exemption, and a message free of the substring `missing`. Plus `tests/test_ipd_templates.py` passing, pasted, which is the F-09 constraint. Plus a pasted demonstration that the diagnostic code is `IPD-M104` and NOT `IPD-M101`. Plus the bare `python3 -m pytest` summary compared against the baseline YOU measured on a clean tree before editing (not F-08's `3387`), with zero failures.
+  - Observed evidence: PASS. All schema rows, lint tests, and template parity tests pass after fix, routing confirmed as IPD-M104, bare suite passes:
+1. All five E-01 rows and the E-02 test now passing:
+```
+$ python3 -m pytest tests/test_ipd_schema.py::MetadataValidationTests tests/test_ipd_lint.py::DateMetadataLintTests -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=2855891568
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 3 items
+
+tests/test_ipd_schema.py ..                                              [ 66%]
+tests/test_ipd_lint.py .                                                 [100%]
+
+============================== 3 passed in 0.17s ===============================
+```
+
+2. `git diff agent_workflows/ipd_schema.py`:
+```diff
+--- a/agent_workflows/ipd_schema.py
++++ b/agent_workflows/ipd_schema.py
+@@ -16,6 +16,7 @@
+
+ from __future__ import annotations
+
++import datetime
+ import re
+ from typing import Dict, FrozenSet, List, NamedTuple, Optional, Sequence, Tuple
+
+@@ -146,6 +147,9 @@ META_QUARANTINE_TRIO: Tuple[str, ...] = (
+ )
+ META_WATERMARK = "Highest E allocated"
+ META_APPROVAL = "Approval"
++# The reserved template placeholder for the Date metadata field.
++TEMPLATE_DATE_PLACEHOLDER = "<YYYY-MM-DD>"
++_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+ # Scope-Paths (Order oorry1): a machine-readable allowlist of the repo-relative paths a plan may
+ # change, so a later finalize transaction (Order v7e88a) can compare declared vs actually-changed
+ # paths. Recognized-but-OPTIONAL: it is NOT in META_REQUIRED (adding it there would fail every
+@@ -481,6 +485,31 @@ def validate_metadata(
+     if plan_id is not None and not _core.is_valid_id6(plan_id.strip()):
+         errors.append(MetaError("Id", "Id must be a 6-char base36-lowercase token"))
+
++    # Date: required field whose value must be an ISO calendar date (YYYY-MM-DD),
++    # exempting the literal <YYYY-MM-DD> template placeholder. Sited here beside
++    # the Kind/Status/Readiness/Id checks because the grammar is owned by this module
++    # and the check is pure (no repo, no cutover, no date.today()).
++    date_val = fields.get("Date")
++    if date_val is not None:
++        clean_date = date_val.strip()
++        if clean_date != TEMPLATE_DATE_PLACEHOLDER:
++            m = _DATE_RE.match(clean_date)
++            valid_date = False
++            if m:
++                y, month, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
++                try:
++                    datetime.date(y, month, d)
++                    valid_date = True
++                except ValueError:
++                    valid_date = False
++            if not valid_date:
++                errors.append(
++                    MetaError(
++                        "Date",
++                        "Date must be an ISO calendar date (YYYY-MM-DD)",
++                    )
++                )
++
+     # Set/Order pairing + Order rules.
+     has_set = "Set" in fields
+     has_order = "Order" in fields
+```
+
+3. `tests/test_ipd_templates.py` passing:
+```
+$ python3 -m pytest tests/test_ipd_templates.py -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=49164477
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 10 items
+
+tests/test_ipd_templates.py ..........                                   [100%]
+
+============================== 10 passed in 0.13s ==============================
+```
+
+4. Code routing demonstration: diagnostic code is `IPD-M104` and not `IPD-M101`:
+```python
+>>> from agent_workflows import ipd_lint as L
+>>> from tests.test_ipd_lint import _conforming_child
+>>> text = _conforming_child().replace("- Date: 2026-08-03", "- Date: 2026-07-23 (fleshed later)")
+>>> res = L.lint_text(text, checkpoint="author", directory="pending")
+>>> [(d.code, d.message) for d in res.diagnostics]
+[('IPD-M104', 'Date: Date must be an ISO calendar date (YYYY-MM-DD)')]
+```
+
+5. Bare `python3 -m pytest` comparison:
+Post-change suite run:
+`4294 passed, 2 skipped, 3 warnings in 172.65s (0:02:52)`
+Baseline clean tree run:
+`1 failed, 4292 passed, 2 skipped, 3 warnings in 445.47s (0:07:25)` (where the sole baseline failure was an unrelated 90s test hang timeout in statusline, filed as defect `8sr0or`).
+The post-change suite run has ZERO FAILURES and the passed count increased by the new test coverage.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: The before/after corpus measurement pasted, showing ZERO tracked `.ipd.md` files whose author-phase diagnostic set changed, plus the malformed / well-formed / compact breakdown RE-DERIVED on the post-change tree. DO NOT COMPARE AGAINST A LITERAL TRIPLE: the authoring figures `1089/1/0` had already drifted to `1142/1/0` by review (F-16), so report the fresh numbers as context and assert the TWO INVARIANTS instead, namely exactly one malformed file and that file in a terminal disposition directory. State explicitly that the single malformed file is in `executed/` and returns `legacy/not evaluated` before any metadata check runs (F-07), so the zero is structural and not a coincidence of counting. A NONZERO count is a STOP-AND-REPORT condition, not something to fix by editing a plan record. Note that review independently ran this same comparison over 1143 files and measured zero changed sets (F-17), so a nonzero result should prompt suspicion of the harness before suspicion of the premise.
+  - Observed evidence: PASS. Corpus before/after comparison shows zero changed diagnostic sets across 1166 files and both invariants hold:
+Re-derived breakdown on the post-change tree:
+Total plans with `- Date:`: 1166
+Well-formed ISO: 1165
+Compact YYYYMMDD: 0
+Malformed: 1 (`.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md`, with `- Date: 2026-07-23 (fleshed 2026-07-26 from research)`)
+Directory counts: `{'executed': 986, 'not-executed': 5, 'pending': 136, 'superseded': 39}`.
+
+Before/after author-phase diagnostic sets across all 1166 files:
+Total files linted: 1166
+Files with CHANGED diagnostic sets: 0
+
+Two invariants explicitly confirmed:
+1. Exactly one malformed file exists in the whole corpus (`qrokie`).
+2. That file is in a terminal disposition directory (`executed/`), where `lint_text` returns `legacy/not evaluated` with an empty diagnostic list at the `author` checkpoint before any metadata check runs. Thus the zero changed diagnostic sets result is structural.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: The `git diff` of the spec file, pasted, showing the new `Date` entry in Section 4.4's "Field rules" list naming the accepted form, the placeholder exemption, and the `IPD-M104`/`IPD-M101` split, plus the appended dated `## Workflow history` line naming this plan. Plus `git diff --stat` proving the spec's `- Status:` line is unmodified and no other `.spec.md` file is touched. Plus a one-sentence statement of WHY the amendment was required, citing Section 4.4's silence on `Date` beside its rules for `Kind`/`Status`/`Set`/`Order` (F-13).
+  - Observed evidence: PASS. Spec Section 4.4 Field rules list amended with Date rule, workflow history appended, status unchanged:
+1. `git diff .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`:
+```diff
+diff --git a/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md b/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+index 31b9a46b8..83b0eb1e2 100644
+--- a/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
++++ b/.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md
+@@ -161,6 +161,7 @@ Conditional fields:
+
+ Field rules:
+
++- `Date`: an ISO calendar date (`YYYY-MM-DD`, a real calendar date). The literal `<YYYY-MM-DD>` template placeholder is reserved and exempt because both byte-pinned templates carry it and are asserted conforming at authoring time. A present-but-unparseable `Date` value is an `IPD-M104` metadata error, while an absent field remains `IPD-M101`.
+ - `Kind`: one of `child` or `orchestrator`. Missing or unknown kind is an error for new IPDs.
+ - `Status`: one of the recognized readiness values (Section 9.1); it is the single source of truth for readiness. Directories carry disposition; `Status` carries readiness.
+ - `Set`: a lowercase-kebab identifier shared by the ordered Set.
+@@ -818,3 +819,4 @@ After the IPD-system Set lands:
+ - 2026-08-26 note (aw specs): Section 11: begin baseline dirty-check is Scope-Paths-scoped (path-overlap, ipdgates-03 OQ-01), not whole-tree; disjoint dirt allowed to preserve concurrent multi-agent workflow (beginscope vaq9qf E-03)
+ - 2026-09-21 note (aw specs): Section 10.2 added (citeanchor mzc019 E-01): an IPD code citation MUST carry a durable anchor (symbol path, or a quoted content string, with a line number only appended and never alone), because a bare file:line expires between authoring and execution and then silently misdirects an executor to unrelated valid code. States the rationale, the (a)/(b)/(c) preference order, the line-as-subject exception, and that enforcement is advisory-only (IPD-C801) and date-gated. Section 10 list item 18 appended to point at it; no existing item renumbered.
+ - 2026-09-28 note (aw specs): Section 11 amended (qurgra E-01..E-05): begin receipt's validity key is the frozen Scope-Paths plus each E/V item's whole action block (excluding checkbox marks, indented sub-fields, execution/validation state and workflow history), re-keyed from plan_content_digest (rchpms) and widened from opening-line extraction to the whole action block (qurgra 168p5j); accepted one-time receipt invalidation noted.
++- 2026-10-01 note (aw specs): Section 4.4 amended (Set 5h8u3z fqcax0 E-05): add Date field rule stating accepted ISO calendar date format (YYYY-MM-DD), <YYYY-MM-DD> template placeholder exemption, and IPD-M104 (present but unparseable) vs IPD-M101 (missing) diagnostic split.
+```
+2. `git diff --stat .aw/records/specs/` confirms only `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md` is modified (2 insertions(+), 0 deletions(-)), and `- Status: implemented` is completely unmodified.
+3. Statement: The amendment was required because Section 4.4 enumerated `Date` as required while giving specific value rules for `Kind`, `Status`, `Set`, and `Order` but remaining silent on the accepted value grammar for `Date` (F-13).
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan was authored `to-review` with NO `- Readiness:` field, deliberately: that value is an output of `/plan-review`, and writing one here would forge the attestation an auto-approve predicate reads. It must not be executed on the strength of the authoring turn.
+
+WHAT A HUMAN WOULD BE APPROVING, in one paragraph. One production module, two test modules, and one spec section change. `ipd_schema.validate_metadata` gains a `Date` value check beside the `Kind`, `Status`, `Readiness` and `Id` checks already there: the value must be `YYYY-MM-DD` shaped AND a real calendar date, with the literal `<YYYY-MM-DD>` template placeholder exempt, reported through the existing `IPD-M104` code. Six table rows and two lint assertions pin it, six of which must be observed FAILING first. Spec Section 4.4's "Field rules" list gains the `Date` entry it has always lacked. The measured effect: `aw ipd lint` stops silently accepting a `- Date:` that no consumer can parse, which today reaches two fabricators that substitute the literal `20260101` and three cutover gates that silently suppress themselves. THE RISK IS A CORPUS MIGRATION and it was measured rather than argued: 1089 of 1090 plans are already well-formed, the ONE exception sits in `executed/` where the linter returns `legacy` before any metadata check runs, no pending plan is affected, and the bare suite is at its exact baseline with the prototype applied (F-06, F-07, F-08). Also worth knowing before approving: the `<YYYY-MM-DD>` exemption is not cosmetic but MANDATORY, since two byte-pinned templates carry it and are asserted `conforming` (F-09); and this plan repairs no consumer, so `949enf` and `dkfthf` remain the carriers of the `20260101` fabrication itself.
+
+EXECUTION CONTRACT. Commit through `aw commit <plan> -- <paths>` with the staged set verified (this checkout is shared); never `git add -A`, never push, never `--no-verify`. Paste actual runner output for every `V-*`; never record a pass not run.
+
+SCOPE FENCE, A DECLARATION FOR RECONCILIATION RATHER THAN A STOP DIRECTIVE. The intended surface is exactly `agent_workflows/ipd_schema.py` (one value check), `tests/test_ipd_schema.py` (six table rows), `tests/test_ipd_lint.py` (two assertions), and the one spec section in `.aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md`. Specifically DO NOT: change `plans_refs.py` or `plans_archive.py`, whose `20260101` fabricators belong to `949enf` and `dkfthf` (F-03); change `ipd_lint.py`'s or `check_engine.py`'s cutover readers, whose conservative pre-cutover treatment this plan makes accurate rather than wrong (F-04); add a new `IPD-*` rule code (OQ-02); admit the compact `YYYYMMDD` form (OQ-01, pinned as a negative row); use `date.fromisoformat` as the calendar primitive, which is measurably wider than the consumers (F-11); put the substring `missing` in the diagnostic message, which would re-route it to `IPD-M101`; edit either template or relax `tests/test_ipd_templates.py` to make the placeholder pass, when the exemption is the correct fix (F-09); read the repository, a cutover date, or `date.today()` inside `validate_metadata`, which is pure by contract; rename or edit any record in a terminal disposition directory, including the `qrokie` casualty (`tf4jz5`); change the spec's `- Status:` or touch any other spec; or write a test that reads production source with `inspect`, `ast`, regex, or substring search (GUIDING_PRINCIPLES P16). An out-of-scope edit that proves NECESSARY is to be MADE and then JUSTIFIED (`aw ipd finalize` requires a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path); it is not a reason to stop.
+
+EVIDENCE CONTRACT. The failing-first contrast in V-01 and V-02 is the bar: the five malformed rows and the one lint test MUST be observed FAILING against unfixed source, because a fix whose tests were never seen to fail has not been demonstrated. If they cannot be reproduced as failing, that is a genuinely unsafe condition (the defect is then already closed by something unknown and the premise is in doubt), so stop and report rather than proceeding. V-04's corpus count is the second bar and it is a STOP condition if nonzero: a newly-flagged live plan is a finding a human must see, never something to silence by editing the record.
+
+POST-GATE LIFECYCLE. On completion move this plan to `.aw/records/plans/executed/` only once `aw ipd lint --phase pre-transition` conforms and every `V-*` carries inspected evidence. The runner owns the transition in a managed lane (`aw ipd begin` refuses with `AW-LIFECYCLE-ROLE-001` there). Backlog item `5h8u3z` is set `graduated`, not `done`, by the authoring flow; do not close it here, and note its `- Blocks-Release: next` gate is inherited by this plan and travels with it.

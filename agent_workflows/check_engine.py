@@ -22,8 +22,9 @@ from __future__ import annotations
 import importlib.util
 import os
 import re as _re
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, NamedTuple, Optional, Sequence, Set, Tuple
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -131,6 +132,7 @@ class RuleSpec(NamedTuple):
 
 # The versioned rule registry: stable rule id -> RuleSpec. Assurance classes trace to the Phase-0
 # invariant catalog (spec pqsx96). Rules not listed here fall back to a conservative default.
+# See docs/cli-output-contract.md section 3 for the published contract governing what each severity tier does to an exit code.
 RULE_REGISTRY: Dict[str, RuleSpec] = {
     # Naming grammar (catalog I-09).
     "check.name-nonconformant": RuleSpec(
@@ -200,7 +202,19 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.blocks-release-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    "check.release-sentinel-absent": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    "check.release-sentinel-ambiguous": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     "check.from-backlog-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    # fbcardinal Order 01 (okp2o4): From-Backlog value is not a usable single id6 nor an absent sentinel.
+    # Same severity (`error`), same assurance class, and the SAME invariant I-07 as its dangling sibling,
+    # because a malformed value the gate cannot read breaks the same gate-preservation invariant.
+    "check.from-backlog-malformed": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
     # detrun Order bmh754 (spec 25kzda): the SPEC-side twin of `check.from-backlog-dangling` above - a
@@ -221,6 +235,20 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # existing I-* row that does not fit: I-05 governs plan validation at finalize and I-07 governs
     # release-gate preservation. The rule id avoids the substrings `graduation` and `duplicate`.
     "check.spec-criteria-uncovered": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # IPD mt54wr (backlog sbh1o1): advisory detection of spec line-anchor citations whose cited offset
+    # resolves to a different heading than the citing prose implies or lands in an invalid position.
+    # Advisory by design (`info` severity), for two independent reasons:
+    # 1. `artifact_core.drift_exit_code` exempts ONLY `info`, so `warning` would exit nonzero exactly
+    #    as `error` does and would turn 28 pre-existing stale anchors into an immediate red check on an
+    #    unswept tree;
+    # 2. The rule's verdict is NECESSARY-NOT-SUFFICIENT, because an offset resolving to a different
+    #    heading than the citing prose implies is strong evidence of rot and not proof of it (a
+    #    citation may legitimately name a section while pointing at a line inside a neighbouring one).
+    # Claims invariant `""` rather than borrowing an existing `I-*` row: no catalog invariant in spec
+    # `pqsx96` governs citation freshness, and inventing one is out of scope.
+    "check.spec-anchor-stale": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     # IPD 0ykozn (backlog 1zknu7): advisory pending-scoped nudge flagging a pending plan whose
@@ -261,6 +289,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.scope-path-target-stale": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # IPD h65phz (backlog 089bq4): a spec citing a `tests/test_*.py` path that does not exist on disk.
+    # Scoped to SPECS (contract claims a reader relies on) and specifically to the normative body: the
+    # plans tree and the `## Workflow history` section of a spec are deliberately excluded because
+    # executed plans and dated history notes are historical records whose citations were true when
+    # written, and rewriting history is forbidden by AGENTS.md.
+    # Severity is `error` because review F-11 measured the body-scoped specs tree as clean after E-04.
+    "check.test-citation-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # setidhard Order bwgyum (spec 4w7d6s G3/G5): the FORWARD half of the graduation link - a source
     # (backlog item or spec) whose `- Graduated-To:` names a plan Set that does not exist. Same severity
     # (`error`), same assurance class, and the SAME invariant I-07 as its `From-Backlog` back-link twin
@@ -285,8 +322,9 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     #
     # NAMED `-repeated`, NOT `-duplicate`, AND THE NAME IS LOAD-BEARING. The sibling `graduate` Set's
     # read-only pre-graduation view ships a structural PROHIBITION asserting that no rule id containing
-    # `graduation` or `duplicate` is ever registered (`tests/test_graduation_view.py`
-    # `NoUniquenessRuleTests`), because its own OQ-01 ruled that a source carrying several artifacts is
+    # `graduation` or `duplicate` is ever registered
+    # (`tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate`),
+    # because its own OQ-01 ruled that a source carrying several artifacts is
     # LEGITIMATE decomposition and a rule counting them would flag correct work on every run. That
     # prohibition is about artifact CLUSTERING per source and is correct; its keyword match is simply
     # broader than its subject, and this rule is about a repeated token WITHIN ONE FIELD, which is
@@ -341,6 +379,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # `check.orphaned-live-blocker` directly above. It IS deterministic (a literal id6 set lookup,
     # no inference), hence DET_DETERMINISTIC rather than DET_HEURISTIC.
     "check.review-dangling": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    # rulingcarrier jge900 E-03: a Gate-Kind: decision ref that names no heading in DECISIONS.md.
+    # Structural twin of `check.review-dangling` (an unresolvable cross-tree reference, swept whole-tree,
+    # registered `warning`), and follows its precedent: warning severity buys that NO LIFECYCLE GATE
+    # consumes the finding; info was rejected because artifact_core.drift_exit_code exempts only info
+    # and the corpus has no grandfathered population. Deterministic: literal heading id set membership.
+    # Suppressed entirely when DECISIONS.md is absent so it never false-positives in managed target repos.
+    "check.decision-ref-dangling": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
     # revsweep 5slbpi E-04: a spec CURRENTLY at `- Status: reviewed` with no conforming review record
@@ -723,6 +770,138 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     ),
     "check.prompt-status-mismatch": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
+    # sevreg Order 01 (qgpanb) E-02: lane integration drift rules (attention.lane-stranded and
+    # attention.lane-superseded).
+    #
+    # These values MIRROR what attention.lane_drift_severity already stamps, so registration changes
+    # NO exit code today and its whole value is that the severity stops being inherited from
+    # _DEFAULT_RULESPEC.
+    #
+    # The `info` severity on `attention.lane-superseded` is NOT a weakening but the deliberate
+    # exemption whose reasoning lives in attention.lane_drift_severity's docstring: a superseded
+    # lane's work landed another way, so failing on it asserts a loss that did not happen.
+    #
+    # Why `info` and not `warning`: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would have failed the gate identically to `error` and was therefore never the middle option it
+    # looks like.
+    #
+    # The emitter's stamp still wins by construction, because check_engine.enrich_drift computes
+    # `drift.severity or spec.severity`, which is why attention.lane_drift_severity remains the
+    # authority for a lane and the registry entry is a DECLARATION that matches it rather than a
+    # second source of truth.
+    #
+    # Invariant `""` for both: the invariant catalog in spec pqsx96 has no invariant covering lane
+    # integration (I-14 is authorship attribution in a shared worktree, not lane landing), and
+    # inventing a catalog row is out of scope.
+    "attention.lane-stranded": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "attention.lane-superseded": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # IPD ynhst5 E-04: bounded, single-line, control-char-free descriptive fields across specs,
+    # releases, and gates (spec attention-registry-and-cross-tree-status Section 8.8, F10).
+    #
+    # Severity `error` is chosen because violations of Section 8.8 are stable named `--check` failures
+    # (F10); `info` would make the rule advisory and non-failing (artifact_core.drift_exit_code exempts
+    # ONLY `info`), and `warning` would fail the gate identically while stating a weaker contract.
+    # E-01 having already cleaned the two committed spec violations first means `error` costs nothing
+    # on a clean checkout, which is the condition that makes a grandfather tier unnecessary here and
+    # distinguishes this case from `check.ipd-uncarried-obligation`, which needed one because 106 plans
+    # were non-conforming.
+    #
+    # REGISTRATION IS NOT BOOKKEEPING: an unregistered rule falls through to `_DEFAULT_RULESPEC`, which
+    # is already `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`, so the observable
+    # severity and exit code are identical today. What registration buys is that the severity becomes
+    # DECLARED rather than inherited, so a future change to the default cannot silently reclassify this
+    # rule. The in-repo precedent for making exactly this reasoning explicit is the
+    # `check.stale-index-missing` / `check.stale-index-stale` pair, whose comment records that an
+    # unregistered rule "silently did" fall through to the default.
+    #
+    # Invariant is `""`: the Phase-0 catalog in spec pqsx96 has no invariant covering output-safety or
+    # descriptive field integrity, and inventing one would be a false trace. Precedent: the
+    # `stale-index` entries with their own empty invariants.
+    #
+    # Deterministic: pure string length and regex control-character predicates against declared fields;
+    # no inference, hence DET_DETERMINISTIC. Assurance is ASSURANCE_REPOSITORY.
+    "attention.unsafe-field": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # sevreg Order 01 (qgpanb) E-03: dangling citation rule in research and plans indices.
+    #
+    # Registered `info`, because the corpus analysis (F-04) measured that 19 of its 23 distinct
+    # dangling ids are documentation placeholders (`aaaaaa`, `bbbbbb`, `ccc333`, `def456`, `a1b2c3`)
+    # appearing in IPD test-evidence prose across 70 live findings (65 in plans, 5 in backlog), while
+    # research_contract.EXAMPLE_ID6S covers only two examples. The rule's verdict is
+    # necessary-not-sufficient and the corpus has never been swept for example ids.
+    #
+    # GATING CONSEQUENCE: this is an intended gating change. `aw index research --check` currently
+    # exits 1 on these findings; registering at `info` (and stamping at the emitter in E-04) changes
+    # `aw index research --check` from exit 1 to exit 0.
+    #
+    # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would leave the gate red while stating a weaker contract, which the registry already records
+    # as a failure mode at check.stale-index-missing.
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers citation integrity (I-09 is
+    # filename grammar).
+    "dangling-citation": RuleSpec("info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""),
+    # sevreg Order 01 (qgpanb) E-03: adopted research doc with no declared consumer.
+    #
+    # Registered `info`, because 17 of the 35 live findings are in `archive/202607/`, representing
+    # deep-shelved historical records that predate the metadata convention and will not be retrofitted
+    # with a `consumed-by` field.
+    #
+    # GATING CONSEQUENCE: this is an intended gating change. Together with dangling citations and
+    # stale promotion states, registering this rule at `info` allows `aw index research --check` to
+    # transition from exit 1 to exit 0 once stamped in E-04.
+    #
+    # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would leave the gate red while stating a weaker contract, which the registry already records
+    # as a failure mode at check.stale-index-missing.
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers adopted document consumer
+    # declarations.
+    "adopted-without-consumer": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # sevreg Order 01 (qgpanb) E-03: active/todo research doc whose set is synthesized or cited by executed.
+    #
+    # Registered `info`, because it names a HOUSEKEEPING state ("promote this doc"), which is an
+    # authoring nudge and workflow suggestion across 18 live findings, rather than a contract violation.
+    #
+    # GATING CONSEQUENCE: this is an intended gating change. Stamping this rule at `info` alongside the
+    # other research drift rules allows `aw index research --check` to transition from exit 1 to exit 0
+    # once E-04 lands.
+    #
+    # Why `warning` was rejected: artifact_core.drift_exit_code exempts ONLY `info`, so `warning`
+    # would leave the gate red while stating a weaker contract, which the registry already records
+    # as a failure mode at check.stale-index-missing.
+    #
+    # Invariant is `""`: no catalog invariant in spec pqsx96 covers research promotion hot-state
+    # (I-07 is release-gate preservation).
+    "stale-state-to-promote": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # IPD 7ohskw (backlog 9rl7cm) E-04: three backlog item validation rules.
+    # Registered `error` because each is a contract violation of the backlog item format published in
+    # .aw/records/backlog/README.md. `error` is not a free choice dressed as one:
+    # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the exit code identically
+    # while stating a weaker contract (rnkqrc E-05). All three are deterministic line-shape checks over
+    # the file's own bytes with no inference (ASSURANCE_REPOSITORY, DET_DETERMINISTIC).
+    # Invariant is `""`: the catalog in spec pqsx96 has no invariant for record-metadata well-formedness
+    # (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation),
+    # and inventing one is out of scope.
+    # Rule ids avoid the substrings `graduation` and `duplicate` (tests/test_check_engine_spec_criteria.py).
+    "backlog.metadata-bullet-repeated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "backlog.gate-summary-unexpected": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "backlog.gate-descriptive-unsafe": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
 }
 
@@ -1123,7 +1302,10 @@ def check_content(
             include_retired=include_retired,
         ):
             try:
-                drift.extend(_specs.validate_spec(p, p.read_text(encoding="utf-8")))
+                text = p.read_text(encoding="utf-8")
+                drift.extend(_specs.validate_spec(p, text))
+                if p.name.endswith(".spec.md"):
+                    drift.extend(check_spec_test_citations_for_text(repo_root, p, text))
             except OSError:
                 continue
     elif record_type == "backlog":
@@ -1483,14 +1665,35 @@ def _metadata_region(text: str) -> str:
     return _sel.metadata_region(text)
 
 
-def _read_declared_id(text: str) -> "str | None":
+def _read_declared_id(text: str) -> str | None:
     """The record's DECLARED `- Id:` id6, read only from its metadata region, or None."""
 
     m = _ID_LINE_RE.search(_metadata_region(text))
     return m.group(1) if m else None
 
 
-def _identity_slot_token(filename: str) -> "str | None":
+def _read_item_id(text: str) -> str | None:
+    """The record's DECLARED `- Id:` id6 via _ITEM_ID_RE, bounded to the metadata region."""
+
+    m = _ITEM_ID_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
+
+def _read_blocks_release(text: str) -> str | None:
+    """The record's DECLARED `- Blocks-Release:` value, bounded to the metadata region."""
+
+    m = _META_BLOCKS_RELEASE_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
+
+def _read_plan_status(text: str) -> str | None:
+    """The record's DECLARED `- Status:` value, bounded to the metadata region."""
+
+    m = _PLAN_STATUS_RE.search(_metadata_region(text))
+    return m.group(1) if m else None
+
+
+def _identity_slot_token(filename: str) -> str | None:
     """Return the raw ``<id6>`` token in a filename's identity slot, or None.
 
     Uses the naming authority's clustered parse (single source, IPD o6b8l3). Excludes the legacy
@@ -1692,7 +1895,7 @@ class PlacementLocation(NamedTuple):
 
 
 def _extract_lifecycle_bucket(
-    path: "Path | str",
+    path: Path | str,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Return (record_type, bucket) if path sits under a lifecycle directory of a supported type.
 
@@ -2197,6 +2400,21 @@ def _check_identity_slots(records: List[tuple]) -> List[_core.Drift]:
     ``check.id6-identity-slot`` Drift for each file whose filename identity slot holds an id6 that
     is not that file's own unique identity. See ``check_collisions`` for the precise (a)/(b) rule.
 
+    THE INPUT CORPUS IS TERMINAL-INCLUSIVE BY CONTRACT (backlog e2j5w4, collpop t0jyb2).
+    ``records`` must never be given a liveness-filtered list. An executed artifact's id6 is
+    permanently cited across the repository (in Item-Dependencies, From-Backlog, From-Spec,
+    review names, and commit history), so an identity slot reusing an executed artifact's id6
+    collides with a permanently cited handle and breaks single-handle lookup (for example
+    ``aw find <id6>``), the exact reason ``check.id6-collision`` already consumes terminal
+    records. The caller (``check_collisions``) enforces this by enumerating all supported types
+    with ``include_retired=True`` unconditionally and appending to ``records`` unguarded, while
+    only the subsequent setid pass consults ``caller_visible``. This invariant is pinned by the
+    two terminal-fixture regression rows in ``tests/test_check_engine.py::CollisionTests``
+    (covering a retired owner and a retired violator) and by
+    ``tests/test_collision_population_parity.py`` (noting that the latter's own parity assertions
+    survive the regression because both surfaces regress together, so the ``CollisionTests``
+    rows are the primary defence).
+
     THIS RULE IS DELIBERATELY BLIND TO THE DECLARED-DUPLICATE SHAPE, AND THAT IS NOT A GAP TO CLOSE
     HERE (IPD ``sk7ggr`` E-03, OQ-01). Two files of DIFFERENT types that both DECLARE and both SLOT
     the same id6 produce ZERO findings from this function, by construction: rule (a) compares each
@@ -2450,7 +2668,7 @@ def _identity_declared_values(text: str):
 
 
 def _identity_name_is_modern(
-    filename: str, declared_ids: set, own_id: "str | None"
+    filename: str, declared_ids: set, own_id: str | None
 ) -> bool:
     """True iff ``filename`` carries a REAL id6 in its clustered identity slot.
 
@@ -2746,14 +2964,14 @@ def _git_capture(repo_root: Path, args: List[str]):
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def _blob_text(repo_root: Path, ref: str, path: str) -> "str | None":
+def _blob_text(repo_root: Path, ref: str, path: str) -> str | None:
     """Content of ``path`` at ``ref`` (HEAD or the staged index ``:0:``), or None if absent."""
     spec = f":0:{path}" if ref == ":0:" else f"{ref}:{path}"
     rc, out, _err = _git_capture(repo_root, ["show", spec])
     return out if rc == 0 else None
 
 
-def _metadata_status(text: "str | None") -> "str | None":
+def _metadata_status(text: str | None) -> str | None:
     """The first ``- Status:`` value in the metadata region (lowercased), or None."""
     if not text:
         return None
@@ -2761,7 +2979,7 @@ def _metadata_status(text: "str | None") -> "str | None":
     return m.group(1).strip().lower() if m else None
 
 
-def _status_meta(text: "str | None") -> "str | None":
+def _status_meta(text: str | None) -> str | None:
     """The metadata ``- Status: <value>`` value (lowercased), or None."""
     return _metadata_status(text)
 
@@ -2772,7 +2990,7 @@ def _is_plan_ipd_path(path: str) -> bool:
     return p.startswith(_PLANS_PREFIX) and p.endswith(".ipd.md")
 
 
-def _has_matching_history_line(text: "str | None", status: str) -> bool:
+def _has_matching_history_line(text: str | None, status: str) -> bool:
     """True iff the plan's ``## Workflow history`` carries a tool-authored transition line for
     ``status`` (predicate A, per OQ-01): a ``- <date> <status> (<actor>): ...`` line whose status
     token equals ``status``. Reuses ipd_lint's history parser + ``_HISTORY_LINE_RE`` (no 2nd parser).
@@ -2892,13 +3110,12 @@ def check_ipd_draft_ready(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _PLAN_STATUS_RE.search(text)
-        if not m or m.group(1).strip().lower() != "draft":
+        st = _read_plan_status(text)
+        if not st or st.strip().lower() != "draft":
             continue
         if not _authoring.authoring_placeholders_resolved(text):
             continue  # still a stub: stay silent
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         recovery = f"aw ipd set to-review {id6}"
         drift.append(
             enrich_drift(
@@ -3243,10 +3460,9 @@ def check_scope_drift(
             text = p.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _ITEM_ID_RE.search(text)
-        if not m:
+        plan_id = _read_item_id(text)
+        if not plan_id:
             continue
-        plan_id = m.group(1)
         receipt = _life.read_receipt(repo_root, plan_id)
         if not receipt:
             continue  # no active execution -> nothing to reconcile
@@ -3387,13 +3603,13 @@ def load_emitted_layout(repo_root: Path) -> Tuple[Optional[Dict], str]:
     try:
         raw = target.read_text(encoding="utf-8")
     except OSError as exc:
-        return None, "unreadable: {0}".format(exc)
+        return None, f"unreadable: {exc}"
     try:
         doc = json.loads(raw)
     except ValueError as exc:
-        return None, "invalid JSON: {0}".format(exc)
+        return None, f"invalid JSON: {exc}"
     if not isinstance(doc, dict):
-        return None, "not a JSON object (got {0})".format(type(doc).__name__)
+        return None, f"not a JSON object (got {type(doc).__name__})"
     return doc, ""
 
 
@@ -3427,9 +3643,7 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
 
     json_rel = _engine.AW_LAYOUT_JSON_PATH
     schema_rel = _engine.AW_LAYOUT_SCHEMA_PATH
-    recovery = "run 'aw install {0}' to regenerate the emitted layout document".format(
-        root
-    )
+    recovery = f"run 'aw install {root}' to regenerate the emitted layout document"
 
     doc, err = load_emitted_layout(root)
     if doc is None and err == "absent":
@@ -3438,9 +3652,9 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
                 _core.Drift(
                     json_rel,
                     "check.system-layout-missing",
-                    "installed workspace (version {0}) has no emitted layout document; "
+                    f"installed workspace (version {installed_version}) has no emitted layout document; "
                     "non-Python consumers cannot read the hierarchy until an install "
-                    "regenerates it".format(installed_version),
+                    "regenerates it",
                 ),
                 observed="absent",
                 required="present (emitted by 'aw install')",
@@ -3453,7 +3667,7 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
                 _core.Drift(
                     json_rel,
                     "check.system-layout-drift",
-                    "emitted layout document is unusable ({0})".format(err),
+                    f"emitted layout document is unusable ({err})",
                 ),
                 observed=err,
                 required="a readable JSON object",
@@ -3508,10 +3722,8 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
                 _core.Drift(
                     json_rel,
                     "check.system-layout-drift",
-                    "emitted layout document is stale: framework_version {0!r} does not "
-                    "match the installed {1} ({2!r})".format(
-                        emitted_version, _engine.VERSION_FILE, installed_version
-                    ),
+                    f"emitted layout document is stale: framework_version {emitted_version!r} does not "
+                    f"match the installed {_engine.VERSION_FILE} ({installed_version!r})",
                 ),
                 observed=str(emitted_version),
                 required=installed_version,
@@ -3838,6 +4050,13 @@ def check_types(
             drift.extend(check_review_dangling(repo_root))
         except Exception:
             pass
+        # rulingcarrier jge900 E-03: a Gate-Kind: decision ref that names no heading in DECISIONS.md.
+        # ADVISORY (`warning`), matching check_review_dangling's tier and rationale. Suppressed when
+        # DECISIONS.md is absent so it never false-positives in managed target repos.
+        try:
+            drift.extend(check_decision_ref_dangling(repo_root))
+        except Exception:
+            pass
         # revsweep 5slbpi E-04: the OTHER half of the `->reviewed` attestation. The setter refuses the
         # transition; this rule catches a spec that reached `reviewed` some other way (a hand edit, a
         # pre-existing file). Same shared predicate, so the refusal and the finding cannot disagree.
@@ -3938,19 +4157,19 @@ _ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
 _ITEM_WORK_KIND_RE = _re.compile(r"(?m)^- Work-Kind:[ \t]*(\S+)[ \t]*$")
 _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
 _META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(\S+)[ \t]*$")
-_META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
+_META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
 
 def _from_backlog_value(text: str) -> Optional[str]:
-    """Return the captured `- From-Backlog:` value, or None if absent or an absent sentinel (plan 3cs7qg)."""
+    """Return the captured `- From-Backlog:` value, or None if absent, sentinel, or malformed (plan okp2o4)."""
     m = _META_FROM_BACKLOG_RE.search(text)
     if not m:
         return None
-    val = m.group(1)
-    if _S.source_link_is_absent(val):
-        return None
-    return val
+    cls = _S.classify_source_link(m.group(1))
+    if cls.verdict == _S.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
 
 
 _PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2}
@@ -4044,8 +4263,7 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     for p, text in _iter_plan_ipds(repo_root):
         val = _from_backlog_value(text)
         if val == item_id6:
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            out.append((p, mbr.group(1) if mbr else ""))
+            out.append((p, _read_blocks_release(text) or ""))
     return out
 
 
@@ -4061,8 +4279,7 @@ def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
     for p, text in _iter_spec_records(repo_root):
         val = _from_backlog_value(text)
         if val == item_id6:
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            out.append((p, mbr.group(1) if mbr else ""))
+            out.append((p, _read_blocks_release(text) or ""))
     return out
 
 
@@ -4182,11 +4399,13 @@ def build_graduation_reverse_index(
         ("spec", _iter_spec_records),
     ):
         for path, text in iterator(repo_root):
-            sources: List[Tuple[str, str]] = [
-                ("backlog", m.group(1))
-                for m in _META_FROM_BACKLOG_RE.finditer(text)
-                if not _S.source_link_is_absent(m.group(1))
-            ] + [
+            backlog_sources: List[Tuple[str, str]] = []
+            for m in _META_FROM_BACKLOG_RE.finditer(text):
+                cls = _S.classify_source_link(m.group(1))
+                if cls.verdict == _S.SOURCE_LINK_USABLE and cls.id6:
+                    backlog_sources.append(("backlog", cls.id6))
+
+            sources: List[Tuple[str, str]] = backlog_sources + [
                 ("spec", m.group(1))
                 for m in _ITEM_FROM_SPEC_RE.finditer(text)
                 if not _S.source_link_is_absent(m.group(1))
@@ -4195,7 +4414,7 @@ def build_graduation_reverse_index(
             if not sources:
                 continue
             declared_id = _read_declared_id(text) or ""
-            status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+            status = _read_plan_status(text) or ""
             setid, _descriptive = _parse_setid(text)
             try:
                 rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
@@ -4204,7 +4423,7 @@ def build_graduation_reverse_index(
             record = GraduationArtifact(
                 artifact_type=artifact_type,
                 id6=declared_id,
-                status=status_match.group(1) if status_match else "",
+                status=status,
                 setid=setid or "",
                 path=rel,
             )
@@ -4230,7 +4449,7 @@ def build_plan_setid_index(
         if not setid:
             continue
         declared_id = _read_declared_id(text) or ""
-        status_match = _PLAN_STATUS_RE.search(_metadata_region(text))
+        status = _read_plan_status(text) or ""
         try:
             rel = str(Path(path).resolve().relative_to(Path(repo_root).resolve()))
         except ValueError:
@@ -4238,7 +4457,7 @@ def build_plan_setid_index(
         record = GraduationArtifact(
             artifact_type="plan",
             id6=declared_id,
-            status=status_match.group(1) if status_match else "",
+            status=status,
             setid=setid,
             path=rel,
         )
@@ -4538,6 +4757,65 @@ def _carrier_is_executed(path: Path) -> bool:
     return False
 
 
+def _lane_carrier_is_executed(
+    repo_root: Path,
+    carrier_path: Path,
+    ref: str,
+) -> bool:
+    """Verify whether ``carrier_path`` is terminal executed/implemented in git ``ref``.
+
+    Checked via `git ls-tree -r --name-only <ref>` against the shared object store and never
+    trusted. For a plan (.ipd.md), requires a path in the ref whose parts contain 'executed'
+    for that carrier's id6/filename. For a spec (.spec.md), reads the blob text at that ref via
+    `_blob_text` and checks for `- Status: implemented`.
+    """
+    p = Path(carrier_path)
+    if p.name.endswith(".ipd.md"):
+        rc, out, _err = _git_capture(repo_root, ["ls-tree", "-r", "--name-only", ref])
+        if rc != 0:
+            return False
+        from agent_workflows import artifact_naming as _naming
+
+        m = _naming.parse_clustered(p.name)
+        cid6 = m.group("id6") if m and "id6" in m.groupdict() else None
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            lp = Path(line)
+            if "executed" in lp.parts:
+                if lp.name == p.name or (cid6 and cid6 in lp.name):
+                    return True
+        return False
+    if p.name.endswith(".spec.md"):
+        rc, out, _err = _git_capture(repo_root, ["ls-tree", "-r", "--name-only", ref])
+        if rc != 0:
+            return False
+        from agent_workflows import artifact_naming as _naming
+
+        m = _naming.parse_clustered(p.name)
+        cid6 = m.group("id6") if m and "id6" in m.groupdict() else None
+        target_path = None
+        for line in out.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            lp = Path(line)
+            if lp.name == p.name or (cid6 and cid6 in lp.name):
+                target_path = line
+                break
+        if not target_path:
+            try:
+                target_path = str(p.resolve().relative_to(Path(repo_root).resolve()))
+            except ValueError:
+                target_path = str(p)
+        blob = _blob_text(repo_root, ref, target_path)
+        if blob is not None:
+            return _status_meta(blob) == "implemented"
+        return False
+    return False
+
+
 def evaluate_blocking_close(
     repo_root: Path,
     item_path: Path,
@@ -4546,6 +4824,10 @@ def evaluate_blocking_close(
     *,
     item_text: Optional[str] = None,
     prior_priority: Optional[str] = None,
+    lane_carrier_ref: Optional[str] = None,
+    lane_carrier_path: Optional[str] = None,
+    lane_carrier_override: Optional[tuple[str, str]] = None,
+    carrier_index: Optional[Dict[str, List[Tuple[Path, Optional[str]]]]] = None,
 ) -> CloseVerdict:
     """The shared close-legitimacy predicate for a release-gated backlog item (bklggrad orb9zb).
 
@@ -4569,12 +4851,47 @@ def evaluate_blocking_close(
         if item_text is not None
         else Path(item_path).read_text(encoding="utf-8")
     )
-    mid = _ITEM_ID_RE.search(text)
-    item_id6 = mid.group(1) if mid else None
-    mbr = _META_BLOCKS_RELEASE_RE.search(text)
-    blocks_release = mbr.group(1) if mbr else None
+    item_id6 = _read_item_id(text)
+    blocks_release = _read_blocks_release(text)
     mce = _META_CLOSE_EVIDENCE_RE.search(text)
     item_close_evidence = mce.group(1) if mce else None
+
+    # Resolve lane carrier override pair if provided
+    ov_ref = lane_carrier_ref
+    ov_path = lane_carrier_path
+    if lane_carrier_override is not None:
+        if (
+            isinstance(lane_carrier_override, (tuple, list))
+            and len(lane_carrier_override) == 2
+        ):
+            a, b = lane_carrier_override
+            if ("/" in str(a) or str(a).endswith(".md")) and not (
+                "/" in str(b) or str(b).endswith(".md")
+            ):
+                ov_path, ov_ref = str(a), str(b)
+            elif ("/" in str(b) or str(b).endswith(".md")) and not (
+                "/" in str(a) or str(a).endswith(".md")
+            ):
+                ov_ref, ov_path = str(a), str(b)
+            else:
+                ov_path, ov_ref = str(a), str(b)
+        elif (
+            isinstance(lane_carrier_override, dict) and len(lane_carrier_override) == 1
+        ):
+            ov_path, ov_ref = next(iter(lane_carrier_override.items()))
+
+    def _matches_override(carrier: Path, target: str) -> bool:
+        try:
+            if carrier.resolve() == (repo_root / target).resolve():
+                return True
+        except Exception:
+            pass
+        try:
+            if carrier.resolve() == Path(target).resolve():
+                return True
+        except Exception:
+            pass
+        return carrier.name == Path(target).name
 
     if target_status == "done":
         # DE-GATED: the post-mutation item carries no Blocks-Release -> nothing to preserve.
@@ -4589,13 +4906,25 @@ def evaluate_blocking_close(
         same_gate_carriers: List[Path] = []
         if item_id6:
             release_cache: Dict[str, Optional[Path]] = {}
-            for _p, carrier_br in find_from_backlog_artifacts(repo_root, item_id6):
+            carrier_items = (
+                carrier_index.get(item_id6, [])
+                if carrier_index is not None
+                else find_from_backlog_artifacts(repo_root, item_id6)
+            )
+            for _p, carrier_br in carrier_items:
                 if _same_release(
                     repo_root, carrier_br, blocks_release, cache=release_cache
                 ):
                     same_gate_carriers.append(_p)
+
+            def _carrier_eval(c: Path) -> bool:
+                if ov_ref and ov_path and _matches_override(c, ov_path):
+                    if _lane_carrier_is_executed(repo_root, c, ov_ref):
+                        return True
+                return _carrier_is_executed(c)
+
             if same_gate_carriers and all(
-                _carrier_is_executed(_c) for _c in same_gate_carriers
+                _carrier_eval(_c) for _c in same_gate_carriers
             ):
                 return CloseVerdict(
                     True,
@@ -4784,12 +5113,33 @@ def _from_backlog_carrier_index(
             val = _from_backlog_value(text)
             if not val:
                 continue
-            mbr = _META_BLOCKS_RELEASE_RE.search(text)
-            index.setdefault(val, []).append((p, mbr.group(1) if mbr else None))
+            index.setdefault(val, []).append((p, _read_blocks_release(text)))
     return index
 
 
-def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
+def _item_close_date(item_text: str) -> Optional[str]:
+    """Derive the close date (compact YYYYMMDD) for a backlog item from its workflow history (b24o3q E-02).
+
+    Reuses `attention._history_section_lines` to bound the history section and
+    `attention_contract.last_history_at` to extract the newest record date.
+    Returns compact YYYYMMDD, or None if no parseable date is found.
+    """
+    from agent_workflows import attention as _att
+    from agent_workflows import attention_contract as _ac
+
+    lines = _att._history_section_lines(item_text)
+    date_str = _ac.last_history_at(lines)
+    if not date_str:
+        return None
+    compact = date_str.replace("-", "").strip()
+    return compact if len(compact) >= 8 else None
+
+
+def check_release_gate_consistency(
+    repo_root: Path,
+    *,
+    at_rest: bool = False,
+) -> List[_core.Drift]:
     """bklggrad orb9zb E-05: cross-tree consistency rules reusing `evaluate_blocking_close`.
 
     ERROR-severity (fold into the exit-blocking sweep):
@@ -4834,9 +5184,10 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
     # `done/` items closed before this guard existed are grandfathered (never retroactively flagged).
     # A staged done+blocking item with no legitimate gate is the fingerprint of a hand-edit that
     # bypassed the `aw backlog set done` gate. Fast no-op when nothing under backlog/ is staged.
+    seen_blocking_locations: Set[str] = set()
     for staged_path in _staged_backlog_done_items(repo_root):
         staged_text = _blob_text(repo_root, ":0:", staged_path)
-        if not staged_text or not _META_BLOCKS_RELEASE_RE.search(staged_text):
+        if not staged_text or not _read_blocks_release(staged_text):
             continue
         if _status_meta(staged_text) != "done":
             continue
@@ -4844,6 +5195,7 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
             repo_root, repo_root / staged_path, "done", item_text=staged_text
         )
         if not verdict.legitimate and verdict.severity == "error":
+            seen_blocking_locations.add(staged_path)
             drift.append(
                 _core.Drift(
                     staged_path,
@@ -4856,6 +5208,62 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
                 )
             )
 
+    # Rule 1 at-rest arm (gateatrest b24o3q E-03): judges every committed done backlog item on disk
+    # against the stamped cutover date, deduplicating against the staged arm by location.
+    if at_rest:
+        from agent_workflows import config as _config
+
+        cutover = _config.resolve_cutover_date(
+            repo_root, "release_gate_at_rest", compact=True
+        )
+        if cutover is not None:
+            from agent_workflows import backlog as _backlog
+
+            candidates: List[Tuple[Path, str, str]] = []
+            for item_p in _backlog._iter_items(repo_root):
+                try:
+                    rel_path = str(item_p.relative_to(repo_root)).replace("\\", "/")
+                except ValueError:
+                    rel_path = str(item_p).replace("\\", "/")
+                if rel_path in seen_blocking_locations:
+                    continue
+                try:
+                    item_txt = item_p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                if _status_meta(item_txt) != "done":
+                    continue
+                if not _META_BLOCKS_RELEASE_RE.search(item_txt):
+                    continue
+                cdate = _item_close_date(item_txt)
+                if cdate is None or cdate < cutover:
+                    continue
+                candidates.append((item_p, rel_path, item_txt))
+
+            if candidates:
+                shared_carrier_idx = _from_backlog_carrier_index(repo_root)
+                for item_p, rel_path, item_txt in candidates:
+                    verdict = evaluate_blocking_close(
+                        repo_root,
+                        item_p,
+                        "done",
+                        item_text=item_txt,
+                        carrier_index=shared_carrier_idx,
+                    )
+                    if not verdict.legitimate and verdict.severity == "error":
+                        seen_blocking_locations.add(rel_path)
+                        drift.append(
+                            _core.Drift(
+                                rel_path,
+                                "check.blocking-item-closed-without-gate",
+                                (
+                                    "a done backlog item still carries Blocks-Release with no handoff "
+                                    "(From-Backlog plan), resolvable evidence, or de-gate; close it via "
+                                    "`aw backlog set done` (which enforces the gate) rather than by hand"
+                                ),
+                            )
+                        )
+
     # Rule 2: From-Backlog plan whose Blocks-Release differs from the backlog item's.
     from agent_workflows import backlog as _backlog
 
@@ -4865,10 +5273,10 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        mid = _ITEM_ID_RE.search(text)
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        if mid and mbr:
-            item_gate[mid.group(1)] = (mbr.group(1), str(f))
+        item_id = _read_item_id(text)
+        gate = _read_blocks_release(text)
+        if item_id and gate:
+            item_gate[item_id] = (gate, str(f))
     # bklgrad Order 01 (v58bvy) E-07: scan PLANS AND SPECS. A spec is now an accepted HANDOFF gate
     # carrier (E-06), so the consistency rule must cover it too or the checker and the setter diverge:
     # a spec could carry a mismatched gate, be accepted as a carrier by nothing, and never be flagged.
@@ -5026,7 +5434,10 @@ RELEASE_GATE_RULES = (
     "check.blocking-item-closed-without-gate",
     "check.from-backlog-gate-mismatch",
     "check.blocks-release-dangling",
+    "check.release-sentinel-absent",
+    "check.release-sentinel-ambiguous",
     "check.from-backlog-dangling",
+    "check.from-backlog-malformed",
 )
 
 
@@ -5038,7 +5449,10 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
 
     Composed rules:
       * check.blocks-release-dangling (releases.check_blocks_release)
+      * check.release-sentinel-absent (releases.check_blocks_release)
+      * check.release-sentinel-ambiguous (releases.check_blocks_release)
       * check.from-backlog-dangling (releases.check_from_backlog)
+      * check.from-backlog-malformed (releases.check_from_backlog)
       * check.blocking-item-closed-without-gate (check_release_gate_consistency)
       * check.from-backlog-gate-mismatch (check_release_gate_consistency)
       * check.live-bug-ungated (check_live_bug_gate)
@@ -5056,7 +5470,7 @@ def check_release_gates(repo_root: Path) -> List[_core.Drift]:
     except Exception:
         pass
     try:
-        drift.extend(check_release_gate_consistency(repo_root))
+        drift.extend(check_release_gate_consistency(repo_root, at_rest=True))
     except Exception:
         pass
     try:
@@ -5090,8 +5504,7 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         backlog_id = _from_backlog_value(text)
         if not backlog_id:
             continue
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        gate = mbr.group(1) if mbr else ""
+        gate = _read_blocks_release(text) or ""
         is_exec = _carrier_is_executed(_p)
         gates_map = plan_gates_by_backlog.setdefault(backlog_id, {})
         gates_map[gate] = gates_map.get(gate, True) and is_exec
@@ -5104,12 +5517,10 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        mid = _ITEM_ID_RE.search(text)
-        if not mbr or not mid:
+        item_gate = _read_blocks_release(text)
+        _id6 = _read_item_id(text)
+        if not item_gate or not _id6:
             continue
-        _id6 = mid.group(1)
-        item_gate = mbr.group(1)
         gates_map = plan_gates_by_backlog.get(_id6)
         if gates_map is not None and item_gate in gates_map:
             if gates_map[item_gate]:
@@ -5212,7 +5623,7 @@ def build_dependency_index(repo_root: Path) -> _DepIndex:
 
 
 def _resolve_edge(
-    edge: "_S.ItemDependency", index: _DepIndex
+    edge: _S.ItemDependency, index: _DepIndex
 ) -> Tuple[str, Optional[str]]:
     """Resolve one edge against the index. Returns (verdict, detail):
     verdict in {"ok","dangling","ambiguous"}. An `executed:`/state:ipd:.../exists:ipd: edge must
@@ -5446,12 +5857,8 @@ def evaluate_ipd_dependencies(
                                 ps,
                                 _REVIEW_DEP_BLOCKED_RULE,
                                 (
-                                    "dependency `{0}` resolves but does not satisfy the edge: "
-                                    "{1} (recorded in {2})".format(
-                                        e.canonical(),
-                                        blk.describe(),
-                                        Path(blk.review_path).name,
-                                    )
+                                    f"dependency `{e.canonical()}` resolves but does not satisfy the edge: "
+                                    f"{blk.describe()} (recorded in {Path(blk.review_path).name})"
                                 ),
                             )
                         )
@@ -5540,8 +5947,7 @@ def check_plan_priority(
             _schema.PLAN_PRIORITY_UNRESOLVED,
         ):
             continue
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         drift.append(
             enrich_drift(
                 _core.Drift(
@@ -5599,8 +6005,7 @@ def check_plan_work_kind(
             _schema.PLAN_WORK_KIND_UNRESOLVED,
         ):
             continue
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         drift.append(
             enrich_drift(
                 _core.Drift(
@@ -5652,8 +6057,7 @@ def check_plan_priority_required(
         if not _lint._scope_paths_gate_applies("author", status):
             continue
         blocking_prio, _ = _lint.check_plan_priority(doc, "author", None)
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         for b in blocking_prio:
             drift.append(
                 enrich_drift(
@@ -5705,16 +6109,16 @@ def _review_subject_id_sets(repo_root: Path) -> Dict[str, set]:
     """
     return {
         "ipd": {
-            m.group(1)
+            id6
             for _p, text in _iter_plan_ipds(repo_root)
-            for m in (_ITEM_ID_RE.search(text),)
-            if m
+            for id6 in (_read_item_id(text),)
+            if id6
         },
         "spec": {
-            m.group(1)
+            id6
             for _p, text in _iter_spec_records(repo_root)
-            for m in (_ITEM_ID_RE.search(text),)
-            if m
+            for id6 in (_read_item_id(text),)
+            if id6
         },
     }
 
@@ -5795,6 +6199,129 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
     return drift
 
 
+_DECISION_REF_DANGLING_RULE = "check.decision-ref-dangling"
+_DECISION_HEADING_RE = _re.compile(r"(?m)^###[ \t]+(D\d+[a-z]*)\.")
+
+
+def parse_decision_ids(path_or_root: Path | str) -> Set[str]:
+    r"""Parse the set of decision ids defined by headings in DECISIONS.md.
+
+    Parses ONLY headings matching `^### D\d+[a-z]*\.` (anchored multiline).
+    Do NOT scan the body for bare tokens: a bare token scan matches other namespaces
+    (e.g. `PR-D02`, `IPD-D701`, `D401`, `RR-...-D006`).
+
+    Fails open (returns empty set) on missing or unreadable file.
+    """
+    target = Path(path_or_root)
+    if target.is_dir():
+        target = target / "DECISIONS.md"
+    try:
+        text = target.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+    return set(_DECISION_HEADING_RE.findall(text))
+
+
+def check_decision_ref_dangling(repo_root: Path) -> List[_core.Drift]:
+    """Flag a Gate-Kind: decision ref that does not resolve to any heading in DECISIONS.md.
+
+    Structural twin of `check.review-dangling` (advisory `warning`, whole-tree sweep, referential
+    integrity invariant I-07). Consumed by no lifecycle gate, but will drive a nonzero check exit
+    if findings occur since `artifact_core.drift_exit_code` exempts only `info`.
+
+    Suppressed entirely when `DECISIONS.md` is absent: in a managed target repo `DECISIONS.md` does
+    not exist, so resolving against an empty heading set would report every `decision` gate as dangling.
+    An empty set of headings indicates that resolution is unavailable, so this sweep emits nothing.
+
+    A malformed or absent Gate-Ref is skipped: that is `backlog.gate-ref-invalid` / `attention.gate-malformed`,
+    and this rule deliberately avoids double-reporting the same defect.
+    """
+    drift: List[_core.Drift] = []
+    repo_root = Path(repo_root)
+
+    known_decision_ids = parse_decision_ids(repo_root)
+    if not known_decision_ids:
+        return drift
+
+    try:
+        from agent_workflows import attention_contract as _A
+    except Exception:
+        return drift
+
+    # 1. Backlog items
+    try:
+        from agent_workflows import backlog as _backlog
+
+        backlog_items = list(_backlog._iter_items(repo_root))
+    except Exception:
+        backlog_items = []
+
+    for path in backlog_items:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        item = _backlog.parse_item(text)
+        if item.gate_kind != "decision":
+            continue
+        ref = item.gate_ref
+        if not ref or not _A.validate_gate_ref("decision", ref):
+            continue
+        if ref not in known_decision_ids:
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _DECISION_REF_DANGLING_RULE,
+                        f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
+                    ),
+                    observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
+                    required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
+                    recovery=(
+                        f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
+                        "or remove/update the gate"
+                    ),
+                )
+            )
+
+    # 2. Specs
+    try:
+        from agent_workflows import specs as _specs
+
+        spec_files = list(_specs._spec_files(repo_root))
+    except Exception:
+        spec_files = []
+
+    for path in spec_files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        kind, ref, _summary = _specs._read_gate(_specs._lines(text))
+        if kind != "decision":
+            continue
+        if not ref or not _A.validate_gate_ref("decision", ref):
+            continue
+        if ref not in known_decision_ids:
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _DECISION_REF_DANGLING_RULE,
+                        f"Gate-Ref {ref!r} does not resolve to any heading in DECISIONS.md",
+                    ),
+                    observed=f"Gate-Kind: decision, Gate-Ref: {ref}",
+                    required="a Gate-Ref matching an existing heading in DECISIONS.md (e.g. '### D...')",
+                    recovery=(
+                        f"correct Gate-Ref {ref!r} to a valid decision heading in DECISIONS.md, "
+                        "or remove/update the gate"
+                    ),
+                )
+            )
+
+    return drift
+
+
 _SPEC_REVIEW_ATTESTATION_RULE = "check.spec-review-unattested"
 
 
@@ -5834,8 +6361,7 @@ def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
         ms = _re.search(r"(?m)^-[ \t]*Status:[ \t]*(\S+)[ \t]*$", text)
         if ms is None or ms.group(1).strip().lower() != "reviewed":
             continue
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else ""
+        id6 = _read_item_id(text) or ""
         try:
             missing = _rf.review_attestation_missing(repo_root, id6, "spec")
         except Exception:
@@ -5888,9 +6414,9 @@ def known_spec_ids(repo_root: Path) -> Set[str]:
     repo_root = Path(repo_root)
     known: Set[str] = set()
     for _p, _t in _iter_spec_records(repo_root):
-        m = _ITEM_ID_RE.search(_t)
-        if m:
-            known.add(m.group(1))
+        id6 = _read_item_id(_t)
+        if id6:
+            known.add(id6)
     try:
         from agent_workflows import specs as _specs
 
@@ -6059,8 +6585,7 @@ def check_plan_spec_link_missing(
         if not cited:
             continue
 
-        mid = _ITEM_ID_RE.search(text)
-        id6 = mid.group(1) if mid else p.stem
+        id6 = _read_item_id(text) or p.stem
         cited_str = ", ".join(cited)
         recovery = f"aw ipd set {id6} --from-spec {cited[0]}"
 
@@ -6205,9 +6730,9 @@ def check_spec_criteria_uncovered(
 
     specs: Dict[str, Tuple[Path, str]] = {}
     for path, text in _iter_spec_records(repo_root):
-        mid = _ITEM_ID_RE.search(text)
+        mid = _read_item_id(text)
         if mid:
-            specs[mid.group(1)] = (path, text)
+            specs[mid] = (path, text)
 
     plans_by_spec: Dict[str, List[Tuple[Path, str]]] = {}
     for path, text in _iter_plan_ipds(repo_root):
@@ -6465,6 +6990,68 @@ def check_scope_path_target_stale(repo_root: Path) -> List[_core.Drift]:
 
 
 # --------------------------------------------------------------------------------------
+# IPD h65phz (backlog 089bq4): spec test-citation freshness.
+#
+# Flag any spec citing a `tests/test_*.py` path that does not exist on disk.
+# Scoped to SPECS (contract claims a reader relies on) and specifically to the normative
+# body: the plans tree and the `## Workflow history` section of a spec are deliberately
+# excluded because executed plans and dated history notes are historical records whose
+# citations were true when written, and rewriting history is forbidden by AGENTS.md.
+
+_TEST_CITATION_DANGLING_RULE = "check.test-citation-dangling"
+_TEST_PATH_RE = _re.compile(r"tests/test_[a-zA-Z0-9_]+\.py")
+
+
+def check_spec_test_citations_for_text(
+    repo_root: Path, path: Path, text: str
+) -> List[_core.Drift]:
+    """Flag missing tests/test_*.py citations in a spec's normative body (IPD h65phz).
+
+    Exempts ## Workflow history: dated history notes record past measurements and
+    are historical records rather than live contract claims.
+    """
+    repo_root = Path(repo_root)
+    parts = _re.split(r"(?m)^##[ \t]+Workflow history\b", text, maxsplit=1)
+    normative_body = parts[0]
+    drift: List[_core.Drift] = []
+    seen_paths: set = set()
+
+    from agent_workflows import specs as _specs
+
+    loc = _specs.drift_location(path)
+
+    for m in _TEST_PATH_RE.finditer(normative_body):
+        cited_path = m.group(0)
+        if cited_path in seen_paths:
+            continue
+        seen_paths.add(cited_path)
+        target = repo_root / cited_path
+        if not target.is_file():
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        loc,
+                        _TEST_CITATION_DANGLING_RULE,
+                        f"Cited test file {cited_path!r} does not exist on disk",
+                    ),
+                    observed=f"Spec body cites {cited_path}",
+                    required=f"{cited_path} must exist on disk, or citation must be removed/corrected",
+                    recovery=f"restore the test file or update the citation in {path.name}",
+                )
+            )
+    return drift
+
+
+def check_spec_test_citations(repo_root: Path) -> List[_core.Drift]:
+    """Flag any spec citing a tests/test_*.py path that does not exist on disk (IPD h65phz)."""
+    repo_root = Path(repo_root)
+    drift: List[_core.Drift] = []
+    for path, text in _iter_spec_records(repo_root):
+        drift.extend(check_spec_test_citations_for_text(repo_root, path, text))
+    return drift
+
+
+# --------------------------------------------------------------------------------------
 # revgate Order 02 (plqjt7): unfixed findings at or above the threshold must be escalated.
 #
 # WHY THERE IS NO SECOND, DIRECT SEVERITY GATE HERE (E-03; maintainer decision 2026-08-29).
@@ -6619,8 +7206,8 @@ def evaluate_review_finding_escalation(
     """
     drift: List[_core.Drift] = []
     try:
-        from agent_workflows import review_findings as _rf
         from agent_workflows import config as _cfg
+        from agent_workflows import review_findings as _rf
     except Exception:
         return drift
 
@@ -6631,10 +7218,9 @@ def evaluate_review_finding_escalation(
     if str(thr).strip().lower() in ("off", ""):
         return drift
 
-    mid = _ITEM_ID_RE.search(plan_text)
-    if mid is None:
+    plan_id6 = _read_item_id(plan_text)
+    if plan_id6 is None:
         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
-    plan_id6 = mid.group(1)
 
     index = _review_index(repo_root) if review_index is None else review_index
     reviews = index.get(plan_id6) or []
@@ -6662,11 +7248,11 @@ def evaluate_review_finding_escalation(
                         str(review_path),
                         _REVIEW_UNESCALATED_RULE,
                         (
-                            "review artifact for plan {0} is malformed ({1}), so its findings "
-                            "cannot be checked for escalation".format(plan_id6, codes)
+                            f"review artifact for plan {plan_id6} is malformed ({codes}), so its findings "
+                            "cannot be checked for escalation"
                         ),
                     ),
-                    observed="unparseable review artifact: {0}".format(codes),
+                    observed=f"unparseable review artifact: {codes}",
                     required=(
                         "a review artifact whose findings table parses, so gating findings are "
                         "machine-checkable"
@@ -6693,26 +7279,20 @@ def evaluate_review_finding_escalation(
                         str(plan_path),
                         _REVIEW_UNESCALATED_RULE,
                         (
-                            "review finding {0} is {1}/{2} (at or above the `{3}` gate threshold) "
-                            "but no `Blocking: yes` open question names it".format(
-                                finding.id, finding.severity, finding.decision, thr
-                            )
+                            f"review finding {finding.id} is {finding.severity}/{finding.decision} (at or above the `{thr}` gate threshold) "
+                            "but no `Blocking: yes` open question names it"
                         ),
                     ),
                     observed=(
-                        "{0}: severity {1}, decision {2}, not escalated".format(
-                            finding.id, finding.severity, finding.decision
-                        )
+                        f"{finding.id}: severity {finding.severity}, decision {finding.decision}, not escalated"
                     ),
                     required=(
-                        "an open question with `- Blocking: yes` and `- Finding: {0}`".format(
-                            finding.id
-                        )
+                        f"an open question with `- Blocking: yes` and `- Finding: {finding.id}`"
                     ),
                     recovery=(
-                        "either fix {0} and mark it `FIXED` in {1}, or add an `### OQ-NN:` entry "
+                        f"either fix {finding.id} and mark it `FIXED` in {review_path.name}, or add an `### OQ-NN:` entry "
                         "to the plan's `## Open questions` carrying `- Blocking: yes` and "
-                        "`- Finding: {0}`".format(finding.id, review_path.name)
+                        f"`- Finding: {finding.id}`"
                     ),
                 )
             )
@@ -6833,10 +7413,9 @@ def evaluate_review_decision_escalation(
     except Exception:
         return drift
 
-    mid = _ITEM_ID_RE.search(plan_text)
-    if mid is None:
+    plan_id6 = _read_item_id(plan_text)
+    if plan_id6 is None:
         return drift  # no `- Id:` to join on; the metadata linter owns that complaint
-    plan_id6 = mid.group(1)
 
     index = _review_index(repo_root) if review_index is None else review_index
     reviews = index.get(plan_id6) or []
@@ -6871,13 +7450,11 @@ def evaluate_review_decision_escalation(
                         str(review_path),
                         _REVIEW_DECISION_RULE,
                         (
-                            "review artifact for plan {0} is malformed ({1}), so its recorded "
-                            "decisions cannot be checked for escalation".format(
-                                plan_id6, codes
-                            )
+                            f"review artifact for plan {plan_id6} is malformed ({codes}), so its recorded "
+                            "decisions cannot be checked for escalation"
                         ),
                     ),
-                    observed="unparseable review artifact: {0}".format(codes),
+                    observed=f"unparseable review artifact: {codes}",
                     required=(
                         "a review artifact whose Decisions section parses, so an irreversible "
                         "self-made decision is machine-checkable"
@@ -6906,10 +7483,8 @@ def evaluate_review_decision_escalation(
                             str(review_path),
                             _REVIEW_DECISION_RULE,
                             (
-                                "recorded decision {0} has no `Reversible` judgement ({1!r}), so "
-                                "whether it needs escalation cannot be determined".format(
-                                    dec.id, dec.reversible
-                                )
+                                f"recorded decision {dec.id} has no `Reversible` judgement ({dec.reversible!r}), so "
+                                "whether it needs escalation cannot be determined"
                             ),
                         ),
                         observed="{0}: Reversible is {1}".format(
@@ -6920,10 +7495,8 @@ def evaluate_review_decision_escalation(
                         ),
                         required="`Reversible: yes` or `Reversible: no` on every decision row",
                         recovery=(
-                            "judge {0} on the COST OF BEING WRONG (can a later maintainer undo it?) "
-                            "and set `Reversible` accordingly in {1}".format(
-                                dec.id, review_path.name
-                            )
+                            f"judge {dec.id} on the COST OF BEING WRONG (can a later maintainer undo it?) "
+                            f"and set `Reversible` accordingly in {review_path.name}"
                         ),
                     )
                 )
@@ -6934,9 +7507,9 @@ def evaluate_review_decision_escalation(
                         str(plan_path),
                         _REVIEW_DECISION_RULE,
                         (
-                            "decision {0} was self-resolved and marked irreversible, but it was "
+                            f"decision {dec.id} was self-resolved and marked irreversible, but it was "
                             "never surfaced: no `Blocking: yes` open question and no note that the "
-                            "maintainer was told".format(dec.id)
+                            "maintainer was told"
                         ),
                     ),
                     observed="{0}: Reversible no, not escalated ({1})".format(
@@ -6948,10 +7521,8 @@ def evaluate_review_decision_escalation(
                     ),
                     recovery=(
                         "either add an `### OQ-NN:` entry carrying `- Blocking: yes` to the plan's "
-                        "`## Open questions`, or tell the maintainer and record that on {0}'s row "
-                        "in {1} (e.g. `Basis: ...; maintainer told <date>`)".format(
-                            dec.id, review_path.name
-                        )
+                        f"`## Open questions`, or tell the maintainer and record that on {dec.id}'s row "
+                        f"in {review_path.name} (e.g. `Basis: ...; maintainer told <date>`)"
                     ),
                 )
             )
@@ -7147,7 +7718,7 @@ def _plan_date_compact(text: str) -> Optional[str]:
     m = _CARRIER_DATE_RE.search(text)
     if m is None:
         return None
-    return "{0}{1}{2}".format(m.group(1), m.group(2), m.group(3))
+    return f"{m.group(1)}{m.group(2)}{m.group(3)}"
 
 
 def carrier_severity_for_plan(plan_text: str, repo_root: Optional[Path] = None) -> str:
@@ -7213,9 +7784,7 @@ def _deferred_section_obligations(plan_text: str) -> List[CarrierObligation]:
         if raw.startswith("- "):
             _flush()
             index += 1
-            current = CarrierObligation(
-                "deferred", "deferred row {0}".format(index), lineno, {}
-            )
+            current = CarrierObligation("deferred", f"deferred row {index}", lineno, {})
             continue
         msf = _S.DEFERRED_SUBFIELD_RE.match(raw)
         if msf and current is not None:
@@ -7302,7 +7871,7 @@ def _resolve_carrier(
     if not owners:
         return (
             "dangling",
-            "carrier {0} resolves to no backlog item or plan".format(id6),
+            f"carrier {id6} resolves to no backlog item or plan",
             [],
         )
     live = [
@@ -7334,14 +7903,12 @@ def _resolve_carrier(
     )
     if all_finished:
         detail = (
-            "carrier {0} finished ({1}); an agent must confirm it did this work "
+            f"carrier {id6} finished ({statuses}); an agent must confirm it did this work "
             "and record Carrier-Evidence, or re-point the row"
-        ).format(id6, statuses)
+        )
         return "finished", detail, finished_relpaths
 
-    detail = (
-        "carrier {0} resolves only to an abandoned artifact ({1}); nothing revisits it"
-    ).format(id6, statuses)
+    detail = f"carrier {id6} resolves only to an abandoned artifact ({statuses}); nothing revisits it"
     return "terminal", detail, finished_relpaths
 
 
@@ -7473,17 +8040,14 @@ def evaluate_carrier_obligation(
         from agent_workflows import attention as _attention
 
         ev_norm = evidence.replace("\\", "/")
-        if ev_norm.startswith("./"):
-            ev_norm = ev_norm[2:]
+        ev_norm = ev_norm.removeprefix("./")
         policy = _attention._classify_tree(ev_norm)
         if policy is not None and policy.name == "walkthroughs":
             return CloseVerdict(
                 False,
                 "error",
-                "{0}: `Carrier-Evidence: {1}` cites a walkthrough; walkthroughs carry no "
-                "lifecycle status (`tracked=False`), so an obligation parked there is never revisited".format(
-                    obligation.locator, evidence
-                ),
+                f"{obligation.locator}: `Carrier-Evidence: {evidence}` cites a walkthrough; walkthroughs carry no "
+                "lifecycle status (`tracked=False`), so an obligation parked there is never revisited",
                 fixes,
                 None,
                 rule=_CARRIER_RULE,
@@ -7496,16 +8060,14 @@ def evaluate_carrier_obligation(
             return CloseVerdict(
                 True,
                 "ok",
-                "satisfied by resolvable evidence {0!r}".format(evidence),
+                f"satisfied by resolvable evidence {evidence!r}",
                 (),
                 "SATISFIED",
             )
         return CloseVerdict(
             False,
             "error",
-            "{0}: `Carrier-Evidence: {1}` does not resolve to an in-tree artifact".format(
-                obligation.locator, evidence
-            ),
+            f"{obligation.locator}: `Carrier-Evidence: {evidence}` does not resolve to an in-tree artifact",
             fixes,
             None,
             rule=_CARRIER_RULE,
@@ -7538,7 +8100,7 @@ def evaluate_carrier_obligation(
                 return CloseVerdict(
                     True,
                     "ok",
-                    "handed off to carrier {0}".format(id6),
+                    f"handed off to carrier {id6}",
                     (),
                     "HANDOFF",
                 )
@@ -7560,7 +8122,7 @@ def evaluate_carrier_obligation(
                     first_path,
                     ""
                     if more_count == 0
-                    else " (and {0} more finished owner(s))".format(more_count),
+                    else f" (and {more_count} more finished owner(s))",
                 )
                 reason = (
                     "{0}: {1}\n"
@@ -7568,9 +8130,7 @@ def evaluate_carrier_obligation(
                     "{2}\n"
                     "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
                 ).format(obligation.locator, "; ".join(problems), evidence_line)
-                remedy_fix = "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
-                    first_path
-                )
+                remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
                 return CloseVerdict(
                     False,
                     "info",
@@ -7594,7 +8154,7 @@ def evaluate_carrier_obligation(
                 first_path,
                 ""
                 if more_count == 0
-                else " (and {0} more finished owner(s))".format(more_count),
+                else f" (and {more_count} more finished owner(s))",
             )
             reason = (
                 "{0}: {1}\n"
@@ -7602,9 +8162,7 @@ def evaluate_carrier_obligation(
                 "{2}\n"
                 "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
             ).format(obligation.locator, "; ".join(problems), evidence_line)
-            remedy_fix = "cite evidence it was discharged by finished work: add `- Carrier-Evidence: {0}`".format(
-                first_path
-            )
+            remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
             return CloseVerdict(
                 False,
                 "error",
@@ -7626,10 +8184,8 @@ def evaluate_carrier_obligation(
         False,
         "error",
         (
-            "{0} records an outstanding obligation with NO durable carrier; once this plan reaches "
-            "`executed` it classes `done` in `aw attention` and this vanishes with no record".format(
-                obligation.locator
-            )
+            f"{obligation.locator} records an outstanding obligation with NO durable carrier; once this plan reaches "
+            "`executed` it classes `done` in `aw attention` and this vanishes with no record"
         ),
         fixes,
         None,
@@ -7707,14 +8263,12 @@ def evaluate_durable_carrier(
                 "; ".join(v.reason for _ob, v in shown),
                 ""
                 if len(rule_failures) == len(shown)
-                else " (and {0} more)".format(len(rule_failures) - len(shown)),
+                else f" (and {len(rule_failures) - len(shown)} more)",
             )
             drift.append(
                 enrich_drift(
                     _core.Drift(str(plan_path), rule, detail, severity="info"),
-                    observed="{0} row(s)/question(s) name a finished carrier whose work has not been verified".format(
-                        len(rule_failures)
-                    ),
+                    observed=f"{len(rule_failures)} row(s)/question(s) name a finished carrier whose work has not been verified",
                     required=(
                         "when a carrier finishes, an agent must confirm it did this work and record "
                         "`- Carrier-Evidence:`, or re-point the row"
@@ -7729,13 +8283,13 @@ def evaluate_durable_carrier(
                 "; ".join(v.reason for _ob, v in shown),
                 ""
                 if len(rule_failures) == len(shown)
-                else " (and {0} more)".format(len(rule_failures) - len(shown)),
+                else f" (and {len(rule_failures) - len(shown)} more)",
             )
             drift.append(
                 enrich_drift(
                     _core.Drift(str(plan_path), rule, detail, severity=severity),
-                    observed="{0} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
-                    "`Carrier-Declined` field".format(len(rule_failures)),
+                    observed=f"{len(rule_failures)} row(s)/question(s) with no `Carrier`, `Carrier-Evidence`, or "
+                    "`Carrier-Declined` field",
                     required=(
                         "every outstanding obligation an IPD records must name a durable carrier: an OPEN "
                         "backlog item or a NON-TERMINAL plan (`- Carrier:`), resolvable evidence "
@@ -7873,24 +8427,20 @@ def evaluate_ipd_lint_diagnostics(
     detail = "{0} lint diagnostic(s) at the `{1}` checkpoint: {2}{3}".format(
         len(diags),
         checkpoint,
-        "; ".join("{0} {1}".format(d.code, d.message) for d in shown),
-        ""
-        if len(diags) == len(shown)
-        else " (and {0} more)".format(len(diags) - len(shown)),
+        "; ".join(f"{d.code} {d.message}" for d in shown),
+        "" if len(diags) == len(shown) else f" (and {len(diags) - len(shown)} more)",
     )
     codes = ", ".join(sorted({d.code for d in diags}))
     drift.append(
         enrich_drift(
             _core.Drift(str(plan_path), _IPD_LINT_RULE, detail),
-            observed="`aw ipd lint --phase {0}` reports {1} diagnostic(s) ({2})".format(
-                checkpoint, len(diags), codes
-            ),
+            observed=f"`aw ipd lint --phase {checkpoint}` reports {len(diags)} diagnostic(s) ({codes})",
             required=(
                 "a plan must satisfy the `IPD-*` structural/state contract that "
                 "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
                 "committed unnoticed"
             ),
-            recovery="aw ipd lint {0} --phase {1}".format(plan_path, checkpoint),
+            recovery=f"aw ipd lint {plan_path} --phase {checkpoint}",
         )
     )
     return drift
@@ -7980,10 +8530,10 @@ def check_ipd_lint_reach(
         detail = "{0} lint diagnostic(s) at the `{1}` checkpoint: {2}{3}".format(
             len(diags),
             "author",
-            "; ".join("{0} {1}".format(d.code, d.message) for d in shown),
+            "; ".join(f"{d.code} {d.message}" for d in shown),
             ""
             if len(diags) == len(shown)
-            else " (and {0} more)".format(len(diags) - len(shown)),
+            else f" (and {len(diags) - len(shown)} more)",
         )
         codes = ", ".join(sorted({d.code for d in diags}))
         drift.append(

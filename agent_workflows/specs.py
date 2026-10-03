@@ -15,6 +15,7 @@ verification.
 
 from __future__ import annotations
 
+import datetime as _dt
 import re
 import sys
 from pathlib import Path
@@ -24,6 +25,59 @@ from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
 
 SPECS_ROOT = ".aw/records/specs"
+
+
+# --------------------------------------------------------------------------------------
+# Output-safety refusal helper (IPD uz05bl E-01; ported from backlog dtg7dz)
+# --------------------------------------------------------------------------------------
+
+
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: Optional[str],
+    *,
+    bound_length: bool = True,
+) -> Optional[str]:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
+    When bound_length is False (line-integrity mode), validates newlines/carriage returns
+    and control characters without applying the length bound.
+    Returns None if value is None or valid, else a refusal message naming verb, flag, and cause.
+    """
+    if value is None:
+        return None
+    prefix = f"{verb}: " if verb else ""
+    if bound_length:
+        if A.is_safe_descriptive(value):
+            return None
+        if "\n" in value or "\r" in value:
+            return f"{prefix}{flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{prefix}{flag} must not contain control characters"
+        if len(value) > A.MAX_DESCRIPTIVE_LEN:
+            return (
+                f"{prefix}{flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+            )
+        return f"{prefix}{flag} is not a valid descriptive field"
+    else:
+        has_newline = "\n" in value or "\r" in value
+        is_safe_line = (
+            not has_newline
+            and A.is_safe_descriptive(
+                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+            )
+            and not A._CONTROL_CHAR_RE.search(value)
+        )
+        if is_safe_line:
+            return None
+        if has_newline:
+            return f"{prefix}{flag} must not contain embedded newlines"
+        if A._CONTROL_CHAR_RE.search(value):
+            return f"{prefix}{flag} must not contain control characters"
+        return f"{prefix}{flag} is not a valid descriptive field"
 
 
 # --------------------------------------------------------------------------------------
@@ -157,6 +211,8 @@ _PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")
 # use `feature` or `chore`; that is an accepted cost of ONE shared vocabulary (OQ-01), because forked
 # per-type vocabularies are the drift this Set exists to remove.
 _WORK_KIND_RE = re.compile(r"^- Work-Kind:\s*(\S+)\s*$")
+_SCOPE_RE = re.compile(r"^- Scope:[ \t]*(.*?)[ \t]*$")
+_SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(.*?)[ \t]*$")
 
 
 def _repo_root_of(spec_path: Path) -> Path:
@@ -225,6 +281,26 @@ def _read_work_kind(lines: List[str]) -> Optional[str]:
     end = _metadata_end(lines)
     for line in lines[:end]:
         m = _WORK_KIND_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_scope(lines: List[str]) -> Optional[str]:
+    """Read a spec's optional `- Scope:` value from the metadata block, or None."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _SCOPE_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_summary(lines: List[str]) -> Optional[str]:
+    """Read a spec's optional `- Summary:` value from the metadata block, or None."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _SUMMARY_RE.match(line)
         if m:
             return m.group(1)
     return None
@@ -360,6 +436,26 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                 loc,
                 "attention.gate-forbidden",
                 "gate fields present on a non-deferred spec",
+            )
+        )
+
+    scope = _read_scope(lines)
+    if scope is not None and not A.is_safe_descriptive(scope):
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.unsafe-field",
+                A.escape_detail("Scope is over-length or has control chars/newlines"),
+            )
+        )
+
+    spec_summary = _read_summary(lines)
+    if spec_summary is not None and not A.is_safe_descriptive(spec_summary):
+        drift.append(
+            core.Drift(
+                loc,
+                "attention.unsafe-field",
+                A.escape_detail("Summary is over-length or has control chars/newlines"),
             )
         )
 
@@ -739,6 +835,14 @@ def run_set(args) -> int:
     out = _set_status(out, new)
     date = getattr(args, "date", None) or _today()
     msg = args.message
+    if msg is not None:
+        # E-03 (IPD uz05bl): Line-integrity guard for --message
+        _msg_err = _refuse_unsafe_descriptive(
+            "aw specs set", "--message", msg, bound_length=False
+        )
+        if _msg_err:
+            sys.stderr.write(f"{_msg_err}\n")
+            return 1
     from agent_workflows.status_set import same_status_message_is_duplicate
 
     sidecar_msg = None
@@ -764,6 +868,13 @@ def run_set(args) -> int:
     # awrelease Order 02: set/clear the Blocks-Release gate field when requested.
     br = getattr(args, "blocks_release", None)
     if br is not None:
+        # E-07 (IPD uz05bl): Refuse unsafe descriptive value for --blocks-release
+        _br_err = _refuse_unsafe_descriptive(
+            "aw specs set", "--blocks-release", br, bound_length=True
+        )
+        if _br_err:
+            sys.stderr.write(f"{_br_err}\n")
+            return 1
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_blocks_release_line(new_text, br)
@@ -808,6 +919,32 @@ def run_set(args) -> int:
     # matching the bare spelling handled by `status_set.py`.
     from_backlog_arg = getattr(args, "from_backlog", None)
     if from_backlog_arg is not None:
+        # E-07 (IPD uz05bl): Refuse unsafe descriptive value for --from-backlog
+        _fb_err = _refuse_unsafe_descriptive(
+            "aw specs set", "--from-backlog", from_backlog_arg, bound_length=True
+        )
+        if _fb_err:
+            sys.stderr.write(f"{_fb_err}\n")
+            return 1
+        if from_backlog_arg != "-":
+            # IPD izh17y E-04: refuse unresolvable --from-backlog on the forked `aw specs set --status`
+            # path before mutating new_text. Resolves via `backlog.existing_backlog_ids` using
+            # `_repo_root_of(path)` (F-15: reach repo root identically to the gate inheritance below).
+            # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
+            # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+            # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
+            # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
+            # function; the difference is a known gap here, not a standard to spread"). The setter takes the
+            # safe posture rather than copying the checker's less-safe posture.
+            from agent_workflows import backlog as _backlog
+
+            known_backlog = _backlog.existing_backlog_ids(_repo_root_of(path))
+            if known_backlog and from_backlog_arg not in known_backlog:
+                sys.stderr.write(
+                    f"aw specs set: unresolvable backlog id '{from_backlog_arg}' (does not resolve to an existing backlog item)\n"
+                )
+                return 2
+
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_from_backlog_line(new_text, from_backlog_arg)
@@ -1088,6 +1225,17 @@ def run_note(args) -> int:
     except OSError as exc:
         sys.stderr.write(f"aw specs note: cannot read {path}: {exc}\n")
         return 2
+
+    # E-03 (IPD uz05bl): Line-integrity guard for --message
+    msg = getattr(args, "message", None)
+    if msg is not None:
+        _msg_err = _refuse_unsafe_descriptive(
+            "aw specs note", "--message", msg, bound_length=False
+        )
+        if _msg_err:
+            sys.stderr.write(f"{_msg_err}\n")
+            return 2
+
     lines = _lines(text)
     date = getattr(args, "date", None) or _today()
     from agent_workflows.status_set import same_status_message_is_duplicate
@@ -1178,12 +1326,46 @@ def run_new(args) -> int:
     if not title:
         sys.stderr.write("aw specs new: --title is required\n")
         return 2
+
+    # E-02 (IPD uz05bl): Refuse unsafe descriptive values for --title and --summary before minting an id6.
+    _raw_title = getattr(args, "title", None)
+    _title_err = _refuse_unsafe_descriptive("aw specs new", "--title", _raw_title)
+    if _title_err:
+        sys.stderr.write(f"{_title_err}\n")
+        return 2
+
+    _raw_summary = getattr(args, "summary", None)
+    if _raw_summary is not None:
+        _summary_err = _refuse_unsafe_descriptive(
+            "aw specs new", "--summary", _raw_summary
+        )
+        if _summary_err:
+            sys.stderr.write(f"{_summary_err}\n")
+            return 2
     slug = core.kebab(slug_arg or title)[:60] or "spec"
+
+    # E-01 (IPD ribg85): Validate --date format and calendar validity before minting an id6.
+    # Ported from prompts.run_new: the regex check validates the YYYY-MM-DD lexical format.
+    # The regex is a format check, not a calendar check (it accepts e.g. 9999-99-99).
+    # Per OQ-01, validate format first, then calendar validity via datetime.date.fromisoformat,
+    # refusing both with exit 2 and the same message shape.
+    date_iso = (getattr(args, "date", None) or "").strip() or _today()
+    if not re.match(r"\A\d{4}-\d{2}-\d{2}\Z", date_iso):
+        sys.stderr.write(
+            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
+        )
+        return 2
+    try:
+        _dt.date.fromisoformat(date_iso)
+    except ValueError:
+        sys.stderr.write(
+            f"aw specs new: --date must be YYYY-MM-DD (got {date_iso!r})\n"
+        )
+        return 2
 
     # IPD sk7ggr E-01: repository-wide mint (see artifact_core.mint_id6), unioned with the spec
     # tree's own ids rather than replacing them.
     id6 = core.mint_id6(repo_root, _existing_spec_ids(repo_root))
-    date_iso = getattr(args, "date", None) or _today()
     date_compact = date_iso.replace("-", "")
 
     filename = _naming.build_clustered_name(
@@ -1199,6 +1381,27 @@ def run_new(args) -> int:
     dest = _placement.resolve_creation_path(
         "specs", "draft", filename, repo_root=repo_root
     )
+
+    # E-02 (IPD ribg85): Destination-containment assertion (defense-in-depth).
+    # Derive boundary from record_placement.resolve_type_dir to support both modern and legacy layouts.
+    # Uses Path.relative_to with ValueError as the escape signal (same idiom as
+    # check_engine.resolve_evidence_artifact). Placed before the dry-run branch so both
+    # preview and --apply refuse.
+    specs_dir = _placement.resolve_type_dir("specs", repo_root=repo_root)
+    try:
+        resolved_dest = dest.resolve()
+        resolved_specs_dir = specs_dir.resolve()
+        resolved_dest.relative_to(resolved_specs_dir)
+        if resolved_dest == resolved_specs_dir:
+            raise ValueError(
+                "destination matches records root rather than a record inside it"
+            )
+    except ValueError:
+        sys.stderr.write(
+            f"aw specs new: destination {dest} escapes records tree {specs_dir}\n"
+        )
+        return 2
+
     rendered = _render_new_spec(
         title=title, id6=id6, date_iso=date_iso, summary=summary
     )

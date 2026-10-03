@@ -84,7 +84,7 @@ TEST OUTCOMES, NOT CODE STRUCTURE (NO CODE-PINNING TESTS): every test you author
 YOUR SHELL IS PERSISTENT: DO NOT RE-`cd` EVERY COMMAND. The shell session keeps its working directory between calls, and it already starts at the repo root, so prefixing each command with `cd /path/to/repo && ...` is pure waste: it re-sends the absolute path on every call, inflates what the human has to read, and (because the path is a machine-local absolute path) is exactly the kind of string the leak-sanitizer exists to keep out of shared output. Run the bare command. If a tool call genuinely needs a DIFFERENT directory, use your tool's own working-directory parameter (OpenCode's bash tool has `workdir`, and its own instructions say to prefer it over `cd`) rather than chaining `cd`. The one legitimate use of `cd` is a subshell for a single throwaway command, e.g. `(cd /tmp/x && ...)`, which cannot leak the change back into the session.
 
 ### Leak-sanitizer awareness
-A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge whether a public artifact (tracked files, the built package, git history) contains maintainer or machine identifying info (home paths, usernames, hostnames, private repo names, session ids), RUN it and consume its output rather than eyeballing: `aw sanitize --agent` (alias of `aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows check-local-leaks . --agent`). It prints one tab-separated `location\trule\tseverity` record per finding on stdout and exits nonzero on a `fail`. This holds even when no pre-commit hook or CI check is installed in the repo.
+A deterministic leak-sanitizer ships with this toolkit. Before you hand-judge whether a public artifact (tracked files, the built package, git history) contains maintainer or machine identifying info (home paths, usernames, hostnames, private repo names, session ids), RUN it and consume its output rather than eyeballing: `aw sanitize --agent` (alias of `aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows check-local-leaks . --agent`). It emits a canonical `aw.agent/v1` `result` record with `{location, rule}` diagnostics on stdout and exits nonzero on a `fail`. This holds even when no pre-commit hook or CI check is installed in the repo.
 
 ### Ask self-contained questions
 When you ask a human a decision through an interactive prompt, put the ENTIRE question set (the plain-language context needed to decide, the question, and the answer options) INSIDE the prompt itself, so a human answering from the prompt can decide from the prompt alone; never strand the required context in surrounding chat. Extra prose may precede a prompt, but for only ONE question at a time and only as a supplement. Compose the context as a compact, decision-ready synthesis: keep it screen-sized, do NOT repeat or preview the choices the tool already renders, and omit chronology/filenames/quotes unless essential (see GUIDING_PRINCIPLES P12).
@@ -242,7 +242,8 @@ it with `engine.create_backlog_close_gate_hook(repo, install=True)` (idempotent,
 to the same `evaluate_blocking_close` predicate and gates the `done` case only. Honest limits: git hooks
 are local, not cloned by default, and skippable with `--no-verify`; the portable authority is the
 `aw check release-gates` rule family (`aw check` / `aw check all`) and CI, never the local hook alone.
-In CI, `aw check release-gates` runs as a named fail-closed step in `tests.yml`.
+The check rule examines every `done` backlog item on disk, grandfathered per item against the repository's
+stamped cutover date. In CI, `aw check release-gates` runs as a named fail-closed step in `tests.yml`.
 
 ## Research prompts about THIS repository (repo-local rule)
 

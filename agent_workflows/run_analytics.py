@@ -536,6 +536,15 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
             if is_recovery:
                 flags.append("recovery-attempt")
 
+            # Resolve model per attempt via shared resolver. An attempt-grain fact is
+            # deliberately executor-side (review, execute and recovery attempt phases map to
+            # the execute chain) while the verifier's model stays on the Phase.VERIFY phase
+            # fact, preserving the fact count and RunFacts shape.
+            resolved_att_m, _ = schema.resolve_attempt_model(
+                attempt, state, role="execute"
+            )
+            att_model = _model_label(resolved_att_m)
+
             facts.append(
                 Fact(
                     grain=Grain.ATTEMPT,
@@ -548,7 +557,7 @@ def build_run_facts(run_dir: Path | str) -> RunFacts:
                     source="state",
                     driver_generation=generation,
                     host=host,
-                    model=model,
+                    model=att_model,
                     outcome=outcome,
                     usage=att_usage,
                     time=att_time,

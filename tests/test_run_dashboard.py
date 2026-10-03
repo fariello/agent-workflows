@@ -320,6 +320,23 @@ class CollectRowsTests(unittest.TestCase):
         # agy logs carry no cost; the state figure is the only one.
         self.assertAlmostEqual(rows[0]["cost"], 9.99)
 
+    def test_per_row_model_attribution_across_roles(self) -> None:
+        run = _write_run(self.runs, "run-20260901T000000Z-two-model")
+        state = json.loads((run / "state.json").read_text())
+        state["options"]["model"] = "uri/executor-model"
+        state["options"]["verify_model"] = "uri/verifier-model"
+        state["queue"][0]["attempts"][0]["model"] = "uri/attempt-exec-model"
+        state["queue"][0]["attempts"][0]["verify_model"] = "uri/attempt-verify-model"
+        (run / "state.json").write_text(json.dumps(state))
+        rows, _ = dash.collect_rows([run], cache_path=None)
+        main_row = next(r for r in rows if r["attempt"] == 1 and r["role"] == "main")
+        verify_row = next(
+            r for r in rows if r["attempt"] == 1 and r["role"] == "verify"
+        )
+        self.assertEqual(main_row["model"], "attempt-exec-model")
+        self.assertEqual(verify_row["model"], "attempt-verify-model")
+        self.assertNotEqual(main_row["model"], verify_row["model"])
+
     def test_stats_cache_reuse_and_invalidation(self) -> None:
         run = _write_run(self.runs, "run-20260901T000000Z-5")
         cpath = self.root / "cache.json"

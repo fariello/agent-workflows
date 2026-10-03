@@ -13,7 +13,7 @@
   OUT, each for a stated reason: RENUMBERING any shipped code in `run_cli.py`, `run_evidence.py` or `compat_migration.py`, refused above as a breaking change to a consumed contract; COLLAPSING the run family into `{0,1,2}`, refused above because `6kwd2e` R7.3 forbids it; the other six out-of-range declarations (`ipd execute-set`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`), which are either already measurement-accurate (`runs resume`, fixed by `ck0vya`) or owned by pending siblings `69rdv6` (`runs next`, `runs status`) and `1mnit8` (the argparse usage-error floor), so touching them here would collide with a reviewed plan; the latent `EXIT_BLOCKED`-unreachable defect on `runs resume`, which is open backlog `tzqvjn`; `run_cli`'s module docstring contradicting its own constants, which is a separate honest defect filed in OQ-02 rather than fixed here; converting `run_cli`'s bare machine payloads into `aw.agent/v1` records, which `run_cli` itself records as "a real gap on a different contract" that "would silently change what every existing `aw run`/`aw runs --agent` consumer parses"; and adding a tree-wide `exit_contract` validation gate, which is pending plan `1mnit8`'s declared purpose.
 - Scope-Paths: docs/cli-output-contract.md, docs/cli-human-guide.md, docs/cli-agent-protocol.md, docs/cli-migration.md, README.md, agent_workflows/command_surface.py, agent_workflows/run_evidence.py, tests/test_exit_vocabulary_boundary.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -24,8 +24,10 @@
 - Highest E allocated: 07
 - Author: opencode
 - Id: u28vqb
+- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-701 (HIGH), PR-702 (HIGH), PR-703 (HIGH), PR-704 (MEDIUM), PR-705 (MEDIUM), PR-706 (MEDIUM), PR-707 (MEDIUM), PR-708 (MEDIUM), PR-709 (LOW), PR-710 (LOW), PR-711 (LOW), PR-712 (LOW) all FIXED; zero deferred, zero open. Structural lint `conforming` at `--phase author` and `--phase review-finalize`, with no advisories at either checkpoint; this plan's own first `- Kind:` bullet reads `child`, so the `IPD-S407` orchestrator row check does not apply. Reviewed in an isolated lane; no production file, test, document or spec was modified by this review.
   THE PLAN'S CENTRAL CASE IS CONFIRMED AND EVERY LOAD-BEARING MEASUREMENT RE-DRIVEN INDEPENDENTLY. The census reproduces exactly (163 declarations, exactly 8 out of range, the same tuples and classes, `exit_contract` defaulting to `(0,1,2)`). F-06's production-reachable misdeclaration reproduces: `oc runipd` and `agy runipd` both declare `(0,1,2)` while `run_exit_code` returns 3, and the path to the process exit was re-traced by AST rather than by reading (15 returns in `oc_runipd.main`, two of them `run_queue(...)`; exactly two returns in `run_queue`; `cli.py` forwarding on both the pre-`parse_args` and parsed-namespace routes; `agy_runipd` identical). F-08 reproduces on real calls (exit 3 rejected with "Field 'exit' must be an integer in (0, 1, 2)", exit 1 accepted, `render_jsonl_record` raising `ValueError`). F-05's refusal holds: both pinning test files exist and assert what the plan says.
@@ -143,8 +145,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: likewise a DECISION NOT TO ACT. Reopening it would mean amending approved spec `6kwd2e` to remove R7.3, which is a different contract decision needing its own survey and human mandate; filing a carrier would misrepresent a refusal as pending work.
 - **`runs next` and `runs status`, whose declared contracts are wrong in the same way E-02 fixes.** Owned by approved plan `69rdv6`, which widens them to `(0,2,3,5,7)` and `(0,1,2,3,5,7)` (F-11). Touching them here would collide with an approved plan.
   - Carrier: 69rdv6
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-runsexits-01-69rdv6-declare-runs-next-and-runs-status-by-their-measured-exit-cod.ipd.md
 - **The argparse usage-error floor on four run-family verbs, and the tree-wide `exit_contract` validation gate.** The great majority of declarations are validated against nothing, a genuine enforcement gap; pending plan `1mnit8` (now `- Status: reviewed`) declares both as its purpose and explicitly fences itself out of this reconciliation (F-11). The authored "155 of 163" is dropped as a live count rather than refreshed: `1mnit8`'s own review measured `exit_contract` read in six test files and the validated population is exactly what that plan changes, so a number here would be stale on arrival.
   - Carrier: 1mnit8
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-exitcontract-01-1mnit8-make-exit-contract-load-bearing-a-tree-wide-usage-error-floo.ipd.md
 - **The latent unreachable-`EXIT_BLOCKED` defect on `runs resume`.** A real design defect in `run_engine`'s ephemeral-state handling, already filed.
   - Carrier: tzqvjn
 - **`ipd execute-set`, `run start`, `run record`, `run cancel` and `run finalize` declarations.** Not measured by this plan. Declaring them on a guess would repeat the exact defect E-02 fixes, so they are left as they are rather than changed on inference.

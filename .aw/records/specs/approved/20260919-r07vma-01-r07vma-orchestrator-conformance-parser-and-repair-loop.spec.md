@@ -5,7 +5,7 @@
 - Id: r07vma
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 77tr3o
-- Scope: An Order-0 orchestrator may hold only child-tracking items; one shared parser enforces AUTHORING CONFORMANCE deterministically, plan-review repairs violations in a bounded loop, and a run re-parses and refuses with every finding at once. ADDITIVE to the existing semantic coverage probe, which it does not replace.
+- Scope: An Order-0 orchestrator may hold only child-tracking items; one shared parser enforces AUTHORING CONFORMANCE deterministically, plan-review repairs violations in a bounded loop, and a run refuses with all findings at once. ADDITIVE to the existing semantic coverage probe, which it does not replace.
 - Parent: `.aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md` (`77tr3o`,
   `approved`), which owns runner-owned retirement. This spec ADDS a deterministic authoring-conformance
   control beside that spec's R-12 semantic probe. It leaves R-1 through R-12 intact and does NOT retire

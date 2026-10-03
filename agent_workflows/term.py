@@ -103,16 +103,29 @@ def visible_width(text: str) -> int:
     return sum(0 if is_zero_width(ch) else 1 for ch in strip_ansi(text))
 
 
-def _pad_visible(text: str, width: int) -> str:
-    """Left-align ``text`` to ``width`` VISIBLE columns (the ``str.ljust`` a styled cell needs).
+def pad_visible(text: str, width: int, *, align: str = "left") -> str:
+    """Pad ``text`` to ``width`` VISIBLE columns, alignment-aware.
 
-    ``str.ljust`` and ``len()`` both count escape bytes and zero-width marks as columns, so either
-    one leaves a styled or VS-bearing cell short. This is the one padding path lifecycle rendering
-    uses, which is what Section 9.4's fourth contract bullet asks for.
+    Measures with :func:`visible_width`, so styled ANSI text, variation selectors, and combining
+    accents pad to their rendered column count rather than byte or character length.
+
+    This helper pads only and never truncates; an input wider than ``width`` is returned unchanged.
+    For truncation without grapheme severing, see :func:`truncate_visible`.
+
+    ``align`` must be either ``"left"`` (text followed by padding) or ``"right"`` (padding
+    preceding text). Any other value raises :class:`ValueError`.
     """
+    pad = " " * max(0, width - visible_width(text))
+    if align == "left":
+        return text + pad
+    if align == "right":
+        return pad + text
+    raise ValueError(f"unknown align {align!r}; expected 'left' or 'right'")
 
-    pad = width - visible_width(text)
-    return text + (" " * pad) if pad > 0 else text
+
+def _pad_visible(text: str, width: int) -> str:
+    """Compatibility alias for :func:`pad_visible` (left-aligned)."""
+    return pad_visible(text, width)
 
 
 def _tokenize_ansi(text: str) -> List[Tuple[bool, str]]:
@@ -337,8 +350,7 @@ def should_color(
     `z8ddk0`, for spec `uonrjg` R9.3a.2). `runner_shared.should_color` is a sanctioned one-line
     delegation to this function and `pwatch` calls it directly; both previously carried independent
     implementations that DISAGREED with this one, measured 2026-09-19, so a caller must reach this
-    body rather than reimplement it. `tests/test_term.py::OneOriginatingDefinitionTests` fails if a
-    second ORIGINATING definition appears anywhere in the package.
+    body rather than reimplement it.
 
     Precedence: FLAG beats ENV beats DETECTION. Highest first:
 
@@ -564,8 +576,7 @@ def resolve_color_depth(
     as ``NO_COLOR``/``--no-color``/``TERM=dumb``/non-TTY, which reads like four env/stream tests to
     perform here. Performing them here would be WRONG twice over. FIRST, it would create a SECOND
     originating definition of the color decision, which is the exact defect plan `z8ddk0` closed
-    when it unified three divergent ``should_color`` implementations, and which
-    ``tests/test_term.py::OneOriginatingDefinitionTests`` now guards. SECOND, this function CANNOT
+    when it unified three divergent ``should_color`` implementations. SECOND, this function CANNOT
     see ``--no-color``: the flag never reaches ``os.environ`` (by design, because nested ``aw``
     processes inherit the environment and would be silently restyled), so it arrives only as the
     ``override=`` argument or through ``term.set_color_override``. Delegating gets all four inputs
@@ -1105,8 +1116,7 @@ class Term:
             return self._depth
         if not self.color:
             return DEPTH_NONE
-        depth = resolve_color_depth(self.stream)
-        return DEPTH_16 if depth == DEPTH_16 else DEPTH_256
+        return resolve_color_depth(self.stream, override=True)
 
     def style_lifecycle_text(
         self, text: str, resolved: lifecycle_style.Resolved
@@ -1220,18 +1230,18 @@ class Term:
         cells: List[str] = []
 
         if artifact_type:
-            cells.append(_pad_visible(artifact_type, type_width))
+            cells.append(pad_visible(artifact_type, type_width))
 
         cells.append(self.format_lifecycle_marker(resolved, width=marker_width))
 
         if id6:
             cells.append(
-                _pad_visible(self.style_lifecycle_text(id6, resolved), id6_width)
+                pad_visible(self.style_lifecycle_text(id6, resolved), id6_width)
             )
 
         word = lifecycle_word(resolved)
         cells.append(
-            _pad_visible(self.style_lifecycle_text(word, resolved), status_width)
+            pad_visible(self.style_lifecycle_text(word, resolved), status_width)
         )
 
         if title:
@@ -1272,12 +1282,11 @@ class Term:
                 stage=stage, style=style, family=lifecycle_style.FAMILY_PLANS
             )
             shown = style.unicode if self.unicode else style.ascii
-            marker = self.style_lifecycle_text(shown, resolved)
-            pad = " " * max(0, 2 - visible_width(shown))
+            marker = pad_visible(self.style_lifecycle_text(shown, resolved), 2)
             if both_forms and self.unicode:
-                rows.append(f"{marker}{pad} {style.ascii}  {stage}")
+                rows.append(f"{marker} {style.ascii}  {stage}")
             else:
-                rows.append(f"{marker}{pad} {stage}")
+                rows.append(f"{marker} {stage}")
         return "\n".join(rows)
 
     def severity_label(self, kind: str) -> str:

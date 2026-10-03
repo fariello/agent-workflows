@@ -171,6 +171,25 @@ and the plan-filename normalizer. The framework's own
 `verify` workflow discovers and runs them. Test only the mechanical parts, not the
 instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 
+## Static type checking
+
+To run static type checking across the `agent_workflows/` package:
+
+```bash
+make typecheck
+```
+
+This runs `python3 -m mypy agent_workflows` using the configuration in `pyproject.toml`. Static type checking is enforced in CI on pull requests and pushes to `main` via the fail-closed `typecheck` job.
+
+The baseline is triaged rather than clean-by-nature: existing findings are suppressed using per-line `# type: ignore[<code>]` comments with inline reasons explaining each checker limitation, platform or version condition, or benign re-annotation, so future maintainers understand and can revisit those judgements.
+
+The gate has five honest limits:
+1. Ten error codes are disabled (`arg-type`, `attr-defined`, `assignment`, `misc`, `union-attr`, and related completeness codes) to focus signal on callable and return defects; whole families of annotation issues are not caught.
+2. The checker targets Python 3.10, so Python 3.9-only incompatibilities are invisible even though 3.9 is the project's declared floor.
+3. The check runs in CI only; local commits and merges are not blocked by a git hook.
+4. Only `agent_workflows/` is checked; `tests/` and helper tools are unchecked.
+5. The clean baseline is defined relative to the pinned environment (`mypy>=1.18,<3` and `filelock>=4` in the test and dev dependency sets); environments resolving different dependency versions (such as `filelock` 3.x) may report different findings.
+
 ## Authoring conventions
 
 - Match what the software does today; do not document aspirations
@@ -195,6 +214,10 @@ instruction prose (prose is reviewed by `/assess prose`, not unit-tested).
 - Tests depending on the live checkout or environment: follow the canonical decision
   rule in `GUIDING_PRINCIPLES.md` P16 ("When tests depend on the live checkout or
   environment").
+- Tabulated and table-driven tests: follow the conventions in `GUIDING_PRINCIPLES.md`
+  P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
+  shape, the mandatory `why` column, when to tabulate, and runner-dependent row
+  verdicts.
 
 ## Adding a CLI command: the output-contract checklist
 
@@ -241,20 +264,20 @@ full release policy.
 
 ## Packaging and the CLI (DECISIONS D46)
 
-The distributable is a wheel built with `hatchling` (a dev/build-time dependency; there
-are ZERO runtime dependencies). The importable package is `agent_workflows/`; the shipped
-workflow tree (`.aw/system/`) is included as package data via `force-include`,
-mapped into the wheel under `agent_workflows/_data/`.
+The distributable is a wheel built with `hatchling` (a dev/build-time dependency; the
+only runtime dependency is `filelock`, permitted per DECISIONS D138 where minimization
+is a principle rather than an absolute prohibition). The importable package is
+`agent_workflows/`; the shipped workflow tree (`.aw/system/`) is included as package
+data via `force-include`, mapped into the wheel under `agent_workflows/_data/`.
 The console scripts `agent-workflows` / `aw` / `agentwf` all point at
 `agent_workflows.cli:main`.
 
 - **Dev install:** `pip install -e .` exposes the `aw` CLI against your working tree.
 - **Build a wheel:** `python -m build --wheel` (needs `pip install build`). The
-  ship-vs-dev boundary intends that the wheel contains only the package + `_data` tree and
-  NONE of `tests/`, `.aw/workflow-artifacts/`, the source `.aw/records/` tree (docs, plans,
-  prompts), or the meta docs, and that no runtime dependency is declared. The former packaging
-  test suite was deleted in commit 19313eed, so this packaging assertion is currently unguarded
-  by a dedicated test (tracked in backlog item mflqqf).
+  ship-vs-dev boundary is enforced by `tests/test_packaging.py`, which asserts the wheel
+  contains only the package + `_data` tree and NONE of `tests/`, `.aw/workflow-artifacts/`,
+  the source `.aw/records/` tree (docs, plans, prompts), or the meta docs, and that the
+  unconditional runtime dependency set is pinned to exactly the one allowlisted entry (`filelock`).
 - **CLI vs the LLM `/setup-repo`:** the CLI does the deterministic, multi-repo, host-level
   work (install/update, config, discovery, fixed setup artifacts); the LLM
   `/setup-repo` workflow does the stack-tailored, judgment layer. They complement each

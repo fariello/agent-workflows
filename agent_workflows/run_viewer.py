@@ -207,6 +207,9 @@ class StepSummary:
     # runverdict (bxx9af) E-07: verifier evidence (tests_run / corrections_made) surfaced in StepSummary
     tests_run: list[Any] = field(default_factory=list)
     corrections_made: list[str] = field(default_factory=list)
+    # runverdict-09 (`btak7a`) E-04: corroboration verdict surfaced as sibling field
+    corroboration_verdict: str | None = None
+    corroboration_reason: str | None = None
     # mlhryi E-01: preserve typed queue entry metadata
     artifact_type: str | None = None
     initial_status: str | None = None
@@ -1129,7 +1132,13 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 
                 item_tests_run = item.get("tests_run")
                 item_corrections = item.get("corrections_made")
-                if (item_tests_run is None or item_corrections is None) and run_dir:
+                item_corr_verdict = item.get("corroboration_verdict")
+                item_corr_reason = item.get("corroboration_reason")
+                if (
+                    item_tests_run is None
+                    or item_corrections is None
+                    or item_corr_verdict is None
+                ) and run_dir:
                     v_outcome_file = (
                         run_dir / "outcomes" / f"{pos:02d}-{id6}-verification.json"
                     )
@@ -1142,8 +1151,16 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                                 item_tests_run = _v_data.get("tests_run")
                             if item_corrections is None:
                                 item_corrections = _v_data.get("corrections_made")
+                            if item_corr_verdict is None:
+                                item_corr_verdict = _v_data.get("corroboration_verdict")
+                                item_corr_reason = _v_data.get("corroboration_reason")
                         except Exception:
                             pass
+                if item_corr_verdict is None and attempts:
+                    last_att = attempts[-1]
+                    if isinstance(last_att, dict):
+                        item_corr_verdict = last_att.get("corroboration_verdict")
+                        item_corr_reason = last_att.get("corroboration_reason")
                 tests_run_list = (
                     list(item_tests_run) if isinstance(item_tests_run, list) else []
                 )
@@ -1189,6 +1206,9 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         # runverdict (bxx9af) E-07: verifier evidence in StepSummary
                         tests_run=tests_run_list,
                         corrections_made=corrections_list,
+                        # runverdict-09 (`btak7a`) E-04: corroboration verdict in StepSummary
+                        corroboration_verdict=item_corr_verdict,
+                        corroboration_reason=item_corr_reason,
                         artifact_type=step_atype,
                         initial_status=step_initial_status,
                     )
@@ -1651,9 +1671,9 @@ def format_step_line(
     status_padded = (
         status_marker
         + " "
-        + term.style_lifecycle_text(status_word, status_resolved)
-        # PADDED BY VISIBLE COLUMNS (Section 9.4), never `len()` on styled text.
-        + (" " * max(0, status_width - _T.visible_width(status_word)))
+        + _T.pad_visible(
+            term.style_lifecycle_text(status_word, status_resolved), status_width
+        )
     )
 
     lead = "   "
@@ -2417,6 +2437,18 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                     if getattr(term, "color", False)
                     else f"  > test: {truncated}"
                 )
+        # runverdict-09 (`btak7a`) E-04: render corroboration verdict adjacent to tests_run list
+        if step.corroboration_verdict:
+            corr_label = (
+                f"corroboration: {step.corroboration_verdict} (reason: {step.corroboration_reason})"
+                if step.corroboration_reason
+                else f"corroboration: {step.corroboration_verdict}"
+            )
+            details.append(
+                term.color256(f"  * {corr_label}", 36)
+                if getattr(term, "color", False)
+                else f"  * {corr_label}"
+            )
         if step.corrections_made:
             for corr in step.corrections_made:
                 corr_str = str(corr).strip()

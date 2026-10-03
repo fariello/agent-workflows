@@ -45,6 +45,7 @@ def _write_plan(
     status: str = "approved",
     kind: str | None = None,
     slug: str = "test",
+    dependencies: list[str] | tuple[str, ...] | None = None,
 ) -> Path:
     bucket = "pending"
     if status in ("executed", "superseded", "not-executed", "reusable"):
@@ -75,7 +76,10 @@ def _write_plan(
     ]
     if status == "approved":
         lines.append("- Approval: 2026-09-27, test approved")
-    lines.append("- Item-Dependencies: none")
+    if dependencies:
+        lines.append(f"- Item-Dependencies: {', '.join(dependencies)}")
+    else:
+        lines.append("- Item-Dependencies: none")
     lines.append("")
     lines.append("## Workflow history")
     lines.append("")
@@ -259,6 +263,7 @@ def _build_queue_for_selector(
     action: str | None = None,
     types: tuple[str, ...] | None = None,
     allow_mixed: bool = False,
+    with_dependencies: bool = False,
 ) -> dict[str, Any]:
     global _run_counter
     _run_counter += 1
@@ -279,6 +284,8 @@ def _build_queue_for_selector(
             cmd.extend(["--type", t])
     if allow_mixed:
         cmd.append("--allow-mixed")
+    if with_dependencies:
+        cmd.append("--with-dependencies")
     args = module.build_parser().parse_args(cmd)
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
@@ -583,6 +590,147 @@ class TestPreQueueSeams(unittest.TestCase):
                 oc_runipd.initialize_run(args)
             self.assertIn("[RUN-MIXED-TYPES]", str(ctx.exception))
 
+    def test_manifest_absent_queue_id_refuses_ahead_of_durable_state_on_both_hosts(
+        self,
+    ):
+        """E-01: expanded selection containing manifest-absent id6 refuses with DriverError naming id6; no run dir."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo, id6="pln001", setid="s1", order=1, status="approved"
+                    )
+
+                    real_expand = mod.expand_selectors
+
+                    def fake_expand(manifest, selectors, **kwargs):
+                        res = real_expand(manifest, selectors, **kwargs)
+                        return list(res) + ["gho001"]
+
+                    cmd = [
+                        "start",
+                        "pln001",
+                        "--repo",
+                        str(repo),
+                        "--prepare-only",
+                        "--unattended",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    with patch.object(mod, "expand_selectors", side_effect=fake_expand):
+                        with self.assertRaises(runner_shared.DriverError) as ctx:
+                            mod.initialize_run(args)
+                    self.assertIn("gho001", str(ctx.exception))
+                    runs_root = runner_shared.state_root(repo)
+                    created_runs = (
+                        list(runs_root.iterdir()) if runs_root.exists() else []
+                    )
+                    self.assertEqual(created_runs, [])
+
+    def test_manifest_file_outside_plans_trees_refuses_on_both_hosts(self):
+        """E-03: IPD manifest file outside plans trees refuses ahead of durable state; skip action passes."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    p = _write_plan(
+                        repo, id6="pln002", setid="s2", order=1, status="approved"
+                    )
+                    docs_dir = repo / "docs"
+                    docs_dir.mkdir(parents=True, exist_ok=True)
+                    outside_path = docs_dir / p.name
+                    p.rename(outside_path)
+                    rel_path = str(outside_path.relative_to(repo))
+
+                    manifest = {
+                        "schema_version": runner_shared.SCHEMA_VERSION,
+                        "plans": {
+                            "pln002": {
+                                "file": rel_path,
+                                "set": "s2",
+                                "order": 1,
+                                "status": "approved",
+                                "dependencies": [],
+                            }
+                        },
+                        "sets": {"s2": {"order": ["pln002"]}},
+                    }
+                    mf_path = repo / "manifest.json"
+                    mf_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+                    cmd = [
+                        "start",
+                        "pln002",
+                        "--repo",
+                        str(repo),
+                        "--manifest",
+                        str(mf_path),
+                        "--prepare-only",
+                        "--unattended",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    with self.assertRaises(runner_shared.DriverError) as ctx:
+                        mod.initialize_run(args)
+                    msg = str(ctx.exception)
+                    self.assertIn("pln002", msg)
+                    self.assertIn(rel_path, msg)
+                    self.assertIn("outside the plans trees", msg)
+                    self.assertIn(
+                        "No work started, and nothing durable was created", msg
+                    )
+                    runs_root = runner_shared.state_root(repo)
+                    created_runs = (
+                        list(runs_root.iterdir()) if runs_root.exists() else []
+                    )
+                    self.assertEqual(created_runs, [])
+
+                # Negative case: same misfiled path with status 'executed' (action 'skip') must NOT refuse
+                with tempfile.TemporaryDirectory() as td_neg:
+                    repo_neg = _make_test_repo(Path(td_neg))
+                    p_neg = _write_plan(
+                        repo_neg, id6="pln002", setid="s2", order=1, status="executed"
+                    )
+                    docs_dir_neg = repo_neg / "docs"
+                    docs_dir_neg.mkdir(parents=True, exist_ok=True)
+                    outside_path_neg = docs_dir_neg / p_neg.name
+                    p_neg.rename(outside_path_neg)
+                    rel_path_neg = str(outside_path_neg.relative_to(repo_neg))
+
+                    manifest_neg = {
+                        "schema_version": runner_shared.SCHEMA_VERSION,
+                        "plans": {
+                            "pln002": {
+                                "file": rel_path_neg,
+                                "set": "s2",
+                                "order": 1,
+                                "status": "executed",
+                                "dependencies": [],
+                            }
+                        },
+                        "sets": {"s2": {"order": ["pln002"]}},
+                    }
+                    mf_path_neg = repo_neg / "manifest.json"
+                    mf_path_neg.write_text(json.dumps(manifest_neg), encoding="utf-8")
+
+                    cmd_neg = [
+                        "start",
+                        "pln002",
+                        "--repo",
+                        str(repo_neg),
+                        "--manifest",
+                        str(mf_path_neg),
+                        "--prepare-only",
+                        "--unattended",
+                    ]
+                    args_neg = mod.build_parser().parse_args(cmd_neg)
+                    run_dir = mod.initialize_run(args_neg)
+                    runs_root_neg = runner_shared.state_root(repo_neg)
+                    created_runs_neg = (
+                        list(runs_root_neg.iterdir()) if runs_root_neg.exists() else []
+                    )
+                    self.assertEqual(len(created_runs_neg), 1)
+                    self.assertEqual(created_runs_neg[0], Path(run_dir))
+
 
 class TestQueueShapeSeams(unittest.TestCase):
     """E-12: Queue-shape seam cases (F-11, F-12) plus item-local refusal (E-09)."""
@@ -728,3 +876,348 @@ class TestQueueShapeSeams(unittest.TestCase):
                     # Independent plan was executed
                     plan_item = items_by_id["pln001"]
                     self.assertEqual(plan_item["status"], "executed")
+
+
+class TestNonPlanDependencyClosureDefects(unittest.TestCase):
+    """E-01: Pin non-plan dependency closure defects on both hosts."""
+
+    def test_case_a_satisfied_spec_edge_bare_and_with_dependencies(self):
+        """Case (a): plan with exists:spec:<id6> on existing spec freezes bare and with --with-dependencies."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(repo, id6="spc001", status="to-review")
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["exists:spec:spc001"],
+                    )
+                    # Bare invocation freezes successfully
+                    bare_data = _build_queue_for_selector(mod, repo, "pln001")
+                    self.assertEqual(len(bare_data["queue"]), 1)
+                    self.assertEqual(bare_data["queue"][0]["id6"], "pln001")
+
+                    # With --with-dependencies invocation must also freeze successfully
+                    with_deps_data = _build_queue_for_selector(
+                        mod, repo, "pln001", with_dependencies=True
+                    )
+                    self.assertEqual(len(with_deps_data["queue"]), 1)
+                    self.assertEqual(with_deps_data["queue"][0]["id6"], "pln001")
+
+    def test_case_b_backlog_target_with_dependencies_allow_mixed(self):
+        """Case (b): plan with state:backlog:graduated:<id6> against open backlog item."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_backlog_item(repo, id6="bkg001", status="open")
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["state:backlog:graduated:bkg001"],
+                    )
+                    data = _build_queue_for_selector(
+                        mod,
+                        repo,
+                        "pln001",
+                        with_dependencies=True,
+                        allow_mixed=True,
+                    )
+                    queue_ids = [entry["id6"] for entry in data["queue"]]
+                    self.assertIn("pln001", queue_ids)
+                    self.assertIn("bkg001", queue_ids)
+
+
+class TestRestoredClosureBehavioralCoverage(unittest.TestCase):
+    """E-05: Restored behavioral coverage for --with-dependencies closure."""
+
+    def test_flag_absent_changes_nothing(self):
+        """1. The flag absent changes nothing (identity function on queue)."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo,
+                        id6="pln002",
+                        setid="s2",
+                        order=1,
+                        status="executed",
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln002"],
+                    )
+                    # Bare run without --with-dependencies leaves pln002 out
+                    data = _build_queue_for_selector(mod, repo, "pln001")
+                    self.assertEqual(
+                        [entry["id6"] for entry in data["queue"]], ["pln001"]
+                    )
+
+    def test_transitive_plan_closure_still_enqueues(self):
+        """2. A transitive plan-only closure still enqueues all targets."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo, id6="pln003", setid="s3", order=1, status="approved"
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln002",
+                        setid="s2",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln003"],
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln002"],
+                    )
+                    data = _build_queue_for_selector(
+                        mod, repo, "pln001", with_dependencies=True
+                    )
+                    queue_ids = [entry["id6"] for entry in data["queue"]]
+                    self.assertEqual(sorted(queue_ids), ["pln001", "pln002", "pln003"])
+
+    def test_cycle_and_diamond_terminate_and_enqueue_once(self):
+        """3. A cycle and a diamond each terminate and enqueue every target once."""
+        # Diamond shape
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label, shape="diamond"):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo, id6="pln004", setid="s4", order=1, status="approved"
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln002",
+                        setid="s2",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln004"],
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln003",
+                        setid="s3",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln004"],
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln002", "executed:pln003"],
+                    )
+                    data = _build_queue_for_selector(
+                        mod, repo, "pln001", with_dependencies=True
+                    )
+                    queue_ids = [entry["id6"] for entry in data["queue"]]
+                    self.assertEqual(
+                        sorted(queue_ids), ["pln001", "pln002", "pln003", "pln004"]
+                    )
+                    self.assertEqual(queue_ids.count("pln004"), 1)
+
+        # Cycle shape: must terminate and raise cycle refusal at preflight, not hang
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label, shape="cycle"):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo,
+                        id6="pln002",
+                        setid="s2",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln001"],
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln002"],
+                    )
+                    with self.assertRaises(runner_shared.DriverError) as ctx:
+                        _build_queue_for_selector(
+                            mod, repo, "pln001", with_dependencies=True
+                        )
+                    self.assertIn("cycle", str(ctx.exception).lower())
+
+    def test_terminal_disposition_target_is_skipped(self):
+        """4. A terminal-disposition target is skipped and not enqueued."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo,
+                        id6="pln002",
+                        setid="s2",
+                        order=1,
+                        status="executed",
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:pln002"],
+                    )
+                    data = _build_queue_for_selector(
+                        mod, repo, "pln001", with_dependencies=True
+                    )
+                    queue_ids = [entry["id6"] for entry in data["queue"]]
+                    self.assertEqual(queue_ids, ["pln001"])
+                    self.assertNotIn("pln002", queue_ids)
+
+    def test_unresolvable_plan_target_refuses_and_leaves_no_run_directory(self):
+        """5. An unresolvable plan target refuses and leaves NO run directory."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["executed:zzz999"],
+                    )
+                    with self.assertRaises(runner_shared.ClosureRefusal) as ctx:
+                        _build_queue_for_selector(
+                            mod, repo, "pln001", with_dependencies=True
+                        )
+                    self.assertIn("zzz999", str(ctx.exception))
+                    # Proof that runs root contains NO run directory
+                    runs_root = repo / ".aw" / "records" / "runs"
+                    run_dirs = (
+                        list(runs_root.glob("run-*")) if runs_root.exists() else []
+                    )
+                    self.assertEqual(run_dirs, [])
+
+
+class TestNewOrderingAndRefusalCases(unittest.TestCase):
+    """E-06: New ordering and refusal cases on both hosts."""
+
+    def test_unsatisfiable_non_plan_status_refuses_with_named_statuses_and_no_run_dir(
+        self,
+    ):
+        """Unsatisfiable non-plan target (state:spec:approved on to-review spec) refuses naming both statuses."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_spec(repo, id6="spc001", status="to-review")
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["state:spec:approved:spc001"],
+                    )
+                    with self.assertRaises(runner_shared.ClosureRefusal) as ctx:
+                        _build_queue_for_selector(
+                            mod,
+                            repo,
+                            "pln001",
+                            with_dependencies=True,
+                            allow_mixed=True,
+                        )
+                    err_msg = str(ctx.exception)
+                    # Names current status and demanded status
+                    self.assertIn("to-review", err_msg)
+                    self.assertIn("approved", err_msg)
+                    # Proof that runs root contains NO run directory
+                    runs_root = repo / ".aw" / "records" / "runs"
+                    run_dirs = (
+                        list(runs_root.glob("run-*")) if runs_root.exists() else []
+                    )
+                    self.assertEqual(run_dirs, [])
+
+    def test_e04_ordering_and_control_edge(self):
+        """E-04 ordering property: in-queue non-plan prerequisite dispatches ahead of dependent."""
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_backlog_item(repo, id6="bkg001", status="open")
+                    _write_plan(
+                        repo,
+                        id6="pln001",
+                        setid="s1",
+                        order=1,
+                        status="approved",
+                        dependencies=["state:backlog:graduated:bkg001"],
+                    )
+                    # Dependent requested FIRST so position alone would invert it
+                    data = _build_queue_for_selector(
+                        mod, repo, "pln001", with_dependencies=True, allow_mixed=True
+                    )
+                    queue = data["queue"]
+                    self.assertEqual([e["id6"] for e in queue], ["pln001", "bkg001"])
+                    self.assertEqual(queue[0]["position"], 1)
+                    self.assertEqual(queue[1]["position"], 2)
+
+                    by_id = {item["id6"]: item for item in queue}
+                    depth_pln = runner_shared.dependency_depth("pln001", by_id)
+                    depth_bkg = runner_shared.dependency_depth("bkg001", by_id)
+                    self.assertEqual(depth_pln, 1)
+                    self.assertEqual(depth_bkg, 0)
+
+                    # simulate_dispatch_order puts target first
+                    order = runner_shared.simulate_dispatch_order(queue)
+                    self.assertEqual(order, ["bkg001", "pln001"])
+
+                    # IPD control: verify canonical token spelling and ordering
+                    parsed_tok = runner_shared.parse_dependency_token("executed:pln012")
+                    self.assertIsNotNone(parsed_tok)
+                    self.assertEqual(parsed_tok.canonical(), "executed:pln012")
+
+                    _write_plan(
+                        repo, id6="pln012", setid="s2", order=1, status="approved"
+                    )
+                    _write_plan(
+                        repo,
+                        id6="pln011",
+                        setid="s2",
+                        order=2,
+                        status="approved",
+                        dependencies=["executed:pln012"],
+                    )
+                    data_ipd = _build_queue_for_selector(
+                        mod, repo, "pln011", with_dependencies=True
+                    )
+                    queue_ipd = data_ipd["queue"]
+                    by_id_ipd = {item["id6"]: item for item in queue_ipd}
+                    depth_pln11 = runner_shared.dependency_depth("pln011", by_id_ipd)
+                    depth_pln12 = runner_shared.dependency_depth("pln012", by_id_ipd)
+                    self.assertEqual(depth_pln11, 1)
+                    self.assertEqual(depth_pln12, 0)
+                    order_ipd = runner_shared.simulate_dispatch_order(queue_ipd)
+                    self.assertEqual(order_ipd, ["pln012", "pln011"])

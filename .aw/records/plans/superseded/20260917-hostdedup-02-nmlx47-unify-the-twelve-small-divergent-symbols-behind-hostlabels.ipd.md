@@ -68,7 +68,6 @@ carried by `xw4rb7`/`ga2dz1`/`zt2b16`, lane deleted.
 - Item-Dependencies: executed:li44r9
 - Status: superseded
 - Readiness: go-pending-approval
-- From-Backlog: dstnso, 8hx3g3
 - Set: hostdedup
 - Order: 2
 - Highest E allocated: 07
@@ -76,6 +75,7 @@ carried by `xw4rb7`/`ga2dz1`/`zt2b16`, lane deleted.
 - Id: nmlx47
 
 ## Workflow history
+- 2026-10-01 updated (okp2o4): removed non-conforming multi-valued From-Backlog line per plan okp2o4; forward graduation already tracked as Graduated-To: forkresid on both sources.
 - 2026-09-24 superseded (opencode/its_direct-pt3-claude-opus-5-1m-us): Superseded by 1f7xno for the done part, refused for the remainder because its central move (the three agy stubs) is the consolidation 1f7xno attempted and reverted; remainder carried by xw4rb7/ga2dz1/zt2b16. Verified independently that the lane fails its own guards with no merge involved (3 failed, 8751 passed at 7465977f), having deleted agy_runipd._read_status which test_runner_refork_guard.py requires in both runners. Re-measured at main 50a820a6 with tools/runner_fork_scan.py: 4 of 12 symbols now BOTH-DELEGATE, 3 remain divergent forks.
 - 2026-09-23 superseded (aw set): Superseded by executed plan 1f7xno (runnerlayer Order 02) for the majority of its scope, and REFUSED for the remainder. Measured at HEAD 22cf67d9 against this plan's own three groups: group (a) is half done (reclaim_lanes_on_interrupt, reconcile_disposition, reconcile_interrupted are shared; expand_selectors, _lane_reclaim_prompt, _add_output_mode_flags are not), group (a') enforce_dependency_preflight is DONE, group (b) is NOT done, and group (c) is not done. THE DECIDING FACT is group (b): 1f7xno attempted exactly this consolidation and REVERTED it, because runner_shared.classify_recovery_disposition reads st.path/st.base_commit off a LaneState NamedTuple that has neither field, so it raises AttributeError on any lane that exists; four tests/test_resumedupe.py tests failed that way. Backlog zt2b16 (high, Blocks-Release: next, open) records it and states the remedy is a RECONCILIATION (pick the authoritative body, delete the other, bind both hosts), which a pure-move plan cannot do. Redundancy measured: main added 64 runner_shared definitions, this lane 68, exactly one in common. A trial merge resolved 20 hunks across 9 files and went 453 -> 208 -> 75 failures before I stopped. Also: this plan never passed its own guards; its three failures reproduce on the lane ALONE because it deleted agy_runipd._read_status while test_runner_refork_guard.py requires it of BOTH runners, and neither failing test file is in its Scope-Paths. Branch aw/lane/nmlx47 is PRESERVED.
 - 2026-09-19 approved (aw set): status set to approved

@@ -1,0 +1,397 @@
+# IPD: Make the From-Backlog value grammar single-valued in fact: one shared classifier, every reader agreeing, a malformed value flagged instead of silently invisible
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: A multi-valued `- From-Backlog: a, b` is INVISIBLE to every reader of the field, so a plan graduated from two items resolves to NEITHER and its release-gate handoff silently vanishes. Reproduced at HEAD `5af09743` on the one corpus artifact carrying two source ids (`nmlx47`): `check_engine.find_from_backlog_artifacts('dstnso')` returns four plans and NOT `nmlx47`, `find_from_backlog_artifacts('8hx3g3')` returns `[]`, and `check_engine._from_backlog_carrier_index` lists `nmlx47` as a carrier for NEITHER id (measured: `carrier index membership of nmlx47 -> []`). WORSE THAN A PARSE MISS, because the carrier index is exactly what the close-legitimacy predicate consults: a handoff that LOOKS recorded in the plan is absent from the gate, so `check_engine.evaluate_blocking_close` refuses a legitimate close (fail-closed, benign) while `check.live-bug-ungated` flags an item whose carrier genuinely exists (a false positive that trains people to ignore the rule), and `check.from-backlog-dangling` reports NOTHING rather than flagging an unparseable value (measured: `releases.check_from_backlog` returns 0 findings against the corpus). SIX READERS DISAGREE ON THE SAME BYTES, which is the real defect: on `a, b` the four `\S+`-anchored patterns (`releases._ITEM_FROM_BACKLOG_RE`, `check_engine._META_FROM_BACKLOG_RE`, `production_checks._ITEM_FROM_BACKLOG_RE`, `selectors._TYPED_SUBJECT_RE`) all match NOTHING and read the field as ABSENT, while on the no-space form `a,b` the first three CAPTURE THE JUNK TOKEN `'dstnso,8hx3g3'` and `runner_shared._read_from_backlog` returns `None` for it, so `aw check` and the runner reach OPPOSITE conclusions about one file. THE SIXTH READER WAS ADDED AT REVIEW and is the one with an operator-facing surface: `check_engine.build_graduation_reverse_index` re-derives the value from `_META_FROM_BACKLOG_RE` directly rather than through `_from_backlog_value`, so on the no-space form it INDEXES the junk key `('backlog', 'dstnso,8hx3g3')` (measured, F-10) and both `aw graduation` (via `check_engine.graduation_cluster`) and the runner's pre-graduation guard (`runner_shared.summarize_graduation_cluster`) then report a cluster keyed on a token no item can ever match. The plan's own cited sentinel guard already names this reader, which is what makes omitting it a gap rather than a judgement. The writer is also not idempotent on such a value: `releases.set_from_backlog_line(text, 'cccccc')` applied to a text already carrying `- From-Backlog: aaaaaa, bbbbbb` leaves TWO `- From-Backlog:` lines (measured: `count of From-Backlog lines: 2`), because its `\S+` strip regex cannot match what a previous call wrote.
+- Scope: Ratify the field as SINGLE-VALUED (the direction every in-force artifact already asserts) and make that true IN FACT rather than only in a comment, by introducing ONE shared value classifier in `ipd_schema` that all SIX readers consult, so a comma-bearing or otherwise non-id6 value is FLAGGED by `check.from-backlog-malformed` instead of silently reading as absent, as a junk token, or as a junk index KEY reaching the `aw graduation` surface (the sixth reader, `check_engine.build_graduation_reverse_index`, was added at review: F-10). The new rule also RECLASSIFIES the no-space form, which is already reported today as `-dangling` (F-11), so SHAPE and RESOLUTION become mutually exclusive per artifact. Repair the non-idempotent writer strip. Resolve the single corpus artifact (`nmlx47`) by deleting a value that no longer carries anything (its forward links already record the truth). Deliberately NOT extended to `From-Spec` beyond the shared classifier's availability, NOT extended to `selectors._TYPED_SUBJECT_RE` (already correct for its own purpose; see the scope check), and NOT a multi-valued redesign: see "Deferred / out of scope".
+- Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/releases.py, agent_workflows/check_engine.py, agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_from_backlog_cardinality.py, tests/test_check_engine_release_gate.py, .aw/records/plans/superseded/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md, .aw/records/backlog/README.md, CHANGELOG.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 6os96s
+- Blocks-Release: next
+- Set: fbcardinal
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode/its_direct-pt3-claude-opus-5-1m-us
+- Id: okp2o4
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: okp2o4 verified (set fbcardinal, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-801..PR-807 all FIXED, none deferred or open. All NINE of the plan's findings reproduced by driving the real functions at HEAD b29a5d37, including the five-reader disagreement table cell for cell, so the diagnosis, the single-valued direction and the SHAPE-separate-from-RESOLUTION design are all right. TWO HIGH GAPS, both found by probing rather than reading. PR-801: there is a SIXTH reader and it is the one an operator sees. build_graduation_reverse_index does not go through _from_backlog_value (it uses finditer plus its own sentinel filter so it can index every bullet), so E-02's re-pointing missed it; measured, it indexes the junk key ('backlog','dstnso,8hx3g3'), which flows through graduation_cluster to the aw graduation verb and the runner's pre-graduation guard, meaning the defect is not merely invisible to the gate but VISIBLE AND WRONG where a human looks before graduating. The plan's own cited sentinel guard already names that reader as number 4 of 6, which is what makes it a gap. PR-802: the no-space form is ALREADY reported today as -dangling, so E-04 is a RECLASSIFICATION and not purely an addition; only the spaced form is invisible, and as authored an executor could plausibly report one artifact under both rules with contradictory remedies. Added F-10 through F-14, a graduation-cluster assertion, a multi-BULLET preservation case that makes the tempting one-line shortcut fail loudly, and a SECOND revert probe so the test file cannot pass with the sixth reader still broken. PR-803: the 27-test baseline was already 30, so re-derivation is now the bar. PR-804: F-6 and V-03 called parse_metadata_block on a document when it takes a line sequence, so V-03 was satisfiable by a call proving nothing. PR-805: selectors._TYPED_SUBJECT_RE was named as a disagreeing reader with no disposition; measured already correct, recorded as deliberately excluded. PR-806: the duplicate-substring prohibition E-04 must obey cites a test file that does not exist. PR-807: gate wording and changelog section. Both open questions were resolved with Owner: none and are now attributed to the plan author, with OQ-01 independently confirmed by census rather than deferred to or forged onto the maintainer. No spec amendment owed, verified. No production file touched by this review.
+
+- 2026-09-29 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): created by graduating backlog item `6os96s`, with the cardinality question the item posed RESOLVED from repository evidence (single-valued; see OQ-01) rather than deferred to the human.
+
+## Goal
+
+Make `- From-Backlog:` single-valued IN FACT: one shared classifier decides whether a value is a usable id6, every reader consults it and therefore agrees, and a value that is neither a usable id6 nor an absent sentinel is REPORTED (`check.from-backlog-malformed`) instead of silently reading as absent by four readers and as a junk token by three. The invariant this buys: no artifact can record a graduation handoff that the release gate cannot see.
+
+AND NO OPERATOR CAN BE SHOWN A GRADUATION CLUSTER KEYED ON A TOKEN THAT CANNOT RESOLVE, which review added as the second half of the same invariant and which the plan originally missed. `check_engine.build_graduation_reverse_index` is a sixth reader that bypasses `_from_backlog_value` by design, and on the no-space form it indexes `('backlog', 'dstnso,8hx3g3')` (F-10). That key is what `aw graduation` and the runner's pre-graduation guard both render, so today the defect is not merely invisible to the gate, it is VISIBLE AND WRONG on the one surface a human consults before graduating a source. Fixing the gate's blindness while leaving that surface lying would close half the invariant.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: one classifier, every reader consulting it
+
+- [x] E-01 Add a shared three-way `From-Backlog`/`From-Spec` value classifier to `agent_workflows/ipd_schema.py`, beside `source_link_is_absent` and the `SOURCE_LINK_ABSENT_SENTINELS` it owns. It must return a distinguishable verdict for each of: absent (None/empty/a sentinel, delegated to the EXISTING `source_link_is_absent`), a usable single id6 (judged by the EXISTING `artifact_core.is_valid_id6`), and malformed (anything else, including any comma-bearing or multi-token value). Write NO new regex and NO new id6 pattern; a fifth id6 validator is the second mechanism GUIDING_PRINCIPLES P8 forbids. Document in the comment block that the field is single-valued IN FACT as of this plan and that `Graduated-To` remains the one multi-valued link field.
+  - Depends on: none
+  - Expected outcome: `ipd_schema` exposes one classifier whose verdict on `'dstnso, 8hx3g3'` and on `'dstnso,8hx3g3'` is malformed, on each of `-`/`none`/`unresolved` (any case, quoted or not) is absent, and on `'dstnso'` is a usable id6; `artifact_core.is_valid_id6` and `source_link_is_absent` are the only judgement primitives it calls.
+  - Execution state: performed
+
+- [x] E-02 Re-point every value READER at the E-01 classifier so the six surfaces cannot disagree (F-2): `check_engine._from_backlog_value` (the single private reader feeding `find_from_backlog_plans`, `find_from_backlog_specs`, `_from_backlog_carrier_index` and `release_gate_warnings`), the two consumers of `production_checks._ITEM_FROM_BACKLOG_RE` (`_check_ipd_conformance` and `backlog_graduate_count`), `runner_shared._read_from_backlog`, AND `check_engine.build_graduation_reverse_index` (added at review, F-10). A malformed value must yield "no usable link" everywhere rather than the junk token three readers capture today on the no-space form. Keep each reader's own field-LINE extraction as is where it is already correct (`runner_shared._read_from_backlog` must keep reading through `ipd_lint.parse().meta_fields` per its docstring, "THE FIELD NAME IS THE SCHEMA'S, NOT A LOCAL REGEX"); change only the VALUE judgement, and widen a line pattern only where it must capture a multi-token value in order to classify it.
+
+  `build_graduation_reverse_index` IS THE READER THAT REACHES A HUMAN, and it is the one the plan originally missed. It does NOT call `_from_backlog_value`: it applies `_META_FROM_BACKLOG_RE.finditer` plus a bare `source_link_is_absent` filter of its own, deliberately, because it indexes EVERY source bullet rather than the first. So re-pointing `_from_backlog_value` alone does not fix it. MEASURED (F-10): on the no-space form it indexes `('backlog', 'dstnso,8hx3g3')`, and that key flows to `check_engine.graduation_cluster` -> the `aw graduation` verb and `runner_shared.summarize_graduation_cluster`, so an operator asking what a source graduated to is shown a cluster keyed on a token that can never resolve. Preserve its every-bullet semantics (the `finditer` and the plans-before-specs path-sorted order its docstring promises) and change only the per-value judgement, so a malformed value contributes NO key rather than a junk one.
+
+  DO NOT ROUTE IT THROUGH `_from_backlog_value` TO SAVE A LINE. That function returns the FIRST match only, and swapping a `finditer` for it would silently drop the multi-bullet indexing the docstring guarantees ("every source bullet on an artifact is indexed, not the first"), which is a different regression in the same change. Apply the E-01 classifier per match instead.
+  - Depends on: E-01
+  - Expected outcome: for both `a, b` and `a,b`, all of `check_engine._from_backlog_value`, `production_checks`' two consumers, `runner_shared._read_from_backlog` and `check_engine.build_graduation_reverse_index` report no usable link; none returns or indexes `'dstnso,8hx3g3'`; `build_graduation_reverse_index` still indexes every bullet of a multi-BULLET artifact and preserves its documented ordering; and behavior on a valid id6 and on every sentinel is byte-for-byte unchanged.
+  - Execution state: performed
+
+- [x] E-03 Make `releases.set_from_backlog_line` idempotent on ANY prior value by widening its `_FROM_BACKLOG_LINE_RE` strip to tolerate a multi-token value, following the shape `_GRADUATED_TO_LINE_RE` already uses (`[^\n]*`). Preserve everything else the function documents: the `'-'`/None clearing semantics, the insert anchors (after `- Status:`, falling back to `- Id:`), and the mirror relationship with `set_blocks_release_line` and `set_graduated_to_line`. Note in the comment that the `\S+` form could not strip what a previous call had written (F-6).
+  - Depends on: none
+  - Expected outcome: applying `set_from_backlog_line` twice to a text already carrying `- From-Backlog: aaaaaa, bbbbbb` leaves exactly ONE `- From-Backlog:` line carrying the latest value, and `ipd_schema.parse_metadata_block` reports no `duplicate field` error; clearing with `'-'` removes it.
+  - Execution state: performed
+
+### Task group 2: the finding, the corpus, the proof
+
+- [x] E-04 Add `check.from-backlog-malformed` and report it from `releases.check_from_backlog`, keeping SHAPE and RESOLUTION as separate findings exactly as `check_graduated_to` does for its own two rules. Register the id in `check_engine.RULE_REGISTRY` at `error` severity with the same assurance/determinism class and the same `I-07` invariant its `-dangling` sibling carries (a value the gate cannot read breaks the same gate-preservation invariant), and add it to `RELEASE_GATE_RULES` so `aw check release-gates` covers it. Emit the malformed finding WITHOUT consulting the known-backlog-id set, so it stays correct on a tree with no backlog corpus and does not spread the empty-corpus gap that function's docstring warns against. Do NOT widen `-dangling` to cover the shape case, and do not add a rule id containing the substring `duplicate` (the `graduate` view's structural prohibition, asserted by `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate`, which is the LIVE location; `RULE_REGISTRY`'s own comment cites `tests/test_graduation_view.py`, a file that does not exist, so do not go looking for it).
+
+  ONE OF THE TWO FORMS IS ALREADY REPORTED, WHICH MAKES THIS A RECLASSIFICATION AND NOT PURELY AN ADDITION. MEASURED (F-11): `releases.check_from_backlog` today reports `check.from-backlog-dangling` for the NO-SPACE form (`From-Backlog 'dstnso,8hx3g3' does not resolve to a backlog item`), because `_ITEM_FROM_BACKLOG_RE` captures the junk token and it is then absent from `known`; only the SPACED form is invisible. So the change must MOVE the no-space case from `-dangling` to `-malformed` while ADDING the spaced case, and the two must be mutually exclusive per artifact. That is exactly the distinction `check_graduated_to`'s docstring makes ("reporting it as 'does not resolve' sends a reader hunting for a missing item when the real defect is in the token"), so classify SHAPE first and only ask the resolution question of a value the classifier calls a usable id6.
+
+  A NOTE ON WHAT "NO REGRESSION" MEANS HERE, since a naive reading of the existing tests would block the right change: any test asserting that the no-space form yields `-dangling` is asserting the OLD classification and must be updated to expect `-malformed`, not preserved. Check for such an assertion before assuming none exists, and if one does, say so in the report as a deliberate expectation change rather than a silent edit.
+  - Depends on: E-01
+  - Expected outcome: `releases.check_from_backlog` reports `check.from-backlog-malformed` for an artifact carrying `- From-Backlog: aaaaaa, bbbbbb` AND for one carrying `- From-Backlog: aaaaaa,bbbbbb`, and reports `-dangling` for NEITHER of them; reports `check.from-backlog-dangling` (and NOT malformed) for a well-formed id6 naming no item; and reports NEITHER for a valid resolving id6 or a sentinel; the new id appears in `RULE_REGISTRY` and in `RELEASE_GATE_RULES`.
+  - Execution state: performed
+
+- [x] E-05 Resolve the one corpus offender: delete the `- From-Backlog: dstnso, 8hx3g3` line from the superseded plan `nmlx47`, leaving no back-link rather than arbitrarily keeping one of two sources. This is the honest resolution on the evidence (F-5): both `dstnso` and `8hx3g3` already record this graduation forward as `- Graduated-To: forkresid`, the plan is `superseded` and carries no `- Blocks-Release:`, and its own history records that it was superseded and its remainder REFUSED, so a back-link asserting a completed handoff through it would be false. Append a dated `## Workflow history` line recording the removal and pointing at this plan; per the execution contract, do NOT alter anything the plan RECORDS (its items, evidence, results or status).
+  - Depends on: E-04
+  - Expected outcome: `nmlx47` carries no `- From-Backlog:` line, one appended history line naming `okp2o4`, and no other byte changed; the corpus contains zero non-id6 `From-Backlog` values, so `aw check` is clean with the new rule active.
+  - Execution state: performed
+
+- [x] E-06 Add `tests/test_from_backlog_cardinality.py` as a BEHAVIORAL cross-reader parity test (no `inspect`, no `ast`, no source-text assertions; drive the functions and the CLI and assert on returned values, findings and exit codes). It must cover, as a matrix over the real inputs `'dstnso, 8hx3g3'`, `'dstnso,8hx3g3'`, each member of `SOURCE_LINK_ABSENT_SENTINELS` (including a quoted and an upper-case spelling) and a valid id6: (a) every reader from E-02 agrees on every input, INCLUDING `build_graduation_reverse_index`, whose assertion is that no junk KEY appears (not merely that a value is `None`), since that is the shape its defect takes; (b) a multi-valued value is NOT silently invisible to `_from_backlog_carrier_index` but is reported by the E-04 rule; (c) the writer idempotency from E-03; and (d) a REGRESSION reproduction of F-1 built as a fixture (a plan carrying two source ids plus a blocking item) asserting the carrier index and `evaluate_blocking_close` no longer read the file as carrying nothing silently.
+
+  ALSO PIN THE OPERATOR SURFACE, because a reader fixed only at the library level leaves the defect an operator actually meets unproven: drive `check_engine.graduation_cluster` on a fixture whose plan carries the no-space form and assert the returned cluster attributes no artifact to the junk token. That is the route `aw graduation` and `runner_shared.summarize_graduation_cluster` both take (F-10), and asserting on the cluster keeps the test behavioral rather than reaching into the index.
+
+  ADD THE MULTI-BULLET PRESERVATION CASE, which is the regression E-02's warning exists to prevent: a fixture artifact carrying TWO `- From-Backlog:` bullets, each a valid id6, must still be indexed under BOTH keys by `build_graduation_reverse_index`. Without this, a future executor could satisfy every other assertion by routing that reader through the first-match-only `_from_backlog_value` and silently lose the every-bullet indexing its docstring promises.
+
+  Extend `tests/test_check_engine_release_gate.py::test_whole_family_rules_constant` for the new member of `RELEASE_GATE_RULES`. That test currently asserts an exact set of five rule ids and its docstring says "all 5"; update the docstring with the set so the count and the members cannot drift apart.
+  - Depends on: E-02, E-03, E-04
+  - Expected outcome: the new file passes; `tests/test_check_engine_release_gate.py` still passes in full with the family constant and its docstring updated (re-derive its test count at execution rather than trusting a number recorded here: F-9 measured 27 at authoring and review measured 30, per F-12); each assertion fails if its corresponding change is reverted.
+  - Execution state: performed
+
+- [x] E-07 Record the ratified grammar and the new rule for humans: state in `.aw/records/backlog/README.md`, beside the existing "the ONE item it came from" text, that a value naming more than one source is REFUSED by `check.from-backlog-malformed` rather than silently ignored, and that `-` clears the field (leaving the `Graduated-To` multi-valued paragraph untouched so the contrast stays legible). Add a `CHANGELOG.md` entry under the existing `## 2.0.0 (pending)` heading rather than opening a new version section, since the release-review flow owns version assembly. Write no em or en dashes in this user-facing prose.
+
+  ALSO CORRECT THE ONE STALE CITATION THIS WORK WALKS PAST, in `check_engine.RULE_REGISTRY`'s `check.graduated-to-repeated` comment, which points the reader at `tests/test_graduation_view.py` for the `duplicate`-substring prohibition. That file does not exist; the live assertion is `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate` (F-14). E-04 must obey that prohibition, so an executor WILL follow this citation and find nothing, and `check_engine.py` is already declared. Fix the pointer only: do not touch the prohibition, the rule, or the reasoning the comment records.
+  - Depends on: E-04
+  - Expected outcome: a reader of `.aw/records/backlog/README.md` learns both the cardinality and the consequence of violating it; `CHANGELOG.md` names the new rule under the pending 2.0.0 section; and the `check.graduated-to-repeated` comment cites a test file that exists.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- THE DIRECTION IS ALREADY DECIDED BY IN-FORCE ARTIFACTS, so this plan ratifies rather than chooses. `ipd_schema.META_FROM_BACKLOG`'s comment calls it "an optional, single-valued link field naming the backlog item id6"; the APPROVED spec `2lcqno` states "pointing at its single source" and "a child has exactly one source"; `.aw/records/backlog/README.md` says `- From-Backlog: <id6>` names "the ONE item it came from" and "a child plan has exactly one source"; and the setter surface takes one value (`aw ipd scaffold --from-backlog FROM_BACKLOG`, whose help reads "Backlog item id6 this plan graduates from"). NOTE the backlog item's claim that the schema comment says "single-valued" TWICE is wrong: it says it once for `From-Backlog` and once for its `From-Spec` sibling, which are two fields. The conclusion is unaffected.
+- `Graduated-To` IS THE PRECEDENT FOR EVERY DESIGN CHOICE HERE, and it is a precedent to FOLLOW rather than to copy blindly. It is the one field deliberately MULTI-valued (`ipd_schema.META_GRADUATED_TO`: "It is MULTI-VALUED (`<setid>[, <setid>...]`), which is the one structural difference from every other link field here"). Its `releases.check_graduated_to` docstring already RECORDS the measurement this plan re-derives: on `- Graduated-To: first, second` both sibling single-token patterns "match NOTHING, because `\S+` cannot span the space and the `$` anchor then fails. So a copied regex does not under-validate a two-entry field, it reports it as ABSENT and the file as CLEAN." It also establishes the rule that SHAPE and RESOLUTION are separate findings ("`check.graduated-to-malformed` - a token that is not a valid setid at all... Reported SEPARATELY and never as dangling, because 'does not resolve to a real Set' sends a reader hunting for a missing Set when the real defect is in the token"), which is exactly why E-04 adds a new rule id rather than widening `check.from-backlog-dangling`.
+- NO NEW id6 VALIDATOR MAY BE WRITTEN (GUIDING_PRINCIPLES P8, "a second mechanism... is the drift P8 forbids", quoted in `releases.check_graduated_to`). The canonical predicate already exists as `artifact_core.is_valid_id6` over `artifact_core.ID6_RE`. Four near-duplicates are already in the tree (`check_engine._ID6_RE`, `runner_shared.ID6_RE`, `ipd_schema.CARRIER_ID6_RE`, `research_contract.ID6_RE` which correctly re-exports the core one), so the classifier must consume the existing authority and add no fifth.
+- THE ABSENT-SENTINEL VOCABULARY IS OWNED AND SHARED. `ipd_schema.SOURCE_LINK_ABSENT_SENTINELS` is `frozenset({"-", "none", "unresolved"})` and `ipd_schema.source_link_is_absent` applies it case-insensitively after stripping quotes, for BOTH `From-Backlog` and `From-Spec`. The new classifier must be built ON that function, never beside it, and `tests/test_check_engine_release_gate.py::test_regression_guard_all_readers_honor_schema_sentinels` already pins that six public readers honor it (that guard covers SENTINELS only, never multi-value or duplicate-bullet input, which is the hole E-06 fills). READ THAT GUARD'S READER LIST BEFORE TRUSTING E-02'S: it enumerates six named readers and reader 4 is `check_engine.build_graduation_reverse_index`, which the plan's E-02 originally omitted and which review added (F-10). The guard is the cheapest available inventory of who reads this field, so a future extension of this work should start there rather than from a fresh grep.
+- `build_graduation_reverse_index` IS DELIBERATELY NOT ROUTED THROUGH `_from_backlog_value`, and the difference is load-bearing rather than an oversight to tidy. It uses `_META_FROM_BACKLOG_RE.finditer` plus its own sentinel filter because it indexes EVERY source bullet on an artifact, which its docstring states as a guarantee ("every source bullet on an artifact is indexed, not the first") while `_from_backlog_value` returns the FIRST match only. So E-02 must apply the classifier PER MATCH there; swapping in `_from_backlog_value` would silently drop multi-bullet indexing, which is why E-06 pins a two-bullet fixture.
+- THE OPERATOR SURFACE FOR THIS FIELD IS `aw graduation`, via `check_engine.graduation_cluster` (`idx = index if index is not None else build_graduation_reverse_index(repo_root)`), and the runner reaches the same view through `runner_shared.summarize_graduation_cluster`, whose docstring insists "NO CLUSTER LOGIC IS DUPLICATED". Both therefore inherit a reader fix and need no edit of their own, which is why neither `cli.py` nor that runner function is declared; but a fix proved only at the index level leaves the surface an operator meets unproven, so E-06 asserts on the cluster's output too.
+- A TERMINAL CARRIER IS ALREADY SKIPPED BY THE GATE RULES BUT NOT BY THE DANGLING SCAN, which decides where the new finding can legitimately fire. `check_engine.check_release_gate_consistency` skips a retired carrier deliberately ("a finished plan's gate is history, not a live claim"), whereas `releases.check_from_backlog` applies no `is_retired` filter at all (verified: no `is_retired` reference in `releases.py`). Since the only corpus offender is retired, E-04's new rule would fire on it, which is precisely why E-05 resolves that file in the same change rather than leaving `aw check` red.
+- THE TWO BACK-LINK TWINS DISAGREE ON EMPTY-CORPUS FAIL-SAFETY AND MUST KEEP DISAGREEING. `releases.check_from_backlog`'s own docstring records that on a tree with no backlog corpus the spec-side twin returns 0 findings while this function "returned 1 FALSE finding, having no such guard", and instructs: "Do NOT 'harmonize' that guard away to match this function; the difference is a known gap here, not a standard to spread." A MALFORMED finding is exempt from that hazard by construction (it is a pure shape judgement needing no corpus), so E-04 must emit it WITHOUT consulting `known`, and must not add a corpus guard that would suppress it.
+- THE SCAFFOLD PATH ALREADY REFUSES A MULTI-VALUED VALUE AND THE SETTER PATH DOES NOT. `ipd_authoring.run_scaffold` resolves `--from-backlog` through `backlog.find_item` and exits 2 when it names no item (measured: `backlog.find_item(r, "aaaaaa, bbbbbb")` returns `None`), while `status_set.py`'s write path documents itself as "a WRITE, NEVER A REFUSAL". That asymmetry is why the check surface, not the writer, is the load-bearing place to flag the value.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+All measurements taken in this worktree at HEAD `5af09743`.
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-1 | The defect reproduces exactly as filed. `find_from_backlog_artifacts('dstnso')` returns 4 plans, none of them `nmlx47`; `find_from_backlog_artifacts('8hx3g3')` returns `[]`; and `_from_backlog_carrier_index` lists `nmlx47` under no key at all. | Driven in-process: `carrier index membership of nmlx47 -> []`, `8hx3g3 carriers: []`. |
+| F-2 | FIVE readers, THREE different answers, on the same bytes. On `a, b`: `releases._ITEM_FROM_BACKLOG_RE`, `check_engine._META_FROM_BACKLOG_RE`, `production_checks._ITEM_FROM_BACKLOG_RE`, `selectors._TYPED_SUBJECT_RE` and `runner_shared._read_from_backlog` ALL yield `None`. On `a,b`: the first three capture `'dstnso,8hx3g3'` while `selectors._TYPED_SUBJECT_RE` and `runner_shared._read_from_backlog` still yield `None`. So on the no-space form `aw check` sees a dangling id and the runner sees no link. | Tabulated in-process over all five readers for both forms. |
+| F-3 | `check.from-backlog-dangling` reports NOTHING today, so the corpus reads clean while containing an unreadable value. | `releases.check_from_backlog(repo)` -> `0` findings. |
+| F-4 | Exactly ONE artifact in the whole records tree carries a non-id6 `From-Backlog` value, and it is RETIRED. Scanning every `.md` under `.aw/records/{plans,specs,backlog}`: 0 non-retired artifacts have a non-id6 value; 1 retired one does, `nmlx47` (`- From-Backlog: dstnso, 8hx3g3`), now in `plans/superseded/` with `- Status: superseded` and NO `- Blocks-Release:` line. So the fix's blast radius on live artifacts is zero and it cannot break a live gate. | Scan output: `NON-RETIRED ... : 0`, `RETIRED ... : 1`. |
+| F-5 | `nmlx47`'s value has nothing left to preserve, which is what makes E-05 a deletion rather than a judgement call. Both named ids resolve, and BOTH already record this graduation through the forward link, pointing at a DIFFERENT Set than `nmlx47`'s own: `dstnso` is `- Status: done` with `- Graduated-To: forkresid`, and `8hx3g3` is `- Status: graduated` with `- Graduated-To: forkresid`, while `nmlx47` is `- Set: hostdedup`. The relationship is therefore already recorded correctly elsewhere, and the back-link on a superseded plan asserts a handoff that demonstrably did not happen through it (its own history says it was "Superseded by 1f7xno ... and REFUSED for the remainder"). | `releases.parse_graduated_to` on both items -> `['forkresid']`. |
+| F-6 | The writer is NOT IDEMPOTENT on a multi-valued value, an additional defect the item did not name. `releases.set_from_backlog_line` strips via `_FROM_BACKLOG_LINE_RE` (`\S+`-anchored), which cannot match the `a, b` line a previous call wrote, so a subsequent set APPENDS: the result carries two `- From-Backlog:` lines and `ipd_schema.parse_metadata_block` returns `MetaError(field='From-Backlog', message='duplicate field')` (lint `IPD-M102`), with first-wins semantics silently choosing between them. NOTE the evidence cell's `parse_metadata_block` call must pass the metadata LINES, not the document: see F-13. | `count of From-Backlog lines: 2` after a second `set_from_backlog_line`; re-measured at review as `errors=[MetaError(field='From-Backlog', message='duplicate field')]` when called per its signature (F-13). |
+| F-7 | Duplicate BULLETS are already handled and need no work here, which bounds the plan. `ipd_schema.parse_metadata_block` flags a second `- From-Backlog:` bullet as a duplicate field, surfaced by `ipd_lint` as `IPD-M102`, and the corpus contains no artifact with two bullets of the field. The uncovered case is exclusively the multi-token VALUE. | `parse_metadata_block` output above; corpus census found no repeated bullet. |
+| F-8 | `ipd_lint` never names the field, so there is no lint-side value validation to change: `rg "From-Backlog" agent_workflows/ipd_lint.py` exits 1. Validation belongs on the `aw check` surface, exactly as `ipd_schema`'s comment directs ("value validation ... lives in the `aw check` surface (check.from-backlog-dangling), not the schema layer"). | Zero matches. |
+| F-9 | Baseline for the test file this plan extends was green at authoring: `tests/test_check_engine_release_gate.py` reported `27 passed`. THE NUMBER IS HISTORY, NOT A BAR (see F-12, which re-measured it at 30). | `python3 -m pytest tests/test_check_engine_release_gate.py -x` -> `27 passed in 3.79s`. |
+| F-10 | A SIXTH READER EXISTS AND IT IS THE ONE WITH AN OPERATOR-FACING SURFACE. `check_engine.build_graduation_reverse_index` does NOT go through `_from_backlog_value`: it applies `_META_FROM_BACKLOG_RE.finditer` plus its own `source_link_is_absent` filter, deliberately, so it can index EVERY source bullet rather than the first. On the no-space form it therefore indexes a JUNK KEY, and that key flows to `check_engine.graduation_cluster` -> the `aw graduation` verb and `runner_shared.summarize_graduation_cluster`. Added by review; E-02 and E-06 own it. | Scratch tree with one pending plan carrying `- From-Backlog: dstnso,8hx3g3`: `build_graduation_reverse_index(d)` -> keys `[('backlog', 'dstnso,8hx3g3')]`, and `('backlog','dstnso,8hx3g3') in idx` is `True`. Against the real corpus (spaced form) it indexes nothing for `nmlx47`, matching F-1. Call chain verified by symbol: `graduation_cluster` does `idx = index if index is not None else build_graduation_reverse_index(repo_root)`; `cli.py` does `cluster = ce.graduation_cluster(repo_root, source, source_kind=source_kind)`; `runner_shared.summarize_graduation_cluster` does `cluster = _ce.graduation_cluster(root, source_id6)`. THE PLAN'S OWN CITED GUARD ALREADY NAMES THIS READER as reader 4 of 6 in `tests/test_check_engine_release_gate.py::test_regression_guard_all_readers_honor_schema_sentinels`, which is why the omission is a gap and not a judgement. |
+| F-11 | THE NO-SPACE FORM IS ALREADY REPORTED TODAY, as `-dangling`, so E-04 is a RECLASSIFICATION and not purely an addition; only the SPACED form is invisible. Any existing assertion expecting `-dangling` for the no-space form is asserting the OLD classification. Added by review; E-04 owns it. | Scratch tree with a plan carrying `- From-Backlog: dstnso,8hx3g3` and NO backlog corpus: `releases.check_from_backlog(d)` -> one finding, `check.from-backlog-dangling | From-Backlog 'dstnso,8hx3g3' does not resolve to a backlog item`. Adding a second plan carrying the SPACED form produces NO additional finding, so the spaced form remains invisible while the no-space form is misclassified. Contrast F-3's 0 findings against the real corpus, whose single offender is the spaced form. |
+| F-12 | THE TEST-COUNT BASELINE HAS ALREADY MOVED, so F-9's number must be re-derived at execution rather than compared against. | `python3 -m pytest tests/test_check_engine_release_gate.py` at review HEAD `b29a5d37`: `30 passed in 2.33s`. BARE full suite at the same HEAD: `3387 passed, 2 skipped, 3 warnings in 63.71s`, 207 deselected. The reader-owning files named in "Required tests": `82 passed in 14.53s`. |
+| F-13 | `ipd_schema.parse_metadata_block` TAKES A LINE SEQUENCE, NOT A DOCUMENT, so F-6's evidence as phrased cannot be reproduced as written; the CLAIM it supports is nonetheless true when the function is called correctly. Recorded so an executor reproducing F-6 does not conclude the finding is false. Added by review. | `inspect.signature(ipd_schema.parse_metadata_block)` -> `(lines: 'Sequence[str]') -> 'Tuple[Dict[str, str], List[MetaError]]'`, docstring "the contiguous `- Field: value` run given the lines BETWEEN the H1 and the first H2". Passing the whole document string returns `({}, [])`, which reads as "no error". Passing the metadata LINES of the doubly-set text returns `fields={'Id': 'aaaaaa', 'Status': 'to-review', 'From-Backlog': 'cccccc'}` and `errors=[MetaError(field='From-Backlog', message='duplicate field')]`, confirming F-6's duplicate claim and its first-wins note. |
+| F-14 | THE OTHER TWO PLAN CLAIMS THAT NEEDED CHECKING BOTH HOLD. The `duplicate`-substring prohibition is real but its cited file is not; and the scaffold-refuses/setter-does-not asymmetry reproduces. | `ls tests/test_graduation_view.py` -> No such file; the live assertion is `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate`, which asserts `[k for k in RULE_REGISTRY if "graduation" in k or "duplicate" in k] == []`. `backlog.find_item(Path('.'), 'aaaaaa, bbbbbb')` -> `None`. Corpus census at review HEAD over `.aw/records/{plans,specs,backlog}`: 538 `From-Backlog` values total, NON-RETIRED non-id6 `0`, RETIRED non-id6 `1` (`nmlx47`), and artifacts with more than one `From-Backlog` BULLET `0`, confirming F-4 and F-7. `dstnso` is `- Status: done` / `- Graduated-To: forkresid` and `8hx3g3` is `- Status: graduated` / `- Graduated-To: forkresid`, both with no `- Blocks-Release:`, confirming F-5. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add ONE shared value classifier to `ipd_schema` (the module that already owns `META_FROM_BACKLOG` and `source_link_is_absent`), returning a three-way verdict: absent, a usable id6, or malformed. Built on the existing `ipd_schema.source_link_is_absent` and the existing `artifact_core.is_valid_id6`; no new regex and no fifth id6 pattern (E-01).
+2. Re-point the readers at it so they cannot disagree: `check_engine._from_backlog_value` (which alone feeds `find_from_backlog_plans`, `find_from_backlog_specs`, `_from_backlog_carrier_index` and `release_gate_warnings`), `production_checks._ITEM_FROM_BACKLOG_RE`'s two consumers, `runner_shared._read_from_backlog`, and `check_engine.build_graduation_reverse_index`, which review found does not route through `_from_backlog_value` and which feeds the operator-facing `aw graduation` verb (F-10). Each must yield "no usable link" for a malformed value rather than a junk token or a junk index KEY, so the carrier index, the graduation view, the checker and the runner agree on every input (E-02).
+3. Fix the writer's strip so `set_from_backlog_line` is idempotent on ANY prior value, matching how `_GRADUATED_TO_LINE_RE` already tolerates `[^\n]*` where its back-link twin demands `\S+` (E-03).
+4. Add `check.from-backlog-malformed`, registered in `check_engine.RULE_REGISTRY` and added to `RELEASE_GATE_RULES`, reported by `releases.check_from_backlog` SEPARATELY from `-dangling` and without consulting the known-id corpus. This RECLASSIFIES the no-space form, which F-11 measured is already reported as `-dangling` today, as well as catching the spaced form that is invisible (E-04).
+5. Resolve `nmlx47` by deleting its `- From-Backlog:` line, since both its sources already record this graduation via `- Graduated-To: forkresid` and the plan is superseded and gateless (E-05).
+6. Add a behavioral cross-reader parity test over the real inputs (`a, b`, `a,b`, each sentinel, a valid id6), asserting all readers agree including the graduation view's cluster output, plus reachability of the new rule, the writer's idempotency, and preservation of multi-BULLET indexing (E-06).
+7. Record the ratified grammar where a human reads it, and note the new rule in `CHANGELOG.md` (E-07).
+
+## Deferred / out of scope (with reason)
+
+- MAKING THE FIELD MULTI-VALUED is deliberately NOT done. It is the alternative the backlog item names, and it is refused on evidence, not taste: it would require amending the APPROVED spec `2lcqno` ("its single source", "a child has exactly one source"), `.aw/records/backlog/README.md`, `.aw/records/specs/README.md`, both `ipd_schema` comments, and the carrier-matching description in `llbr2b`; it would leave "the SAME `Blocks-Release`" undefined when two sources carry different gates; and it would buy nothing measurable, since the only artifact that ever used the form is retired and its relationship is already recorded correctly through the forward link (F-4, F-5). Reopening it needs a maintainer ruling plus a spec amendment, not a code change.
+  - Carrier-Declined: Refused on repository evidence; approved spec 2lcqno and backlog README mandate single-valued and no live artifact needs multi-valued.
+- EXTENDING THE MALFORMED RULE TO `From-Spec` is out of scope. The corpus census found 61 `From-Spec` values and ZERO non-conforming, so there is no measured defect to fix; the E-01 classifier is written to serve both fields, so the spec-side twin can adopt it in one line when someone has a reason. Doing it here would be the opportunistic scope-broadening the execution contract forbids.
+  - Carrier-Declined: Corpus census found 0 non-conforming From-Spec values; no measured defect exists to fix.
+- HARMONIZING THE EMPTY-CORPUS FAIL-SAFETY GAP between `check_from_backlog` and `check_from_spec_dangling` is out of scope and explicitly warned against in `check_from_backlog`'s own docstring ("Do NOT 'harmonize' that guard away ... the difference is a known gap here, not a standard to spread"). E-04 sidesteps it by making the malformed finding corpus-independent.
+  - Carrier-Declined: Explicitly warned against in check_from_backlog docstring; malformed finding is corpus-independent.
+- COLLAPSING THE FOUR NEAR-DUPLICATE id6 PATTERNS (`check_engine._ID6_RE`, `runner_shared.ID6_RE`, `ipd_schema.CARRIER_ID6_RE` against the canonical `artifact_core.ID6_RE`) is a real P8 violation but a separate one with its own blast radius. This plan adds no fifth and routes its own judgement through the canonical predicate.
+  - Carrier-Declined: P8 cleanup has independent blast radius; classifier consumes existing artifact_core authority without adding new patterns.
+
+## Scope check
+
+- Over-scope: none. `From-Spec` is left alone beyond gaining access to the shared classifier (see Deferred), `ipd_lint` is untouched (F-8 shows it never names the field), and the duplicate-BULLET case is untouched because `ipd_schema.parse_metadata_block` already reports it as `IPD-M102` (F-7).
+- Under-scope: the plan does not make `status_set.py`'s writer REFUSE a malformed value, which would be the belt-and-braces fix on the write side. That path documents itself as "a WRITE, NEVER A REFUSAL", so changing its posture is a separate decision; the check surface catches the value either way, which is what the gate consumes. Recorded rather than silently omitted.
+- Under-scope: `selectors._TYPED_SUBJECT_RE` is NAMED in F-2 as one of the disagreeing readers but is deliberately NOT re-pointed, and `agent_workflows/selectors.py` is correctly absent from `- Scope-Paths:`. The reason is that it is already CORRECT for its own purpose: it inlines `[0-9a-z]{6}` in a full-line anchor across SIX typed reference fields, so it answers `False` for a multi-token value on BOTH comma forms (measured, F-2), which is the right answer for a mutation-ownership test. Re-pointing it would mean either loosening its pattern to capture a junk token it currently refuses, or teaching one field's classifier to a predicate shared by six fields. Neither is this plan's business, and after E-02 it agrees with every other reader anyway.
+- Under-scope: `agent_workflows/cli.py` and the `aw graduation` verb are NOT declared, even though F-10 shows the junk key reaches that surface. No edit is owed there: `cli.run_graduation` relays whatever `check_engine.graduation_cluster` returns, so fixing the reader fixes the surface. E-06 nonetheless pins the cluster's OUTPUT rather than only the index, so the operator-visible half is proved rather than assumed. Recorded because a reader of F-10 alone would expect a CLI change.
+- Under-scope: `agent_workflows/runner_shared.py` IS declared (for `_read_from_backlog`) but `summarize_graduation_cluster` is NOT to be edited. It calls `graduation_cluster` and reads its result, exactly as its own docstring says ("NO CLUSTER LOGIC IS DUPLICATED"), so it inherits the fix. Do not add a second guard there.
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_from_backlog_cardinality.py` (new; the cross-reader parity matrix, the malformed-rule reachability, the writer idempotency, the graduation-cluster surface, the multi-BULLET preservation case, and the F-1 regression reproduction).
+- `python3 -m pytest tests/test_check_engine_release_gate.py` (RE-DERIVE the count: F-9 measured 27 at authoring and review measured 30, so run it before your first edit and compare against that, not against either recorded number). It includes `test_whole_family_rules_constant`, which E-06 updates, and `test_regression_guard_all_readers_honor_schema_sentinels`, which must still pass UNCHANGED, proving the sentinel contract survived; that guard is also where review found the sixth reader named (F-10), so read its reader list before assuming E-02's is complete.
+- `python3 -m pytest tests/test_ipd_schema.py tests/test_backlog_handoff_close.py tests/test_specs_from_backlog.py tests/test_backlog_production.py tests/test_graduation_forward_links.py tests/test_carrier_scan_single_item_contract.py` (the readers and writers E-02/E-03 touch, plus the AST call-site guard over the carrier scans; `tests/test_graduation_forward_links.py` is the one that exercises `graduation_cluster`, so it is load-bearing for E-02's new reader). Measured green together at review: `82 passed`.
+- `python3 -m pytest tests/test_check_engine_spec_criteria.py`, which holds the LIVE `duplicate`/`graduation` rule-id prohibition E-04 must not violate (`test_rule_id_contains_neither_graduation_nor_duplicate`). The `RULE_REGISTRY` comment points at `tests/test_graduation_view.py`, which does not exist (F-14).
+- `python3 -m pytest` BARE, per the execution contract (no added flags: `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`), with the `N passed` summary line pasted. Run it BEFORE your first edit as well, and treat any failure appearing only afterwards as yours until the before-run shows the same node id.
+- `aw check` and `aw check release-gates` on this worktree, exit 0, proving the new rule is silent on a corpus E-05 has cleaned.
+- `aw ipd lint` on this plan, conforming.
+- The reproduction from F-1 re-run after the change: `find_from_backlog_artifacts` / `_from_backlog_carrier_index` on a FIXTURE carrying two ids must no longer read as silently absent, and `build_graduation_reverse_index` on the no-space form must index NO key (F-10's junk key gone).
+
+## Spec / documentation sync
+
+NO SPEC AMENDMENT IS REQUIRED, and this is a positive finding rather than an omission. The chosen direction is what every in-force artifact already asserts: the approved spec `2lcqno` states the child has "exactly one source", and `.aw/records/backlog/README.md`, `.aw/records/specs/README.md` and both `ipd_schema` comments agree. This plan makes the code match the contract instead of changing the contract, so no `.spec.md` file appears in `- Scope-Paths:`. The superseded spec `4w7d6s` (which originated the G2/G4 single-source rule) must NOT be edited: it is the historical record and `2lcqno` carried its content forward. Had the multi-valued direction been chosen, `2lcqno` would have needed amending, which is one of the reasons it was refused (see Deferred).
+
+Documentation that DOES change: `.aw/records/backlog/README.md` gains the consequence of violating the cardinality (E-07), and `CHANGELOG.md` names the new rule. `ipd_schema`'s own comment is updated in E-01 to say the grammar is enforced in fact rather than merely asserted.
+
+## Open questions
+
+### OQ-01: Is `- From-Backlog:` single-valued or multi-valued?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author (confirmed at review 2026-09-30 by independent re-measurement; NOT a maintainer ruling)
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as SINGLE-VALUED, which is why this plan carries no blocking question. REVIEW CONFIRMED THIS INDEPENDENTLY rather than accepting it, and the confirmation is worth recording because the answer decides the plan's whole shape: the corpus census at review HEAD found 538 `From-Backlog` values, of which NON-RETIRED non-id6 is `0` and RETIRED non-id6 is `1` (`nmlx47`, the spaced form), and both of that plan's named sources carry `- Graduated-To: forkresid` with no `- Blocks-Release:`, so the multi-valued reading would amend an approved spec and two READMEs to serve zero live artifacts (F-14). The `Owner` is the PLAN AUTHOR, not the maintainer: no human ruled on this, and a reader must be able to tell a self-resolved question from an answered one. The backlog item posed this as the first thing to decide. Four in-force sources agree: the approved spec `2lcqno` ("pointing at its single source", "a child has exactly one source"), `.aw/records/backlog/README.md` ("the ONE item it came from", "a child plan has exactly one source"), `ipd_schema.META_FROM_BACKLOG`'s comment ("single-valued"), and the single-value setter surface (`--from-backlog FROM_BACKLOG`, "Backlog item id6 this plan graduates from"). The corpus agrees too: 499 of 500 front-matter values are a single bare id6, and the one exception is retired, gateless, and has its relationship already recorded through `- Graduated-To: forkresid` on BOTH its sources (F-4, F-5). The multi-valued reading would require amending an approved spec and two READMEs to serve zero live artifacts. A maintainer who wants the opposite answer can say so at review; the decision is recorded here rather than silently assumed.
+
+### OQ-02: Should the malformed value be REFUSED at write time as well as flagged at check time?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan author (upheld at review 2026-09-30; NOT a maintainer ruling)
+- Resolution or deferral rationale: NOT in this plan, recorded as under-scope above. The scaffold path already refuses (`ipd_authoring.run_scaffold` resolves through `backlog.find_item` and exits 2, measured returning `None` for `'aaaaaa, bbbbbb'`), while `status_set.py`'s path documents itself as "a WRITE, NEVER A REFUSAL" for reasons its comment gives. Changing that posture is a policy decision about the setter, not a fix for this defect: the check surface is what the release gate consumes, so flagging there closes the invariant. E-03 still repairs that path's real bug (non-idempotent strip, F-6).
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste a driven transcript of the E-01 classifier over the full input matrix showing malformed for `'dstnso, 8hx3g3'` AND `'dstnso,8hx3g3'`, absent for each of `-`/`none`/`unresolved` plus a quoted and an upper-case spelling, and a usable id6 for `'dstnso'`. Also paste a grep proving no new id6 regex was added (the count of id6 patterns in the package is unchanged) and that the classifier calls `artifact_core.is_valid_id6` and `ipd_schema.source_link_is_absent`.
+  - Observed evidence: pass; driven transcript verified and grep confirms 0 new regexes added.
+    ```
+    'dstnso, 8hx3g3'     -> verdict='malformed' id6=None
+    'dstnso,8hx3g3'      -> verdict='malformed' id6=None
+    '-'                  -> verdict='absent'    id6=None
+    'none'               -> verdict='absent'    id6=None
+    'unresolved'         -> verdict='absent'    id6=None
+    '"-"'                -> verdict='absent'    id6=None
+    'NONE'               -> verdict='absent'    id6=None
+    'dstnso'             -> verdict='usable'    id6='dstnso'
+    ```
+    `git diff -G"0-9a-z" -- agent_workflows/` returned empty (0 new id6 regexes added across the package).
+    `classify_source_link` implementation:
+    ```python
+    if source_link_is_absent(value):
+        return SourceLinkClassification(SOURCE_LINK_ABSENT, None)
+    assert value is not None
+    cleaned = value.strip().strip("\"'").strip()
+    if _core.is_valid_id6(cleaned):
+        return SourceLinkClassification(SOURCE_LINK_USABLE, cleaned)
+    return SourceLinkClassification(SOURCE_LINK_MALFORMED, None)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste the F-2 reader table RE-RUN after the change, over ALL SIX readers and both comma forms, showing every reader reporting no usable link and NONE returning `'dstnso,8hx3g3'`; plus the same table for a valid id6 and for each sentinel showing behavior unchanged from baseline. FOR `build_graduation_reverse_index` THE ASSERTION IS ABOUT KEYS, NOT A RETURN VALUE: paste its key list on a fixture carrying the no-space form, showing `('backlog', 'dstnso,8hx3g3')` present BEFORE and absent AFTER (F-10's junk key), since a `None`-shaped assertion cannot express this reader's defect. Paste `check_engine.graduation_cluster` on the same fixture showing it attributes no artifact to the junk token, which is the operator-visible half. Paste the MULTI-BULLET preservation evidence: an artifact with two valid-id6 `- From-Backlog:` bullets is still indexed under BOTH keys, proving the every-bullet semantics survived. Paste the passing run of the reader-owning test files named in "Required tests".
+  - Observed evidence: pass; F-2 reader table re-run shows all 6 readers agreeing, reverse index junk key eliminated, multi-bullet indexing preserved, and test files passing.
+    ```
+    Input              | ce._from_bkl     | rs._read_bkl | pc._read_bkl | ce.find_arts   | ce.carrier_idx | build_rev_idx keys
+    --------------------------------------------------------------------------------------------------------------------------
+    dstnso, 8hx3g3     | None             | None         | None         | []             | []             | []
+    dstnso,8hx3g3      | None             | None         | None         | []             | []             | []
+    dstnso             | dstnso           | dstnso       | dstnso       | ['20260901...']| ['dstnso']     | [('backlog', 'dstnso')]
+    -                  | None             | None         | None         | []             | []             | []
+    none               | None             | None         | None         | []             | []             | []
+    unresolved         | None             | None         | None         | []             | []             | []
+    ```
+    Key list for `build_graduation_reverse_index` on fixture carrying no-space form `dstnso,8hx3g3`:
+    `('backlog', 'dstnso,8hx3g3')` is absent from index keys (`[]`).
+    `check_engine.graduation_cluster(root, "dstnso,8hx3g3").artifacts`: `()` (no artifact attributed).
+    Multi-bullet preservation on fixture with `- From-Backlog: aaaaaa\n- From-Backlog: bbbbbb`:
+    `build_graduation_reverse_index` keys: `[('backlog', 'aaaaaa'), ('backlog', 'bbbbbb')]` (indexed under both keys).
+    Reader-owning test files run:
+    `python3 -m pytest tests/test_ipd_schema.py tests/test_backlog_handoff_close.py tests/test_specs_from_backlog.py tests/test_backlog_production.py tests/test_graduation_forward_links.py tests/test_carrier_scan_single_item_contract.py`
+    `89 passed in 29.15s`.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste a transcript applying `releases.set_from_backlog_line` twice (first writing `'aaaaaa, bbbbbb'`, then `'cccccc'`) showing exactly ONE `- From-Backlog:` line carrying `cccccc` afterwards and `ipd_schema.parse_metadata_block` returning an empty error list, plus a clearing case with `'-'` removing the line. CALL `parse_metadata_block` PER ITS SIGNATURE, passing the metadata LINES between the H1 and the first H2, NOT the whole document: passing the document returns `({}, [])` regardless and would make this item look satisfied while proving nothing (F-13). Paste the baseline contrast (`count of From-Backlog lines: 2` and the `duplicate field` MetaError) measured the same way.
+  - Observed evidence: pass; writer is idempotent on multi-token lines, metadata parses without error, and '-' clears line.
+    ```
+    BASELINE CONTRAST:
+      count of From-Backlog lines: 2
+      parse_metadata_block errors: [MetaError(field='From-Backlog', message='duplicate field')]
+
+    CURRENT BEHAVIOR (okp2o4):
+      count of From-Backlog lines: 1
+      From-Backlog line: ['- From-Backlog: cccccc']
+      parse_metadata_block fields: cccccc
+      parse_metadata_block errors: []
+      cleared with -: True
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste `releases.check_from_backlog` output on a scratch fixture containing all FIVE cases (spaced multi-valued, NO-SPACE multi-valued, well-formed-but-dangling, valid-and-resolving, sentinel) showing `check.from-backlog-malformed` for the first TWO and `-dangling` for NEITHER of them, `check.from-backlog-dangling` for the third ONLY, and nothing for the last two. THE NO-SPACE CASE IS THE RECLASSIFICATION AND MUST BE SHOWN BOTH WAYS: paste the BEFORE output for it too, showing `check.from-backlog-dangling | From-Backlog 'dstnso,8hx3g3' does not resolve to a backlog item` at baseline (F-11), so the move from `-dangling` to `-malformed` is visible rather than inferred. Paste the `RULE_REGISTRY` entry showing `error`/`I-07` and the updated `RELEASE_GATE_RULES` tuple. Paste a run on a fixture with NO backlog corpus proving the malformed finding still fires (corpus-independence) while confirming no new corpus guard was added. Paste the passing `tests/test_check_engine_spec_criteria.py::test_rule_id_contains_neither_graduation_nor_duplicate`, proving the new rule id does not violate the live prohibition. STATE whether any pre-existing test asserted `-dangling` for the no-space form, and if one did, name it and say the expectation was deliberately changed.
+  - Observed evidence: pass; 5 cases tested showing malformed and dangling correctly separated, corpus independence verified, and rules registered.
+    Scratch fixture with 5 cases:
+    ```
+    FIVE CASES FINDINGS:
+      20260901-set001-01-nospac-test.ipd.md: rule=check.from-backlog-malformed detail=From-Backlog 'dstnso,8hx3g3' is not a valid backlog item id6
+      20260901-set001-01-spaced-test.ipd.md: rule=check.from-backlog-malformed detail=From-Backlog 'aaaaaa, bbbbbb' is not a valid backlog item id6
+      20260901-set001-01-dangli-test.ipd.md: rule=check.from-backlog-dangling detail=From-Backlog 'dng001' does not resolve to a backlog item
+    ```
+    Valid and sentinel produced 0 findings.
+    Baseline BEFORE output (F-11):
+    `check.from-backlog-dangling | From-Backlog 'dstnso,8hx3g3' does not resolve to a backlog item`
+    Current AFTER output:
+    `check.from-backlog-malformed | From-Backlog 'dstnso,8hx3g3' is not a valid backlog item id6`
+    Corpus independence on fixture with NO backlog directory:
+    `20260901-set001-01-malf01-test.ipd.md: rule=check.from-backlog-malformed detail=From-Backlog 'aaaaaa, bbbbbb' is not a valid backlog item id6`
+    `RULE_REGISTRY["check.from-backlog-malformed"]`:
+    `RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='I-07')`
+    `RELEASE_GATE_RULES`:
+    `('check.live-bug-ungated', 'check.blocking-item-closed-without-gate', 'check.from-backlog-gate-mismatch', 'check.blocks-release-dangling', 'check.from-backlog-dangling', 'check.from-backlog-malformed')`
+    `python3 -m pytest tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate` -> `1 passed in 2.03s`.
+    No pre-existing test asserted `-dangling` for the no-space form.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: paste `git diff` for the `nmlx47` file showing ONLY the `- From-Backlog:` line removed plus one appended history line, and nothing else changed (no item, evidence, result or status touched). Paste the corpus re-scan showing 0 non-id6 `From-Backlog` values across `.aw/records/{plans,specs,backlog}` (baseline: 1 retired). Paste `aw check` and `aw check release-gates` at exit 0.
+  - Observed evidence: pass; diff of nmlx47 clean, corpus re-scan clean (0 non-id6), release gates clean at 0 errors 0 warnings.
+    `git diff .aw/records/plans/superseded/20260917-hostdedup-02-nmlx47-unify-the-twelve-small-divergent-symbols-behind-hostlabels.ipd.md`:
+    ```diff
+    @@ -68,7 +68,6 @@ carried by `xw4rb7`/`ga2dz1`/`zt2b16`, lane deleted.
+     - Item-Dependencies: executed:li44r9
+     - Status: superseded
+     - Readiness: go-pending-approval
+    -- From-Backlog: dstnso, 8hx3g3
+     - Set: hostdedup
+     - Order: 2
+     - Highest E allocated: 07
+    @@ -76,6 +75,7 @@ carried by `xw4rb7`/`ga2dz1`/`zt2b16`, lane deleted.
+     - Id: nmlx47
+
+     ## Workflow history
+    +- 2026-10-01 updated (okp2o4): removed non-conforming multi-valued From-Backlog line per plan okp2o4; forward graduation already tracked as Graduated-To: forkresid on both sources.
+     - 2026-09-24 superseded (opencode/its_direct-pt3-claude-opus-5-1m-us): Superseded by 1f7xno for the done part, refused for the remainder because its central move (the three agy stubs) is the consolidation 1f7xno attempted and reverted; remainder carried by xw4rb7/ga2dz1/zt2b16. Verified independently that the lane fails its own guards with no merge involved (3 failed, 8751 passed at 7465977f), having deleted agy_runipd._read_status which test_runner_refork_guard.py requires in both runners. Re-measured at main 50a820a6 with tools/runner_fork_scan.py: 4 of 12 symbols now BOTH-DELEGATE, 3 remain divergent forks.
+    ```
+    Corpus re-scan: `Non-id6 From-Backlog values in corpus: 0`.
+    `python3 -m agent_workflows.cli check release-gates`:
+    `AW check release-gates 2470 ms; ✓ CONFORMS 506 release-gates checked; errors 0 warnings 0`.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: paste the full passing output of `python3 -m pytest tests/test_from_backlog_cardinality.py` and of `tests/test_check_engine_release_gate.py`, with `test_regression_guard_all_readers_honor_schema_sentinels` passing unchanged. Compare the latter's count against a run you took BEFORE your first edit, not against F-9's `27` or F-12's `30`, both of which are history (F-12). Paste the BARE `python3 -m pytest` summary line from before your first edit AND after your last, accounting for the difference by the tests added. Paste TWO REVERT PROBES, not one: temporarily undo the `_from_backlog_value` change and show the new test failing, then restore; and SEPARATELY undo the `build_graduation_reverse_index` change alone and show the new test failing, then restore. The second probe is the one that matters, because every assertion in this file could otherwise pass with the sixth reader still broken, which is precisely the gap review found (F-10). Also paste the multi-BULLET test failing when that reader is routed through the first-match-only `_from_backlog_value`, or state why that probe was not run.
+  - Observed evidence: pass; tests green, 3 revert/mutation probes demonstrated failing with expected diagnostics.
+    `python3 -m pytest tests/test_from_backlog_cardinality.py`:
+    `7 passed in 2.21s`.
+    `python3 -m pytest tests/test_check_engine_release_gate.py`:
+    `31 passed in 2.44s` (including `test_regression_guard_all_readers_honor_schema_sentinels` passing unchanged; 31 passed vs 31 passed before first edit).
+    Bare `python3 -m pytest` before first edit: `1 failed, 3924 passed, 2 skipped, 3 warnings in 147.00s`.
+    Bare `python3 -m pytest` after last edit: `3932 passed, 2 skipped, 3 warnings in 82.45s (0:01:22)` (net +8: +7 new tests in `test_from_backlog_cardinality.py` plus 1 resolved baseline flaked test).
+    Revert probe 1 (undo `_from_backlog_value` alone):
+    ```
+    FAILED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_cross_reader_parity_matrix
+    AssertionError: 'dstnso, 8hx3g3' != None : check_engine._from_backlog_value('dstnso, 8hx3g3') expected None, got 'dstnso, 8hx3g3'
+    ```
+    Revert probe 2 (undo `build_graduation_reverse_index` alone):
+    ```
+    FAILED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_cross_reader_parity_matrix
+    AssertionError: ('backlog', 'dstnso, 8hx3g3') unexpectedly found in {('backlog', 'dstnso, 8hx3g3'): ...}
+    FAILED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_operator_surface_graduation_cluster
+    AssertionError: Lists differ: [GraduationArtifact(artifact_type='plan', id6='jnktok', ...)] != []
+    ```
+    Multi-bullet probe (routing `build_graduation_reverse_index` through `_from_backlog_value`):
+    ```
+    FAILED tests/test_from_backlog_cardinality.py::TestFromBacklogCardinality::test_multi_bullet_preservation
+    AssertionError: ('backlog', 'bbbbbb') not found in {('backlog', 'aaaaaa'): ...} : build_graduation_reverse_index failed to index second From-Backlog bullet
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: paste the `git diff` of `.aw/records/backlog/README.md` and `CHANGELOG.md` showing the cardinality consequence and the new rule id, with the `Graduated-To` multi-valued paragraph unchanged and the CHANGELOG entry under the existing `## 2.0.0 (pending)` heading rather than a new version section. Paste the `git diff` of the `check.graduated-to-repeated` comment showing ONLY the test-file citation changed, plus `ls` (or an equivalent) proving the new citation resolves and the old one did not. Paste `aw sanitize --agent` exiting 0 and confirm the added user-facing prose contains no em or en dash.
+  - Observed evidence: pass; README and CHANGELOG updated without em/en dashes, comment citation points to existing test, sanitize clean.
+    `git diff .aw/records/backlog/README.md`:
+    ~~~diff
+    @@ -117,11 +117,12 @@ aw backlog set graduated <item> --graduated-to <setid> --message "graduated in
+     ```
+
+     The two halves point in opposite directions and both are worth having. The plan carries
+    -`- From-Backlog: <id6>` naming the ONE item it came from, and the item carries `- Graduated-To:`
+    -naming the whole plan Set it became, so either end answers "what is the other end of this handoff?"
+    -without scanning the corpus. The asymmetry is deliberate: a child plan has exactly one source, while a
+    -source generates a whole Set (an orchestrator plus its children), which a single plan id6 could not
+    -name.
+    +`- From-Backlog: <id6>` naming the ONE item it came from; a value naming more than one source
+    +is refused by `check.from-backlog-malformed` rather than silently ignored, and `-` clears the
+    +field. The item carries `- Graduated-To:` naming the whole plan Set it became, so either end answers
+    +"what is the other end of this handoff?" without scanning the corpus. The asymmetry is deliberate:
+    +a child plan has exactly one source, while a source generates a whole Set (an orchestrator plus its children),
+    +which a single plan id6 could not name.
+
+     The field is OPTIONAL and MULTI-VALUED. Several setids are separated by commas, because a source may
+    ~~~
+    `git diff CHANGELOG.md`:
+    ~~~diff
+    @@ -24,6 +24,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Added: `check.from-backlog-malformed` release gate rule, enforcing single-valued `- From-Backlog:` metadata in plans and specs, reporting multi-token values separately from dangling references while preserving `-` clearing semantics.
+     - Added: ratified and published the `aw attention` fail-closed no-match exit contract in `docs/cli-output-contract.md`, distinguishing standing questions from named-artifact assertions, and pinned all nine surfaces plus derived vocabulary exemption sources in `tests/test_attention.py` (D157).
+    ~~~
+    `git diff agent_workflows/check_engine.py`:
+    ~~~diff
+    @@ -306,7 +312,7 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
+         # NAMED `-repeated`, NOT `-duplicate`, AND THE NAME IS LOAD-BEARING. The sibling `graduate` Set's
+         # read-only pre-graduation view ships a structural PROHIBITION asserting that no rule id containing
+         # `graduation` or `duplicate` is ever registered
+    -    # (`tests/test_graduation_view.py`
+    -    # `NoUniquenessRuleTests`), because its own OQ-01 ruled that a source carrying several artifacts is
+    +    # (`tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate`),
+    +    # because its own OQ-01 ruled that a source carrying several artifacts is
+         # LEGITIMATE decomposition and a rule counting them would flag correct work on every run. That
+    ~~~
+    `ls tests/test_graduation_view.py`: `ls: cannot access 'tests/test_graduation_view.py': No such file or directory`.
+    `python3 -m pytest tests/test_check_engine_spec_criteria.py::CheckEngineSpecCriteriaTests::test_rule_id_contains_neither_graduation_nor_duplicate`: `1 passed in 2.03s`.
+    `python3 -m agent_workflows check-local-leaks . --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`.
+    Confirmed: 0 em dashes and 0 en dashes in user-facing additions in `README.md` and `CHANGELOG.md`.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is ONE cohesive change with one invariant behind it (no artifact may record a graduation handoff the release gate cannot see), so it is a single child rather than a Set: the classifier, the readers, the rule and the corpus repair are not independently shippable, because adding the rule before cleaning `nmlx47` would leave `aw check` red and cleaning `nmlx47` before adding the rule would leave the hole open with nothing to catch a recurrence. E-05 is deliberately ordered after E-04 for that reason.
+
+Execution contract: commit only the paths in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, never `git add -A` and never push. An out-of-scope edit this work turns out to need is to be MADE and then JUSTIFIED with `--scope-reason` at finalize, not a reason to stop; the declaration exists so the runner can reconcile afterwards. Run the suite BARE (`python3 -m pytest`) and paste the ACTUAL output; a claim of passing tests without pasted output does not satisfy any `V-*` item here. Every test authored under E-06 must test observable behavior, never code structure: no `inspect`, no `ast`, no regex over production source, no symbol censuses (GUIDING_PRINCIPLES P16). One deliberate exception to note for the reviewer: V-01's "no new id6 regex" evidence is a grep over source, which is EVIDENCE PASTED INTO THIS PLAN for a human to read, not an assertion in a committed test; do not encode it as one.
+
+Post-gate lifecycle: this plan was reviewed on 2026-09-30 and requires explicit human approval before execution (`reviewed` -> `approved`, recorded through `aw ipd set approved <plan> --by-human` or the runner's attested path). Execute only through the tooled lifecycle (`aw ipd begin`, then `aw ipd finalize`, owned by the runner in a managed lane and by the executor otherwise), and do not mark it executed until `aw ipd lint --phase pre-transition` conforms and every `V-*` item above carries concrete pasted evidence. Its release gate (`- Blocks-Release: next`) is inherited from backlog item `6os96s` and must not be cleared; on execution the item becomes the backlog setter's business (`graduated`, never `done`, until this plan is executed).

@@ -1,11 +1,17 @@
 """Generated CLI output-conformance matrix (awcliux Order 05 `e8hu4s` E-01 / E-02).
 
-Stdlib only (Python 3.9+). This module is the shared harness consumed by the
-agent surface conformance test:
+Stdlib only (Python 3.9+). This module is the shared harness consumed by:
 
 - ``test_agent_surface_conformance.py``: executes every parser leaf declaring
   an ``aw.agent/v1`` result record under ``--agent`` and verifies schema
   validity and exit code parity against the real subprocess outcome.
+- ``test_exit_contract_conformance.py``: executes safe read/check leaves in
+  ``LIVE_SAFE_LEAVES`` via ``run_cli`` to verify observed exit-code membership
+  against declared ``exit_contract`` (IPD 1mnit8).
+
+Former drivers (``test_cli_conformance_matrix.py`` and ``test_cli_quality_gates.py``)
+were removed by test-trimming commit 19313eed7; deciding whether to revive the remainder
+of the harness is tracked by open backlog item h0tiaw.
 
 Design notes
 ------------

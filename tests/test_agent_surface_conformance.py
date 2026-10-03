@@ -160,10 +160,11 @@ def test_attention_non_project_cwd(tmp_path: Path) -> None:
     assert "/home/" not in res.stdout, f"/home/ path leaked in stdout: {res.stdout}"
 
     # Human path: attention without flags
+    # Human exit 3 was retired to 2 by backlog c6vs7y (IPD rwvzqm).
     res_human = run_cli(["attention"], cwd=tmp_path)
     assert (
-        res_human.returncode == 3
-    ), f"Expected human returncode 3, got {res_human.returncode}"
+        res_human.returncode == 2
+    ), f"Expected human returncode 2, got {res_human.returncode}"
     assert (
         res_human.stdout == ""
     ), f"Expected empty stdout for human path, got: {res_human.stdout}"

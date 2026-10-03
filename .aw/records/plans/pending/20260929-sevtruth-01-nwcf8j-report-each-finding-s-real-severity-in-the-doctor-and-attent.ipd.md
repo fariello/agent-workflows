@@ -121,6 +121,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - The `cli._run_check` `startswith("warn")` tally that backlog `xqm16x` literally names (F-01, F-02). It is already carried by a pending plan (`tzjtg4`, graduated from the sibling item `zosk0a`), with `cli.py` in its declared fence and a test module of its own. Fixing it here would guarantee a conflict.
   - Carrier: tzjtg4
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-checkinfotally-01-tzjtg4-tally-aw-check-findings-by-registered-severity-so-an-advisor.ipd.md
 - Registering the eleven `attention.*` rule ids in `RULE_REGISTRY`, all measured absent at review (F-10), which is why E-03's enriched read cannot currently lower an artifact-drift severity. Same reasoning as the row below: registering them would change severities and therefore exit codes.
   - Carrier: 1urnej
 - Correcting the stale sentence in `tzjtg4`'s own F-02/OQ-01 region that says THIS plan's item will be closed by that plan. That plan's review already recorded the correction and deliberately routed the fix here rather than editing across plans; the reciprocal correction (this plan's F-02) is applied by this review.

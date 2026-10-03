@@ -223,21 +223,23 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
     if not rtype:
         return None
 
-    id_match = _ID_RE.search(text)
+    meta = _sel.metadata_region(text)
+
+    id_match = _ID_RE.search(meta)
     id6 = id_match.group(1) if id_match else None
     if not id6:
-        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", text)
+        yaml_id = re.search(r"(?m)^id:\s*([0-9a-z]{6})\s*$", meta)
         if yaml_id:
             id6 = yaml_id.group(1)
 
-    status_match = _STATUS_RE.search(text)
+    status_match = _STATUS_RE.search(meta)
     status = status_match.group(1) if status_match else None
     if not status:
-        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", text)
+        yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
         if yaml_status:
             status = yaml_status.group(1)
 
-    set_match = _SET_RE.search(text)
+    set_match = _SET_RE.search(meta)
     set_id = None
     if set_match:
         raw_set = set_match.group(1).strip()
@@ -454,9 +456,7 @@ def _resolve_record_lifecycle(record_type: str, native_status: str) -> _LS.Resol
             style=_LS.style_for(_LS.UNKNOWN),
             family=record_type,
             native_status=native_status or None,
-            diagnostic="record type {0!r} is not a lifecycle family".format(
-                record_type
-            ),
+            diagnostic=f"record type {record_type!r} is not a lifecycle family",
         )
     from agent_workflows import term as _T
 
@@ -699,6 +699,37 @@ def validate_transition_allowed(
         )
 
     # Type-specific validation
+    _sentinel_override = getattr(args, "allow_unresolvable_release_sentinel", None)
+    if _sentinel_override is not None and not _sentinel_override.strip():
+        return (
+            False,
+            "--allow-unresolvable-release-sentinel requires a non-empty justification",
+        )
+
+    if rec.record_type == "releases":
+        eff_root = repo_root if repo_root is not None else _repo_root_of(rec.path)
+        old_status = (
+            normalize_target_status((rec.status or "planned"), "releases")
+            .strip()
+            .lower()
+        )
+        if old_status == "planned" and norm_status != "planned":
+            from agent_workflows import releases as _releases
+
+            sentinel_res = _releases.resolve_release_outcome(eff_root, "next")
+            planned_paths = [p.resolve() for p in sentinel_res.paths]
+            rec_resolved = rec.path.resolve()
+            if rec_resolved in planned_paths and len(planned_paths) == 1:
+                count = _releases.count_blocks_release_sentinel(eff_root)
+                if count > 0 and _sentinel_override is None:
+                    return (
+                        False,
+                        f"transitioning {rec.path.name} to '{norm_status}' would leave zero planned releases, "
+                        f"causing {count} record(s) with '- Blocks-Release: next' to dangle. "
+                        f"Create the successor first with 'aw releases new --version <X.Y.Z> --summary ... --apply' "
+                        f"or pass --allow-unresolvable-release-sentinel '<justification>'",
+                    )
+
     if rec.record_type == "specs":
         from agent_workflows import attention_contract as ac
 
@@ -719,7 +750,7 @@ def validate_transition_allowed(
                     and not getattr(args, "json", False)
                 )
                 if is_interactive:
-                    setattr(args, "by_human", True)
+                    args.by_human = True
                 if not getattr(args, "by_human", False):
                     return (
                         False,
@@ -741,6 +772,51 @@ def validate_transition_allowed(
                     # multi-line for the CLI, so it is flattened here rather than forked into a second
                     # wording that could drift from the other surface's.
                     return False, " ".join(reason.split())
+
+    if rec.record_type == "plans":
+        from agent_workflows import ipd_lifecycle as _life
+
+        # ipdsetback nvsz19 E-03/E-04: THE PLAN TRANSITION GATE.
+        # THE SITE IS LOAD-BEARING: this function is reached by BOTH real spellings (`aw set` and
+        # `aw ipd set` both dispatch into `status_set.run_set_command`, which calls it in its pre-flight
+        # loop), so one delegation here cannot be dodged by choosing another spelling. It lands inside
+        # the established "Refusing before making changes" all-or-nothing batch contract, before the
+        # dry-run branch and before any write.
+        #
+        # FIVE REFUSALS-TO-REFUSE ARE MANDATORY:
+        # (1) Treat `unknown target status` as NOT-A-REFUSAL and fall through: `superseded`,
+        #     `not-executed`, and `reusable` are absent from `_PLAN_STATUS_RANKS`, and refusing them
+        #     would break legitimate retirement / off-sequence moves (E-02's OFF-SEQUENCE class).
+        # (2) Do NOT pass `actor=`: that argument makes every `-> executed` target fail as
+        #     `unauthorized terminal transition` for the setter's default actor.
+        # (3) Do NOT re-list the legal backward edges here: consult `_LEGAL_BACKWARD_EDGES` through
+        #     the predicate, never a second copy, avoiding desync.
+        # (4) SKIP A NORMALIZED `-> executed` TARGET ENTIRELY (F-06b): the finalize delegation sits
+        #     DOWNSTREAM of this site in `run_set_command`. Without this skip, this gate would preempt
+        #     it and convert its exit 2 actor refusal into an exit 1 transition refusal on
+        #     `draft`/`to-review -> executed`.
+        # (5) CASE-FOLD THE SOURCE through `normalize_target_status(rec.status, "plans")` (F-06c):
+        #     `read_artifact_record` captures the on-disk token verbatim and `_status_rank` is a bare
+        #     dict lookup, so an uppercase `- Status: APPROVED` measures `ok=True` without folding,
+        #     and 25 live plans carry one.
+        #
+        # TERMINAL-SOURCE CARVE-OUT (E-04, PR-802): Stand aside for the WHOLE terminal-source class
+        # unconditionally, so the shipped terminal-reopen guard downstream keeps sole ownership of it.
+        # Keying the carve-out on the flag would preempt the bare terminal case with exit 1 instead of 2.
+        # The terminal set is derived from `_plans_mod.TERMINAL`, never a re-listed literal.
+        raw_source = rec.status or ""
+        source_status = normalize_target_status(raw_source, "plans").strip().lower()
+
+        if source_status and source_status != norm_status:
+            terminal_statuses = {s.strip().lower() for s in _plans_mod.TERMINAL}
+            is_terminal_source = source_status in terminal_statuses
+            is_target_executed = norm_status == "executed"
+
+            if not is_terminal_source and not is_target_executed:
+                ok, reason = _life.validate_transition(source_status, norm_status)
+                if not ok:
+                    if not (reason and reason.startswith("unknown target status")):
+                        return False, f"Illegal plan transition: {reason}"
 
     # apprvguard Order 01 (d7bnhc): THE APPROVAL GATE. Until this existed, reaching `approved` - the
     # state that LICENSES EXECUTION - required only that the status token be spelled correctly. On
@@ -990,6 +1066,43 @@ def apply_status_change(
         if _was_terminal and norm_status.strip().lower() not in _terminal_statuses:
             actor = f"{actor}, --allow-terminal-reopen"
 
+    _sentinel_override = getattr(args, "allow_unresolvable_release_sentinel", None)
+    if _sentinel_override is not None:
+        _sentinel_override = _sentinel_override.strip()
+        if not _sentinel_override:
+            raise ValueError(
+                "--allow-unresolvable-release-sentinel requires a non-empty justification"
+            )
+
+    if rec.record_type == "releases" and norm_status != "planned":
+        curr_status = (
+            normalize_target_status((rec.status or "planned"), "releases")
+            .strip()
+            .lower()
+        )
+        if curr_status == "planned":
+            from agent_workflows import releases as _releases
+
+            sentinel_res = _releases.resolve_release_outcome(repo_root, "next")
+            planned_paths = [p.resolve() for p in sentinel_res.paths]
+            rec_resolved = rec.path.resolve()
+            if rec_resolved in planned_paths and len(planned_paths) == 1:
+                count = _releases.count_blocks_release_sentinel(repo_root)
+                if count > 0 and not _sentinel_override:
+                    raise ValueError(
+                        f"transitioning {rec.path.name} to '{norm_status}' would leave zero planned releases, "
+                        f"causing {count} record(s) with '- Blocks-Release: next' to dangle. "
+                        f"Create the successor first with 'aw releases new --version <X.Y.Z> --summary ... --apply' "
+                        f"or pass --allow-unresolvable-release-sentinel '<justification>'"
+                    )
+
+    if rec.record_type == "releases" and _sentinel_override:
+        actor = f"{actor}, --allow-unresolvable-release-sentinel"
+        if getattr(args, "message", None):
+            message = f"{message} (override: {_sentinel_override})"
+        else:
+            message = f"{default_message} (override: {_sentinel_override})"
+
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()
     # Update or insert - Status: <norm_status> in frontmatter only
@@ -1125,6 +1238,22 @@ def apply_status_change(
     # primitive (no duplicate write path).
     fb = getattr(args, "from_backlog", None)
     if fb is not None:
+        if fb != "-":
+            # IPD izh17y E-03: validation backstop in apply_status_change preventing unresolvable
+            # dangling links even via direct calls. Resolves via `backlog.existing_backlog_ids` (P8).
+            # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
+            # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+            # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
+            # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
+            # function; the difference is a known gap here, not a standard to spread"). The setter takes the
+            # safe posture rather than copying the checker's less-safe posture.
+            from agent_workflows import backlog as _backlog
+
+            known_backlog = _backlog.existing_backlog_ids(repo_root)
+            if known_backlog and fb not in known_backlog:
+                raise ValueError(
+                    f"unresolvable backlog id '{fb}' (does not resolve to an existing backlog item)"
+                )
         from agent_workflows import releases as _releases
 
         tmp_text = "\n".join(new_lines)
@@ -1746,6 +1875,25 @@ def _offer_self_commit(
         print(f"warning: self-commit skipped: {outcome.message}")
 
 
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: str | None,
+    *,
+    bound_length: bool = True,
+) -> str | None:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    Delegates to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical
+    across trees without a third copy (IPD 4gwgo3 E-01).
+    """
+    from agent_workflows import backlog as _backlog
+
+    return _backlog._refuse_unsafe_descriptive(
+        verb, flag, value, bound_length=bound_length
+    )
+
+
 def run_set_command(
     raw_args: list[str],
     scoped_type: str | None = None,
@@ -1808,6 +1956,27 @@ def run_set_command(
             return 2
         args.graduated_to = _gt_canonical
 
+    # IPD izh17y E-03: validate `--from-backlog` value BEFORE any artifact is resolved or written,
+    # so an unresolvable backlog id refuses with exit 2 instead of creating a dangling link.
+    # Resolves via existing authority `backlog.existing_backlog_ids` (P8: no second scanner).
+    # An empty id set skips the refusal so an invisible backlog corpus cannot make every write fail.
+    # DELIBERATE DIVERGENCE FROM CHECKER (F-12): `releases.check_from_backlog` has no empty-set skip
+    # and its own docstring explicitly records that asymmetry ("THE TWO BACK-LINK TWINS DISAGREE ON
+    # FAIL-SAFETY, AND THIS ONE IS THE LESS SAFE ... Do NOT 'harmonize' that guard away to match this
+    # function; the difference is a known gap here, not a standard to spread"). The setter takes the
+    # safe posture rather than copying the checker's less-safe posture.
+    fb_val = getattr(args, "from_backlog", None)
+    if fb_val is not None and fb_val != "-":
+        from agent_workflows import backlog as _backlog
+
+        known_backlog = _backlog.existing_backlog_ids(repo_root)
+        if known_backlog and fb_val not in known_backlog:
+            term.status(
+                "fail",
+                f"aw set: unresolvable backlog id '{fb_val}' (does not resolve to an existing backlog item)",
+            )
+            return 2
+
     # IPD 0ykozn E-02 (review finding PR-504): validate `--from-spec` value BEFORE any artifact
     # is resolved or written, so an unresolvable spec id6 refuses with a nonzero exit instead of
     # creating a dangling link.
@@ -1844,6 +2013,27 @@ def run_set_command(
         if _exempt_err:
             term.status("fail", _exempt_err)
             return 2
+
+    # IPD 4gwgo3 E-02, E-03: validate descriptive and identity fields BEFORE resolving or writing
+    # anything, so an unsafe value carrying newlines, control characters, or exceeding length bounds
+    # refuses with exit 2 without mutating artifacts or forging workflow history / front matter
+    # across any tree. Mode is line-integrity only for --message (no length bound); bounded for
+    # --actor, --gate-ref, --gate-summary, --blocks-release, and --gate-kind.
+    for _val, _flag, _bound in [
+        (getattr(args, "message", None), "--message", False),
+        (getattr(args, "actor", None), "--actor", True),
+        (getattr(args, "gate_ref", None), "--gate-ref", True),
+        (getattr(args, "gate_summary", None), "--gate-summary", True),
+        (getattr(args, "blocks_release", None), "--blocks-release", True),
+        (getattr(args, "gate_kind", None), "--gate-kind", True),
+    ]:
+        if _val is not None:
+            _err = _refuse_unsafe_descriptive(
+                "aw set", _flag, _val, bound_length=_bound
+            )
+            if _err:
+                term.status("fail", _err)
+                return 2
 
     scoped_type_canonical = canonical_type(scoped_type)
 

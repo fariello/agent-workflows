@@ -81,11 +81,13 @@ A missing log must never turn into a hung or crashed run.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 # The observed/pinned opencode log format this parser was confirmed against. Recorded so a
 # future reader knows what was measured rather than assumed (see module docstring).
@@ -305,7 +307,7 @@ class SubagentProgressObserver:
 
 
 class ProgressPoller:
-    """Run a :class:`SubagentProgressObserver` on a daemon thread, touching sinks.
+    """Run a progress observer on a daemon thread, touching sinks.
 
     The thread is bound to a context manager so it CANNOT outlive the turn or leak across
     attempts. Each observed progress event calls every registered ``touch`` callable (the
@@ -314,15 +316,17 @@ class ProgressPoller:
 
     def __init__(
         self,
-        observer: SubagentProgressObserver,
+        observer: Any,
         touch_callbacks: tuple = (),
         interval: float = 1.0,
         on_progress=None,
+        name: str = "aw-progress-poller",
     ) -> None:
         self.observer = observer
         self.interval = max(0.05, float(interval))
         self._touches = tuple(touch_callbacks)
         self._on_progress = on_progress
+        self._name = name
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -350,9 +354,7 @@ class ProgressPoller:
                 pass
 
     def __enter__(self) -> ProgressPoller:
-        self._thread = threading.Thread(
-            target=self._run, daemon=True, name="aw-subagent-progress"
-        )
+        self._thread = threading.Thread(target=self._run, daemon=True, name=self._name)
         self._thread.start()
         return self
 
@@ -361,3 +363,327 @@ class ProgressPoller:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
+
+
+def default_agy_app_data_dir() -> Path:
+    """Resolve Antigravity's app data directory from environment or default."""
+    raw = os.environ.get("ANTIGRAVITY_APP_DATA_DIR") or os.environ.get(
+        "GEMINI_CLI_APP_DATA_DIR"
+    )
+    return Path(raw) if raw else Path.home() / ".gemini" / "antigravity-cli"
+
+
+def default_agy_brain_dir(
+    conversation_id: str, app_data_dir: Path | None = None
+) -> Path:
+    """Resolve the brain directory for a given Antigravity conversation ID."""
+    base = app_data_dir if app_data_dir is not None else default_agy_app_data_dir()
+    return base / "brain" / conversation_id
+
+
+def _classify_host_line(line: str) -> tuple[str | None, int | None]:
+    try:
+        from agent_workflows.lane_containment import (
+            classify_host_turn_line,
+            host_turn_task_count,
+        )
+
+        return classify_host_turn_line(line), host_turn_task_count(line)
+    except Exception:
+        return None, None
+
+
+class AgyTranscriptProgressObserver:
+    """Best-effort transcript and background task progress observer for Antigravity turns.
+
+    WHY THIS EXISTS
+    ---------------
+    In print mode (`-p --output-format stream-json`), Antigravity stdout streams
+    `step_update` events during the first turn. When the turn launches background tasks
+    (e.g. `python3 -m pytest`, `schedule`, `invoke_subagent`), the root agent goes idle
+    and Antigravity prints:
+        root agent idle; waiting up to <timeout> for N background task(s)
+    Subsequent reactive wakeups and agent turns do NOT stream `step_update` events to stdout.
+    Instead, tool executions, edits, and agent reasoning are appended to `transcript.jsonl`
+    in the conversation's brain directory, and background command output is written to
+    `.system_generated/tasks/task-*.log`.
+
+    If the stall watchdog only observes `process.stdout`, it sees silence during active
+    background work and reactive turns, killing a progressing turn at the 900s timeout.
+
+    This observer monitors `transcript.jsonl` and task logs, reporting progress to the
+    stall watchdog and live statusline when background tasks are active.
+    """
+
+    def __init__(
+        self,
+        conversation_id: str | None = None,
+        app_data_dir: Path | None = None,
+        session_log_path: Path | None = None,
+        start_at_end: bool = True,
+    ) -> None:
+        self._lock = threading.Lock()
+        self._conversation_id = conversation_id
+        self._app_data_dir = app_data_dir
+        self._session_log_path = session_log_path
+        self._start_at_end = start_at_end
+        self._background_tasks_active = False
+        self._task_count: int | None = None
+
+        self._transcript_offset = 0
+        self._transcript_pending = b""
+        self._task_offsets: dict[str, int] = {}
+        self._session_log_offset = 0
+        self._initialized = False
+
+        self._last_progress: float | None = None
+        self._last_progress_source: str | None = None
+        self._progress_count = 0
+
+        if self._conversation_id:
+            self._init_offsets()
+
+    @property
+    def conversation_id(self) -> str | None:
+        with self._lock:
+            return self._conversation_id
+
+    @property
+    def progress_count(self) -> int:
+        with self._lock:
+            return self._progress_count
+
+    @property
+    def last_progress_source(self) -> str | None:
+        with self._lock:
+            return self._last_progress_source
+
+    @property
+    def last_progress_monotonic(self) -> float | None:
+        with self._lock:
+            return self._last_progress
+
+    @property
+    def task_count(self) -> int | None:
+        with self._lock:
+            return self._task_count
+
+    @property
+    def background_tasks_active(self) -> bool:
+        with self._lock:
+            if self._background_tasks_active:
+                return True
+            tdir = self._get_tasks_dir()
+            if tdir and tdir.is_dir():
+                try:
+                    if any(tdir.glob("task-*.log")):
+                        self._background_tasks_active = True
+                        return True
+                except OSError:
+                    pass
+            return False
+
+    @background_tasks_active.setter
+    def background_tasks_active(self, value: bool) -> None:
+        with self._lock:
+            self._background_tasks_active = bool(value)
+
+    def _get_brain_dir(self) -> Path | None:
+        if not self._conversation_id:
+            return None
+        return default_agy_brain_dir(self._conversation_id, self._app_data_dir)
+
+    def _get_transcript_path(self) -> Path | None:
+        brain = self._get_brain_dir()
+        if brain is None:
+            return None
+        p = brain / ".system_generated" / "logs" / "transcript.jsonl"
+        if not p.exists():
+            full = brain / ".system_generated" / "logs" / "transcript_full.jsonl"
+            if full.exists():
+                return full
+        return p
+
+    def _get_tasks_dir(self) -> Path | None:
+        brain = self._get_brain_dir()
+        if brain is None:
+            return None
+        return brain / ".system_generated" / "tasks"
+
+    def _init_offsets(self) -> None:
+        if not self._start_at_end:
+            self._initialized = True
+            return
+
+        tpath = self._get_transcript_path()
+        if tpath and tpath.exists():
+            try:
+                self._transcript_offset = tpath.stat().st_size
+            except OSError:
+                self._transcript_offset = 0
+
+        tdir = self._get_tasks_dir()
+        if tdir and tdir.is_dir():
+            try:
+                for f in tdir.glob("task-*.log"):
+                    try:
+                        self._task_offsets[f.name] = f.stat().st_size
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+
+        if self._session_log_path and self._session_log_path.exists():
+            try:
+                self._session_log_offset = self._session_log_path.stat().st_size
+            except OSError:
+                self._session_log_offset = 0
+
+        self._initialized = True
+
+    def set_conversation_id(self, conversation_id: str | None) -> None:
+        if not conversation_id or not isinstance(conversation_id, str):
+            return
+        with self._lock:
+            if self._conversation_id != conversation_id:
+                self._conversation_id = conversation_id
+                self._initialized = False
+                self._init_offsets()
+
+    def note_stdout_line(self, line: str) -> None:
+        """Inspect a stdout/stderr line from agy to detect conversation ID and background tasks."""
+        if not line or not isinstance(line, str):
+            return
+        with self._lock:
+            if not self._conversation_id:
+                cid = self._extract_conversation_id(line)
+                if cid:
+                    self._conversation_id = cid
+                    if not self._initialized:
+                        self._init_offsets()
+
+            self._check_line_for_background_tasks(line)
+
+    def _extract_conversation_id(self, line: str) -> str | None:
+        if "conversation_id" not in line and "conversationId" not in line:
+            return None
+        try:
+            data = json.loads(line)
+            if isinstance(data, dict):
+                cid = (
+                    data.get("conversation_id")
+                    or data.get("conversationId")
+                    or data.get("init", {}).get("conversation_id")
+                    or data.get("step_update", {}).get("conversation_id")
+                    or data.get("result", {}).get("conversation_id")
+                )
+                if cid and isinstance(cid, str):
+                    return cid
+        except Exception:
+            pass
+        m = re.search(r'"conversation_?id"\s*:\s*"([0-9a-fA-F-]+)"', line)
+        if m:
+            return m.group(1)
+        return None
+
+    def _check_line_for_background_tasks(self, line: str) -> None:
+        verdict, count = _classify_host_line(line)
+        if verdict in ("waiting", "truncating"):
+            self._background_tasks_active = True
+            if count is not None:
+                self._task_count = count
+            return
+
+        lowered = line.lower()
+        if "background task" in lowered:
+            self._background_tasks_active = True
+            return
+
+        if "tool is running as a background task" in lowered:
+            self._background_tasks_active = True
+            return
+
+        if any(
+            tool in line
+            for tool in ('"schedule"', '"invoke_subagent"', '"manage_task"')
+        ):
+            self._background_tasks_active = True
+            return
+
+    def poll(self) -> bool:
+        """Check for session log / transcript updates if background tasks are active."""
+        try:
+            return self._poll_inner()
+        except Exception:
+            return False
+
+    def _poll_inner(self) -> bool:
+        if not self.background_tasks_active:
+            return False
+
+        with self._lock:
+            if not self._initialized:
+                self._init_offsets()
+
+            progress_observed = False
+
+            # 1. Check transcript.jsonl
+            tpath = self._get_transcript_path()
+            if tpath and tpath.exists():
+                try:
+                    size = tpath.stat().st_size
+                    if size < self._transcript_offset:
+                        self._transcript_offset = size
+                        self._transcript_pending = b""
+                    elif size > self._transcript_offset:
+                        with tpath.open("rb") as f:
+                            f.seek(self._transcript_offset)
+                            chunk = f.read(_MAX_BYTES_PER_POLL)
+                        if chunk:
+                            self._transcript_offset += len(chunk)
+                            buf = self._transcript_pending + chunk
+                            nl = buf.rfind(b"\n")
+                            if nl != -1:
+                                self._transcript_pending = buf[nl + 1 :]
+                                progress_observed = True
+                                self._progress_count += 1
+                                self._last_progress_source = "transcript"
+                            else:
+                                self._transcript_pending = buf
+                except OSError:
+                    pass
+
+            # 2. Check task log files
+            tdir = self._get_tasks_dir()
+            if tdir and tdir.is_dir():
+                try:
+                    for f in tdir.glob("task-*.log"):
+                        try:
+                            fsize = f.stat().st_size
+                            prev_size = self._task_offsets.get(f.name, 0)
+                            if fsize > prev_size:
+                                self._task_offsets[f.name] = fsize
+                                progress_observed = True
+                                self._progress_count += 1
+                                self._last_progress_source = "task"
+                        except OSError:
+                            pass
+                except OSError:
+                    pass
+
+            # 3. Check session log path if provided
+            if self._session_log_path and self._session_log_path.exists():
+                try:
+                    lsize = self._session_log_path.stat().st_size
+                    if lsize > self._session_log_offset:
+                        self._session_log_offset = lsize
+                        progress_observed = True
+                        self._progress_count += 1
+                        self._last_progress_source = "session"
+                except OSError:
+                    pass
+
+            if progress_observed:
+                self._last_progress = time.monotonic()
+
+            return progress_observed

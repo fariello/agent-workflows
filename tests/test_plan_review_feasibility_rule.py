@@ -16,6 +16,8 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from tests import support
+
 # Distinctive anchor phrases for each of the five points in the feasibility rule:
 # 1. Choosing a mechanism defines a HOW question.
 # 2. Demonstration required for resolution.
@@ -91,17 +93,7 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
 
         # Locate section 1 by heading boundaries
         start_heading = "## 1. Resolve open questions"
-        start_idx = content.find(start_heading)
-        self.assertNotEqual(
-            start_idx,
-            -1,
-            f"Missing heading '{start_heading}' in {PLAN_REVIEW_LONG_FILE}",
-        )
-
-        # The section runs to the next ## heading (or end of file)
-        next_heading = "\n## "
-        end_idx = content.find(next_heading, start_idx + len(start_heading))
-        section_1 = content[start_idx:end_idx] if end_idx != -1 else content[start_idx:]
+        section_1 = support.section(content, start_heading, "## ")
 
         # Assert subsection heading exists in section 1
         subheading = "### Resolving HOW questions: demonstrate, do not describe"

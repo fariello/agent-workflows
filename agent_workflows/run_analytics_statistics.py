@@ -1196,8 +1196,8 @@ def model_comparison(
         "REFUSED INFERENCE 2: a `task` sub-agent's modelID identifies the sub-agent's model, not "
         "the model that performed the measured work",
         "price-era stratification IS available and is not affected by this refusal",
-        "coverage improves for FUTURE runs only (Order 04 records model identity per file); "
-        "historical comparison stays refused",
+        "coverage improves for FUTURE runs only (Orders 01-03 record model identity per attempt, "
+        "Order 04 per file); historical comparison stays refused",
     )
 
     if coverage < coverage_threshold:

@@ -38,7 +38,7 @@ Evidence
   checked: 41
 
 Next  aw group plans x --set y (regroup)
-Agent output: --agent (automatic when piped)
+Agent output: --agent
 ```
 
 1. Title banner: `AW <command>  <target>` and, for timed operations, an elapsed time on the

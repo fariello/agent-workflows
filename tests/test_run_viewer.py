@@ -361,18 +361,24 @@ class RunViewerTests(TestCase):
         run_d = self._run_dir("run-20260827T212958Z-2367239")
         summary = run_viewer.load_run_summary(run_d, self.root)
         self.assertIsNotNone(summary)
-        formatted = run_viewer.format_run_human(summary, term, detail=False)
+        formatted = run_viewer.format_run_human(
+            summary, term, detail=False, repo_root=self.root
+        )
         self.assertIn("run-20260827T212958Z-2367239", formatted)
         self.assertIn("[runnernorm]", formatted)
         self.assertIn("ryvoi5", formatted)
         self.assertIn("dg28i9", formatted)
         self.assertIn("puot79", formatted)
 
-        formatted_detail = run_viewer.format_run_human(summary, term, detail=True)
+        formatted_detail = run_viewer.format_run_human(
+            summary, term, detail=True, repo_root=self.root
+        )
         self.assertIn("! incomplete:", formatted_detail)
         self.assertIn("* summary:", formatted_detail)
 
-        formatted_short = run_viewer.format_run_human(summary, term, short=True)
+        formatted_short = run_viewer.format_run_human(
+            summary, term, short=True, repo_root=self.root
+        )
         self.assertIn("Status", formatted_short)
         self.assertIn("Landed", formatted_short)
         self.assertIn("Date", formatted_short)
@@ -417,7 +423,9 @@ class RunViewerTests(TestCase):
             total_cost=15.75,
             total_tokens={"total": 150000, "input": 120000, "output": 30000},
         )
-        formatted_cost = run_viewer.format_run_human(run_with_cost, term, detail=True)
+        formatted_cost = run_viewer.format_run_human(
+            run_with_cost, term, detail=True, repo_root=self.root
+        )
         self.assertIn("$15.75", formatted_cost)
         self.assertIn("150.00K tok", formatted_cost)
         self.assertIn("$ cost: $10.50", formatted_cost)
@@ -1784,11 +1792,15 @@ class RunsRepairHelpTests(TestCase):
             elapsed_seconds=None,
             elapsed_str=None,
         )
-        tbl = run_viewer.render_steps_table([st1, st2], term)
-        self.assertIn("Elapsed", tbl)
-        self.assertIn("00:19:27", tbl)
-        tbl_short = run_viewer.render_steps_table([st1, st2], term, short=True)
-        self.assertNotIn("Elapsed", tbl_short)
+        with tempfile.TemporaryDirectory() as td:
+            td_root = Path(td)
+            tbl = run_viewer.render_steps_table([st1, st2], term, repo_root=td_root)
+            self.assertIn("Elapsed", tbl)
+            self.assertIn("00:19:27", tbl)
+            tbl_short = run_viewer.render_steps_table(
+                [st1, st2], term, short=True, repo_root=td_root
+            )
+            self.assertNotIn("Elapsed", tbl_short)
 
         details = run_viewer.render_step_details([st1], term)
         self.assertTrue(any("elapsed: 00:19:27" in d for d in details))
@@ -2635,8 +2647,12 @@ class TestReportTableFallbackNormalization(TestCase):
             self.assertIn("[verified]", run_viewer.format_step_line(b_step, term))
             self.assertIn("[verified]", run_viewer.format_step_line(t_step, term))
 
-            bare_human = run_viewer.format_run_human(bare_summary, term, detail=True)
-            bt_human = run_viewer.format_run_human(bt_summary, term, detail=True)
+            bare_human = run_viewer.format_run_human(
+                bare_summary, term, detail=True, repo_root=root
+            )
+            bt_human = run_viewer.format_run_human(
+                bt_summary, term, detail=True, repo_root=root
+            )
             self.assertIn("yes", bare_human)
             self.assertIn("yes", bt_human)
 

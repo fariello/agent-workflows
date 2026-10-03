@@ -1,0 +1,12 @@
+- Id: xi5jt0
+- Status: done
+- Graduated-To: xi5jt0
+- Set: xi5jt0
+- Priority: low
+- Work-Kind: chore
+- Summary: The two hosts each assign an identical FULL_AUTO_APPROVAL_MESSAGE literal, so that string is genuinely duplicated while its sibling actor is descriptor-derived
+
+## Workflow history
+- 2026-10-01 done (aw backlog): closed by aw oc run: IPD 90z361 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-xi5jt0-01-90z361-give-the-host-invariant-full-auto-approval-message-one-defin.ipd.md); evidence .aw/records/plans/executed/20260930-xi5jt0-01-90z361-give-the-host-invariant-full-auto-approval-message-one-defin.ipd.md
+- 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: 90z361
+- 2026-09-28 created (aw backlog): Filed while authoring plan gjni4c (from backlog zf999x) as the durable carrier for that plan's deferred row. MEASURED at HEAD bc7171ea by AST probe over module-level assignments: oc_runipd.FULL_AUTO_ACTOR and agy_runipd.FULL_AUTO_ACTOR are both REFERENCES (runner_shared.OC_HOST_LABELS.full_auto_actor / runner_shared.AGY_HOST_LABELS.full_auto_actor), so the actor has one definition; but oc_runipd.FULL_AUTO_APPROVAL_MESSAGE and agy_runipd.FULL_AUTO_APPROVAL_MESSAGE are each an independent LITERAL holding the identical string 'auto-approved by --full-auto: review readiness cleared (not human approval)'. WHY CHORE AND NOT BUG: no value is wrong today and no user-perceptible behavior is affected; both hosts write the same correct message. The cost is the ordinary identical-copy hazard runner_shared's own module docstring names ('two identical copies have no behavioral disagreement TODAY, which is exactly why nothing signals when one is edited and the other is not'). WHY IT WAS NOT FIXED IN gjni4c: the only available unifications are a new HostLabels field or a shared constant both hosts read, and that plan is DELETING a shared constant as a durable-history hazard, so adding one in the same change would be self-contradictory. MITIGATION ALREADY LANDING: gjni4c E-03 adds a by-value argv assertion on the literal message for BOTH hosts, so a future divergence of the two copies fails a test rather than shipping silently; that is why this is low. FIX DIRECTION (not decided): add a HostLabels field (the descriptor's documented purpose for a value reaching durable history) rather than a module-level shared constant, and keep the no-default property that forces each host to supply its own.

@@ -11,6 +11,7 @@
 
 ## Workflow history
 
+- 2026-10-01 note (aw specs): AMENDED 2026-10-01 by malgate Order 02 (38pxaz): constraints 0.3, R6.2, and A16 amended following the deletion of wtiso_gate.py under GUIDING_PRINCIPLES P15 (measured zero product callers across all nine predicates; two cited test files were deleted in commit 19313eed; AW_MISSING_INPUT re-homed to lane_containment). R6.1 and R6.3 are preserved untouched; R6.2 and A16 clauses 1-3 have no live subject.
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (specfin7ck-01 e9ekuj): A12b coverage sentence corrected to cite behavioral test coverage restored by 654a3adb (dmxc5h) in tests/test_lane_input_manifest.py
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-18 note (aw specs): AMENDED 2026-09-18 by maintainer ruling: R5.5's refusal on unknown ignored files is removed. Gitignored files (bytecode caches, toolchain dependencies, test residues) are disposable upon lane destruction and do not block teardown. Teardown refuses only on dirty tracked files, unknown untracked files, or uncollected submissions. A15 updated accordingly.
@@ -60,9 +61,12 @@ every requirement below inherits it.
 - OS-level confinement is OUT OF SCOPE here and is owned elsewhere (`fjs11i` for the unreachable
   hardened profile, research `q65sz3` for the cross-platform question). This spec must remain true
   whether or not that lands.
-- `wtiso_gate.py` is the designated home for shared containment predicates. It exists as a fail-loud
-  skeleton by design: a stub raises `NotImplementedError` naming its owning phase so a premature caller
-  breaks visibly rather than silently allowing.
+- `wtiso_gate.py` formerly served as the designated home for shared containment predicates. Under
+  GUIDING_PRINCIPLES P15 ("we guard against honest mistakes, never against a malicious agent") and
+  malgate Order 02 (`38pxaz`), the unowned anti-malice predicate skeleton was deleted in its
+  entirety. Shared containment rules are single-defined directly in the modules that consume them
+  (such as `lane_containment.py` for `AW_MISSING_INPUT` and the token format functions), honoring
+  R6.1 without preserving an empty skeleton.
 
 ## 1. Goals
 
@@ -493,6 +497,12 @@ calls. Forking the rule is non-conforming even when the copies agree at the time
 R6.2 A predicate that is declared but not yet implemented MUST fail loudly rather than return a
 permissive default, and MUST name its owner.
 
+AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT in the current tree. The five
+unowned raising stubs in `wtiso_gate.py` were deleted because they targeted malice (ruled out by
+GUIDING_PRINCIPLES P15) and had zero callers. The fail-loud discipline is NOT withdrawn--any future
+declared-not-implemented predicate must still fail loudly and name its owner--but P15 rules out
+re-adding the anti-malice stubs, so the requirement currently governs no code in the tree.
+
 R6.3 Implementing a predicate body and wiring its callers are SEPARABLE deliverables and may be owned by
 different plans. A plan that implements a body it is not chartered to wire MUST NOT wire it.
 
@@ -645,9 +655,15 @@ re-flag it as a traceability gap.
   that preserved a lane, showing it names the lane and the reason. A test that only asserts the EVENT was
   written does NOT satisfy this criterion, because that is exactly the state measured on
   `run-20260901T042331Z-118022`: two lanes preserved, zero mentions in the summary. (R5.6a)
-- A16. Each implemented shared predicate has unit tests; each unimplemented one still raises naming its
-  owner; and a predicate implemented but not chartered for wiring has no product caller. (R6.1, R6.2,
-  R6.3)
+- A16. AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT for clauses 1, 2, and 3 in
+  the current tree following the deletion of `wtiso_gate.py`. Formerly: each implemented shared
+  predicate has unit tests; each unimplemented one still raises naming its owner; and a predicate
+  implemented but not chartered for wiring has no product caller. Under P15 the unowned raising
+  predicates were deleted (clause 2 has no subject); the uncalled implemented bodies were deleted
+  (clause 1 has no subject, with surviving token behavior tested in
+  `tests/test_lane_missing_input_token.py`); and `check_scope` was deleted so R6.3's demonstration is
+  removed while R6.3's rule remains live (clause 3 has no subject in the shared predicate library).
+  (R6.1, R6.2, R6.3)
 - A17. The isolated prompt states the cwd-is-the-workspace rule in plain language AND names the exact
   missing-input token form, so R1.1's strictness always ships with its escape hatch. Assert both are
   present in the emitted text. (R1.4, R3.1)

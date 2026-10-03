@@ -546,7 +546,10 @@ def check_drift(
     # `plans_index.check_drift` for the reasoning. Severities live in `check_engine.RULE_REGISTRY`.
     # Severity is stamped at the emitter for the reason measured in the plans twin: neither
     # `run_index` nor `check_engine.check_content` enriches these findings, so an un-enriched
-    # `severity=""` would still fail the gate on a merely-absent manifest.
+    # `severity=""` would still fail the gate on a merely-absent manifest. Enriching at the emitter
+    # is what makes the registry the single source of severity for every consumer (extended in
+    # sevreg qgpanb E-04 to cover `dangling-citation`, `stale-state-to-promote`, and
+    # `adopted-without-consumer`).
     from agent_workflows import check_engine as _ce
 
     for path_const, exists, matches, label in (
@@ -587,7 +590,11 @@ def check_drift(
             )
     # Dangling citations via Order 04's imported detector primitive.
     for d in RF.find_dangling_citations(repo_root, research_root):
-        drift.append(Drift(f"{d.file}:{d.line}", "dangling-citation", f"id6 {d.id6}"))
+        drift.append(
+            _ce.enrich_drift(
+                Drift(f"{d.file}:{d.line}", "dangling-citation", f"id6 {d.id6}")
+            )
+        )
     # Stale-state-to-promote (IPD m383qb E-02 / IPD 5e3nj2 E-04): a todo/active doc whose SET is SYNTHESIZED
     # OR that is cited by an EXECUTED artifact is stale hot state and must be promoted.
     # A landed todo report in a partial set is legitimately awaiting ingestion.
@@ -599,18 +606,22 @@ def check_drift(
         for e in hot:
             if e.set_id in synthesized_sets:
                 drift.append(
-                    Drift(
-                        e.path,
-                        STALE_STATE_RULE,
-                        f"{e.status} doc in RUN set '{e.set_id}'; promote it",
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            STALE_STATE_RULE,
+                            f"{e.status} doc in RUN set '{e.set_id}'; promote it",
+                        )
                     )
                 )
             elif e.id6 in cited_exec:
                 drift.append(
-                    Drift(
-                        e.path,
-                        STALE_STATE_RULE,
-                        f"{e.status} doc cited by an executed artifact; promote it",
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            STALE_STATE_RULE,
+                            f"{e.status} doc cited by an executed artifact; promote it",
+                        )
                     )
                 )
 
@@ -631,10 +642,12 @@ def check_drift(
                     )
             if e.outcome == "adopted" and not e.consumed_by:
                 drift.append(
-                    Drift(
-                        e.path,
-                        ADOPTED_NO_CONSUMER_RULE,
-                        "outcome: adopted requires a non-empty consumed-by",
+                    _ce.enrich_drift(
+                        Drift(
+                            e.path,
+                            ADOPTED_NO_CONSUMER_RULE,
+                            "outcome: adopted requires a non-empty consumed-by",
+                        )
                     )
                 )
 
@@ -687,20 +700,18 @@ def run_index(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", None) or DEFAULT_INDEX_LIMIT
     if getattr(args, "check", False):
         drift = check_drift(repo_root, research_root, limit=limit)
-        # idxuntrack 02 (yvvf98) E-02: BOTH branches defer to the shared severity convention rather
-        # than `1 if drift else 0`, so an `info` finding (a manifest never generated, the normal state
-        # of a fresh clone or worktree) does not fail the gate while real staleness still does. See
-        # the twin note in `plans_index.run_index`.
-        if getattr(args, "agent", False):
-            for d in drift:
-                print(f"{d.location}\t{d.rule}\t{d.detail}")
-            return _core.drift_exit_code(drift)
-        if not drift:
-            print("index --check: clean")
-            return 0
-        for d in drift:
-            print(f"{d.location}: {d.rule}: {d.detail}")
-        return _core.drift_exit_code(drift)
+        # tsvagent Order 01 (n9ua3b) E-04: route all audiences through the shared renderer
+        # via artifact_core.emit_index_check_result, preserving the legacy human lines byte-exact
+        # via data["human_rendered"]. Rely on the renderer's return value (result.exit_code),
+        # which identically preserves artifact_core.drift_exit_code(drift).
+        return _core.emit_index_check_result(
+            args,
+            repo_root,
+            drift,
+            "index --check: clean",
+            command="index",
+            target="research",
+        )
     # Regenerate.
     entries, drift = _scan_docs(research_root, repo_root=repo_root)
     if drift:

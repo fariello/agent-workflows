@@ -1007,3 +1007,154 @@ def test_refused_directory_with_no_contained_changes(repo: Path):
     assert "empty_dir" in out.message
     assert _head(repo) == head_before
     assert git(repo, "status", "--porcelain").stdout == status_before
+
+
+def test_directory_argument_is_refused_under_no_commit_preview(repo: Path, rec):
+    """E-02 / V-02: a directory argument under no_commit=True returns STATUS_ERROR with contained files."""
+    src, dest = _create_untracked_move_fixture(repo)
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+
+    out = H.offer_commit(
+        repo,
+        [src, "records/done/"],
+        message="preview close item",
+        no_commit=True,
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_ERROR
+    assert out.commit is None
+    assert out.staged == ()
+    assert "records/done" in out.message
+    assert dest in out.message
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before
+    assert git(repo, "diff", "--cached").stdout == ""
+    rec.assert_contract_clean()
+
+
+def test_file_argument_under_no_commit_preview_returns_skipped(repo: Path, rec):
+    """E-02 / V-02 companion: a normal file argument under no_commit=True still returns STATUS_SKIPPED."""
+    mine = _write(repo, "mine.txt", "mine content\n")
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+
+    out = H.offer_commit(
+        repo,
+        [mine],
+        message="preview commit file",
+        no_commit=True,
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_SKIPPED
+    assert out.commit is None
+    assert out.staged == ()
+    assert "skipped: --no-commit requested" in out.message
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before
+    rec.assert_contract_clean()
+
+
+def test_deleted_directory_in_mixed_call_is_refused_before_staging(repo: Path, rec):
+    """E-04 / V-04: passing a deleted directory in a mixed call is refused before staging, with no residue."""
+    import shutil
+
+    a = _write(repo, "sub/a.md", "a\n")
+    _write(repo, "sub/b.md", "b\n")
+    f = _write(repo, "file.md", "file\n")
+    git(repo, "add", "--", a, "sub/b.md", f)
+    git(repo, "commit", "-q", "-m", "init sub and file")
+
+    shutil.rmtree(repo / "sub")
+    assert not (repo / "sub").is_dir()
+    _write(repo, "file.md", "file modified\n")
+
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+    diff_cached_before = git(repo, "diff", "--cached", "--name-status").stdout
+
+    out = H.offer_commit(
+        repo,
+        ["sub", f],
+        message="mixed dir del",
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_ERROR
+    assert out.commit is None
+    assert out.staged == ()
+    assert "sub" in out.message
+    assert "sub/a.md" in out.message
+    assert "sub/b.md" in out.message
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before
+    assert git(repo, "diff", "--cached", "--name-status").stdout == diff_cached_before
+    rec.assert_contract_clean()
+
+
+def test_deleted_directory_under_no_commit_preview_returns_error(repo: Path, rec):
+    """E-04 / V-04: a deleted directory under no_commit=True returns the same refusal."""
+    import shutil
+
+    a = _write(repo, "sub/a.md", "a\n")
+    _write(repo, "sub/b.md", "b\n")
+    f = _write(repo, "file.md", "file\n")
+    git(repo, "add", "--", a, "sub/b.md", f)
+    git(repo, "commit", "-q", "-m", "init sub and file")
+
+    shutil.rmtree(repo / "sub")
+    assert not (repo / "sub").is_dir()
+    _write(repo, "file.md", "file modified\n")
+
+    head_before = _head(repo)
+    status_before = git(repo, "status", "--porcelain").stdout
+    diff_cached_before = git(repo, "diff", "--cached", "--name-status").stdout
+
+    out = H.offer_commit(
+        repo,
+        ["sub", f],
+        message="mixed dir del preview",
+        no_commit=True,
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_ERROR
+    assert out.commit is None
+    assert out.staged == ()
+    assert "sub" in out.message
+    assert _head(repo) == head_before
+    assert git(repo, "status", "--porcelain").stdout == status_before
+    assert git(repo, "diff", "--cached", "--name-status").stdout == diff_cached_before
+    rec.assert_contract_clean()
+
+
+def test_deleted_plain_file_in_mixed_call_commits_cleanly(repo: Path, rec):
+    """E-04 / V-04 control: a deleted plain file in a mixed call commits cleanly without refusal."""
+    a = _write(repo, "sub/a.md", "a\n")
+    _write(repo, "sub/b.md", "b\n")
+    f = _write(repo, "file.md", "file\n")
+    git(repo, "add", "--", a, "sub/b.md", f)
+    git(repo, "commit", "-q", "-m", "init sub and file")
+
+    (repo / a).unlink()
+    _write(repo, "file.md", "file modified\n")
+
+    out = H.offer_commit(
+        repo,
+        [a, f],
+        message="mixed plain file del",
+        assume_yes=True,
+        interactive=False,
+    )
+    assert out.status == H.STATUS_COMMITTED
+    assert out.commit is not None
+    assert set(out.staged) == {a, f}
+
+    shown = git(repo, "show", "--name-status", "--pretty=format:", out.commit).stdout
+    assert f"D\t{a}" in shown
+    assert f"M\t{f}" in shown
+    assert git(repo, "status", "--porcelain").stdout.strip() == ""
+    assert git(repo, "diff", "--cached").stdout.strip() == ""
+    rec.assert_contract_clean()

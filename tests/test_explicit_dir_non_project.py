@@ -1,8 +1,8 @@
 """Regression test suite for explicit --dir at a non-AW directory (IPD ci9kx2-01 bjgqez).
 
 Pins the full matrix of behaviors when --dir names an explicit non-project directory,
-verifying that both `aw attention` and `aw ipd board` report cannot-run (human 3, machine 2)
-across all surfaces rather than falsely exiting 0.
+verifying that both `aw attention` and `aw ipd board` report cannot-run (exit 2
+across human and machine surfaces per D158 / IPD rwvzqm) rather than falsely exiting 0.
 """
 
 import json
@@ -85,7 +85,7 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
 
     def test_attention_explicit_dir_nongit_human(self):
         rc, out, err = self._run_cli(["attention", "--dir", str(self.nongit_dir)])
-        self.assertEqual(rc, 3)
+        self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn(f"no AW project found at {self.nongit_dir}", err)
         self.assertIn("explicit --dir is honored verbatim with no upward climb", err)
@@ -110,7 +110,7 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
 
     def test_attention_explicit_dir_git_human(self):
         rc, out, err = self._run_cli(["attention", "--dir", str(self.git_dir)])
-        self.assertEqual(rc, 3)
+        self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn(f"no AW project found at {self.git_dir}", err)
         self.assertIn("explicit --dir is honored verbatim with no upward climb", err)
@@ -139,7 +139,7 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
 
     def test_ipd_board_explicit_dir_nongit_human(self):
         rc, out, err = self._run_cli(["ipd", "board", "--dir", str(self.nongit_dir)])
-        self.assertEqual(rc, 3)
+        self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertNotIn("CLEAN", out)
         self.assertNotIn("aw ipd scaffold", out)
@@ -167,7 +167,7 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
 
     def test_ipd_board_explicit_dir_git_human(self):
         rc, out, err = self._run_cli(["ipd", "board", "--dir", str(self.git_dir)])
-        self.assertEqual(rc, 3)
+        self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertNotIn("CLEAN", out)
         self.assertNotIn("aw ipd scaffold", out)
@@ -202,7 +202,7 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
         rc, out, err = self._run_cli(
             ["attention", "--check", "--dir", str(self.nongit_dir)]
         )
-        self.assertEqual(rc, 3)
+        self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn(f"no AW project found at {self.nongit_dir}", err)
 
@@ -224,12 +224,12 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
     def test_attention_explicit_dir_nonexistent_and_file_and_state_only(self):
         for path in (self.nonexistent_dir, self.regular_file, self.state_only_dir):
             rc, out, err = self._run_cli(["attention", "--dir", str(path)])
-            self.assertEqual(rc, 3, f"Expected rc 3 for {path}")
+            self.assertEqual(rc, 2, f"Expected rc 2 for {path}")
             self.assertEqual(out, "")
             self.assertIn(f"no AW project found at {path}", err)
 
             rc_b, out_b, err_b = self._run_cli(["ipd", "board", "--dir", str(path)])
-            self.assertEqual(rc_b, 3, f"Expected rc 3 for {path}")
+            self.assertEqual(rc_b, 2, f"Expected rc 2 for {path}")
             self.assertEqual(out_b, "")
             self.assertNotIn("CLEAN", out_b)
 
@@ -242,11 +242,11 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
         self.assertIn("1 artifact shown", out_root)
         self.assertEqual(err_root, "")
 
-        # 2. Subdirectory with explicit --dir refuses (exit 3 human / exit 2 agent), F-15 / PR-701
+        # 2. Subdirectory with explicit --dir refuses (exit 2 cannot-run), F-15 / PR-701 / IPD rwvzqm
         rc_sub, out_sub, err_sub = self._run_cli(
             ["attention", "--dir", str(self.deep_subdir)]
         )
-        self.assertEqual(rc_sub, 3)
+        self.assertEqual(rc_sub, 2)
         self.assertEqual(out_sub, "")
         self.assertIn(f"no AW project found at {self.deep_subdir}", err_sub)
         self.assertIn(
@@ -270,9 +270,9 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
         self.assertEqual(err_climb, "")
 
     def test_no_dir_controls(self):
-        # Bare attention outside project: human 3 with climb message
+        # Bare attention outside project: human 2 with climb message
         rc, out, err = self._run_cli(["attention"])
-        self.assertEqual(rc, 3)
+        self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn("Checked", err)
         self.assertIn("and its parents", err)
@@ -285,9 +285,9 @@ class ExplicitDirNonProjectMatrixTests(unittest.TestCase):
         self.assertEqual(rec_a["outcome"], "cannot-run")
         self.assertEqual(rec_a["exit"], 2)
 
-        # Bare ipd board outside project: human 3
+        # Bare ipd board outside project: human 2
         rc_b, out_b, err_b = self._run_cli(["ipd", "board"])
-        self.assertEqual(rc_b, 3)
+        self.assertEqual(rc_b, 2)
         self.assertEqual(out_b, "")
         self.assertIn("Checked", err_b)
         self.assertIn("and its parents", err_b)

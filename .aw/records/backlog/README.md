@@ -84,19 +84,34 @@ The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy
 3. Not a gate field, so it is never cleared by a status transition.
 It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
 
+### Citing maintainer rulings (answer to backlog 0szu1p)
+
+A maintainer ruling is cited by `Gate-Kind: decision` with a `D<n>` (or additive-suffixed `D<n>[a-z]*`, e.g. `D22b`) ref pointing to an existing heading in `DECISIONS.md`. The ref is both shape-validated (`attention_contract.validate_gate_ref`) and resolved against actual headings (`check.decision-ref-dangling` in `check_engine`).
+
+Backlog `0szu1p` asked how maintainer rulings should be tracked and offered three options, each evaluated and decided as follows:
+- Option (a) (a new `decisions/` records tree with its own lifecycle, checker, CLI surface, and `aw attention` mapping): REFUSED. A new tree would require registration across `layout`, `lifecycle_dirs`, `artifact_naming`'s facet enum, `check_engine.SUPPORTED`, `attention_contract.TREE_POLICY` and `CLASS_MAPS`, `TYPE_BACKENDS`, `status_set`, `record_placement`, and `artifact_core.SCAN_ROOTS`, and the backlog type alone carries roughly 7400 lines of test code. Adding a whole new record class creates a large permanent maintenance surface for a reference that `Gate-Kind: decision` already expresses in a single line.
+- Option (b) (a convention that a ruling must be written onto the governed artifact's fields immediately): ADOPTED WHERE APPLICABLE, but INSUFFICIENT AS A GENERAL MECHANISM. This is already the shipped convention for Priority and Work-Kind (decided where work is first recorded, enforced in code at `backlog.run_new` and `ipd_authoring`). However, it cannot cover rulings on artifacts whose fields have no dedicated slot for the decision.
+- Option (c) (a backlog item per decided artifact): REFUSED AS A GENERAL MECHANISM. Creating a separate backlog item per decided artifact multiplies records per decision (e.g. 15 items for one ruling) and does not scale. While a blocked backlog item can carry a `Gate-Kind: decision` gate when work is genuinely blocked, it is not the general carrier for rulings.
+
+Scope boundary: this mechanism makes a ruling CITABLE and its citation RESOLVABLE. It does NOT verify that a ruling was APPLIED to the artifacts it names.
+
+Portability limit: `DECISIONS.md` is this repository's own local log and is NOT installed into managed target repositories. Consequently, `Gate-Kind: decision` RESOLVES only in this repository. In a managed target repository, citing a ruling gets shape validation only and no resolution, because the resolution sweep is suppressed entirely when `DECISIONS.md` is absent to prevent false positives.
+
 ## Verbs
 
 - `aw backlog new --summary ... [--status --priority --work-kind --set --slug --gate-kind --gate-ref --body] [--apply]`
   create a conformant item (dry-run by default; owns the clustering filename + metadata).
 - `aw backlog set <status> <id6|setid|fname>...` (or `aw backlog set <path> --status <status>`)
   transition status (moves the file between the disposition dirs), append a history record; moving to
-  `blocked` requires a typed gate.
+  `blocked` requires a typed gate. Confirmation and commit semantics are shared across every setter and
+  documented in `.aw/records/plans/README.md`; read them there rather than here, so the policy has one home.
 - `aw backlog note <id6|fname|path> --message "..."` append a history record WITHOUT changing the
   item's status and without moving its file. Use this whenever the intent is to record a reason, a
   decision, or a finding on an item. Reach for `set` only when the status actually changes: a
   same-status `set` is a transition call doing an annotation's job, and history is what suffers.
 - `aw backlog check [--agent]` validate the tree fail-closed (valid enums, status-mirrors-directory,
-  gate present-and-valid iff blocked, unique id6, nonempty summary).
+  gate present-and-valid iff blocked, unique id6, nonempty summary, no repeated metadata bullets [backlog.metadata-bullet-repeated],
+  Gate-Summary present only when blocked [backlog.gate-summary-unexpected], safe bounded Gate-Summary [backlog.gate-descriptive-unsafe]).
 
 History is recorded INLINE in the item's `## Workflow history`, newest record first, and prior records
 are kept. That inline block is the durable copy, because it is the one that is committed and therefore
@@ -117,11 +132,12 @@ aw backlog set graduated <item> --graduated-to <setid> --message "graduated into
 ```
 
 The two halves point in opposite directions and both are worth having. The plan carries
-`- From-Backlog: <id6>` naming the ONE item it came from, and the item carries `- Graduated-To:`
-naming the whole plan Set it became, so either end answers "what is the other end of this handoff?"
-without scanning the corpus. The asymmetry is deliberate: a child plan has exactly one source, while a
-source generates a whole Set (an orchestrator plus its children), which a single plan id6 could not
-name.
+`- From-Backlog: <id6>` naming the ONE item it came from; a value naming more than one source
+is refused by `check.from-backlog-malformed` rather than silently ignored, and `-` clears the
+field. The item carries `- Graduated-To:` naming the whole plan Set it became, so either end answers
+"what is the other end of this handoff?" without scanning the corpus. The asymmetry is deliberate:
+a child plan has exactly one source, while a source generates a whole Set (an orchestrator plus its children),
+which a single plan id6 could not name.
 
 The field is OPTIONAL and MULTI-VALUED. Several setids are separated by commas, because a source may
 graduate more than once over its life; `-` clears the field. `aw check all` reports an entry naming no

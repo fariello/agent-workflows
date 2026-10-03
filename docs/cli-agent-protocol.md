@@ -14,7 +14,7 @@ earlier proposal for an automatic non-TTY hard cutover was RETRACTED on 2026-09-
 the [migration guide](cli-migration.md).
 
 - `--agent`: compact `aw.agent/v1` JSONL (one record per line).
-- `--json`: pretty-printed full `CommandResult` JSON (a debugging view, more verbose).
+- `--json`: pretty-printed full `CommandResult` JSON (more verbose; envelope fields are home-path redacted while `data` remains an unredacted passthrough per spec `kw5y2s` Section 2.4).
 - `--agent` and `--json` (or `--format`) together is a usage error and exits `2`.
 
 ## The record envelope

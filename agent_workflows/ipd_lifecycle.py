@@ -64,8 +64,9 @@ from agent_workflows import contention_wait
 # instead.
 #
 # HONEST LIMIT: this is an environment SELECTOR, i.e. the operational-default guidance layer, not a
-# hardened boundary. A same-user worker with shell access can unset the variable. Hard enforcement is
-# an OS sandbox / separate principal (x03wgn, Phase 6 `1o4eif`).
+# hardened boundary. A same-user worker with shell access can unset the variable. Per GUIDING_PRINCIPLES
+# P15, this check guards against an honest mistake (a managed worker accidentally running lifecycle
+# transitions and forking a second receipt), not a malicious agent.
 # --------------------------------------------------------------------------------------
 
 # The env selector the runner exports into a managed worker's child environment.
@@ -2100,11 +2101,13 @@ class ChangedPathSources(NamedTuple):
     shared checkout may commit under one git identity, so this split does NOT let finalize tell a
     co-worker's commit from its own.
 
-    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (backlog `a8eufb`): it
-    does not lift it, and no honest reading of git can. Instead it uses the one thing a commit DOES
-    record, the COMMIT BOUNDARY, to decide whether a committed path belongs to this execution's work
-    (see :func:`_execution_cohesive_committed_paths`). That is a heuristic with a stated cost, not the
-    proof a commit trailer would give, so `a8eufb` remains the real fix.
+    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (historically
+    tracked in backlog `a8eufb`): it does not lift it, and no honest reading of git can. Instead it
+    uses the one thing a commit DOES record, the COMMIT BOUNDARY, to decide whether a committed path
+    belongs to this execution's work (see :func:`_execution_cohesive_committed_paths`). That is a
+    heuristic with a stated cost, not the proof a commit trailer gives: the trailer fix has landed
+    (`199u11`, read via :func:`_trailer_owned_committed_paths`) and is consulted ahead of cohesion,
+    while cohesion remains the fallback for untrailered and foreign commits.
     """
 
     committed: Tuple[str, ...]
@@ -2413,6 +2416,8 @@ class TrailerAttribution(NamedTuple):
     owned: int
     foreign: int
     unknown: int
+    foreign_paths: FrozenSet[str] = frozenset()
+    unknown_paths: FrozenSet[str] = frozenset()
 
 
 def _classify_item_trailer_value(raw_item: str, plan_id6: str) -> str:
@@ -2491,6 +2496,8 @@ def _trailer_owned_committed_paths(
         return TrailerAttribution(frozenset(), 0, 0, 0)
 
     owned_paths: Set[str] = set()
+    foreign_paths: Set[str] = set()
+    unknown_paths: Set[str] = set()
     owned_count = 0
     foreign_count = 0
     unknown_count = 0
@@ -2512,11 +2519,18 @@ def _trailer_owned_committed_paths(
             owned_paths.update(paths)
         elif classification == "foreign":
             foreign_count += 1
+            foreign_paths.update(paths)
         else:
             unknown_count += 1
+            unknown_paths.update(paths)
 
     return TrailerAttribution(
-        frozenset(owned_paths), owned_count, foreign_count, unknown_count
+        frozenset(owned_paths),
+        owned_count,
+        foreign_count,
+        unknown_count,
+        frozenset(foreign_paths),
+        frozenset(unknown_paths),
     )
 
 
@@ -2670,7 +2684,17 @@ def finalize_precheck(
 
     evidence: Dict[str, Any] = {}
 
-    plan_text = plan_path.read_text(encoding="utf-8")
+    if not plan_path.is_file():
+        return EXIT_CANNOT_RUN, f"plan file not found: {plan_path}", evidence, ()
+    try:
+        plan_text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return (
+            EXIT_CANNOT_RUN,
+            f"cannot read plan file {plan_path}: {exc}",
+            evidence,
+            (),
+        )
     doc = _lint.parse(plan_text)
     plan_id = (doc.meta_fields.get("Id") or "").strip()
     if not plan_id:
@@ -2884,6 +2908,7 @@ def finalize_precheck(
     #     uncommitted work so a concurrent multi-agent workflow is not thrashed.
     out_of_scope: List[str] = []
     disregarded_unowned: List[str] = []
+    trailered = TrailerAttribution(frozenset(), 0, 0, 0)
     if scope_paths:
         committed_set = set(sources.committed)
         # EXACT ATTRIBUTION FIRST, COHESION AS THE FALLBACK (`gys47u` E-02). The run record names this
@@ -2960,6 +2985,15 @@ def finalize_precheck(
                 disregarded_unowned.append(p)
                 continue
             out_of_scope.append(p)
+    disregarded_foreign = [
+        p for p in disregarded_unowned if p in trailered.foreign_paths
+    ]
+    disregarded_no_evidence = [
+        p
+        for p in disregarded_unowned
+        if p in trailered.unknown_paths
+        or (p not in trailered.foreign_paths and p not in trailered.unknown_paths)
+    ]
     # (b') IN-SCOPE-UNMODIFIED paths (Order 05, the MISSING-work direction): a Scope-Paths entry the
     #      execution did NOT touch. Requires the receipt's LITERAL declared Scope-Paths (Order 03/04).
     #      Acknowledge-and-proceed (a declared-but-unneeded file is normal, not a failure).
@@ -2987,6 +3021,8 @@ def finalize_precheck(
         # trail has a single shape; `committed_paths`/`working_tree_paths` below already say which
         # half any given path came from, so no second key is needed to tell them apart.
         "disregarded_unowned_paths": list(disregarded_unowned),
+        "disregarded_foreign_owned_paths": list(disregarded_foreign),
+        "disregarded_no_evidence_paths": list(disregarded_no_evidence),
         "committed_paths": list(sources.committed),
         "working_tree_paths": list(sources.working_tree),
         # rcptwiden `63425h` E-04: the paths this execution ADDED to `Scope-Paths` after begin, under
@@ -3033,6 +3069,7 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
     """
     import argparse
 
+    from agent_workflows import artifact_core as _core
     from agent_workflows import plans_index as _pidx
 
     # Regenerate (no swallow: any exception propagates).
@@ -3049,22 +3086,23 @@ def _refresh_plans_index_fail_loud(repo_root: Path) -> None:
         )
     )
     # Verify it is now fresh.
-    rc = _pidx.run_index(
-        argparse.Namespace(
-            dir=str(repo_root),
-            check=True,
-            agent=False,
-            json=False,
-            no_color=True,
-            limit=None,
-            quiet=True,
-        )
+    resolved_repo_root, plans_dir = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
+    drift = _pidx.check_drift(
+        resolved_repo_root, plans_dir, limit=_pidx.DEFAULT_INDEX_LIMIT
     )
+    rc = _core.drift_exit_code(drift)
     if rc != 0:
-        raise RuntimeError(
+        failing = [d for d in drift if getattr(d, "severity", "") != "info"]
+        rendered = [f"{d.location}: {d.rule}: {d.detail}" for d in failing[:10]]
+        if len(failing) > 10:
+            rendered.append(f"... ({len(failing) - 10} more findings omitted)")
+        msg = (
             "owned plans index refresh did not converge (aw index plans --check nonzero); "
             "finalize fails closed rather than committing a stale index."
         )
+        if rendered:
+            msg = f"{msg}\n" + "\n".join(rendered)
+        raise RuntimeError(msg)
 
 
 def _pre_commit_phase_leaves_manifests_untouched() -> str:
@@ -3448,6 +3486,51 @@ def _reconciliation_history_note(
     if not bits:
         return ""
     return "Scope reconciliation - " + "; ".join(bits)
+
+
+# --------------------------------------------------------------------------------------
+# RECORDING ONLY, VERDICT UNCHANGED (IPD 1dcl10, backlog s9z85a, OQ-01, OQ-02).
+#
+# WHY THIS PLAN RECORDS RATHER THAN RE-DECIDES:
+# It rests on the measured asymmetry the repository already relies on in _run_record_committed_paths:
+# a weak-evidence failure can only cause a missing demand, never a false claim written into permanent
+# history. F-07 directly measured the opposite direction: a false demand is auto-answered by the
+# runner and writes "changed by the plan's approved execution" into immutable history for a path
+# the plan never touched (a fabricated claim). By recording the disregarded paths instead of demanding
+# reasons, the verdict is unchanged and no false claims are manufactured.
+#
+# WHAT THIS DOES NOT FIX:
+# The path is still excused and no reason is demanded for it. A reader who believes the
+# justify-or-refuse loop is closed end to end would be wrong. Backlog item s9z85a and OQ-01
+# remain the residue's carriers for the maintainer ruling on whether unattributable paths should
+# ultimately be demanded or excused.
+# --------------------------------------------------------------------------------------
+
+
+def _disregarded_history_note(
+    paths: Sequence[str],
+    attribution_source: Optional[str] = None,
+) -> str:
+    """Render the no-evidence disregarded class as a compact, capped note for the terminal record.
+
+    Per E-03: Names at most the first 5 paths in sorted order, always stating the total count
+    unconditionally. Capped to prevent unbounded history lines in shared checkouts (PR-301, F-06).
+    When empty, returns empty string.
+    """
+    if not paths:
+        return ""
+    sorted_paths = sorted(paths)
+    total = len(sorted_paths)
+    source = attribution_source or "unknown"
+    head = sorted_paths[:5]
+    named = ", ".join(head)
+    if total > 5:
+        residual = total - 5
+        named = f"{named} (... and {residual} more; see disregarded_no_evidence_paths in the finalize evidence)"
+    return (
+        f"Scope attribution - {total} changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not "
+        f"attributable to this execution (evidence: {source}), so no --scope-reason was demanded for them: {named}"
+    )
 
 
 def classify_commit_refusal(
@@ -4395,13 +4478,10 @@ def finalize(
     # reach the transaction around it. `ROLLUP_REFUSED_WORKER_ROLE` is REUSED as the finding id so the
     # two transition paths report one vocabulary rather than two.
     #
-    # HONEST LIMIT, stated rather than implied: unsetting `AW_EXECUTION_ROLE` is now stopped inside
-    # lane worktrees by requiring the driver's attestation token (`AW_DRIVER_ATTEST`), which is
-    # minted into the run directory and withheld from worker child processes. The remaining limit:
-    # a same-user agent inside the lane can still read
-    # `<main>/.aw/records/runs/<run-id>/driver-attest.token` by absolute path or cd to the main
-    # checkout; hard enforcement against a determined same-user agent requires an OS sandbox or
-    # separate principal (`1o4eif`).
+    # HONEST LIMIT, stated rather than implied: unsetting `AW_EXECUTION_ROLE` remains possible for
+    # a same-user worker with shell access. Per GUIDING_PRINCIPLES P15 and backlog `dvonrn` D7,
+    # this check guards against honest workflow errors rather than a hostile agent; OS-level
+    # containment (`1o4eif`) is optional isolation an operator may choose, not a required fix.
     if worker_role_active(os.environ if env is None else env):
         return FinalizeResult(
             EXIT_CANNOT_RUN,
@@ -4561,6 +4641,12 @@ def finalize(
     )
     if recon_note:
         message = f"{message} [{recon_note}]"
+    disregarded_note = _disregarded_history_note(
+        evidence.get("scope_audit", {}).get("disregarded_no_evidence_paths", []),
+        evidence.get("attribution_source"),
+    )
+    if disregarded_note:
+        message = f"{message} [{disregarded_note}]"
 
     # --- E-02/E-03 forward transition, wrapped in the durable two-phase journal (Order 3xh53a) ---
     rec = _ss.read_artifact_record(plan_path, repo_root)

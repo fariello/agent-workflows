@@ -2055,3 +2055,94 @@ def test_malformed_entry_closed_vocabulary_and_consumer_invariants():
 
     # Fourth consumer: queue_performed_no_work returns True
     assert render_stream.queue_performed_no_work(["not-a-mapping"]) is True
+
+
+# --------------------------------------------------------------------------------------------------
+# Regression tests for E-05 and E-06 (`8mohre` `zhqt51`)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_dependency_disposition_in_queue_target_overrides_prose():
+    """E-05 case (i): An unmet token whose target IS in queue membership resolves to dependency_not_met,
+    even though its recorded reason contains 'not in this run'. Forbids external code by equality.
+    """
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:5o1jye"],
+        unsatisfied_dependency_reasons={
+            "executed:5o1jye": (
+                "executed:5o1jye: target 5o1jye is 'to-review' (directory 'pending'), "
+                "needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)"
+            )
+        },
+    )
+    # The recorded reason explicitly carries the misleading substring:
+    assert (
+        "not in this run" in entry["unsatisfied_dependency_reasons"]["executed:5o1jye"]
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+
+def test_dependency_disposition_genuinely_external_target_with_nonempty_membership():
+    """E-05 case (ii): Target absent from a NON-EMPTY membership set resolves to dependency_not_met_external."""
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:aaa111"],
+        unsatisfied_dependency_reasons={
+            "executed:aaa111": "executed:aaa111: target aaa111 is 'to-review' (directory 'pending'), needs one of ['executed']"
+        },
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET
+
+
+def test_dependency_disposition_unparseable_token_treated_as_membership_unknown():
+    """E-05 case (iii): Unparseable token from F-06 is membership-unknown and not reported external."""
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:aaa111 (target reviewed)"],
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+
+def test_dependency_disposition_mixed_in_queue_and_external_tokens_fails_soft_in_run():
+    """E-05 case (iv): Mixed token list (one in-queue, one external) fails soft toward in-run code."""
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:5o1jye", "executed:zzzzzz"],
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+
+def test_edge_satisfied_refusal_does_not_assert_queue_absence(tmp_path: Path):
+    """E-06: edge_satisfied executed refusal asserts only disk facts, not queue absence."""
+    from agent_workflows import runner_shared
+
+    pending = tmp_path / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    target_plan = pending / "20260929-8mohre-01-5o1jye-target.ipd.md"
+    target_plan.write_text("---\n- Id: 5o1jye\n- Status: to-review\n---\n# Target\n")
+
+    edge = runner_shared.parse_dependency_token("executed:5o1jye")
+    assert edge is not None
+    item = {"action": "execute", "id6": "dep001", "dependencies": ["executed:5o1jye"]}
+    state = {"repo": str(tmp_path), "queue": [item, {"id6": "5o1jye"}]}
+    by_id = {"dep001": item, "5o1jye": {"id6": "5o1jye"}}
+
+    ok, reason = runner_shared.edge_satisfied(edge, item, state, by_id)
+    assert ok is False
+    assert "external target" not in reason
+    assert "not in this run" not in reason
+    assert "'to-review'" in reason
+    assert "'pending'" in reason
+    assert (
+        "executed:5o1jye: target 5o1jye is 'to-review' (directory 'pending'), needs one of ['executed']"
+        == reason
+    )

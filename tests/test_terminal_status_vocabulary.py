@@ -383,40 +383,77 @@ class TestExecutionSuccessStatesNarrowingAndBlastRadius(unittest.TestCase):
             self.assertEqual(blocked[0]["status"], "fail-depend")
 
     def test_blast_radius_zero_across_pending_plans(self):
-        """Measure blast radius across all pending plans in the repository (must be 0)."""
+        """Measure blast radius across all pending plans in the repository (must be 0).
+
+        A dependency EDGE IS PARSED WITH THE SHARED GRAMMAR AND RESOLVED AGAINST THE TREE ITS OWN
+        TYPE NAMES, rather than having its id6 recovered with ``split(":")[-1]`` and looked for in
+        the plans trees alone. The earlier spelling predated the typed grammar (its comment read
+        "Strip any prefix like 'ipd:'") and so asserted an invariant the design contradicts: a
+        ``spec`` or ``backlog`` target is DELIBERATELY a graph LEAF resolved against the repository
+        and never against the queue, which ``runner_shared.validate_manifest`` states outright
+        ("Only IPD-typed targets must name a plan in the manifest; a `spec`/`backlog` target is a
+        graph LEAF (spec 25kzda 2.10) and is resolved against the repository"). Measured 2026-10-01:
+        a legal ``state:spec:approved:<id6>`` edge on a pending plan failed this test while
+        ``ipd_schema.parse_item_dependencies`` accepted it, ``preflight_dependency_findings``
+        reported no findings, and ``edge_satisfied`` resolved and enforced it. Backlog `pyhq6s`.
+
+        WHY THAT MATTERED ENOUGH TO FIX RATHER THAN SUPPRESS: the failure names the AUTHORING PLAN,
+        not this test, so the natural response is to delete the "malformed" edge. In the measured
+        case that edge was the only mechanism holding a plan back until a maintainer answered a
+        blocking spec question, so obeying the failure would have silently removed a human decision
+        gate. The assertion kept here is the one actually worth making (no pending plan cites a
+        prerequisite that exists nowhere), now applied per target type.
+        """
+        from agent_workflows import ipd_schema
+
         repo_root = Path(__file__).resolve().parent.parent
-        pending_dir = repo_root / ".aw" / "records" / "plans" / "pending"
-        executed_dir = repo_root / ".aw" / "records" / "plans" / "executed"
+        plans_root = repo_root / ".aw" / "records" / "plans"
+        pending_dir = plans_root / "pending"
 
         if not pending_dir.exists():
             return
+
+        # An `ipd` target may legitimately sit in any plans lifecycle directory, not only
+        # pending/executed: a dependent may cite a prerequisite that was superseded or deliberately
+        # not executed, and such a target is PRESENT (the edge may be unsatisfiable, which is the
+        # dependency evaluator's question, not this test's). A `spec`/`backlog` target is resolved
+        # against its own records tree for the same reason.
+        search_roots = {
+            "ipd": [plans_root],
+            "spec": [repo_root / ".aw" / "records" / "specs"],
+            "backlog": [repo_root / ".aw" / "records" / "backlog"],
+        }
 
         stranded_prereqs = []
         for plan_file in pending_dir.glob("*.md"):
             content = plan_file.read_text(encoding="utf-8")
             for line in content.splitlines():
-                if line.startswith("- Item-Dependencies:"):
-                    deps_str = line.split(":", 1)[1].strip()
-                    if deps_str and deps_str.lower() != "none":
-                        dep_ids = [d.strip() for d in deps_str.split(",") if d.strip()]
-                        for dep_id in dep_ids:
-                            # Strip any prefix like 'ipd:'
-                            clean_id = dep_id.split(":")[-1].strip()
-                            matching_exec = (
-                                list(executed_dir.glob(f"*-{clean_id}-*.md"))
-                                if executed_dir.exists()
-                                else []
-                            )
-                            matching_pending = list(
-                                pending_dir.glob(f"*-{clean_id}-*.md")
-                            )
-                            if not matching_exec and not matching_pending:
-                                stranded_prereqs.append((plan_file.name, clean_id))
+                if not line.startswith("- Item-Dependencies:"):
+                    continue
+                deps_str = line.split(":", 1)[1].strip()
+                edges, _ready, err = ipd_schema.parse_item_dependencies(deps_str)
+                # A malformed value is NOT this test's concern: `aw ipd lint` and the runner's
+                # dependency preflight both refuse it with a specific diagnostic, and duplicating
+                # that here would report the same defect twice under a misleading name.
+                if err or not edges:
+                    continue
+                for edge in edges:
+                    roots = search_roots.get(edge.target_type, [])
+                    found = any(
+                        any(root.rglob(f"*-{edge.id6}-*.md"))
+                        for root in roots
+                        if root.exists()
+                    )
+                    if not found:
+                        stranded_prereqs.append(
+                            (plan_file.name, edge.target_type, edge.id6)
+                        )
 
         self.assertEqual(
             stranded_prereqs,
             [],
-            f"Blast radius verification: pending plans must not reference stranded prerequisites: {stranded_prereqs}",
+            "Blast radius verification: pending plans must not reference prerequisites that "
+            f"exist in no records tree: {stranded_prereqs}",
         )
 
 

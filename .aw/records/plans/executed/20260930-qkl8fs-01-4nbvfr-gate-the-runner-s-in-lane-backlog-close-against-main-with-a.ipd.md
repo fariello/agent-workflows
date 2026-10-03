@@ -1,0 +1,534 @@
+# IPD: Gate the runner's in-lane backlog close against main with a verified lane-carrier override
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: The runner's in-lane backlog close evaluates the release gate against the LANE, where this run's own plan already sits in `executed/`, so a release-gated item can close `done` that main's view would refuse. `--gate-dir` shipped (`9vglxd` E-03/E-04) but has no caller, because a naive `--gate-dir <main>` refuses the ordinary single-carrier close.
+- Scope: IN: (a) add a VERIFIED lane-carrier override to `check_engine.evaluate_blocking_close` so one named carrier may be judged against a git ref rather than against the gate tree's worktree, with the assertion CHECKED via `git ls-tree` and never trusted; (b) surface it on `aw backlog set` as `--lane-carrier-ref`/`--lane-carrier-path` and declare both in `command_surface`; (c) pass the split plus the override from `runner_shared.close_backlog_item`, `process_backlog_close` and BOTH host wrappers, so the in-lane close gates against `repo` while moving in `write_repo`; (d) correct the three docstrings this falsifies; (e) tests for the single-carrier allowance, the sibling refusal, the forged-assertion refusal, and the post-merge/non-isolated no-ops. OUT: the ANY-vs-ALL divergence (closed by `2o5wka`); the positional-spelling bypass (owned by pending `47ttnv`); the outer predicate's spec-carrier blind spot (F-09, filed as its own item by E-01); making the override reachable by a hand close with no lane.
+- Scope-Paths: agent_workflows/check_engine.py, agent_workflows/backlog.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_backlog_handoff_close.py, tests/test_check_engine_release_gate.py, docs/artifact-lifecycles.md, CHANGELOG.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: followup
+- Priority: medium
+- From-Backlog: qkl8fs
+- Set: qkl8fs
+- Order: 1
+- Highest E allocated: 09
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: 4nbvfr
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 4nbvfr verified (set qkl8fs, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-10w6ww-01-10w6ww-outer-close-ignores-spec-carrier.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
+- 2026-10-01 approved (aw set): status set to approved
+- 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-901 (HIGH), PR-902, PR-903 all FIXED, zero deferred, zero open. Structural lint conforming with ZERO diagnostics and ZERO advisories at --phase author and --phase review-finalize. THE DESIGN IS SOUND AND REVIEW CHANGED NO E-ITEM'S PURPOSE: a REAL two-tree git-worktree fixture was built at HEAD 816f4a2e0 and the shipped predicate driven directly. F-01 reproduces (no gate_dir/gate_root anywhere in runner_shared, while backlog.run_set does resolve gate_root). F-03, F-04, F-05 and F-07 reproduce exactly, including F-04's false-citation trap (citing main's pending/ path returns legitimate=True via SATISFIED with an UNEXECUTED carrier) and F-07's negative control (an unfinalized lane's ref does not show the carrier executed). The injected-callable trap that made 9vglxd unexecutable is real: process_backlog_close invokes the INJECTED close_backlog_item with FIVE POSITIONAL arguments and no run_checked, and both host wrappers are five-positional shims, so E-04's keyword-only instruction and its widen-both-wrappers warning are both necessary. THE ONE HIGH FINDING IS THAT THE PLAN'S STATED DEFECT DOES NOT REPRODUCE ON THE SHAPE IT NAMES. PR-901: F-02 claims a two-carrier item with an unexecuted sibling returns legitimate=True via HANDOFF against the lane. Measured, BOTH roots return legitimate=False, because 2o5wka tightened the HANDOFF arm to all(_carrier_is_executed(...)) so one unexecuted sibling is fatal in every tree, and git show 8163b62ad:agent_workflows/check_engine.py proves that fold was ALREADY PRESENT at this plan's own authoring HEAD, so the authored verdict could not have been produced by the code it cites. THE DEFECT IS REAL AND WORSE THAN STATED: the split appears on the SINGLE-CARRIER close (gate=LANE legitimate=True path=HANDOFF versus gate=MAIN legitimate=False), which is the ordinary shape every isolated one-carrier turn takes. The wrong shape had propagated into eight places and TWO WERE ACTIVELY DANGEROUS: V-01(a) demanded evidence that CANNOT be produced, so the plan would have failed its own first validation; and E-01's STOP condition would let an executor who correctly measures both roots refusing conclude the premise had expired and ABANDON a plan whose defect is real. Fixed at F-02, the Goal, E-01 (instruction and STOP condition), E-06 (new case 1b is the tightening proof; case 2 relabelled the siblings-stay-unoverridden guard), V-01, V-02, V-06, Required tests and gate paragraph 1, with new F-13 recording the non-reproduction and its cause. PR-902: the >= 3419 bar is spent (review measures 3560 passed, FULLY GREEN, with the named time-dependent failure PASSING, a drift of 141), so all three sites now compare by node id against a re-derived baseline and state that the known failure's absence is not a discrepancy. PR-903: 47ttnv is EXECUTED not pending (the plan contradicted itself, since its Deferred row already cited the executed path), and its residue plan 2misq5 is approved-pending and was unnamed; checked, 2misq5 overlaps none of this plan's eleven scope paths, so it is not a collision. All four open questions re-checked and all four survive. Findings and three Decisions rows in .aw/records/reviews/20260930-qkl8fs-01-4nbvfr-gate-the-runner-s-in-lane-backlog-close-against-main-with-a.review.md. No production file and no test modified; scratch worktrees pruned.
+
+- 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+- 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `qkl8fs`; every finding F-01..F-10 measured at HEAD `8163b62ad` on two-tree git-worktree fixtures, scripts under `tmp/qkl8fs/` (gitignored).
+
+## Goal
+
+Make the runner's in-lane backlog close ask MAIN whether a release-gated item may close, while still performing the move in the lane, WITHOUT refusing the ordinary single-carrier close that is the common shape. The route is a VERIFIED override: the runner names the one carrier it just finalized plus the git ref that proves it, and the predicate confirms the claim with `git ls-tree` against the shared object store rather than believing a flag.
+
+WHAT THIS FIXES, stated as the observable change. Today an isolated turn runs `aw backlog set <item> --status done --dir <lane>` with no `--gate-dir`, so `check_engine.evaluate_blocking_close` scans the LANE for carriers. Measured and RE-MEASURED AT REVIEW (F-02): on a SINGLE-CARRIER item whose carrier this run just finalized in the lane, the lane-rooted gate returns `legitimate=True` via HANDOFF because the lane shows the plan in `executed/`, while a main-rooted gate on the same item returns `legitimate=False` because main still shows it in `pending/`. After this plan the decision is made against main, and the override is what lets the legitimate case still pass. That is the defect, not a side effect.
+
+NOTE WHICH SHAPE DEMONSTRATES IT, because this plan originally named the wrong one. The split appears on the SINGLE-CARRIER close, which is the common shape. It does NOT appear on the two-carrier sibling-unexecuted shape: `2o5wka` tightened the HANDOFF fold to `all(_carrier_is_executed(...))`, so an unexecuted sibling refuses in EVERY tree, and review measured both roots returning `legitimate=False` there. That makes the defect MORE serious than the authored framing implied, not less, since it leaks on the ordinary path rather than a rare one.
+
+WHAT THIS DELIBERATELY DOES NOT CLAIM. It does not change the three arms, their verdicts, or the predicate's existing signature semantics; HANDOFF, SATISFIED and DE-GATED are untouched for every caller that passes no override. It does not make a HAND close gate against another tree. And it does not close the outer predicate's spec-carrier blind spot (F-09), which is a genuinely separate defect that this plan MEASURES, FILES and leaves alone.
+
+WHY NOT SIMPLY PASS `--gate-dir <main>`, which is what the backlog item's own route (a) first suggests: measured in F-03, that refuses the ordinary single-carrier close with `carrier is not executed/implemented`, exactly the outcome `9vglxd` E-06 recorded when it withdrew its E-05 and refiled this work. The override is what makes the split survivable.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: confirm the premises before changing a shipped gate
+
+- [x] E-01 RE-MEASURE F-02, F-03, F-05 AND F-09 AT EXECUTION HEAD and record the outputs, because this plan tightens a shipped release gate and every one of its premises is a dated measurement. Re-drive the two-tree fixture (a `git worktree` of main, the plan `git mv`d `pending/` to `executed/` and committed in the lane) and confirm: the lane-rooted gate still returns `legitimate=True` via HANDOFF on the two-carrier sibling-unexecuted shape (F-02); a main-rooted gate with the lane citation still refuses the single-carrier shape (F-03); `resolve_evidence_artifact` still gives the four-cell matrix in F-05; and the outer predicate still returns `close=True` on the mixed IPD-plus-unimplemented-spec shape (F-09). ALSO FILE F-09 as its own backlog item now, with `aw backlog new`, so the obligation exists whether or not this plan executes.
+  - Depends on: none
+  - Expected outcome: four pasted measurements agreeing with F-02 AS CORRECTED AT REVIEW (the SINGLE-CARRIER split, not the two-carrier one) plus F-03/F-05/F-09, plus the new backlog item's id6 for the F-09 defect.
+  - MEASURE F-02 ON THE SINGLE-CARRIER SHAPE, AND DO NOT RE-DERIVE THE AUTHORED TWO-CARRIER CLAIM, which review measured FALSE (F-13). The permissive-versus-refusing split is: one same-gate carrier, executed in the lane, still `pending/` in main, no evidence citation -> gate=LANE `legitimate=True path='HANDOFF'`, gate=MAIN `legitimate=False`. On the TWO-carrier sibling-unexecuted shape BOTH roots refuse, because `2o5wka`'s `all(...)` fold makes an unexecuted sibling fatal in every tree. If you measure the two-carrier shape and see both roots refuse, that CONFIRMS this plan rather than contradicting it; do not read it as an expired premise.
+  - IF A PREMISE HAS GENUINELY EXPIRED, STOP AND RE-SCOPE rather than proceeding. The one reversal that matters: if a main-rooted gate now PASSES the SINGLE-CARRIER shape unaided (no override, no evidence), then the override this plan builds is unnecessary and the correct change is the one-line `--gate-dir` pass that `9vglxd` already wrote and withdrew. Say so and stop; do not build an override nothing needs. Measured at review HEAD `816f4a2e0`, it still REFUSES, so the override is still load-bearing.
+  - DO NOT FILE F-09 AS A DUPLICATE. Measured at authoring: `lsbd32` (the ANY-vs-ALL divergence) is `done`, closed by `2o5wka`, and `d1ldvk` covers only prose. `2o5wka`'s F-06 records a DIFFERENT residual (a sibling with NO gate line, where the inner gate is the permissive one); F-09 is the OPPOSITE direction, the OUTER predicate ignoring a spec carrier because `if ipds:` returns before `others` is examined. Confirm with a fresh `aw find backlog` before writing.
+  - Execution state: performed
+
+### Task group 2: the verified override in the shared predicate
+
+- [x] E-02 ADD A VERIFIED LANE-CARRIER OVERRIDE TO `check_engine.evaluate_blocking_close`, as a keyword-only parameter defaulting to None so every existing caller is bit-for-bit unchanged. It names ONE carrier path as the GATE TREE sees it, plus the git ref asserted to show that carrier terminal, and it is consumed ONLY inside the HANDOFF arm's `all(_carrier_is_executed(...))` fold, where the named carrier's state comes from the ref instead of from the worktree. VERIFY, DO NOT TRUST: resolve the claim with `git ls-tree -r --name-only <ref>` via the EXISTING `_git_capture` helper in this module, and treat the carrier as executed only when the ref's tree actually shows a path whose parts contain `executed` for that carrier's id6. A ref that does not exist, does not contain the carrier, or shows it still in `pending/` must leave the carrier judged exactly as the worktree judges it, which means the gate REFUSES.
+  - Depends on: E-01
+  - Expected outcome: with the override naming the single carrier and the lane branch ref, a main-rooted `evaluate_blocking_close` returns `legitimate=True` via HANDOFF with NO evidence citation; with a forged ref, or a ref whose tree still shows `pending/`, it returns `legitimate=False`.
+  - THE OVERRIDE MUST NOT BE A SECOND CARRIER SCAN. Keep `find_from_backlog_artifacts(repo_root, item_id6)` as the one discovery call. The override changes how ONE discovered carrier is JUDGED; it must never add a carrier the gate tree did not find, because that would let a lane introduce a carrier main cannot see and is the permissive direction this plan exists to close.
+  - SIBLINGS STAY UNOVERRIDDEN, which is the whole protective property. The override is singular by construction (one path, one ref). Measured at authoring on the live corpus by `2o5wka` F-07: 18 items carry a gate AND more than one carrier, with a tail of 9, so an override that generalized to "all carriers in the lane" would reopen precisely the hole `2o5wka` just closed.
+  - `_carrier_is_executed` IS SHARED, so do NOT change its signature or behavior. It is called from `release_gate_warnings` too (the `check.orphaned-live-blocker` fold), and `2o5wka` E-05 just aligned that fold. Apply the override at the CALL SITE in the HANDOFF arm, leaving the helper a pure path/field predicate.
+  - A SPEC CARRIER IS JUDGED BY A FIELD, NOT A PATH, so the ref lookup must read the blob for a `.spec.md` carrier rather than inspecting its directory. `_carrier_is_executed` reads `- Status: implemented` from spec TEXT and `"executed" in p.parts` from a plan PATH. `_blob_text(repo_root, ref, path)` already exists in this module for the text case. Handle both or the override silently never fires for a spec.
+  - Execution state: performed
+
+- [x] E-03 SURFACE THE OVERRIDE ON `aw backlog set` as `--lane-carrier-ref` and `--lane-carrier-path`, wired through `backlog.run_set` into E-02's parameter, and DECLARE both in `command_surface.py`. Both flags must be supplied together: one without the other is a usage error (exit 2) with a message naming the missing flag, because a half-specified override would silently evaluate as no override at all and the operator would read a refusal as a gate verdict. Add the per-command flag-surface assertion to the existing `BacklogGateDirSplitTests` declaration test rather than relying on `find_undeclared_leaves`, which compares COMMAND PATHS and not flags.
+  - Depends on: E-02
+  - Expected outcome: `aw backlog set <item> --status done --dir <lane> --gate-dir <main> --lane-carrier-ref <branch> --lane-carrier-path <path>` exits 0 on the single-carrier shape; omitting either new flag exits 2 naming the missing one; the declaration test sees both flags.
+  - REUSE `--gate-dir`'s VALIDATION SHAPE. That flag already resolves through `resolve_verb_repo_root` and refuses a non-project root with exit 2 before reading anything (`backlog.run_set`'s opening block, pinned by `test_case_5_gate_dir_non_project_root_refused`). Follow the same fail-before-write ordering so a bad override never half-moves an item.
+  - DO NOT DEFAULT THE REF. There is no safe default: guessing `HEAD` would make the override fire against whatever the operator happens to have checked out, which is the trust-the-caller behavior E-02 exists to avoid.
+  - THE EXISTING UNDECLARED DEBT IS NOT YOURS TO FIX. `command_surface.py`'s own comment records `--evidence`, `--yes` and `--commit/--no-commit` as accepted-but-undeclared, and the agreement test is one-directional. Declare the two NEW flags; do not opportunistically declare the three old ones, which would widen this plan's diff into a surface it does not otherwise touch.
+  - Execution state: performed
+
+### Task group 3: make the runner use it
+
+- [x] E-04 PASS THE GATE ROOT AND THE OVERRIDE FROM THE RUNNER, which is FOUR SYMBOLS IN THREE FILES and not the one the obvious reading suggests. `runner_shared.close_backlog_item` gains keyword-only parameters for the gate root plus the carrier ref/path and emits the three new argv flags; `runner_shared.process_backlog_close` passes `repo` as the gate root beside its existing `write_repo` move tree, and derives the carrier ref/path from the lane handle it already holds; and BOTH host wrappers (`oc_runipd.close_backlog_item`, `agy_runipd.close_backlog_item`) forward the new keywords IDENTICALLY.
+  - Depends on: E-03
+  - Expected outcome: an isolated turn's close emits `--dir <lane> --gate-dir <main> --lane-carrier-ref <lane-branch> --lane-carrier-path <main-relative carrier path>`; a non-isolated turn emits none of the three and its argv is unchanged.
+  - WIDEN BOTH WRAPPERS OR NEITHER. `runner_shared`'s own module docstring warns that changing one runner's symbol "would silently give BOTH drivers that runner's behavior", because `agy_runipd` imports from `oc_runipd`. A one-sided edit gives one host a gated close and the other the status quo, with no test objecting. V-04 requires both wrappers pasted side by side.
+  - `close_backlog_item` IS AN INJECTED PARAMETER AT THE CALL SITE, not the module function of the same name. `process_backlog_close` declares `close_backlog_item: Callable[..., tuple[int, str]]` keyword-only and invokes it with FIVE POSITIONAL arguments and no `run_checked`, while the module-level function REQUIRES `run_checked` keyword-only. This is the trap that made `9vglxd` E-05 unexecutable as scoped (its F-11/PR-701). Add the new parameters as KEYWORD-ONLY so the five-positional call site keeps working.
+  - PASS THE OVERRIDE ONLY WHEN `isolated` IS TRUE. `process_backlog_close` already computes `isolated = write_repo.resolve() != repo.resolve()`, and the existing `lane_executed_carrier_override` is already gated on it. When the trees are the same there is nothing to override and nothing to split; measured in F-10, that path's verdict is unchanged either way, but passing a redundant override would make the argv lie about what the close depended on.
+  - THE CARRIER PATH MUST BE MAIN'S SPELLING, NOT THE LANE'S. The override names the carrier as the GATE TREE sees it, which for a just-finalized plan is main's `pending/` path. `lane_executed_carrier_override` already computes exactly this mapping (`{main_rel: lane_rel}`) and is the function to read; do not re-derive the pair.
+  - Execution state: performed
+
+- [x] E-05 CORRECT THE THREE DOCSTRINGS THIS CHANGE FALSIFIES, in the same change that falsifies them, so the tree never ships a guarantee this plan broke. (i) `runner_shared.close_backlog_item`'s paragraph asserting "THE TWO CANNOT BE SPLIT FROM HERE: one `--dir` is one tree for the move AND the gate" is now false twice over, since `--gate-dir` shipped in `9vglxd` and this plan passes it. (ii) The same docstring's explanation that the cited evidence "is a path that resolves in the lane" must say which tree the citation now resolves in. (iii) `runner_shared.evaluate_backlog_close`'s `executed_overrides` paragraph should note that the INNER gate now has its own verified override, so a reader does not conclude the two are the same mechanism.
+  - Depends on: E-04
+  - Expected outcome: no docstring in the changed files still claims the gate tree and move tree are inseparable; a `git diff` of the three sites reads correctly against the shipped behavior.
+  - PRESERVE `close_backlog_item`'s FINAL WARNING about the permissive direction. Its closing sentences explain that a lane-side carrier scan "is MORE likely to find a satisfying carrier than main's, and the error direction is the permissive one". That is CORRECT, is the justification for this entire plan, and must survive. Measured in F-02, it understates the case: the permissive verdict is not merely likelier, it is what the gate actually returns today.
+  - Execution state: performed
+
+### Task group 4: prove the tightening without a regression
+
+- [x] E-06 ADD THE ALLOWANCE AND REFUSAL CASES to `tests/test_backlog_handoff_close.py`, in `BacklogGateDirSplitTests`, which already builds the two-tree `main_repo`/`lane_repo` fixture this needs. FOUR cases, and note which one proves WHAT, because review corrected this mapping (F-13): (1) ORDINARY SINGLE CARRIER WITH the override, gate tree main, override naming the lane branch and main's `pending/` path, exits 0 and the item lands in the lane's `done/`; (1b) THE SAME SINGLE-CARRIER SHAPE WITHOUT the override, gate tree main, which must exit 1 with `carrier is not executed/implemented` - THIS IS THE CASE THAT PROVES THE TIGHTENING, since it is the shape that leaks today when gated against the lane (measured both ways at review: gate=LANE `legitimate=True path='HANDOFF'`, gate=MAIN `legitimate=False`); (2) SIBLING UNEXECUTED, same override, exits 1 with `carrier is not executed/implemented`, and the item moves nowhere - this is a SIBLINGS-STAY-UNOVERRIDDEN guard and NOT the tightening proof, because review measured that shape refusing against BOTH roots already via `2o5wka`'s `all(...)` fold; (3) FORGED ASSERTION, the override naming a ref whose tree still shows the carrier in `pending/`, exits 1.
+  - Depends on: E-05
+  - Expected outcome: four new tests passing, with case (1b) proving the tightening (the single-carrier shape refuses when gated against main without the override), case (2) proving a sibling is still judged from the gate tree, and case (3) proving the assertion is verified rather than trusted.
+  - THE FIXTURE MUST MAKE THE LANE A REAL `git worktree` OF MAIN, because the override is verified through the SHARED OBJECT STORE and a merely-copied directory has no shared store to read. Measured in F-07: `git worktree add` gives both trees the same `--git-common-dir`, and `git ls-tree <lane-branch>` from MAIN already lists the carrier under `executed/`. The existing `BacklogGateDirSplitTests` builds two INDEPENDENT scratch repos via `_make_scratch_repo` twice, so this is a REAL fixture change and not a reuse; do not assume the existing setup suffices.
+  - CASE (3) IS THE ONE THAT CANNOT BE FAKED BY A WEAKER IMPLEMENTATION. An override that trusts its caller passes (1) and (2) and fails only (3). Write it first if that helps.
+  - Execution state: performed
+
+- [x] E-07 PROVE THE NO-OP SHAPES ARE UNCHANGED, which is where a tightening of a shipped gate most plausibly causes collateral damage. Add tests covering: a NON-ISOLATED turn (`--no-isolate-worktree`, where `write_repo == repo`) emitting no new flags and reaching the same verdict; and the POST-MERGE call sites, where main itself already shows the carrier `executed/` so the HANDOFF arm passes unaided. Put the predicate-level cases in `tests/test_check_engine_release_gate.py` beside the existing `evaluate_blocking_close` tests.
+  - Depends on: E-06
+  - Expected outcome: the non-isolated and post-merge shapes pass with an EMPTY override and with no evidence citation, demonstrating the change is inert for every caller that is not an isolated pre-merge turn.
+  - MEASURED AT AUTHORING (F-10), so this is a confirmation rather than an experiment: post-merge, `lane_executed_carrier_override(main, coord, ...)` returns `{}` and a main-rooted gate returns `legitimate=True` via HANDOFF with no evidence at all. The three post-merge call sites (`integrate_retired_lane`, `finish_reintegrated_item`, `perform_coordinator_backlog_close`) are therefore unaffected. If any of them turns out to refuse, STOP: that is a regression in a path this plan believed inert.
+  - DO NOT ASSERT ON CALLER COUNTS OR SOURCE TEXT. Drive the behavior and assert on verdicts, exit codes and where the item file ends up, per the repository's no-code-pinning rule.
+  - Execution state: performed
+
+- [x] E-08 RUN THE FULL SUITE AND RECONCILE IT AGAINST THE AUTHORED BASELINE, pasting the actual summary line. Run it BARE as `python3 -m pytest`.
+  - Depends on: E-07
+  - Expected outcome: a pasted summary reconciled BY NODE ID against a baseline you re-derive at the execution HEAD, with the after failure-set containing no node id absent from the before set.
+  - DO NOT RECONCILE AGAINST A TOTAL WRITTEN HERE; BOTH RECORDED TOTALS ARE ALREADY SPENT. Authoring measured `1 failed, 3419 passed, 2 skipped, 3 warnings in 67.82s` at HEAD `8163b62ad`; review measured `3560 passed, 2 skipped, 3 warnings in 160.38s` at HEAD `816f4a2e0`, FULLY GREEN, a drift of 141 collected tests (F-12). So the authored "at least 3419" bar is not a property of the tree. THE PRE-EXISTING FAILURE IS TIME-DEPENDENT: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, a local-versus-UTC date-stamp skew filed as backlog `fnb8pl` (and adjacent `2wae2x`, `o8l2y2`, `tl8qmc`), whose diff is purely `- 2026-09-30` versus `- 2026-10-01`. It may be green or red when you run it; a green run is not evidence that you fixed it and a red one is not evidence that you broke it, and its ABSENCE from your failure set is not a discrepancy. Do NOT attempt to fix it here: it is outside `Scope-Paths` and owned elsewhere.
+  - TREAT A SECOND FAILURE AS YOURS until proven otherwise, by re-running it at the pre-change commit in a clean worktree, and paste both results.
+  - Execution state: performed
+
+- [x] E-09 UPDATE THE OPERATOR-FACING CLOSE DOCUMENTATION in `docs/artifact-lifecycles.md`, whose "Closing a release-blocking item" section is where an operator learns this rule and which `9vglxd` E-07 already amended for `--gate-dir`. State that the runner's in-lane close now evaluates the gate against the main checkout while moving the item in the lane, and that the two new flags exist for that caller. Add a `CHANGELOG.md` entry if and only if the file's current conventions call for one; verify the shape against the existing `aw backlog set` flag entries rather than trusting this sentence. WRITE NO EM OR EN DASHES in this user-facing prose.
+  - Depends on: E-08
+  - Expected outcome: an operator reading the section can tell which tree decides a close and which tree the item moves in; `git diff` shows no em or en dashes added to either file.
+  - KEEP THE RUNNER'S INTERNALS OUT OF THE OPERATOR DOC. The verification mechanism, the injected-callable chain and the wrapper symmetry belong in the code comments E-05 corrects. The operator-visible fact is only which tree decides.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE GATE HAS TWO INDEPENDENT PREDICATES, and conflating them is the central hazard of this area. The OUTER one, `runner_shared.evaluate_backlog_close`, decides whether THIS RUN may close the item, filters carriers by KIND, requires ALL IPD carriers executed, and already carries a lane override (`executed_overrides`). The INNER one, `check_engine.evaluate_blocking_close`, is the shared authority behind the setter, `aw check` and the opt-in hook; it filters carriers by GATE and runs the three arms. This plan changes the INNER one's root and gives it its own override. Both are reached in a single close, outer first.
+- A PLAN IS JUDGED BY ITS PATH AND A SPEC BY ITS FIELD, deliberately and asymmetrically. `check_engine._carrier_is_executed` tests `"executed" in p.parts` for `.ipd.md` and `- Status: implemented` for `.spec.md`. Any override must honor both or it silently never fires for one carrier kind.
+- `--gate-dir` ALREADY EXISTS AND HAS NO CALLER. `backlog.run_set` resolves `gate_root` from it (defaulting to `repo_root`) and passes it as `evaluate_blocking_close`'s first argument, while the move still uses `repo_root`. It shipped in `9vglxd`, whose E-05 would have made the runner pass it and was WITHDRAWN under its own E-06 measurement, refiled as this plan's backlog item.
+- THE GATE SITS BETWEEN THE METADATA WRITES AND THE MOVE, so a refusal writes nothing and moves nothing, and a `--dry-run` still refuses. `tests/test_backlog.py::test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar` pins this ordering and must stay green.
+- `check_engine` ALREADY HAS GIT PLUMBING. `_git_capture(repo_root, args)` and `_blob_text(repo_root, ref, path)` exist in the module and back the commit-scoped `check.blocking-item-closed-without-gate` rule, so a ref-verified override needs no new subprocess helper.
+- A LANE IS A REAL `git worktree`, sharing main's object store. So main can read the lane branch's tree with no filesystem access to the lane, which is what makes the override verifiable rather than merely asserted.
+- THE SUITE RUNS BARE. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; adding `-n0` or a second `-q` is actively harmful.
+- A CARRIER-SCAN AST GUARD CONSTRAINS THE HANDOFF LOOP'S SHAPE. `tests/test_carrier_scan_single_item_contract.py` refuses a loop-derived argument to `find_from_backlog_artifacts` and explicitly whitelists `evaluate_blocking_close`'s current `for p, br in find_from_backlog_artifacts(repo, item_id6)` shape. Restructuring that loop must stay inside a whitelisted shape.
+
+## Findings
+
+All measured at HEAD `8163b62ad` on this lane, on two-tree fixtures built with `git worktree add` so the lane genuinely shares main's object store. Reproduction scripts are under `tmp/qkl8fs/` (gitignored, not committed).
+
+| # | Sev | Finding | Evidence | Consequence |
+|---|---|---|---|---|
+| F-01 | HIGH | THE GATE TREE AND THE MOVE TREE ARE THE SAME TREE FOR THE RUNNER TODAY, because `close_backlog_item` emits `--dir <repo>` and NO `--gate-dir`. Its argv is exactly `backlog set <id6> --status done --evidence <ev> --message <msg> --dir <repo> --no-commit`. | Read the `cmd = pinned_module_argv([...])` list in `runner_shared.close_backlog_item`; `--gate-dir` appears nowhere in `runner_shared.py`, and the module's only `gate_dir` variable is `backlog.run_set`'s `gate_root`. | This is the defect's mechanism. E-04 is the fix; E-05 corrects the docstring that still calls the split impossible. |
+| F-02 | HIGH | **THE LANE-ROOTED GATE RETURNS THE PERMISSIVE VERDICT ON A SHAPE MAIN WOULD REFUSE. CORRECTED AT REVIEW: THE DEMONSTRATING SHAPE IS THE SINGLE-CARRIER ONE, NOT THE TWO-CARRIER ONE THIS FINDING ORIGINALLY NAMED.** The DEFECT IS REAL and reproduces: with ONE same-gate IPD carrier, executed in the lane and still `pending/` in main, gate tree = LANE returns `legitimate=True, path='HANDOFF'` ("gate 'next' handed off to a From-Backlog plan or spec") while gate tree = MAIN returns `legitimate=False` ("... but the work has not shipped (carrier is not executed/implemented)"). THE TWO-CARRIER SIBLING-UNEXECUTED SHAPE ORIGINALLY WRITTEN HERE DOES NOT PRODUCE THE SPLIT: review measured BOTH roots returning `legitimate=False` on it, because `2o5wka` tightened the HANDOFF fold to `all(_carrier_is_executed(...))`, so an unexecuted sibling refuses in EVERY tree. That `all(...)` was already present at this plan's own authoring HEAD `8163b62ad` (verified with `git show 8163b62ad:agent_workflows/check_engine.py`), so the authored verdict could not have been measured as written and appears to describe pre-`2o5wka` ANY semantics. The correction STRENGTHENS the plan: the leaking shape is the COMMON single-carrier close, not a rarer multi-carrier one. | Review drove `evaluate_blocking_close` directly on a real `git worktree` two-tree fixture at HEAD `816f4a2e0`, both roots, same item text, for BOTH shapes; and read the HANDOFF fold at `check_engine.evaluate_blocking_close` plus the same fold at the authoring HEAD. | THE DEFECT, stated as a verdict rather than as a risk. E-06 case (1) is now the shape that PROVES the tightening (single carrier, gate=main, refuses without the override and passes with it); E-06 case (2) keeps the two-carrier sibling case as a SIBLINGS-STAY-UNOVERRIDDEN guard, which is what it actually tests. |
+| F-03 | HIGH | A NAIVE `--gate-dir <main>` REFUSES THE ORDINARY SINGLE-CARRIER CLOSE, which is why this needs an override and not a one-line flag pass. Single carrier, lane shows `executed/`, main shows `pending/`. Gate=main with the LANE citation: `legitimate=False`, `gate 'next' is handed off to From-Backlog carrier(s) (...) but the work has not shipped (carrier is not executed/implemented)`. Gate=main with no evidence: identical refusal. | Same fixture, three gate-root/evidence combinations driven and pasted. | Confirms `9vglxd` E-06's withdrawal was correct and bounds this plan's design: the override in E-02 is load-bearing, not a convenience. |
+| F-04 | HIGH | CITING MAIN'S `pending/` PATH WOULD "WORK", AND IS A FALSE CITATION. Gate=main with main's `pending/` path as `--evidence`: `legitimate=True, path='SATISFIED'`. The gate is satisfied by an UNEXECUTED plan, because `resolve_evidence_artifact` tests only that the path is safe, in-tree, existing and under a records tree; it never reads the carrier's state. | Driven as case D of the reproduction; verdict reason quotes the `pending/` path verbatim. | THE TRAP AN EXECUTOR MIGHT FALL INTO while making F-03 pass. E-02 therefore routes the fix through HANDOFF with a VERIFIED ref, never through a re-pointed citation. Also the reason the plan's own gate forbids "making E-06 pass" by changing the citation. |
+| F-05 | MED | `resolve_evidence_artifact` IS STRICTLY PER-TREE, all four cells measured: (lane root, lane `executed/` path) True; (main root, lane `executed/` path) False; (main root, main `pending/` path) True; (lane root, main `pending/` path) False. | Four direct calls. | Exactly reproduces the item's claim 2 and `9vglxd` F-04. It is why the SATISFIED arm cannot rescue a main-rooted gate before the merge, and why E-02 works on HANDOFF instead. |
+| F-06 | MED | THE CLOSE RUNS BEFORE THE MERGE, by 31 lines in one straight-line block of `execute_item_core`: finalize, carrier verification, `process_backlog_close(..., lane_repo=Path(work_dir))`, validation-runner construction, then `integrate_under_repository_lock`. Nothing between them merges anything. | Read `execute_item_core`'s isolated arm in source order; `process_backlog_close`'s own docstring states the split is deliberate and cites a 2026-09-13 measurement where a mid-run write to main left it dirty and a whole-tree gate then refused 27 of 42, 23 of 41 and 18 of 43 queue items. | Rules out the backlog item's route (c). Moving the close post-merge would reintroduce a measured production harm, so the plan keeps the write in the lane and moves only the DECISION. |
+| F-07 | MED | THE LANE'S CARRIER STATE IS VERIFIABLE FROM MAIN WITH NO TRUST AND NO LANE FILESYSTEM ACCESS. `git worktree add` gives both trees the same `--git-common-dir`. From MAIN, `git ls-tree -r --name-only <lane-branch> -- .aw/records/plans/` lists exactly `.aw/records/plans/executed/<carrier>`; `git diff --name-status -M main..<lane-branch>` reports `R100 .../pending/<carrier> .../executed/<carrier>`. NEGATIVE CONTROL: a second lane that did NOT finalize lists the carrier under `pending/`. | Five git commands driven from main against two lane branches, one finalized and one not. | THE DESIGN BASIS FOR E-02. It is what makes this an override the predicate CHECKS rather than a `--trust-me` flag, and the negative control is what E-06 case (3) pins. |
+| F-08 | MED | ROUTE (b) FROM THE BACKLOG ITEM IS UNNECESSARY, not merely harder. The item proposes bridging the EVIDENCE resolver to the move tree. But a resolver bridge would make F-04's false citation resolvable from main too, widening the SATISFIED arm for every caller of a shared predicate, while HANDOFF plus a verified ref needs no citation at all: measured, the overridden single-carrier case passes with `evidence=None`. | Compared the two routes on the same fixture; HANDOFF-with-override needs no evidence, whereas any resolver change necessarily touches the arm F-04 shows is already too permissive. | Records WHY the plan picks a HANDOFF-side override over the item's route (b). OQ-01 carries the decision. |
+| F-09 | MED | A SEPARATE, PRE-EXISTING HOLE THIS PLAN DOES NOT CLOSE: the OUTER predicate ignores spec carriers entirely when any IPD carrier exists, because `if ipds:` returns before `others` is examined. Measured in ONE tree with NO lane: item with an executed IPD carrier plus a same-gate spec carrier still `approved`, outer returns `close=True`; the inner gate WOULD refuse (`...carrier is not executed/implemented`, naming both) but the outer's evidence citation fires SATISFIED and masks it. | Driven in a single scratch repo, no worktree, no `--dir` split; outer verdict, inner-with-evidence verdict and inner-without-evidence verdict all pasted. | DISTINCT FROM `lsbd32` (done, ANY-vs-ALL in the inner arm) and from `2o5wka` F-06 (a sibling with no gate line, inner permissive). This is the OUTER predicate dropping a carrier KIND. E-01 files it as its own item rather than folding it in: it needs no lane, so it is orthogonal, and fixing it would change which carriers the outer predicate considers. |
+| F-10 | MED | THE NO-OP SHAPES ARE GENUINELY INERT. POST-MERGE: main shows the carrier `executed/`, `lane_executed_carrier_override(main, coord, ...)` returns `{}`, and a main-rooted gate returns `legitimate=True, path='HANDOFF'` with NO evidence. NON-ISOLATED: `override(repo, repo)` returns `{}` via the same-tree short-circuit and the verdict is unchanged. PRE-EXISTING SHARED-PATH SPEC CARRIER edited in the lane: passes against BOTH roots via SATISFIED, because the path is identical in the two trees. | Three fixtures driven: a merged lane plus a detached coordinator worktree, a single-tree repo, and a lane editing a spec that already existed in main. | BOUNDS THE BLAST RADIUS by measurement rather than by assertion. E-07 converts all three into tests. The third cell matters because it is the non-IPD shape that IS reachable from a lane, and it does not regress. |
+| F-11 | MED | THE NON-IPD CARRIER CREATED IN THE LANE NEVER REACHES THE SETTER, so it needs no handling here. A spec the run creates in the lane does not exist in main at all: carriers visible from main `[]`, outer predicate `close=False` with `no plan or spec carries From-Backlog: <id6>, so no carrier proves the work`. | Driven on a lane that created a new spec carrier; outer verdict against main and against the lane both pasted. | Closes what would otherwise be an obvious gap in E-04's design. The OUTER predicate already refuses this shape when rooted at main, so the inner gate is never consulted. Worth recording so a reviewer does not read it as an unhandled case. |
+| F-12 | LOW | THE SUITE'S FAILURE SET IS TIME-DEPENDENT AND MUST BE COMPARED BY NODE ID, NOT BY TOTAL. At authoring, bare on this lane: `1 failed, 3419 passed, 2 skipped`, the failure being `test_release_exempt_setter_roundtrip_and_parity`, whose diff is purely `- 2026-09-30` versus `- 2026-10-01` (local `date.today()` in `backlog.py` versus UTC in `status_set.py`). Already filed as `fnb8pl`, plus `2wae2x`, `o8l2y2`, `tl8qmc`. AT REVIEW THE TREE IS FULLY GREEN: `3560 passed, 2 skipped, 3 warnings in 160.38s` at HEAD `816f4a2e0`, with that test PASSING, which confirms the clock diagnosis and shows the authored total drifted by 141. So neither number is a bar. | Authoring's bare summary plus the narrowed run's assertion diff; review's bare run pasted; `git diff main --name-only` filtered for the gate files returns nothing. | E-08's baseline. Prevents an executor from either claiming credit for a green run or chasing a failure that is neither theirs nor in scope. E-08 and V-08 now require a by-node-id comparison against a re-derived baseline rather than the `>= 3419` threshold. |
+| F-13 | HIGH | **F-02'S DEMONSTRATING SHAPE WAS MEASURED WRONG AT AUTHORING, AND THE CORRECTION MAKES THE DEFECT MORE SERIOUS RATHER THAN LESS.** F-02 claimed that a TWO-carrier item with an unexecuted sibling returns `legitimate=True` via HANDOFF when gated against the lane. It does NOT: review measured BOTH roots returning `legitimate=False` on that shape, each naming both carriers. The cause is structural, not fixture-dependent: `2o5wka` tightened the HANDOFF arm to `if same_gate_carriers and all(_carrier_is_executed(_c) ...)`, so ONE unexecuted sibling refuses in EVERY tree, and `git show 8163b62ad:agent_workflows/check_engine.py` confirms that `all(...)` was ALREADY PRESENT at this plan's own authoring HEAD. The authored verdict therefore describes pre-`2o5wka` ANY semantics and could not have been produced by the code it claims to have been driven against. THE SHAPE THAT DOES LEAK IS THE SINGLE-CARRIER CLOSE, measured at review: gate=LANE `legitimate=True path='HANDOFF'` versus gate=MAIN `legitimate=False` ("...carrier is not executed/implemented"). That is the ORDINARY shape every isolated turn with one carrier takes, so the leak is on the common path rather than a rare multi-carrier one. | Two-tree `git worktree` fixture at HEAD `816f4a2e0` driving `evaluate_blocking_close` on both shapes against both roots; the HANDOFF fold read at HEAD and at `8163b62ad`. | CORRECTS F-02, the Goal's "WHAT THIS FIXES" paragraph, E-01's re-measurement instruction and STOP condition, E-06's case mapping, and the gate's FIRST paragraph. Without the correction an executor re-measuring F-02 would find both roots refusing, could read that as an expired premise, and might abandon a plan whose defect is real. |
+| F-14 | LOW | TWO CROSS-REFERENCES ARE STALE AND ONE ADJACENT PLAN IS UNNAMED. `47ttnv` is described as "pending" in the gate's FIRST paragraph but is `- Status: executed` (the Deferred row already cites its executed path correctly, so the plan contradicts itself). Its residue is carried by `2misq5`, an APPROVED pending plan this plan never names; checked at review, `2misq5` declares only `tests/test_backlog_production.py` and a backlog item, so it overlaps NONE of this plan's eleven `Scope-Paths` and is not a collision. `lsbd32` is confirmed `done` and `fnb8pl` confirmed `open`, as claimed. | `grep '^- Status:'` on each artifact; `2misq5`'s `- Scope-Paths:` read and compared against this plan's. | Corrected in the gate paragraph, with `2misq5` named and its non-overlap recorded so a reviewer does not have to re-derive it. |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-measure the four dated premises and file the F-09 defect as its own item (E-01).
+2. Add the verified lane-carrier override to the shared predicate, keyword-only and inert by default (E-02).
+3. Surface it as two paired CLI flags and declare them (E-03).
+4. Pass the gate root plus the override from the runner, across all four symbols in three files (E-04).
+5. Correct the three docstrings this falsifies (E-05).
+6. Pin the allowance, the tightening (on the SINGLE-CARRIER shape, per F-13), the siblings-stay-unoverridden guard and the forged-assertion refusal (E-06).
+7. Pin the no-op shapes so the blast radius is proven and not asserted (E-07).
+8. Run the full suite and reconcile against the baseline (E-08).
+9. Update the operator-facing close documentation (E-09).
+
+ORDER IS LOAD-BEARING IN TWO PLACES. E-02 BEFORE E-03 BEFORE E-04 because each is the previous one's only consumer: the predicate parameter must exist before a flag can carry it, and the flag must exist before the runner can emit it. Shipping in this order also means that if E-04 has to be abandoned the override still exists and is tested, exactly the property that let `9vglxd` ship `--gate-dir` after withdrawing its runner adoption. E-06 BEFORE E-07 because E-06 proves the change works and E-07 proves it changed nothing else; running them in the other order invites an executor to treat the inert shapes as sufficient evidence.
+
+## Deferred / out of scope (with reason)
+
+- F-09, THE OUTER PREDICATE'S SPEC-CARRIER BLIND SPOT. Deferred because it is a DIFFERENT defect with a different cause: it is reachable in one tree with no lane and no `--dir` split, so nothing in this plan's fix touches it, and closing it changes which carrier KINDS the outer predicate considers, which has its own blast radius over the live multi-carrier population.
+  - Carrier-Declined: NO CARRIER EXISTS YET BY CONSTRUCTION, because E-01 FILES ONE as its first action and the filed item's id6 cannot be known at authoring. This is the deliberate "file it rather than promise it" shape `d1ldvk` set as precedent, inverted only in timing: the obligation is an EXECUTION STEP of this plan (E-01), validated by V-01, which requires the new item's id6 plus `aw find backlog` output proving it is not a duplicate of `lsbd32` or `d1ldvk`. So the obligation cannot vanish silently when this plan reaches `executed`: a V-01 with no id6 pasted FAILS. If this plan is retired unexecuted, F-09's full measurement survives in the Findings table for whoever files it.
+- THE POSITIONAL-SPELLING BYPASS. `aw backlog set done <sel>` (no `--status`) dispatches to `status_set.run_set_command`, which never calls the shared predicate at all. Out of scope here, and the runner is unaffected because it uses the `--status` spelling deliberately. Note `47ttnv` is EXECUTED (the gate's first paragraph called it pending, corrected at review per F-14), and its residue is carried by approved pending plan `2misq5`, which declares only `tests/test_backlog_production.py` plus a backlog item and so overlaps none of this plan's `Scope-Paths`.
+  - Carrier: 47ttnv
+  - Carrier-Evidence: .aw/records/plans/executed/20260929-gatebypass-01-47ttnv-run-the-shared-release-gate-close-predicate-on-the-positiona.ipd.md
+- THE ANY-VS-ALL DIVERGENCE, closed by `2o5wka` (executed), which tightened the HANDOFF arm from ANY-carrier to ALL-carrier semantics. This plan DEPENDS on that having landed: the `all(...)` fold is exactly what E-02's override plugs into.
+  - Carrier-Declined: NOTHING IS OWED. This row records a SATISFIED PRECONDITION rather than an outstanding defect, so naming a carrier would assert pending work that does not exist. The fix shipped in plan `2o5wka` and its backlog item `lsbd32` is `done`; E-02's instruction to apply the override at the HANDOFF call site is what keeps this plan compatible with it.
+- `2o5wka` F-06's UNGATED-SIBLING RESIDUAL, where a sibling carrier with no `- Blocks-Release:` line is dropped by the same-gate filter. Deferred because widening that FILTER changes which carriers the arm considers, a different decision from changing how ONE discovered carrier is judged.
+  - Carrier-Declined: ALREADY OWNED AND DELIBERATELY UNFILED UPSTREAM. `2o5wka` OQ-02 defers this residue with an EXPLICIT TRIGGER (file a carrier only if `check.from-backlog-gate-mismatch` is ever weakened or made advisory, because that rule is what keeps the shape visible as an error today), and its own deferred row declines a carrier on that reasoning. Filing one here would duplicate a decision another plan already recorded, and would do so for a shape this plan does not touch.
+- MAKING THE OVERRIDE AVAILABLE TO A HAND CLOSE WITH NO LANE.
+  - Carrier-Declined: NOT AN OBLIGATION. A hand close has no second tree to name, so there is no deferred work here, only a boundary: the flags exist for the one caller that has a lane. Recording a carrier would misrepresent a scope fence as unfinished work.
+- THE EXISTING UNDECLARED FLAG DEBT on `aw backlog set` (`--evidence`, `--yes`, `--commit/--no-commit` accepted but undeclared), which E-03 deliberately does not fix while declaring the two new flags.
+  - Carrier-Declined: PRE-EXISTING AND DOCUMENTED AT THE SITE. `command_surface.py`'s own comment names all three flags as accepted-but-undeclared and records that the agreement test is one-directional, so the debt is already visible to the next reader of that file. It is not created, worsened or hidden by this plan, and folding it in would widen the diff into a surface this plan otherwise only appends to.
+- THE `fnb8pl` DATE-CLOCK SUITE FAILURE, pre-existing and outside `Scope-Paths`, recorded as F-12 so an executor neither claims credit for a green run nor chases it.
+  - Carrier: fnb8pl
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/check_engine.py` carries E-02; `agent_workflows/backlog.py`, `agent_workflows/cli.py` and `agent_workflows/command_surface.py` carry E-03; `agent_workflows/runner_shared.py` plus `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` carry E-04 and E-05; `tests/test_backlog_handoff_close.py` carries E-03's declaration assertion and E-06; `tests/test_check_engine_release_gate.py` carries E-07; `docs/artifact-lifecycles.md` and `CHANGELOG.md` carry E-09. E-01 and E-08 write no tracked file beyond this plan's own execution notes, except the backlog item E-01 files, which is a new file under `.aw/records/backlog/open/` and is the normal product of `aw backlog new`.
+- THE TWO HOST RUNNERS ARE IN SCOPE FOR EXACTLY TWO FORWARDED KEYWORDS and nothing else. This is a correction learned from `9vglxd`'s review (its F-11/PR-701), not an opportunistic widening: `process_backlog_close` calls an INJECTED `close_backlog_item`, and the callable is supplied by a thin wrapper defined in each host, so two of E-04's four edits necessarily live there. An executor changing anything else in either host runner has left this plan's fence.
+- `agent_workflows/check_engine.py` IS IN SCOPE, and this differs from `9vglxd`, which deliberately kept it out. The reason is that the two plans do different things: `9vglxd` only let a CALLER choose the existing predicate's root, whereas this plan must change how the predicate JUDGES one carrier, and there is no way to do that from outside it. The change is bounded to one new keyword-only parameter and its use inside the HANDOFF arm; the three arms, their verdicts and every existing caller's behavior are untouched.
+- Under-scope, DELIBERATE and stated plainly: this closes the gate-tree hole for the RUNNER'S ISOLATED PRE-MERGE CLOSE only. A hand close still gates against whatever tree `--dir` names unless the operator passes `--gate-dir`, and the F-09 blind spot in the outer predicate remains open under its own item. An operator reading "the in-lane close is now gated against main" must not conclude that every close is.
+
+## Required tests / validation
+
+- THE TIGHTENING MUST BE DEMONSTRATED, not asserted, AND ON THE RIGHT SHAPE (F-13): the SINGLE-CARRIER shape gated against main with NO override must exit 1 through the real CLI, and the item must move nowhere (E-06 case 1b). That is the shape that leaks today, since gating it against the lane returns `legitimate=True` via HANDOFF. The two-carrier sibling-unexecuted shape must ALSO exit 1 with the override in place (E-06 case 2), but it proves SIBLINGS STAY UNOVERRIDDEN rather than the tightening, because review measured it refusing against both roots already. A plan that only shows the allowance case has not shown it fixed anything.
+- THE ORDINARY CLOSE MUST STILL SUCCEED end to end, with the gate tree set to main and the override in place, exiting 0 and landing the item in the move tree's `done/` (E-06 case 1). If it cannot, paste the refusal and STOP rather than relaxing an arm to fit; a loosened gate is not an acceptable way to pass this.
+- THE ASSERTION MUST BE PROVEN VERIFIED, by a case whose override names a ref that does not show the carrier executed and which therefore refuses (E-06 case 3). This is the test that distinguishes this plan's design from a `--trust-me` flag, and an implementation that trusts its caller passes every other case.
+- THE INERT SHAPES MUST BE PROVEN INERT: non-isolated and post-merge, with an empty override and no evidence citation (E-07).
+- BOTH HOST WRAPPERS MUST BE SHOWN WIDENED IDENTICALLY, pasted side by side (V-04), so a one-sided edit is visible rather than inferred.
+- THE FULL SUITE, run bare, reconciled BY NODE ID against a baseline re-derived at the execution HEAD, never against a total written in this plan (authoring `1 failed, 3419 passed`; review `3560 passed`, fully green; F-12), with the known time-dependent failure named only if it actually appears (E-08).
+- `tests/test_backlog.py::test_backlog_set_status_done_dry_run_refuses_illegitimate_blocking_close_without_sidecar` MUST STAY GREEN, since it pins the gate-before-write ordering that E-03's new usage error must not disturb.
+- NO TEST MAY READ PRODUCTION SOURCE TEXT, count callers, or assert on docstrings. Drive the CLI and the predicates and assert on verdicts, exit codes, stderr strings and where the item file ends up.
+
+## Spec / documentation sync
+
+- `docs/artifact-lifecycles.md`: E-09 updates the "Closing a release-blocking item" section, which `9vglxd` E-07 already amended for `--gate-dir`, to say which tree decides a runner close.
+- `CHANGELOG.md`: E-09 adds an entry for the two new flags if the file's conventions call for one, verified against the existing `aw backlog set` flag entries.
+- NO `.spec.md` FILE IS AMENDED, and none is declared in `Scope-Paths`. Checked at authoring: the close-legitimacy contract lives in the repo-local `AGENTS.md` paragraph and `.aw/records/backlog/README.md`, both of which state the THREE ARMS and the ALL-carrier rule. This plan changes neither: it changes which TREE one caller evaluates the arms against, and adds an override that only makes a main-rooted evaluation see what the lane genuinely contains. If an executor finds themselves needing to edit a spec, that is a signal the change grew beyond this fence; stop and report.
+- `AGENTS.md` IS DELIBERATELY NOT IN `Scope-Paths`, and this is a measured decision rather than an omission. Its "Close-legitimacy rule" paragraph describes the three fixes available to a HAND close and remains true verbatim. Two plans are already co-editing that paragraph (`2o5wka` E-06a landed the carrier-count wording, `47ttnv` owns the enforcement sentence); adding a third editor for a change that does not alter the rule would create a conflict for no gain.
+
+## Open questions
+
+### OQ-01: Should the override be verified against a git ref, or should the evidence resolver bridge to the move tree as the backlog item's route (b) proposes?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED BY MEASUREMENT AS THE VERIFIED REF (F-07, F-08), with the rejected alternative recorded because it is the item's own suggestion. THE CASE FOR THE REF. The lane is a real `git worktree` sharing main's object store, so main can confirm the carrier's lane-side bucket with `git ls-tree` and never has to believe the caller; the negative control in F-07 shows an unfinalized lane cannot pass. It also needs NO evidence citation at all, so it leaves the SATISFIED arm completely untouched. THE CASE AGAINST ROUTE (b), which is stronger than "harder": F-04 measures that citing main's `pending/` path ALREADY satisfies the gate, because `resolve_evidence_artifact` tests path safety and existence and never reads carrier state. Bridging that resolver across trees would widen an arm that is already too permissive, and it would do so for EVERY caller of a shared predicate that also backs `aw check` and the pre-commit hook. THE CASE A REVIEWER MIGHT MAKE FOR ROUTE (b), stated fairly: it is a smaller diff, confined to one helper, and it needs no new CLI surface. That is real, and it is why this is recorded rather than assumed. It is rejected because the smaller diff buys a permissive change to a shared gate, which is the opposite of this plan's purpose. REVERSIBLE: yes. The override is additive and inert by default, so it can be removed without changing any existing caller.
+
+### OQ-02: Should the runner pass the override for every call site, or only for the isolated pre-merge turn?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED AS ISOLATED-ONLY, from F-10 rather than from caution. Measured post-merge, `lane_executed_carrier_override` returns `{}` and a main-rooted gate passes via HANDOFF with no evidence at all, so the three post-merge call sites (`integrate_retired_lane`, `finish_reintegrated_item`, `perform_coordinator_backlog_close`) need nothing: main genuinely sees the carrier executed. The non-isolated turn short-circuits on the same-tree check. So passing an override there would be inert at best and, worse, would make the emitted argv claim the close depended on a ref it did not need, which misleads anyone reading a run record. `process_backlog_close` already computes `isolated`, so the condition costs nothing. REVERSIBLE: yes, a one-line condition.
+
+### OQ-03: Should E-04 be split into its own plan, given that `9vglxd` withdrew the equivalent item?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED AS ONE PLAN, with the opposite answer to `9vglxd`'s and for a stated reason. There, the runner adoption was withdrawn because the ordinary close could not be made to pass WITHOUT a mechanism that did not exist; the honest outcome was to ship the flag and refile. HERE the mechanism is E-02, and it is this plan's own deliverable, so splitting would separate the override from its only consumer and leave a tested-but-unused parameter with no caller to justify its shape. The ordering already provides the same safety the split would: E-02 and E-03 stand alone and remain valuable if E-04 is abandoned, which is precisely how `--gate-dir` survived `9vglxd`. REVERSIBLE: yes, E-04 and E-05 could be lifted into a follow-on plan at review with no rework to E-02 or E-03.
+
+### OQ-04: Does tightening this gate need the live corpus grandfathered, as `lsbd32` asked for the ANY-vs-ALL fix?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED AS NO GRANDFATHERING NEEDED, on the mechanism `2o5wka` F-08 already measured rather than on a fresh corpus count. That plan tightened the same predicate and found `aw check release-gates` still reported `errors 0` afterwards, because `check_release_gate_consistency`'s Rule 1 is COMMIT-SCOPED by construction and its own comment states that historically closed `done/` items are never retroactively flagged. This plan's change is strictly narrower: it alters no arm and no verdict for any existing caller, and affects only a verdict computed live during an isolated runner turn. So no already-closed item can be re-judged, and there is nothing to grandfather. A REVIEWER SHOULD STILL CHECK ONE THING: that `aw check release-gates` is clean after the change, which E-08's suite run covers through the existing release-gate tests.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: four pasted measurements from execution HEAD, each naming the HEAD it ran at: (a) THE SINGLE-CARRIER SPLIT, both roots on the same item, which must read gate=LANE `legitimate=True path='HANDOFF'` and gate=MAIN `legitimate=False`; (b) the single-carrier main-rooted refusal reason string quoted (the same cell as (a)'s main half, quoted in full); (c) the four-cell `resolve_evidence_artifact` matrix; (d) the mixed IPD-plus-unimplemented-spec outer verdict reading `close=True`. DO NOT DEMAND OR PASTE A TWO-CARRIER LANE-ROOTED `legitimate=True`: review measured that cell `legitimate=False` against BOTH roots and traced it to `2o5wka`'s `all(...)` fold being present since before this plan was authored (F-13), so the authored (a) asked for evidence that cannot be produced. If you drive the two-carrier shape as a cross-check, paste it as a both-roots-refuse CONFIRMATION, never as the defect. PLUS the id6 of the newly filed F-09 backlog item and the `aw find backlog` output showing it is not a duplicate of `lsbd32` or `d1ldvk`. If any premise has reversed, the required evidence is instead a written STOP with the contradicting output.
+  - Observed evidence: Four measurements from HEAD 2da95cf72e4079400948ddc4f2b8f4f3012dae93 confirmed and F-09 filed as 10w6ww.
+    Measured at execution HEAD `2da95cf72e4079400948ddc4f2b8f4f3012dae93`:
+    (a) Single-carrier split:
+      - gate=LANE: `BlockingCloseVerdict(legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/executed/20260926-testset-01-plan01-test-plan.ipd.md)")`
+      - gate=MAIN: `BlockingCloseVerdict(legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)")`
+    (b) Single-carrier main-rooted refusal reason quoted in full:
+      `"gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)"`
+    (c) Four-cell `resolve_evidence_artifact` matrix:
+      - (lane root, lane executed path): `True`
+      - (main root, lane executed path): `False`
+      - (main root, main pending path): `True`
+      - (lane root, main pending path): `False`
+    (d) Mixed IPD-plus-unimplemented-spec outer verdict:
+      `close=True, reason="item 'item01' proved by executed From-Backlog carrier(s) (plan01); close is legitimate"`
+    Two-carrier sibling-unexecuted cross-check confirmation:
+      - gate=LANE: `BlockingCloseVerdict(legitimate=False, path=None, severity='error', reason="...plan01..., ...plan02... but the work has not shipped (carrier is not executed/implemented)")`
+      - gate=MAIN: `BlockingCloseVerdict(legitimate=False, path=None, severity='error', reason="...plan01..., ...plan02... but the work has not shipped (carrier is not executed/implemented)")`
+      (both roots refuse as expected under 2o5wka's all(...) fold).
+    Newly filed F-09 backlog item id6: `10w6ww`
+    Filed file: `.aw/records/backlog/open/20261001-10w6ww-01-10w6ww-outer-close-ignores-spec-carrier.backlog.md`
+    `aw find backlog` non-duplicate confirmation:
+      `10w6ww: Outer predicate ignores spec carrier when any IPD carrier exists`
+      `lsbd32: Tighten the backlog-close release gate from any-carrier to all-carrier (done)`
+      `d1ldvk: Fix three factual errors in IPD 2a6phj (done)`
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: pasted direct calls to `evaluate_blocking_close` on a two-tree fixture showing FOUR cells: (1) main-rooted, override naming the single carrier and the lane branch ref, NO evidence, returning `legitimate=True, path='HANDOFF'`; (2) main-rooted, same override, with an unexecuted SIBLING present, returning `legitimate=False` - note this cell proves SIBLINGS STAY UNOVERRIDDEN and is NOT the tightening proof, since review measured that shape refusing with no override and against either root (F-13), so read it as a guard against the override generalizing rather than as evidence the gate moved; (3) main-rooted, override naming a ref whose tree still shows the carrier in `pending/`, returning `legitimate=False`; (4) main-rooted with NO override on the SINGLE-CARRIER shape, returning `legitimate=False`, which proves the parameter defaults inert AND is the cell that pairs with cell (1) to demonstrate the actual tightening. Cell (3) must be pasted with the ref name so a reviewer can see the assertion was verified rather than trusted. Also paste a spec-carrier cell proving the override reads `- Status:` from the ref's BLOB rather than inspecting a directory.
+  - Observed evidence: Direct calls to evaluate_blocking_close on worktree fixture show all four cells and spec blob check passed.
+    Direct calls to `evaluate_blocking_close` on two-tree worktree fixture:
+    Cell 1: `evaluate_blocking_close(main_repo, item_path, "done", lane_carrier_ref="lane", lane_carrier_path=".aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md")`
+      -> `BlockingCloseVerdict(legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md)")`
+    Cell 2 (sibling unexecuted guard): with plan02 pending, same override:
+      -> `BlockingCloseVerdict(legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md, .aw/records/plans/pending/20260926-testset-01-plan02-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)")`
+    Cell 3 (forged/pending ref): `lane_carrier_ref="main"` (main branch where carrier is pending):
+      -> `BlockingCloseVerdict(legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)")`
+    Cell 4 (default inert / tightening proof): main-rooted with NO override:
+      -> `BlockingCloseVerdict(legitimate=False, path=None, severity='error', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md) but the work has not shipped (carrier is not executed/implemented)")`
+    Spec-carrier blob inspection cell:
+      Spec with `- Status: implemented` on ref `lane`, main shows `- Status: approved`:
+      `evaluate_blocking_close(main_repo, spec_item_path, "done", lane_carrier_ref="lane", lane_carrier_path=".aw/records/specs/approved/20260926-testset-01-spec01-test-spec.spec.md")`
+      -> `BlockingCloseVerdict(legitimate=True, path='HANDOFF', severity='ok', reason="gate 'next' is handed off to From-Backlog carrier(s) (.aw/records/specs/approved/20260926-testset-01-spec01-test-spec.spec.md)")`
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: three pasted CLI runs with exit codes: the paired flags on the single-carrier shape exiting 0; `--lane-carrier-ref` without `--lane-carrier-path` exiting 2 with stderr naming the missing flag; and the same omission reversed, also exiting 2. PLUS the declaration-test output showing both new flags present in `command_surface.get_declaration("backlog set").legacy_flags`. The exit-2 cases must also show the item file UNMOVED, proving the usage error fires before any write.
+  - Observed evidence: Three CLI runs and declaration test passed; exit-2 cases leave item file unmoved.
+    (1) Paired flags on single-carrier shape:
+      Command: `aw backlog set item01 --status done --dir <lane> --gate-dir <main> --lane-carrier-ref lane --lane-carrier-path .aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md --message close`
+      Exit code: 0
+      Item moved to `.aw/records/backlog/done/` in lane.
+    (2) `--lane-carrier-ref` without `--lane-carrier-path`:
+      Command: `aw backlog set item01 --status done --dir <lane> --gate-dir <main> --lane-carrier-ref lane --message close`
+      Exit code: 2
+      Stderr: `error: --lane-carrier-ref and --lane-carrier-path must be used together; missing --lane-carrier-path`
+      Item file UNMOVED: `.aw/records/backlog/open/` path still exists, `.aw/records/backlog/done/` does not exist.
+    (3) `--lane-carrier-path` without `--lane-carrier-ref`:
+      Command: `aw backlog set item01 --status done --dir <lane> --gate-dir <main> --lane-carrier-path .aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md --message close`
+      Exit code: 2
+      Stderr: `error: --lane-carrier-ref and --lane-carrier-path must be used together; missing --lane-carrier-ref`
+      Item file UNMOVED: `.aw/records/backlog/open/` path still exists, `.aw/records/backlog/done/` does not exist.
+    Declaration-test output:
+      `tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_backlog_set_declared_flag_surface_matches_parser PASSED`
+      `--lane-carrier-ref` and `--lane-carrier-path` verified present in `command_surface.get_declaration("backlog set").legacy_flags`.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: the emitted argv for an isolated turn, pasted, showing `--dir <lane>`, `--gate-dir <main>` and both override flags with the carrier path in MAIN's spelling; the emitted argv for a NON-isolated turn, pasted, showing none of the three new flags; and BOTH host wrappers' post-change source pasted SIDE BY SIDE so a one-sided edit is visible. Capture the argv by driving the runner path and intercepting the command, not by reading the source and asserting it looks right.
+  - Observed evidence: Emitted argv for isolated and non-isolated turns verified; both host wrappers updated identically.
+    Emitted argv for isolated turn:
+    `['python3', '-m', 'agent_workflows', 'backlog', 'set', 'item01', '--status', 'done', '--evidence', '', '--message', 'closed by test: IPD plan01 executed (...); evidence None', '--dir', '/tmp/.../lane', '--gate-dir', '/tmp/.../main', '--lane-carrier-ref', 'lane', '--lane-carrier-path', '.aw/records/plans/pending/20260926-testset-01-plan01-test-plan.ipd.md', '--no-commit']`
+    Emitted argv for non-isolated turn:
+    `['python3', '-m', 'agent_workflows', 'backlog', 'set', 'bug001', '--status', 'done', '--evidence', '', '--message', 'close message', '--dir', '/tmp/.../repo', '--no-commit']`
+    Both host wrappers post-change source:
+    `agent_workflows/oc_runipd.py`:
+    ```python
+    def close_backlog_item(
+        repo: Path,
+        item_path: Path,
+        item_id6: str,
+        evidence: str,
+        message: str,
+        *,
+        gate_root: Path | None = None,
+        lane_carrier_ref: str | None = None,
+        lane_carrier_path: str | None = None,
+    ) -> tuple[int, str]:
+        return _runner_shared_close_backlog_item(
+            repo,
+            item_path,
+            item_id6,
+            evidence,
+            message,
+            gate_root=gate_root,
+            lane_carrier_ref=lane_carrier_ref,
+            lane_carrier_path=lane_carrier_path,
+            run_checked=_run_checked,
+        )
+    ```
+    `agent_workflows/agy_runipd.py`:
+    ```python
+    def close_backlog_item(
+        repo: Path,
+        item_path: Path,
+        item_id6: str,
+        evidence: str,
+        message: str,
+        *,
+        gate_root: Path | None = None,
+        lane_carrier_ref: str | None = None,
+        lane_carrier_path: str | None = None,
+    ) -> tuple[int, str]:
+        return _oc_close_backlog_item(
+            repo,
+            item_path,
+            item_id6,
+            evidence,
+            message,
+            gate_root=gate_root,
+            lane_carrier_ref=lane_carrier_ref,
+            lane_carrier_path=lane_carrier_path,
+        )
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: `git diff` of the three docstring sites, pasted, showing that no text still claims the gate tree and move tree cannot be split, and showing that `close_backlog_item`'s closing warning about the permissive direction SURVIVES verbatim or strengthened. A diff that deletes that warning FAILS this item.
+  - Observed evidence: git diff shows three docstring sites corrected and closing warning on permissive direction preserved.
+    `git diff agent_workflows/runner_shared.py`:
+    Site 1 (`close_backlog_item` tree split docstring):
+    ```diff
+    -    ``repo`` is the tree the setter operates on. THE TWO CANNOT BE SPLIT FROM HERE: one ``--dir`` is
+    -    one tree for the move AND the gate.
+    -    Citing evidence is the one way out: if the turn passed ``evidence`` (and
+    -    `evaluate_backlog_close` resolved one), it is a path that resolves in the lane, so the gate
+    -    is satisfied via SATISFIED rather than HANDOFF.
+    +    ``repo`` is the tree the setter operates on: it is where the item file MOVES.
+    +    When ``gate_root`` is passed (via `--gate-dir`), it is the tree the release-gate predicate
+    +    evaluates against (otherwise falling back to ``repo``).
+    ```
+    Site 2 (`close_backlog_item` gate split & evidence resolution docstring):
+    ```diff
+    -    `--dir` is where the item file moves. Today the release gate also evaluates against that same
+    -    tree, so carrier discovery (`find_from_backlog_artifacts`) and evidence resolution
+    -    (`resolve_evidence_artifact`) both root in ``repo``.
+    +    `--dir` is where the item file moves, while `--gate-dir` chooses the tree the release gate
+    +    evaluates against. Because the gated route runs `check_engine.evaluate_blocking_close`, passing
+    +    `--gate-dir` roots carrier discovery (`find_from_backlog_artifacts(gate_root, item_id6)`) and
+    +    evidence resolution (`resolve_evidence_artifact(gate_root, evidence)`) in the gate tree (main),
+    +    while the move happens in ``repo`` (the lane). An isolated turn passes `--gate-dir` to evaluate
+    +    against main, along with `--lane-carrier-ref` and `--lane-carrier-path` to override the lane's
+    +    one finalized carrier. The cited evidence resolves in the gate tree (main).
+    ```
+    Site 3 (`evaluate_backlog_close` inner verified override note):
+    ```diff
+    +    This outer override is independent of the verified inner release-gate override
+    +    (`--lane-carrier-ref` and `--lane-carrier-path`), which allows `evaluate_blocking_close`
+    +    to verify the lane-side carrier from main.
+    ```
+    Closing warning preserved verbatim:
+    ```python
+        Do not "simplify" this to a lane-only evaluation: in the lane this run's own plan already sits in
+        `executed/`, so a lane-side carrier scan is MORE likely to find a satisfying carrier than main's,
+        and the error direction is the permissive one -- a release-gated item could close `done` that
+        main's view would refuse.
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: pasted test output for the FOUR new cases, each identified by name, with the runner's own summary line. Case (1b) must show exit 1 and the `carrier is not executed/implemented` string on the SINGLE-CARRIER shape gated against main with NO override, which is the case that proves the tightening (F-13). Case (2) must show exit 1 and the same string on the sibling shape, plus an assertion that the item file stayed put, and must be labelled as the siblings-stay-unoverridden guard rather than as the tightening. Case (3) must show exit 1 against a ref that does not show the carrier executed. Also paste evidence that the fixture builds the lane with `git worktree add` (for example the `git worktree list --porcelain` output or the fixture's own command), since a copied directory would make case (3) vacuous.
+  - Observed evidence: Four new tests in test_backlog_handoff_close.py passed; worktree fixture verified.
+    Pasted test output for the four cases in `tests/test_backlog_handoff_close.py`:
+    `tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_6_single_carrier_with_lane_carrier_override_allowed PASSED [ 25%]`
+    `tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_6b_single_carrier_without_override_refused_proves_tightening PASSED [ 50%]`
+    `tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_7_two_carrier_sibling_unexecuted_with_override_refused PASSED [ 75%]`
+    `tests/test_backlog_handoff_close.py::BacklogGateDirSplitTests::test_case_8_forged_assertion_refused PASSED [100%]`
+    Runner summary: `4 passed, 24 deselected in 1.17s`
+    Case details:
+    - Case (1b) `test_case_6b_single_carrier_without_override_refused_proves_tightening`: exit 1, stderr `carrier is not executed/implemented`, item remains in open/.
+    - Case (2) `test_case_7_two_carrier_sibling_unexecuted_with_override_refused`: exit 1, stderr `carrier is not executed/implemented`, item remains in open/ (guard: siblings stay unoverridden).
+    - Case (3) `test_case_8_forged_assertion_refused`: exit 1 against ref `main` where carrier is still pending, stderr `carrier is not executed/implemented`, item remains in open/.
+    Fixture worktree creation command:
+    ```python
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "lane", str(lane_path), "main"],
+        cwd=self.main_repo,
+        check=True,
+        capture_output=True,
+    )
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: pasted test output for the non-isolated and post-merge cases, each showing the verdict reached with an EMPTY override and no evidence citation. Include the post-merge `lane_executed_carrier_override(...)` returning `{}`, since that is the fact that makes those call sites inert. State explicitly that no test added here reads production source text or counts callers.
+  - Observed evidence: Non-isolated and post-merge tests in test_check_engine_release_gate.py passed with empty override and no evidence.
+    Pasted test output for non-isolated and post-merge cases in `tests/test_check_engine_release_gate.py`:
+    `tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_non_isolated_turn_inert_empty_override_and_no_evidence PASSED [ 33%]`
+    `tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_non_isolated_turn_emits_no_new_flags PASSED [ 66%]`
+    `tests/test_check_engine_release_gate.py::TestCheckEngineReleaseGate::test_post_merge_call_sites_inert_empty_override_and_no_evidence PASSED [100%]`
+    Runner summary: `3 passed, 31 deselected in 0.23s`
+    Post-merge override verification:
+    `lane_executed_carrier_override(main_repo, coord_repo, item) == {}`
+    `evaluate_blocking_close(main_repo, bug_file, "done", evidence=None, lane_carrier_ref=None, lane_carrier_path=None)` returned `legitimate=True, path='HANDOFF'`.
+    Non-isolated override verification:
+    `lane_executed_carrier_override(repo, repo, item) == {}`
+    `evaluate_blocking_close(repo, bug_file, "done", evidence=None, lane_carrier_ref=None, lane_carrier_path=None)` returned `legitimate=True, path='HANDOFF'`.
+    Non-isolated close invocation emitted no `--gate-dir`, `--lane-carrier-ref`, or `--lane-carrier-path` flags.
+    No test added reads production source text or counts callers.
+  - Result: pass
+
+- [x] V-08 validates E-08
+  - Required evidence: the ACTUAL bare `python3 -m pytest` summary line, pasted verbatim, PLUS the re-derived pre-change baseline's summary line and HEAD, reconciled BY NODE ID: the after failure-set must contain no node id absent from the before set, and the collected rise must be explained. Do NOT use "pass count at or above 3419" as the bar, which review measured spent (authoring 3419, review 3560, both legitimate; F-12). If a failure other than `test_release_exempt_setter_roundtrip_and_parity` appears, paste BOTH that failure and a re-run of it at the pre-change commit in a clean worktree, and state which commit that was. If that test does NOT appear at all, say so plainly rather than treating its absence as a discrepancy. A claim of success without the pasted summary line fails this item.
+  - Observed evidence: Bare pytest ran in 103.62s with 4175 passed (+7 from baseline 4168), 0 failures before and after.
+    Pre-change baseline at HEAD `2da95cf72e4079400948ddc4f2b8f4f3012dae93`:
+    `4168 passed, 2 skipped, 3 warnings in 202.30s (0:03:22)`
+    Pre-change failure set: none (0 failed).
+    ACTUAL post-change bare `python3 -m pytest` summary line:
+    `4175 passed, 2 skipped, 3 warnings in 103.62s (0:01:43)`
+    Post-change failure set: none (0 failed).
+    Reconciliation by node ID:
+    - Failures: 0 before, 0 after.
+    - Collected count rise: +7 tests:
+      - 4 in `tests/test_backlog_handoff_close.py`:
+        - `BacklogGateDirSplitTests::test_case_6_single_carrier_with_lane_carrier_override_allowed`
+        - `BacklogGateDirSplitTests::test_case_6b_single_carrier_without_override_refused_proves_tightening`
+        - `BacklogGateDirSplitTests::test_case_7_two_carrier_sibling_unexecuted_with_override_refused`
+        - `BacklogGateDirSplitTests::test_case_8_forged_assertion_refused`
+      - 3 in `tests/test_check_engine_release_gate.py`:
+        - `TestCheckEngineReleaseGate::test_post_merge_call_sites_inert_empty_override_and_no_evidence`
+        - `TestCheckEngineReleaseGate::test_non_isolated_turn_inert_empty_override_and_no_evidence`
+        - `TestCheckEngineReleaseGate::test_non_isolated_turn_emits_no_new_flags`
+    - Net change: 4168 -> 4175 passed. `test_release_exempt_setter_roundtrip_and_parity` passed cleanly.
+  - Result: pass
+
+- [x] V-09 validates E-09
+  - Required evidence: `git diff` of `docs/artifact-lifecycles.md` and `CHANGELOG.md`, pasted, plus the output of a grep for em and en dashes over the changed lines showing none were added. If no `CHANGELOG.md` entry was added, state which existing entries were inspected and why the conventions did not call for one.
+  - Observed evidence: git diff of docs/artifact-lifecycles.md and CHANGELOG.md clean; no em or en dashes found.
+    `git diff docs/artifact-lifecycles.md CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 93c2e59be..ebb698ba4 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -32,6 +32,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+     - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
+     - Fixed: a backlog item's history record now names the transition (such as graduated, done, or same-status) whichever spelling of `aw backlog set` was used, replacing the uninformative set label on the flag-based path.
+     - Fixed: a backlog item closed on cited evidence now records that citation, so the release-gate check can tell a legitimate evidence-satisfied close from a hand close.
+    +- Added: `aw backlog set` gains `--lane-carrier-ref` and `--lane-carrier-path` to allow the runner's in-lane close to verify a lane carrier while evaluating the release gate against main.
+     - Fixed: the installer's --diff preview now reports the only-when-absent scaffolding files an install would create.
+     - Fixed: `aw uninstall` now removes the install-emitted `.aw/system/layout.json` and `.aw/system/layout.schema.json` so no `.aw/` directory is left behind.
+     - Fixed: when another process holds the shared writer lock past the wait budget, commands now report a clean refusal message naming the lock holder instead of failing with an unhandled exception traceback.
+    diff --git a/docs/artifact-lifecycles.md b/docs/artifact-lifecycles.md
+    index 8326ea24a..fc5b92a66 100644
+    --- a/docs/artifact-lifecycles.md
+    +++ b/docs/artifact-lifecycles.md
+    @@ -336,6 +336,8 @@ When you graduate an item, do the whole hand-off in one pass:
+
+     The release gate is evaluated against the tree named by `--gate-dir` (defaulting to `--dir` when omitted). When `--gate-dir` is specified, carrier plans are scanned for and evidence paths are resolved in that tree, while the backlog item file itself moves within the tree specified by `--dir`.
+
+    +The runner's in-lane close evaluates the gate against the main checkout while moving the item in the lane. The paired `--lane-carrier-ref` and `--lane-carrier-path` flags exist for that caller so the gate tree can verify the lane-side carrier.
+    +
+     Use `aw backlog note <item> -m "..."` to record a reason or finding without changing status.
+
+     ---
+    ```
+    Dashes check:
+    `git diff docs/artifact-lifecycles.md CHANGELOG.md | grep '^[+]' | grep -P '[\x{2013}\x{2014}]'` -> Clean: no em or en dashes found.
+    Python unicode check: `Dashes found: []`.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `- Status: reviewed` with `- Readiness: go-pending-approval` written by `/plan-review`; the author correctly omitted that field, and only the review may set it. It still requires explicit human approval (`- Status:` must reach `approved`) before any execution.
+
+WHAT THE HUMAN IS ACCEPTING. Review built a REAL two-tree `git worktree` fixture at HEAD `816f4a2e0` and drove the shipped predicate directly rather than reading the findings back. The architecture holds in full: F-01, F-03, F-04, F-05 and F-07 all reproduce, the override is genuinely verifiable through the shared object store with a working negative control, and the injected-callable five-positional trap that broke `9vglxd` is real and correctly handled. ONE PREMISE DID NOT REPRODUCE: F-02's two-carrier shape refuses against BOTH roots, because `2o5wka`'s `all(...)` fold was already in the tree at this plan's own authoring HEAD (F-13). The defect is REAL and WORSE than stated, appearing on the ordinary SINGLE-CARRIER close, so the correction strengthens the case; but it had propagated into eight places, two of them dangerous (V-01(a) demanded unproducible evidence, and E-01's STOP condition could have caused a correct measurement to abandon a real defect). Those are fixed. Also corrected: a spent suite bar (F-12) and two stale cross-references (F-14).
+
+Execution follows the repository's execution contract: commit only the paths this plan declares, through `aw commit <plan> -- <paths>`, never `git add -A` and never `git push`; paste ACTUAL runner output for every claim that a test passed; and run the suite BARE as `python3 -m pytest`.
+
+FOUR GATES ARE SPECIFIC TO THIS PLAN and a reviewer should hold the executor to them.
+
+FIRST, THIS TIGHTENS A SHIPPED RELEASE GATE, so E-01 is not a formality. Every premise is a dated measurement against a predicate that three other plans have recently changed (`2o5wka` tightened its HANDOFF arm, `9vglxd` added `--gate-dir`, and `47ttnv` has since EXECUTED against the adjacent positional spelling, with its residue carried by approved pending plan `2misq5`, which declares no file this plan touches). AND ONE PREMISE WAS ALREADY MEASURED WRONG AT AUTHORING: F-02 named a two-carrier shape that review found refuses against BOTH roots, because `2o5wka`'s `all(...)` fold was already in the tree at this plan's own authoring HEAD. The defect is real on the SINGLE-CARRIER shape and F-02, E-01 and E-06 are corrected accordingly (F-13). So re-measure on the single-carrier shape; if it still refuses against main unaided, the override is load-bearing and you proceed. The one reversal that should STOP the plan is a main-rooted gate PASSING the single-carrier shape unaided, in which case this collapses to the one-line `--gate-dir` pass that `9vglxd` already wrote. Measured at review HEAD `816f4a2e0`, it still refuses.
+
+SECOND, DO NOT MAKE E-06 PASS BY CHANGING THE CITATION. F-04 measures that citing main's `pending/` path satisfies the gate via SATISFIED, because the evidence resolver never reads carrier state. That route makes the ordinary close pass while asserting a release gate was satisfied by an UNEXECUTED plan, which is strictly worse than the defect being fixed. If the only way an executor can get E-06 case (1) green is by re-pointing the citation, that is a signal to stop and report, not a solution.
+
+THIRD, THE OVERRIDE MUST BE VERIFIED AND SINGULAR. An implementation that trusts a caller-supplied flag passes E-06 cases (1) and (2) and fails only case (3), so case (3) is the one that actually constrains the design. An override that generalizes from one carrier to "whatever the lane shows executed" would reopen the multi-carrier hole `2o5wka` just closed over 18 live gated items; siblings must still be read from the gate tree with no override.
+
+FOURTH, WIDEN BOTH HOST WRAPPERS OR NEITHER. `agy_runipd` imports from `oc_runipd`, and `runner_shared`'s module docstring warns that changing one runner's symbol "would silently give BOTH drivers that runner's behavior". A one-sided edit gives one host a gated close and the other the status quo with no test objecting, which is why V-04 requires the two pasted side by side.

@@ -276,10 +276,37 @@ def commit_isolated(
     THE HONEST RESIDUE. Two writers can still clobber each other directly (that is ordinary
     concurrent editing, not this bug), and a hand-run ``git commit`` in the shared tree still stashes
     it. This removes OUR verbs as a cause of the loss; it does not police other tools.
+
+    DIRECTORY ARGUMENTS ARE REFUSED WITH TYPED OUTCOME (``ISO_ERROR``), naming the offending
+    directory without creating an isolated worktree. This guard is defense for a direct caller,
+    since ``offer_commit`` refuses a directory first.
     """
     rel = [str(p) for p in paths if str(p).strip()]
     if not rel:
         return IsolatedCommitResult(ISO_NOTHING, None, "no paths requested")
+
+    # Refuse directory arguments BEFORE creating an isolated worktree (E-03 / E-05).
+    # Sited before tempfile.mkdtemp / git worktree add so a refused call allocates nothing and
+    # needs no cleanup. Catches paths that are live directories on disk as well as paths that were
+    # directories whose contents were deleted or moved away (the emptied-directory shape).
+    # This guard is defense for a direct caller, since offer_commit refuses a directory first.
+    dir_paths = []
+    for p in rel:
+        target = repo_root / p
+        if target.is_dir():
+            dir_paths.append(p)
+        elif not target.exists():
+            rc, out, _err = _git(repo_root, ["ls-files", "-z", "--", p])
+            if rc == 0 and out:
+                tracked = [t for t in out.split("\0") if t]
+                if tracked and tracked != [p]:
+                    dir_paths.append(p)
+    if dir_paths:
+        return IsolatedCommitResult(
+            ISO_ERROR,
+            None,
+            f"refusing directory argument(s): {', '.join(dir_paths)}; name explicit file path(s) instead",
+        )
 
     rc, head, err = _git(repo_root, ["rev-parse", "HEAD"])
     if rc != 0:

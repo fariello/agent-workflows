@@ -38,18 +38,32 @@ aw check-local-leaks . --wheel dist/<built>.whl --agent --warn   # the shipped s
 aw check-local-leaks . --history --agent --warn  # git history (bounded; add --max-commits N)
 ```
 
-`--agent` prints, to STDOUT, one tab-separated record per finding and NO prose:
+`--agent` emits, to STDOUT, a canonical `aw.agent/v1` `result` record and no prose:
 
-```
-<location>\t<rule>\t<severity>
+```json
+{
+  "schema": "aw.agent/v1",
+  "kind": "result",
+  "cmd": "check-local-leaks",
+  "outcome": "clean",
+  "exit": 0,
+  "verified": true,
+  "complete": true,
+  "findings": 0,
+  "evidence": ["leak-scan"],
+  "diagnostics": [
+    {"location": "<location>", "rule": "<rule>"}
+  ],
+  "next": null
+}
 ```
 
 where `<location>` is `path:line` (tree/staged), `commit:path:line` (history), or
-`wheel!entry:line` (wheel); `<rule>` is the matched rule name; `<severity>` is the engine's
-own `fail` or `warn`. Exit code is `1` if any `fail` record exists, else `0` (a `2` means git
-was unavailable / a usage error). Parse these records and use the engine's `severity` field
-directly - do not re-classify findings yourself. Human/prose output goes to stderr, so the
-stdout record stream stays clean. Equivalent without the CLI installed:
+`wheel!entry:line` (wheel); `<rule>` is the matched rule name. Compact diagnostics omit
+per-finding severity; aggregate fail and warn counts appear in `evidence`. Exit code is `1`
+if any `fail` finding exists, else `0` (a `2` means git was unavailable or a usage error).
+Human/prose output goes to stderr, so the stdout record stream stays clean. Equivalent without
+the CLI installed:
 `python3 -m agent_workflows check-local-leaks . --agent --warn`.
 
 Other modes (human-facing, not the agent path): `--staged` (only staged blobs, what the hook
@@ -60,11 +74,10 @@ reported for manual editing and never auto-changed. `--fix` is opt-in and NOT in
 IP ruleset (v4/v6) is OFF by default (`ip_enabled = true` per repo enables it). Author config
 with `aw sanitize --configure`.
 
-What the two severities in the stream mean (D93; you READ them off the record, you do not
-compute them):
-- **fail** records fail the non-interactive gate: structural patterns (home paths, the
+What the two severities mean (D93):
+- **fail** findings fail the non-interactive gate: structural patterns (home paths, the
   local-checkout dir style, session ids), curated repo-allowlist misses, and user-level hints.
-- **warn** records are advisory (only present with `--warn`): auto-derived environment
+- **warn** findings are advisory (only present with `--warn`): auto-derived environment
   candidates (`$HOME` basename, `git config user.*`, `$USER`/`$USERNAME`, hostname, sibling
   dir names). They NEVER fail CI; they are the set a human confirms in triage below.
 
@@ -95,7 +108,7 @@ records faithfully is the correct behavior, not a scope violation.
 
 ## Triage (human judgment on the parsed records)
 
-Drive triage from the `--agent` records (the `severity` field is the engine's, not yours):
+Drive triage from the findings:
 
 1. **Intended-public identifiers** (the author email in package metadata, the public repo
    origin URL): confirm and ADD them to the repo-committed allowlist

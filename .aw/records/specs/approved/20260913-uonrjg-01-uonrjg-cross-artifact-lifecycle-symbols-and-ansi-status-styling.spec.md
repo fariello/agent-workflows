@@ -10,6 +10,7 @@
 
 ## Workflow history
 
+- 2026-10-01 note (aw specs): AMENDED 2026-10-01 (plan nw088c / backlog p5qx91): Section 9.3 single-originating-definition citation amended: structural assertion in tests/test_term.py was deleted in 19313eed and not restored per maintainer ruling (2026-09-28 on p5qx91); property now rests on behavioral coverage in tests/test_term.py plus re-exports.
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (mergeskip 8k0z40): added already-landed to Section 7.2 blocked row as a normative stage classification (needs human act: aw ipd finalize). Note this row is normative-but-unenforced (tests/test_lifecycle_style.py enforces Section 5 only).
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-21 note (aw specs): AMENDED 2026-09-21 (maintainer-directed rename): the integration status vocabulary was renamed one-for-one and Sections 4.4a/7.2 now carry the canonical spelling: integration-deferred -> merge-retry, integration-blocked -> merge-needs-human, merge-conflict -> merge-refused, and the same-day unreleased integration-unmeasured -> merge-unchecked. NO STAGE CHANGED, so this is a naming amendment and not a presentation ruling: merge-retry and merge-unchecked stay recovering, merge-needs-human and merge-refused stay blocked. A rename table plus the rationale and the two rejected candidates (merge-error, merge-waiting) are recorded in Section 7.2 so a future reader sees why the churn was worth it rather than re-litigating it. The trigger was measured, not aesthetic: diagnosing run run-20260921T105933Z-1994623 cost a full investigation largely because merge-conflict was the operator-facing label on a refusal that involved no conflict (that kind is also returned for a stale base, a scope violation and a red combined suite), and the maintainer judged integration-deferred/integration-blocked unintuitive because neither says what the operator must DO. Both spellings remain readable forever via runner_shared.LEGACY_INTEGRATION_STATUS_ALIASES, since a run directory is a durable record; nothing writes a legacy spelling. Verified: tests/test_lifecycle_style.py 's spec-coverage assertion (which reads THIS FILE and fails when a code mapping is absent here) passes, 235 passed across the lifecycle/flag-surface/retirement suites.
@@ -499,10 +500,12 @@ this section was written on 2026-09-13, and Section 12a obligation 2 required it
 citations an implementer can check:
 
 - THE ORIGINATING DEFINITION is `agent_workflows.term.should_color`, and there is only one. It is
-  package-wide, `runner_shared.should_color` is a sanctioned one-line delegation to it, and
-  `tests/test_term.py` asserts the single-originating-definition property. That property is what
-  R9.3a.2 demands of the DEPTH resolver, and it is already true of the boolean one, so a depth resolver
-  MUST extend this function rather than introduce a rival seam.
+  package-wide, `runner_shared.should_color` is a sanctioned one-line delegation to it, and the
+  structural assertion in `tests/test_term.py` was deleted in `19313eed` and is not being restored
+  by maintainer ruling (2026-09-28, recorded on backlog `p5qx91`), the property now resting on the
+  behavioral coverage in `tests/test_term.py` plus the fact that both hosts re-export the name. That
+  property is what R9.3a.2 demands of the DEPTH resolver, and it is already true of the boolean one,
+  so a depth resolver MUST extend this function rather than introduce a rival seam.
 - THE PRECEDENCE CHAIN is `--color`/`--no-color` > `NO_COLOR`/`FORCE_COLOR` > `TERM` > `isatty()`,
   published in `docs/cli-output-contract.md` section 1.1 and pinned by `tests/test_term.py` and
   `tests/test_flag_surface_uniformity.py`. See A13 for the three rungs that must be asserted by name,

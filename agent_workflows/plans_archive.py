@@ -24,7 +24,7 @@ import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import plans_index as _idx
@@ -75,22 +75,75 @@ def plan_shard_move(plans_dir: Path, plan_path: Path) -> Optional[ShardMove]:
     return ShardMove(m.group(1) if m else None, plan_path, dst)
 
 
-def _find_targets(plans_dir: Path, selector: str) -> List[Path]:
-    """Resolve a selector (a plan Id or a Set id) to terminal-root plan paths."""
+def _plan_status(plan_path: Path, plans_dir: Path) -> str:
+    """Read the declared status of a plan, noting if it is already in a shard."""
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+        m = re.search(r"(?m)^- Status:\s*(\S+)\s*$", text)
+        st = m.group(1) if m else plan_path.parent.name
+    except Exception:
+        st = "unknown"
+    try:
+        rel = plan_path.resolve().relative_to(plans_dir.resolve())
+        if len(rel.parts) > 2 and rel.parts[0] in TERMINAL_DIRS:
+            return f"{st}, already in {rel.parts[1]}/ shard"
+    except Exception:
+        pass
+    return st
 
-    out: List[Path] = []
-    for p in plans_dir.rglob("*.md"):
+
+def _find_targets(
+    repo_root_or_plans_dir: Path,
+    plans_dir_or_selector: Union[Path, str],
+    selector_or_none: Optional[str] = None,
+    *,
+    force: bool = False,
+) -> Tuple[List[Path], Optional[str]]:
+    """Resolve an explicit target through selectors.resolve_for_mutation and filter to terminal-root plans."""
+    from agent_workflows import selectors
+
+    if selector_or_none is None:
+        plans_dir = repo_root_or_plans_dir
+        selector = str(plans_dir_or_selector)
+        from agent_workflows.project_context import resolve_verb_repo_root
+
+        repo_root = resolve_verb_repo_root(plans_dir)
+    else:
+        repo_root = repo_root_or_plans_dir
+        plans_dir = Path(plans_dir_or_selector)
+        selector = str(selector_or_none)
+
+    paths, err = selectors.resolve_for_mutation(
+        repo_root,
+        "plans",
+        selector,
+        force=force,
+    )
+    if err is not None:
+        return [], err
+
+    # Post-resolution filter: confine to plans directly at a terminal disposition root
+    terminal_root: List[Path] = []
+    pdir_resolved = plans_dir.resolve()
+    for p in paths:
         if p.name in _idx._EXCLUDE_NAMES:
             continue
-        rel = p.relative_to(plans_dir)
-        if not _at_disposition_root(list(rel.parts)):
+        try:
+            rel = p.resolve().relative_to(pdir_resolved)
+        except ValueError:
             continue
-        text = p.read_text(encoding="utf-8")
-        m = _ID_RE.search(text)
-        sm = re.search(r"(?m)^- Set:\s*(.+?)\s*$", text)
-        if (m and m.group(1) == selector) or (sm and sm.group(1) == selector):
-            out.append(p)
-    return sorted(out)
+        if _at_disposition_root(list(rel.parts)):
+            terminal_root.append(p)
+
+    if paths and not terminal_root:
+        if len(paths) == 1:
+            p = paths[0]
+            st = _plan_status(p, plans_dir)
+            return [], f"plan '{p.name}' is not terminal (status: {st})"
+        names = ", ".join(f"'{p.name}' ({_plan_status(p, plans_dir)})" for p in paths)
+        return [], f"matched plans are not terminal: {names}"
+
+    return sorted(terminal_root), None
 
 
 def _age_days(plan_date: str, today: Optional[date] = None) -> float:
@@ -209,19 +262,28 @@ def run_archive(args: argparse.Namespace) -> int:
     raw_age = getattr(args, "age", None)
 
     if target:
-        paths = _find_targets(plans_dir, target)
+        force = bool(getattr(args, "force", False))
+        paths, err = _find_targets(repo_root, plans_dir, target, force=force)
         if not paths:
             from agent_workflows.term import Term
             from agent_workflows.result_types import NextAction
 
+            if err:
+                if err.startswith("no plans artifact matched"):
+                    summary = f"no plan or Set matches '{target}'"
+                else:
+                    summary = err
+            else:
+                summary = f"no terminal-root plan or Set matches '{target}'"
+
             Term().empty_result(
-                summary=f"no terminal-root plan or Set matches '{target}'",
+                summary=summary,
                 filters={"target": target},
                 next_action=NextAction(
                     command="aw find plans", description="find plans"
                 ),
             )
-            return 0
+            return 2
         moves = [mv for mv in (plan_shard_move(plans_dir, p) for p in paths) if mv]
         if not apply:
             for mv in moves:
