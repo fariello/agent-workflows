@@ -6,7 +6,7 @@
 - Scope: Give the rung a SECOND clearing condition (`merge_in_progress`) and its own reported bound so "waiting for dirt to clear" and "waiting for a merge to conclude" are distinguishable facts, since they need different operator responses. Keep both existing bounds exactly as they are, keep every existing `POLL_BOUND_*` value byte-identical, and change no refusal condition, no ladder verdict, no budget arithmetic, and no host adapter. Do NOT teach the rung to abort, conclude, or otherwise touch the foreign merge: that prohibition is the whole point of `g2z2pp` and this plan only makes the WAIT correct.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runner_shared.py, tests/test_poll_rung_merge_awareness.py, .aw/records/backlog/graduated/20260928-p7dtbr-01-p7dtbr-poll-rung-cannot-see-merge-in-progress.backlog.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: qkwu1r
-- Approval: 2026-10-01, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (antigravity): Teach the integration poll rung that a mid-merge base is not a clear base
 - 2026-10-01 approved (aw set): status set to approved
 
 - 2026-10-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 through PR-006. Reviewed in an isolated lane at HEAD `1351b8ef`. Structural preflight `aw ipd lint --phase author --agent` reported `clean` before semantic review. THE PLAN'S DIAGNOSIS AND ITS THREE DESIGN JUDGEMENTS ALL SURVIVE, and I re-drove every one rather than trusting it. F-01 reproduces to the field: on a real scratch repo with a foreign merge conflicting on `other.txt`, `merge_in_progress` is True, `merge_head_commits` names one foreign commit, `dirty_tree_overlap(repo, ['lanefile.txt'])` is `[]`, `git status --short` is `UU other.txt`, and the REAL rung returns `PollOutcome(cleared=True, bound='dirt-cleared', polls=0, ...)`. F-02 reproduces including the wrong sentence verbatim. F-04 reproduces with its trap intact (fresh mid-merge base 0.0014s; files-only backdated 0.46s, i.e. still sub-second; commits AND files backdated 14400.0s > 3600s). F-05 is correct and is the finding that makes the change safe: `outcome.cleared` is written to `item["integration_poll"]` and the event and is read by NO ladder branch, so the rung is purely advisory. F-06, F-07, F-08 and F-09 all reproduce. TWO MEASUREMENTS ARE WRONG AND BOTH ARE VALIDATION BARS AN EXECUTOR WOULD HAVE CHECKED AGAINST. FIRST (PR-001, HIGH), F-03's replay count is 1 of 7, not 2 of 7: the `test_runner_shared.py` unmeasurable-age case injects `dirty=[['x']]*5`, so overlap is NEVER empty and the merge check (placed after overlap) is never reached; only the DIRT-CLEARS case reaches it. The seam is still REQUIRED (one reachable case against a nonexistent `cwd` is enough, and `merge_in_progress(Path('/nonexistent'))` does raise `FileNotFoundError`), but V-06 demanded the executor explain a second case that does not exist, which would have sent them looking for a bug in their own work. SECOND (PR-002, HIGH), the targeted regression baseline is not `24 passed` but `141 passed` (126 + 10 + 5 measured per file), so an executor comparing against 24 would have concluded they had broken 117 tests. Also corrected: the suite baseline has moved and is NOT green (PR-003), a cross-plan note that APPROVED sibling `8o709f` explicitly DEFERRED the empty-input false-clear this plan's OQ-03 now decides (PR-004), and two smaller items.
