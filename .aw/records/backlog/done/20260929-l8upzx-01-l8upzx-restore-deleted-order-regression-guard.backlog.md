@@ -1,5 +1,5 @@
 - Id: l8upzx
-- Status: graduated
+- Status: done
 - Graduated-To: l8upzx
 - Set: l8upzx
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Restore the deleted Order regression guard for aw group plans and aw rename plans (PlansGroupPreservesOrderTests, deleted in 19313eed)
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD fv6kep executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260930-l8upzx-01-fv6kep-restore-the-order-preservation-regression-guard-for-aw-group.ipd.md); evidence .aw/records/plans/executed/20260930-l8upzx-01-fv6kep-restore-the-order-preservation-regression-guard-for-aw-group.ipd.md
 - 2026-09-30 set (aw backlog): graduated by run run-20260930T053024Z-3198670: fv6kep
 - 2026-09-29 created (aw backlog): Filed at /plan-review of plan 949enf (finding PR-003/F-14).
 
