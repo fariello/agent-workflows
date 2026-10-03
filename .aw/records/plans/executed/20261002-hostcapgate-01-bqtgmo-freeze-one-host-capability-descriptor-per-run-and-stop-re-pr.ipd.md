@@ -13,7 +13,7 @@
   EXCLUDES, and this fence is what keeps Order 02 honest: this plan adds NO `ACTION_CAPABILITY_REQUIREMENTS` row, adds no mapping row to `RUNNER_ACTION_TO_CONTRACT_ACTION`, and therefore changes NOTHING an operator can observe about which items run. After it lands the gate still refuses nothing, exactly as `iot7hc` left it. Also excluded: a persisted cross-run descriptor cache with TTL/expiry (that is `host_capability_registry`'s concern, and its expiry model is deliberately not imported here, as `probe_runner_safety_capabilities`' docstring already notes); changing any probe's verdict logic; changing `supports_commit_gateway`'s declared-never-probed status; and amending spec `25kzda`.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, tests/test_hostcapgate_descriptor_freeze.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -23,9 +23,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: bqtgmo
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bqtgmo verified (set hostcapgate, attempt 1).
 - 2026-10-03 note (antigravity normal execution): E-01 remeasurements confirmed the Concern and all premise facts:
   (a) Global swap: 2255 substitute Popen observations vs 494 real builtin observations out of 2749 samples during detect_host_capabilities("opencode").
   (b) Concurrent caller breakage: worker thread issuing subprocess.run(["true"]) experienced 505 RuntimeError: stop-before-launch failures against 82 successes during 6 concurrent detect_host_capabilities calls.
