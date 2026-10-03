@@ -13,7 +13,7 @@
   OUT, each for a stated reason: RENUMBERING any `EXIT_*` constant, which is a consumed contract pinned by `tests/test_run_cli_corruption_exit.py` and `tests/test_run_cli_declarations.py` and refused by `u28vqb` F-05 on the same evidence; the `Redacts sensitive values in both human and machine outputs` claim, MEASURED FALSE but owned by security item `94op6l` with its own release gate, because the honest fix is wiring redaction into the human path (a behavior change) and not deleting the sentence (F-04); the two-table divergence between `run_cli`'s codes and spec `25kzda` 5.6's run-aggregate table, which is `858lhj`'s subject and `u28vqb`'s mandate and which this plan must not pre-empt by declaring either table canonical; DOCUMENTING the run vocabulary in `docs/`, which is `u28vqb` E-05's declared deliverable and whose destination is itself contested (`2cqs11`); `u28vqb`'s own `### 3.1` collision, filed as `2cqs11` because editing an approved sibling plan's checklist is outside a docstring fix; the unreachable-`EXIT_BLOCKED`-on-`runs resume` defect, owned by `tzqvjn` and pending plan `hrdmfy`, which also declares `run_cli.py` in scope (see F-06 on why that is not a conflict); and converting this module's bare machine payloads into `aw.agent/v1` records, which `run_cli._emit_error`'s own docstring records as "a real gap on a different contract".
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_recovery_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -23,9 +23,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: arhzce
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: arhzce verified (set runclidoc, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
@@ -43,33 +43,33 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-measure the contradiction at the executing HEAD and record the transcript, so every later item acts on current fact rather than on this plan's authoring snapshot.
+- [x] E-01 Re-measure the contradiction at the executing HEAD and record the transcript, so every later item acts on current fact rather than on this plan's authoring snapshot.
   - Depends on: none
   - Expected outcome: one pasted transcript, produced by PARSING the module rather than reading it, printing (a) the `EXIT_*` constant names with their values, (b) the set of exit numbers the module docstring assigns, and (c) the set difference. It must reproduce: constants `{EXIT_OK: 0, EXIT_INCOMPLETE: 1, EXIT_INVALID_INVOCATION: 2, EXIT_BLOCKED: 3, EXIT_INVALID_EVIDENCE: 4, EXIT_CORRUPTED_LEDGER: 5, EXIT_OPERATIONAL: 6, EXIT_NOT_A_LEDGER: 7}`, docstring codes `[0, 1, 2, 5, 7]`, omitted `[3, 4, 6]`. Plus the reachability probes that make the defect substantive rather than cosmetic: a driven `_run_finalize` returning **4** on a ledger whose `tool_event` carries `exit_code: 1`, and a driven `_run_record` returning **6** on an illegal `performed -> performed` transition. IF THE CONSTANT SET OR THE OMITTED SET DIFFERS, STOP and reconcile this plan before editing, because a changed table changes what the docstring must say and may mean another plan has already acted. A probe is allowed to read source text HERE, because this item's subject IS the text. That is an execution-time measurement and not a test; no committed test may do so (P16). The probes may reuse `tests/test_run_recovery_cli.py`'s own seeders (`TestRunCliSubcommands._materialize` with the `bad-evidence` and `root-performed` seeds), which is how the review reproduced both at HEAD `cd69009f0` (`rc= 4` with `EV-FAILED-EXIT`; `rc= 6` with `Illegal transition from 'performed' to 'performed'`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: state the table once
 
-- [ ] E-02 In `agent_workflows/run_cli.py`, replace the module docstring Contract block's transcribed five-code list with a POINTER to the module's own `EXIT_*` constants, and correct the same block's false read-only claim.
+- [x] E-02 In `agent_workflows/run_cli.py`, replace the module docstring Contract block's transcribed five-code list with a POINTER to the module's own `EXIT_*` constants, and correct the same block's false read-only claim.
   - Depends on: E-01
   - Expected outcome: the Contract block no longer assigns any exit NUMBER to any meaning. In place of the `exit 0 = ... exit 7 = ...` list it names the `EXIT_*` constant block as the authority in one sentence (for example, that the exit vocabulary is declared by the `EXIT_OK` through `EXIT_NOT_A_LEDGER` constants below, whose inline comments state each meaning, and that they are authoritative over any prose). THE PROSE MUST CARRY NO DIGIT-TO-MEANING MAPPING AT ALL, which is the whole point: a "corrected" list would be a second copy to drift, and this defect is P8's hazard having already fired once. The WRONG-FORMAT-IS-NOT-CORRUPTION paragraph is KEPT (it explains a design decision and cites `e6b9kt`) but must stop asserting `exit 7` as a number and refer to `EXIT_NOT_A_LEDGER` by symbol instead.
     THE READ-ONLY CLAIM IS CORRECTED IN THE SAME EDIT, AND THIS IS FORCED RATHER THAN OPPORTUNISTIC (F-04). `Read-only: makes NO filesystem writes, ever` sits three lines from the text being replaced and is FALSE: this module owns `aw run start|record|cancel|finalize`, which its own opening paragraph describes as "the ledger transaction handlers, also here", and a driven `aw run record` appended a `step_attempt`. Scope the property to where it holds, i.e. the `aw runs` READ leaves make no writes while the four `aw run` writers append to the ledger by design. STATE IT NO WIDER THAN MEASURED (review PR-003). The review drove `show`, `status`, `next`, `resume`, `evidence` and `verify-ledger` over a seeded ledger and saw no file created or modified (mtime snapshot of the temp dir unchanged for all six). `decisions`/`questions` only `read_text` a projection. But the module ALSO exports `run_cli.write_index`, which `mkdir`s and `write_text`s an index file (`tests/test_run_recovery_cli.py` calls it directly). So the corrected sentence must scope the property to the `aw runs` leaves and must NOT say "the module never writes outside `aw run`". A wording such as "the `aw runs` read leaves make no filesystem writes; the `aw run` writers append to the ledger, and `write_index` writes a rebuildable projection when called" is accurate. Editing around a sentence known false, in the very block whose dishonesty is this plan's subject, would be indefensible.
     DO NOT TOUCH THE REDACTION BULLET. `Redacts sensitive values in both human and machine outputs` is MEASURED FALSE on the human surface, and its fix is owned by security item `94op6l` (`Blocks-Release: next`). Leave the sentence byte-for-byte unchanged: deleting it would make this docstring "true" by silently retiring a safety claim, which is the failure mode this plan exists to oppose. Do NOT add a weasel qualifier either; the item owns the wording.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add a short anchor comment to the `EXIT_*` constant block recording that the module docstring points HERE, so the next editor adds a code without re-transcribing a table into the prose.
+- [x] E-03 Add a short anchor comment to the `EXIT_*` constant block recording that the module docstring points HERE, so the next editor adds a code without re-transcribing a table into the prose.
   - Depends on: E-02
   - Expected outcome: the existing `# ---- exit-code table` comment block gains one or two lines stating that this block is the single authority for the module's exit vocabulary, that the module docstring deliberately points at it rather than restating it (P8), and that a new code therefore needs its inline comment here and NO prose edit. It must name the reason by defect rather than as a style preference: the docstring previously transcribed five of eight codes and misassigned invalid-evidence to 1, filed as `h9kgjp`. This is the forcing function that keeps the fix from being undone by a well-meaning future edit, which is why it is a separate item from E-02 rather than folded into it. Keep it to a couple of lines; do NOT restate the meanings, which would re-create the duplication at a two-line distance.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the one uncovered exit path
 
-- [ ] E-04 Add ONE row to `tests/test_run_recovery_cli.py`'s `TestRunCliSubcommands.INVOCATIONS` exit-class table for `run record` on an already-`performed` step, expecting `run_cli.EXIT_OPERATIONAL`.
+- [x] E-04 Add ONE row to `tests/test_run_recovery_cli.py`'s `TestRunCliSubcommands.INVOCATIONS` exit-class table for `run record` on an already-`performed` step, expecting `run_cli.EXIT_OPERATIONAL`.
   - Depends on: none
   - Expected outcome: one new tuple in the existing `INVOCATIONS` table, under its `# ---- exit 6: operational.` group, with seed `"root-performed"`, argv `("run", "record", "LEDGER", "--workflow", "WORKFLOW", "--step", "S-01", "--state", "performed")`, expected code `run_cli.EXIT_OPERATIONAL`, checks `()`, and a `why` naming the property: re-recording a terminal step is an ILLEGAL TRANSITION (6) and not a blocked step (3) or an invocation error (2), because the step exists and the request is well-formed, so the state machine's own refusal is what fires. It must follow the table's documented row shape and use the existing `_materialize` seeders, with no new helper and no new file.
     WHY THIS AND NOTHING ELSE (review PR-001, PR-002). The authored E-04 proposed a new file with (a) behavioral asserts for `EXIT_INVALID_EVIDENCE` and `EXIT_OPERATIONAL`, and (b) a guard asserting `run_cli.__doc__` contains no `exit <digit>` mapping. (b) IS DROPPED. GUIDING_PRINCIPLES P16 "No text, banner, or docstring pins" forbids asserting on docstrings in production files, and "If ... editing a docstring breaks the test, the test is broken" applies directly: editing the docstring is the only thing that turns this guard red. Reading `__doc__` off the module object instead of the file does not change what is asserted. The "narrow exception" covers text that IS the artifact under test, such as published documentation; this docstring is not a published artifact (F-08: nothing renders or consumes it). The plan's own OQ-02 named the remedy for this case: delete the guard, do not weaken it. The re-transcription defence is E-03's anchor comment. (a) is mostly ALREADY COVERED: the same table already has the row "finalize with a tool_event that exited nonzero" expecting `EXIT_INVALID_EVIDENCE` with `EV-FAILED-EXIT`, a row "finalize refuses an incomplete run" expecting `EXIT_INCOMPLETE`, and two `EXIT_OPERATIONAL` rows (unauthorized `cancel` and `finalize`). So the 4-versus-1 distinction the defect turned on is pinned already, and a second copy in a new file would be duplicate coverage (P8). The one gap measured is `_run_record`'s `except run_state.RunStateError` arm: no test reaches `illegal/unauthorized transition` (a tree-wide search for that string in `tests/` is empty). This row closes it.
     SENSITIVITY IS DEMONSTRATED, NOT ASSUMED (P16 "Verify test sensitivity with mutation"). In memory only, with `unittest.mock.patch.object(run_cli, "EXIT_OPERATIONAL", 99)`, the review showed the same invocation returning `rc= 99` (mismatch) against `rc= 6` unmutated, so the row fails if this arm stops producing the operational class. The executor repeats that mutation and pastes it; the mutation must never be committed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,25 +156,239 @@ N/A, with reason. No `.spec.md` is amended and none is in `- Scope-Paths:`: this
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the full re-measurement transcript. It must print the eight `EXIT_*` names with values `0..7`, the docstring-assigned set `[0, 1, 2, 5, 7]`, and the omitted set `[3, 4, 6]`. It must also paste the two driven reachability probes with their process-visible results: the `finalize` handler returning `4` alongside `EXIT_INVALID_EVIDENCE = 4` and the `EV-FAILED-EXIT` finding, and the `record` handler returning `6` with its `Illegal transition from 'performed' to 'performed'` message. If any of the three sets differs from F-01, this item is `failed`, not `pass`, and the plan stops for reconciliation.
   - Observed evidence:
-  - Result: pending
+    Full re-measurement transcript produced by parsing `agent_workflows/run_cli.py` and driving reachability probes:
+    ```
+    --- Constant parsing ---
+    Constants: {'EXIT_OK': 0, 'EXIT_INCOMPLETE': 1, 'EXIT_BLOCKED': 3, 'EXIT_INVALID_EVIDENCE': 4, 'EXIT_CORRUPTED_LEDGER': 5, 'EXIT_OPERATIONAL': 6, 'EXIT_INVALID_INVOCATION': 2, 'EXIT_NOT_A_LEDGER': 7}
+    Docstring assigned codes: [0, 1, 2, 5, 7]
+    Omitted codes: [3, 4, 6]
 
-- [ ] V-02 validates E-02
+    --- Probe 1: finalize with bad evidence ---
+    rc: 4 (EXIT_INVALID_EVIDENCE=4)
+    EV-FAILED-EXIT in output: True
+    Output: {
+      "error": "captured evidence is invalid",
+      "exit_code": 4,
+      "findings": [
+        {
+          "code": "EV-FAILED-EXIT",
+          "message": "Command failed with non-zero exit code 1",
+          "where": "records[3].exit_code"
+        }
+      ],
+      "ok": false
+    }
+
+    --- Probe 2: record on already-performed step ---
+    rc: 6 (EXIT_OPERATIONAL=6)
+    Message match: True
+    Output: error: illegal/unauthorized transition: Illegal transition from 'performed' to 'performed'
+    ```
+    All eight constants `{EXIT_OK: 0, EXIT_INCOMPLETE: 1, EXIT_INVALID_INVOCATION: 2, EXIT_BLOCKED: 3, EXIT_INVALID_EVIDENCE: 4, EXIT_CORRUPTED_LEDGER: 5, EXIT_OPERATIONAL: 6, EXIT_NOT_A_LEDGER: 7}`, docstring codes `[0, 1, 2, 5, 7]`, and omitted codes `[3, 4, 6]` match F-01 exactly.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `git diff agent_workflows/run_cli.py`. It must show the `exit 0 = ... exit 7 = ...` list REMOVED and a pointer to the `EXIT_*` constants in its place, and it must show the read-only bullet scoped to the `aw runs` readers. Then paste a probe over the IMPORTED module proving the prose carries no digit-to-meaning mapping: `re.findall(r'exit (\d+)', run_cli.__doc__)` returning an empty list, together with the full amended docstring printed so a reviewer can read what replaced it. Then paste the NEGATIVE check that the deferral was honored: the redaction bullet `Redacts sensitive values in both human and machine outputs` still present VERBATIM (`'Redacts sensitive values in both human and machine outputs' in run_cli.__doc__` is `True`), since silently deleting it would convert a deferral into an abandoned safety claim. Finally paste `python3 -c 'import agent_workflows.run_cli'` succeeding, proving the docstring edit did not break the module.
   - Observed evidence:
-  - Result: pending
+    1. `git diff agent_workflows/run_cli.py`:
+    ```diff
+    diff --git a/agent_workflows/run_cli.py b/agent_workflows/run_cli.py
+    index 471dfef55..eecab632b 100644
+    --- a/agent_workflows/run_cli.py
+    +++ b/agent_workflows/run_cli.py
+    @@ -21,14 +21,12 @@ readers. `aw run` is NOT retired: it stays the writing/dispatch noun.
+     Contract:
+    -  * exit 0 = success / clean / complete;
+    -    exit 1 = incomplete / invalid evidence / unsatisfied requirements;
+    -    exit 2 = invocation error, missing ledger, or unexpected read failure;
+    -    exit 5 = corrupted hash chain / unparseable JSON;
+    -    exit 7 = the target is healthy JSONL of some OTHER format, i.e. not a ledger at all.
+    +  * Exit vocabulary: declared by the `EXIT_OK` through `EXIT_NOT_A_LEDGER` constants below,
+    +    whose inline comments state each meaning; they are authoritative over any prose.
+       * WRONG-FORMAT IS NOT CORRUPTION. A file that carries none of the ledger envelope fields gets a
+    -    'not a run ledger file' verdict (exit 7), never a corruption verdict: reporting healthy driver
+    +    'not a run ledger file' verdict (`EXIT_NOT_A_LEDGER`), never a corruption verdict: reporting healthy driver
+         event logs as corrupt accused good data of damage it did not have (`e6b9kt`).
+       * `--agent` and `--json` emit machine-readable output with NO ANSI; human mode is the default.
+    -  * Read-only: makes NO filesystem writes, ever.
+    +  * Read-only: the `aw runs` read leaves make no filesystem writes; the `aw run` writers append to
+    +    the ledger, and `write_index` writes a rebuildable projection when called.
+       * Redacts sensitive values in both human and machine outputs.
+     """
+    ```
+    2. Probe over imported module:
+    ```
+    >>> re.findall(r"exit (\d+)", run_cli.__doc__)
+    []
+    >>> 'Redacts sensitive values in both human and machine outputs' in run_cli.__doc__
+    True
+    ```
+    3. Full amended docstring:
+    ```
+    Run-family CLI handlers, split by DIRECTION across two nouns (runnamecollapse `0soncw`).
 
-- [ ] V-03 validates E-03
+    awoptimize Order 04 (`yndh7k`) E-04, Order 07 (`7yqm1v`) E-03.
+
+    `aw runs` READS (this module's inspection handlers):
+      * `aw runs show <target>`          - inspect run status, steps, verifier decisions, and completion.
+      * `aw runs status <target>`        - reconstructed run + step state from the ledger.
+      * `aw runs next <target>`          - steps whose dependencies and gates are satisfied.
+      * `aw runs resume <target>`        - resumable steps; refuses on interrupted side effects.
+      * `aw runs evidence <target>`      - list and validate captured evidence envelopes and tool events.
+      * `aw runs verify-ledger <target>` - verify SHA-256 hash chaining and evidence validity.
+      * `aw runs decisions|questions <run-id>` - a Set run's durable projections.
+      * `aw runs [<target> ...]` / `aw runs list` - the driver-run viewer table (in `run_viewer`).
+
+    `aw run` WRITES (the ledger transaction handlers, also here):
+      * `aw run start|record|cancel|finalize <target>`.
+
+    `next` and `resume` sound like actions but only reconstruct state and report, which is why they are
+    readers. `aw run` is NOT retired: it stays the writing/dispatch noun.
+
+    Contract:
+      * Exit vocabulary: declared by the `EXIT_OK` through `EXIT_NOT_A_LEDGER` constants below,
+        whose inline comments state each meaning; they are authoritative over any prose.
+      * WRONG-FORMAT IS NOT CORRUPTION. A file that carries none of the ledger envelope fields gets a
+        'not a run ledger file' verdict (`EXIT_NOT_A_LEDGER`), never a corruption verdict: reporting healthy driver
+        event logs as corrupt accused good data of damage it did not have (`e6b9kt`).
+      * `--agent` and `--json` emit machine-readable output with NO ANSI; human mode is the default.
+      * Read-only: the `aw runs` read leaves make no filesystem writes; the `aw run` writers append to
+        the ledger, and `write_index` writes a rebuildable projection when called.
+      * Redacts sensitive values in both human and machine outputs.
+    ```
+    4. Module import test:
+    ```
+    $ python3 -c 'import agent_workflows.run_cli'
+    (exit code: 0)
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `EXIT_*` constant block as it now reads, showing the anchor comment, and confirm by reading it back that it (a) names this block as the single authority, (b) says the docstring points here rather than restating the table, (c) cites `h9kgjp` as the defect that motivated it, and (d) does NOT restate any code's meaning, which would re-create the duplication two lines away. Also paste a probe showing every `EXIT_*` value UNCHANGED from V-01's transcript, since this item must not touch the numbers.
   - Observed evidence:
-  - Result: pending
+    1. `EXIT_*` constant block and anchor comment:
+    ```python
+    # ---- exit-code table (awoptimize Order 07 E-03) --------------------------------------------------
+    # Single authority for this module's exit vocabulary. The module docstring deliberately points here
+    # rather than restating the table (P8; defect h9kgjp showed re-transcription drifted and misassigned
+    # codes). When adding a code, add its inline comment here; do NOT re-transcribe the table into prose.
+    # Distinct nonzero codes let a caller/CI distinguish outcome classes. Kept small and consistent:
+    EXIT_OK: int = 0  # complete / success
+    EXIT_INCOMPLETE: int = 1  # run incomplete / unsatisfied predicates
+    EXIT_BLOCKED: int = (
+        3  # blocked: unknown-outcome / retry budget exhausted / not runnable
+    )
+    EXIT_INVALID_EVIDENCE: int = 4  # captured evidence invalid / false-completion class
+    EXIT_CORRUPTED_LEDGER: int = 5  # hash chain / schema / torn-line corruption
+    EXIT_OPERATIONAL: int = (
+        6  # operational failure (lock contention, illegal transition, unauthorized)
+    )
+    EXIT_INVALID_INVOCATION: int = 2  # bad invocation / missing ledger
+    EXIT_NOT_A_LEDGER: int = (
+        7  # the target is healthy JSONL but is NOT a ledger (wrong format, NOT corruption)
+    )
+    ```
+    2. Confirmation by reading back:
+       (a) Names this block as single authority: "Single authority for this module's exit vocabulary."
+       (b) Notes docstring points here: "The module docstring deliberately points here rather than restating the table (P8..."
+       (c) Cites motivating defect: "defect h9kgjp showed re-transcription drifted and misassigned codes"
+       (d) Does not restate any code's meaning in the anchor comment.
+    3. Constant values probe:
+    ```
+    EXIT_BLOCKED: 3
+    EXIT_CORRUPTED_LEDGER: 5
+    EXIT_INCOMPLETE: 1
+    EXIT_INVALID_EVIDENCE: 4
+    EXIT_INVALID_INVOCATION: 2
+    EXIT_NOT_A_LEDGER: 7
+    EXIT_OK: 0
+    EXIT_OPERATIONAL: 6
+    ```
+    All values unchanged from V-01.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff tests/test_run_recovery_cli.py` showing EXACTLY ONE added tuple in `INVOCATIONS` (seed `root-performed`, `run record ... --step S-01 --state performed`, expected `run_cli.EXIT_OPERATIONAL`, a non-empty `why`) and no other line changed. Paste the SENSITIVITY demonstration: an in-memory run of that invocation through the table's own `_materialize`/`_cli` with `unittest.mock.patch.object(run_cli, "EXIT_OPERATIONAL", 99)` returning 99 (so the row would fail), next to the unmutated run returning 6. The mutation is never written to disk or committed. Paste `python3 -m pytest tests/test_run_recovery_cli.py` passing. Paste `rg -n '__doc__|getsource|import ast|ast\.parse' tests/test_run_recovery_cli.py` showing no line this plan added (P16). Paste `python3 -m pytest tests/test_run_cli_corruption_exit.py tests/test_run_cli_declarations.py` passing, proving the pinned constants are undisturbed. Paste `git status --short tests/test_run_cli_exit_docstring.py` showing the file does NOT exist (OQ-02). Finally paste the bare `python3 -m pytest` tail AND its `FAILED` name list, next to a pre-change bare run from the SAME session, and compare the failure sets BY NAME: the post-change set must introduce no new failure. Per F-07 the tree is not green here and the set is flaky across identical runs, so do NOT assert a pass count and do NOT treat a pre-existing failure as this plan's regression; if a name appears that was absent before, investigate it rather than attributing it to flake.
   - Observed evidence:
-  - Result: pending
+    1. `git diff tests/test_run_recovery_cli.py`:
+    ```diff
+    diff --git a/tests/test_run_recovery_cli.py b/tests/test_run_recovery_cli.py
+    index 6d32bfa9d..147cde26e 100644
+    --- a/tests/test_run_recovery_cli.py
+    +++ b/tests/test_run_recovery_cli.py
+    @@ -1375,6 +1375,26 @@ class TestRunCliSubcommands(unittest.TestCase):
+                 "the executor cannot author its own completion. Note the seed is COMPLETE, so this row "
+                 "proves authority is checked even when every predicate would otherwise pass",
+             ),
+    +        (
+    +            "record on an already-performed step",
+    +            "root-performed",
+    +            (
+    +                "run",
+    +                "record",
+    +                "LEDGER",
+    +                "--workflow",
+    +                "WORKFLOW",
+    +                "--step",
+    +                "S-01",
+    +                "--state",
+    +                "performed",
+    +            ),
+    +            run_cli.EXIT_OPERATIONAL,
+    +            (),
+    +            "re-recording a terminal step is an ILLEGAL TRANSITION (6) and not a blocked step (3) "
+    +            "or an invocation error (2), because the step exists and the request is well-formed, "
+    +            "so the state machine's own refusal is what fires",
+    +        ),
+             # ---- exit 4 and 5: the two ways captured evidence can refuse a finalize. -----------------
+             (
+                 "finalize with a tool_event that exited nonzero",
+    ```
+    2. Sensitivity demonstration:
+    ```
+    unmutated rc: 6 (expected run_cli.EXIT_OPERATIONAL=6)
+    mutated EXIT_OPERATIONAL->99: rc=99 (mismatch against expected 99 if checked)
+    ```
+    3. `python3 -m pytest tests/test_run_recovery_cli.py`:
+    ```
+    49 passed in 17.07s
+    ```
+    4. P16 check:
+    ```
+    $ rg -n '__doc__|getsource|import ast|ast\.parse' tests/test_run_recovery_cli.py
+    (exit code 1; no matches found)
+    ```
+    5. Pinning tests:
+    ```
+    $ python3 -m pytest tests/test_run_cli_corruption_exit.py tests/test_run_cli_declarations.py
+    14 passed in 24.51s
+    ```
+    6. Non-existent file check:
+    ```
+    $ git status --short tests/test_run_cli_exit_docstring.py
+    (empty; file does not exist)
+    ```
+    7. Full suite failure set comparison by name:
+    Pre-change bare `python3 -m pytest`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4852 passed, 2 skipped, 3 warnings in 591.95s (0:09:51)
+    ```
+    Post-change bare `python3 -m pytest`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4852 passed, 2 skipped, 3 warnings in 361.45s (0:06:01)
+    ```
+    Failure sets by name:
+    Pre-change: `{'tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta'}`
+    Post-change: `{'tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta'}`
+    Delta: `set()` (no new failures introduced).
+  - Result: pass
 
 ## Approval and execution gate
 

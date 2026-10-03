@@ -19,16 +19,14 @@ awoptimize Order 04 (`yndh7k`) E-04, Order 07 (`7yqm1v`) E-03.
 readers. `aw run` is NOT retired: it stays the writing/dispatch noun.
 
 Contract:
-  * exit 0 = success / clean / complete;
-    exit 1 = incomplete / invalid evidence / unsatisfied requirements;
-    exit 2 = invocation error, missing ledger, or unexpected read failure;
-    exit 5 = corrupted hash chain / unparseable JSON;
-    exit 7 = the target is healthy JSONL of some OTHER format, i.e. not a ledger at all.
+  * Exit vocabulary: declared by the `EXIT_OK` through `EXIT_NOT_A_LEDGER` constants below,
+    whose inline comments state each meaning; they are authoritative over any prose.
   * WRONG-FORMAT IS NOT CORRUPTION. A file that carries none of the ledger envelope fields gets a
-    'not a run ledger file' verdict (exit 7), never a corruption verdict: reporting healthy driver
+    'not a run ledger file' verdict (`EXIT_NOT_A_LEDGER`), never a corruption verdict: reporting healthy driver
     event logs as corrupt accused good data of damage it did not have (`e6b9kt`).
   * `--agent` and `--json` emit machine-readable output with NO ANSI; human mode is the default.
-  * Read-only: makes NO filesystem writes, ever.
+  * Read-only: the `aw runs` read leaves make no filesystem writes; the `aw run` writers append to
+    the ledger, and `write_index` writes a rebuildable projection when called.
   * Redacts sensitive values in both human and machine outputs.
 """
 
@@ -47,6 +45,9 @@ from agent_workflows.project_context import resolve_verb_repo_root
 from agent_workflows.runner_shared import path_is_within_analytics, state_root
 
 # ---- exit-code table (awoptimize Order 07 E-03) --------------------------------------------------
+# Single authority for this module's exit vocabulary. The module docstring deliberately points here
+# rather than restating the table (P8; defect h9kgjp showed re-transcription drifted and misassigned
+# codes). When adding a code, add its inline comment here; do NOT re-transcribe the table into prose.
 # Distinct nonzero codes let a caller/CI distinguish outcome classes. Kept small and consistent:
 EXIT_OK: int = 0  # complete / success
 EXIT_INCOMPLETE: int = 1  # run incomplete / unsatisfied predicates
