@@ -1,5 +1,5 @@
 - Id: kinyxf
-- Status: graduated
+- Status: done
 - Graduated-To: brokenpipe
 - Blocks-Release: next
 - Set: brokenpipe
@@ -8,6 +8,7 @@
 - Summary: aw find, aw paths and human output dump a BrokenPipeError traceback on a closed pipe, contradicting the output contract's clean-exit promise
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 63p8y2 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-brokenpipe-01-63p8y2-make-every-stdout-surface-exit-cleanly-on-a-closed-pipe-with.ipd.md); evidence .aw/records/plans/executed/20261002-brokenpipe-01-63p8y2-make-every-stdout-surface-exit-cleanly-on-a-closed-pipe-with.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: 63p8y2
 - 2026-10-01 created (aw backlog): aw find, aw paths and human output dump a BrokenPipeError traceback on a closed pipe, contradicting the output contract's clean-exit promise
 

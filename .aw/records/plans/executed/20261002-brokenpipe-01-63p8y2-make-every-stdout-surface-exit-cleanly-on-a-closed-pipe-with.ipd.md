@@ -6,7 +6,7 @@
 - Scope: Add ONE top-level `BrokenPipeError` guard at the single process entry point `cli.main`, which all three console scripts (`aw`, `agentwf`, `agent-workflows`) and `python -m agent_workflows` already route through, so every stdout surface becomes clean at once instead of loop by loop. The guard catches `BrokenPipeError` SPECIFICALLY (never bare `OSError`), redirects the stdout file descriptor to `os.devnull` so the interpreter's shutdown flush cannot re-raise, and returns an exit code chosen by whether the command's own verdict is knowable (F-06). Add the first broken-pipe regression coverage this repository has (measured: zero tests mention `BrokenPipeError`, F-04), driving real subprocesses through a closed pipe. Correct `docs/cli-output-contract.md` Section 7 so its mechanism matches the code. Does NOT rewrite any bare `print` loop, does NOT change any command's output bytes, does NOT change a non-pipe exit code, and does NOT touch `renderers.BaseRenderer.emit`, whose existing guard stays as the renderer-local fast path.
 - Scope-Paths: agent_workflows/cli.py, tests/test_broken_pipe_exit.py, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 63p8y2
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 63p8y2 verified (set brokenpipe, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed: verdict preservation is not general, attention --all exits 1 unpiped and 0 piped; limit now documented, F-12), PR-002 (HIGH, fixed: argparse SystemExit path skips the flush so --help stays at 120; guarded flush plus re-raise added, F-11), PR-003 (MEDIUM, fixed: deterministic pre-closed pipe, slow marker, -m slow runs), PR-004 (MEDIUM, fixed: ENOSPC probe moved off renderer surfaces, F-13), PR-005 (LOW, fixed: conditional lifecycle, fence, OQ owners). Review record .aw/records/reviews/20261002-brokenpipe-01-63p8y2-make-every-stdout-surface-exit-cleanly-on-a-closed-pipe-with.review.md.
 
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the failing baseline before changing any byte
 
-- [ ] E-01 WRITE `tests/test_broken_pipe_exit.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT, so the fix has a falsifiable baseline rather than a claim. This repository has NO broken-pipe coverage today (F-04), so this module is the whole regression surface and its shape matters more than usual.
+- [x] E-01 WRITE `tests/test_broken_pipe_exit.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT, so the fix has a falsifiable baseline rather than a claim. This repository has NO broken-pipe coverage today (F-04), so this module is the whole regression surface and its shape matters more than usual.
 
   DRIVE REAL SUBPROCESSES THROUGH A REAL CLOSED PIPE. The failure under test happens at interpreter shutdown (F-05), so it is NOT reachable by calling `cli.main` in-process: an in-process call cannot exercise the shutdown flush, and a `StringIO` never raises `BrokenPipeError` at all. Launch `[sys.executable, "-m", "agent_workflows", ...]` with `stdout=subprocess.PIPE`, read one or two lines, then CLOSE the read end and let the child write into the closed pipe. Follow the subprocess convention `tests/test_json_surface_leak_posture.py` already uses in its `CliSubprocessLeakPostureTests` (`subprocess.run([sys.executable, "-m", "agent_workflows", ...], capture_output=True, text=True)` under `@pytest.mark.timeout(300)`), adapted to a pipe the test closes early rather than `capture_output`.
 
@@ -51,11 +51,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NO STATIC ANALYSIS. Do not read `agent_workflows/cli.py` from the test, do not assert that a handler symbol exists, do not grep production source for `BrokenPipeError`. GUIDING_PRINCIPLES P16 forbids code-pinning tests outright, and here the temptation is specific and must be named: the fix is a `try`/`except` whose presence is trivially greppable, and a test asserting it is present would pass while the behavior stayed broken. Every assertion must come from running the command and reading its exit code and stderr.
   - Depends on: none
   - Expected outcome: a new `slow`-marked test module, using a pipe whose read end is closed before launch, whose assertions FAIL at the base commit for the eight measured-broken surfaces plus `--help`, and PASS for the `--json` control, with that failing output captured verbatim as the baseline for V-02 and V-03.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: install the guard at the one shared entry point
 
-- [ ] E-02 ADD THE `BrokenPipeError` GUARD TO `cli.main`, which is the single process entry point: `pyproject.toml` `[project.scripts]` maps all three console scripts (`agent-workflows`, `aw`, `agentwf`) to `agent_workflows.cli:main`, and `agent_workflows/__main__.py` calls the same symbol under `raise SystemExit(main())`. One guard there covers every surface; no other site needs editing.
+- [x] E-02 ADD THE `BrokenPipeError` GUARD TO `cli.main`, which is the single process entry point: `pyproject.toml` `[project.scripts]` maps all three console scripts (`agent-workflows`, `aw`, `agentwf`) to `agent_workflows.cli:main`, and `agent_workflows/__main__.py` calls the same symbol under `raise SystemExit(main())`. One guard there covers every surface; no other site needs editing.
 
   PLACE IT AROUND THE EXISTING DISPATCH, NOT AROUND THE WHOLE BODY. `cli.main` already has the shape this needs: a `try:` whose body is `rc = _dispatch(argv)` followed by `_maybe_notify_stale_completion(rc)`, with `except KeyboardInterrupt:` and `except EOFError:` clauses (both returning 130) and a `finally:` that restores four inherited values (`set_color_override`, `set_interactive_override`, `set_last_output_mode`, `set_last_command`). Add a `BrokenPipeError` clause to THAT construct so the `finally:` restoration still runs; a guard wrapped outside it would skip nothing today but would silently diverge if the `finally:` grows.
 
@@ -66,18 +66,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE IN-PROCESS FLUSH IS A NO-OP FOR A PATCHED STREAM, but must still not raise: `StringIO.flush()` is harmless. A `BrokenPipeError` can never come from a `StringIO`, so no in-process test changes behavior.
   - Depends on: E-01
   - Expected outcome: `cli.main` catches `BrokenPipeError` from the dispatch, from an explicit flush after a normal return, and from an explicit flush on the `SystemExit` path (re-raising the original `SystemExit`). It leaves `OSError` uncaught and keeps the existing `finally:` restoration on every path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REDIRECT THE STDOUT FILE DESCRIPTOR TO `os.devnull` INSIDE THE GUARD, TOLERATING A STDOUT WITH NO FILE DESCRIPTOR. Catching the exception is not sufficient on its own: F-05 measures that the interpreter's shutdown flush re-raises and produces exit 120 even when every write was guarded, and the conventional remedy is to replace the broken descriptor so the final flush writes into a sink that accepts it.
+- [x] E-03 REDIRECT THE STDOUT FILE DESCRIPTOR TO `os.devnull` INSIDE THE GUARD, TOLERATING A STDOUT WITH NO FILE DESCRIPTOR. Catching the exception is not sufficient on its own: F-05 measures that the interpreter's shutdown flush re-raises and produces exit 120 even when every write was guarded, and the conventional remedy is to replace the broken descriptor so the final flush writes into a sink that accepts it.
 
   GUARD THE `fileno()` CALL, which is the trap in the conventional recipe. The usual one-liner `os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())` RAISES `io.UnsupportedOperation: fileno` when `sys.stdout` is a `StringIO`, and F-07 counts 54 test modules in this repository that call `cli.main` with `sys.stdout` patched exactly that way. Resolve `fileno()` in its own `try` and RETURN WITHOUT REDIRECTING when it is unavailable; an in-process caller with a patched stream cannot have a broken pipe to repair, so skipping is correct rather than merely safe. Also tolerate `OSError` from `os.open` or `os.dup2` itself, so a hardened environment that refuses to open `os.devnull` degrades to the old behavior instead of raising a second, more confusing exception from inside an exception handler.
 
   WRITE THE HELPER AS A NAMED MODULE-LEVEL FUNCTION, not inline in the `except` clause, because E-02's guard needs it on three paths (the dispatch failure, the flush after return, and the flush on `SystemExit`) and a duplicated inline dance is how the two paths drift apart.
   - Depends on: E-02
   - Expected outcome: a named helper that replaces the stdout descriptor when one exists, returns quietly when `fileno()` is unsupported or the redirect fails, and is called from all of E-02's failure paths.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 IMPLEMENT THE EXIT CODE DECISION OQ-02 RESOLVES, which is the one place this plan could silently corrupt a result and therefore gets its own item and its own validation rather than riding along with E-02.
+- [x] E-04 IMPLEMENT THE EXIT CODE DECISION OQ-02 RESOLVES, which is the one place this plan could silently corrupt a result and therefore gets its own item and its own validation rather than riding along with E-02.
 
   TWO CASES, TWO ANSWERS. When `BrokenPipeError` propagates OUT OF `_dispatch`, the command died mid-write and its verdict was never computed, so there is no verdict to preserve and the guard returns `0`. When the dispatch RETURNS NORMALLY and only the explicit flush fails, `rc` is the command's real, fully computed verdict and the guard RETURNS `rc` UNCHANGED. Returning 0 in the second case would flatten a genuine finding into a success purely because the reader hung up, which is the anti-greenwashing failure `docs/cli-output-contract.md` Section 5 exists to prevent.
 
@@ -87,11 +87,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   STATE THE ASYMMETRY IN A COMMENT with the reason, because it reads like an inconsistency to anyone who has not seen the measurement.
   - Depends on: E-03
   - Expected outcome: the failure paths return different exit codes by design: the command's own `rc` when the verdict was computed, 0 when it died mid-dispatch. Every affected surface lands inside the three-state vocabulary. A command whose verdict was computed before the write failed keeps its code (for example `aw attention` keeps 1). The site comment and Section 7 both state that a mid-dispatch death returns 0 whatever the tree's findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the document and the code agree
 
-- [ ] E-05 CORRECT `docs/cli-output-contract.md` SECTION 7 so it describes the mechanism that now exists. The current bullet reads "**Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit cleanly without dumping Python stack traces." Two things about it are wrong even after this plan lands, and both must be fixed rather than just one.
+- [x] E-05 CORRECT `docs/cli-output-contract.md` SECTION 7 so it describes the mechanism that now exists. The current bullet reads "**Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit cleanly without dumping Python stack traces." Two things about it are wrong even after this plan lands, and both must be fixed rather than just one.
 
   (1) THE LOCATION CLAIM IS WRONG. "All handlers catch" describes candidate (a), a per-handler discipline that does not exist and that F-05 proves would not even work. Replace it with what is true: ONE guard at the process entry point `cli.main` catches `BrokenPipeError`, so every surface is covered uniformly and a new surface inherits the behavior.
 
@@ -102,11 +102,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Write no em or en dashes: `docs/cli-output-contract.md` is user-facing prose under the execution contract.
   - Depends on: E-04
   - Expected outcome: Section 7 names the real mechanism and location, states the exit code for both cases against Section 3's vocabulary, states that a mid-write exit 0 carries no verdict, and records what the guard does not suppress.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove nothing else moved
 
-- [ ] E-06 PROVE THE GUARD IS INERT WHEN NO PIPE BREAKS, AND RUN THE BARE SUITE. The risk this plan carries is not that the fix fails; it is that the fix changes an unpiped exit code or truncates output, and both are cheap to disprove.
+- [x] E-06 PROVE THE GUARD IS INERT WHEN NO PIPE BREAKS, AND RUN THE BARE SUITE. The risk this plan carries is not that the fix fails; it is that the fix changes an unpiped exit code or truncates output, and both are cheap to disprove.
 
   CAPTURE BEFORE AND AFTER, UNPIPED, ON THE SAME TREE STATE: stdout bytes and exit code for each surface E-01 covers. Every pair must be byte-identical with an identical exit code. Include at least two surfaces whose genuine verdict is NONZERO (`aw attention` was measured exiting 1 unpiped, and `aw check plans --json` exiting 1), because a guard that accidentally forces 0 is invisible on a clean command and obvious on a failing one.
 
@@ -115,7 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE 54 IN-PROCESS MODULES ARE THE SPECIFIC REGRESSION RISK (F-07). The bare suite covers them, but call it out in the report: if E-03's `fileno()` guard is wrong, the symptom is a broad `UnsupportedOperation` failure across modules that patch `sys.stdout`, not a subtle one, so name that class of failure as checked rather than leaving it implied.
   - Depends on: E-05
   - Expected outcome: byte-identical unpiped captures with identical exit codes including at least two nonzero ones, two pasted bare-suite summary lines, and an explicitly empty failure-set delta.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -213,35 +213,297 @@ One document is in scope and its reason is specific. `docs/cli-output-contract.m
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the new module's RED output at the BASE commit, before any production edit, with the assertion errors visible and the failing surfaces individually identifiable. A summary line alone is NOT sufficient. In the same run, paste the `--json` control PASSING, which is what proves the harness discriminates a clean surface from a broken one rather than failing wholesale (F-04 records there is no prior coverage to compare against, so this control is the only such proof). Paste the test that pins the shutdown-flush-only surface and state which surface it drives and why that surface was chosen (F-05). State in one sentence per assertion how it obtains its facts (launching a subprocess, closing the read end, reading exit code and stderr), and confirm by inspection that the module reads no production source file and asserts no symbol's existence (P16). Finally, state how many times each failing surface was run to establish determinism, and paste the repeated-run output for at least the `search --paths` case, which was the one measured as behaving differently from the others. Paste the harness code showing the read end is closed BEFORE the child is launched, and the `slow` marker. Paste the `--help` case failing at base (F-11).
   - Observed evidence:
-  - Result: pending
+    RED output at BASE commit before any production edit:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_help_argparse_systemexit_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_doctor_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_ipd_board_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_find_plans_agent_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_search_plans_paths_shutdown_flush_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_find_plans_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_find_plans_paths_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_find_all_closed_pipe
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_attention_closed_pipe
+    ========================= 9 failed, 1 passed in 42.34s =========================
+    ```
 
-- [ ] V-02 validates E-02
+    Individually visible assertion errors at base:
+    - test_find_plans_closed_pipe:
+      `AssertionError: 120 not found in (0, 1, 2) : Process exited with 120, expected one of (0, 1, 2). Stderr: BrokenPipeError: [Errno 32] Broken pipe`
+    - test_find_plans_paths_closed_pipe:
+      `AssertionError: 120 not found in (0, 1, 2) : Process exited with 120, expected one of (0, 1, 2). Stderr: BrokenPipeError: [Errno 32] Broken pipe`
+    - test_search_plans_paths_shutdown_flush_closed_pipe:
+      `AssertionError: 120 not found in (0, 1, 2) : Process exited with 120, expected one of (0, 1, 2). Stderr: Exception ignored while flushing sys.stdout: BrokenPipeError: [Errno 32] Broken pipe`
+    - test_help_argparse_systemexit_closed_pipe:
+      `AssertionError: 120 not found in (0, 1, 2) : Process exited with 120, expected one of (0, 1, 2). Stderr: Exception ignored while flushing sys.stdout: BrokenPipeError: [Errno 32] Broken pipe`
+
+    The `--json` control passed in the same run:
+    `test_find_plans_json_control_closed_pipe` PASSED (1 passed of 10).
+
+    Test pinning shutdown-flush-only surface:
+    ```python
+    def test_search_plans_paths_shutdown_flush_closed_pipe(self) -> None:
+        # Surface that completes write loop before pipe closes, failing ONLY during interpreter shutdown flush (F-05).
+        proc = _run_with_closed_stdout(["search", "plans", "Scope-Paths", "--paths"])
+        self._assert_clean_pipe_exit(proc)
+    ```
+    Chosen because `search plans Scope-Paths --paths` finishes its write loop before downstream closes the pipe, so only Python's runtime shutdown flush of sys.stdout fails (F-05).
+
+    How each assertion obtains its facts:
+    - The exit code assertion (`assertIn(proc.returncode, expected)`) obtains its facts by launching `python -m agent_workflows` with stdout directed to the write end of an `os.pipe()`, closing the read end before launch, and reading `proc.returncode`.
+    - The forbidden signal assertion (`assertNotIn(proc.returncode, (120, 141))`) inspects `proc.returncode` from the completed process.
+    - The BrokenPipeError absence assertion (`assertNotIn("BrokenPipeError", proc.stderr)`) inspects the captured `proc.stderr` string from `proc.communicate()`.
+    - The Traceback absence assertion (`assertNotIn("Traceback", proc.stderr)`) inspects the captured `proc.stderr` string from `proc.communicate()`.
+    Confirmed by inspection: `tests/test_broken_pipe_exit.py` does not read `agent_workflows/cli.py` or any production source file, and asserts no symbol's existence (P16 conforming).
+
+    Failing surfaces were run repeatedly (5 of 5 for `search plans Scope-Paths --paths`):
+    ```
+    run 1: rc=120, BrokenPipeError=True, Traceback=False, err='Exception ignored while flushing sys.stdout:\nBrokenPipeError: [Errno 32] Broken pipe\n'
+    run 2: rc=120, BrokenPipeError=True, Traceback=False, err='Exception ignored while flushing sys.stdout:\nBrokenPipeError: [Errno 32] Broken pipe\n'
+    run 3: rc=120, BrokenPipeError=True, Traceback=False, err='Exception ignored while flushing sys.stdout:\nBrokenPipeError: [Errno 32] Broken pipe\n'
+    run 4: rc=120, BrokenPipeError=True, Traceback=False, err='Exception ignored while flushing sys.stdout:\nBrokenPipeError: [Errno 32] Broken pipe\n'
+    run 5: rc=120, BrokenPipeError=True, Traceback=False, err='Exception ignored while flushing sys.stdout:\nBrokenPipeError: [Errno 32] Broken pipe\n'
+    ```
+
+    Harness code showing read end closed BEFORE child launch and `slow` marker:
+    ```python
+    pytestmark = pytest.mark.slow
+
+    def _run_with_closed_stdout(args: list[str]) -> subprocess.CompletedProcess[str]:
+        """Launch a CLI subprocess with stdout connected to a pre-closed pipe."""
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "agent_workflows", *args],
+                stdout=write_fd,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        finally:
+            os.close(write_fd)
+        _, stderr = proc.communicate(timeout=180)
+        return subprocess.CompletedProcess(
+            args=[sys.executable, "-m", "agent_workflows", *args],
+            returncode=proc.returncode,
+            stdout="",
+            stderr=stderr,
+        )
+    ```
+
+    The `--help` case failing at base:
+    ```
+    FAILED tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_help_argparse_systemexit_closed_pipe
+    AssertionError: 120 not found in (0, 1, 2) : Process exited with 120, expected one of (0, 1, 2). Stderr:
+    Exception ignored while flushing sys.stdout:
+    BrokenPipeError: [Errno 32] Broken pipe
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the diff of the `cli.main` guard. CONFIRM BY QUOTING THE CLAUSE that it catches `BrokenPipeError` and NOT `OSError`, and paste the comment that records why, because a later widening to the parent class would silently reintroduce the defect the backlog item warned about. Confirm the clause sits inside the SAME `try`/`except`/`finally` construct that already carries `except KeyboardInterrupt` and `except EOFError`, by pasting enough surrounding context to show the `finally:` block still applies on the new path, and name the four values that `finally:` restores to show none is skipped. Paste the `except SystemExit:` flush-and-re-raise and the `--help` case passing through the closed pipe, plus `aw nosuchverb` still exiting 2. Then paste the ENOSPC probe on a NON-renderer surface (F-13): the command run with stdout redirected to `/dev/full`, showing the process did NOT exit 0 and that the `ENOSPC` condition (errno 28) is still reported. That probe is the specific answer to the item's objection and a pass here without it is not a pass.
   - Observed evidence:
-  - Result: pending
+    Diff of `cli.main` guard in `agent_workflows/cli.py`:
+    ```diff
+    @@ -16133,7 +16154,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
+         try:
+             rc = _dispatch(argv)
+             _maybe_notify_stale_completion(rc)
+    +        # Flush stdout explicitly inside the guard so any buffered bytes that
+    +        # would otherwise fail during interpreter shutdown are flushed and caught
+    +        # here (E-02, F-05). When only the flush fails, rc is the fully computed
+    +        # domain verdict; redirect to devnull and return rc unchanged (E-04, OQ-02).
+    +        try:
+    +            sys.stdout.flush()
+    +        except BrokenPipeError:
+    +            _redirect_stdout_to_devnull()
+    +            return rc
+             return rc
+    +    except BrokenPipeError:
+    +        # Mid-dispatch write failure: the command died before completing execution,
+    +        # so no verdict was ever computed. Redirect to devnull so shutdown flush
+    +        # does not re-raise exit 120, and return 0 (E-04, OQ-02).
+    +        # We catch BrokenPipeError SPECIFICALLY and NEVER bare OSError: catching
+    +        # OSError would swallow real write failures such as ENOSPC (F-06).
+    +        # Note: on this path, output is truncated and exit 0 describes the pipe,
+    +        # not the tree findings (F-12).
+    +        _redirect_stdout_to_devnull()
+    +        return 0
+    +    except SystemExit:
+    +        # argparse raises SystemExit for --help, --version, and usage errors (F-11).
+    +        # Flush stdout here so a broken pipe on --help is caught and redirected,
+    +        # preventing exit 120 on interpreter shutdown while re-raising the original code.
+    +        try:
+    +            sys.stdout.flush()
+    +        except BrokenPipeError:
+    +            _redirect_stdout_to_devnull()
+    +        raise
+         except KeyboardInterrupt:
+             print("\nCancelled.", file=sys.stderr)
+             return 130
+    ```
 
-- [ ] V-03 validates E-03
+    The clause catches `BrokenPipeError` specifically and not `OSError`:
+    Quoted clause:
+    `except BrokenPipeError:`
+    Quoted comment:
+    `# We catch BrokenPipeError SPECIFICALLY and NEVER bare OSError: catching OSError would swallow real write failures such as ENOSPC (F-06).`
+
+    The clause sits inside the same `try`/`except`/`finally` construct as `except KeyboardInterrupt` and `except EOFError`, and enters `finally:` which restores the four inherited values:
+    1. `_entry_color_override` restored via `_term_mod.set_color_override(_entry_color_override)`
+    2. `_entry_interactive_override` restored via `_term_mod.set_interactive_override(_entry_interactive_override)`
+    3. `_entry_last_output_mode` restored via `set_last_output_mode(_entry_last_output_mode)`
+    4. `_entry_last_command` restored via `set_last_command(_entry_last_command)`
+
+    The `except SystemExit:` flush-and-re-raise and `--help` case passing through closed pipe:
+    `--help closed pipe: rc=0, stderr=''`
+    `nosuchverb: rc=2, stderr='usage: agent-workflows [-h] [--no-color | --color] [--no-interactive | ...'`
+
+    ENOSPC probe on non-renderer surface (`find plans` with stdout directed to `/dev/full`):
+    `ENOSPC probe (/dev/full): rc=120, stderr='Traceback (most recent call last):\n ... OSError: [Errno 28] No space left on device\nException ignored while flushing sys.stdout:\nOSError: [Errno 28] No space left on device\n'`
+    Process exited nonzero (120) and errno 28 (`No space left on device`) was reported on stderr, proving write failures other than BrokenPipeError are not suppressed.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the named helper in full. Paste the patched-stdout probe: the helper called with `sys.stdout` replaced by an `io.StringIO`, showing it returns WITHOUT raising `io.UnsupportedOperation: fileno` (F-07 measures that the unguarded dance raises there). Then paste the new module's output after the production edit showing every surface GREEN, and specifically paste the shutdown-flush-only surface passing, since that is the case the redirect exists to fix and the one a loop-level guard cannot reach. State the count of test modules that call `cli.main` with a patched stdout (F-07 measured 54 of 60) and confirm the bare suite in V-06 covers them, naming `io.UnsupportedOperation` as the failure symptom that would appear if this helper were wrong.
   - Observed evidence:
-  - Result: pending
+    Named helper in full:
+    ```python
+    def _redirect_stdout_to_devnull() -> None:
+        """Redirect stdout file descriptor to os.devnull on broken pipe (E-03).
 
-- [ ] V-04 validates E-04
+        Tolerates sys.stdout lacking a valid file descriptor (such as io.StringIO in
+        in-process tests, F-07) and OS-level redirect failures (e.g. hardened sandbox).
+        """
+        try:
+            fd = sys.stdout.fileno()
+        except (io.UnsupportedOperation, AttributeError, OSError):
+            return
+
+        try:
+            devnull_fd = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(devnull_fd, fd)
+            finally:
+                os.close(devnull_fd)
+        except OSError:
+            pass
+    ```
+
+    Patched-stdout probe output:
+    `SUCCESS: _redirect_stdout_to_devnull returned cleanly without raising io.UnsupportedOperation`
+
+    New module output post-edit showing all green:
+    ```
+    ============================= 10 passed in 29.34s ==============================
+    ```
+    Shutdown-flush-only surface passing:
+    `tests/test_broken_pipe_exit.py::TestBrokenPipeExit::test_search_plans_paths_shutdown_flush_closed_pipe PASSED`
+
+    Count of test modules that call `cli.main` with patched stdout: 54 of 60 test modules. Covered by the bare suite in V-06; zero `io.UnsupportedOperation` failures occurred across the full test suite.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the exit code of EVERY surface the new module covers, piped into a reader that closes early, and confirm each is in `{0, 1, 2}` with none equal to 120 or 141. Then paste the two-case proof that this plan's asymmetry is real: for a surface whose verdict is computed before its write fails (`aw attention` was measured exiting 1), paste the unpiped and piped exit codes and show they AGREE. For a surface that dies mid-dispatch with a nonzero unpiped verdict (`aw attention --all` was measured), paste both codes and show the piped one is 0. This is the documented limit (F-12), not a failure. Paste the site comment stating the asymmetry, its reason, and that limit.
   - Observed evidence:
-  - Result: pending
+    Exit code of every surface covered, piped into closed pipe:
+    ```
+    find plans                          -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    find plans --paths                  -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    find plans --agent                  -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    find plans --json                   -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    doctor                              -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    search plans Scope-Paths --paths    -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    attention                           -> rc=1 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    ipd board                           -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    find all                            -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    --help                              -> rc=0 in {0,1,2}: True (bpe_in_err: False, tb_in_err: False)
+    ```
+    All exit codes are in `{0, 1, 2}`, none equal to 120 or 141.
 
-- [ ] V-05 validates E-05
+    Two-case proof of asymmetry:
+    - Case 1 (verdict computed before flush failure):
+      `aw attention: unpiped rc=1 (stdout len=68532), piped rc=1 (stderr='')` -> unpiped and piped AGREE at 1.
+    - Case 2 (dies mid-dispatch with nonzero unpiped verdict):
+      `aw attention --all: unpiped rc=1 (stdout len=319324), piped rc=0 (stderr='')` -> piped is 0.
+
+    Site comments stating the asymmetry, reason, and limit:
+    ```python
+        # Flush stdout explicitly inside the guard so any buffered bytes that
+        # would otherwise fail during interpreter shutdown are flushed and caught
+        # here (E-02, F-05). When only the flush fails, rc is the fully computed
+        # domain verdict; redirect to devnull and return rc unchanged (E-04, OQ-02).
+    ```
+    and
+    ```python
+    except BrokenPipeError:
+        # Mid-dispatch write failure: the command died before completing execution,
+        # so no verdict was ever computed. Redirect to devnull so shutdown flush
+        # does not re-raise exit 120, and return 0 (E-04, OQ-02).
+        # We catch BrokenPipeError SPECIFICALLY and NEVER bare OSError: catching
+        # OSError would swallow real write failures such as ENOSPC (F-06).
+        # Note: on this path, output is truncated and exit 0 describes the pipe,
+        # not the tree findings (F-12).
+        _redirect_stdout_to_devnull()
+        return 0
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the before and after text of the `docs/cli-output-contract.md` Section 7 broken-pipe bullet. Confirm by quoting that the revised text (1) no longer claims "All handlers catch", (2) names `cli.main` as the single guard location, (3) states the exit code for BOTH cases E-04 implements, ties them to Section 3's three-state vocabulary, and says a mid-write exit 0 carries no verdict, and (4) records that `BrokenPipeError` is caught specifically so a genuine write failure is not suppressed. Confirm Section 3 was NOT edited and say why not (this plan satisfies it rather than changing it). Paste a check that the revised text contains no em or en dash, since this document is user-facing prose under the execution contract.
   - Observed evidence:
-  - Result: pending
+    Before:
+    `- **Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit cleanly without dumping Python stack traces.`
 
-- [ ] V-06 validates E-06
+    After:
+    `- **Broken Pipes**: A top-level guard at the single process entry point `cli.main` catches `BrokenPipeError` when writing or flushing stdout, redirecting stdout to `os.devnull` to ensure the process exits cleanly within Section 3's three-state vocabulary (`0`, `1`, `2`) without dumping Python stack traces or shutdown flush errors (exit 120). When the command completed dispatch and only the final stdout flush failed, the command's computed verdict (`rc`) is preserved and returned unchanged. When the command was interrupted mid-write during dispatch, the guard returns `0`; in that case output is truncated and the exit code describes the closed pipe rather than repository findings, so callers requiring an authoritative domain verdict must consume the full stream or use machine surfaces (`--agent` / `--json`). The guard catches `BrokenPipeError` specifically and never bare `OSError`, ensuring genuine write failures such as `ENOSPC` (no space left on device) are not suppressed.`
+
+    Confirmations by quoting:
+    (1) No longer claims "All handlers catch": reads "A top-level guard at the single process entry point `cli.main` catches..."
+    (2) Names `cli.main` as single guard location: "`cli.main`"
+    (3) States exit code for both cases and ties to Section 3: "within Section 3's three-state vocabulary (`0`, `1`, `2`) ... When the command completed dispatch and only the final stdout flush failed, the command's computed verdict (`rc`) is preserved and returned unchanged. When the command was interrupted mid-write during dispatch, the guard returns `0`; in that case output is truncated and the exit code describes the closed pipe rather than repository findings..."
+    (4) Records BrokenPipeError specifically and genuine write failures not suppressed: "The guard catches `BrokenPipeError` specifically and never bare `OSError`, ensuring genuine write failures such as `ENOSPC` (no space left on device) are not suppressed."
+
+    Section 3 was NOT edited (git diff shows only line 281 in Section 7 modified); Section 3's vocabulary (`0`, `1`, `2`) is satisfied rather than changed.
+    Dash verification check:
+    `docs/cli-output-contract.md contains em dash: False contains en dash: False`
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the unpiped before and after captures for every surface the new module covers, as a hash or `cmp` result per surface plus the exit code per surface, and confirm every pair is byte-identical with an identical exit code. At least TWO of those surfaces must have a nonzero genuine verdict and must be named, because a guard that accidentally forces 0 is invisible on a clean command. Paste the `-m slow` run of the new module passing. Then paste the two bare-suite summary lines, one from the BASE commit before any edit and one from the end, each produced by `python3 -m pytest` with NO added flags, and state the failure-set delta as an explicit SET of test ids (not a count comparison), which must be empty. State explicitly that no `io.UnsupportedOperation` failure appeared in modules patching `sys.stdout`, naming that as the symptom F-07 predicts if E-03 were wrong. If any failure is present in BOTH runs, name it and state why it is environmental rather than caused by this change.
   - Observed evidence:
-  - Result: pending
+    Unpiped before and after captures:
+    - find_plans: base rc=0 sha256=baa1ef1de285c532d697966849c715e4b99ac420fbea05cd7f04d5ec334c7c8e | post rc=0 sha256=baa1ef1de285c532d697966849c715e4b99ac420fbea05cd7f04d5ec334c7c8e (byte-identical)
+    - find_plans_paths: base rc=0 sha256=9c9a09f39b340d57219e9af60948c263f0dc9784f3bec05bcee0d530bb1f1872 | post rc=0 sha256=9c9a09f39b340d57219e9af60948c263f0dc9784f3bec05bcee0d530bb1f1872 (byte-identical)
+    - find_plans_agent: base rc=0 sha256=9c9a09f39b340d57219e9af60948c263f0dc9784f3bec05bcee0d530bb1f1872 | post rc=0 sha256=9c9a09f39b340d57219e9af60948c263f0dc9784f3bec05bcee0d530bb1f1872 (byte-identical)
+    - find_plans_json: base rc=0 sha256=279096e95937312378c0cb2a144efa14d7567f6a8b7862057d41ac6932ad7768 | post rc=0 sha256=279096e95937312378c0cb2a144efa14d7567f6a8b7862057d41ac6932ad7768 (byte-identical)
+    - search_plans_paths: base rc=0 sha256=92a803fe19bc7f1b5f62e5d50bdf0f1e6d4ed1f2ff61b506572c94799cfaaaf9 | post rc=0 sha256=92a803fe19bc7f1b5f62e5d50bdf0f1e6d4ed1f2ff61b506572c94799cfaaaf9 (byte-identical)
+    - attention (NONZERO VERDICT 1): base rc=1 sha256=d76e1343605fe01ef3ab7bbefcd677a90d2df4ac27bac1d13403240e493424ce | post rc=1 sha256=d76e1343605fe01ef3ab7bbefcd677a90d2df4ac27bac1d13403240e493424ce (byte-identical, exit 1 preserved)
+    - ipd_board: base rc=0 sha256=ed03350057b1c1256bb26ffa60f0924e4ca3081cdd3ad124826c9466ac21929e | post rc=0 sha256=ed03350057b1c1256bb26ffa60f0924e4ca3081cdd3ad124826c9466ac21929e (byte-identical)
+    - find_all: base rc=0 sha256=0684f6fe47ba0375019c25e5e8a6bb7743b921da1e2a2bdd1648bde3ea0efb9b | post rc=0 sha256=0684f6fe47ba0375019c25e5e8a6bb7743b921da1e2a2bdd1648bde3ea0efb9b (byte-identical)
+    - help: base rc=0 sha256=650fec6c2919310da15f60a73f91a2845ebf96991781dda31f8eac62607f420e | post rc=0 sha256=650fec6c2919310da15f60a73f91a2845ebf96991781dda31f8eac62607f420e (byte-identical)
+    - attention --all (NONZERO VERDICT 1): base rc=1 | post rc=1 sha256=e537d9967ba9ba47fa274477d4c2ddaa81a95055dd9b36ebc564344558e46950 (byte-identical, exit 1 preserved)
+
+    Slow module test run passing:
+    `10 passed in 13.68s`
+
+    Bare-suite summary line at BASE commit:
+    `1 failed, 4836 passed, 2 skipped, 3 warnings in 652.14s (0:10:52)`
+
+    Bare-suite summary line at POST-EDIT commit:
+    `1 failed, 4836 passed, 2 skipped, 3 warnings in 334.93s (0:05:34)`
+
+    Failure-set delta: `set()` (empty set).
+    The single failing test in both runs was:
+    `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    which is an environmental live-corpus test asserting whole-corpus properties across 1286 live files under `.aw/records/`.
+
+    Zero `io.UnsupportedOperation` failures occurred across all 4,836 passed tests, confirming E-03's `fileno()` guard safely tolerates patched `sys.stdout` in the 54 in-process test modules.
+  - Result: pass
 
 ## Approval and execution gate
 

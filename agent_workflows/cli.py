@@ -16080,6 +16080,27 @@ def _maybe_notify_stale_completion(rc: int) -> None:
         pass
 
 
+def _redirect_stdout_to_devnull() -> None:
+    """Redirect stdout file descriptor to os.devnull on broken pipe (E-03).
+
+    Tolerates sys.stdout lacking a valid file descriptor (such as io.StringIO in
+    in-process tests, F-07) and OS-level redirect failures (e.g. hardened sandbox).
+    """
+    try:
+        fd = sys.stdout.fileno()
+    except (io.UnsupportedOperation, AttributeError, OSError):
+        return
+
+    try:
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(devnull_fd, fd)
+        finally:
+            os.close(devnull_fd)
+    except OSError:
+        pass
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry point. Catches CTRL-C / EOF at any prompt and exits cleanly (D-CLI-UX).
 
@@ -16129,7 +16150,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         rc = _dispatch(argv)
         _maybe_notify_stale_completion(rc)
+        # Flush stdout explicitly inside the guard so any buffered bytes that
+        # would otherwise fail during interpreter shutdown are flushed and caught
+        # here (E-02, F-05). When only the flush fails, rc is the fully computed
+        # domain verdict; redirect to devnull and return rc unchanged (E-04, OQ-02).
+        try:
+            sys.stdout.flush()
+        except BrokenPipeError:
+            _redirect_stdout_to_devnull()
+            return rc
         return rc
+    except BrokenPipeError:
+        # Mid-dispatch write failure: the command died before completing execution,
+        # so no verdict was ever computed. Redirect to devnull so shutdown flush
+        # does not re-raise exit 120, and return 0 (E-04, OQ-02).
+        # We catch BrokenPipeError SPECIFICALLY and NEVER bare OSError: catching
+        # OSError would swallow real write failures such as ENOSPC (F-06).
+        # Note: on this path, output is truncated and exit 0 describes the pipe,
+        # not the tree findings (F-12).
+        _redirect_stdout_to_devnull()
+        return 0
+    except SystemExit:
+        # argparse raises SystemExit for --help, --version, and usage errors (F-11).
+        # Flush stdout here so a broken pipe on --help is caught and redirected,
+        # preventing exit 120 on interpreter shutdown while re-raising the original code.
+        try:
+            sys.stdout.flush()
+        except BrokenPipeError:
+            _redirect_stdout_to_devnull()
+        raise
     except KeyboardInterrupt:
         print("\nCancelled.", file=sys.stderr)
         return 130

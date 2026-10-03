@@ -278,7 +278,7 @@ To minimize token usage during agent orchestration while preserving complete dec
 
 - **`stdout`**: Reserved strictly for final structured results (the interactive human view or machine JSONL records).
 - **`stderr`**: Reserved for interactive progress indicators, transient status updates, cannot-start errors, and usage diagnostics. Diagnostics are never duplicated across both streams.
-- **Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit cleanly without dumping Python stack traces.
+- **Broken Pipes**: A top-level guard at the single process entry point `cli.main` catches `BrokenPipeError` when writing or flushing stdout, redirecting stdout to `os.devnull` to ensure the process exits cleanly within Section 3's three-state vocabulary (`0`, `1`, `2`) without dumping Python stack traces or shutdown flush errors (exit 120). When the command completed dispatch and only the final stdout flush failed, the command's computed verdict (`rc`) is preserved and returned unchanged. When the command was interrupted mid-write during dispatch, the guard returns `0`; in that case output is truncated and the exit code describes the closed pipe rather than repository findings, so callers requiring an authoritative domain verdict must consume the full stream or use machine surfaces (`--agent` / `--json`). The guard catches `BrokenPipeError` specifically and never bare `OSError`, ensuring genuine write failures such as `ENOSPC` (no space left on device) are not suppressed.
 
 ---
 
