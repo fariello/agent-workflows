@@ -1,5 +1,5 @@
 - Id: r74211
-- Status: graduated
+- Status: done
 - Graduated-To: histdedup
 - Set: histlabel
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw backlog set --status appends a duplicate same-status history record; the positional spelling deduplicates it
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD evbx9s executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-histdedup-01-evbx9s-deduplicate-the-same-status-history-record-on-the-aw-backlog.ipd.md); evidence .aw/records/plans/executed/20261002-histdedup-01-evbx9s-deduplicate-the-same-status-history-record-on-the-aw-backlog.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: evbx9s
 - 2026-09-30 created (aw backlog): Measured while authoring plan jbipfa from backlog awqzuh; the sibling defect of awqzuh's label asymmetry, on the same two code paths.
 
