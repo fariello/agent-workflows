@@ -255,6 +255,12 @@ Each validation row MUST have this logical shape:
   - Result: pending
 ```
 
+`Observed evidence:` and `Execution note:` MAY carry their value on the field line, on following lines beneath it, or both, and the linter reads the field line plus that continuation as one value. The continuation block uses a blank-tolerant, fence-aware termination rule:
+
+- A blank line does not end the block.
+- A fenced code block (a line whose stripped form opens with ``` or ~~~) is absorbed whole, dropping the fence marker lines themselves and absorbing the fenced body unconditionally.
+- Outside a fenced region, the block terminates at a line matching the sub-field pattern (`_SUBFIELD_RE`), a line starting with `- [` (the next checklist leaf), a line starting with `#` (a heading), or any other non-indented line.
+
 Allowed validation results are:
 
 - `pending`: validation has not completed;
@@ -289,7 +295,7 @@ The execution and validation states MUST also agree:
 
 `Required evidence:` is authored before approval and executed later, so it MUST be expressed in terms that survive a refactor that changes no behaviour (evidence durability). In particular, a collected test count and a test function name are not durable, because both are artifacts of test organization rather than stable authored facts; the demand must instead specify the behaviour pinned plus the mechanism that pins it. When the named mechanism has been reorganized (such as into a table-driven suite), the executor substitutes the successor and records the substitution, rather than either reporting the item unverifiable or silently swapping in different evidence. This durability requirement is a convention enforced during review, not by tooling: the linter does not and will not check evidence durability.
 
-`Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator.
+`Observed evidence:` SHOULD point to independently inspectable state. Model-pasted or model-narrated output is not automatically external evidence. When tooling permits, command evidence SHOULD be captured by the tool or wrapper that ran the command and referenced by path, digest, run identifier, or other durable locator. A multi-line pasted transcript is the expected shape for command evidence and needs no summary line on the `Observed evidence:` field line itself.
 
 The linter checks presence and state consistency. It MUST NOT claim that evidence is authentic, relevant, or sufficient.
 
@@ -634,10 +640,10 @@ action. That mark is not validation.
 
 ### Task group 1: <short title>
 
-- [ ] E-01 `<file>` (`<symbol>`): <one observable action>.
+- [x] E-01 `<file>` (`<symbol>`): <one observable action>.
   - Depends on: none
   - Expected outcome: <observable result>
-  - Execution state: pending
+  - Execution state: performed
 
 <Project conventions, Findings, Proposed changes, Deferred / out of scope,
 Scope check, Required tests / validation, Spec / documentation sync>
@@ -651,10 +657,12 @@ No open questions.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a
 `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: <falsifiable evidence criterion>
   - Observed evidence:
-  - Result: pending
+    $ python3 -m pytest
+    1 passed
+  - Result: pass
 
 ## Approval and execution gate
 
@@ -820,3 +828,4 @@ After the IPD-system Set lands:
 - 2026-09-21 note (aw specs): Section 10.2 added (citeanchor mzc019 E-01): an IPD code citation MUST carry a durable anchor (symbol path, or a quoted content string, with a line number only appended and never alone), because a bare file:line expires between authoring and execution and then silently misdirects an executor to unrelated valid code. States the rationale, the (a)/(b)/(c) preference order, the line-as-subject exception, and that enforcement is advisory-only (IPD-C801) and date-gated. Section 10 list item 18 appended to point at it; no existing item renumbered.
 - 2026-09-28 note (aw specs): Section 11 amended (qurgra E-01..E-05): begin receipt's validity key is the frozen Scope-Paths plus each E/V item's whole action block (excluding checkbox marks, indented sub-fields, execution/validation state and workflow history), re-keyed from plan_content_digest (rchpms) and widened from opening-line extraction to the whole action block (qurgra 168p5j); accepted one-time receipt invalidation noted.
 - 2026-10-01 note (aw specs): Section 4.4 amended (Set 5h8u3z fqcax0 E-05): add Date field rule stating accepted ISO calendar date format (YYYY-MM-DD), <YYYY-MM-DD> template placeholder exemption, and IPD-M104 (present but unparseable) vs IPD-M101 (missing) diagnostic split.
+- 2026-10-01 note (aw specs): Sections 5.3, 5.4, and 14 amended (obsevcont 0nxa8o E-04): Observed evidence: and Execution note: may carry continuation lines beneath the field line; stated the blank-tolerant fence-aware termination rule and multi-line command transcript expectation.

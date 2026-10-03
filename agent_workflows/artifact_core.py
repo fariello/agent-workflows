@@ -20,6 +20,7 @@ here (research-org DECISIONS D123; plans-adopter spec 20260808-0004-01 Section 4
 
 from __future__ import annotations
 
+import datetime
 import functools
 import os
 import re
@@ -210,6 +211,24 @@ def shard_for_date(yyyymmdd: str) -> str:
 
     cleaned = yyyymmdd.replace("-", "").strip()
     return cleaned[:6]
+
+
+# --------------------------------------------------------------------------------------
+# Workflow history UTC date helper (spec 2vev8j Section 4.4; IPD 5ivkdh E-01)
+# --------------------------------------------------------------------------------------
+
+
+def utc_history_date() -> str:
+    """Return the current date in UTC as ``YYYY-MM-DD`` for artifact workflow history records.
+
+    Authority: Spec ``2vev8j`` Section 4.4 ("One timezone for every writer") requires all history
+    writers to record UTC dates; local time is a render-time concern only.
+
+    DO NOT CALL THIS FOR FILENAME DATES. Artifact filename date prefixes (e.g. ``YYYYMMDD-...``)
+    are governed by ``DECISIONS.md`` D55 ("Human-facing timestamps use LOCAL time, not UTC")
+    and MUST remain machine-local.
+    """
+    return datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
 
 
 # --------------------------------------------------------------------------------------

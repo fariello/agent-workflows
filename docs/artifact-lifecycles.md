@@ -308,13 +308,23 @@ stateDiagram-v2
     [*] --> parked: aw backlog new --status parked
     open --> graduated: plan/spec written with From-Backlog
     open --> blocked: --gate-kind + --gate-ref
-    blocked --> open: gate cleared
     open --> parked
-    parked --> open: committed to
-    graduated --> done: linked plans executed
     open --> done: small fix, with --evidence
-    done --> [*]
+    graduated --> open: rollback or un-graduate
+    graduated --> blocked
+    graduated --> parked
+    graduated --> done: linked plans executed
+    blocked --> open: gate cleared
+    blocked --> graduated
+    blocked --> parked
+    blocked --> done
+    parked --> open: committed to
+    parked --> blocked
+    done --> open: corrective reopen
+    done --> graduated: corrective reopen
 ```
+
+The exact table is `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract`. A `done` item may be reopened to `open` or `graduated` as a corrective move (for example, reopening a closed bug re-defaults its release gate, and partial deliveries retain graduation).
 
 ### Graduating an item
 
@@ -467,7 +477,7 @@ stateDiagram-v2
 ```
 
 Moving a prompt out of `untracked/` is always a deliberate human step. Scrub it first (run
-`aw sanitize --agent`). Change a tracked prompt's status with `aw set prompts <status> <selector>`.
+`aw sanitize --agent`). Change a tracked prompt's status with `aw prompts set <status> <selector>` (or `aw set prompts <status> <selector>`).
 
 ---
 
@@ -546,7 +556,7 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
 | Spec | `aw specs new ... --apply` | `aw spec set <status> <id6>` | `aw specs check` |
 | Backlog | `aw backlog new ... --apply` | `aw backlog set <status> <id6>` | `aw backlog check` |
 | Research | `aw research new ... --apply`, `aw adopt` | `aw research promote`, `aw archive` | `aw research index --check` |
-| Prompt | `aw prompts new ... --apply` | `aw set prompts <status> <sel>` | `aw check prompts` |
+| Prompt | `aw prompts new ... --apply` | `aw prompts set <status> <sel>` (or `aw set prompts <status> <sel>`) | `aw check prompts` |
 | Release | `aw releases new ... --apply` | `aw set releases <status> <id6>` | `aw check releases` |
 | Review | `/plan-review` | (none) | `aw check` |
 

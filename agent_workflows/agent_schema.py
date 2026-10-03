@@ -15,6 +15,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+from agent_workflows.home_path_patterns import fused_home_path_pattern
+
 # --------------------------------------------------------------------------------------------------
 # Schema Constants
 # --------------------------------------------------------------------------------------------------
@@ -61,9 +63,8 @@ INCOMPLETE_OUTCOMES: tuple[str, ...] = (
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]|\033\[[0-9;]*[a-zA-Z]")
 
 # Unsanitized path patterns (home paths, usernames, absolute OS prefixes)
-_HOME_PATH_RE = re.compile(
-    r"(?:/home/(?!u/|alice/|user/|USER/|<)[A-Za-z0-9._-]+|/Users/(?!<|user/)[A-Za-z0-9._-]+|[A-Za-z]:[\\/]+Users[\\/]+(?!<)[A-Za-z0-9._-]+)"
-)
+# Derived from home_path_patterns (single source of truth, P8).
+_HOME_PATH_RE = re.compile(fused_home_path_pattern())
 
 
 # --------------------------------------------------------------------------------------------------
@@ -168,8 +169,9 @@ def redact_home_paths(text: Any) -> Any:
     """Redact home-style absolute path prefixes inside a string to '~'.
 
     Performs a lossy, idempotent rewrite of embedded home directory paths across
-    all three classes detected by `_HOME_PATH_RE` (POSIX `/home/<user>`, macOS
-    `/Users/<user>`, and Windows `<drive>:\\Users\\<user>`).
+    all three classes detected by `_HOME_PATH_RE` (sourced from the shared
+    `home_path_patterns` datum: POSIX `/home/<user>`, macOS `/Users/<user>`,
+    and Windows `<drive>:\\Users\\<user>`).
 
     This is the counterpart that `normalize_repo_path` cannot serve because it operates
     on a whole path value rather than on paths embedded within free text (such as
@@ -393,17 +395,30 @@ def assert_valid_agent_record(record: Dict[str, Any]) -> None:
 
 _MANDATORY_FIELDS = {"schema", "kind", "cmd", "exit", "outcome", "complete", "verified"}
 
-# Fields that a projection must not remove in order for the resulting record to remain valid
-# across all kinds. This is a kind-independent superset of _MANDATORY_FIELDS that additionally
-# includes every field validate_agent_record consults:
-# - 'applied': preview exemption for result records with complete=False
-# - 'total', 'emitted', 'omitted': required accounting fields for summary records
+# Fields that a projection must not remove across any record kind. This is a kind-independent
+# superset of _MANDATORY_FIELDS that preserves fields required for two distinct reasons:
+# 1. Record validity (fields validate_agent_record consults):
+#    - 'applied': preview exemption for result records with complete=False
+#    - 'total', 'emitted', 'omitted': required accounting fields for summary records
+# 2. Record usability that the caller cannot reconstruct:
+#    - 'next': paging continuation or recovery command. Dropping 'next' from a record reporting
+#      complete=False tells the caller its answer is partial while withholding the command to
+#      fetch the remainder. Furthermore, docs/cli-output-contract.md Sections 11.1 and 11.4
+#      state MUST requirements for empty results and cannot-run error records to carry 'next',
+#      which a projected record would otherwise violate.
 #
 # Preserving a flat union rather than a per-kind mapping avoids a second structure to keep
-# in sync with the validator, and failing closed (retaining a field the validator might consult)
-# prevents crashes at runtime. For records that do not carry these optional/kind-specific fields,
-# filtering is a no-op because only present keys are considered.
-_PRESERVED_FIELDS = _MANDATORY_FIELDS | {"applied", "total", "emitted", "omitted"}
+# in sync with the validator, and failing closed (retaining a field the validator might consult
+# or that the caller cannot reconstruct) prevents broken continuation and runtime crashes.
+# For records that do not carry these optional/kind-specific fields, filtering is a no-op
+# because only present keys are considered.
+_PRESERVED_FIELDS = _MANDATORY_FIELDS | {
+    "applied",
+    "total",
+    "emitted",
+    "omitted",
+    "next",
+}
 
 
 def filter_record_fields(

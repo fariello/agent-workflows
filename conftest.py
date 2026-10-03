@@ -156,29 +156,62 @@ def _restore_home_sandbox():
 
 
 # --------------------------------------------------------------------------------------
-# Per-test hang guard: a test that never returns FAILS with a stack dump instead of hanging.
+# Per-test hang guard: dual CPU budget + wall ceiling (IPD 6ye76g).
 # --------------------------------------------------------------------------------------
 #
-# WHY, measured 2026-09-27 (run `run-20260927T174631Z-291785`, plan `8l8dgb`). A new test's
-# fake `execute_item` updated an item's status only in memory; `run_queue` reloads state from
-# disk each iteration, so it re-dispatched the same item forever. Nothing bounded the test, so
-# the executing agent's `pytest` call sat silent until the runner's 600s stall timeout killed the
-# whole turn (48 minutes of a four-link dependency chain, which then took the other three links
-# down with it). A hung test must cost seconds and name itself, not the turn.
+# WHY, measured 2026-09-27 (run `run-20260927T174631Z-291785`, plan `8l8dgb`). A test's
+# fake `execute_item` updated status only in memory while `run_queue` reloaded from disk,
+# re-dispatching the same item forever. Without a guard, pytest sat silent until the runner's
+# 600s stall timeout killed the whole 48-minute turn and its dependency chain.
 #
-# HOW. Stdlib only, deliberately, so this adds no dependency and cannot fall over the way a
-# missing plugin does. On POSIX a `SIGALRM` timer (`signal.setitimer`) fires in the MAIN thread,
-# first dumps every thread's stack (`faulthandler`, so the hang site is IN the failure output),
-# then raises `TestHangTimeout` inside the running test, which pytest records as that test's
-# ordinary failure and moves on. A `KeyboardInterrupt` is deliberately NOT used: pytest treats it
-# as a request to abort the whole session. Where `SIGALRM` does not exist (Windows) the guard is a
-# no-op rather than a flaky thread-based imitation. The default is set from the measured duration
-# spread: the slowest fast-suite test is ~13s and the slowest `slow`-marked test ~29s, so 90s is
-# ~3x headroom and still ~10x below the runner's 900s stall budget. Override per run with
-# `AW_TEST_TIMEOUT=<seconds>` (`0` disables), or per test with `@pytest.mark.timeout(<seconds>)`.
-# The guard also stands down when a test has already installed its own SIGALRM handler, so it
-# never clobbers a test that is exercising alarms itself.
-_DEFAULT_TEST_TIMEOUT = 90.0
+# WHY DUAL BUDGET (CPU + WALL CEILING).
+# The original guard measured wall clock alone (ITIMER_REAL). Under the suite's -n auto
+# parallelism, machine load inflated wall durations of CPU-heavy tests (e.g. statusline
+# sweep measured 29.53s isolated vs 66.53s in-suite at review, and 128.46s isolated vs 100.53s
+# in-suite under lane contention) while consuming the same ~28-29s of CPU time (28.61s review,
+# 29.16s measured at execution head). The guard failed correct tests because the machine was busy.
+#
+# To eliminate load-dependent false failures, the guard uses a DUAL budget:
+# 1. CPU BUDGET (ITIMER_PROF, counting user + sys CPU): measures actual work done by the test.
+#    ITIMER_PROF is used rather than ITIMER_VIRTUAL because ITIMER_VIRTUAL measures only user time
+#    and is blind to syscall-bound loops (F-07: a syscall loop splits cost between user and sys).
+#    Sized from the whole-suite CPU census: worst observed self-CPU in the fast suite was 28.61s
+#    (29.16s re-measured at execution head). _DEFAULT_TEST_CPU_TIMEOUT = 60.0s provides >2x headroom
+#    (60.0 / 28.61 = 2.10x, 60.0 / 29.16 = 2.05x).
+#
+# 2. WALL CEILING (ITIMER_REAL, wall clock): retained as a liveness ceiling, NOT a cost control.
+#    _DEFAULT_TEST_WALL_TIMEOUT = 240.0s is well above worst unmarked in-suite wall time (66.53s
+#    in F-02, 93.60s in heavy contention: 240.0 / 66.53 = 3.61x, 240.0 / 93.60 = 2.56x headroom)
+#    while remaining far below the runner's 900s stall budget (oc_runipd.DEFAULT_STALL_TIMEOUT = 900.0s),
+#    leaving an 11-minute (660s) safety margin so a runaway costs minutes rather than the turn.
+#
+# ACCEPTED BLIND SPOTS AND WHY THE WALL CEILING MUST STAY (F-05, F-13, F-15).
+# Anyone tempted to delete the wall arm as redundant must review these empirical findings:
+# - A CPU budget cannot see a test blocked on I/O, a lock, or a child process (deadlock):
+#   F-05 tested threading.Event().wait(45) under a CPU-only guard; it consumed 0.00s CPU and
+#   ran to completion untouched because a CPU timer never expires on zero-CPU waits.
+# - A CPU budget cannot see a runaway LOOP whose iterations mostly wait on child processes:
+#   F-13 measured parent CPU for subprocess loops (`subprocess.run([sys.executable, "-c", "pass"])`,
+#   the exact shape of the founding 8l8dgb hang) at only ~1% of wall time (0.04s CPU for 3.02s wall).
+#   A CPU-only timer would allow an 8l8dgb runaway loop to burn the entire runner stall timeout.
+# - Signal delivery to main thread (F-15): Python delivers signal handlers in the main thread only
+#   when it runs bytecode. If a background thread burns CPU while the main thread blocks in a C wait
+#   like thread.join(), the SIGPROF handler is deferred until the wait ends (measured: handler ran
+#   at 6.0s for a 6s spin while ITIMER_REAL ran at 1.01s). The wall arm bounds the wait.
+#
+# OVERRIDES AND SEMANTICS:
+# - Default CPU: AW_TEST_TIMEOUT=<seconds> (default 60s). AW_TEST_TIMEOUT=0 disables BOTH arms.
+# - Default Wall: AW_TEST_WALL_TIMEOUT=<seconds> (default 240s). AW_TEST_WALL_TIMEOUT=0 disables wall arm only.
+# - Per-test marker: @pytest.mark.timeout(seconds, wall=None). Sets CPU budget to `seconds` AND
+#   floors the wall ceiling at max(ceiling, seconds). Flooring ensures existing subprocess-heavy
+#   tests with markers (e.g. timeout(500) where serial wall is 185s+ but CPU is ~0) do not trip the
+#   wall ceiling (F-14). Keyword `wall=<seconds>` sets the wall ceiling explicitly.
+#   A marker value of 0 (@pytest.mark.timeout(0)) disables BOTH arms.
+# - Stand-down: If a test has installed its own handler for EITHER SIGALRM or SIGPROF, the guard
+#   stands down completely so tests exercising alarm signals are never clobbered.
+_DEFAULT_TEST_CPU_TIMEOUT = 60.0
+_DEFAULT_TEST_WALL_TIMEOUT = 240.0
+_DEFAULT_TEST_TIMEOUT = _DEFAULT_TEST_CPU_TIMEOUT  # backward-compatibility alias
 
 
 class TestHangTimeout(BaseException):
@@ -193,69 +226,179 @@ class TestHangTimeout(BaseException):
     __test__ = False  # not a test class, despite the name
 
 
-def _test_timeout_seconds(item) -> float:
-    marker = item.get_closest_marker("timeout")
-    if marker is not None and marker.args:
-        return float(marker.args[0])
-    raw = os.environ.get("AW_TEST_TIMEOUT", "").strip()
-    if raw:
+def _test_timeout_budgets(item) -> tuple[float, float]:
+    """Return (cpu_budget, wall_budget) for the given test item."""
+    raw_cpu = os.environ.get("AW_TEST_TIMEOUT", "").strip()
+    if raw_cpu:
         try:
-            return float(raw)
+            default_cpu = float(raw_cpu)
         except ValueError:
-            pass
-    return _DEFAULT_TEST_TIMEOUT
+            default_cpu = _DEFAULT_TEST_CPU_TIMEOUT
+    else:
+        default_cpu = _DEFAULT_TEST_CPU_TIMEOUT
+
+    raw_wall = os.environ.get("AW_TEST_WALL_TIMEOUT", "").strip()
+    if raw_wall:
+        try:
+            default_wall = float(raw_wall)
+        except ValueError:
+            default_wall = _DEFAULT_TEST_WALL_TIMEOUT
+    else:
+        default_wall = _DEFAULT_TEST_WALL_TIMEOUT
+
+    # AW_TEST_TIMEOUT=0 disables both arms
+    if default_cpu <= 0:
+        return 0.0, 0.0
+
+    marker = item.get_closest_marker("timeout")
+    if marker is not None:
+        cpu_val = None
+        wall_val = None
+
+        if marker.args:
+            try:
+                cpu_val = float(marker.args[0])
+            except (ValueError, TypeError):
+                pass
+        elif "cpu" in marker.kwargs:
+            try:
+                cpu_val = float(marker.kwargs["cpu"])
+            except (ValueError, TypeError):
+                pass
+
+        if "wall" in marker.kwargs:
+            try:
+                wall_val = float(marker.kwargs["wall"])
+            except (ValueError, TypeError):
+                pass
+
+        # Marker value of 0 disables both arms
+        if cpu_val is not None and cpu_val <= 0:
+            return 0.0, 0.0
+
+        if cpu_val is not None:
+            eff_cpu = cpu_val
+            eff_wall = max(default_wall, cpu_val) if wall_val is None else wall_val
+        else:
+            eff_cpu = default_cpu
+            eff_wall = default_wall if wall_val is None else wall_val
+
+        return eff_cpu, max(0.0, eff_wall)
+
+    return default_cpu, max(0.0, default_wall)
+
+
+def _test_timeout_seconds(item) -> float:
+    """Return effective CPU timeout seconds (backward-compatibility helper)."""
+    return _test_timeout_budgets(item)[0]
 
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "timeout(seconds): per-test hang-guard budget (default 90s; 0 disables).",
+        "timeout(seconds, wall=None): per-test hang-guard budget: sets CPU budget and floors wall ceiling at max(ceiling, seconds); wall= sets wall ceiling explicitly (0 disables).",
     )
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    budget = _test_timeout_seconds(item)
-    usable = (
-        budget > 0
-        and hasattr(_signal, "SIGALRM")
+    cpu_budget, wall_budget = _test_timeout_budgets(item)
+    if cpu_budget <= 0 and wall_budget <= 0:
+        yield
+        return
+
+    # Guard runs only on POSIX main thread where SIGALRM is available
+    if not (
+        hasattr(_signal, "SIGALRM")
+        and hasattr(_signal, "ITIMER_REAL")
         and _threading.current_thread() is _threading.main_thread()
-        and _signal.getsignal(_signal.SIGALRM)
-        in (_signal.SIG_DFL, _signal.SIG_IGN, None)
+    ):
+        yield
+        return
+
+    # Stand down if test installed its own handler for EITHER SIGALRM or SIGPROF
+    alrm_custom = _signal.getsignal(_signal.SIGALRM) not in (
+        _signal.SIG_DFL,
+        _signal.SIG_IGN,
+        None,
     )
-    if not usable:
+    prof_custom = hasattr(_signal, "SIGPROF") and _signal.getsignal(
+        _signal.SIGPROF
+    ) not in (
+        _signal.SIG_DFL,
+        _signal.SIG_IGN,
+        None,
+    )
+    if alrm_custom or prof_custom:
         yield
         return
 
     fired = {"n": 0}
 
-    def _on_alarm(_signum, _frame):
+    def _on_cpu_alarm(_signum, _frame):
         fired["n"] += 1
         if fired["n"] == 1:
             sys.stderr.write(
-                f"\n[conftest] TEST HANG GUARD: {item.nodeid} exceeded {budget:g}s; "
+                f"\n[conftest] TEST HANG GUARD: {item.nodeid} exceeded {cpu_budget:g}s CPU budget; "
                 "stacks of every thread at expiry follow.\n"
             )
             _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
             sys.stderr.flush()
         raise TestHangTimeout(
-            f"TEST HANG GUARD: {item.nodeid} exceeded its {budget:g}s per-test budget. The frame "
+            f"TEST HANG GUARD: {item.nodeid} exceeded its {cpu_budget:g}s CPU budget. The frame "
             "that did not return is in the stack dump in captured stderr. Raise the budget for a "
             "legitimately slow test with @pytest.mark.timeout(<seconds>)."
         )
 
-    previous = _signal.signal(_signal.SIGALRM, _on_alarm)
-    # REPEATING, not one-shot, and that is measured rather than cautious: in the very hang this
-    # guard exists for (`8l8dgb`), the first raise landed inside `subprocess.run` beneath an
-    # `except Exception: return []` in `runner_shared.already_landed_lanes`, which swallowed it and
-    # let `run_queue` keep looping. A one-shot alarm therefore did NOT stop the test. Re-raising
-    # every second after expiry guarantees one lands outside any broad handler.
-    _signal.setitimer(_signal.ITIMER_REAL, budget, 1.0)
+    def _on_wall_alarm(_signum, _frame):
+        fired["n"] += 1
+        if fired["n"] == 1:
+            sys.stderr.write(
+                f"\n[conftest] TEST HANG GUARD: {item.nodeid} exceeded {wall_budget:g}s wall ceiling; "
+                "stacks of every thread at expiry follow.\n"
+            )
+            _faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+            sys.stderr.flush()
+        raise TestHangTimeout(
+            f"TEST HANG GUARD: {item.nodeid} exceeded its {wall_budget:g}s wall ceiling. The frame "
+            "that did not return is in the stack dump in captured stderr. Raise the budget for a "
+            "legitimately slow test with @pytest.mark.timeout(<seconds>) or @pytest.mark.timeout(wall=<seconds>)."
+        )
+
+    prev_prof = None
+    prev_alrm = None
+    armed_prof = False
+    armed_real = False
     try:
+        # Arm wall ceiling on ITIMER_REAL / SIGALRM
+        if wall_budget > 0:
+            prev_alrm = _signal.signal(_signal.SIGALRM, _on_wall_alarm)
+            # REPEATING at 1.0s interval: guarantees re-raising lands outside any broad except Exception
+            _signal.setitimer(_signal.ITIMER_REAL, wall_budget, 1.0)
+            armed_real = True
+
+        # Arm CPU budget on ITIMER_PROF / SIGPROF (user + sys CPU)
+        if (
+            cpu_budget > 0
+            and hasattr(_signal, "SIGPROF")
+            and hasattr(_signal, "ITIMER_PROF")
+        ):
+            prev_prof = _signal.signal(_signal.SIGPROF, _on_cpu_alarm)
+            _signal.setitimer(_signal.ITIMER_PROF, cpu_budget, 1.0)
+            armed_prof = True
+
         yield
     finally:
-        _signal.setitimer(_signal.ITIMER_REAL, 0)
-        _signal.signal(_signal.SIGALRM, previous)
+        if armed_prof:
+            try:
+                _signal.setitimer(_signal.ITIMER_PROF, 0)
+            finally:
+                _signal.signal(_signal.SIGPROF, prev_prof)
+        if armed_real:
+            try:
+                _signal.setitimer(_signal.ITIMER_REAL, 0)
+            finally:
+                _signal.signal(_signal.SIGALRM, prev_alrm)
 
 
 def _ensure_xdist_then_reexec() -> None:

@@ -32,8 +32,11 @@ WHAT MAY NEVER HAPPEN HERE, and why each prohibition exists rather than just tha
   * This module MUST NOT import either runner, at module level or lazily inside a function. The
     import cycle is the lesser reason. The real one is that importing a DIVERGED symbol from one
     runner into shared code would silently give BOTH drivers that runner's behavior, which is a
-    behavior change wearing a de-duplication's clothes. `tests/test_runner_shared.py` asserts the
-    absence by AST, so the rule is enforced and not merely documented.
+    behavior change wearing a de-duplication's clothes. The AST guard that formerly asserted this
+    was deleted in `19313eed` and was not replaced; no test currently
+    enforces the rule, which is a convention this module is held to by review rather than by
+    mechanical checking. The invariant nonetheless still holds in fact (no import naming `runipd`
+    exists in this module and a fresh interpreter importing it leaves neither runner in `sys.modules`).
   * NO module-level mutable state. A registration seam ("each runner registers its own
     `write_report` at import time") was considered for the injected dependencies and DECLINED by the
     maintainer: process-global state makes behavior depend on import ORDER and leaks between tests.
@@ -115,7 +118,8 @@ having been bent: the 34 are PROVEN-IDENTICAL EXISTING bodies moved without edit
 by `tests/test_runner_shared.py`. This block is NEW code that never existed in either runner, so it
 has no pre-move fingerprint to match and is deliberately absent from that fixture. The former guard
 (`tests/test_run_flag_surface.py`, which drove assertions from `RUN_POLICY_FLAGS` as data) was deleted in
-`19313eed`, so the flag surface currently has no such data-driven test (coverage carrier: backlog `xvp5vx`).
+`19313eed`, so the flag surface currently has no such data-driven test
+(audit: backlog `xvp5vx`, done; no restoration is planned).
 """
 
 from __future__ import annotations
@@ -1093,6 +1097,7 @@ def save_state(
     *,
     write_report: Callable[[Path, dict[str, Any]], None],
 ) -> None:
+    _check_run_state_transitions(state)
     state["updated_at"] = utc_now()
     atomic_write_json(run_dir / "state.json", state)
     write_report(run_dir, state)
@@ -1124,7 +1129,8 @@ def add_output_mode_flags(
 
     DELIBERATELY NOT IN `RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
     declares; the data-driven test guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
-    and the surface is currently unguarded (carrier: backlog `xvp5vx`), but the closed contract stands.
+    and the surface is currently unguarded (audit: backlog `xvp5vx`, done; no restoration is planned),
+    but the closed contract stands.
 
     `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
     OMITTED flag on resume leaves the frozen value untouched rather than resetting it to 0 - the same
@@ -1652,7 +1658,10 @@ LANE_ATTENTION_STATES: frozenset[str] = frozenset(
 #: The integration target the landing question asks about, when the run record names no other. Both
 #: drivers merge a verified lane into whatever the shared checkout has checked out, which is `main` in
 #: this repository (`integrate_lane_branch` runs a bare `git merge` in the main checkout), so `HEAD` is
-#: the honest fallback: it is the branch the merge would actually land on.
+#: the honest fallback: it is the branch the merge would actually land on. That argument is sound only
+#: when `HEAD` resolves against the checkout rather than the caller's worktree; this precondition is
+#: enforced in `lane_work_has_landed` and `lane_work_landed_by_content`, which anchor the target via
+#: `ipd_lifecycle.checkout_git_common_dir`.
 LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"
 
 
@@ -1667,21 +1676,47 @@ def lane_work_has_landed(
     fast-forward makes the lane tip an ancestor of the target trivially, and the controlled `--no-ff`
     merge makes it an ancestor through the merge commit.
 
+    TARGET IS CHECKOUT-ANCHORED (backlog ``cjrjtu``). The symbolic target is resolved against the
+    checkout's common directory (via :func:`ipd_lifecycle.checkout_git_common_dir`), whose ``HEAD`` is
+    the checkout's integration target, rather than against whichever worktree happens to be the
+    caller's cwd.
+
     RETURNS THREE VALUES ON PURPOSE. `None` means the question could not be answered (the branch no
-    longer exists, the target does not resolve, or git failed), and the caller must keep that visible
-    as an UNKNOWN instead of reading it as either answer. git's own exit convention is 0 = ancestor,
-    1 = not an ancestor, and anything else = error, which is why the error case is not folded into
-    `False`.
+    longer exists, the target does not resolve, git failed, or no checkout anchor could be established),
+    and the caller must keep that visible as an UNKNOWN instead of reading it as either answer. git's
+    own exit convention is 0 = ancestor, 1 = not an ancestor, and anything else = error, which is why
+    the error case is not folded into `False`. Shapes unanswerable under this rule are in practice only
+    paths where `--git-common-dir` itself fails; separate-git-dir, submodule, and bare repositories with
+    linked worktrees remain answerable.
     """
     if not branch:
         return None
     rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
     if rc != 0:
         return None
-    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", target])
+    from agent_workflows import ipd_lifecycle
+
+    common_dir = ipd_lifecycle.checkout_git_common_dir(repo)
+    if common_dir is None:
+        return None
+    rc, out, _err = _run_git(
+        repo,
+        [
+            f"--git-dir={common_dir}",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"{target}^{{commit}}",
+        ],
+    )
     if rc != 0:
         return None
-    rc, _out, _err = _run_git(repo, ["merge-base", "--is-ancestor", branch, target])
+    resolved_target = out.strip()
+    if not resolved_target:
+        return None
+    rc, _out, _err = _run_git(
+        repo, ["merge-base", "--is-ancestor", branch, resolved_target]
+    )
     if rc == 0:
         return True
     if rc == 1:
@@ -1700,6 +1735,10 @@ def lane_work_landed_by_content(
     target as a different commit. Spec `attention-registry-and-cross-tree-status` F3a makes the
     exclusion NORMATIVE ("a lane whose work HAS reached the integration target MUST NOT fail it
     either"), and ancestry alone does not satisfy it.
+
+    TARGET IS CHECKOUT-ANCHORED (backlog ``cjrjtu``). Resolved against the checkout's common dir
+    exactly like :func:`lane_work_has_landed`, so `git cherry` compares against the checkout's target
+    rather than a caller worktree's tip.
 
     WHY THIS IS NOT A HYPOTHETICAL SHAPE, which is the whole justification for carrying a second
     reading. Two live recovery paths in this codebase tell the operator to CHERRY-PICK by name:
@@ -1741,10 +1780,27 @@ def lane_work_landed_by_content(
     rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", branch])
     if rc != 0:
         return None
-    rc, _out, _err = _run_git(repo, ["rev-parse", "--verify", "--quiet", target])
+    from agent_workflows import ipd_lifecycle
+
+    common_dir = ipd_lifecycle.checkout_git_common_dir(repo)
+    if common_dir is None:
+        return None
+    rc, out, _err = _run_git(
+        repo,
+        [
+            f"--git-dir={common_dir}",
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            f"{target}^{{commit}}",
+        ],
+    )
     if rc != 0:
         return None
-    rc, out, _err = _run_git(repo, ["cherry", target, branch])
+    resolved_target = out.strip()
+    if not resolved_target:
+        return None
+    rc, out, _err = _run_git(repo, ["cherry", resolved_target, branch])
     if rc != 0:
         return None
     lines = [ln for ln in (out or "").splitlines() if ln.strip()]
@@ -11164,11 +11220,10 @@ def ask_operator_about_integration(
 #      of verification. So `reintegrate_lane` supplies a REAL validation runner, whose body runs the
 #      repository suite in the PRIMARY checkout, and refuses on a non-passing result.
 #   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `runner_shared`
-#      (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks
-#      THIS module and fails on any import naming `runipd`, at module level or lazily inside a function.
-#      Copying its body would fork its fail-closed reading of exit 124/127. So it is a PARAMETER,
-#      exactly as `run_checked` and `host_label` already are on `integrate_lane_branch` (see this
-#      module's docstring).
+#      (re-homed from `oc_runipd`), and importing a driver here is prohibited (see the module docstring's
+#      prohibition bullet; no live guard enforces it). Copying its body would fork its fail-closed
+#      reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked` and `host_label` already
+#      are on `integrate_lane_branch` (see this module's docstring).
 #
 # AND THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it.
 # `orchestrate_isolation.stale_base_check` compares the FIRST lane outcome's own `base_commit` to the
@@ -14674,8 +14729,8 @@ def validate_manifest(
 # exists to end is not "a flag is missing", it is "the documented contract and the shipped command
 # drifted and nothing noticed". A hand-written registration per flag reproduces that: the ninth flag
 # the spec grows is added to the spec, not to two parsers, and no test fails. Driving registration
-# AND the contract test from ONE table makes the drift a test failure instead of an archaeology
-# project.
+# and contract tests from ONE table was designed to make the drift a test failure instead of an
+# archaeology project, though no live test currently checks this.
 
 
 class RunPolicyFlag(NamedTuple):
@@ -14700,8 +14755,8 @@ class RunPolicyFlag(NamedTuple):
                           row, and that is deliberately rare.
       * ``implemented`` - whether the flag's BEHAVIOR ships. False means registered-and-refusing:
                           the flag parses, appears in `--help`, and REFUSES with `not yet
-                          implemented`. Carried as data so the contract test can assert the refusal
-                          rather than trusting the help text.
+                          implemented`. Carried as data so a contract test could assert the refusal
+                          rather than trusting the help text, though no live test currently checks it.
       * ``owner``       - the artifact that owns the behavior, named in the refusal so an operator
                           who hits it can find the work item rather than filing a duplicate.
       * ``help``        - the `--help` text. Where the shipped semantics DIVERGE from the spec (an
@@ -14709,7 +14764,7 @@ class RunPolicyFlag(NamedTuple):
                           the divergence is stated HERE, because an operator reads `--help` and never
                           reads an IPD.
       * ``freeze``      - whether the value is frozen into run state at queue build.
-      * ``resume_rule`` - ``"refuse"`` (spec `:131` freezes the value, so passing it with `resume` is
+      * ``resume_rule`` - ``"refuse"`` (spec Section 2.1 freezes the value, so passing it with `resume` is
                           an error) or ``"none-default"`` (re-declared with ``default=None`` so an
                           OMITTED flag cannot clobber the frozen value; the shipped `--full-auto`
                           pattern).
@@ -14733,35 +14788,19 @@ class RunPolicyFlag(NamedTuple):
 RESUME_REFUSE = "refuse"
 RESUME_NONE_DEFAULT = "none-default"
 
-#: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
-#:
-#: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
-#: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
-#: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
-#: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
-#:
-#: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
-#: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
-#: refusal with no sanctioned override is how an operator learns to work around a gate instead of
-#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
-#: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
-#: that spec 2.1 declare every row here in the same change remains in force.
-#:
-#: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
-#: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
-#:
-#: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
-#: by the row that preceded it: `uyeko5` put `--type` in the contract test's
-#: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
-#: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
-#: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
-#: #: Active runner conflict resolution modes.
+#: Active runner conflict resolution modes.
 ON_CONFLICT_DROP = "drop"
 ON_CONFLICT_REFUSE = "refuse"
 ON_CONFLICT_FORCE = "force"
 ON_CONFLICT_PROMPT = "prompt"
 ON_CONFLICT_ASK = "ask"
 
+#: Spec 2.1 declares 'ask' as an accepted alias of 'prompt'.
+#: ON_CONFLICT_CHOICES defines the accepted CLI choices (including 'ask'), while
+#: CANONICAL_ON_CONFLICT_CHOICES defines the resolved canonical vocabulary
+#: produced by resolve_on_conflict(); the two tuples differ on purpose.
+#: Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because
+#: revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.
 ON_CONFLICT_CHOICES = (
     ON_CONFLICT_DROP,
     ON_CONFLICT_REFUSE,
@@ -14777,11 +14816,36 @@ CANONICAL_ON_CONFLICT_CHOICES = (
 )
 DEFAULT_ON_CONFLICT = ON_CONFLICT_DROP
 
+#: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
+#:
+#: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
+#: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
+#: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
+#: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
+#:
+#: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
+#: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
+#: refusal with no sanctioned override is how an operator learns to work around a gate instead of
+#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+#: was deleted in `19313eed` and is currently unguarded (audit: backlog `xvp5vx`, done; no restoration is planned),
+#: but the requirement that spec 2.1 declare every row here in the same change remains in force.
+#:
+#: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
+#: tenth arrived; the expected set is spec 2.1's own grammar and nothing currently derives or checks it.
+#:
+#: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
+#: by the row that preceded it: `uyeko5` put `--type` in the former contract test's
+#: `DECLARED_BUT_NOT_OWNED_HERE` (deleted with the file in `19313eed`) with a named reason and owner,
+#: so taking ownership MOVES that row rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+#: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
 RUN_POLICY_FLAGS: tuple = (
-    # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the contract test's
-    # `DECLARED_BUT_NOT_OWNED_HERE` rather than added beside it. Spec 2.1 already DECLARED it, so no
-    # spec amendment is needed to register it here (unlike the `--allow-dirty-base` and
-    # `--allow-concurrent-driver` rows above, which had to amend 2.1 in their own change).
+    # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the former contract test's
+    # `DECLARED_BUT_NOT_OWNED_HERE` (deleted with the file in `19313eed`) rather than added beside it.
+    # Spec 2.1 already DECLARED it, so no spec amendment is needed to register it here (unlike the
+    # `--allow-dirty-base` and `--allow-concurrent-driver` rows above, which had to amend 2.1 in their
+    # own change).
     #
     # FIRST IN THE TUPLE because spec 2.1's grammar block lists it first, and this table's contract is
     # to hold the rows "in the order the spec's grammar block lists them".
@@ -14790,8 +14854,8 @@ RUN_POLICY_FLAGS: tuple = (
     # The reason is stronger here than there: `--type` is not a policy a resume could re-apply, it IS
     # THE SELECTION, and the queue is frozen. So an accepted `--type` on resume could not re-scope the
     # queue; it could only write a frozen option CONTRADICTING the queue the run actually holds.
-    # Spec `:129` names exactly this case ("mutually exclusive with ... flags that would change the
-    # frozen queue"), so unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit.
+    # Spec Section 2.1 names exactly this case ("mutually exclusive with ... flags that would change the
+    # frozen queue"), so unlike `--full-auto` there is no blanket-exclusion-versus-per-flag-freeze tension to inherit.
     RunPolicyFlag(
         flag="--type",
         dest="types",
@@ -14943,8 +15007,9 @@ RUN_POLICY_FLAGS: tuple = (
     # shared spec-governed table is what stops the two hosts diverging, which is the failure
     # `--full-auto` already demonstrated (default `False` on one host, `True` on the other). Spec
     # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here: the former
-    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
-    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
+    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    # (audit: backlog `xvp5vx`, done; no restoration is planned), but the requirement that spec 2.1
+    # declare every registered row in the same change remains in force.
     RunPolicyFlag(
         flag="--integration-retry-limit",
         dest="integration_retry_limit",
@@ -14965,8 +15030,9 @@ RUN_POLICY_FLAGS: tuple = (
     ),
     # orchprobe-03 (`m7gvuz`) E-05: the orchestrator coverage gate's UNATTENDED half. Spec `25kzda`
     # 2.1 and the new 2.5b are amended in the same change that registers it: the former data-driven
-    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
-    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
+    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    # (audit: backlog `xvp5vx`, done; no restoration is planned), but the requirement that spec 2.1
+    # declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, WHICH IS WHY IT IS THE TABLE'S FIRST `"str"` ROW. The risk it accepts
     # is that a parent plan's own items are reported complete having never been performed OR verified,
@@ -14991,8 +15057,9 @@ RUN_POLICY_FLAGS: tuple = (
     ),
     # runconcur-01 (`vddpml`) E-04: the integration-serialization ESCAPE HATCH. Spec `25kzda` 2.1 is
     # amended in the SAME change that registers it: the bidirectional test (`tests/test_run_flag_surface.py`)
-    # was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
-    # that spec 2.1 declare every registered row in the same change remains in force.
+    # was deleted in `19313eed` and is currently unguarded
+    # (audit: backlog `xvp5vx`, done; no restoration is planned), but the requirement that spec 2.1
+    # declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, the table's second `"str"` row, for the same reason
     # `--allow-uncovered-orchestrator-work` does: the risk it accepts is that two drivers publish to
@@ -15072,8 +15139,8 @@ RUN_POLICY_FLAGS: tuple = (
             "What to do when artifacts in the selection are already being processed by another "
             "active runner. 'drop' (the default) removes the active artifacts from the queue and "
             "narrates what was dropped; 'refuse' refuses to run; 'force' dangerously forces "
-            "execution anyway; 'prompt' asks the user on a TTY (defaulting to 'drop' on empty "
-            "input or non-interactive runs)"
+            "execution anyway; 'prompt' (or 'ask', an accepted alias) asks the user on a TTY "
+            "(defaulting to 'drop' on empty input or non-interactive runs)"
         ),
         choices=ON_CONFLICT_CHOICES,
     ),
@@ -15122,7 +15189,7 @@ def register_run_policy_flags(
     ``skip`` names dests this caller registers itself. It exists for `--full-auto`, whose long help
     text and BooleanOptionalAction both runners already declare; passing it through here would be a
     second registration and argparse would raise. Every skipped dest must still BE in the table, so
-    the contract test can prove it is registered by SOMEONE.
+    a contract test could prove it is registered by SOMEONE (no live test currently enforces this).
     """
 
     import argparse as _argparse
@@ -15256,8 +15323,8 @@ def resolve_retry_budget(
     TIER" (plan `y4adch` OQ-04). The function must stay callable at PARSE time, where a repo may not
     be resolved yet, and the pure CLI-over-default path remains a real code path with its own
     assertions. THE HONEST COST is that a production caller which FORGETS `repo` silently falls back
-    to CLI-over-default with every unit test still green, so a contract test asserts the production
-    call sites pass it.
+    to CLI-over-default with every unit test still green; the design intended for a contract test to
+    assert production call sites pass it, but no live test currently enforces this.
 
     THE MIDDLE TIER IS ONLY CONSULTED WHEN NO CLI VALUE WAS PASSED, which is what makes `--retry-budget
     0` mean zero rather than "unset": the guard is `is None`-shaped, never truthy, because `0` is a
@@ -15689,18 +15756,18 @@ def expand_dependency_closure(
     invisible.
 
     WHEN THE FLAG IS ABSENT THIS IS THE IDENTITY FUNCTION, and that is the load-bearing half. Spec
-    :166 and :1007 both state the negative: "Without the flag, dependencies outside the selection are
+    Section 2.1 and Section 5.4 both state the negative: "Without the flag, dependencies outside the selection are
     checked against current repository state but are not silently enqueued." An implementation that
     expanded unconditionally would silently enqueue prerequisites for EVERY run, which is the exact
     mirror of the falsehood the old refusal prevented. So the flag is read first and nothing is read
     from disk when it is off.
 
-    IT REBINDS THE SELECTION; IT NEVER CHANGES SATISFACTION SEMANTICS. Spec :351: "`--with-dependencies`
+    IT REBINDS THE SELECTION; IT NEVER CHANGES SATISFACTION SEMANTICS. Spec Section 2.6: "`--with-dependencies`
     changes selection, not satisfaction semantics. Every declared dependency is enforced whether or
     not its target was selected." So `enforce_dependency_preflight` and the dispatch-time
     `dependency_status` re-check keep their rules untouched; only the SET being run changes.
 
-    IT RUNS BEFORE THE MIXED-TYPE GATE AND BEFORE FREEZING, which spec :1007 fixes as a contract and
+    IT RUNS BEFORE THE MIXED-TYPE GATE AND BEFORE FREEZING, which spec Section 5.4 fixes as a contract and
     not a preference. In `initialize_run_core` that means before `selected_plan_paths` is built, since
     that list - not `queue_ids` - is what feeds BOTH the dependency preflight and
     `enforce_mixed_type_gate`; expanding after it would leave both reasoning about the pre-expansion
@@ -16219,15 +16286,15 @@ def clean_base_launch_decision(
 
 
 def refuse_frozen_flags_on_resume(args: Any) -> None:
-    """REFUSE a flag spec 2.1 freezes when it is passed with `resume` (spec `25kzda` :131).
+    """REFUSE a flag spec 2.1 freezes when it is passed with `resume` (spec `25kzda` Section 2.1).
 
-    SCOPED DELIBERATELY, and the scope is the interesting part. Spec `:129` says `--resume` is
+    SCOPED DELIBERATELY, and the scope is the interesting part. Spec Section 2.1 says `--resume` is
     mutually exclusive with "flags that would change the frozen queue or policy", but the SHIPPED
     `--full-auto` on resume does not refuse - it OVERWRITES the frozen option and saves it. So the
-    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: `:131` says
+    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: Section 2.1 says
     of `--retry-budget` that "the frozen value cannot change on resume". That one is refused here.
     Converting `--full-auto`'s shipped override into a refusal would be a behavior change to a
-    shipped flag, which belongs to whoever reconciles `:129` with `:131`, not to a plan whose fence is
+    shipped flag, which belongs to whoever reconciles the blanket mutual-exclusion rule with the per-flag freeze rule, not to a plan whose fence is
     flag registration.
     """
 
@@ -16250,7 +16317,7 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
 
     Two values are NORMALIZED here rather than at their read sites, so no consumer has to remember:
 
-      * `--full-auto` IMPLIES `--unattended` (spec `:134`), and implying nothing else. Implemented
+      * `--full-auto` IMPLIES `--unattended` (spec Section 2.1), and implying nothing else. Implemented
         explicitly instead of being left to chance, because "unattended" is what makes a gate refuse
         rather than prompt, and a `--full-auto` run has no one to prompt by construction.
       * `--retry-budget` is resolved to its EFFECTIVE integer through
@@ -16262,16 +16329,17 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
     the two early `resolve_retry_budget` calls in `initialize_run_core` DISCARD their value and exist
     solely for the early refusal, so the number a run actually spends is the one frozen here. Omitting
     `repo` therefore does not merely skip a nicety; it freezes the DEFAULT while a repository believes
-    its policy is in force. It stays OPTIONAL so a caller with no repository (the contract tests build
-    a bare namespace) keeps working, and a contract test asserts the production site passes it.
+    its policy is in force. It stays OPTIONAL so a caller with no repository (such as tests building
+    a bare namespace) keeps working; the design intended for a contract test to assert the production
+    site passes it, though no live test currently enforces this.
     """
 
     def _supplied(dest: str) -> Any:
         """The value for a NON-BOOL row, with a placeholder `bool` read as NOT SUPPLIED.
 
         WHY THIS EXISTS RATHER THAN A BARE `getattr`. A namespace built GENERICALLY over this table -
-        `{row.dest: False for row in RUN_POLICY_FLAGS}`, the idiom the shipped contract test uses in
-        four places - hands every row `False`, including the int and choice rows. That value never
+        such as `{row.dest: False for row in RUN_POLICY_FLAGS}` - hands every row `False`, including
+        the int and choice rows. That value never
         comes from argparse, which declares `default=None` for them precisely so "absent" is
         distinguishable, so a `bool` here can only mean "this namespace was filled in generically"
         and the correct reading is ABSENT.
@@ -16315,7 +16383,7 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             # The generic `bool(...)` arm below would freeze `True` and destroy the justification,
             # which is the entire content of this row: a reader of the ledger needs WHY the risk was
             # accepted, and "True" answers a question nobody asked. `_supplied` is used so a namespace
-            # filled in generically (the contract test's `{dest: False}` idiom) reads as ABSENT rather
+            # filled in generically (using a `{dest: False}` placeholder idiom) reads as ABSENT rather
             # than as the literal justification `False`.
             frozen[row.dest] = str(_supplied(row.dest) or "")
         else:
@@ -16764,9 +16832,8 @@ def resolve_verification_decision(
     unreachable, which is the whole defect this helper exists to close.
 
     IMPORTING `runner_profiles` HERE IS PERMITTED. This module's admission rules forbid importing
-    either RUNNER (enforced by AST in `tests/test_runner_shared.py::NoRunnerImportTests`, which
-    rejects any module name containing `runipd`); `runner_profiles` is a peer module that imports
-    only `agent_workflows.config`, so there is no cycle and no guard to trip.
+    either RUNNER (see the module docstring's prohibition bullet); `runner_profiles` is a peer
+    module that imports only `agent_workflows.config`, so there is no cycle.
 
     Raises :class:`DriverError` (which both runners' `main` already catches, printing the message
     and exiting 2) carrying the resolver's own diagnostic. NO per-driver translation wrapper is
@@ -17366,7 +17433,7 @@ def enforce_draft_admission_gate(
 
 
 def evaluate_unverifiable_admission(args: Any) -> Any:
-    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec 2.1 `:136`).
+    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec Section 2.1).
 
     Spec 2.1: `--unverifiable-ok` is legal ONLY when contractless prompts were explicitly admitted by
     `--allow-unverifiable` or the interactive `run unverifiable` confirmation. The rule is already
@@ -17481,8 +17548,8 @@ def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
 # and pulls in `check_engine`/`attention`; paying that on every `import runner_shared` would tax every
 # runner start for a function most runs never call. Neither module reaches a runner (verified by
 # closure walk: `runner_shared` is absent from `ipd_lint`'s and `selectors`' transitive imports), so
-# this is a cost decision and NOT an evasion of the no-runner-import rule, which
-# `tests/test_runner_shared.py::NoRunnerImportTests` enforces at module AND lazy scope.
+# this is a cost decision and NOT an evasion of the no-runner-import rule (see the module docstring's
+# prohibition bullet).
 
 
 #: The ONLY member status that counts as done for RETIREMENT purposes (spec R-2).
@@ -24918,11 +24985,10 @@ REVALIDATION_REGRESSED: str = "regressed"
 REVALIDATION_NO_REGRESSION: str = "no-regression"
 REVALIDATION_UNKNOWN: str = "unknown"
 
-#: The truncation cap the failing-id lists are subject to, read from the DRIVER's extractor rather
-#: than re-declared. `oc_runipd.SUITE_FAILURE_LINE_LIMIT` is 40 and this module may not import a
-#: driver (`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks it and fails on any import
-#: naming `runipd`), so the value is duplicated as a CONSTANT and pinned equal by a test rather than
-#: imported. A drift between the two makes the cap check miss, which is why it is asserted.
+#: The truncation cap the failing-id lists are subject to. This mirrors `SUITE_FAILURE_LINE_LIMIT`
+#: defined in this same module (re-homed from `oc_runipd`); their equality is maintained by hand with
+#: no test asserting it, and the former rationale for duplicating it as a constant to avoid importing
+#: a driver is obsolete.
 SUITE_FAILURE_LIST_CAP: int = 40
 
 #: A failing line that could not be parsed into a node id. Deliberately a value that can never equal a
@@ -25555,12 +25621,11 @@ def make_integration_validation_runner(
 
     ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
     same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `runner_shared`
-    (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this
-    module and fails on ANY import naming `runipd`, at module level or lazily inside a function. Copying
-    its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The None
-    DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its previous
-    three-positional-argument call shape and gets the honest refusal described below rather than a silent
-    pass; it is NOT a way to opt out of revalidation.
+    (re-homed from `oc_runipd`), and importing a driver here is prohibited (see the module docstring's
+    prohibition bullet; no live guard enforces it). Copying its body would fork its fail-closed reading
+    of exit 124/127. Each host passes its own. The None DEFAULT means every EXISTING caller (including the
+    tests that patch this factory) keeps its previous three-positional-argument call shape and gets the
+    honest refusal described below rather than a silent pass; it is NOT a way to opt out of revalidation.
 
     ONE RUN PER DISTINCT MERGE RESULT (E-04), cached on `state` under :data:`REVALIDATION_CACHE_KEY` and
     keyed on the merged TREE ID. Two lanes that merge to the same tree are one measurement; a second
@@ -26416,9 +26481,9 @@ def attempt_log_path(
 # none. `pinned_child_env` and `pinned_module_argv` are defined in `oc_runipd` and are the ONLY
 # definitions in the package; agy reaches them by IMPORTING them from `oc_runipd`, which makes them
 # the SAME OBJECT in both hosts but does NOT make them reachable from HERE. This module may never
-# import a runner (see the prohibition at the top, enforced by
-# `tests/test_runner_shared.py::NoRunnerImportTests`), so the lift condition is closure over names
-# THIS module can resolve, and neither name is one. They are therefore INJECTED, which is the
+# import a runner (see the module docstring's prohibition bullet; no live guard enforces it), so the
+# lift condition is closure over names THIS module can resolve, and neither name is one. They are
+# therefore INJECTED, which is the
 # maintainer's ruled mechanism for this exact situation (`818uru` OQ-02) and is already how
 # `run_checked` -- the OTHER nested-`aw` launcher, sitting in this same module -- consumes this SAME
 # `pinned_child_env` dependency. Each host keeps a one-line wrapper at the original name and
@@ -28709,6 +28774,91 @@ material question arose, say so in the summary. Explicitly confirm pushed=false.
 {defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
 
 
+def resolve_cli_host(
+    labels: HostLabels | None = None,
+    host: str | None = None,
+) -> str:
+    """Derive the CLI host noun (e.g. 'opencode' or 'antigravity')."""
+    effective_labels = (
+        labels
+        if labels is not None
+        else (
+            AGY_HOST_LABELS
+            if host == "agy"
+            else (OC_HOST_LABELS if host == "oc" else None)
+        )
+    )
+    if (
+        effective_labels is not None
+        and effective_labels.argv_tokens
+        and len(effective_labels.argv_tokens) > 1
+    ):
+        return str(effective_labels.argv_tokens[1])
+    if effective_labels is not None:
+        return str(effective_labels.id)
+    return str(host or "opencode")
+
+
+def ensure_frozen_host_capabilities(
+    state: dict[str, Any],
+    cli_host: str,
+    *,
+    run_dir: Path | None = None,
+    detect_host_fn: Any = None,
+) -> Any:
+    """Return the HostSandboxCapabilities for `cli_host` frozen in `state`.
+
+    bqtgmo (E-03 / E-04 / E-06): Reads the run-scoped frozen descriptor under the
+    `state["host_capabilities"]` key instead of re-probing per item.
+
+    Self-healing for older/resumed runs: If `state["host_capabilities"]` is absent
+    or invalid, measures once on demand, records the snapshot into `state["host_capabilities"]`,
+    and persists state to `run_dir` if provided, so that even a resumed run never probes
+    per item.
+    """
+    from agent_workflows import host_sandbox_profile as _hsp
+
+    frozen = state.get("host_capabilities")
+    if (
+        isinstance(frozen, dict)
+        and "descriptor" in frozen
+        and isinstance(frozen["descriptor"], dict)
+    ):
+        return _hsp.HostSandboxCapabilities.from_dict(frozen["descriptor"])
+
+    # Absence is self-healing: measure once on demand and freeze into state.
+    probe_fn = (
+        detect_host_fn if detect_host_fn is not None else _hsp.detect_host_capabilities
+    )
+    try:
+        caps = probe_fn(cli_host)
+    except Exception as exc:
+        caps = _hsp.HostSandboxCapabilities()
+        caps.probe_notes["on_demand_probe_error"] = f"{type(exc).__name__}: {exc}"
+
+    # Spec 25kzda 5.2 descriptor fields recorded:
+    # - host: cli_host
+    # - observed_at: timestamp from utc_now()
+    # - descriptor: JSON snapshot from HostSandboxCapabilities.to_dict()
+    # Fields required by spec 25kzda 5.2 that are NOT recorded here (gap documented per bqtgmo E-03):
+    # - exact version
+    # - mode/configuration
+    # - evidence digest
+    # - expiry (TTL)
+    # - assurance tier
+    state["host_capabilities"] = {
+        "host": cli_host,
+        "observed_at": utc_now(),
+        "descriptor": caps.to_dict(),
+    }
+    if run_dir is not None:
+        try:
+            save_state(run_dir, state)
+        except Exception:
+            pass
+    return caps
+
+
 def initialize_run_core(
     args: argparse.Namespace,
     *,
@@ -28831,7 +28981,7 @@ def initialize_run_core(
     # BEFORE THAT LIST, NOT MERELY BEFORE THE MIXED-TYPE GATE, and the distinction is the whole
     # correctness argument: the list immediately below - not `queue_ids` - is what feeds BOTH
     # `enforce_dependency_preflight` and `enforce_mixed_type_gate`, so an expansion placed after it
-    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda :1007 fixes
+    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda Section 5.4 fixes
     # the order as a contract: the closure "computes the transitive closure before mixed-type
     # confirmation and freezing".
     #
@@ -29142,6 +29292,17 @@ def initialize_run_core(
     isolate_review = isolation.get("review", True)
     isolate_plan = isolation.get("plan", isolate_review)
 
+    cli_host = resolve_cli_host(labels=labels, host=host)
+    try:
+        from agent_workflows import host_sandbox_profile as _hsp
+
+        caps = _hsp.detect_host_capabilities(cli_host)
+    except Exception as exc:
+        from agent_workflows import host_sandbox_profile as _hsp
+
+        caps = _hsp.HostSandboxCapabilities()
+        caps.probe_notes["initialization_probe_error"] = f"{type(exc).__name__}: {exc}"
+
     state = {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
@@ -29158,6 +29319,21 @@ def initialize_run_core(
         "session_id": initial_session,
         "set_sessions": set_sessions,
         "session_turn_counts": {},
+        # Spec 25kzda 5.2 descriptor fields recorded:
+        # - host: cli_host
+        # - observed_at: timestamp from utc_now()
+        # - descriptor: JSON snapshot from HostSandboxCapabilities.to_dict()
+        # Fields required by spec 25kzda 5.2 that are NOT recorded here (gap documented per bqtgmo E-03):
+        # - exact version
+        # - mode/configuration
+        # - evidence digest
+        # - expiry (TTL)
+        # - assurance tier
+        "host_capabilities": {
+            "host": cli_host,
+            "observed_at": utc_now(),
+            "descriptor": caps.to_dict(),
+        },
         "options": {
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
@@ -29275,8 +29451,9 @@ def initialize_run_core(
     #
     # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, historically: the former test
     # (`tests/test_run_flag_surface.py::test_the_mixed_type_call_site_was_not_duplicated`, deleted in
-    # `19313eed`, carrier: backlog `xvp5vx`) counted occurrences of that gate's SYMBOL in this function's
-    # source to prove it had exactly one call site. Locate each by its own call above.
+    # `b1e304bc7`; audit: backlog `xvp5vx`, done; no restoration is planned) counted occurrences of
+    # that gate's SYMBOL in this function's source to prove it had exactly one call site. Locate
+    # each by its own call above.
     #
     # WHAT "COSTS NOTHING" MEANS HERE: no agent turn, no lane worktree, no session. All three are
     # allocated downstream in `run_queue`/`execute_item`, so a refusal that raises from this line has
@@ -30333,6 +30510,235 @@ def canonical_terminal_status(status: Any) -> str:
     if not isinstance(status, str):
         return ""
     return TERMINAL_STATUS_ALIASES.get(status, status)
+
+
+# statusvocab (`32jpl1`) E-01 / E-02: Driver statuses intentionally having no lifecycle position.
+# Kept beside the table as production data (E-02) so totality tests read the production decision.
+INTENTIONALLY_UNMAPPED_DRIVER_STATUSES: frozenset[str] = frozenset(
+    {
+        "approved",
+        "reviewed",
+        "retired",
+        "not-run",
+        "not-attempted",
+        "merge-retry",
+        "integration-deferred",
+    }
+)
+UNMAPPED_DRIVER_STATUSES: frozenset[str] = INTENTIONALLY_UNMAPPED_DRIVER_STATUSES
+
+
+def map_driver_status_to_run_state(status: Any) -> str | None:
+    """Map a driver item status string onto a run_state position, or None if unmapped.
+
+    runwire (`32jpl1`) E-01: One shared, one-way translation from the driver status
+    vocabulary onto run_state's lifecycle positions.
+
+    Consumes run_state.STATE_* constants via lazy in-function import (matching _verdict_state
+    precedent). Normalizes through canonical_terminal_status first so a legacy token and its
+    canonical spelling cannot disagree.
+    """
+    if not isinstance(status, str):
+        return None
+    try:
+        from agent_workflows import run_state as _rs
+    except Exception:  # pragma: no cover - defensive; never kill a run over a label
+        return None
+
+    canonical = canonical_terminal_status(status)
+    table: dict[str, str] = {
+        "queued": _rs.STATE_RUNNABLE,
+        "running": _rs.STATE_RUNNING,
+        "executed": _rs.STATE_COMPLETE,
+        "already-landed": _rs.STATE_COMPLETE,
+        "fail-verify": _rs.STATE_CORRECTION_REQUIRED,
+        "fail-gate": _rs.STATE_FAILED,
+        "fail-begin": _rs.STATE_FAILED,
+        "fail-lane": _rs.STATE_FAILED,
+        "fail-merge": _rs.STATE_FAILED,
+        "failed": _rs.STATE_FAILED,
+        "fail-depend": _rs.STATE_BLOCKED,
+        "interrupted": _rs.STATE_BLOCKED,
+    }
+    return table.get(canonical)
+
+
+driver_status_to_run_state = map_driver_status_to_run_state
+
+
+def find_runtime_reachability_path(source: str, target: str) -> list[str] | None:
+    """Find the shortest runtime-authorized path from source to target in run_state.
+
+    runwire (`32jpl1`) E-03 / D-1: Walk run_state.get_legal_transitions, keeping
+    only rules whose authorized_actors contain 'runtime'. Validate each hop with
+    run_state.validate_transition.
+    """
+    if source == target:
+        return [source]
+    try:
+        from collections import deque
+        from agent_workflows import run_state as _rs
+
+        queue: deque[list[str]] = deque([[source]])
+        visited: set[str] = {source}
+        while queue:
+            path = queue.popleft()
+            curr = path[-1]
+            for rule in _rs.get_legal_transitions(curr):
+                if "runtime" not in rule.authorized_actors:
+                    continue
+                nxt = rule.target
+                hop_res = _rs.validate_transition(curr, nxt, "runtime")
+                if not hop_res.ok:
+                    continue
+                new_path = path + [nxt]
+                if nxt == target:
+                    # Double-check full path
+                    for u, v in zip(new_path, new_path[1:]):
+                        if not _rs.validate_transition(u, v, "runtime").ok:
+                            return None
+                    return new_path
+                if nxt not in visited:
+                    visited.add(nxt)
+                    queue.append(new_path)
+        return None
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+_find_runtime_reachability_path = find_runtime_reachability_path
+
+
+def _check_queue_item_run_state(item: dict[str, Any]) -> None:
+    """Check a single queue item's status against run_state positions.
+
+    runwire (`32jpl1`) E-03: Report-only transition check.
+    Persists last-observed position on the item.
+    Accumulates violations in item['run_state_violations'].
+    """
+    status = item.get("status")
+    target_pos = map_driver_status_to_run_state(status)
+
+    item.setdefault("run_state_violations", [])
+
+    # 1. First observation: item has no previously observed position recorded
+    if "run_state_position" not in item:
+        if target_pos is not None:
+            item["run_state_position"] = target_pos
+            item["run_state_check"] = {
+                "outcome": "initial",
+                "position": target_pos,
+                "status": status,
+            }
+        else:
+            item["run_state_position"] = None
+            item["run_state_check"] = {
+                "outcome": "skipped-unmapped",
+                "unmapped_side": "target",
+                "source": None,
+                "target": None,
+                "source_status": None,
+                "target_status": status,
+                "reason": f"unmapped driver status {status!r}",
+            }
+        item["run_state_status"] = status
+        return
+
+    prior_pos = item.get("run_state_position")
+    prior_status = item.get("run_state_status")
+
+    # 2. Unchanged position: record nothing new and check nothing
+    if prior_pos is not None and target_pos == prior_pos:
+        return
+    if prior_pos is None and target_pos is None and status == prior_status:
+        return
+
+    # 3. Unmapped position on either side: skipped-unmapped (no violation)
+    if prior_pos is None or target_pos is None:
+        side = (
+            "both"
+            if (prior_pos is None and target_pos is None)
+            else ("source" if prior_pos is None else "target")
+        )
+        item["run_state_position"] = target_pos
+        item["run_state_status"] = status
+        item["run_state_check"] = {
+            "outcome": "skipped-unmapped",
+            "unmapped_side": side,
+            "source": prior_pos,
+            "target": target_pos,
+            "source_status": prior_status,
+            "target_status": status,
+            "reason": f"unmapped status on {side}",
+        }
+        return
+
+    # 4. Changed positions: check reachability
+    path = find_runtime_reachability_path(prior_pos, target_pos)
+    if path is not None:
+        item["run_state_position"] = target_pos
+        item["run_state_status"] = status
+        item["run_state_check"] = {
+            "outcome": "checked-legal",
+            "source": prior_pos,
+            "target": target_pos,
+            "path": path,
+            "collapsed_path": list(path[1:-1]),
+        }
+    else:
+        # Unreachable illegal transition
+        try:
+            from agent_workflows import run_state as _rs
+
+            direct = _rs.validate_transition(prior_pos, target_pos, "runtime")
+            code = (
+                direct.findings[0].code if direct.findings else "ST-ILLEGAL-TRANSITION"
+            )
+            msg = (
+                direct.findings[0].message
+                if direct.findings
+                else f"Illegal transition from '{prior_pos}' to '{target_pos}'"
+            )
+        except Exception:
+            code = "ST-ILLEGAL-TRANSITION"
+            msg = f"Illegal transition from '{prior_pos}' to '{target_pos}'"
+
+        viol = {
+            "outcome": "checked-illegal",
+            "source": prior_pos,
+            "target": target_pos,
+            "edge": f"{prior_pos}->{target_pos}",
+            "code": code,
+            "message": msg,
+        }
+        item["run_state_violations"].append(viol)
+        item["run_state_check"] = viol
+        item["run_state_position"] = target_pos
+        item["run_state_status"] = status
+
+
+def _check_run_state_transitions(state: dict[str, Any]) -> None:
+    """Examine queue items in state and perform report-only run_state transition checks.
+
+    runwire (`32jpl1`) E-03: Never raises out of save_state.
+    """
+    try:
+        queue = state.get("queue")
+        if not isinstance(queue, list):
+            return
+        for item in queue:
+            if not isinstance(item, dict):
+                continue
+            try:
+                _check_queue_item_run_state(item)
+            except Exception as item_exc:
+                item["run_state_check_error"] = str(item_exc)
+                item["run_state_check"] = {
+                    "outcome": "error",
+                    "error": str(item_exc),
+                }
+    except Exception:  # pragma: no cover - defensive; never kill a run over a check
+        pass
 
 
 # statusvocab (`9x7otz`) E-01: Shared directory-to-verdict predicate for run summary Landed column.
@@ -32236,7 +32642,7 @@ def execute_item_core(
                 if host_labels.argv_tokens and len(host_labels.argv_tokens) > 1
                 else host_labels.id
             )
-            caps = _hsp.detect_host_capabilities(cli_host)
+            caps = ensure_frozen_host_capabilities(state, cli_host, run_dir=run_dir)
             item_id = str(item.get("id6") or "<unknown>")
             preflight = _hsp.preflight_host_capabilities(
                 contract_action,
@@ -37542,7 +37948,7 @@ def edge_satisfied(
         #
         # Evaluated from frozen repository state, and that is UNCHANGED by the arrival of
         # `--with-dependencies` (depclosure 01, `dhycim`). The flag now ships
-        # (`runner_shared.expand_dependency_closure`), but spec 25kzda :351 is explicit that it
+        # (`runner_shared.expand_dependency_closure`), but spec 25kzda Section 2.6 is explicit that it
         # "changes selection, not satisfaction semantics": it can put the target IN the queue before
         # freezing, which is a different run, and it grants no relaxation to the rule below. Without
         # the flag an unsatisfied external target still simply cannot be met in this run.
@@ -37924,9 +38330,9 @@ class BacklogCloseVerdict(NamedTuple):
 # in the shared module for that function to move at all; leaving a SECOND copy behind would reproduce
 # exactly the defect this Set exists to end (a fix reaching one caller and not the other), one layer
 # down from the record itself. `agy_runipd` already bound this by name FROM this module, and
-# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts object identity between the two hosts;
-# a shared definition re-exported here under the same name satisfies that assertion, because both hosts
-# now name the SAME object rather than one naming the other's.
+# `tests/test_runner_delegation_and_host_independence.py` asserts object identity across the two hosts
+# and `runner_shared`; a shared definition re-exported here under the same name satisfies that
+# assertion, because both hosts now name the SAME object rather than one naming the other's.
 # (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 

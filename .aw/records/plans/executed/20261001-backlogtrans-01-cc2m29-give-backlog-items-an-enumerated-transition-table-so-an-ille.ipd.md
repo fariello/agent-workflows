@@ -1,0 +1,559 @@
+# IPD: Give backlog items an enumerated transition table so an illegal backlog status move fails closed on both setter spellings
+
+- Date: 2026-10-01
+- Kind: child
+- Concern: Neither `aw backlog set` spelling validates a status TRANSITION, so any backlog status may move to any other. `status_set.validate_transition_allowed` never reads `rec.status` for a backlog record (it vocabulary-checks the target and adds one `->blocked` gate-flag rule), and the forked `backlog.run_set` only checks `new_status not in STATUSES` and then assigns `item.status = new_status` without ever reading the prior value. Specs, the artifact type this most resembles, consult `attention_contract.SPEC_TRANSITIONS` from BOTH spellings.
+- Scope: Define the backlog transition vocabulary that does not exist yet, publish it as ONE table beside `SPEC_TRANSITIONS`, and consult it from BOTH setter spellings so an unenumerated move fails closed. The design is fenced by MEASUREMENT rather than by the doc diagram: the live corpus and the shipped test suite both require `done -> open` and `graduated -> open` to stay legal, so this plan enumerates a table that PERMITS corrective reopening and refuses only what nothing uses.
+- Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, tests/test_backlog_transition_gate.py, .aw/records/backlog/README.md, docs/artifact-lifecycles.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: t1gbwg
+- Set: backlogtrans
+- Order: 1
+- Highest E allocated: 08
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: cc2m29
+
+## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cc2m29 verified (set backlogtrans, attempt 1).
+- 2026-10-03 approved (aw set): status set to approved
+- 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
+
+- 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Reviewed at HEAD `9e2b5a359`; `aw ipd lint` author and review-finalize both clean. Every cited symbol re-located: `status_set.validate_transition_allowed` (specs branch, `->blocked` gate-pair message), `backlog.run_set` (`item.status = new_status` with no prior read), `attention_contract.SPEC_TRANSITIONS`/`transition_allowed`, `lifecycle_dirs.LIFECYCLE_SUBDIRS["backlog"]`, the runner `--status open` rollback, and the two `test_route_d_done_to_open_*` fence tests. The design and fence method were sound. PR-001: the plan never named the edges it REFUSES; a review recorder over the bare suite fixed the candidate table and its four-edge refused set (F-16), and the gate now STOPS if the refused set is empty. PR-002: the bars were count-based on a suite with 4 pre-existing failures, so they now compare failure names, and `stash` was removed. PR-003: the flag spelling lacked the case-fold and the before-dry-run siting that E-07 (g)/(h) assert for both spellings. PR-004: pending `vhiqo6` may make `backlog.run_set` delegate first, so E-05 is now conditional. PR-005: the gate gained `aw ipd begin`, `aw commit cc2m29`, a scope fence naming the dependent siblings `tm8k2n`/`miimjb`, and the `t1gbwg` close command.
+- 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `t1gbwg`. THE ITEM'S DIAGNOSIS REPRODUCES EXACTLY AND IS RECORDED AS MEASURED, not inherited: both spellings perform `done -> open`, `graduated -> open` and `done -> graduated` at exit `0`, and `BACKLOG_TRANSITIONS` exists nowhere in the package (F-01, F-02, F-03). THREE MEASUREMENTS CHANGED THE DESIGN THE ITEM IMPLIES. (1) THE ITEM'S OWN "NOT A BUG" REASONING IS FALSIFIED: it says backlog items "are not moved between lifecycle directories by status alone", and they ARE - a `done -> open` call relocated the tracked file from `done/` to `open/` (F-04). The plan does NOT reclassify the item on that basis, and says why (F-04). (2) THE OBVIOUS STRICT TABLE IS MEASURED WRONG. The only drawn backlog flow in the repo (`docs/artifact-lifecycles.md`) shows `done` as terminal, and a probe implementing exactly that reddened TWO SHIPPED TESTS that deliberately pin `done -> open` on BOTH spellings (F-07). So `done -> open` is a shipped contract, not an accident, and the diagram is narrower than the code it documents. (3) THE RUNNER AUTOMATICALLY PERFORMS `graduated -> open` as its containment rollback, and prescribes it by name in two operator remedies, so refusing that edge would break runner containment (F-06). The permissive table these three force was then BUILT AND MEASURED end to end: bare suite `3665 passed, 2 skipped` with ZERO test edits (F-08).
+- 2026-10-01 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make an illegal backlog status move fail closed at the setter, by giving backlog the thing it is the only status-bearing artifact type to lack: an enumerated transition table. Specs already have one and consult it from both spellings; plans have a predicate that `ipdsetback nvsz19` is wiring into their setter. Backlog has neither a table nor a predicate, so this plan must DESIGN the vocabulary before it can wire anything, and it designs that vocabulary from measured usage rather than from the aspirational diagram in the docs.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: re-measure the premise and the fence before designing anything
+
+- [x] E-01 Re-measure the defect and the suite baseline at the executing HEAD, because every number in this plan is a LIVE measurement and the corpus moves daily. In a throwaway git repo OUTSIDE the records tree (a gitignored path inside the lane; never mutate a real record to gather evidence), seed one item per case and run BOTH spellings, recording exit code, the resulting on-disk `- Status:`, and the resulting DIRECTORY for each of: `done -> open`, `graduated -> open`, `done -> graduated`, `parked -> done`. Each must measure exit `0` with the status rewritten AND the file relocated. ALSO confirm by direct interpreter call that `attention_contract` has no `BACKLOG_TRANSITIONS` attribute, so a reviewer knows the table is genuinely absent rather than present-but-unconsulted. If any of those four already refuses at HEAD, STOP and report: the defect has been closed by other work and this plan needs re-authoring.
+  ALSO RE-DERIVE THE SUITE BASELINE HERE, before changing anything: run `python3 -m pytest` BARE and record the `N passed` line with the HEAD commit. V-08 compares against THIS number, never against a constant pasted in this plan. Record any pre-existing failure as pre-existing NOW so it cannot later be mistaken for damage this change caused.
+  - Depends on: none
+  - Expected outcome: A recorded table showing exit `0`, a rewritten status AND a relocated file for all four edges on both spellings, plus `hasattr(attention_contract, "BACKLOG_TRANSITIONS") == False`, plus the re-derived bare-suite baseline with its HEAD commit. This is the falsifiable baseline the plan rests on.
+  - Execution state: performed
+
+- [x] E-02 Establish the FENCE the table must not break, by measuring what the repository actually requires, and record it as the justification for every edge the table permits. This is a separate item from designing the table because the obvious table is MEASURED WRONG (F-07) and an executor who designs from the docs alone will ship a regression. Record all four of:
+  (a) THE LIVE CORPUS. Sweep every `.backlog.md` under `.aw/records/backlog/` and derive the adjacent status edges recorded in each item's `## Workflow history`, reporting each distinct edge with its count. Treat the result as EVIDENCE OF PRACTICE, not as a bar: a recorded edge proves the move was performed, not that it was correct. Call out specifically whether `done -> graduated` appears, and if it does, read that item and record whether the move was legitimate.
+  (b) THE SHIPPED TEST SUITE. Identify every test that performs a backlog status move whose source status is `done` or `graduated`, by running the suite against a probe gate rather than by reading test source (co-occurrence of two statuses in one file is NOT proof the pair is exercised). Record which tests go red under a STRICT table in which `done` is terminal.
+  (c) THE RUNNER. Search `runner_shared` for every `aw backlog set <status>` string it PRESCRIBES to an operator and every backlog transition it PERFORMS itself, and record the source status each one starts from. A table that refuses an edge the runner performs automatically would break containment, which is strictly worse than the hole being closed.
+  (d) THE DOC DIAGRAM. Record what `docs/artifact-lifecycles.md` currently draws, and the DELTA between it and (a) through (c). The diagram is expected to be NARROWER than reality; that delta is what E-06 reconciles.
+  - Depends on: E-01
+  - Expected outcome: A recorded four-part fence naming, with evidence, every backlog edge that live practice, the test suite, or the runner requires to remain legal, plus the measured delta against the doc diagram. No table is written in this item.
+  - Execution state: performed
+
+### Task group 2: publish the table, once, where the precedent already sits
+
+- [x] E-03 Add `BACKLOG_TRANSITIONS` to `agent_workflows/attention_contract.py`, sited beside `SPEC_TRANSITIONS` and following its exact shape (`Dict[str, FrozenSet[str]]`, keyed old -> allowed new), plus a `backlog_transition_allowed(old, new) -> bool` predicate following `transition_allowed`'s exact shape, INCLUDING its `.get(old, frozenset())` fail-closed default so an unknown source status denies everything. THE MODULE IS THE RIGHT HOME because it already owns the backlog status vocabulary's other cross-tree contract (`_BACKLOG_MAP`, registered in `CLASS_MAPS`), so the status enum and its legal moves live in one module rather than two.
+  THE TABLE MUST BE JUSTIFIED EDGE BY EDGE IN A COMMENT, against E-02's fence, because the whole risk in this plan is an edge refused that something needs. At minimum the comment must record WHY `done -> open` and `graduated -> open` are permitted (each is required by a shipped test or by runner containment, F-06, F-07) and WHY the doc diagram's narrower shape was NOT adopted. Any edge the table REFUSES must be an edge E-02 measured nothing using.
+  DO NOT re-list the status enum here: derive the table's key set from, or validate it against, `lifecycle_dirs.LIFECYCLE_SUBDIRS["backlog"]`, which is the single existing definition that `backlog.STATUSES` itself derives from. A second hand-written copy of the enum is the defect this repository has already paid for elsewhere.
+  - Depends on: E-02
+  THE CANDIDATE TABLE, DERIVED AT REVIEW FROM THE PLAN'S OWN RULE ("refuse only what nothing uses"), SO THE EXECUTOR IS NOT LEFT TO INVENT THE REFUSED SET (review PR-001). The authored plan names only the `done` and `graduated` rows (F-08) and never states which edges are REFUSED, which is the plan's whole deliverable. At review HEAD `9e2b5a359` an in-process recorder (a `-p` plugin under the gitignored `tmp/`, no tracked file touched) logged every non-self backlog edge the BARE suite drives on either spelling: `open -> {done 28, parked 12, graduated 9, blocked 8}`, `graduated -> done 23`, `parked -> {open 6, blocked 2}`, `blocked -> {open 2, done 1, parked 1}`, `done -> open 2`. Adding F-05's corpus (`blocked -> graduated`, `done -> graduated`) and F-06's runner rollback (`graduated -> open`), and F-08's measured `graduated -> {blocked, parked}`, the rule yields: `open -> {graduated, blocked, parked, done}`; `graduated -> {open, blocked, parked, done}`; `blocked -> {open, graduated, parked, done}`; `parked -> {open, blocked}`; `done -> {open, graduated}`. REFUSED, therefore: `parked -> done`, `parked -> graduated`, `done -> blocked`, `done -> parked`. Those four are the edges case (a) of E-07 pins and the ones E-04/E-05 must refuse. E-02 RE-DERIVES this at execution: if the fence has grown to use any of the four, the edge is PERMITTED and dropped from the refused set (never narrowed by editing a test); if the refused set becomes EMPTY the gate is vacuous and the executor STOPS and reports rather than shipping an unconsulted table. Record the rationale for the four refusals in the comment: `parked` is a deliberate set-aside and must be reopened before it can be closed or handed off, so the history records the un-parking; a `done` item that needs more work is reopened to `open`/`graduated`, never re-parked or re-blocked in place.
+  - Expected outcome: One `BACKLOG_TRANSITIONS` table and one `backlog_transition_allowed` predicate in `attention_contract.py`, each shaped like its spec twin, every permitted edge justified against E-02's measured fence, the refused set equal to the re-derived complement (the four edges above unless E-02 measures otherwise) and NON-EMPTY, fail-closed on an unknown source, and the status enum derived rather than re-listed.
+  - Execution state: performed
+
+- [x] E-04 Consult the new predicate from `status_set.validate_transition_allowed` (the POSITIONAL spelling `aw backlog set <status> <selector>`), in a `rec.record_type == "backlog"` branch following the shape of the `rec.record_type == "specs"` branch already in that function: compare current status against the normalized target, SKIP when equal, refuse with a one-line reason. Site it so it composes correctly with the two rules already there.
+  THREE COMPOSITION CONSTRAINTS ARE MANDATORY, each with its reason in the comment. (1) SKIP THE SELF-EDGE. `X -> X` currently returns `ok=True` for every backlog status (measured), and `aw backlog note` exists precisely so annotation does not need a transition call; a same-status `set` is a documented misuse the README already warns about, but it is NOT this plan's to start refusing, and refusing it here would be an unrelated behavior change. (2) CASE-FOLD THE SOURCE. `read_artifact_record` captures the `- Status:` token VERBATIM, so an uppercase `- Status: DONE` would bypass an unfolded gate exactly as it did for plans. The live backlog corpus measured ZERO non-canonical tokens, so unlike the plans case this is prophylactic rather than corrective - say so in the comment, and do it anyway, because the cost is one call and the failure mode is silent. (3) PRESERVE THE EXISTING `->blocked` GATE-FLAG RULE, which is a DIFFERENT question (does this call supply `--gate-kind`/`--gate-ref`) from the one this gate asks (is this edge legal at all) and must keep its own refusal and its own message.
+  RECORD THE ORDERING CONSEQUENCE, do not change it: this pre-flight loop runs BEFORE the `evaluate_blocking_close` loop in `run_set_command`, so a request that is BOTH an illegal transition AND an illegitimate release-gate close will now report the TRANSITION refusal and not the gate refusal. Both exit `1`, so no exit code changes; only the message does. State this in the comment so a future reader does not read it as the close gate having stopped working.
+  - Depends on: E-03
+  - Expected outcome: The positional spelling refuses E-03's unenumerated edges at exit `1` with a one-line reason, still permits every edge E-02's fence requires, still refuses `->blocked` without a gate pair with its EXISTING message, and still allows a same-status call.
+  - Execution state: performed
+
+- [x] E-05 Consult the same predicate from `backlog.run_set` (the FLAG spelling `aw backlog set <path> --status <status>`), so the gate cannot be dodged by choosing a spelling. THIS IS NOT A COPY OF E-04: this function currently never reads the prior status at all (it assigns `item.status = new_status` with no reference to the old value), so the work here is to READ the prior status from the parsed item before assigning, then consult the ONE shared predicate from E-03. CASE-FOLD THE PRIOR STATUS HERE TOO (review PR-003): `parse_item` returns the `- Status:` token verbatim, so an uppercase source bypasses an unfolded check on this spelling exactly as E-04 guards against on the other, and E-07 case (h) is asserted for BOTH spellings. SITE IT BEFORE THE DRY-RUN PREVIEW and before any `--blocks-release`/gate-default rewrite, so `--dry-run` on a refused edge refuses rather than previewing (E-07 case (g)). Import the predicate; do NOT re-list the table, because a second copy is exactly how this repository's two backlog dispatch paths have diverged three times already (recorded in backlog item `fcnz1r`).
+  REFUSE AT EXIT `1`, NOT `2`, and site the refusal so it writes and moves nothing. The `1` is chosen to match the specs precedent: the forked `specs.run_set` refuses an illegal transition with exit `1` while this same function's VOCABULARY check (`new_status not in STATUSES`) uses exit `2`. The distinction is the repository's own three-state contract: an unknown status token is a USAGE error (`2`, the caller typed something that is not a status), whereas a known status the artifact may not move to is a DOMAIN finding (`1`). This also makes both spellings of the new refusal agree on `1`, which E-04 independently lands.
+  - Depends on: E-03
+  IF `backlog.run_set` HAS ALREADY BECOME A THIN ADAPTER when this executes (pending plan `vhiqo6`, set `setdisp`, makes it delegate to `status_set`), the flag spelling already reaches E-04's branch and this item reduces to PROVING that by V-05's driven evidence, with no second call site added; record which case held (review PR-004).
+  - Expected outcome: The flag spelling refuses the same unenumerated edges as E-04 at exit `1`, having read the prior status it previously ignored, writing nothing and moving nothing on refusal (including under `--dry-run`), case-folding the source, and consulting the shared predicate with no second copy of the table in `backlog.py`.
+  - Execution state: performed
+
+### Task group 3: pin the behavior by outcome and reconcile the record
+
+- [x] E-06 Reconcile the two documents that describe backlog status moves, so the published contract and the enforced one agree. In `docs/artifact-lifecycles.md`, correct the backlog `### Flow` diagram to match the table E-03 actually enforces: the current diagram shows `done --> [*]` as terminal and omits `graduated -> open`, which E-02 measures as required, so the diagram is WRONG TODAY and would be measurably wrong after this change. In `.aw/records/backlog/README.md`, which states the status enum and the verbs but says NOTHING about which moves are legal, add the legal-move statement and name `BACKLOG_TRANSITIONS` as its single authority, mirroring how the specs documentation names `SPEC_TRANSITIONS`.
+  WRITE THE REOPEN POLICY DOWN EXPLICITLY, because it is the one thing a reader will most want and the repository currently answers nowhere: state that a `done` item may be reopened to `open` or `graduated` as a CORRECTIVE move, that this is deliberate rather than an oversight, and cite the shipped behavior that requires it. No em or en dashes in either file: both are user-facing prose.
+  - Depends on: E-04, E-05
+  - Expected outcome: The doc diagram matches the enforced table, the backlog README states the legal-move policy and names its one authority, and the corrective-reopen allowance is written down rather than left implicit.
+  - Execution state: performed
+
+- [x] E-07 Add `tests/test_backlog_transition_gate.py` pinning the gate BY OUTCOME: drive the real CLI, assert on real exit codes and real on-disk state (status line AND which directory the file ended in), and never read production source, count callers, or assert a comment survives. Follow the paired-spelling pattern `tests/test_backlog_positional_close_gate.py` already uses (in-process `cli.main` against a `tempfile` repo, one case per spelling, no subprocess). Cover, each as its own case and each for BOTH spellings:
+  (a) every edge E-03's table REFUSES exits nonzero AND leaves the file byte-identical and in its original directory;
+  (b) every edge E-02's fence REQUIRES still succeeds at exit `0` and relocates the file, explicitly including `done -> open` and `graduated -> open`, each with a comment recording WHICH fence element requires it, so a later reader cannot "tidy" the table without reddening a test that says why;
+  (c) a same-status call still succeeds, pinning E-04's self-edge skip;
+  (d) `->blocked` without `--gate-kind`/`--gate-ref` still refuses with its EXISTING message and NOT with the new transition message, proving the two rules did not merge;
+  (e) a NON-BACKLOG artifact is untouched: a spec transition its own table permits still succeeds, proving the gate is keyed on `record_type`;
+  (f) the refusal is reported on the agent/JSON surface with a machine-readable rule token and a nonzero exit, not only in human prose, since an unattended agent reads that surface;
+  (g) `--dry-run` on a refused edge refuses rather than PREVIEWING a move that can never be performed;
+  (h) an UPPERCASE `- Status:` source is gated identically, pinning E-04's case-fold.
+  For case (a), record the measured pre-change exit `0` from E-01 in a comment so a future reader can tell the test would have caught this.
+  - Depends on: E-04, E-05
+  - Expected outcome: A new test module whose eight case classes pass after the change, with case (a) documented as failing before it, and cases (b) through (e) constituting the fence against an over-broad gate.
+  - Execution state: performed
+
+- [x] E-08 Run the whole-repository validation pass and account for every difference against E-01's baseline, as a SEPARATE action from writing the tests, because a module that passes in isolation can still redden something elsewhere. Run `python3 -m pytest` BARE, then `aw ipd lint --phase pre-transition` on this plan, then `aw check`, then `aw sanitize --agent`. Compare the FAILED NAME SET against E-01's baseline taken in the same session: no failure name may appear that was absent before (the count is informational, since this suite's failure set varies run to run; at review HEAD `9e2b5a359` four tests already fail, three of them also in isolation), and confirm by `git diff --stat` that `tests/test_backlog_gate_follows_status.py` is UNCHANGED, since the two tests it holds are the discriminating fence for the table's permissiveness (F-07). If either of those two tests needed an edit to pass, STOP and report: that is evidence the table is wrong, and the remedy is to widen the table, never to edit the test.
+  - Depends on: E-06, E-07
+  - Expected outcome: A bare-suite run with no newly red test and its delta accounted for by E-07's additions alone, `tests/test_backlog_gate_follows_status.py` shown unchanged, and clean output from the lint, check and sanitize passes.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). THIS PLAN CITES BY SYMBOL THROUGHOUT for that reason. The backlog item it graduates carries a live instance of the rot: its claim about `status_set.validate_transition_allowed` is still accurate, but the function has since gained an actor-shape gate and a release-exemption branch around the site this plan edits.
+- THE SPECS BRANCH IS THE PRECEDENT, and it is sited in the very function E-04 edits. `status_set.validate_transition_allowed` already contains a `rec.record_type == "specs"` branch delegating to `attention_contract.transition_allowed` and refusing with `Illegal spec transition {old} -> {new}`. The forked `specs.run_set` carries the matching gate for the other spelling. The backlog hole is symmetrical on both spellings, so this plan is shaped like an existing, reviewed, shipped gate rather than invented.
+- `aw backlog set` FORKS ON WHETHER `--status` WAS PASSED, and the mapping is counterintuitive: `--status` ABSENT (the positional `aw backlog set done <item>`) routes to the SHARED `status_set.run_set_command`, while `--status` PRESENT (`aw backlog set <item> --status done`) routes to the FORKED `backlog.run_set`. Getting this backwards means wiring the gate into the path you did not intend. Backlog item `fcnz1r` records that the same class of defect has been found on this fork three times.
+- A SAME-STATUS `set` IS A DOCUMENTED MISUSE WITH ITS OWN REMEDY. `.aw/records/backlog/README.md` states that "a same-status `set` is a transition call doing an annotation's job, and history is what suffers", and `aw backlog note` exists specifically to remove the incentive. That is why E-04 SKIPS the self-edge rather than refusing it: the repository already answered this question with a different verb, and refusing it here would be an unrelated behavior change smuggled into a transition gate.
+- THE REPOSITORY'S EXIT VOCABULARY IS A THREE-STATE CONTRACT (`0` clean, `1` domain findings, `2` usage/cannot-run) per `docs/cli-output-contract.md`. This plan uses `1` on both spellings, matching the specs precedent, and deliberately does not reuse the `2` that `backlog.run_set`'s vocabulary check uses. E-05 records the reasoning.
+- A `- Readiness:` field is an OUTPUT of `/plan-review` and is deliberately ABSENT here; writing one while authoring would forge a review that has not happened, and the auto-approve predicate reads that field first.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | THE ITEM'S DIAGNOSIS REPRODUCES EXACTLY on the FLAG spelling. `backlog.run_set` performs `done -> open`, `graduated -> open` and `done -> graduated` at exit `0`, rewriting the status and relocating the file. | Measured 2026-10-01 by direct in-process calls to `backlog.run_set` against fresh throwaway repos, one per case: `done -> open` rc=0 landed in `open/`; `graduated -> open` rc=0 landed in `open/`; `done -> graduated` rc=0 landed in `graduated/`. Its own source assigns `item.status = new_status`, and the only other appearance of `item.status` in the function is that assignment, so the prior value is never read. |
+| F-02 | THE SAME HOLE EXISTS ON THE POSITIONAL spelling, so a gate on one path alone would be bypassable. `status_set.validate_transition_allowed` returns `ok=True` for every non-self backlog pair except the four whose target is `blocked`, and those four refuse for an unrelated reason (no `--gate-kind`/`--gate-ref` supplied), not because the edge is illegal. | Measured 2026-10-01, full 5x5 matrix by direct calls to `status_set.validate_transition_allowed` with a real `ArtifactRecord` read from disk: 25 pairs, 5 refused, 20 allowed; of the 20 non-self pairs, 4 refused and 16 allowed. Every refusal's reason string was `Moving backlog item to blocked requires --gate-kind and --gate-ref`. Contrast measured in the SAME harness: a spec at `implemented` moving to `draft` refused with `Illegal spec transition implemented -> draft`. |
+| F-03 | `BACKLOG_TRANSITIONS` EXISTS NOWHERE, so this plan designs a vocabulary rather than wiring an existing one. This is the item's stated reason for being separate from the plan-side fix, and it holds. | Measured: `hasattr(attention_contract, "BACKLOG_TRANSITIONS")` is `False`. A tracked-tree search finds the string only inside the backlog item that proposes creating it. By contrast `attention_contract.SPEC_TRANSITIONS` holds 9 keys and `attention_contract.transition_allowed` consults it with a fail-closed `.get(old, frozenset())` default. |
+| F-04 | THE ITEM'S OWN "NOT A BUG" REASONING IS FALSIFIED, AND THIS PLAN DOES NOT RECLASSIFY IT ANYWAY. The item says it is `chore` rather than `bug` because "backlog items are not moved between lifecycle directories by status alone", unlike the plan case. They ARE: an illegal `done -> open` relocated the tracked file out of `done/` and into `open/`. The item invites reclassification "if a concrete falsification is measured", and this is one. It is left `chore` because the repository's own bug test is USER-PERCEPTIBLE IMPACT, and no user-visible wrong answer or measured latency is recorded here; the harm is a latent record-integrity risk, not an observed defect. Raising it to `bug` would also attach a release gate on the strength of a hypothetical. RECORDED FOR THE REVIEWER as the one judgement in this plan a maintainer might reasonably overturn. | Measured 2026-10-01: a throwaway repo with one item at `- Status: done` under `.aw/records/backlog/done/`; `backlog.run_set` with `--status open` returned rc=0; the file path moved from `.aw/records/backlog/done/...` to `.aw/records/backlog/open/...`. The item's text: "backlog items are not moved between lifecycle directories by status alone. Reclassify if a concrete falsification is measured." |
+| F-05 | THE LIVE CORPUS RECORDS A `done -> graduated` EDGE, so the doc diagram is already narrower than practice. A sweep of 821 backlog items finds 6 distinct adjacent edges in recorded histories, one of which (`done -> graduated`) the diagram does not draw at all, plus `blocked -> graduated` and `blocked -> open` which it also omits. | Corpus sweep 2026-10-01 over `.aw/records/backlog/**/*.backlog.md`: 821 files, 103 with two or more status history records. Edges, chronological, most common first: `graduated -> done` 33, `open -> done` 31, `open -> graduated` 21, `blocked -> graduated` 2, `blocked -> open` 1, `done -> graduated` 1. The `done -> graduated` instance is item `x7wfyx`, whose history records it was closed `done` on the handoff rule and then correctly REOPENED to `graduated` because only one of its two deliverables had landed; a legitimate correction, not an error. |
+| F-06 | THE RUNNER PERFORMS `graduated -> open` AUTOMATICALLY and prescribes it by name, so refusing that edge would break containment rather than merely annoying an operator. | `runner_shared` builds a rollback argv of `["backlog","set",<id6>,"--status","open",...]` with the message `handoff incomplete: <code>` and runs it by subprocess, then verifies the item is "back under `open/`". Its `BACKLOG-GRADUATE-LEGITIMACY` and `BACKLOG-ROLLBACK-CONTAINMENT-FAILURE` refusal messages each instruct the operator to run `aw backlog set open <id6> --message "handoff incomplete"`. Measured count of prescribed remedies in `agent_workflows/*.py` plus the workflow bodies: `set done` 15, `set open` 6, `set graduated` 2. |
+| F-07 | THE OBVIOUS STRICT TABLE IS MEASURED WRONG: `done -> open` IS A SHIPPED, DELIBERATELY TEST-PINNED CONTRACT. A probe installing a table in which `done` is terminal (matching what `docs/artifact-lifecycles.md` draws) reddened exactly two tests, both of which exist specifically to pin `done -> open` on BOTH spellings. | Probe installed in-process via a `-p` plugin, no tracked file modified. Bare `python3 -m pytest` with the STRICT table: `2 failed, 3663 passed, 2 skipped`, both failures `1 != 0 : Command failed: aw backlog set: illegal transition done -> open`. The two tests are `tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_status_spelling` and `::test_route_d_done_to_open_positional_spelling`, whose docstrings read "Route (d) ... done -> open on an ungated bug defaults gate" and which assert rc=0 and that the reopened item gains `- Blocks-Release: next`. So reopening a done bug is a route the release-gate machinery is BUILT around. |
+| F-08 | THE PERMISSIVE TABLE THE FENCE FORCES IS VERIFIED TO WORK, so E-03's design is demonstrated rather than hoped. A probe implementing a table that permits `done -> {open, graduated}` and `graduated -> {done, blocked, open, parked}` passes the entire suite with ZERO test edits. | Probe installed in-process on BOTH paths (wrapping `status_set.validate_transition_allowed` and `backlog.run_set`), no tracked file modified. Bare `python3 -m pytest`: `3665 passed, 2 skipped, 3 warnings in 65.06s`. Baseline at the same HEAD with no probe: `3665 passed, 2 skipped, 3 warnings in 244.03s`. Identical counts. |
+| F-09 | THE REPOSITORY HAS NO WRITTEN REOPEN POLICY FOR BACKLOG, which is why E-02 must measure one rather than look it up, and why E-06 must write it down. `.aw/records/backlog/README.md` documents the enum, the directory mapping and the verbs, and says nothing about which moves are legal. The ONE drawn flow is a Mermaid diagram in `docs/artifact-lifecycles.md` that is descriptive, unenforced, and narrower than both the corpus (F-05) and the test suite (F-07). | `.aw/records/backlog/README.md` states "Status is encoded BOTH by directory and by the `- Status:` bullet, and the two MUST agree" and warns against a same-status `set`, with no legal-move statement. The diagram draws `done --> [*]`, omits `graduated -> open`, `done -> graduated`, `blocked -> graduated` and `graduated -> blocked`, and carries no pointer to any enforcing symbol, unlike the specs sections of the same file which name `SPEC_TRANSITIONS` twice. |
+| F-10 | THE SPEC THAT CREATED THE BACKLOG TIER NEVER DEFINED TRANSITIONS, so no approved spec is being contradicted and no spec amendment is required. It fixes the enum, the directory mapping and the `blocked` gate rule, and specifies `set` only as "status transitions + history". `graduated` did not exist in it at all and was added later. | Spec `attention-visible-backlog-tier` (implemented) Section 6.1 and its F3/F5 requirements; its resolved OQ3 fixes the statuses as `open | blocked | parked | done`. The string `graduated` appears zero times in that spec. CONTRAST: spec `attention-registry-and-cross-tree-status` Section 7 gives SPECS an explicit "Transitions and authority (who may enter each state)" table and states "The `aw specs set` verb enforces this table" - the backlog tier spec has no counterpart section. |
+| F-11 | THE LIVE BACKLOG CORPUS IS CLEAN on both hazards a gate could trip over, so this plan's case-folding is prophylactic rather than corrective and no corpus migration is implied. Zero items carry a non-canonical status token, and zero items have a frontmatter status disagreeing with their directory. This differs from the PLANS case, where 25 live plans carry an uppercase status. | Measured 2026-10-01 across all five backlog disposition directories (821 items): non-canonical `- Status:` tokens 0; frontmatter-versus-directory mismatches 0. Measured in the same harness: `read_artifact_record` returns the token VERBATIM (`DONE` stays `DONE`), and when frontmatter and directory disagree the FRONTMATTER wins as the record's status, so the gate's source would be the frontmatter token. |
+| F-12 | `evaluate_blocking_close` HAS AN OPINION ON ONLY TWO TARGETS, so a transition gate composes with it rather than duplicating it. The two answer different questions, which is why both must stay. | Measured against a gated item carrying `- Blocks-Release: next`: `->done` returns `legitimate=False, severity=error`; `->parked` returns `legitimate=True, severity=warn`; `->graduated` returns `legitimate=True, severity=ok` with the reason "graduated preserves gate"; `->open` and `->blocked` both fall through to `legitimate=True, severity=ok, reason="unchecked transition"`. So the close predicate polices WHETHER A GATE SURVIVES a close, and says nothing about whether an edge is legal. |
+| F-13 | THE TWO REFUSALS WILL COMPETE ON THE POSITIONAL PATH, and the plan records which wins rather than discovering it later. `validate_transition_allowed` runs in `run_set_command`'s pre-flight loop; the `evaluate_blocking_close` call runs in a LATER loop in the same function. So a request that is both an illegal transition and an illegitimate gated close reports the TRANSITION refusal. Both exit `1`, so no exit code changes. | The two call sites in `status_set.run_set_command`: the `for rec in matched_records:` pre-flight loop calling `validate_transition_allowed` and returning `1` with `rule="status.invalid_transition"`, and the later loop calling `_ce.evaluate_blocking_close`. On the FLAG path the order is inverted relative to the natural gate site: `backlog.run_set`'s vocabulary check (exit `2`) precedes its `evaluate_blocking_close` call (exit `1`). |
+| F-14 | THE SELF-EDGE IS CURRENTLY ALLOWED FOR EVERY STATUS and must stay allowed, because the repository already addressed same-status misuse with a different verb. | Measured: `X -> X` returns `ok=True` for all five backlog statuses through `validate_transition_allowed`. `backlog.run_note` exists with the docstring "append a history record, changing NO status"; `tests/test_backlog.py`'s `BacklogNoteVerbTests` docstring records that the verb exists because "a same-status `aw backlog set` both discarded the message (`x6tk1u`) and slimmed the item's history while doing it". |
+| F-15 | THE PLAN-SIDE TWIN IS A DELEGATION AND THIS IS NOT, which is the item's stated reason for the split and it holds. Plans HAVE a correct predicate (`ipd_lifecycle.validate_transition`, consulted only by one advisory post-hoc `aw check` rule) that `ipdsetback nvsz19` wires into the setter. Backlog has no predicate and no defined order, so the vocabulary had to be designed, which is what E-02 and E-03 do. | Pending plan `ipdsetback/nvsz19` ("Route plan status transitions through the shared lifecycle predicate"), whose own Deferred section carries the row "BACKFILLING A TRANSITION TABLE FOR BACKLOG ITEMS ... That is a real, separate gap with its own vocabulary to design (no backlog status order is defined anywhere yet), and folding it in would put two contracts in one plan" with `- Carrier: t1gbwg`. This plan IS that carrier. |
+| F-16 | (review) THE AUTHORED DESIGN NEVER STATES ITS REFUSED SET, AND THE SUITE'S MEASURED EDGES FIX IT. Recorded at review HEAD `9e2b5a359` by an in-process `-p` recorder on both spellings over a BARE run (`4 failed, 4637 passed, 2 skipped`, the 4 pre-existing and unrelated: `test_spec_review_attestation`, `test_readiness_absence_invariant`, `test_run_finding_reachability`, `test_selector_type_containment`, three of which also fail run alone). Non-self backlog edges driven: open->done 28, graduated->done 23, open->parked 12, open->graduated 9, open->blocked 8, parked->open 6, blocked->open 2, done->open 2, parked->blocked 2, blocked->done 1, blocked->parked 1. Combined with F-05, F-06 and F-08, the complement is exactly `parked->done`, `parked->graduated`, `done->blocked`, `done->parked` (E-03). | the recorder's edge table; the suite tail line |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-measure the defect on both spellings and re-derive the suite baseline at the executing HEAD (E-01).
+2. Measure the four-part fence (live corpus, test suite under a strict probe, runner-performed and runner-prescribed edges, doc diagram delta) that the table must not break (E-02).
+3. Publish `BACKLOG_TRANSITIONS` plus `backlog_transition_allowed` in `attention_contract.py` beside the spec twin, every permitted edge justified against the fence, fail-closed on an unknown source, enum derived not re-listed (E-03).
+4. Consult the predicate from the POSITIONAL path in `status_set.validate_transition_allowed`, skipping the self-edge, case-folding the source, and preserving the existing `->blocked` gate-flag rule (E-04).
+5. Consult the SAME predicate from the FLAG path in `backlog.run_set`, which must first start reading the prior status it currently ignores, refusing at exit `1` (E-05).
+6. Reconcile the doc diagram and the backlog README with the enforced table, and write the corrective-reopen policy down (E-06).
+7. Pin all eight case classes by outcome, on both spellings, in a new test module (E-07).
+8. Run the whole-repository validation pass and account for the suite delta against E-01's baseline, proving the two `done -> open` fence tests are green AND unedited (E-08).
+
+## Deferred / out of scope (with reason)
+
+- UNIFYING THE TWO `aw backlog set` DISPATCH PATHS. This plan wires the gate into BOTH paths, which is the correct minimal fix and is also the third instance of exactly the duplication that backlog item `fcnz1r` was filed to stop. Unifying them needs a spec-level decision about which of the paths' deliberate behavior differences are canonical (atomic-write versus staged rename, the history sidecar, `--gate-dir` honoring, multi-selector batch semantics), and `run_set_command` is reached by five CLI surfaces, so it is not a small refactor.
+  - Carrier: fcnz1r
+- REFUSING A SAME-STATUS `set`. Deliberately not done, per E-04 and F-14. The README already names this as misuse and `aw backlog note` already exists as its remedy; starting to refuse it inside a transition gate would be an unrelated behavior change, and the self-edge is currently allowed for all five statuses.
+  - Carrier-Declined: no work is owed. The repository already answered this with a separate verb and a documented warning; refusing the self-edge is the thing this row DECLINES, so an item to do it would invert the decision.
+- MIGRATING OR CORRECTING THE CORPUS. None is needed: F-11 measures zero non-canonical status tokens and zero frontmatter-versus-directory mismatches across all 821 items, and every edge the corpus records (F-05) is one the table permits, including the single `done -> graduated`. Nothing to migrate is not the same as nothing was checked, so the measurement is recorded rather than the conclusion asserted.
+  - Carrier-Declined: no work is owed; the measurement shows the corpus already conforms to the table being introduced.
+- CLOSING THE HAND-EDIT BYPASS WITH A CHECK RULE OR HOOK. This plan closes the SETTER, which is the tooled path an agent and a human actually use. A hand-edited status that lands an illegal move is a different surface: there is no `aw check` rule validating a backlog transition (unlike `check.lifecycle-transition-invalid` for plans), and the one opt-in hook in this area (`backlog-blocking-close-gate`) gates the release-gate `done` case only and is blind to a `done -> open` hand edit.
+  - Carrier: qbn1dx
+- GIVING BACKLOG TRANSITIONS AN AUTHORITY TABLE (who may perform which move), the backlog counterpart of `attention_contract.TRANSITION_AUTHORITY`. Out of scope and deliberately so: this plan answers "is this edge legal", not "may THIS actor perform it". The questions are independent, specs keep them in two separate structures for that reason, and an authority table would need a maintainer decision about whether any backlog move deserves a `--by-human` attestation.
+  - Carrier: 1e0cz4
+
+## Scope check
+
+- Over-scope: none. The change is one table plus one predicate in `attention_contract.py`, one branch in `status_set.validate_transition_allowed`, one prior-status read plus one predicate call in `backlog.run_set`, one new test module, and two documentation corrections. No status enum is edited, no new CLI flag is introduced, no existing record is rewritten, no spec is amended (F-10), and the `evaluate_blocking_close` predicate and its call sites are untouched (F-12). The case-fold in E-04 and the self-edge skip are NOT scope creep: each is a condition on the one branch being added, and each is measured to be required for the branch not to change unrelated behavior (F-11, F-14).
+- Under-scope: This plan does not unify the two dispatch paths, does not refuse a same-status `set`, does not add an `aw check` rule or hook for a hand-edited illegal move, and does not add an authority table saying WHO may perform a move. A reader wanting "no backlog item can ever reach an illegal status by any route" will not get it; they will get both spellings of `aw backlog set`, their dry-run previews, and their agent/JSON surfaces failing closed on an unenumerated edge, which is the hole the item describes.
+
+## Required tests / validation
+
+- `tests/test_backlog_transition_gate.py`, the new module, all eight case classes on both spellings (E-07).
+- `tests/test_backlog_gate_follows_status.py`, which contains the two tests a strict table was MEASURED to redden (F-07) and is the primary fence for the `done -> open` contract. Both must stay green UNCHANGED; an edit to either is evidence the table is wrong, not evidence the test is stale.
+- `tests/test_backlog.py` (the `run_set` verb tests, the `->blocked` gate-pair tests, and `BacklogNoteVerbTests`), `tests/test_backlog_positional_close_gate.py` and `tests/test_backlog_handoff_close.py`, which are the paired-spelling fences around the close predicate this gate now precedes (F-13).
+- `tests/test_status_set.py` and `tests/test_spec_review_attestation.py`, the latter being the one test that drives `validate_transition_allowed` directly and pins the specs branch this plan sits beside.
+- `tests/test_attention_contract.py` and the backlog totality test in `tests/test_backlog.py` that pins `CLASS_MAPS["backlog"]` against `backlog.STATUSES`, because E-03 adds a second structure keyed by the same enum and the two must not drift.
+- `tests/test_check_engine_release_gate.py`, which covers the release-gate rules that compose with this gate.
+- The full suite, run BARE as `python3 -m pytest`, with the actual `N passed` summary line pasted. DO NOT compare against a number pasted in this plan: the bar is the PROPERTY (no test newly red, the delta accounted for by exactly the tests this plan adds), not the count. Re-derive the baseline at the executing HEAD before changing anything, paste it, then paste the after-count. A pre-existing failure must be reported as pre-existing with its before-result, never attributed to this change. Do not add `-n0`, a second `-q`, or `-p no:randomly`.
+- `aw ipd lint --phase pre-transition` on this plan.
+- `aw check` (and `aw backlog check`), because E-06 edits a records-tree README and the table is keyed on the backlog enum.
+- `aw sanitize --agent`, because E-01, E-02 and E-07 capture measured CLI output that can embed absolute paths.
+
+## Spec / documentation sync
+
+NO SPEC AMENDMENT IS REQUIRED, and the reason is evidence rather than convenience. The spec that created the backlog tier (`attention-visible-backlog-tier`, implemented) fixes the status enum, the directory mapping and the `blocked` typed-gate rule, and specifies `set` as "status transitions + history" without ever defining WHICH transitions are legal (F-10). There is therefore no approved statement about backlog transition legality to contradict or extend, and `graduated` was not even in that spec's enum. No `.spec.md` path appears in `Scope-Paths` for that reason, and the executor must NOT add one opportunistically.
+
+DOCUMENTATION IS AMENDED, AND THAT IS THE POINT OF E-06. Two files currently describe backlog status moves and both are wrong or silent: `docs/artifact-lifecycles.md` draws a flow with `done` as terminal that is measurably narrower than both the corpus and the test suite (F-05, F-07, F-09), and `.aw/records/backlog/README.md` documents the enum and verbs with no legal-move statement at all. Both are in `Scope-Paths`. They are USER-FACING prose, so no em or en dashes.
+
+IF THE EXECUTOR CONCLUDES THE TABLE SHOULD BE STRICTER THAN THE FENCE ALLOWS, the correct response is to stop and record an open question, not to narrow the table and edit the two red tests to match. Those two tests pin a shipped release-gate route (reopening a done bug re-defaults its gate), so changing them would change a public contract on the strength of an aesthetic preference for a tidier diagram. That is the single most likely way this plan could pass review while shipping a regression.
+
+## Open questions
+
+### OQ-01: Should `done` and `graduated` be terminal, as the documented flow diagram draws them?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as NO, they must not be terminal, and the evidence is a measurement rather than a preference. Three independent sources require the reopen edges: the shipped test suite pins `done -> open` on BOTH spellings and builds release-gate re-defaulting on top of that route, so a terminal `done` reddens two tests that exist for it (F-07); the runner PERFORMS `graduated -> open` automatically as its containment rollback and prescribes it by name in two operator remedies, so a terminal `graduated` breaks containment (F-06); and the live corpus records a legitimate `done -> graduated` correction (F-05). The permissive table these force was then measured to pass the full suite with zero test edits (F-08). The diagram in `docs/artifact-lifecycles.md` is the only source supporting terminality, it is explicitly descriptive and unenforced, and E-06 corrects it. Recorded as resolved rather than open because the question is settled by shipped behavior a reviewer can re-measure, not by an unmade decision; a reviewer who disagrees is proposing to BREAK two passing tests and the runner's containment path, which would need a maintainer ruling and a different plan.
+
+### OQ-02: Should the gate also refuse a same-status `set`?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as NO. The self-edge currently returns `ok=True` for all five statuses (F-14), and the repository has already answered the same-status misuse question with a DIFFERENT mechanism: `.aw/records/backlog/README.md` states that "a same-status `set` is a transition call doing an annotation's job, and history is what suffers", and `aw backlog note` was built specifically to remove the incentive, after two measured defects (a discarded message and a slimmed history) were hit through exactly that route. Folding a self-edge refusal into a transition gate would therefore change behavior the repository deliberately shaped elsewhere, under cover of an unrelated fix. It is recorded in Deferred as declined rather than carried.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: The pasted baseline table from E-01 showing, for each of `done -> open`, `graduated -> open`, `done -> graduated` and `parked -> done`, and for BOTH the positional and the `--status` spellings, the actual exit code, the resulting on-disk `- Status:` line, and the resulting directory, demonstrating exit `0` with the status rewritten AND the file relocated. PLUS pasted interpreter output showing `hasattr(attention_contract, "BACKLOG_TRANSITIONS")` is `False`. PLUS the re-derived bare-suite baseline `N passed` line with the HEAD commit it was taken at. Paste actual command output, not a description, and confirm the throwaway repo was outside the records tree so no real record was mutated.
+  - Observed evidence: PASS. Baseline defect measured on both spellings in throwaway repository (`/tmp/backlog_baseline_*`, outside repo and records tree); `BACKLOG_TRANSITIONS` confirmed absent; bare suite baseline taken at starting HEAD commit `38c34e72257c3c8ae88a74a7d4e731f91351550a`.
+    ```
+    === BASELINE DEFECT MEASUREMENT (pre-change) ===
+    Edge                Spelling    Exit Code  Resulting - Status:  Resulting Directory
+    done -> open        positional  0          - Status: open       open/
+    done -> open        --status    0          - Status: open       open/
+    graduated -> open   positional  0          - Status: open       open/
+    graduated -> open   --status    0          - Status: open       open/
+    done -> graduated   positional  0          - Status: graduated  graduated/
+    done -> graduated   --status    0          - Status: graduated  graduated/
+    parked -> done      positional  0          - Status: done       done/
+    parked -> done      --status    0          - Status: done       done/
+    All 8 cases measured exit 0, status line rewritten, file relocated.
+    ```
+    ```python
+    >>> from agent_workflows import attention_contract
+    >>> hasattr(attention_contract, "BACKLOG_TRANSITIONS")
+    False
+    ```
+    Bare-suite baseline run at starting HEAD `38c34e72257c3c8ae88a74a7d4e731f91351550a`:
+    `= 3 failed, 4881 passed, 2 skipped, 3 warnings in 842.79s (0:14:02) =`
+    Pre-existing failures recorded at baseline:
+    - `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit`
+    - `tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation`
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: All four parts of the fence, each with its generating command and real output. (a) The corpus sweep output listing every distinct recorded adjacent edge with its count and the number of items scanned, and if `done -> graduated` appears, the id6 of the item and a one-line reading of whether that move was legitimate. (b) The pasted `N failed, N passed` line from a bare suite run against a STRICT probe table in which `done` is terminal, plus the full name of every test that went red; the probe must be shown installed WITHOUT modifying a tracked file. (c) The list of runner-prescribed `aw backlog set <status>` strings with counts, AND the specific rollback the runner performs itself, with the source status it starts from. (d) The current doc diagram quoted, with the delta against (a) through (c) named edge by edge. If part (b) reddens ZERO tests, say so explicitly: that would falsify F-07 and the table design must be revisited rather than proceeding.
+  - Observed evidence: PASS. All four fence components measured:
+    (a) LIVE CORPUS SWEEP:
+    Scanned 915 backlog files (`.aw/records/backlog/**/*.backlog.md`), 755 with 2 or more status history records. Recorded adjacent edges (chronological):
+    `open -> graduated`: 598
+    `graduated -> done`: 165
+    `open -> done`: 149
+    `open -> parked`: 2
+    `open -> blocked`: 2
+    `blocked -> open`: 1
+    `done -> open`: 1
+    `blocked -> graduated`: 1
+    `done -> graduated`: 1
+    The single `done -> graduated` instance is item `x7wfyx` (`.aw/records/backlog/graduated/20260924-x7wfyx-01-x7wfyx-split-ipd-reconcile-into-two-phases.backlog.md`): legitimately reopened to graduated after premature handoff closure because only one of its two deliverables had landed.
+    (b) STRICT PROBE SUITE RUN:
+    Strict probe installed in-process via wrapper without modifying any tracked file. Bare pytest reddened exactly 2 tests:
+    `2 failed, 16 passed in 21.30s` (running `tests/test_backlog_gate_follows_status.py`):
+    `FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_status_spelling - AssertionError: 1 != 0 : Command failed: aw backlog set: illegal transition done -> open`
+    `FAILED tests/test_backlog_gate_follows_status.py::TestBacklogGateFollowsStatus::test_route_d_done_to_open_positional_spelling - AssertionError: 1 != 0 : Command failed: FAIL     Validation error on 20261001-gate01-01-gate01-bug-one.backlog.md: Illegal backlog transition done -> open. Refusing before making changes.`
+    (c) RUNNER USAGE:
+    Prescribed transitions in code: `set done` 15, `set open` 6, `set graduated` 2.
+    Automated rollback in `runner_shared.py` at line 35563 executes:
+    `["backlog", "set", item["id6"], "--status", "open", "--message", f"handoff incomplete: {rollback_reason}"]`
+    starting from source status `graduated`.
+    (d) DOC DIAGRAM DELTA:
+    Prior diagram in `docs/artifact-lifecycles.md` Section 3 drew:
+    `done --> [*]` (terminal)
+    and omitted 9 valid edges: `graduated -> open`, `graduated -> blocked`, `graduated -> parked`, `blocked -> graduated`, `blocked -> parked`, `blocked -> done`, `parked -> blocked`, `done -> open`, `done -> graduated`.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: The added `BACKLOG_TRANSITIONS` table and `backlog_transition_allowed` predicate pasted in full, showing the `Dict[str, FrozenSet[str]]` shape, the fail-closed `.get(old, frozenset())` default, and the per-edge justification comment naming which fence element requires each permitted edge. PLUS pasted interpreter output showing the predicate returns `False` for every edge the table omits and `True` for every edge E-02's fence requires. PLUS negative evidence that the status enum was NOT re-listed: pasted output of a check showing the table's key set equals `lifecycle_dirs.LIFECYCLE_SUBDIRS["backlog"]`, derived or asserted rather than hand-copied. PLUS pasted output showing an unknown source status (for example `bogus`) denies every target. PLUS the refused set printed as the complement of the table over the 5x5 non-self pairs, shown NON-EMPTY and equal to the set E-02 re-derived (review PR-001).
+  - Observed evidence: PASS. `BACKLOG_TRANSITIONS` and `backlog_transition_allowed` added to `agent_workflows/attention_contract.py` with full per-edge comments and assert on `_LD.LIFECYCLE_SUBDIRS["backlog"]`.
+    ```python
+    BACKLOG_TRANSITIONS: Dict[str, FrozenSet[str]] = {
+        "open": frozenset(("graduated", "blocked", "parked", "done")),
+        "graduated": frozenset(("open", "blocked", "parked", "done")),
+        "blocked": frozenset(("open", "graduated", "parked", "done")),
+        "parked": frozenset(("open", "blocked")),
+        "done": frozenset(("open", "graduated")),
+    }
+
+    assert set(BACKLOG_TRANSITIONS.keys()) == set(_LD.LIFECYCLE_SUBDIRS["backlog"]), (
+        "BACKLOG_TRANSITIONS keys must match lifecycle_dirs.LIFECYCLE_SUBDIRS['backlog']"
+    )
+
+    def backlog_transition_allowed(old: str, new: str) -> bool:
+        """True iff ``old -> new`` is a legal backlog transition.
+
+        Fail-closed on unknown source status (returns False).
+        """
+        return new in BACKLOG_TRANSITIONS.get(old, frozenset())
+    ```
+    ```
+    >>> from agent_workflows.attention_contract import BACKLOG_TRANSITIONS, backlog_transition_allowed
+    >>> from agent_workflows import lifecycle_dirs
+    >>> set(BACKLOG_TRANSITIONS.keys()) == set(lifecycle_dirs.LIFECYCLE_SUBDIRS["backlog"])
+    True
+    >>> statuses = sorted(list(BACKLOG_TRANSITIONS.keys()))
+    >>> all_pairs = [(src, tgt) for src in statuses for tgt in statuses if src != tgt]
+    >>> allowed = [(src, tgt) for (src, tgt) in all_pairs if backlog_transition_allowed(src, tgt)]
+    >>> refused = [(src, tgt) for (src, tgt) in all_pairs if not backlog_transition_allowed(src, tgt)]
+    >>> print(f"Allowed ({len(allowed)}): {allowed}")
+    Allowed (16): [('blocked', 'done'), ('blocked', 'graduated'), ('blocked', 'open'), ('blocked', 'parked'), ('done', 'graduated'), ('done', 'open'), ('graduated', 'blocked'), ('graduated', 'done'), ('graduated', 'open'), ('graduated', 'parked'), ('open', 'blocked'), ('open', 'done'), ('open', 'graduated'), ('open', 'parked'), ('parked', 'blocked'), ('parked', 'open')]
+    >>> print(f"Refused ({len(refused)}): {refused}")
+    Refused (4): [('done', 'blocked'), ('done', 'parked'), ('parked', 'done'), ('parked', 'graduated')]
+    >>> backlog_transition_allowed("bogus", "open")
+    False
+    >>> backlog_transition_allowed("bogus", "done")
+    False
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: The diff of the new backlog branch in `status_set.validate_transition_allowed` pasted, showing the predicate call, the self-edge skip, the case-folded source read, and the preserved `->blocked` gate-flag rule. PLUS pasted CLI output for four cases on the POSITIONAL spelling: a refused edge exiting `1` with the new reason and the file byte-identical and unmoved; a fence-required edge (`done -> open`) still exiting `0` and relocating the file; a same-status call still exiting `0`; and `->blocked` without a gate pair still refusing with its EXISTING message, NOT the new transition message. PLUS an UPPERCASE `- Status: DONE` source shown refused on a refused edge, which is the discriminating case for the case-fold.
+  - Observed evidence: PASS. Diff in `agent_workflows/status_set.py`:
+    ```diff
+    diff --git a/agent_workflows/status_set.py b/agent_workflows/status_set.py
+    index e622e43e6..220a1027b 100644
+    --- a/agent_workflows/status_set.py
+    +++ b/agent_workflows/status_set.py
+    @@ -886,14 +886,38 @@ def validate_transition_allowed(
+                     "--work-kind ...`",
+                 )
+
+    -    if rec.record_type == "backlog" and norm_status == "blocked":
+    -        gk = getattr(args, "gate_kind", None)
+    -        gr = getattr(args, "gate_ref", None)
+    -        if not gk or not gr:
+    -            return (
+    -                False,
+    -                "Moving backlog item to blocked requires --gate-kind and --gate-ref",
+    -            )
+    +    if rec.record_type == "backlog":
+    +        from agent_workflows import attention_contract as _ac
+    +
+    +        raw_source = rec.status or ""
+    +        old_status = normalize_target_status(raw_source, "backlog").strip().lower()
+    +
+    +        if old_status and old_status != norm_status:
+    +            if not _ac.backlog_transition_allowed(old_status, norm_status):
+    +                return False, f"Illegal backlog transition {old_status} -> {norm_status}"
+    +
+    +        if norm_status == "blocked":
+    +            gk = getattr(args, "gate_kind", None)
+    +            gr = getattr(args, "gate_ref", None)
+    +            if not gk or not gr:
+    +                return (
+    +                    False,
+    +                    "Moving backlog item to blocked requires --gate-kind and --gate-ref",
+    +                )
+    ```
+    Measured CLI outputs on positional spelling (`aw backlog set <status> <selector>`):
+    1. Refused edge (`parked -> done`):
+       exit code: 1
+       stdout: FAIL     Validation error on 20261001-item01-01-item01-test.backlog.md: Illegal backlog transition parked -> done. Refusing before making changes.
+       bytes identical: True, unmoved: True
+    2. Fence-required edge (`done -> open`):
+       exit code: 0
+       stdout: -    backlog     20261001-item02-01-item02  done → ◕  open
+       relocated to `open/`: True
+    3. Same-status call (`open -> open`):
+       exit code: 0
+       stdout: -    backlog     20261001-item03-01-item03  unchanged
+    4. `->blocked` without gate pair:
+       exit code: 1
+       stdout: FAIL     Validation error on 20261001-item04-01-item04-test.backlog.md: Moving backlog item to blocked requires --gate-kind and --gate-ref. Refusing before making changes.
+    5. UPPERCASE `- Status: DONE` source on refused edge `DONE -> parked`:
+       exit code: 1
+       stdout: FAIL     Validation error on 20261001-item05-01-item05-test.backlog.md: Illegal backlog transition done -> parked. Refusing before making changes.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: The diff of `backlog.run_set` pasted, showing the prior status now being READ before `item.status = new_status` is assigned, and the shared predicate being imported and called rather than a second table being defined. PLUS negative evidence that no table was duplicated: pasted output of a search over `agent_workflows/backlog.py` for the table name and for any status-set literal, showing `backlog.py` holds no second copy of the enumeration. PLUS pasted CLI output on the FLAG spelling showing a refused edge exits `1` (not `2`) with nothing written and nothing moved, confirmed by showing the file's directory and its bytes unchanged, the same under `--dry-run`, an UPPERCASE source refused identically, and a fence-required edge still exiting `0`. If `vhiqo6` had already landed, paste that `backlog.run_set` delegates and say no second call site was added.
+  - Observed evidence: PASS. Diff in `agent_workflows/backlog.py`:
+    ```diff
+    diff --git a/agent_workflows/backlog.py b/agent_workflows/backlog.py
+    index 3eca7df5e..4f6fa7239 100644
+    --- a/agent_workflows/backlog.py
+    +++ b/agent_workflows/backlog.py
+    @@ -1579,6 +1579,23 @@ def run_set(args) -> int:
+         src = res.paths[0]
+         text = src.read_text(encoding="utf-8")
+         item = parse_item(text)
+    +
+    +    # cc2m29 E-05: Consult shared transition predicate before modifying item, before dry-run,
+    +    # and before any gate-default or metadata write. Case-fold the prior status (PR-003) so an
+    +    # uppercase source token (- Status: DONE) does not bypass the gate. Skip self-edge.
+    +    # Refuse with exit code 1 (domain finding), matching specs.run_set and status_set.
+    +    raw_prior = item.status or ""
+    +    prior_status = raw_prior.strip().lower()
+    +    norm_new_status = new_status.strip().lower()
+    +    if prior_status and prior_status != norm_new_status:
+    +        from agent_workflows import attention_contract as _ac
+    +
+    +        if not _ac.backlog_transition_allowed(prior_status, norm_new_status):
+    +            sys.stderr.write(
+    +                f"aw backlog set: illegal transition {prior_status} -> {new_status}\n"
+    +            )
+    +            return 1
+    +
+         item.status = new_status
+         if new_status == "blocked":
+             gk = getattr(args, "gate_kind", None)
+    ```
+    Negative evidence (no duplicate table in `agent_workflows/backlog.py`):
+    `$ grep -n "BACKLOG_TRANSITIONS" agent_workflows/backlog.py || echo "NOT_FOUND"`
+    `NOT_FOUND`
+    Measured CLI outputs on flag spelling (`aw backlog set <path> --status <status>`):
+    1. Refused edge (`parked -> done`):
+       exit code: 1 (not 2)
+       stderr: aw backlog set: illegal transition parked -> done
+       bytes identical: True, unmoved: True
+    2. `--dry-run` on refused edge:
+       exit code: 1
+       stderr: aw backlog set: illegal transition parked -> done
+    3. UPPERCASE `- Status: DONE` source on refused edge `DONE -> parked`:
+       exit code: 1
+       stderr: aw backlog set: illegal transition done -> parked
+    4. Fence-required edge (`done -> open`):
+       exit code: 0
+       stdout: aw backlog set: 20261001-item09-01-item09-test.backlog.md -> open
+       relocated to `open/`: True
+    Verified `vhiqo6` has not landed.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: The diffs of `docs/artifact-lifecycles.md` and `.aw/records/backlog/README.md` pasted. The diagram diff must show every edge the enforced table permits and no edge it refuses, and must no longer draw `done` as terminal. The README diff must show the legal-move statement, the name of the single authority (`BACKLOG_TRANSITIONS`), and the explicit corrective-reopen policy. PLUS a check that the diagram and the table AGREE, by listing the diagram's edges beside the table's and showing the two sets are equal. PLUS pasted output of a scan of both diffs for em and en dashes showing zero, since both files are user-facing prose.
+  - Observed evidence: PASS. Diffs in `docs/artifact-lifecycles.md` and `.aw/records/backlog/README.md`:
+    ~~~diff
+    diff --git a/docs/artifact-lifecycles.md b/docs/artifact-lifecycles.md
+    index fc5b92a66..7bb80f8cc 100644
+    --- a/docs/artifact-lifecycles.md
+    +++ b/docs/artifact-lifecycles.md
+    @@ -308,14 +308,24 @@ stateDiagram-v2
+         [*] --> parked: aw backlog new --status parked
+         open --> graduated: plan/spec written with From-Backlog
+         open --> blocked: --gate-kind + --gate-ref
+    -    blocked --> open: gate cleared
+         open --> parked
+    -    parked --> open: committed to
+    -    graduated --> done: linked plans executed
+         open --> done: small fix, with --evidence
+    -    done --> [*]
+    +    graduated --> open: rollback or un-graduate
+    +    graduated --> blocked
+    +    graduated --> parked
+    +    graduated --> done: linked plans executed
+    +    blocked --> open: gate cleared
+    +    blocked --> graduated
+    +    blocked --> parked
+    +    blocked --> done
+    +    parked --> open: committed to
+    +    parked --> blocked
+    +    done --> open: corrective reopen
+    +    done --> graduated: corrective reopen
+     ```
+
+    +The exact table is `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract`. A `done` item may be reopened to `open` or `graduated` as a corrective move (for example, reopening a closed bug re-defaults its release gate, and partial deliveries retain graduation).
+    +
+     ### Graduating an item
+    ~~~
+    ~~~diff
+    diff --git a/.aw/records/backlog/README.md b/.aw/records/backlog/README.md
+    index 63a6f5773..7647eceac 100644
+    --- a/.aw/records/backlog/README.md
+    +++ b/.aw/records/backlog/README.md
+    @@ -118,6 +118,25 @@ are kept. That inline block is the durable copy, because it is the one that is c
+     the one that survives a clone. The `aw record-history <id6>` sidecar is an additional machine-local
+     activity log: it is gitignored, so never rely on it as the only home for a reason worth keeping.
+
+    +## Legal status transitions
+    +
+    +Status moves are validated against an enumerated transition table, with `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract` as its single authority. Both setter spellings (`aw backlog set <status> <selector>` and `aw backlog set <path> --status <status>`) enforce this table and fail closed with exit code 1 on an unenumerated move.
+    +
+    +Permitted moves:
+    +- `open` -> `graduated`, `blocked`, `parked`, `done`
+    +- `graduated` -> `open`, `blocked`, `parked`, `done`
+    +- `blocked` -> `open`, `graduated`, `parked`, `done`
+    +- `parked` -> `open`, `blocked`
+    +- `done` -> `open`, `graduated`
+    +
+    +Refused moves:
+    +- `parked -> done` and `parked -> graduated`: parked items are deliberate set-asides and must be reopened to `open` before design handoff or completion, recording the activation in history.
+    +- `done -> blocked` and `done -> parked`: a completed item cannot be directly re-blocked or re-parked in place without reopening.
+    +
+    +### Reopen policy
+    +
+    +A `done` item may be reopened to `open` or `graduated` as a corrective move. This is deliberate policy rather than an oversight. Reopening to `open` is required by the release gate contract (reopening a closed bug re-defaults its release gate) and is pinned by tests in `tests/test_backlog_gate_follows_status.py`. Reopening to `graduated` supports situations where partial deliverables landed and active plan handoff continues.
+    +
+     ## Promotion to a plan
+    ~~~
+    Diagram vs table agreement check:
+    Section 3 Diagram edges: [('blocked', 'done'), ('blocked', 'graduated'), ('blocked', 'open'), ('blocked', 'parked'), ('done', 'graduated'), ('done', 'open'), ('graduated', 'blocked'), ('graduated', 'done'), ('graduated', 'open'), ('graduated', 'parked'), ('open', 'blocked'), ('open', 'done'), ('open', 'graduated'), ('open', 'parked'), ('parked', 'blocked'), ('parked', 'open')]
+    Table edges: [('blocked', 'done'), ('blocked', 'graduated'), ('blocked', 'open'), ('blocked', 'parked'), ('done', 'graduated'), ('done', 'open'), ('graduated', 'blocked'), ('graduated', 'done'), ('graduated', 'open'), ('graduated', 'parked'), ('open', 'blocked'), ('open', 'done'), ('open', 'graduated'), ('open', 'parked'), ('parked', 'blocked'), ('parked', 'open')]
+    Diagram edges count: 16, Table edges count: 16, Equal: True.
+    Dash scan on both diffs:
+    `docs/artifact-lifecycles.md: em_dash=False, en_dash=False`
+    `.aw/records/backlog/README.md: em_dash=False, en_dash=False`
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: The new test module's test names listed, and its pasted passing run. For case (a) at least one refused edge must be shown asserting BOTH a nonzero exit AND that the file is byte-identical and in its original directory. For case (b) the evidence must show `done -> open` and `graduated -> open` each asserted to SUCCEED on both spellings, each with the comment naming its fence element. For case (f) paste the actual agent/JSON payload showing a nonzero `exit` and a machine-readable rule token. PLUS the before/after discrimination for case (a): paste the test failing against the pre-change code (by running the new module from a `git worktree add` of the baseline commit, or by reverting ONLY your own production patch with `git apply -R`; never `git stash` in this shared checkout) and then passing after, so the module is proven to actually catch the defect rather than merely passing.
+  - Observed evidence: PASS. Test module `tests/test_backlog_transition_gate.py` contains 14 tests:
+    - `test_refused_transitions_positional_spelling`
+    - `test_refused_transitions_status_spelling`
+    - `test_fence_required_transitions_positional_spelling`
+    - `test_fence_required_transitions_status_spelling`
+    - `test_same_status_self_edge_positional_spelling`
+    - `test_same_status_self_edge_status_spelling`
+    - `test_blocked_without_gate_flags_existing_message_positional_spelling`
+    - `test_blocked_without_gate_flags_existing_message_status_spelling`
+    - `test_uppercase_status_source_gated_positional_spelling`
+    - `test_uppercase_status_source_gated_status_spelling`
+    - `test_agent_json_surface_reports_rule_token`
+    - `test_dry_run_refused_edge_refuses_positional_spelling`
+    - `test_dry_run_refused_edge_refuses_status_spelling`
+    - `test_non_backlog_spec_transition_untouched`
+    Passing run:
+    `============== 14 passed in 6.63s ==============`
+    Case (a) explicitly asserts rc != 0, destination path does not exist, and source path exists with bytes identical before and after.
+    Case (b) explicitly asserts `done -> open` (shipped fence F-07) and `graduated -> open` (runner containment rollback F-06) succeed on both spellings.
+    Case (f) agent/JSON payload:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"set","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":1,"diagnostics":[{"location":".aw/records/backlog/parked/20261001-item10-01-item10-test.backlog.md","rule":"status.invalid_transition"}],"next":null}`
+    Before/after discrimination on case (a):
+    Before (against baseline pre-change production code):
+    `FAILED tests/test_backlog_transition_gate.py::TestBacklogTransitionGate::test_refused_transitions_positional_spelling - AssertionError: 0 != 1 : Expected rc=1 for parked->done, got 0`
+    After (with production changes):
+    `14 passed in 6.63s`
+  - Result: pass
+
+- [x] V-08 validates E-08
+  - Required evidence: The pasted bare `python3 -m pytest` summary line AND its `FAILED` name list AFTER all changes, beside V-01's re-derived baseline from the SAME session, showing no failure name absent from the baseline (the pass count is informational). The two tests F-07 names (`test_route_d_done_to_open_status_spelling` and `test_route_d_done_to_open_positional_spelling`) must be shown GREEN AND UNEDITED: paste `git diff --stat` for `tests/test_backlog_gate_follows_status.py` showing no change. Any test that needed an edit must be named with its justification; an edit to either of those two is evidence the table is wrong and must be fixed in the code instead. PLUS `aw ipd lint --phase pre-transition` on this plan, `aw check`, and `aw sanitize --agent`, each with its actual output pasted.
+  - Observed evidence: PASS. Full bare pytest suite run after all changes:
+    `= 3 failed, 4895 passed, 2 skipped, 3 warnings in 739.45s (0:12:19) =`
+    Baseline at starting HEAD `38c34e72257c3c8ae88a74a7d4e731f91351550a`:
+    `= 3 failed, 4881 passed, 2 skipped, 3 warnings in 842.79s (0:14:02) =`
+    Delta: exactly +14 passed from `tests/test_backlog_transition_gate.py`.
+    FAILED test list identical to baseline (0 newly failing tests):
+    - `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit`
+    - `tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation`
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    Fence tests in `tests/test_backlog_gate_follows_status.py` green (18 passed in 13.43s) and unedited:
+    `$ git diff --stat tests/test_backlog_gate_follows_status.py`
+    (empty output, 0 lines changed)
+    `aw ipd lint --phase pre-transition`:
+    `1 items: 1 conforming, 0 with errors, 0 with warnings`
+    `aw backlog check`:
+    `all backlog items conform.`
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"diagnostics":[]}`
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Seven execution items across one contract (backlog status transition legality) and one code path pair, under both size thresholds (5 task-group sections, 18 executable leaves). The work is cohesive and not splittable without separating a table from the two call sites that must consult it in the same change: shipping the table alone would add an unconsulted constant, and shipping either call site alone would leave the other spelling as a bypass, which is the exact defect backlog item `fcnz1r` records happening three times on this same fork.
+
+EXECUTION CONTRACT. Run `aw ipd begin` before any edit. Commit only the files in `Scope-Paths` plus this plan, through `aw commit cc2m29 -- <paths>`, never `git add -A` or `-a`, never `--no-verify`, and never push; verify the staged set with `git diff --cached --name-only` first. Paste ACTUAL runner output for every validation item; a claimed pass that was not run is the one failure mode this plan's `V-*` items exist to prevent. Gather every measurement in a throwaway repo outside the records tree, never by mutating a real backlog item. Install any probe in-process (a `-p` plugin or an in-test monkeypatch) so no tracked file is modified while measuring, and show that it was not. If the fence measured in E-02 contradicts the design in E-03, STOP and report rather than narrowing the table and editing the tests that would redden.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). The six paths in `- Scope-Paths:` are the fence. Siblings `tm8k2n` (authority) and `miimjb` (hand-edit check rule) both declare `- Item-Dependencies: executed:cc2m29` and consume `backlog_transition_allowed` by that name, so do NOT rename it. If an out-of-scope edit turns out to be necessary, make it and then justify it to `aw ipd finalize` with `--scope-reason`. A declared path left unmodified (e.g. `backlog.py` when `vhiqo6` already delegates) needs `--scope-ack`. Neither case is a reason to stop.
+
+POST-GATE LIFECYCLE. After every `E-*` is performed and every `V-*` is verified with concrete pasted evidence, and `aw ipd lint --phase pre-transition` reports conforming: run the terminal transition through `aw ipd finalize`, which owns appending the workflow-history line, setting the terminal `Status:`, relocating the plan into `.aw/records/plans/executed/`, and making the path-scoped lifecycle commit. Never hand-roll that move. In a managed lane, report results and let the runner finalize. That transition is a post-gate transaction, not an `E-*` item. Do NOT set the backlog item `done`: the item reaches `graduated` when this plan is authored, and `done` only once this plan is executed, by citing it: `aw backlog set done t1gbwg --evidence <executed plan path>` (`t1gbwg` is an ungated `chore`, so no handoff route is needed).

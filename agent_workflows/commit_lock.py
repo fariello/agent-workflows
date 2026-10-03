@@ -131,6 +131,10 @@ class IsolatedCommitResult(NamedTuple):
     whose positional contract existing callers rely on: a field inserted in the middle would silently
     reassign every unpack.
 
+    ``abandoned`` carries the stranded commit shas (if any) retained under
+    ``refs/aw/abandoned/isolated/`` during a raced compare-and-swap attempt. Also appended with
+    default empty tuple for positional contract compatibility.
+
     NEITHER FIELD IS COSMETIC. A retry commits content the CALLER DID NOT WRITE (the hook's fix), so
     a silent absorption would hide a mutation, which is the class of harm the research README records.
     """
@@ -140,6 +144,7 @@ class IsolatedCommitResult(NamedTuple):
     detail: str
     hook_fixed: tuple = ()
     hook_fixed_diverged: tuple = ()
+    abandoned: tuple = ()
 
 
 ISO_COMMITTED = "committed"
@@ -454,15 +459,34 @@ def commit_isolated(
         # than silently discarding their work.
         rc, _o, err = _git(repo_root, ["update-ref", ref, new, base])
         if rc != 0:
+            # RETAIN THE STRANDED COMMIT BEFORE RETURNING (E-03).
+            # The ordering is required because statements after return do not execute, NOT because
+            # teardown destroys the commit object (a linked worktree shares the repository's object db
+            # and objects survive worktree removal and pruning, F-17).
+            # Retention is fail-soft: if update-ref fails, report honest absence rather than raising.
+            ref_name = abandoned_ref_name(new, kind="isolated")
+            rc_r, _or, _err_r = _git(repo_root, ["update-ref", ref_name, new])
+            if rc_r == 0:
+                retention_text = (
+                    f"the commit is retained at {ref_name}; inspect with `git show {ref_name}` "
+                    "to compare against the working tree"
+                )
+                abandoned = (new,)
+            else:
+                retention_text = f"commit {new[:12]} was NOT retained under a ref; git fsck is the only recovery route"
+                abandoned = ()
+
+            detail = (
+                f"another commit landed on {branch} while this one was being prepared, so the "
+                f"branch was NOT moved ({retention_text}). git said: {err.strip()}"
+            )
             return IsolatedCommitResult(
                 ISO_RACED,
                 new,
-                (
-                    f"another commit landed on {branch} while this one was being prepared, so the "
-                    f"branch was NOT moved (the work is preserved as commit {new[:12]}; cherry-pick "
-                    f"or retry). git said: {err.strip()}"
-                ),
+                detail,
                 hook_fixed,
+                (),
+                abandoned,
             )
 
         # RECONCILE THE SHARED TREE WITH WHAT WAS ACTUALLY COMMITTED, for the hook-fixed paths only.
@@ -510,6 +534,7 @@ def commit_isolated(
             ISO_COMMITTED, new, detail, hook_fixed, tuple(diverged)
         )
     finally:
+        _prune_abandoned_refs(repo_root)
         _git(repo_root, ["worktree", "remove", "--force", str(wt)])
         if wt.exists():
             shutil.rmtree(wt, ignore_errors=True)
@@ -531,19 +556,26 @@ class WorktreeCommit(NamedTuple):
 
 
 COORDINATOR_WORKTREE_PREFIX = "aw/coordinator/"
-ABANDONED_REF_PREFIX = "refs/aw/abandoned/coordinator/"
+ABANDONED_REF_PARENT_PREFIX = "refs/aw/abandoned/"
+ABANDONED_REF_COORDINATOR_PREFIX = "refs/aw/abandoned/coordinator/"
+ABANDONED_REF_ISOLATED_PREFIX = "refs/aw/abandoned/isolated/"
+ABANDONED_REF_PREFIX = ABANDONED_REF_COORDINATOR_PREFIX
 RETENTION_WINDOW_SECONDS = (
     14 * 86400
 )  # 14 days, matching git's default gc.pruneExpire (2.weeks)
 
 
-def abandoned_ref_name(sha: str) -> str:
-    """Return the canonical retained ref name for an abandoned coordinator commit."""
+def abandoned_ref_name(sha: str, kind: str = "coordinator") -> str:
+    """Return the canonical retained ref name for an abandoned commit.
+
+    Defaults to ``kind="coordinator"`` for backward compatibility with existing callers.
+    Pass ``kind="isolated"`` for an abandoned isolated commit (E-03).
+    """
     sha_str = str(sha).strip()
-    return f"{ABANDONED_REF_PREFIX}{sha_str[:12]}"
+    return f"{ABANDONED_REF_PARENT_PREFIX}{kind}/{sha_str[:12]}"
 
 
-def _prune_abandoned_coordinator_refs(
+def _prune_abandoned_refs(
     repo_root: Path,
     *,
     max_age_seconds: float = RETENTION_WINDOW_SECONDS,
@@ -551,12 +583,12 @@ def _prune_abandoned_coordinator_refs(
 ) -> None:
     """Opportunistically prune retained abandoned refs older than max_age_seconds.
 
-    FAIL-SOFT: pruning is opportunistic housekeeping and must NEVER raise or fail a transition.
+    FAIL-SOFT: pruning is opportunistic housekeeping and must NEVER raise or fail an operation.
 
-    ASSUMPTION ON PRUNE KEY (F-15):
+    ASSUMPTION ON PRUNE KEY (F-15 / E-03):
     We use %(committerdate:unix) from git for-each-ref. %(committerdate:unix) is the timestamp
     stored in the commit object itself, not the timestamp when the ref was created.
-    This is sound because a coordinator commit is created at retention time, so its committer
+    This is sound because an abandoned commit is created at retention time, so its committer
     date IS its retention time. (The toolkit never backdates a commit; there are no
     GIT_COMMITTER_DATE or GIT_AUTHOR_DATE assignments anywhere in agent_workflows or tests).
     %(creatordate:unix) returns the same backdated value, and a refs/aw/* ref carries no reflog
@@ -569,7 +601,7 @@ def _prune_abandoned_coordinator_refs(
             [
                 "for-each-ref",
                 "--format=%(refname) %(committerdate:unix)",
-                f"{ABANDONED_REF_PREFIX}*",
+                ABANDONED_REF_PARENT_PREFIX,
             ],
         )
         if rc != 0 or not out.strip():
@@ -590,6 +622,9 @@ def _prune_abandoned_coordinator_refs(
     except Exception:
         # Never allow housekeeping to fail an invocation
         pass
+
+
+_prune_abandoned_coordinator_refs = _prune_abandoned_refs
 
 
 @contextlib.contextmanager

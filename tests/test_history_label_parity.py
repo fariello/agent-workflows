@@ -7,8 +7,9 @@ Fences the contract established by IPD jbipfa (backlog awqzuh):
 - Transition label does not compromise the prior-history preservation property (E-05(d))
 - Legacy default label for callers omitting label parameter is 'set' (E-05(e))
 
-All cross-spelling comparisons normalize the date by shape (regex) and pass an explicit --message
-to prevent failure from date skew (fnb8pl) or defaulted message asymmetry.
+All cross-spelling comparisons compare history dates literally (unified onto UTC
+per spec 2vev8j 4.4) while normalizing the actor and passing an explicit --message
+to prevent failure from defaulted message asymmetry.
 """
 
 from __future__ import annotations
@@ -24,19 +25,17 @@ from agent_workflows import attention as att
 from agent_workflows import attention_contract as ac
 from agent_workflows import backlog, cli
 
-_DATE_PREFIX = re.compile(r"^- \d{4}-\d{2}-\d{2} ")
 _ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
 
 
 def _normalize_history_record(record: str) -> str:
-    """Normalize date and actor in a history record line for cross-spelling parity comparisons.
+    """Normalize actor in a history record line for cross-spelling parity comparisons.
 
-    Hides two known out-of-scope asymmetries:
+    Hides one known out-of-scope asymmetry:
     1. Actor: '(aw backlog)' vs '(aw set)' truthfully identifies the writer and is deliberate.
-    2. Date: backlog._reattach_history uses the local clock while status_set uses UTC (bug fnb8pl).
+    (Date skew fnb8pl is fixed by routing all writers to UTC per spec 2vev8j 4.4; dates are compared literally).
     """
-    s = _DATE_PREFIX.sub("- HIST_DATE ", record.strip())
-    return _ACTOR_PAREN.sub("(HIST_ACTOR)", s)
+    return _ACTOR_PAREN.sub("(HIST_ACTOR)", record.strip())
 
 
 def _setup_backlog_repo(root: Path) -> None:

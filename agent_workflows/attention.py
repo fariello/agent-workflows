@@ -20,6 +20,7 @@ import json
 import os
 import re
 import sys
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import (
     Any,
@@ -2452,17 +2453,20 @@ def _common_dir_prefix(paths: List[str]) -> str:
 _HISTORYLESS_TREES = {"actions", "research"}
 
 
-def _age_marker(last_history_at: Optional[str], tree: str = "") -> str:
+def _age_marker(
+    last_history_at: Optional[str],
+    tree: str = "",
+    today: Optional[date] = None,
+) -> str:
     """awdoctor Order 01 + awdoctorfix Order 03: a compact staleness marker from last_history_at.
     '!' when older than ~30 days, '?' when unknown (None) EXCEPT on a history-less tree (returns ''),
-    else '' (recent). Deterministic: compares ISO dates only."""
+    else '' (recent). Reads the UTC clock per spec 2vev8j Section 4.4 so verdicts are invariant under reader timezone."""
     if last_history_at is None:
         return "" if tree in _HISTORYLESS_TREES else "?"
     try:
-        from datetime import date
-
+        ref_date = today if today is not None else datetime.now(timezone.utc).date()
         y, m, d = (int(x) for x in last_history_at.split("-")[:3])
-        age_days = (date.today() - date(y, m, d)).days
+        age_days = (ref_date - date(y, m, d)).days
         return "!" if age_days > 30 else ""
     except (ValueError, TypeError):
         return "?"

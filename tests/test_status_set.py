@@ -376,13 +376,13 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-testset-01-pr0001-test-prompt.prompt.md",
             "pr0001",
             "testset",
-            "draft",
+            "pending",
         )
         rc = cli.main(
             [
                 "set",
                 "prompts",
-                "approved",
+                "executed",
                 "pr0001",
                 "--yes",
                 "--dir",
@@ -390,8 +390,11 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = prompt.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        dest_prompt = (
+            self.repo_root / ".aw" / "records" / "prompts" / "executed" / prompt.name
+        )
+        self.assertTrue(dest_prompt.exists())
+        self.assertFalse(prompt.exists())
 
     def test_backlog_set_and_directory_move(self):
         bk = self.create_backlog(
@@ -491,14 +494,37 @@ class TestStatusSetCommands(StatusSetTestBase):
         # missing review stays deliberately silent for a plan).
         self._write_spec_review_record("sp0003")
 
-        # Set all 3 to reviewed in one command
+        # Mixed batch carrying a prompt at reviewed is refused before making changes:
+        # prompt vocabulary does not include 'reviewed'.
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc_refused = cli.main(
+                [
+                    "set",
+                    "reviewed",
+                    "pl0005",
+                    "sp0003",
+                    "pr0002",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertNotEqual(rc_refused, 0)
+        out = buf.getvalue()
+        self.assertIn("Status 'reviewed' is not valid for prompts", out)
+        self.assertIn("Refusing before making changes", out)
+        self.assertIn("- Status: to-review", plan.read_text(encoding="utf-8"))
+        self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
+        self.assertIn("- Status: to-review", prompt.read_text(encoding="utf-8"))
+
+        # Valid batch with plan and spec succeeds
         rc = cli.main(
             [
                 "set",
                 "reviewed",
                 "pl0005",
                 "sp0003",
-                "pr0002",
                 "--yes",
                 "--dir",
                 str(self.repo_root),
@@ -511,7 +537,6 @@ class TestStatusSetCommands(StatusSetTestBase):
             self.repo_root / ".aw" / "records" / "specs" / "reviewed" / spec.name
         )
         self.assertIn("- Status: reviewed", dest_spec.read_text(encoding="utf-8"))
-        self.assertIn("- Status: reviewed", prompt.read_text(encoding="utf-8"))
 
     def test_mixed_batch_refuses_ALL_when_the_spec_member_is_unattested(self):
         """revsweep `5slbpi`: the attestation composes with the ATOMIC pre-flight, so a batch
@@ -2591,9 +2616,8 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
 
         This is why E-02 keys on the NORMALIZED target of a `plans` record rather than on the status
         token alone: `executed`/`done` are spellings prompts use too, and a token-keyed guard would
-        have frozen every prompt in `executed/`. Driven through the UNTYPED `aw set other` spelling
-        because `aw prompts set` is not a live parser surface (`aw prompts` accepts only `new`); the
-        untyped verb is the shipped route to a prompt transition and reaches the same code.
+        have frozen every prompt in `executed/`. Exercises both the untyped `aw set prompts` and the
+        typed `aw prompts set` spellings.
         """
         prompt = self.create_prompt(
             "20260910-pr-01-pm0001-a.prompt.md",
@@ -2602,11 +2626,12 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             "executed",
             disposition="executed",
         )
+        # 1. Untyped spelling
         rc = cli.main(
             [
                 "set",
                 "prompts",
-                "draft",
+                "pending",
                 "pm0001",
                 "--yes",
                 "--dir",
@@ -2615,7 +2640,34 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
         )
         self.assertEqual(rc, 0, "prompts are not governed by the plan terminal guard")
         moved = self.repo_root / ".aw" / "records" / "prompts" / "pending" / prompt.name
-        self.assertIn("- Status: draft", moved.read_text(encoding="utf-8"))
+        self.assertTrue(moved.exists())
+
+        # 2. Typed spelling on a second prompt
+        prompt2 = self.create_prompt(
+            "20260910-pr-02-pm0002-b.prompt.md",
+            "pm0002",
+            "prset",
+            "executed",
+            disposition="executed",
+        )
+        rc2 = cli.main(
+            [
+                "prompts",
+                "set",
+                "pending",
+                "pm0002",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(
+            rc2, 0, "prompts set is live and not governed by the plan terminal guard"
+        )
+        moved2 = (
+            self.repo_root / ".aw" / "records" / "prompts" / "pending" / prompt2.name
+        )
+        self.assertTrue(moved2.exists())
 
 
 class SameStatusMessageIsRecordedTests(StatusSetTestBase):
@@ -3878,6 +3930,495 @@ class TestDryRunMachineDisposition(StatusSetTestBase):
         self.assertEqual(res.returncode, 0)
         payload = json.loads(res.stdout.strip())
         agent_schema.assert_valid_agent_record(payload)
+
+
+class TestScopePathCitationRewriteSetter(StatusSetTestBase):
+    """Behavior tests for Scope-Paths citation rewrite across setter spellings (IPD 5h3qyy E-09)."""
+
+    def test_f_default_invocation_rewrites_nothing(self):
+        """(f) Default invocation without --rewrite-citations leaves citing pending plan byte-identical."""
+        bk = self.create_backlog(
+            "20261001-bk0001-01-bk0001-item.backlog.md",
+            "bk0001",
+            "bkset",
+            status="open",
+        )
+        plan_file = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0001-plan.ipd.md"
+        )
+        old_citation = f".aw/records/backlog/open/{bk.name}"
+        initial_plan_text = (
+            f"# IPD: Test Plan\n"
+            f"- Id: pl0001\n"
+            f"- Scope-Paths: {old_citation}, helper.py\n\n"
+            f"Prose citation: {old_citation}\n"
+        )
+        plan_file.write_text(initial_plan_text, encoding="utf-8")
+
+        res = support.run_cli(
+            "backlog", "set", "graduated", "bk0001", "--yes", cwd=self.repo_root
+        )
+        self.assertEqual(
+            res.returncode, 0, f"command failed: {res.stderr}\n{res.stdout}"
+        )
+
+        # The backlog item moved to graduated/
+        dest_item = (
+            self.repo_root / ".aw" / "records" / "backlog" / "graduated" / bk.name
+        )
+        self.assertTrue(dest_item.exists())
+        self.assertFalse(bk.exists())
+
+        # The citing plan is byte-identical
+        self.assertEqual(plan_file.read_text(encoding="utf-8"), initial_plan_text)
+
+    def test_g_setter_spellings_rewrite_citing_pending_plan_and_skip_receipt_plan(self):
+        """(g) With --rewrite-citations, the 3 setter spellings rewrite citing plan and skip plan with receipt."""
+        from agent_workflows import ipd_lifecycle
+
+        support.init_repo(self.repo_root)
+        (self.repo_root / "dummy").write_text("dummy")
+        support.git(self.repo_root, "add", "-A")
+        support.git(self.repo_root, "commit", "-m", "init")
+
+        # 1. Spelling: aw backlog set graduated <id6>
+        bk1 = self.create_backlog(
+            "20261001-bk0001-01-bk0001-item.backlog.md",
+            "bk0001",
+            "bkset",
+            status="open",
+        )
+        p1_norm = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0001-norm.ipd.md"
+        )
+        p1_norm.write_text(
+            f"# IPD\n- Id: pl0001\n- Scope-Paths: .aw/records/backlog/open/{bk1.name}\n"
+        )
+        p1_rcpt = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0002-rcpt.ipd.md"
+        )
+        p1_rcpt_orig = (
+            f"# IPD\n- Id: pl0002\n- Scope-Paths: .aw/records/backlog/open/{bk1.name}\n"
+        )
+        p1_rcpt.write_text(p1_rcpt_orig)
+        rcpt1 = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0002")
+        rcpt1.parent.mkdir(parents=True, exist_ok=True)
+        rcpt1.write_text('{"schema_version": 2, "plan_id": "pl0002"}')
+
+        res1 = support.run_cli(
+            "backlog",
+            "set",
+            "graduated",
+            "bk0001",
+            "--rewrite-citations",
+            "-y",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(
+            res1.returncode, 0, f"res1 failed: {res1.stderr}\n{res1.stdout}"
+        )
+        self.assertIn(f".aw/records/backlog/graduated/{bk1.name}", p1_norm.read_text())
+        self.assertEqual(p1_rcpt.read_text(), p1_rcpt_orig)
+        self.assertIn(
+            "skipped citation rewrite in .aw/records/plans/pending/20261001-test-01-pl0002-rcpt.ipd.md: live begin receipt present",
+            res1.stdout,
+        )
+
+        # 2. Spelling: aw backlog set --status graduated <path>
+        bk2 = self.create_backlog(
+            "20261001-bk0002-01-bk0002-item.backlog.md",
+            "bk0002",
+            "bkset",
+            status="open",
+        )
+        p2_norm = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0003-norm.ipd.md"
+        )
+        p2_norm.write_text(
+            f"# IPD\n- Id: pl0003\n- Scope-Paths: .aw/records/backlog/open/{bk2.name}\n"
+        )
+        p2_rcpt = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0004-rcpt.ipd.md"
+        )
+        p2_rcpt_orig = (
+            f"# IPD\n- Id: pl0004\n- Scope-Paths: .aw/records/backlog/open/{bk2.name}\n"
+        )
+        p2_rcpt.write_text(p2_rcpt_orig)
+        rcpt2 = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0004")
+        rcpt2.write_text('{"schema_version": 2, "plan_id": "pl0004"}')
+
+        res2 = support.run_cli(
+            "backlog",
+            "set",
+            "--status",
+            "graduated",
+            str(bk2),
+            "--rewrite-citations",
+            "-y",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(
+            res2.returncode, 0, f"res2 failed: {res2.stderr}\n{res2.stdout}"
+        )
+        self.assertIn(f".aw/records/backlog/graduated/{bk2.name}", p2_norm.read_text())
+        self.assertEqual(p2_rcpt.read_text(), p2_rcpt_orig)
+        self.assertIn(
+            "skipped citation rewrite in .aw/records/plans/pending/20261001-test-01-pl0004-rcpt.ipd.md: live begin receipt present",
+            res2.stdout,
+        )
+
+        # 3. Spelling: aw specs set --status implementing <path>
+        sp3 = self.create_spec(
+            "20261001-sp0003-01-sp0003-spec.spec.md",
+            "sp0003",
+            "spset",
+            status="approved",
+        )
+        p3_norm = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0005-norm.ipd.md"
+        )
+        p3_norm.write_text(
+            f"# IPD\n- Id: pl0005\n- Scope-Paths: .aw/records/specs/approved/{sp3.name}\n"
+        )
+        p3_rcpt = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0006-rcpt.ipd.md"
+        )
+        p3_rcpt_orig = f"# IPD\n- Id: pl0006\n- Scope-Paths: .aw/records/specs/approved/{sp3.name}\n"
+        p3_rcpt.write_text(p3_rcpt_orig)
+        rcpt3 = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0006")
+        rcpt3.write_text('{"schema_version": 2, "plan_id": "pl0006"}')
+
+        res3 = support.run_cli(
+            "specs",
+            "set",
+            "--status",
+            "implementing",
+            str(sp3),
+            "--rewrite-citations",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(
+            res3.returncode, 0, f"res3 failed: {res3.stderr}\n{res3.stdout}"
+        )
+        self.assertIn(f".aw/records/specs/implementing/{sp3.name}", p3_norm.read_text())
+        self.assertEqual(p3_rcpt.read_text(), p3_rcpt_orig)
+        self.assertIn(
+            "skipped citation rewrite in .aw/records/plans/pending/20261001-test-01-pl0006-rcpt.ipd.md: live begin receipt present",
+            res3.stdout,
+        )
+
+    def test_h_rewritten_plan_lints_conforming(self):
+        """(h) A rewritten pending plan lints conforming under ipd_lint."""
+        from agent_workflows import ipd_lint
+
+        bk = self.create_backlog(
+            "20261001-bk0003-01-bk0003-item.backlog.md",
+            "bk0003",
+            "bkset",
+            status="open",
+        )
+        plan_file = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-bkset-01-tst001-plan.ipd.md"
+        )
+        plan_text = (
+            "# IPD: Synthetic Plan\n\n"
+            "- Date: 2026-09-30\n"
+            "- Kind: child\n"
+            "- Concern: test\n"
+            "- Scope: test\n"
+            f"- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+            "- Item-Dependencies: none\n"
+            "- Status: approved\n"
+            "- Work-Kind: chore\n"
+            "- Priority: low\n"
+            "- Author: test\n"
+            "- Highest E allocated: 01\n"
+            "- Set: bkset\n"
+            "- Order: 1\n"
+            "- Id: tst001\n"
+            "- Approval: 2026-09-30, approved\n\n"
+            "## Workflow history\n"
+            "- 2026-09-30: approved\n\n"
+            "## Goal\n"
+            "test\n\n"
+            "## Detailed Implementation Checklist (TODO)\n\n"
+            "- [x] E-01 work item\n"
+            "  - Execution state: performed\n\n"
+            "## Project conventions discovered (Step 0)\n"
+            "none\n\n"
+            "## Findings\n"
+            "none\n\n"
+            "## Proposed changes (ordered, validatable)\n"
+            "none\n\n"
+            "## Deferred / out of scope (with reason)\n"
+            "none\n\n"
+            "## Scope check\n"
+            "none\n\n"
+            "## Required tests / validation\n"
+            "none\n\n"
+            "## Spec / documentation sync\n"
+            "none\n\n"
+            "## Open questions\n"
+            "none\n\n"
+            "## Validation and cross-check (verify before reporting done)\n\n"
+            "- [x] V-01 validates E-01\n"
+            "  - Observed evidence: verified evidence in test\n"
+            "  - Result: pass\n\n"
+            "## Approval and execution gate\n"
+            "none\n"
+        )
+        plan_file.write_text(plan_text, encoding="utf-8")
+
+        res_before = ipd_lint.lint_file(plan_file, checkpoint="pre-transition")
+        self.assertTrue(res_before.passing)
+        self.assertEqual(res_before.disposition, "conforming")
+
+        res = support.run_cli(
+            "backlog",
+            "set",
+            "graduated",
+            "bk0003",
+            "--rewrite-citations",
+            "-y",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn(f".aw/records/backlog/graduated/{bk.name}", plan_file.read_text())
+
+        res_after = ipd_lint.lint_file(plan_file, checkpoint="pre-transition")
+        self.assertTrue(res_after.passing)
+        self.assertEqual(res_after.disposition, "conforming")
+
+    def test_i_agent_mode_validates_and_carries_changes(self):
+        """(i) Under --agent the output validates as aw.agent/v1 and carries rewrite and skip Change entries."""
+        from agent_workflows import ipd_lifecycle
+
+        support.init_repo(self.repo_root)
+        (self.repo_root / "dummy").write_text("dummy")
+        support.git(self.repo_root, "add", "-A")
+        support.git(self.repo_root, "commit", "-m", "init")
+
+        bk = self.create_backlog(
+            "20261001-bk0004-01-bk0004-item.backlog.md",
+            "bk0004",
+            "bkset",
+            status="open",
+        )
+        p_norm = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0007-norm.ipd.md"
+        )
+        p_norm.write_text(
+            f"# IPD\n- Id: pl0007\n- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+        )
+        p_rcpt = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0008-rcpt.ipd.md"
+        )
+        p_rcpt.write_text(
+            f"# IPD\n- Id: pl0008\n- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+        )
+        rcpt = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0008")
+        rcpt.parent.mkdir(parents=True, exist_ok=True)
+        rcpt.write_text('{"schema_version": 2, "plan_id": "pl0008"}')
+
+        # Run under --agent
+        res_agent = support.run_cli(
+            "backlog",
+            "set",
+            "graduated",
+            "bk0004",
+            "--rewrite-citations",
+            "--yes",
+            "--agent",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(
+            res_agent.returncode,
+            0,
+            f"agent call failed: {res_agent.stderr}\n{res_agent.stdout}",
+        )
+        payload = json.loads(res_agent.stdout.strip())
+        agent_schema.assert_valid_agent_record(payload)
+
+        changes = payload.get("changes", [])
+        norm_change = [
+            c
+            for c in changes
+            if c.get("path", "").endswith("pl0007-norm.ipd.md")
+            and c.get("kind") == "modify"
+        ]
+        rcpt_change = [
+            c
+            for c in changes
+            if c.get("path", "").endswith("pl0008-rcpt.ipd.md")
+            and c.get("kind") == "modify"
+        ]
+        self.assertEqual(
+            len(norm_change),
+            1,
+            f"expected modify change for pl0007-norm, got {changes}",
+        )
+        self.assertEqual(
+            len(rcpt_change),
+            1,
+            f"expected modify change for pl0008-rcpt, got {changes}",
+        )
+
+        # Also verify under --json that applied state and detail are recorded
+        bk_j = self.create_backlog(
+            "20261001-bk0009-01-bk0009-item.backlog.md",
+            "bk0009",
+            "bkset",
+            status="open",
+        )
+        p_j_norm = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0010-norm.ipd.md"
+        )
+        p_j_norm.write_text(
+            f"# IPD\n- Id: pl0010\n- Scope-Paths: .aw/records/backlog/open/{bk_j.name}\n"
+        )
+        p_j_rcpt = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0011-rcpt.ipd.md"
+        )
+        p_j_rcpt.write_text(
+            f"# IPD\n- Id: pl0011\n- Scope-Paths: .aw/records/backlog/open/{bk_j.name}\n"
+        )
+        rcpt_j = ipd_lifecycle.receipt_path_for(self.repo_root, "pl0011")
+        rcpt_j.parent.mkdir(parents=True, exist_ok=True)
+        rcpt_j.write_text('{"schema_version": 2, "plan_id": "pl0011"}')
+
+        res_json = support.run_cli(
+            "backlog",
+            "set",
+            "graduated",
+            "bk0009",
+            "--rewrite-citations",
+            "--yes",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_json.returncode, 0)
+        p_json = json.loads(res_json.stdout.strip())
+        j_changes = p_json.get("changes", [])
+        j_norm = [
+            c for c in j_changes if c.get("path", "").endswith("pl0010-norm.ipd.md")
+        ][0]
+        j_rcpt = [
+            c for c in j_changes if c.get("path", "").endswith("pl0011-rcpt.ipd.md")
+        ][0]
+        self.assertTrue(j_norm.get("applied"))
+        self.assertFalse(j_rcpt.get("applied"))
+        self.assertIn("live begin receipt present", j_rcpt.get("detail", ""))
+
+    def test_j_commit_includes_rewritten_citing_file(self):
+        """(j) With --commit, the rewritten citing pending plan is included in the commit."""
+        support.init_repo(self.repo_root)
+
+        bk = self.create_backlog(
+            "20261001-bk0005-01-bk0005-item.backlog.md",
+            "bk0005",
+            "bkset",
+            status="open",
+        )
+        plan_file = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20261001-test-01-pl0009-plan.ipd.md"
+        )
+        plan_file.write_text(
+            f"# IPD: Plan\n- Id: pl0009\n- Scope-Paths: .aw/records/backlog/open/{bk.name}\n"
+        )
+
+        support.git(self.repo_root, "add", "-A")
+        support.git(self.repo_root, "commit", "-m", "init")
+
+        res = support.run_cli(
+            "backlog",
+            "set",
+            "graduated",
+            "bk0005",
+            "--rewrite-citations",
+            "--commit",
+            "-y",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(
+            res.returncode, 0, f"commit run failed: {res.stderr}\n{res.stdout}"
+        )
+
+        # Verify the commit includes both the relocated item and the rewritten citing plan
+        stat = support.git(self.repo_root, "log", "-1", "--name-only")
+        committed_files = stat.stdout.strip().splitlines()
+        self.assertTrue(
+            any("pl0009-plan.ipd.md" in f for f in committed_files),
+            f"plan file missing from commit: {committed_files}",
+        )
+        self.assertTrue(
+            any(bk.name in f for f in committed_files),
+            f"backlog item missing from commit: {committed_files}",
+        )
 
 
 if __name__ == "__main__":

@@ -104,7 +104,8 @@ class TaskPacket(NamedTuple):
 class RawWorkerResult(NamedTuple):
     """The raw (pre-validation) result of a worker process: exit + captured streams + diff.
 
-    `truncated` records whether captured stdout was shortened by a declared output bound.
+    `truncated` records whether captured stdout or stderr was shortened by a declared output bound
+    (see `run_evidence.capture_command` docstring).
     It carries `capture_command`'s already-computed fact (or the corresponding slice in
     the runner double seam). Truncation deliberately does NOT affect `classify_worker_state`,
     because output volume is not a completion signal (a truncated worker with a real diff
@@ -145,11 +146,10 @@ def run_worker_process(
     worker's (diff, changed_files); ``cancel_check`` lets the coordinator request cancellation before
     spawn (a cooperative cancel seam for tests + the scheduler).
 
-    The output bound ``packet.max_output_bytes`` applies to stdout on raw bytes before decoding
-    (errors="replace"), matching `run_evidence.capture_command`, so the returned decoded string's
+    The output bound ``packet.max_output_bytes`` applies to stdout and stderr on raw bytes before
+    decoding (errors="replace"), matching `run_evidence.capture_command`, so the returned decoded string's
     UTF-8 encoded length is not a strict hard ceiling if a multi-byte boundary replacement occurs.
-    Captured stderr is deliberately left unbounded here and in `capture_command` (design decision
-    for shared-vs-per-stream budget tracked in backlog `lijmwy`).
+    The output bound applies per stream to stdout and stderr (see `run_evidence.capture_command` docstring).
     """
     if not packet.argv:
         raise HostRunnerError(
@@ -183,7 +183,12 @@ def run_worker_process(
                 stdout_bytes = stdout_bytes[: packet.max_output_bytes]
                 stdout = stdout_bytes.decode("utf-8", errors="replace")
                 truncated = True
-        # Note: stderr is deliberately unbounded here and in capture_command (backlog lijmwy).
+            stderr_bytes = (stderr or "").encode("utf-8")
+            if len(stderr_bytes) > packet.max_output_bytes:
+                stderr_bytes = stderr_bytes[: packet.max_output_bytes]
+                stderr = stderr_bytes.decode("utf-8", errors="replace")
+                truncated = True
+        # Note: output bound applies per stream to stdout and stderr (see capture_command docstring).
     else:
         tool_event, _envelope = _ev.capture_command(
             packet.run_id,
@@ -196,7 +201,7 @@ def run_worker_process(
         stdout = str(tool_event.stdout or "")
         stderr = str(tool_event.stderr or "")
         truncated = bool(tool_event.get("truncated", False))
-        # Note: stderr is deliberately unbounded in capture_command (backlog lijmwy).
+        # Note: output bound applies per stream to stdout and stderr (see capture_command docstring).
     duration_ms = (time.monotonic() - start) * 1000.0
     if exit_code == _TIMEOUT_EXIT:
         timed_out = True

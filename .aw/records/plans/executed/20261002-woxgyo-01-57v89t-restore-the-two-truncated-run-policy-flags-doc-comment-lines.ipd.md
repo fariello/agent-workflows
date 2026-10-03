@@ -1,0 +1,353 @@
+# IPD: Restore the two truncated RUN_POLICY_FLAGS doc-comment lines from 7dd1c486c's parent and give the ON_CONFLICT constants their own single-prefixed comment
+
+- Date: 2026-10-02
+- Kind: child
+- Concern: A MERGE IN `7dd1c486c` ATE THE LAST TWO LINES OF `agent_workflows/runner_shared.RUN_POLICY_FLAGS`' DOC-COMMENT AND LEFT A DOUBLE-PREFIXED COMMENT IN THEIR PLACE, so the block's closing sentence stops mid-clause and the comment that replaced it documents the wrong symbol. Measured at lane HEAD `1b27b3721`: the block's final `#:` line reads "`#: spells it \`[--type <...>]...\` - REPEATABLE, with 2.3 making repetition mean the UNION of the named`" and the very next line is "`#: #: Active runner conflict resolution modes.`", immediately followed by `ON_CONFLICT_DROP = "drop"`. `git show 7dd1c486c -- agent_workflows/runner_shared.py` shows a single hunk replacing two `-` lines with that one `+` line, so this is incidental damage from an unrelated feature commit ("feat(runner): support configurable active runner conflict handling (drop, refuse, force, prompt)", 2026-09-25) and not a deliberate edit. `grep -c "#: #:" agent_workflows/runner_shared.py` returns `1`, and a package-wide search finds that doubled prefix at no other site in the tree, so the signature is unique to this one splice.
+  THE ITEM IS CORRECT ON BOTH DEFECTS AND THE MEASUREMENT FOUND A THIRD CONSEQUENCE IT DOES NOT RECORD, which is why this plan is not a two-line patch applied blind. The item frames the fix as "restore the two truncated lines to the end of the `RUN_POLICY_FLAGS` doc-comment, and give the `ON_CONFLICT` constants their own single-prefixed `#:` comment above `ON_CONFLICT_DROP`". Done literally, that leaves the restored `RUN_POLICY_FLAGS` doc-comment separated from `RUN_POLICY_FLAGS` by twenty lines of `ON_CONFLICT_*` constants and their new comment, so the block would be whole and still orphaned: a `#:` doc-comment in this package sits IMMEDIATELY above the symbol it documents, and `RUN_POLICY_FLAGS` is the one module-level `#:` block in this file whose target is not the next statement. That adjacency is a measured convention, not a style preference (see F-03), and it is what makes the doubled prefix diagnosable as a splice in the first place.
+  WHY THIS IS A `chore` AND NOT A `bug`, re-argued on the repository's perceptibility test rather than inherited on the item's word. Nothing executes: comments are invisible to the interpreter, `python3 -c "import agent_workflows.runner_shared"` succeeds today, and `RUN_POLICY_FLAGS` carries the same 16 rows before and after. No operator-facing string changes, so no `--help` output moves. The cost falls entirely on a READER of the flag table, who meets a sentence that stops mid-clause and a stray prefix suggesting the block boundary is not where it appears. The item's `- Priority: low` and its ABSENCE of a `- Blocks-Release:` gate are both inherited unchanged and no gate is invented.
+- Scope: Make the `RUN_POLICY_FLAGS` doc-comment whole and correctly attached, and give the `ON_CONFLICT_*` constants a comment of their own. Three parts. FIRST, restore the two lost lines VERBATIM from `git show 7dd1c486c^:agent_workflows/runner_shared.py` ("`#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and`" / "`#: therefore the first that can reach the shipped \`[RUN-MIXED-TYPES]\` gate.`"), so the `--type` paragraph closes the sentence it starts. SECOND, replace the doubled `#: #:` line with a single-prefixed `#:` comment owning the `ON_CONFLICT_*` family, matching the `ON_INTEGRATION_BLOCKED_*` family's shape in this same file. THIRD, restore the ADJACENCY the first two parts would otherwise break, by moving the `ON_CONFLICT_*` constant group and its new comment ABOVE the `RUN_POLICY_FLAGS` doc-comment rather than between that doc-comment and its symbol. EXCLUDES every behavioral change: no constant value, tuple membership, flag spelling, `help` string, default, signature or executable statement is touched, and V-04 proves the whole-module claim by AST comparison rather than asserting it. EXCLUDES adding, weakening or deleting any test; the item itself says "no test is needed beyond showing the module still imports and the suite count is unmoved", and a test that read this comment back would be exactly the source-reading code pin `AGENTS.md` and `GUIDING_PRINCIPLES` P16 forbid. EXCLUDES the seven stale `tests/test_run_flag_surface.py` guard citations in this same file, one of which sits in this very doc-comment block: that is `rcp8c4`'s subject, already carried by pending plan `8wpjeq`, whose E-04(a) explicitly forbids touching this damage so the two diffs stay separable. EXCLUDES the undeclared `--on-conflict ask` value and the `--action` gap that the same region's prose bears on, both carried by `n5gsea`. EXCLUDES the 129 other module-level constants in this file that carry no `#:` doc-comment at all: they are a pre-existing documentation gap, not splice damage, and sweeping them would turn a two-site repair into a 36,000-line documentation project.
+- Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261002-woxgyo-01-57v89t-restore-the-two-truncated-run-policy-flags-doc-comment-lines.ipd.md
+- Item-Dependencies: none
+- Status: executed
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: woxgyo
+- Set: woxgyo
+- Order: 1
+- Highest E allocated: 04
+- Readiness: go-pending-approval
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: 57v89t
+
+## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 57v89t verified (set woxgyo, attempt 1).
+- 2026-10-03 approved (aw set): status set to approved
+- 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Every load-bearing claim re-verified at lane HEAD `dd8001247` (single `#: #:` site, `7dd1c486c` hunk, verbatim recovery at 100/75 chars, `[RUN-MIXED-TYPES]` live, ruff 0.16.3 vs pinned v0.4.4, `8wpjeq` E-04(a) boundary); relocation shape re-prototyped AST EQUAL. Fixed: AST/baseline ref pinned to a recorded pre-edit SHA (PR-001), sibling citation count made relative to the pre-edit measurement (PR-002), false test-reference count removed (PR-003), formatter comparison made header-insensitive (PR-004).
+
+- 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog `woxgyo`. GATE NOTE: the item carries no `- Blocks-Release:`, so this plan inherits none; `- Work-Kind: chore` and `- Priority: low` are INHERITED and both re-verified correct, because nothing executes, no operator-facing string moves, and the module imports identically before and after. BOTH OF THE ITEM'S CLAIMS VERIFY EXACTLY at lane HEAD `1b27b3721` (the truncated sentence, the `#: #:` doubled prefix, the `7dd1c486c` attribution, and the verbatim recoverability from its parent), AND THE MEASUREMENT FOUND THREE THINGS THE ITEM DOES NOT RECORD. (1) F-03: the literal fix the item prescribes leaves the restored doc-comment DETACHED from `RUN_POLICY_FLAGS` by twenty intervening lines, and adjacency is a measured convention here (214 of 214 module-level `#:` blocks in this file are immediately followed by the statement they document; `RUN_POLICY_FLAGS` is the sole exception, and only because of this damage), so the plan adds a third step the item does not ask for and argues it rather than smuggling it. (2) F-04: an in-file precedent for the exact end state already exists in the `ON_INTEGRATION_BLOCKED_*` family, so the ON_CONFLICT comment's wording and placement are copied from a sibling rather than invented. (3) F-05: BOTH candidate shapes were prototyped in memory and proved AST-identical to HEAD before this plan was written, so the behavior-neutrality claim is a measurement and not a promise. THE SUITE BASELINE WAS TAKEN AND IS NOT CLEAN: three tests fail at HEAD before any edit (F-06), all three unrelated to this file and attributable to recent commits by other work, which is recorded so an executor does not mistake pre-existing red for damage this plan caused. ONE OPEN QUESTION IS RECORDED AND RESOLVED FROM REPOSITORY EVIDENCE (OQ-01, the relocation versus in-place choice) and one is recorded as NOT-BLOCKING-AND-DELIBERATELY-UNSWEPT (OQ-02, the 129 undocumented constants). No open question is blocking and nothing was referred up: every question this plan met was answerable from the tree.
+- 2026-10-02 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Leave `agent_workflows/runner_shared.py` with one whole `RUN_POLICY_FLAGS` doc-comment sitting immediately above `RUN_POLICY_FLAGS`, and one single-prefixed comment sitting immediately above the `ON_CONFLICT_*` constants it actually describes, undoing `7dd1c486c`'s splice without changing a single executable statement in a 36,000-line module both host drivers import.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: re-measure, because the damage may already be gone
+
+- [x] E-01 RE-MEASURE the damage, its attribution, the recoverability of the lost text, and the adjacency convention at execution HEAD, recording each result with the command that produced it. THIS IS NOT CEREMONY: `agent_workflows/runner_shared.py` is declared in the `- Scope-Paths:` of 27 pending plans and is edited concurrently, and this plan's whole subject is two comment lines that one unrelated commit already destroyed once. Measure five things. (a) The DOUBLED PREFIX: `grep -n "#: #:" agent_workflows/runner_shared.py` and `grep -rc "#: #:" agent_workflows/*.py`, confirming the single site and that it is unique in the package. (b) The TRUNCATED SENTENCE: print the `RUN_POLICY_FLAGS` doc-comment's final three lines and show the last prose line ending on "the UNION of the named" with no following clause. (c) The ATTRIBUTION: `git log -L` over those two line numbers and `git show 7dd1c486c -- agent_workflows/runner_shared.py` scoped to the first hunk, showing two `-` lines replaced by one `+` line. (d) The RECOVERABILITY: `git show 7dd1c486c^:agent_workflows/runner_shared.py` and extract the two lost lines verbatim, byte for byte, as the text E-02 will restore; do NOT retype them from this plan. (e) The ADJACENCY CONVENTION this plan's third step rests on: enumerate every module-level `#:` block in the file and report how many are immediately followed by an assignment, `def`, `class` or decorator, versus how many are not. IF A CONCURRENT PLAN HAS ALREADY REPAIRED EITHER DEFECT, do not re-apply that half: say which commit did it, narrow the edit to what remains, and if BOTH are gone stop and report the plan as overtaken rather than manufacturing a change.
+  - Depends on: none
+  - Expected outcome: five results pasted with their exact commands, each stated explicitly as present or absent rather than implied by empty output. At authoring HEAD `1b27b3721`: (a) one hit, `#: #: Active runner conflict resolution modes.`, and `agent_workflows/runner_shared.py:1` as the only nonzero count in the package; (b) the final prose line is "`#: spells it \`[--type <...>]...\` - REPEATABLE, with 2.3 making repetition mean the UNION of the named`" and the next line is the doubled-prefix line, so the clause never closes; (c) `git log -L` names `7dd1c486c` then `b9751fadf`, and the hunk shows `-#: types, which is also ...` / `-#: therefore the first ...` replaced by `+#: #: Active runner conflict resolution modes.`; (d) both lines recovered verbatim from the parent blob, 100 and 75 characters long respectively; (e) 214 module-level `#:` blocks, 214 immediately followed by a documented statement, 0 not, which is what makes the current `RUN_POLICY_FLAGS` placement the file's sole exception once the restoration lands.
+  - Execution state: performed
+
+- [x] E-02 ESTABLISH the suite baseline this plan's V-items compare against, since a comment-only edit to the module both drivers import must move no count. Run the suite BARE as `python3 -m pytest`, adding no flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` line this plan requires pasted, and disable the order randomization that surfaces order-dependence. Also run `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`, the test file dedicated to the active-conflict behavior the relocated `ON_CONFLICT_*` constants feed (`agent_workflows/config.py` and this module are the other importers), clearing the defaults explicitly rather than fighting them. Also run `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"`, the import check the backlog item itself names as sufficient. RECORD ANY PRE-EXISTING FAILURE EXPLICITLY AND BY NAME: the baseline at authoring was NOT green (F-06), and an executor who does not write the red down before editing cannot later prove it was not theirs. Record every number with `git rev-parse --short HEAD`, and RECORD THAT SHA AS THE PRE-EDIT BASELINE REF (`<base>`): E-04(a) compares against `<base>` and not against a symbolic `HEAD`, because once the edit is committed `HEAD` CONTAINS the edit and a `HEAD`-relative comparison would report EQUAL trivially. Also record the pre-edit `grep -c test_run_flag_surface agent_workflows/runner_shared.py` count (`<cites>`), which E-03 and V-03 compare against.
+  - Depends on: E-01
+  - THE AUTHORING NUMBERS ARE CONTEXT, NOT AN ACCEPTANCE BAR. The bar is that YOUR OWN pre-edit baseline equals YOUR OWN post-edit result, failure-for-failure and count-for-count; it is NOT that either matches a figure recorded here. This repository is under concurrent development and the suite demonstrably drifts by hundreds of tests in days. Do NOT treat a difference from the numbers below as a defect, and do NOT attempt to fix a pre-existing failure inside this chore.
+  - Expected outcome: three results pasted with YOUR execution HEAD, explicitly labelled as the baseline V-04 compares against, with every pre-existing failure named. At authoring HEAD `1b27b3721`: bare suite `3 failed, 4624 passed, 2 skipped, 3 warnings in 258.45s`, the three being `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` and `tests/test_selector_type_containment.py::test_must_not_refuse_matrix`, none of which imports or reads this file's comments; `tests/test_runner_active_conflict.py` all passing; and the import printing `16`.
+  - Execution state: performed
+
+### Task group 2: repair the two defects and the adjacency they expose
+
+- [x] E-03 PERFORM THE WHOLE REPAIR AS ONE EDIT, because its three parts are not independently correct and landing them separately would leave the file worse than it is now. The three parts, in the order a reader meets them. (a) RESTORE the two lost lines at the end of the `RUN_POLICY_FLAGS` doc-comment's `--type` paragraph, using the bytes E-01(d) recovered from `7dd1c486c^` and not a retyping, so the paragraph closes the sentence it starts ("the UNION of the named types, which is also what makes it the first flag able to produce a genuinely mixed selection and therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate"). (b) REPLACE the doubled `#: #: Active runner conflict resolution modes.` line with a single-prefixed `#:` comment owning the `ON_CONFLICT_*` family. Follow the `ON_INTEGRATION_BLOCKED_*` precedent in this same file (F-04), which documents a sibling four-value policy vocabulary with a short `#:` comment immediately above its first constant; the restored comment MAY state what the family is for, but MUST NOT assert a behavior this plan did not verify and MUST NOT re-state the `ask`-normalizes-to-`prompt` aliasing, which is `n5gsea`'s open subject. (c) MOVE the `ON_CONFLICT_*` group (its new comment plus `ON_CONFLICT_DROP` through `DEFAULT_ON_CONFLICT`) to sit ABOVE the `RUN_POLICY_FLAGS` doc-comment, between `RESUME_NONE_DEFAULT` and that block, so the restored doc-comment is once again immediately above `RUN_POLICY_FLAGS`. WITHOUT (c) THE REPAIR IS INCOMPLETE: (a) lengthens the very block that is already detached from its symbol, and E-01(e) measures adjacency as universal in this file. Do NOT reorder, rename, revalue or reformat anything inside the moved group, and do NOT touch the seven `tests/test_run_flag_surface.py` citations in this file, one of which sits inside the block being repaired: that is `rcp8c4`'s subject and plan `8wpjeq` owns it.
+  - Depends on: E-02
+  - Expected outcome: the `RUN_POLICY_FLAGS` doc-comment ends with the two restored lines and is immediately followed by `RUN_POLICY_FLAGS: tuple = (`; the `ON_CONFLICT_*` group sits above it carrying one single-prefixed `#:` comment; `grep -c "#: #:" agent_workflows/runner_shared.py` returns `0`; `grep -c test_run_flag_surface agent_workflows/runner_shared.py` still equals E-02's recorded `<cites>` (`7` at authoring; it will be lower if `8wpjeq` landed first, which is not a defect), proving the sibling plan's subject was left alone.
+  - Execution state: performed
+
+- [x] E-04 PROVE THE EDIT CHANGED NO BEHAVIOR AND NO FORMATTING, in a separate pass from making it. Three checks. (a) AST EQUALITY of the whole module: parse `git show <base>:agent_workflows/runner_shared.py` (the pre-edit SHA E-02 recorded, never a symbolic `HEAD`, which after commit already contains the edit) and the working copy, and compare `ast.dump(..., include_attributes=False)`, printing an explicit EQUAL or NOT-EQUAL verdict. `include_attributes=False` is REQUIRED and not incidental: part (c) of E-03 moves twenty statements, so every line number in the file below the move shifts, and an attribute-bearing dump would report NOT-EQUAL for a change that is provably inert. This check is what makes "comment-only" a measurement: comments are invisible to the AST, so EQUAL proves no statement, value, order or docstring moved. (b) RE-RUN E-02's three measurements and compare them to E-02's own numbers, failure-for-failure. (c) CONFIRM the edit introduces no NEW formatter finding: run `python3 -m ruff format --diff agent_workflows/runner_shared.py` before and after the edit and show the finding set is unchanged, comparing the hunk BODIES with the `@@` headers stripped: the restoration adds two lines (and the new `ON_CONFLICT_*` comment or a separating blank may add more), so every downstream hunk header shifts and a raw diff of the two outputs would report a spurious change. The repository's pinned hook is `ruff-pre-commit` v0.4.4 while a local `ruff` may be much newer, so this file ALREADY reports pre-existing reformat findings at unrelated lines under a newer binary (F-07); the bar is that your edit ADDS none, not that the file is clean.
+  - Depends on: E-03
+  - Expected outcome: (a) EQUAL, printed by the comparison itself; (b) all three E-02 measurements reproduced, with the same pre-existing failures and no new one; (c) the before and after formatter finding sets identical, with any difference attributed.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- A `#:` DOC-COMMENT IN THIS PACKAGE IMMEDIATELY PRECEDES THE STATEMENT IT DOCUMENTS, and that is measured rather than assumed. Enumerating every module-level `#:` block in `agent_workflows/runner_shared.py` gives 214 blocks, 214 of which are immediately followed by an assignment, `def`, `class` or decorator, and 0 of which are not. That universality is what makes this plan's third step necessary: restoring the two lost lines without relocating the `ON_CONFLICT_*` group would create the file's first and only detached `#:` block.
+- THE FIX SHAPE ALREADY EXISTS IN THIS FILE, so neither the comment's wording nor its placement is invented. `agent_workflows/runner_shared.ON_INTEGRATION_BLOCKED_DEFER` and its three siblings are a policy-choice vocabulary documented by a single short `#:` comment sitting immediately above the first constant, with the derived `ON_INTEGRATION_BLOCKED_CHOICES` tuple following inside the same group. That is exactly the end state part (b) of E-03 produces for `ON_CONFLICT_*`.
+- CITE CODE BY SYMBOL, NOT BY LINE. Spec `ipd-structure-and-linting` Section 10.2 and advisory `IPD-C801` require a symbol or a quoted content string, with a line number only ever appended to one of those. This matters unusually much here: the file exceeds 36,000 lines, 27 pending plans declare it in `- Scope-Paths:`, and this plan's own edit SHIFTS every line number below the moved group, so an offset-only citation would expire inside the execution turn that wrote it. Every citation in this plan names a symbol or quotes the text.
+- NO TEST IS AUTHORED, AND THE PROHIBITION IS EXPLICIT RATHER THAN A JUDGEMENT CALL. The backlog item states the fix needs no test "beyond showing the module still imports and the suite count is unmoved". A test that asserted this comment's text would have to read production source by substring or regex, which `AGENTS.md`'s execution contract forbids in clause (1) of TEST OUTCOMES, NOT CODE STRUCTURE, and which `GUIDING_PRINCIPLES` P16 forbids independently. The validation is therefore AST equality plus an unmoved suite, both of which are outcome measurements.
+- A COMMENT-ONLY EDIT TO THIS FILE IS STILL A SHIPPED-PACKAGE EDIT. `runner_shared.py` is the one shared library both host drivers import (`aw oc run` and `aw agy run` reach one definition through it), so its comments reach anyone reading the installed package. That is why a two-line prose repair is worth a plan rather than a drive-by.
+- RUN THE SUITE BARE. `pyproject.toml`'s `[tool.pytest.ini_options]` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. `AGENTS.md` names the three specific flags not to add and why, and this plan's E-02 repeats them because a comment-only chore is exactly the context in which someone reaches for `-n0` to "keep it simple".
+
+## Findings
+
+| Id | Severity | Evidence | Finding |
+|---|---|---|---|
+| F-01 | HIGH | `grep -n "#: #:" agent_workflows/runner_shared.py` -> one hit, `#: #: Active runner conflict resolution modes.`; `grep -rc "#: #:" agent_workflows/*.py` -> `agent_workflows/runner_shared.py:1` and nothing else; the preceding line reads `#: spells it \`[--type <...>]...\` - REPEATABLE, with 2.3 making repetition mean the UNION of the named`; the following line is `ON_CONFLICT_DROP = "drop"` | BOTH DEFECTS THE ITEM DESCRIBES VERIFY EXACTLY AND THE DOUBLED PREFIX IS UNIQUE IN THE PACKAGE. The `RUN_POLICY_FLAGS` doc-comment's final prose line ends mid-clause on "the UNION of the named" with no following clause, and the line that replaced its continuation carries `#: #:` and documents the `ON_CONFLICT_*` constants rather than `--type`'s multi-choice kind. That the doubled prefix appears exactly once across every package module is what makes it diagnosable as a splice rather than a local style: nothing else in the tree writes a comment that way. |
+| F-02 | HIGH | `git log -L` over the two tail lines -> `7dd1c486c` then `b9751fadf`; `git show 7dd1c486c -- agent_workflows/runner_shared.py` first hunk -> `-#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and` / `-#: therefore the first that can reach the shipped \`[RUN-MIXED-TYPES]\` gate.` replaced by `+#: #: Active runner conflict resolution modes.`; `git show 7dd1c486c --stat` -> 4 files, `agent_workflows/runner_shared.py` `220 ++++-`; the lost lines recovered from `git show 7dd1c486c^:agent_workflows/runner_shared.py` at 100 and 75 characters | THE ATTRIBUTION AND THE VERBATIM RECOVERABILITY BOTH HOLD, WHICH IS WHAT MAKES THIS A RESTORATION RATHER THAN A REWRITE. A single hunk in an unrelated feature commit ("configurable active runner conflict handling", 2026-09-25) deleted two lines and inserted one, so the damage is incidental and the prior text is not lost prose anyone must re-imagine: it is a blob in git. E-03(a) therefore COPIES bytes rather than paraphrasing, and E-01(d) requires the executor to extract them rather than retype them from this plan, because a retyping is how a restoration silently becomes an edit. The `[RUN-MIXED-TYPES]` token the restored sentence names is live today (`agent_workflows/run_selection_policy.RUN_MIXED_TYPES`, the shipped refusal string, and spec `25kzda`'s grammar), so the restored clause is accurate and not stale. |
+| F-03 | HIGH | Enumeration of every module-level `#:` block in `agent_workflows/runner_shared.py`: 214 blocks, 214 immediately followed by an assignment/`def`/`class`/decorator, 0 not; the `RUN_POLICY_FLAGS` doc-comment currently ends at the doubled-prefix line and `RUN_POLICY_FLAGS: tuple = (` is 22 lines below it, preceded by a blank | THE ITEM'S PRESCRIBED FIX, APPLIED LITERALLY, LEAVES THE REPAIRED BLOCK ORPHANED, WHICH IS THE ONE THING THIS PLAN ADDS TO THE ITEM AND THE REASON IT IS ARGUED RATHER THAN ASSUMED. The item says to restore the two lines "to the end of the `RUN_POLICY_FLAGS` doc-comment" and to give `ON_CONFLICT` "their own single-prefixed `#:` comment above `ON_CONFLICT_DROP`". Both are right in isolation, and together they produce a whole doc-comment separated from `RUN_POLICY_FLAGS` by the `ON_CONFLICT_*` group and its new comment, which is the file's only detached `#:` block out of 214. The reader-facing cost is the same one the item objects to: a block boundary that is not where it appears. Hence E-03(c). Note WHY the detachment is invisible today: the doubled prefix makes the block LOOK like it ends at a comment belonging to `ON_CONFLICT_DROP`, so the damage currently disguises itself. |
+| F-04 | MEDIUM | `agent_workflows/runner_shared.ON_INTEGRATION_BLOCKED_DEFER` is preceded by `#: \`--on-integration-blocked\`'s vocabulary. \`block\` reproduces the pre-ladder behavior EXACTLY, which` / `#: is what makes this change safe to adopt: an operator who distrusts the ladder can pin it off.` and followed by its three siblings and `ON_INTEGRATION_BLOCKED_CHOICES`; `agent_workflows/runner_shared.CLEAN_BASE_PROCEED` shows the same shape with a one-line comment | THE EXACT END STATE THIS PLAN WANTS ALREADY SHIPS TWICE IN THIS FILE, so part (b) copies a sibling instead of inventing a convention. `ON_INTEGRATION_BLOCKED_*` is the closest analogue available: a `--on-conflict`-shaped policy-choice vocabulary, documented by one short `#:` comment immediately above its first constant, with the derived `*_CHOICES` tuple inside the same group. `CLEAN_BASE_*` is a second instance at one line. This matters for review economy: a reviewer can compare the post-edit `ON_CONFLICT_*` group against `ON_INTEGRATION_BLOCKED_*` and judge conformance by eye rather than adjudicating new prose. |
+| F-05 | MEDIUM | Both candidate shapes constructed in memory from the HEAD text and compared with `ast.dump(ast.parse(...), include_attributes=False)`: in-place restoration -> `AST EQUAL: True`, line delta `+3`; relocation shape -> `AST EQUAL: True`; longest restored line 100 characters, within the band the surrounding block already occupies (the adjacent lines measure 95 to 111) | THE BEHAVIOR-NEUTRALITY CLAIM IS A MEASUREMENT TAKEN AT AUTHORING TIME, NOT A PROMISE DEFERRED TO EXECUTION, and that is why V-04 can demand EQUAL rather than hope for it. Both shapes were prototyped against the real file before this plan was written and both parse to a byte-identical AST dump, so the choice between them (OQ-01) is a readability decision with no behavioral component. Two execution-time consequences are recorded because they would otherwise look like failures. FIRST, `include_attributes=False` is MANDATORY in the comparison: relocating twenty statements shifts every line number below the move, and an attribute-bearing dump reports NOT-EQUAL for a provably inert change. SECOND, the line-length band means no reflow is needed, so part (a) is a pure insertion and the diff stays two lines plus the move. |
+| F-06 | MEDIUM | `python3 -m pytest` at HEAD `1b27b3721`, before any edit -> `3 failed, 4624 passed, 2 skipped, 3 warnings in 258.45s`; the three are `test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, `test_selector_type_containment.py::test_must_not_refuse_matrix`; `git log --oneline -3` on those three files -> `a0b32b07d`, `1dcf77fa8`, `61eca9ccd`, all other agents' work; the third reproduced in isolation asserting `rc == 2 and "no plan has Id" in out` and getting `rc=0` from `aw rename plans <relpath> --slug newslug` | THE BASELINE IS NOT GREEN BEFORE THIS PLAN TOUCHES ANYTHING, AND AN EXECUTOR WHO DOES NOT RECORD THAT FIRST CANNOT PROVE THE RED IS NOT THEIRS. All three failures are in files this plan does not declare and do not read this module's comments; the third is a selector-containment assertion whose own file was last changed by `1dcf77fa8` ("fix(selectors): confine path selectors to requested type tree"), so it is live work by a concurrent party and NOT this plan's business. `AGENTS.md` is explicit that uncommitted or in-flight work by others is not to be fixed, reverted or cleaned up, so E-02 requires naming the failures and E-04 requires reproducing the same set rather than a green run. Do NOT attempt to repair any of them inside this chore: a comment restoration that also touches selector containment would be unreviewable and would mix two subjects in one commit. |
+| F-07 | LOW | `python3 -m ruff format --diff agent_workflows/runner_shared.py` under local `ruff 0.16.3` -> `1 file would be reformatted`, with findings at unrelated lambda and f-string sites far below the edit region; `.pre-commit-config.yaml` pins `ruff-pre-commit` `rev: v0.4.4` with `ruff --fix` and `ruff-format` hooks | THE FILE ALREADY REPORTS FORMATTER FINDINGS UNDER A NEWER RUFF THAN THE REPOSITORY PINS, SO A CLEAN-FORMAT BAR WOULD FAIL THIS PLAN FOR SOMEBODY ELSE'S LINES. The findings are version skew (0.16.3 reflows lambdas and long f-strings that 0.4.4 accepted), they sit nowhere near the comment block, and `ruff --fix` is a MUTATING hook, which per `AGENTS.md` rewrites the file and rejects the commit, requiring a re-stage of the rewritten path. Two instructions follow. E-04(c) measures the finding set BEFORE and AFTER and requires only that the edit adds none. And the executor must expect a possible mutate-and-reject cycle on commit, which `aw commit` handles by re-staging and retrying once. |
+| F-08 | LOW | `grep -c test_run_flag_surface agent_workflows/runner_shared.py` -> `7`, one of them inside this very doc-comment block (the `--allow-dirty-base` paragraph, "the data-driven test (\`tests/test_run_flag_surface.py\`) was deleted in \`19313eed\`"); pending plan `.aw/records/plans/pending/20261001-rcp8c4-01-8wpjeq-...ipd.md` declares `agent_workflows/runner_shared.py`, is `- Status: to-review`, and its E-04(a) reads "Do NOT restore or re-word the two truncated lines at the end of this block or the doubled `#: #:` prefix below them: that damage is `woxgyo`'s subject"; its F-07 and its Deferred both name `woxgyo` as carrier; `grep -rn "^- Scope-Paths:.*runner_shared" .aw/records/plans/pending/*.ipd.md` -> 27 | THE OVERLAP WITH `8wpjeq` IS MUTUALLY DECLARED AND IS NOT A COLLISION, stated so an executor neither stops on a contention question already settled nor edits the sibling's sites. Both plans edit the same `#:` block: `8wpjeq` owns the `tests/test_run_flag_surface.py` citation inside it, this plan owns the truncated tail and the doubled prefix. Each plan's text forbids touching the other's subject, which is why E-03's expected outcome requires the citation count to still read `7` after this edit, converting "I left it alone" into a measurement. The broader point an executor should NOT re-derive: 27 pending plans declare this file, and that is not a hazard, because `aw oc run` gives each execute item an isolated worktree and returns changes through the merge-and-revalidate gate. |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01, E-02: re-measure the doubled prefix, the truncated sentence, the `7dd1c486c` attribution, the verbatim recoverability, and the adjacency convention; then take the suite, targeted and import baselines, naming every pre-existing failure. Narrow or stop if either defect is already repaired. No file changes.
+2. E-03(a): restore the two lost `#:` lines at the end of the `RUN_POLICY_FLAGS` doc-comment's `--type` paragraph, copied byte for byte from `7dd1c486c^`.
+3. E-03(b): replace the doubled `#: #:` line with one single-prefixed `#:` comment owning the `ON_CONFLICT_*` family, shaped after the `ON_INTEGRATION_BLOCKED_*` precedent.
+4. E-03(c): move the `ON_CONFLICT_*` group and its new comment above the `RUN_POLICY_FLAGS` doc-comment, so the restored block is once again immediately above `RUN_POLICY_FLAGS`.
+5. E-04: prove the edit inert, by whole-module AST equality with `include_attributes=False`, by reproducing E-02's baseline failure-for-failure, and by showing the formatter finding set unchanged.
+
+## Deferred / out of scope (with reason)
+
+- THE SEVEN STALE `tests/test_run_flag_surface.py` CITATIONS IN THIS FILE, including the one inside the very doc-comment block this plan repairs. Different defect, different cause, and already owned: pending plan `8wpjeq` declares this path for exactly that subject and its E-04(a) explicitly forbids touching this plan's damage, so the boundary is recorded on both sides (F-08). Conflating a false-guard correction with a prose restoration would make both diffs unreviewable.
+  - Carrier: rcp8c4
+- THE UNDECLARED `--on-conflict ask` VALUE AND THE `--action` GAP between spec `25kzda` 2.1 and `RUN_POLICY_FLAGS`. These are live spec-versus-code divergences in the same region, and resolving the first means either amending an approved spec's normative grammar or removing an operator-visible spelling both hosts ship. That is a maintainer decision about a public contract, not a comment repair, and E-03(b) is explicitly forbidden from restating the aliasing so this plan's new comment cannot prejudge it.
+  - Carrier: n5gsea
+- THE 129 MODULE-LEVEL CONSTANTS IN THIS FILE THAT CARRY NO `#:` DOC-COMMENT AT ALL, measured while establishing the adjacency convention (F-03). They are a pre-existing documentation gap and not splice damage: no sentence is truncated and no comment documents the wrong symbol, so nothing about them is false. Most are members of an enum-like family whose first constant IS documented, which is the same shape this plan gives `ON_CONFLICT_*`, so the real uncovered population is smaller than 129 and would need its own census. Sweeping them would turn a two-site repair into a documentation project across a 36,000-line module. See OQ-02.
+  - Carrier-Declined: filing a carrier would assert that somebody has agreed to document 129 constants, which nobody has. The number and the measurement are recorded here and in OQ-02 so a future author can file the work deliberately with a scope they chose, rather than inheriting an obligation this chore invented as a side effect.
+- THE THREE PRE-EXISTING SUITE FAILURES AT HEAD (F-06). Each sits in a file this plan does not declare, none reads this module's comments, and all three are attributable to other parties' recent work; `AGENTS.md` forbids fixing, reverting or cleaning up another party's in-flight work in a shared checkout. They are recorded as a baseline, not adopted as scope.
+  - Carrier-Declined: these are live failures in work that is visibly in progress by other agents, so a carrier filed from here would duplicate whatever item that work already has and would hand a future agent someone else's half-finished subject. Naming them in E-02 is the correct treatment: it makes the red attributable without claiming it.
+- THE FORMATTER FINDINGS THIS FILE ALREADY REPORTS UNDER A NEWER RUFF THAN THE PINNED HOOK (F-07). They are version skew at lambda and f-string sites far from the edit region, and reformatting them would rewrite lines 27 other pending plans may be editing. E-04(c)'s bar is that this edit adds no NEW finding.
+  - Carrier-Declined: this is a toolchain-pin question (whether to advance `ruff-pre-commit` from v0.4.4) and not a defect in the file; filing it as a code carrier would mislabel a dependency decision as a source cleanup.
+
+## Scope check
+
+- Over-scope: none. The one declared production path receives COMMENT-ONLY edits plus a relocation of twenty existing statements with no change to their text, order or values. No constant value, tuple membership, flag spelling, `help` string, default, signature, docstring or executable statement changes; no test is added, weakened or deleted; no `.spec.md` is touched; and no `.aw/` record other than this plan changes. The relocation is the one part a reviewer should check hardest, which is why E-04(a) proves it by AST comparison of the whole module rather than by inspection of the hunk.
+- Under-scope: DELIBERATE AND ENUMERATED. This plan repairs two sites in one doc-comment block and leaves untouched: the seven stale guard citations in that same file (one inside this same block), the two live spec-versus-code divergences the same region's prose bears on, the 129 undocumented module-level constants in this file, three pre-existing suite failures, and the file's pre-existing formatter findings. Each is named above with a carrier or an argued declination. After this plan the block reads as one whole sentence sitting above the symbol it documents; it will still contain one false claim about a deleted test, which `8wpjeq` owns and which this plan is forbidden from touching.
+
+## Required tests / validation
+
+NO NEW TEST IS AUTHORED, and that is the item's own instruction rather than this plan's convenience: it states the fix needs nothing "beyond showing the module still imports and the suite count is unmoved". The alternative is foreclosed, not merely unattractive. A test asserting this comment's text would have to read production source by substring, regex or `ast`, which `AGENTS.md`'s TEST OUTCOMES, NOT CODE STRUCTURE clause (1) forbids outright and which `GUIDING_PRINCIPLES` P16 forbids independently; authoring one would also be the third code pin this repository has had to delete from this very file. Validation is therefore in four parts, each an outcome measurement. (a) THE DAMAGE IS GONE AND NOTHING FALSE REPLACED IT, proved by the doubled-prefix count reaching `0`, by the restored lines matching `7dd1c486c^`'s bytes exactly, and by quoting the whole repaired region so a reviewer judges the result rather than trusting a count. (b) THE SIBLING PLAN'S SUBJECT IS UNTOUCHED, proved by the `test_run_flag_surface` citation count still reading `7`. (c) THE ADJACENCY IS RESTORED, proved by re-running E-01(e)'s enumeration and showing every module-level `#:` block, including this one, immediately precedes its documented statement. (d) THE EDIT IS INERT, proved by whole-module AST equality against `HEAD` with `include_attributes=False`, by an import that still yields 16 policy-flag rows, by reproducing E-02's suite and targeted counts failure-for-failure, and by an unchanged formatter finding set.
+
+## Spec / documentation sync
+
+N/A, AND THE DECISION IS CHECKED RATHER THAN ASSUMED, which matters because the comment being repaired describes spec `25kzda` 2.1's flag surface and because `AGENTS.md` obliges a plan that changes behavior a spec describes to amend that spec in the same change. Four things were verified. FIRST, NO BEHAVIOR CHANGES, so no spec amendment obligation arises: `RUN_POLICY_FLAGS` keeps all 16 rows with identical flags, dests, kinds, choices, defaults, `help` strings and `implemented` values, and E-04(a)'s AST comparison is what proves that rather than asserts it. SECOND, `- Scope-Paths:` DECLARES NO `.spec.md`, deliberately, so neither runner announces a spec edit and the `--ack-spec-edits` gate is not engaged; a reader comparing the declared paths against this plan's subject should find no spec there and that is correct. THIRD, the restored sentence's one outward reference was checked for staleness rather than trusted: the `[RUN-MIXED-TYPES]` gate it names is live today as `agent_workflows/run_selection_policy.RUN_MIXED_TYPES`, as the shipped refusal string in that module, and in spec `25kzda`'s own grammar block, so restoring text written on 2026-09-18 does not reintroduce a dangling claim. FOURTH, NO USER-FACING DOCUMENTATION CHANGES: both edited sites are internal implementation commentary, no `--help` text is touched, and nothing in `docs/`, `README.md` or `CHANGELOG.md` describes these comments. No CHANGELOG entry is warranted, because no behavior, flag, contract or operator-visible output changes.
+
+## Open questions
+
+### OQ-01: Restore the two lines in place, or also relocate the ON_CONFLICT group so the repaired doc-comment regains its adjacency?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE IN FAVOR OF RELOCATING, and recorded because it is the one place this plan goes beyond what the backlog item asks for. The item prescribes restoring the two lines "to the end of the `RUN_POLICY_FLAGS` doc-comment" and giving `ON_CONFLICT` its own comment "above `ON_CONFLICT_DROP`", which taken literally leaves the repaired block separated from `RUN_POLICY_FLAGS` by the `ON_CONFLICT_*` group. THE EVIDENCE THAT DECIDES IT: enumerating every module-level `#:` block in this file gives 214 of 214 immediately followed by the statement they document, so a detached block would be the file's only exception and would reproduce in a new form the exact reader-facing harm the item objects to, namely a block boundary that is not where it appears (F-03). WHY THE DETACHMENT IS NOT VISIBLE TODAY, which is why the item understandably does not mention it: the doubled `#: #:` prefix makes the block LOOK as though it ends at a comment belonging to `ON_CONFLICT_DROP`, so the damage currently conceals the orphaning it caused, and only restoring the tail exposes it. WHY RELOCATION IS SAFE RATHER THAN BOLD: both shapes were prototyped against the real file and both are AST-identical to HEAD (F-05), the moved group's text, order and values are untouched, and the destination is the natural one (between `RESUME_NONE_DEFAULT` and the `RUN_POLICY_FLAGS` block, where a reader meets the vocabulary before the table that consumes it). THIS IS NOT REFERRED UP, because it is a readability judgement inside the item's own stated intent, with in-file precedent (F-04) and a measurement behind it, and because asking would stall a `low` chore on a question the tree answers. NOT BLOCKING: if a reviewer prefers the in-place shape, E-03(a) and E-03(b) stand unchanged and only E-03(c) is dropped; the repair is still correct, just leaving the file's sole detached `#:` block behind.
+
+### OQ-02: Should the 129 module-level constants in this file that carry no doc-comment be documented?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AS DELIBERATELY-NOT-SWEPT, WITH THE MEASUREMENT RECORDED AND NO CARRIER FILED, which is the honest treatment of a gap this plan discovered as a side effect rather than was asked to close. It is recorded as RESOLVED and not `deferred` on purpose: a deferral asserts an owner or trigger that will pick the work up, and no such owner exists, so the accurate state is that a decision WAS made here (do not sweep) rather than postponed to somebody unnamed. Establishing the adjacency convention required enumerating every module-level constant, which incidentally measured 322 uppercase module-level constants of which 129 have no immediately preceding `#:` line. NOTHING ABOUT THEM IS FALSE, which is what separates them from this plan's subject: no sentence is truncated and no comment documents the wrong symbol, so a reader is uninformed rather than misled, and `woxgyo` is specifically about misleading text. THE 129 ALSO OVERSTATES THE REAL GAP: most are later members of an enum-like family whose FIRST constant is documented (`REINTEGRATE_*`, `ORCH_REASON_*`, `PROBE_*` and others), which is precisely the shape this plan gives `ON_CONFLICT_*`, so a genuine census would have to count families rather than lines and would land far below 129. WHY NO CARRIER: filing one would assert that somebody has agreed to do the work, and nobody has; the number and the method are recorded here so a future author can scope it deliberately. NOT BLOCKING, and deliberately not swept: a `low` chore repairing two lines must not silently become a documentation pass over a 36,000-line module that 27 pending plans are concurrently editing.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [x] V-01 validates E-01
+  - Required evidence: all five measurements pasted with the exact command that produced each, and each stated explicitly as present or absent rather than implied by empty output. (a) The `grep -n "#: #:"` hit WITH its line content, plus the package-wide count showing this file is the only carrier. (b) The doc-comment's final three lines printed, so the truncation is visible as text rather than asserted; the last prose line must visibly end on "the UNION of the named". (c) The `git log -L` output naming `7dd1c486c`, plus the actual diff hunk showing two `-` lines becoming one `+` line. (d) THE TWO RECOVERED LINES PASTED VERBATIM from `7dd1c486c^` together with the command that extracted them, and an explicit statement that E-03(a) will use THOSE BYTES and not a retyping; a restoration transcribed from this plan's prose instead of from the blob FAILS this item, because a paraphrase is an edit wearing a restoration's name. (e) The adjacency enumeration with its counts, and the code that produced them, since a hand-eyeballed convention is exactly the error this measurement replaces. A difference from the authoring figures is EXPECTED under concurrent development and is not a finding; state it and attribute it. If either defect is already repaired, say which commit did it and what remains; if BOTH are, report the plan as overtaken and change nothing.
+  - Observed evidence:
+    All five measurements taken at pre-edit execution HEAD a237fb249 (full: a237fb24910894febb1c25cb84b78a4633e5ad02):
+    (a) DOUBLED PREFIX:
+    Command: `grep -n "#: #:" agent_workflows/runner_shared.py`
+    Output:
+    `14809:#: #: Active runner conflict resolution modes.`
+    Command: `grep -rc "#: #:" agent_workflows/*.py`
+    Output:
+    `agent_workflows/runner_shared.py:1`, and 0 across all other 111 modules in agent_workflows/*.py. The doubled prefix was uniquely present at this single site in the package.
+    (b) TRUNCATED SENTENCE:
+    Command: `sed -n '14805,14810p' agent_workflows/runner_shared.py`
+    Output:
+    ```
+    #: by the row that preceded it: `uyeko5` put `--type` in the contract test's
+    #: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
+    #: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+    #: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+    #: #: Active runner conflict resolution modes.
+    ON_CONFLICT_DROP = "drop"
+    ```
+    The last prose line visibly ends on "the UNION of the named" with no following clause.
+    (c) ATTRIBUTION:
+    Command: `git log -L 14808,14809:agent_workflows/runner_shared.py -n 2` and `git show 7dd1c486c -- agent_workflows/runner_shared.py`
+    Output names commit `7dd1c486c4d3dda1f4bc960a15a56ca2d1f8c84f` replacing two `-` lines with one `+` line:
+    ```diff
+    -#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+    -#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
+    +#: #: Active runner conflict resolution modes.
+    ```
+    (d) VERBATIM RECOVERABILITY:
+    Command: `python3 -c 'import subprocess; out = subprocess.check_output(["git", "show", "7dd1c486c^:agent_workflows/runner_shared.py"]).decode("utf-8"); lines = out.splitlines(); print(repr(lines[11985])); print(repr(lines[11986])); print(len(lines[11985]), len(lines[11986]))'`
+    Output:
+    `'#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and'`
+    `'#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.'`
+    Lengths: 100 and 75 characters. E-03(a) used these exact recovered bytes, not a retyping.
+    (e) ADJACENCY CONVENTION:
+    Command: Python script enumerating module-level `#: ` blocks and inspecting the immediately following statement across `agent_workflows/runner_shared.py`:
+    Output: 222 module-level `#: ` blocks total, 222 immediately followed by non-comment code/statements, 0 not. The single merged block at line 14786 ended at `#: #: Active runner conflict resolution modes.` and was immediately followed by `ON_CONFLICT_DROP = "drop"`, leaving `RUN_POLICY_FLAGS: tuple = (` detached 27 lines below.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: the pasted tail of a BARE `python3 -m pytest` showing its summary line, the pasted tail of `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""` showing its count, the import check's printed row count, and `git rev-parse --short HEAD`. State explicitly that the bare run was given no `-n0`, no second `-q` and no `-p no:randomly`. EVERY PRE-EXISTING FAILURE MUST BE NAMED INDIVIDUALLY, not summarized as a count: the authoring baseline carried three (F-06), and V-04 compares failure-for-failure, so an unnamed baseline failure makes the post-edit comparison unfalsifiable. These numbers ARE the baseline V-04 compares against and the evidence must say so and must state they are your own measurement at your own HEAD. A difference from the authoring figures (`3 failed, 4624 passed, 2 skipped`; `16` rows) is EXPECTED and is not a finding.
+  - Observed evidence:
+    Pre-edit baseline measurements at execution HEAD a237fb249 (recorded as `<base>`):
+    1. Bare suite `python3 -m pytest` run with no `-n0`, no second `-q`, and no `-p no:randomly`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    FAILED tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes
+    2 failed, 4825 passed, 2 skipped, 3 warnings in 792.57s (0:13:12)
+    ```
+    Pre-existing failures named individually:
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta` (corpus delta mismatch in .aw/records/plans/ where an executed plan is tested against author checkpoint)
+    - `tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes` (intermittent alarm timeout under full-suite load; passes in isolation in 45.82s)
+    2. Targeted test: `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`:
+    ```
+    tests/test_runner_active_conflict.py .....................               [100%]
+    ============================= 21 passed in 11.79s ==============================
+    ```
+    3. Import check: `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"`:
+    `16`
+    4. HEAD commit: `git rev-parse --short HEAD` -> `a237fb249` (full: `a237fb24910894febb1c25cb84b78a4633e5ad02`).
+    5. Pre-edit citation count: `grep -c test_run_flag_surface agent_workflows/runner_shared.py` -> `7` (recorded as `<cites>`).
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: FOUR artifacts. (1) THE WHOLE REPAIRED REGION QUOTED, from `RESUME_NONE_DEFAULT` through `RUN_POLICY_FLAGS: tuple = (`, so a reviewer judges the result rather than trusting a count; the quoted text must visibly show the `--type` paragraph's sentence CLOSING ("... the UNION of the named types, which is also what makes it the first flag able to produce a genuinely mixed selection and therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate."), one single-prefixed `#:` comment immediately above `ON_CONFLICT_DROP`, and the `RUN_POLICY_FLAGS` doc-comment immediately above `RUN_POLICY_FLAGS` with nothing between them. (2) A BYTE COMPARISON of the two restored lines against `git show 7dd1c486c^:agent_workflows/runner_shared.py`, reported as an explicit match, which is what distinguishes a restoration from a rewrite. (3) `grep -c "#: #:" agent_workflows/runner_shared.py` returning `0`, AND `grep -c test_run_flag_surface agent_workflows/runner_shared.py` still equal to E-02's recorded pre-edit `<cites>` (`7` at authoring HEAD; a lower value is legitimate if `8wpjeq` executed first), the second being the proof that the sibling plan's subject was left alone (F-08); a count DIFFERENT FROM `<cites>` here FAILS this item even if the repair itself is correct. (4) The re-run adjacency enumeration from E-01(e), now showing every module-level `#:` block including this one immediately preceding its documented statement, with the count stated. If E-03(c) was dropped on review preference per OQ-01, say so explicitly and report the enumeration's one exception rather than omitting the check.
+  - Observed evidence:
+    All 4 artifacts verified:
+    (1) Whole repaired region quoted from `RESUME_NONE_DEFAULT` through `RUN_POLICY_FLAGS: tuple = (`:
+    ```python
+    RESUME_REFUSE = "refuse"
+    RESUME_NONE_DEFAULT = "none-default"
+
+    #: Active runner conflict resolution modes.
+    ON_CONFLICT_DROP = "drop"
+    ON_CONFLICT_REFUSE = "refuse"
+    ON_CONFLICT_FORCE = "force"
+    ON_CONFLICT_PROMPT = "prompt"
+    ON_CONFLICT_ASK = "ask"
+
+    #: Spec 2.1 declares 'ask' as an accepted alias of 'prompt'.
+    #: ON_CONFLICT_CHOICES defines the accepted CLI choices (including 'ask'), while
+    #: CANONICAL_ON_CONFLICT_CHOICES defines the resolved canonical vocabulary
+    #: produced by resolve_on_conflict(); the two tuples differ on purpose.
+    #: Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because
+    #: revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.
+    ON_CONFLICT_CHOICES = (
+        ON_CONFLICT_DROP,
+        ON_CONFLICT_REFUSE,
+        ON_CONFLICT_FORCE,
+        ON_CONFLICT_PROMPT,
+        ON_CONFLICT_ASK,
+    )
+    CANONICAL_ON_CONFLICT_CHOICES = (
+        ON_CONFLICT_DROP,
+        ON_CONFLICT_REFUSE,
+        ON_CONFLICT_FORCE,
+        ON_CONFLICT_PROMPT,
+    )
+    DEFAULT_ON_CONFLICT = ON_CONFLICT_DROP
+
+    #: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
+    #:
+    #: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
+    #: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
+    #: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
+    #: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
+    #:
+    #: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
+    #: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
+    #: refusal with no sanctioned override is how an operator learns to work around a gate instead of
+    #: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+    #: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+    #: that spec 2.1 declare every row here in the same change remains in force.
+    #:
+    #: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
+    #: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
+    #:
+    #: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
+    #: by the row that preceded it: `uyeko5` put `--type` in the contract test's
+    #: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
+    #: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+    #: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+    #: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+    #: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
+    RUN_POLICY_FLAGS: tuple = (
+    ```
+    (2) Byte comparison of the two restored lines against `git show 7dd1c486c^:agent_workflows/runner_shared.py`:
+    Exact match byte-for-byte (100 and 75 characters respectively).
+    (3) Verification counts:
+    `grep -c "#: #:" agent_workflows/runner_shared.py` returns `0`.
+    `grep -c test_run_flag_surface agent_workflows/runner_shared.py` returns `7`, exactly matching `<cites>` (`7`).
+    (4) Adjacency re-enumeration:
+    223 module-level `#: ` blocks total, 223 immediately followed by non-comment code/statements, 0 not. Adjacency is restored across the entire file including `RUN_POLICY_FLAGS`.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: THREE artifacts, each an outcome and not an inspection. (1) THE AST PROOF: the pasted output of the script that parses `git show <base>:agent_workflows/runner_shared.py` (E-02's recorded pre-edit SHA, shown in the evidence) and the working copy and compares `ast.dump(..., include_attributes=False)`, printing an explicit EQUAL or NOT-EQUAL verdict, reporting EQUAL. The script source must be shown, and it must be visible that `include_attributes=False` is passed: with attributes on, the twenty-statement relocation shifts every subsequent line number and the comparison reports NOT-EQUAL for a provably inert change, so an evidence block showing NOT-EQUAL without that flag is a misconfigured check rather than a finding. (2) THE BASELINE REPRODUCED: the bare suite rerun and the targeted rerun, compared to V-02's own numbers FAILURE-FOR-FAILURE, with each pre-existing failure named again and confirmed as the same test; a NEW failure, however small, FAILS this item and must be investigated rather than attributed to drift. Plus the import check printing the same row count. (3) THE FORMATTER FINDING SET before and after, shown to be identical. The bar is explicitly NOT a clean format: this file already reports findings under a newer `ruff` than the pinned v0.4.4 hook at sites far from the edit (F-07), and reformatting them would rewrite lines other plans may hold. If a mutating hook rewrote the file during commit, say so, name the path, and confirm the re-staged content still satisfies artifact (1).
+  - Observed evidence:
+    All 3 artifacts verified:
+    (1) Whole-module AST equality comparison script and output:
+    ```python
+    import ast, subprocess
+    base = "a237fb249"
+    cmd = ["git", "show", f"{base}:agent_workflows/runner_shared.py"]
+    orig_code = subprocess.check_output(cmd).decode("utf-8")
+    with open("agent_workflows/runner_shared.py", "r", encoding="utf-8") as f:
+        new_code = f.read()
+    orig_ast = ast.parse(orig_code)
+    new_ast = ast.parse(new_code)
+    orig_dump = ast.dump(orig_ast, include_attributes=False)
+    new_dump = ast.dump(new_ast, include_attributes=False)
+    if orig_dump == new_dump:
+        print(f"AST comparison between {base} and working copy: EQUAL")
+    else:
+        print(f"AST comparison between {base} and working copy: NOT-EQUAL")
+    ```
+    Output:
+    ```
+    AST comparison between a237fb249 and working copy: EQUAL
+    ```
+    (2) Baseline reproduced:
+    Bare suite `python3 -m pytest` rerun:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4826 passed, 2 skipped, 3 warnings in 423.13s (0:07:03)
+    ```
+    Targeted test rerun: `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`:
+    ```
+    tests/test_runner_active_conflict.py .....................               [100%]
+    ============================== 21 passed in 0.89s ==============================
+    ```
+    Import check: `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"` -> `16`.
+    Zero new failures introduced.
+    (3) Formatter finding set:
+    `python3 -m ruff format --diff agent_workflows/runner_shared.py`
+    Pre-edit and post-edit diffs compared with stripped headers:
+    Script:
+    ```python
+    import subprocess
+    base = "a237fb249"
+    orig_code = subprocess.check_output(["git", "show", f"{base}:agent_workflows/runner_shared.py"]).decode("utf-8")
+    with open("agent_workflows/runner_shared.py", "r", encoding="utf-8") as f:
+        new_code = f.read()
+    p1 = subprocess.run(["ruff", "format", "--diff", "-"], input=orig_code, capture_output=True, text=True)
+    p2 = subprocess.run(["ruff", "format", "--diff", "-"], input=new_code, capture_output=True, text=True)
+    def strip_headers(diff_text):
+        return [l for l in diff_text.splitlines() if not l.startswith("@@") and not l.startswith("---") and not l.startswith("+++")]
+    b1 = strip_headers(p1.stdout)
+    b2 = strip_headers(p2.stdout)
+    print("Hunk bodies count:", len(b1), len(b2))
+    print("Hunk bodies identical:", b1 == b2)
+    ```
+    Output:
+    `Hunk bodies count: 37 37`
+    `Hunk bodies identical: True`
+    Finding set is completely unchanged; no new findings were added.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan was authored WITHOUT a `- Readiness:` field, because that field is an output of `/plan-review` and writing it at authoring time would forge a review attestation. The `- Readiness:` it now carries was written by the 2026-10-02 `/plan-review` recorded in `## Workflow history`. The plan must not execute before explicit human approval recorded through `aw ipd set approved`.
+
+EXECUTION CONTRACT. Commit only the two declared paths, through `aw commit <plan> -- <paths>`; never `git add -A`, never bare or `-a`, never `--no-verify`, and never push. Verify the staged set with `git diff --cached --name-only` before committing, and RE-VERIFY after any failed raw commit: `agent_workflows/runner_shared.py` is declared by 27 other pending plans in a shared checkout, and `pre-commit` restores a co-worker's stashed changes on hook rejection in a way that can leave paths you never staged in the index. Expect a MUTATING hook cycle specifically here (F-07): `ruff --fix` and `ruff-format` rewrite the file and then reject, so a retry must re-stage the rewritten path, which `aw commit` does once automatically. PASTE THE ACTUAL COMMAND OUTPUT for every measurement and every suite claim. That obligation is sharper than usual in this plan: its entire subject is prose that asserted something nobody checked, so fabricated evidence here would reproduce the defect inside its own fix. The declared scope is a DECLARATION the runner reconciles afterwards and not a stop condition: if an out-of-scope edit proves necessary, make it and justify it at `aw ipd finalize` with `--scope-reason <path>=<why>`.
+
+FOUR EXECUTION-TIME CONDITIONS THAT ARE NOT FAILURES. FIRST, if E-01 finds either defect already repaired by a concurrent plan, do not re-apply that half: name the commit, narrow the edit, and if BOTH are gone report the plan as overtaken and change nothing rather than manufacturing a diff. SECOND, the suite baseline is NOT GREEN (F-06); reproducing the same three failures after the edit is a PASS, and fixing any of them is forbidden because they are other parties' in-flight work. THIRD, the formatter already reports findings on this file under a newer `ruff` than the repository pins; adding none is the bar, cleaning them is out of scope. FOURTH, if a reviewer rejects the relocation (OQ-01), drop E-03(c) alone and report the adjacency exception explicitly in V-03 rather than silently omitting the check. THE ONE GENUINE STOP: if the `RUN_POLICY_FLAGS` doc-comment block or the `ON_CONFLICT_*` group is being changed concurrently in a way that cannot be safely combined with this edit, stop and report rather than overwriting, since `AGENTS.md` forbids overwriting another party's work in a shared checkout.
+
+POST-GATE LIFECYCLE MOVE. After every `V-*` is verified with pasted evidence and `aw ipd lint --phase pre-transition` reports conforming, the terminal transition happens through the TOOLED path, and whose job it is depends on dispatch: when `aw oc run`/`aw agy run` dispatched it the runner performs `aw ipd begin` and `aw ipd finalize` itself (an in-lane invocation is refused by design), and in an unmanaged or manual run the executor finalizes with `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never `git mv` the plan and never hand-edit `- Status:` or the terminal state. Backlog item `woxgyo` carries no release gate, so nothing is un-gated by this plan's execution; the residue it defers is carried by `rcp8c4` and `n5gsea`, with three further declinations argued above.

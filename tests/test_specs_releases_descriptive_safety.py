@@ -389,9 +389,12 @@ class SpecsReleasesDescriptiveSafetyTests(unittest.TestCase):
         lines = rendered.splitlines()
         self.assertEqual(S._read_status(lines), "approved")
         self.assertEqual(S._find_status_index(lines), 1)
-        # Checker reports zero drift because the front matter is split by lines
+        # Prior to IPD 1znlxy the checker was blind to duplicate bullets; now it reports the duplicate Status bullet.
         dummy_path = self.tmp / "dummy.spec.md"
-        self.assertEqual(S.validate_spec(dummy_path, rendered), [])
+        drift = S.validate_spec(dummy_path, rendered)
+        self.assertEqual(len(drift), 1)
+        self.assertEqual(drift[0].rule, "spec.metadata-bullet-repeated")
+        self.assertEqual(drift[0].detail, "metadata bullet - Status: appears 2 times")
 
     def test_pre_fix_summary_injection_smuggles_gate_and_checker_blind(self):
         """E-05, F-01, F-02, F-06: rendered spec with summary newline smuggles Blocks-Release and passes checker."""

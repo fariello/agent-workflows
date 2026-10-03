@@ -78,6 +78,7 @@ from agent_workflows import runner_profiles
 # seam in `run_opencode` only; when no `execution_profile` is requested the default launch
 # is byte-for-byte unchanged and nothing in this module is invoked.
 from agent_workflows.host_sandbox_profile import (
+    HostSandboxCapabilities,
     SandboxProfileError,
     build_sandbox_plan,
     detect_host_capabilities,
@@ -1245,10 +1246,13 @@ def driver_finalize(
 #
 # EACH WRAPPER KEEPS THE ORIGINAL NAME AND SIGNATURE, so every call site in this module and in the
 # peer driver is untouched and both hosts run ONE implementation.
-# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts that structurally (a single delegating
-# statement naming `runner_shared.<same name>`), which is a STRONGER claim than the object identity it
-# replaces for these four: identity cannot hold when each host must bind its own `run_checked`, while
-# the structural check additionally forbids a wrapper that grew a body.
+# The structural single-statement assertion previously in `tests/test_runner_backlog_close.py` was
+# deleted in commit 19313eed and will not be restored (GUIDING_PRINCIPLES P16 and maintainer rulings).
+# Instead, `tests/test_runner_delegation_and_host_independence.py` guards delegation by OUTCOME:
+# proving each wrapper resolves `runner_shared.<same name>` at call time, forwards its return value
+# unchanged, and injects this host's own `run_checked` rather than the peer's. A behavioral guard
+# cannot catch a wrapper that grew an extra harmless statement, but it does catch every shape where
+# delegation ceases to delegate.
 #
 # `process_backlog_close` ALSO TAKES ITS TWO CLOSERS INJECTED, and that is not symmetry for its own
 # sake: four in-tree tests patch `oc_runipd.close_backlog_item` to spy on the argv the gated setter
@@ -1633,10 +1637,10 @@ def locked_run(run_dir: Path):
 # and the two `parse_plan_file` bodies differed in exactly the two lines that read and pass it.
 #
 # `_read_from_backlog` STAYS DEFINED HERE, deliberately and only for now: it is re-exported to agy by
-# name and is pinned by `tests/test_runner_backlog_close.py::SharedNotCopied`, which asserts object
-# identity between the hosts. Lifting it is a `cnwy8g` reduction for a later child, and the shared
-# module carries its own copy for `parse_plan_file`'s use; this module keeps binding its OWN so that
-# suite's identity assertion still names one object. See the note at the shared definition.
+# name and is guarded by `tests/test_runner_delegation_and_host_independence.py`, which asserts object
+# identity across the hosts and `runner_shared`. Lifting it is a `cnwy8g` reduction for a later child,
+# and the shared module carries its own copy for `parse_plan_file`'s use; this module keeps binding its
+# OWN so that the identity assertion still names one object. See the note at the shared definition.
 # (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
@@ -2322,7 +2326,25 @@ def _apply_execution_profile(
     """
     options = state.get("options", {})
     requested = options.get("execution_profile")
-    capabilities = detect_host_capabilities("opencode")
+    req_norm = (requested or "default").strip().lower()
+    if req_norm in ("", "default"):
+        select_execution_profile(requested, HostSandboxCapabilities())
+        return argv
+
+    # Hardened or unknown profile requested (bqtgmo E-06). Capabilities are rehydrated
+    # from the run-scoped frozen descriptor (self-healing if absent). Fails closed
+    # with an all-False descriptor on rehydration error, raising HardModeUnavailableError.
+    try:
+        from agent_workflows import runner_shared
+
+        capabilities = runner_shared.ensure_frozen_host_capabilities(
+            state,
+            "opencode",
+            detect_host_fn=detect_host_capabilities,
+        )
+    except Exception:
+        capabilities = HostSandboxCapabilities()
+
     # Raises rather than returning "default" when hardened is unavailable.
     profile = select_execution_profile(requested, capabilities)
     if profile != "hardened":

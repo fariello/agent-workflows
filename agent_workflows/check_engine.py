@@ -888,19 +888,37 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # Registered `error` because each is a contract violation of the backlog item format published in
     # .aw/records/backlog/README.md. `error` is not a free choice dressed as one:
     # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the exit code identically
-    # while stating a weaker contract (rnkqrc E-05). All three are deterministic line-shape checks over
+    # while stating a weaker contract (rnkqrc E-05). All four are deterministic line-shape checks over
     # the file's own bytes with no inference (ASSURANCE_REPOSITORY, DET_DETERMINISTIC).
     # Invariant is `""`: the catalog in spec pqsx96 has no invariant for record-metadata well-formedness
     # (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation),
     # and inventing one is out of scope.
     # Rule ids avoid the substrings `graduation` and `duplicate` (tests/test_check_engine_spec_criteria.py).
+    # Repeated metadata bullet rules cover both backlog items and specs (IPD 7ohskw and 1znlxy).
     "backlog.metadata-bullet-repeated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "spec.metadata-bullet-repeated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     "backlog.gate-summary-unexpected": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     "backlog.gate-descriptive-unsafe": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    # Repeated frontmatter key rule covers research docs in YAML dialect (Set jnpl08 / IPD 7d4bgs).
+    # Registered `error` to match sibling bullet rules (backlog.metadata-bullet-repeated and
+    # spec.metadata-bullet-repeated); `error` is not a free choice dressed as one:
+    # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the gate
+    # identically while stating a weaker contract. The sibling bullet-dialect rule is registered `error`,
+    # so any other tier here would make one defect class gate differently in two trees.
+    # Deterministic line-shape check over the file's own bytes with no inference (ASSURANCE_REPOSITORY,
+    # DET_DETERMINISTIC). Invariant is `""`: the catalog in spec pqsx96 has no invariant for
+    # record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority,
+    # I-07 is release-gate preservation), and inventing one is out of scope.
+    # Rule id uses `-repeated` and avoids `duplicate`, `graduation`, `stale-index`, and `summary-unsafe`.
+    "research.frontmatter-key-repeated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
 }
@@ -971,6 +989,27 @@ def finding_dict(
         "required": drift.required,
         "recovery": drift.recovery,
     }
+
+
+def _finding_rel_path(repo_root: Path, path: Path | str) -> str:
+    """Render ONE path as repo-relative POSIX text for interpolation into finding prose.
+
+    Takes ``(repo_root, path)`` and returns the relative POSIX string, falling back to the file
+    name (never the absolute path) when the path is outside the root or unresolvable.
+
+    This helper exists for the finding fields that :func:`finding_dict` does not relativize
+    (``detail``, ``observed``, ``required``, ``recovery``) and for a composite ``location`` that
+    ``agent_schema.normalize_repo_path`` cannot relativize because that function takes a whole
+    path value. The fallback to the bare file name is modeled on :func:`specs.drift_location` as
+    the leak-free choice.
+    """
+    p = Path(path)
+    try:
+        resolved_root = Path(repo_root).resolve()
+        resolved_p = p.resolve() if p.is_absolute() else (resolved_root / p).resolve()
+        return resolved_p.relative_to(resolved_root).as_posix()
+    except (ValueError, OSError, RuntimeError):
+        return p.name
 
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
@@ -1837,7 +1876,7 @@ def check_collisions(
                         _core.Drift(
                             str(p),
                             "check.id6-collision",
-                            f"id6 {id6} also on {seen_ids[id6]}",
+                            f"id6 {id6} also on {_finding_rel_path(repo_root, seen_ids[id6])}",
                         )
                     )
                 else:
@@ -1862,7 +1901,7 @@ def check_collisions(
                             _core.Drift(
                                 str(p),
                                 "check.setid-collision",
-                                f"setid {sid} conflicts with {prev_path} (descriptive: {prev_desc!r} vs {desc!r})",
+                                f"setid {sid} conflicts with {_finding_rel_path(repo_root, prev_path)} (descriptive: {prev_desc!r} vs {desc!r})",
                             )
                         )
                 else:
@@ -2087,29 +2126,30 @@ def check_lifecycle_placement(
             term = terminal_locs[0]
             stales = non_terminal_locs
             stale_str = ", ".join(
-                f"'{s.path}' in '{s.bucket}' (- Status: {s.status or 'unknown'})"
+                f"'{_finding_rel_path(repo_root, s.path)}' in '{s.bucket}' (- Status: {s.status or 'unknown'})"
                 for s in stales
             )
             terminal_clause = (
-                f"'{term.path}' is in terminal directory '{term.bucket}' "
+                f"'{_finding_rel_path(repo_root, term.path)}' is in terminal directory '{term.bucket}' "
                 f"(- Status: {term.status or 'unknown'}); {stale_str} is stale."
             )
             recovery = (
-                f"remove stale copy {', '.join(s.path for s in stales)} "
-                f"in favor of terminal {term.path}"
+                f"remove stale copy {', '.join(_finding_rel_path(repo_root, s.path) for s in stales)} "
+                f"in favor of terminal {_finding_rel_path(repo_root, term.path)}"
             )
         else:
             loc_summary = " and ".join(
-                f"{loc.path} (bucket: {loc.bucket}, status: {loc.status or 'unknown'})"
+                f"{_finding_rel_path(repo_root, loc.path)} (bucket: {loc.bucket}, status: {loc.status or 'unknown'})"
                 for loc in locations
             )
             recovery = f"resolve placement conflict between {loc_summary}"
 
         loc_header = " and ".join(
-            f"{loc.path} (status: {loc.status or 'unknown'})" for loc in locations
+            f"{_finding_rel_path(repo_root, loc.path)} (status: {loc.status or 'unknown'})"
+            for loc in locations
         )
         detail_parts = [
-            f"'{loc.path}' (bucket: {loc.bucket}, - Status: {loc.status or 'unknown'})"
+            f"'{_finding_rel_path(repo_root, loc.path)}' (bucket: {loc.bucket}, - Status: {loc.status or 'unknown'})"
             for loc in locations
         ]
         detail = (
@@ -3643,7 +3683,7 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
 
     json_rel = _engine.AW_LAYOUT_JSON_PATH
     schema_rel = _engine.AW_LAYOUT_SCHEMA_PATH
-    recovery = f"run 'aw install {root}' to regenerate the emitted layout document"
+    recovery = "run 'aw install' to regenerate the emitted layout document"
 
     doc, err = load_emitted_layout(root)
     if doc is None and err == "absent":
@@ -8440,7 +8480,7 @@ def evaluate_ipd_lint_diagnostics(
                 "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
                 "committed unnoticed"
             ),
-            recovery=f"aw ipd lint {plan_path} --phase {checkpoint}",
+            recovery=f"aw ipd lint {_finding_rel_path(repo_root, plan_path)} --phase {checkpoint}",
         )
     )
     return drift
@@ -8547,7 +8587,9 @@ def check_ipd_lint_reach(
                     "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
                     "committed unnoticed"
                 ),
-                recovery="aw ipd lint {0} --phase {1}".format(p, "author"),
+                recovery="aw ipd lint {0} --phase {1}".format(
+                    _finding_rel_path(repo_root, p), "author"
+                ),
             )
         )
     return drift

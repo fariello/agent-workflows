@@ -122,10 +122,12 @@ Established in this lane at HEAD `4ec14077c`, by driving the real CLI and the re
 
 - THE PRODUCTION CLOCK FIX IS NOT MADE HERE. `5ivkdh` declares `artifact_core.py`, `backlog.py`, `specs.py`, `status_set.py`, `releases.py` and `readiness_recheck.py` and routes every history writer onto one UTC helper. This plan touches none of those paths, so the two are disjoint and need no ordering edge. Deliberately NO dependency is declared: this plan's deliverable is strictly more valuable BEFORE the clock fix lands, because that is when the coverage loss can still be observed happening.
   - Carrier: 5ivkdh
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE CROSS-SPELLING TIMEZONE GUARD IS NOT BUILT HERE. `ayhveg` derives a differential guard from `command_surface.COMMAND_INVENTORY` and asserts recorded dates equal the UTC date. That proves the clock is right; it says nothing about what the lifecycle gate still examines, which is this plan's subject.
   - Carrier: ayhveg
 - THE SCAFFOLD AND PLAN-FAMILY WRITER SITES ARE NOT TOUCHED. `9wcei0` owns `aw ipd scaffold`'s `draft` record and `rfyrvp` owns the plan-family `created` record, both in `ipd_authoring.py`, which this plan does not declare.
   - Carrier: 9wcei0
+  - Carrier-Evidence: .aw/records/plans/executed/20261002-jvw1kg-01-9wcei0-stamp-the-scaffold-s-draft-history-record-from-the-utc-clock.ipd.md
 - THE DUPLICATE-ITEM CONVERGENCE IS NOT PERFORMED HERE, AND `o8l2y2` CLOSING AS A DUPLICATE IS NOT CONTESTED. `qjm4bg` E-03 names `o8l2y2` among five pure duplicates it closes once its carriers execute. That verdict is correct about the item's TEXT; this plan carries the item's `From-Backlog` handoff for the distinct consequence found while re-deriving it, and writes no status onto any backlog item.
   - Carrier: qjm4bg
 - SPEC `2vev8j` 4.3's EXPLICIT PER-ARTIFACT `seq` IS NOT IMPLEMENTED HERE, AND IT IS THE REAL FIX. It is a storage-contract change across every writer and reader of history, with a migration and a checkpoint rule (4.7), and it is the only route that RESTORES the enforcement this plan merely makes visible. Folding it into an observability change would hide a major migration inside a small plan.

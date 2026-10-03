@@ -67,8 +67,11 @@ Two escape hatches tune the token cost:
   (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained. A projection
   additionally retains whatever the record kind requires to remain valid, including a summary's `total`,
   `emitted`, and `omitted` (so `emitted + omitted == total` remains verifiable to distinguish a bounded
-  answer from a complete one) and a preview result's `applied`. A projection never yields a record that
-  fails validation, so `--fields` is safe to pass on any command.
+  answer from a complete one) and a preview result's `applied`. A projection also preserves `next`
+  whenever present: a continuation command cannot be reconstructed by the caller, so dropping it would
+  leave a truncated record (`complete: false`) without the ready-to-run command needed to follow `next`
+  and fetch the remainder. A projection never yields a record that fails validation, so `--fields` is safe
+  to pass on any command.
 - `--verbose`: include full nested diagnostics, change details, and evidence dictionaries.
 
 ## Example records

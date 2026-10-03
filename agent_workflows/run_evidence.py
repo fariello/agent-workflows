@@ -289,6 +289,8 @@ def build_tool_event(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
     truncated: bool = False,
+    stdout_truncated: Optional[bool] = None,
+    stderr_truncated: Optional[bool] = None,
     max_bytes: Optional[int] = None,
     env: Optional[Mapping[str, str]] = None,
     env_allowlist: Optional[Sequence[str]] = None,
@@ -296,7 +298,15 @@ def build_tool_event(
     parent: str = "",
     seq: int = 0,
 ) -> Dict[str, Any]:
-    """Build a schema-conforming `tool_event` ledger record with provenance."""
+    """Build a schema-conforming `tool_event` ledger record with provenance.
+
+    When neither `stdout_truncated` nor `stderr_truncated` is supplied (both None),
+    both per-stream keys are omitted from the record, preserving legacy call shape
+    without asserting unobserved per-stream truncation facts. When either keyword
+    is supplied, both keys are recorded (the omitted one defaulting to False).
+    The recorded `truncated` field is the disjunction of legacy `truncated`,
+    `stdout_truncated`, and `stderr_truncated` so legacy flags are never masked.
+    """
     stdout_bytes = stdout.encode("utf-8") if isinstance(stdout, str) else stdout
     stderr_bytes = stderr.encode("utf-8") if isinstance(stderr, str) else stderr
 
@@ -307,6 +317,11 @@ def build_tool_event(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     ts = start_time or now_iso
+
+    has_per_stream = (stdout_truncated is not None) or (stderr_truncated is not None)
+    effective_truncated = (
+        bool(truncated) or bool(stdout_truncated) or bool(stderr_truncated)
+    )
 
     rec: Dict[str, Any] = {
         "schema_version": schema.LEDGER_SCHEMA_VERSION,
@@ -323,9 +338,12 @@ def build_tool_event(
         "stderr_sha256": stderr_sha256,
         "stdout_len": len(stdout_bytes),
         "stderr_len": len(stderr_bytes),
-        "truncated": bool(truncated),
+        "truncated": effective_truncated,
         "env": filter_environment(env, env_allowlist),
     }
+    if has_per_stream:
+        rec["stdout_truncated"] = bool(stdout_truncated)
+        rec["stderr_truncated"] = bool(stderr_truncated)
     if start_time:
         rec["start_time"] = start_time
     if end_time:
@@ -495,7 +513,18 @@ def capture_command(
     max_output_bytes: Optional[int] = None,
 ) -> Tuple[CapturedToolEvent, Dict[str, Any]]:
     """Execute a command, capture provenance (start/end, exit, stdout/stderr SHA-256, HEAD, dirty digest,
-    worktree, env allowlist), and return (tool_event, evidence_envelope)."""
+    worktree, env allowlist), and return (tool_event, evidence_envelope).
+
+    When `max_output_bytes` is specified:
+    - The bound is applied per stream to stdout and stderr, not as a shared budget (see OQ-01
+      on deterministic preservation for multi-stream consumers; formerly applied to stdout only).
+    - It is applied to raw bytes before decoding with errors="replace", so decoded strings may contain
+      U+FFFD and re-encode larger than the declared bound.
+    - Appended timeout diagnostic ('\\nCommand timed out.') and spawn-failure exception messages are
+      deliberately outside the bound, because a bound that hides why a capture failed is not a safety win.
+    - `truncated` records the disjunction of `stdout_truncated` and `stderr_truncated`, retained for
+      existing readers.
+    """
     norm_cwd = str(Path(cwd).resolve())
     head = get_git_head(norm_cwd)
     dirty_digest = get_git_dirty_digest(norm_cwd)
@@ -503,6 +532,9 @@ def capture_command(
 
     start_dt = datetime.datetime.now(datetime.timezone.utc)
     start_time = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    is_timeout = False
+    is_spawn_error = False
 
     try:
         proc = subprocess.run(
@@ -518,19 +550,29 @@ def capture_command(
     except subprocess.TimeoutExpired as exc:
         exit_code = 124
         stdout_raw = exc.stdout or b""
-        stderr_raw = (exc.stderr or b"") + b"\nCommand timed out."
+        stderr_raw = exc.stderr or b""
+        is_timeout = True
     except Exception as exc:
         exit_code = 127
         stdout_raw = b""
         stderr_raw = str(exc).encode("utf-8")
+        is_spawn_error = True
 
     end_dt = datetime.datetime.now(datetime.timezone.utc)
     end_time = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    truncated = False
-    if max_output_bytes is not None and len(stdout_raw) > max_output_bytes:
-        stdout_raw = stdout_raw[:max_output_bytes]
-        truncated = True
+    stdout_truncated = False
+    stderr_truncated = False
+    if not is_spawn_error and max_output_bytes is not None:
+        if len(stdout_raw) > max_output_bytes:
+            stdout_raw = stdout_raw[:max_output_bytes]
+            stdout_truncated = True
+        if len(stderr_raw) > max_output_bytes:
+            stderr_raw = stderr_raw[:max_output_bytes]
+            stderr_truncated = True
+
+    if is_timeout:
+        stderr_raw = stderr_raw + b"\nCommand timed out."
 
     tool_event = build_tool_event(
         run_id=run_id,
@@ -541,7 +583,9 @@ def capture_command(
         stderr=stderr_raw,
         start_time=start_time,
         end_time=end_time,
-        truncated=truncated,
+        truncated=stdout_truncated or stderr_truncated,
+        stdout_truncated=stdout_truncated,
+        stderr_truncated=stderr_truncated,
         max_bytes=max_output_bytes,
         env_allowlist=env_allowlist,
         actor=actor,
@@ -2430,7 +2474,7 @@ _CLASSIFICATION_PRIORITY: Tuple[str, ...] = (
 )
 
 
-# ---- the six classes `--unverifiable-ok` may NEVER mask (spec 25kzda `:938`) ----------------------
+# ---- the six classes `--unverifiable-ok` may NEVER mask (spec 25kzda Section 5.6) ----------------------
 #
 # CARRIED AS DATA, NOT PROSE. Spec 5.6 closes the unverifiable rule with an EXHAUSTIVE list of what
 # the flag cannot mask. A prose-only guard ("other items still fail") does not cover a human gate
@@ -2440,7 +2484,7 @@ _CLASSIFICATION_PRIORITY: Tuple[str, ...] = (
 
 
 class NonMaskableClass(NamedTuple):
-    """One row of spec `25kzda` `:938`: a class `--unverifiable-ok` may never mask.
+    """One row of spec `25kzda` Section 5.6: a class `--unverifiable-ok` may never mask.
 
     Fields:
       * ``name``        - the class, in the spec's own words.
@@ -2525,8 +2569,8 @@ class AggregatedItem(NamedTuple):
       * ``benign_skip``        - True for a skip that spec 5.6 counts as benign (a non-runnable type,
                                 a terminal/standing status). A NON-benign skip is not verified and
                                 therefore blocks exit 0.
-      * ``dependency_not_met`` - True for spec `:938`'s dependency-not-met class.
-      * ``needs_input``        - True when a human gate stopped the item (spec `:938`).
+      * ``dependency_not_met`` - True for spec Section 5.6's dependency-not-met class.
+      * ``needs_input``        - True when a human gate stopped the item (spec Section 5.6).
       * ``contribution_hint``  - an explicit contribution for a class with no dedicated field
                                 (notably a plain failure). ``None`` means "derive it".
     """
@@ -2585,7 +2629,7 @@ REFUSAL_UNVERIFIABLE_OK_UNADMITTED = "unverifiable_ok_requires_admission"
 
 
 def non_maskable_classes() -> Tuple[str, ...]:
-    """Spec `25kzda` `:938`'s classes that `--unverifiable-ok` may never mask, in spec order."""
+    """Spec `25kzda` Section 5.6's classes that `--unverifiable-ok` may never mask, in spec order."""
     return tuple(row.name for row in NON_MASKABLE_CLASSES)
 
 
@@ -2682,7 +2726,7 @@ def aggregate_run_exit(
     contains zero ``raise`` statements and defines no exception class, and a raise would also defeat
     purity in practice, since a caller could not evaluate the aggregate in order to inspect it.
 
-    THE FLAG'S LIMITS (spec `:936`, `:938`). Neutrality is narrow. It never suppresses another
+    THE FLAG'S LIMITS (spec Section 5.6). Neutrality is narrow. It never suppresses another
     item's failure, and it never outranks a higher-priority exit: a human gate still yields exit 3
     and a run-wide abort class still yields exit 4. Those limits are carried as data in
     :data:`NON_MASKABLE_CLASSES` and :data:`_CLASSIFICATION_PRIORITY`.
@@ -2765,7 +2809,7 @@ def validate_non_maskable_table() -> EvidenceValidationResult:
     """Self-check :data:`NON_MASKABLE_CLASSES` (structure only; a test asserts the spec text).
 
     Enforced so a later edit cannot quietly weaken the list:
-      * exactly six classes, spec `:938` being exhaustive, each named once;
+      * exactly six classes, spec Section 5.6 being exhaustive, each named once;
       * every ``aggregate`` is a known classification that maps to an exit code;
       * no row's aggregate is :data:`AGGREGATE_ALL_CLEAR`, since a class that could yield exit 0
         would BE masked;
@@ -2777,7 +2821,7 @@ def validate_non_maskable_table() -> EvidenceValidationResult:
             EvidenceFinding(
                 "NM-COUNT",
                 "NON_MASKABLE_CLASSES",
-                f"spec 25kzda :938 enumerates 6 classes, table has {len(NON_MASKABLE_CLASSES)}",
+                f"spec 25kzda Section 5.6 enumerates 6 classes, table has {len(NON_MASKABLE_CLASSES)}",
                 "non-maskable class table size does not match the spec",
             )
         )

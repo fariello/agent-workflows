@@ -836,7 +836,7 @@ def _render_item(
         if item.status == "blocked":
             lines.append(f"- Gate-Kind: {item.gate_kind}")
             lines.append(f"- Gate-Ref: {item.gate_ref}")
-        today = datetime.date.today().isoformat()
+        today = core.utc_history_date()
         msg = (message or "").strip() or item.summary
         lines.append("")
         lines.append("## Workflow history")
@@ -977,7 +977,7 @@ def _render_item(
         rendered_head = rendered_bullets + "\n"
 
     lines = [rendered_head.rstrip()]
-    today = datetime.date.today().isoformat()
+    today = core.utc_history_date()
     msg = (message or "").strip() or item.summary
     lines.append("")
     lines.append("## Workflow history")
@@ -1579,6 +1579,23 @@ def run_set(args) -> int:
     src = res.paths[0]
     text = src.read_text(encoding="utf-8")
     item = parse_item(text)
+
+    # cc2m29 E-05: Consult shared transition predicate before modifying item, before dry-run,
+    # and before any gate-default or metadata write. Case-fold the prior status (PR-003) so an
+    # uppercase source token (- Status: DONE) does not bypass the gate. Skip self-edge.
+    # Refuse with exit code 1 (domain finding), matching specs.run_set and status_set.
+    raw_prior = item.status or ""
+    prior_status = raw_prior.strip().lower()
+    norm_new_status = new_status.strip().lower()
+    if prior_status and prior_status != norm_new_status:
+        from agent_workflows import attention_contract as _ac
+
+        if not _ac.backlog_transition_allowed(prior_status, norm_new_status):
+            sys.stderr.write(
+                f"aw backlog set: illegal transition {prior_status} -> {new_status}\n"
+            )
+            return 1
+
     item.status = new_status
     if new_status == "blocked":
         gk = getattr(args, "gate_kind", None)
@@ -1765,8 +1782,33 @@ def run_set(args) -> int:
         )
     dest_dir.mkdir(parents=True, exist_ok=True)
     core.atomic_write(dest, rendered)
-    if dest.resolve() != src.resolve():
+    moving = dest.resolve() != src.resolve()
+    if moving:
         src.unlink()
+    if (
+        moving
+        and getattr(args, "rewrite_citations", False)
+        and not getattr(args, "dry_run", False)
+    ):
+        try:
+            old_rel = src.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            old_rel = src.as_posix()
+        try:
+            new_rel = dest.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            new_rel = dest.as_posix()
+
+        from agent_workflows import artifact_refs as _refs
+
+        _refs.post_relocation_citation_rewrite(
+            repo_root,
+            old_rel,
+            new_rel,
+            is_agent_or_json=bool(
+                getattr(args, "agent", False) or getattr(args, "json", False)
+            ),
+        )
     sys.stdout.write(f"aw backlog set: {src.name} -> {new_status}\n")
     return 0
 
@@ -1837,7 +1879,7 @@ def run_note(args) -> int:
     src = res.paths[0]
     text = src.read_text(encoding="utf-8")
     item = parse_item(text)
-    date = getattr(args, "date", None) or datetime.date.today().isoformat()
+    date = getattr(args, "date", None) or core.utc_history_date()
     record = f"- {date} note (aw backlog): {message}"
 
     # The sidecar remains a machine-local activity log and can never gate this write (E-04).
@@ -1959,7 +2001,7 @@ def _reattach_history(
     store, so it can never gate this write (see `record_history.append_advisory`).
     """
 
-    today = datetime.date.today().isoformat()
+    today = core.utc_history_date()
     msg = message.strip() or f"status -> {new_status}"
     new_record = f"- {today} {label} (aw backlog): {msg}"
     # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by

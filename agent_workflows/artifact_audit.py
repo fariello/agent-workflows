@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
@@ -117,6 +118,18 @@ _TERMINAL_EXPECTED_DIR = {
 
 # The recorded statuses that mean THE RUN BELIEVED IT SUCCEEDED. A difference under one of these is
 # backwards-looking: the run says done, so the artifact had better be terminal.
+#
+# DECISION (2026-10-01, backlog `64a03w`, IPD `8fo926`): the question of whether `substantially-complete`
+# should share `complete`'s audit tolerance was asked and ANSWERED NO on measurement.
+# (a) The asymmetry the backlog item was filed about does not exist, because this set is consulted on the
+# canonical status and `substantially-complete` canonicalizes to `fail-gate` while `complete` is not in
+# the set either, so both statuses are flagged in the identical shape.
+# (b) Adding the legacy spelling `substantially-complete` to this set is a silent NO-OP, so a future editor
+# who tries it and sees green has demonstrated nothing.
+# (c) Adding `fail-gate` WOULD work and is REFUSED, because `fail-gate` is also the canonical form of
+# `blocked` and `failed-safely`, so the one-line change tolerates three statuses while naming one.
+# (d) Fenced by tests `test_substantially_complete_and_complete_plans_lifecycle_symmetry` (E-02) and
+# `test_fail_gate_family_matches_complete_reference` (E-03) in `tests/test_artifact_audit.py`.
 _RUN_SUCCESS_STATUSES = frozenset({"executed"})
 
 # The terminal dispositions that are a RETIREMENT rather than an execution. Reaching one of these is
@@ -1058,15 +1071,22 @@ class ArtifactIndex:
 # require re-deriving on every miss or checking every file on every hit, spending full rebuilds on normal
 # queries. No carrier is owed (deferred under plan 0a7v0x / F-05).
 #
-# RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
-# directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
-# directories holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files
-# (543 at review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
+# RESIDUAL LIMIT 2 / OVER-INVALIDATION: The recursive walk fingerprints 56 directories while
+# `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated directories
+# holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files (543 at
+# review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
 # review records therefore discard the cached index unnecessarily. This trade is accepted because a
 # cache rebuild is slow, never wrong, whereas the staleness routes closed by the recursive walk are
-# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Tracked under backlog
-# carrier `an1a33`.
-_INDEX_CACHE: dict = {}
+# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Accepted trade with
+# no open carrier.
+#
+# EVICTION POLICY AND CAP: Eviction is single-entry LRU (IPD bvw2nd closing backlog carrier an1a33),
+# promoting on hit (`move_to_end`) and popping the oldest entry on insert when over `_INDEX_CACHE_MAX`.
+# Raising the cap above 8 was measured and declined on memory grounds: each cached repository index
+# takes ~1.34 MiB (~10.7 MiB at cap 8 vs ~21.5 / ~42.9 MiB at 16 / 32), while the only live multi-root
+# consumer is the test suite whose temporary 3-record roots cost ~1.26ms per rebuild, so raising the
+# cap spends tens of megabytes for ~1ms of avoidable work on real traces.
+_INDEX_CACHE: OrderedDict = OrderedDict()
 _INDEX_CACHE_MAX = 8
 
 
@@ -1131,6 +1151,7 @@ def build_index(
     sig = _dir_signature(repo_root, record_types)
     cached = _INDEX_CACHE.get(key)
     if cached is not None and cached[0] == sig:
+        _INDEX_CACHE.move_to_end(key)
         return cached[1]
 
     paths: List[Path] = []
@@ -1160,9 +1181,9 @@ def build_index(
     index = ArtifactIndex(
         paths=paths, by_declared_id=by_declared, by_filename_id=by_filename
     )
-    if len(_INDEX_CACHE) >= _INDEX_CACHE_MAX:
-        _INDEX_CACHE.clear()
     _INDEX_CACHE[key] = (sig, index)
+    while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
+        _INDEX_CACHE.popitem(last=False)
     return index
 
 

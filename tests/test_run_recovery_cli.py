@@ -1375,6 +1375,26 @@ class TestRunCliSubcommands(unittest.TestCase):
             "the executor cannot author its own completion. Note the seed is COMPLETE, so this row "
             "proves authority is checked even when every predicate would otherwise pass",
         ),
+        (
+            "record on an already-performed step",
+            "root-performed",
+            (
+                "run",
+                "record",
+                "LEDGER",
+                "--workflow",
+                "WORKFLOW",
+                "--step",
+                "S-01",
+                "--state",
+                "performed",
+            ),
+            run_cli.EXIT_OPERATIONAL,
+            (),
+            "re-recording a terminal step is an ILLEGAL TRANSITION (6) and not a blocked step (3) "
+            "or an invocation error (2), because the step exists and the request is well-formed, "
+            "so the state machine's own refusal is what fires",
+        ),
         # ---- exit 4 and 5: the two ways captured evidence can refuse a finalize. -----------------
         (
             "finalize with a tool_event that exited nonzero",

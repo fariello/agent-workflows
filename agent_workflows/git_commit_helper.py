@@ -286,6 +286,10 @@ class CommitOutcome(NamedTuple):
     instead of the committed bytes. Reporting them is deliberate: a retry commits content the caller
     did not write, so absorbing it silently would hide a mutation. Both are APPENDED with defaults,
     because this is a ``NamedTuple`` that callers unpack positionally as well as by name.
+
+    ``abandoned`` carries the sequence of stranded commit shas retained under
+    ``refs/aw/abandoned/isolated/`` across all attempts in an ``ISO_RACED`` retry loop (E-04).
+    Appended with empty default tuple for positional contract compatibility.
     """
 
     status: str
@@ -294,6 +298,7 @@ class CommitOutcome(NamedTuple):
     message: str
     hook_fixed: Tuple[str, ...] = ()
     hook_fixed_diverged: Tuple[str, ...] = ()
+    abandoned: Tuple[str, ...] = ()
 
 
 def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
@@ -782,6 +787,13 @@ def offer_commit(
             # worktree instead, and advances the branch under a compare-and-swap.
             iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
 
+            # E-06: ISO_RACED_MAX_ATTEMPTS is a deliberate COST bound from plan 9bq5o4
+            # ("each attempt re-runs the FULL pre-commit hook set in a fresh worktree").
+            # It is NOT to be raised to make this arm rarer: each attempt runs inside
+            # the shared writer lock, so a longer loop holds that lock and blocks every other
+            # aw verb across the repository.
+            abandoned_shas: list = list(getattr(iso, "abandoned", ()))
+
             if iso.status == _lock.ISO_RACED:
                 # Another commit moved HEAD between snapshot and compare-and-swap.
                 # Re-attempt the isolated commit on the new tip, bounded by wall time and an attempt cap.
@@ -797,6 +809,8 @@ def offer_commit(
                     iso = _lock.commit_isolated(
                         repo_root, our_staged, message=full_message
                     )
+                    if getattr(iso, "abandoned", ()):
+                        abandoned_shas.extend(iso.abandoned)
                     if iso.status == _lock.ISO_COMMITTED:
                         return True, iso
                     if iso.status == _lock.ISO_RACED:
@@ -845,6 +859,7 @@ def offer_commit(
                     f"committed {len(our_staged)} path(s) as {iso.commit}{note}{shortfall_note}",
                     tuple(iso.hook_fixed),
                     tuple(iso.hook_fixed_diverged),
+                    tuple(abandoned_shas),
                 )
 
             # Every non-success path leaves the caller's staging as it was found, then reports honestly.
@@ -857,12 +872,16 @@ def offer_commit(
                     f"nothing to commit: {iso.detail}",
                     tuple(iso.hook_fixed),
                     tuple(iso.hook_fixed_diverged),
+                    tuple(abandoned_shas),
                 )
             return CommitOutcome(
                 STATUS_ERROR,
                 None,
                 tuple(our_staged),
                 f"git commit failed: {iso.detail}",
+                tuple(iso.hook_fixed),
+                tuple(iso.hook_fixed_diverged),
+                tuple(abandoned_shas),
             )
     except _lock.CommitLockBusy as exc:
         return CommitOutcome(STATUS_ERROR, None, (), str(exc))

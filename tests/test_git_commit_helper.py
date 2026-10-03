@@ -758,8 +758,12 @@ def test_commit_outcome_keeps_its_positional_contract(repo: Path, rec):
     assert message == out.message
     # The new fields are APPENDED with defaults, so a 4-field construction still works.
     legacy = H.CommitOutcome(H.STATUS_SKIPPED, None, (), "legacy 4-field caller")
-    assert legacy.hook_fixed == () and legacy.hook_fixed_diverged == ()
-    assert list(rest) == [(), ()]
+    assert (
+        legacy.hook_fixed == ()
+        and legacy.hook_fixed_diverged == ()
+        and legacy.abandoned == ()
+    )
+    assert list(rest) == [(), (), ()]
 
 
 # --------------------------------------------------------------------------------------

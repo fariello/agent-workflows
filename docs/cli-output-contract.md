@@ -227,7 +227,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
   - If `complete=False` (and not a non-destructive preview), the outcome is `partial` or `skipped`.
   - If `exit=2`, kind is `error` and outcome is `cannot-run` or `error`.
 - **Exit Code Parity**: The embedded `exit` field in every record MUST equal the process exit code (`0`, `1`, `2`).
-- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths.
+- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths. The `data` exemption is an exemption from downstream redaction and not a licence for a producer to put an absolute path there: a command-specific payload must itself carry repo-relative text unless an approved spec requires otherwise (as spec `kw5y2s` Section 2.4 does for `data.logical_roots`). Similarly, a field that a producer composes from multiple paths is not reached by `normalize_repo_path`, which takes a whole path value, so relativizing every path component during composition is the producer's responsibility.
 - **ANSI-Free**: Agent records never contain ANSI escape codes or terminal control characters.
 
 ---
@@ -249,9 +249,9 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
 {"schema":"aw.agent/v1","kind":"result","cmd":"check specs","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"diagnostics":[{"location":"specs/01.md","rule":"spec.draft"},{"location":"specs/02.md","rule":"spec.title"}],"next":"aw check specs --fix"}
 ```
 
-### Stream Summary with Truncation (`exit: 1`)
+### Stream Summary with Truncation (`exit: 0`)
 ```json
-{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":1,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"partial","exit":0,"total":4,"emitted":2,"omitted":2,"complete":false,"next":"aw runs query findings --limit 4"}
 ```
 
 ### Cannot-Run Error (`exit: 2`)
@@ -266,8 +266,8 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
 To minimize token usage during agent orchestration while preserving complete decision facts:
 
 - **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
-- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
-- **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
+- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. Projections also preserve `next` whenever present: a continuation or recovery command cannot be reconstructed by the caller, so retaining it ensures the MUST requirements in Section 11.1 (broadening or fallback commands on empty results) and Section 11.4 (recovery commands on cannot-run error records) hold under `--fields` too. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
+- **`--limit <N>`**: Bounds payload emission to at most `N` items. For streaming commands (such as `runs query`), it bounds item emission and includes total counts, omitted counts, and a continuation command in the terminating `summary` record; for single-record commands (`check`, `search`), it bounds the in-record payload (`diagnostics`, `matches`) with total, emitted, and omitted counts, setting `complete: false` when truncated; for index generation (`index`, `research index`), it configures the recent-item hot window.
 - **`--verbose` / `--json`**:
   - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
   - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for machine ingestion and debugging. Its envelope fields (`summary`, `diagnostics`, `changes`, `evidence`, `next_actions`) are home-path redacted, while `data` is an unredacted passthrough (exempt per spec `kw5y2s` Section 2.4).
@@ -278,7 +278,7 @@ To minimize token usage during agent orchestration while preserving complete dec
 
 - **`stdout`**: Reserved strictly for final structured results (the interactive human view or machine JSONL records).
 - **`stderr`**: Reserved for interactive progress indicators, transient status updates, cannot-start errors, and usage diagnostics. Diagnostics are never duplicated across both streams.
-- **Broken Pipes**: All handlers catch `BrokenPipeError` / `EPIPE` when writing to stdout and exit cleanly without dumping Python stack traces.
+- **Broken Pipes**: A top-level guard at the single process entry point `cli.main` catches `BrokenPipeError` when writing or flushing stdout, redirecting stdout to `os.devnull` to ensure the process exits cleanly within Section 3's three-state vocabulary (`0`, `1`, `2`) without dumping Python stack traces or shutdown flush errors (exit 120). When the command completed dispatch and only the final stdout flush failed, the command's computed verdict (`rc`) is preserved and returned unchanged. When the command was interrupted mid-write during dispatch, the guard returns `0`; in that case output is truncated and the exit code describes the closed pipe rather than repository findings, so callers requiring an authoritative domain verdict must consume the full stream or use machine surfaces (`--agent` / `--json`). The guard catches `BrokenPipeError` specifically and never bare `OSError`, ensuring genuine write failures such as `ENOSPC` (no space left on device) are not suppressed.
 
 ---
 

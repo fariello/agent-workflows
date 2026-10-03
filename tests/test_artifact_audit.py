@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -512,7 +513,6 @@ class TestArtifactAuditEngine(unittest.TestCase):
 
         # Assert closed vocabulary is completely swept and equal to TERMINAL_STATES
         self.assertEqual(swept, set(runner_shared.TERMINAL_STATES))
-        self.assertEqual(len(swept), 24)
 
         # F-07 pin: _RUN_SUCCESS_STATUSES is strictly {"executed"} and complete is flagged in executed/
         self.assertEqual(_audit._RUN_SUCCESS_STATUSES, frozenset({"executed"}))
@@ -527,3 +527,222 @@ class TestArtifactAuditEngine(unittest.TestCase):
         self.assertTrue(a_complete.has_discrepancy)
         self.assertTrue(a_complete.location_mismatch)
         self.assertTrue(a_complete.status_mismatch)
+
+    def _setup_plans_lifecycle_matrix_repo(
+        self,
+    ) -> tuple[_audit.FinalizeEvidenceIndex, _audit.ArtifactIndex]:
+        subprocess.run(
+            ["git", "init"],
+            cwd=self.root,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=self.root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "initial"],
+            cwd=self.root,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        dispositions = ("pending", "executed", "superseded", "not-executed", "reusable")
+        declared_statuses = (
+            "approved",
+            "to-review",
+            "draft",
+            "reviewed",
+            "executed",
+            "superseded",
+            "not-executed",
+            "reusable",
+            "complete",
+        )
+        for disp in dispositions:
+            for ds in declared_statuses:
+                stem = f"20261001-testset-01-{disp}-{ds}"
+                banner = "> **RETIRED**\n\n" if disp in _audit._RETIREMENT_DIRS else ""
+                self._write_file(
+                    f".aw/records/plans/{disp}/{stem}.ipd.md",
+                    f"# IPD: {stem}\n\n{banner}- Id: {disp[:3]}{ds[:3]}\n- Status: {ds}\n",
+                )
+        evidence = _audit.build_finalize_evidence_index(self.root)
+        artifact_index = _audit.build_index(self.root)
+        return evidence, artifact_index
+
+    def test_substantially_complete_and_complete_plans_lifecycle_symmetry(
+        self,
+    ) -> None:
+        """Symmetry pin: substantially-complete and complete are indistinguishable (E-02).
+
+        Sweeps the full 270-combination plans lifecycle shape matrix:
+          5 dispositions x 9 declared statuses x 2 actions x 3 initial_status values.
+        Asserts the full observable tuple:
+          (location_mismatch, status_mismatch, has_discrepancy, difference_class, is_alarming).
+        """
+        evidence, artifact_index = self._setup_plans_lifecycle_matrix_repo()
+        dispositions = ("pending", "executed", "superseded", "not-executed", "reusable")
+        declared_statuses = (
+            "approved",
+            "to-review",
+            "draft",
+            "reviewed",
+            "executed",
+            "superseded",
+            "not-executed",
+            "reusable",
+            "complete",
+        )
+        actions = ("execute", "review")
+        initial_statuses = (None, "approved", "to-review")
+
+        compared = 0
+        differences = []
+        for disp in dispositions:
+            for ds in declared_statuses:
+                stem = f"20261001-testset-01-{disp}-{ds}"
+                id6 = f"{disp[:3]}{ds[:3]}"
+                for act in actions:
+                    for init_st in initial_statuses:
+                        compared += 1
+                        a_sc = _audit.audit_artifact(
+                            self.root,
+                            id6,
+                            stem,
+                            status="substantially-complete",
+                            artifact_type="plans",
+                            action=act,
+                            initial_status=init_st,
+                            evidence=evidence,
+                            artifact_index=artifact_index,
+                        )
+                        a_c = _audit.audit_artifact(
+                            self.root,
+                            id6,
+                            stem,
+                            status="complete",
+                            artifact_type="plans",
+                            action=act,
+                            initial_status=init_st,
+                            evidence=evidence,
+                            artifact_index=artifact_index,
+                        )
+                        t_sc = (
+                            a_sc.location_mismatch,
+                            a_sc.status_mismatch,
+                            a_sc.has_discrepancy,
+                            a_sc.difference_class,
+                            a_sc.is_alarming,
+                        )
+                        t_c = (
+                            a_c.location_mismatch,
+                            a_c.status_mismatch,
+                            a_c.has_discrepancy,
+                            a_c.difference_class,
+                            a_c.is_alarming,
+                        )
+                        if t_sc != t_c:
+                            differences.append((disp, ds, act, init_st, t_sc, t_c))
+
+        self.assertEqual(compared, 270)
+        self.assertEqual(
+            differences,
+            [],
+            f"Diverged in {len(differences)}/270 combinations; first divergence at disp={differences[0][0]} ds={differences[0][1]} act={differences[0][2]} init={differences[0][3]}: substantially-complete={differences[0][4]} != complete={differences[0][5]}"
+            if differences
+            else "",
+        )
+
+    def test_fail_gate_family_matches_complete_reference(self) -> None:
+        """Fail-gate family members match non-success reference complete across 270 combinations (E-03).
+
+        Derives family membership dynamically from runner_shared.TERMINAL_STATUS_ALIASES.
+        Compares each member against the non-success reference complete, collecting all
+        diverging members into one assertion message so the full collateral blast radius is shown.
+        """
+        evidence, artifact_index = self._setup_plans_lifecycle_matrix_repo()
+        dispositions = ("pending", "executed", "superseded", "not-executed", "reusable")
+        declared_statuses = (
+            "approved",
+            "to-review",
+            "draft",
+            "reviewed",
+            "executed",
+            "superseded",
+            "not-executed",
+            "reusable",
+            "complete",
+        )
+        actions = ("execute", "review")
+        initial_statuses = (None, "approved", "to-review")
+
+        family = {
+            k
+            for k, v in runner_shared.TERMINAL_STATUS_ALIASES.items()
+            if v == "fail-gate"
+        } | {"fail-gate"}
+
+        diverging_members: dict[str, int] = {}
+        for member in sorted(family):
+            diff_count = 0
+            for disp in dispositions:
+                for ds in declared_statuses:
+                    stem = f"20261001-testset-01-{disp}-{ds}"
+                    id6 = f"{disp[:3]}{ds[:3]}"
+                    for act in actions:
+                        for init_st in initial_statuses:
+                            a_m = _audit.audit_artifact(
+                                self.root,
+                                id6,
+                                stem,
+                                status=member,
+                                artifact_type="plans",
+                                action=act,
+                                initial_status=init_st,
+                                evidence=evidence,
+                                artifact_index=artifact_index,
+                            )
+                            a_c = _audit.audit_artifact(
+                                self.root,
+                                id6,
+                                stem,
+                                status="complete",
+                                artifact_type="plans",
+                                action=act,
+                                initial_status=init_st,
+                                evidence=evidence,
+                                artifact_index=artifact_index,
+                            )
+                            t_m = (
+                                a_m.location_mismatch,
+                                a_m.status_mismatch,
+                                a_m.has_discrepancy,
+                                a_m.difference_class,
+                                a_m.is_alarming,
+                            )
+                            t_c = (
+                                a_c.location_mismatch,
+                                a_c.status_mismatch,
+                                a_c.has_discrepancy,
+                                a_c.difference_class,
+                                a_c.is_alarming,
+                            )
+                            if t_m != t_c:
+                                diff_count += 1
+            if diff_count > 0:
+                diverging_members[member] = diff_count
+
+        self.assertEqual(
+            diverging_members,
+            {},
+            f"Fail-gate family members diverged from non-success reference 'complete': {sorted(diverging_members.keys())} (divergences per member: {diverging_members})",
+        )

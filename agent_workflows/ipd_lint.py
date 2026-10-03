@@ -208,6 +208,22 @@ _H2_RE = re.compile(r"^## (.+?)\s*$")
 _H3_RE = re.compile(r"^### (.+?)\s*$")
 _LEAF_RE = re.compile(r"^- \[([ x])\]\s+(.*)$")
 _SUBFIELD_RE = re.compile(r"^\s+- ([A-Za-z][A-Za-z /-]*?):\s?(.*)$")
+# obsevcont 0nxa8o (pz34kx): the named leaf sub-fields whose values MAY continue onto following
+# lines beneath the field bullet.
+#
+# KEPT TO A NAMED SET ON PURPOSE (F-3). Blanket continuation absorb over every sub-field corrupts
+# 100 `Execution state`, 47 `Depends on` and 2 `Result` values in the tracked corpus and newly emits
+# 21 diagnostics on plans that lint clean today. The continuation read must be restricted to the
+# free-text presence-gated fields whose natural shape is a multi-line block or transcript.
+#
+# TERMINATION RULE DIVERGENCE (F-10): this rule is deliberately NOT `leaf_action_blocks`' rule.
+# An action block bounds a frozen-contract region that a blank line legitimately ends, whereas this
+# rule bounds a pasted transcript or multi-line note that routinely contains blank lines or col-0
+# fences. Reusing `leaf_action_blocks` leaves 978 of 2800 real evidence blocks still parsing to empty.
+_CONTINUATION_SUBFIELDS: FrozenSet[str] = frozenset(
+    ("Observed evidence", "Execution note")
+)
+
 # orchtyped `dpdyed` (spec `r07vma` R1a): the TYPED CHILD-TRACKING ROW grammar, and the ONLY
 # definition of it in the tree (R3). A conforming orchestrator checklist row is exactly:
 #
@@ -295,6 +311,7 @@ def _structural_lines(text: str) -> List[Tuple[int, str]]:
 
 def parse(text: str) -> ParsedDoc:
     """Parse an IPD into its structural pieces, fence-aware. Never raises on ordinary content."""
+    raw_lines = (text or "").splitlines()
     struct = _structural_lines(text)
     title = ""
     h2: List[H2] = []
@@ -421,7 +438,42 @@ def parse(text: str) -> ParsedDoc:
         # Indented sub-field of the current leaf.
         msf = _SUBFIELD_RE.match(raw)
         if msf and current_leaf is not None:
-            cur_fields[msf.group(1).strip()] = msf.group(2).strip()
+            key = msf.group(1).strip()
+            val = msf.group(2).strip()
+            if key in _CONTINUATION_SUBFIELDS:
+                collected = [val] if val else []
+                in_fence = False
+                fence_marker = ""
+                for cont_raw in raw_lines[lineno:]:
+                    m_fence = _FENCE_RE.match(cont_raw)
+                    if m_fence:
+                        marker = m_fence.group(2)
+                        if not in_fence:
+                            in_fence = True
+                            fence_marker = marker
+                            continue
+                        elif marker == fence_marker:
+                            in_fence = False
+                            fence_marker = ""
+                            continue
+                    if in_fence:
+                        stripped = cont_raw.strip()
+                        if stripped:
+                            collected.append(stripped)
+                        continue
+                    stripped = cont_raw.strip()
+                    if not stripped:
+                        continue
+                    if _SUBFIELD_RE.match(cont_raw):
+                        break
+                    if cont_raw.startswith("- [") or cont_raw.startswith("#"):
+                        break
+                    if not cont_raw[:1].isspace():
+                        break
+                    collected.append(stripped)
+                cur_fields[key] = " ".join(collected).strip()
+            else:
+                cur_fields[key] = val
             continue
         # OQ sub-fields + size assessment (plain "- Field: value" bullets under their H2).
         mmeta = S._META_LINE_RE.match(raw)

@@ -99,10 +99,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE INLINE HISTORY WRITERS AND THE SHARED UTC HELPER ARE NOT BUILT HERE. `5ivkdh` adds the helper to `artifact_core` and converts `backlog`, `specs`, `status_set`, `releases` and `readiness_recheck`. This plan consumes that helper and takes a hard `executed:5ivkdh` dependency rather than duplicating or pre-empting it.
   - Carrier: 5ivkdh
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE CROSS-SPELLING TIMEZONE GUARD IS NOT BUILT HERE. `ayhveg` owns the derived, timezone-parameterized differential guard over the setter surface, including the spec-family divergence no filed item mentions. F-06 records why its comparison and this plan's are different axes.
   - Carrier: ayhveg
 - THE SCAFFOLD AND PLAN-FAMILY `created` RECORDS ARE NOT TOUCHED. `9wcei0` and `rfyrvp` each own an `ipd_authoring` site, and this plan declares no `ipd_authoring.py` path.
   - Carrier: 9wcei0
+  - Carrier-Evidence: .aw/records/plans/executed/20261002-jvw1kg-01-9wcei0-stamp-the-scaffold-s-draft-history-record-from-the-utc-clock.ipd.md
 - THE LIFECYCLE-GATE COVERAGE COMPANION IS NOT BUILT HERE. `5xq2ng` owns the rule that reports when `check.lifecycle-transition-invalid` validates nothing once date variation is removed. That is a consequence of the inline fix, not of the sidecar, which gates nothing (F-07).
   - Carrier: 5xq2ng
 - THE DUPLICATE-ITEM CONVERGENCE IS NOT PERFORMED HERE, INCLUDING THIS PLAN'S OWN SOURCE ITEM. `qjm4bg` declares `tl8qmc`'s path and closes it in E-04, and also owns correcting the stale diagnosis F-09 describes. This plan writes no status onto `tl8qmc` and edits none of the cluster's records.
@@ -112,7 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - THE SIDECAR IS NOT MIGRATED TO THE TRACKED PER-ARTIFACT JOURNAL. `2vev8j` 4.2 rules that history should live in tracked per-id6 JSONL and 4.3 that an explicit `seq` should own ordering, but the spec's own N3 places that migration outside its scope and it is unimplemented. Fixing the clock of the store that exists today is independent of replacing that store later.
   - Carrier-Declined: deliberately out of scope per the spec's own N3; no carrier exists yet and this plan does not create the obligation.
 - THE `--date` OVERRIDE IS NOT ADDED TO THE `aw set` FAMILY. `5ivkdh` records that gap. `record_history`'s functions already accept a `date` parameter, which is all E-01 must preserve.
-  - Carrier: 5ivkdh
+  - Carrier: fcnz1r
 - THE THREE PRE-EXISTING SUITE FAILURES ARE NOT FIXED. The bare suite measured `3 failed, 4624 passed, 2 skipped` at authoring, in `test_spec_review_attestation`, `test_run_finding_reachability` and `test_selector_type_containment`. None involves a history date or the sidecar.
   - Carrier-Declined: unrelated to this plan's subject; it touches neither the modules nor the behaviors those tests exercise.
 

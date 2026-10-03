@@ -1770,6 +1770,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    p_ipd_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     _add_commit_flags(p_ipd_set)  # selfcommit jgcm68 E-01/E-05
 
     # ipddeps Order g69y23: `aw ipd dependencies set` writes the machine-readable, id6-grounded
@@ -2756,7 +2761,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 analyzed, 1 one or more runs skipped, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
@@ -2839,7 +2844,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 answered, 2 cannot-run (disallowed query or refused slice).\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     _p_runs_query.add_argument(
@@ -2957,7 +2962,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 previewed or written, 1 refused, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
@@ -3044,7 +3049,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 submitted, 1 refused/unavailable, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     _p_runs_submit.add_argument(
@@ -3096,7 +3101,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 drift/dangling citations, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     research_sub = p_research.add_subparsers(dest="research_command")
@@ -3433,7 +3438,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 always when it can run (an empty audit trail is a valid answer),\n"
             "  2 cannot-run/usage error. There is no exit 1: reporting is not judging.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     reviews_sub = p_reviews.add_subparsers(dest="reviews_command")
@@ -3481,7 +3486,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 whenever the report could be produced (a not-supported verdict is\n"
             "  an ANSWER, not a failure), 2 cannot-run/usage error. There is no exit 1.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     host_sub = p_host.add_subparsers(dest="host_command")
@@ -3585,7 +3590,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean/matched, 1 mismatch, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
         ),
     )
     project_sub = p_project.add_subparsers(dest="project_command")
@@ -3647,7 +3652,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean/valid, 1 findings/uninitialized, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for structured JSON.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for structured JSON.\n"
         ),
     )
     storage_sub = p_storage.add_subparsers(dest="storage_command")
@@ -3796,7 +3801,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 success, 1 not found, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     config_sub = p_config.add_subparsers(dest="config_command")
@@ -4423,7 +4428,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 "\n"
                 "OUTPUT & EXITS\n"
                 "  Exit codes: 0 clean, 1 findings, 2 cannot-run/usage error.\n"
-                "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
+                "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
             )
 
     p_set = sub.add_parser(
@@ -4546,6 +4551,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm execution without prompt."
+    )
+    p_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
     )
     # selfcommit jgcm68 E-01: `aw set` (and every family routing through it) offers to commit its
     # own path-scoped metadata rewrite. The subcommand `set` parsers (ipd/spec/prompts/backlog) that
@@ -5078,7 +5088,7 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="List every profile with its model, variant, agent, and which one is the default.",
         description=(
-            "List your profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or with "
+            "List your profiles. Human table on a TTY, aw.agent/v1 JSONL with "
             "--agent, structured JSON with --json. An empty list is a clean result, not an error."
         ),
     )
@@ -5366,7 +5376,7 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="List Antigravity profiles with model, validation posture, and default status.",
         description=(
-            "List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or "
+            "List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL "
             "with --agent, structured JSON with --json. An empty list is a clean result, not an error."
         ),
     )
@@ -5673,7 +5683,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 contract findings, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     backlog_sub = p_backlog.add_subparsers(dest="backlog_command")
@@ -5925,6 +5935,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    p_backlog_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     _add_commit_flags(p_backlog_set)  # selfcommit jgcm68 E-01/E-05
 
     # plan `vhbvwz` E-05: the ANNOTATION verb, mirroring the shipped `aw specs note`. Without it the
@@ -5986,7 +6001,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 2 cannot-run/usage error (e.g. an unresolvable selector).\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the release records in .aw/records/releases/ (the ship-gate anchors that "
@@ -6082,7 +6097,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 contract violations, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the design specifications and RFC documents in .aw/records/specs/: "
@@ -6248,6 +6263,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_specs_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    p_specs_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     _add_commit_flags(p_specs_set)  # selfcommit jgcm68 E-01/E-05/E-06 (dual path)
 
     p_specs_note = specs_sub.add_parser(
@@ -6311,26 +6331,28 @@ def _build_parser() -> argparse.ArgumentParser:
     p_prompts = sub.add_parser(
         "prompts",
         parents=[common],
-        help="Owner verbs for the staged prompts tree. 'prompts new' mints a conforming staged prompt.",
+        help="Owner verbs for the staged prompts tree: 'new' mints a prompt, 'set' transitions status.",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
             "  aw prompts new --kind research --slug token-compression\n"
             "  aw prompts new --kind research --slug token-compression --apply\n"
             "  aw prompts new --kind research --slug token-compression --set tokenwork --apply\n"
+            "  aw prompts set executed <id6>\n"
+            '  aw prompts set superseded <id6> --message "superseded by new work"\n'
             "\n"
             "SAFETY & DEFAULTS\n"
             "  Dry-run by default: nothing is written without --apply.\n"
             "  A minted prompt is NEVER staged or committed; that stays a deliberate act.\n"
             "\n"
             "OUTPUT & EXITS\n"
-            "  Exit codes: 0 clean, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Exit codes: 0 clean, 1 domain refusal/error, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a "
             "conforming staged prompt (derived filename + the single leading `aw-prompt` metadata comment) "
-            "into pending/, so a prompt is a tooled artifact instead of a hand-named file."
+            "into pending/, and 'set' transitions a staged prompt's status across lifecycle directories."
         ),
     )
     prompts_sub = p_prompts.add_subparsers(dest="prompts_command")
@@ -6400,6 +6422,38 @@ def _build_parser() -> argparse.ArgumentParser:
         "--apply", action="store_true", help="Write the file (default is preview only)."
     )
 
+    p_prompts_set = prompts_sub.add_parser(
+        "set",
+        parents=[common],
+        help="Update status and metadata on a prompt record in .aw/records/prompts/.",
+        description=(
+            "Transition a prompt's status and move the file across lifecycle directories. "
+            "Syntax: 'aw prompts set <status> <selector...>'."
+        ),
+    )
+    p_prompts_set.add_argument("args", nargs="+", help="<status> <selector...>")
+    p_prompts_set.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_prompts_set.add_argument(
+        "--message", default=None, help="Workflow history message."
+    )
+    p_prompts_set.add_argument(
+        "--by-human", action="store_true", help="Attest human approval."
+    )
+    p_prompts_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_prompts_set.add_argument(
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
+    )
+    p_prompts_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
+    _add_commit_flags(p_prompts_set)
+
     # awinbox Order 01 (lznpv6): the ONE tooled crossing from the gitignored `.aw/inbox/` raw-drop
     # lane into a typed records tree. Registered as a TOP-LEVEL verb rather than under a family
     # because the inbox is not a records type and the act spans two trees (inbox -> records/<type>).
@@ -6427,7 +6481,7 @@ SAFETY & DEFAULTS
 
 OUTPUT & EXITS
   Exit codes: 0 adopted/previewed, 2 refused (leak gate, bulk input, path outside the inbox).
-  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.
+  Agent mode: --agent emits aw.agent/v1 JSONL.
 """,
     )
     p_adopt.add_argument(
@@ -12523,6 +12577,173 @@ def _run_archive(args: argparse.Namespace, term: Term) -> int:
     return r if isinstance(r, int) else 0
 
 
+def _build_search_continuation(
+    args: argparse.Namespace,
+    norm: str,
+    pattern: str,
+    hits: int,
+) -> str:
+    """Construct runnable continuation command for search (E-03)."""
+    import shlex
+    from agent_workflows import agent_schema as _schema
+
+    parts = ["aw", "search"]
+    flag_types = list(getattr(args, "types", None) or [])
+    if flag_types:
+        parts.extend(["--types", ",".join(flag_types)])
+    elif norm != "all":
+        parts.append(norm)
+
+    clean_pat = _schema.redact_home_paths(pattern)
+    parts.append(shlex.quote(clean_pat) if " " in clean_pat else clean_pat)
+
+    flag_status = list(getattr(args, "status", None) or [])
+    if flag_status:
+        parts.extend(["--status", ",".join(flag_status)])
+    if getattr(args, "full", False):
+        parts.append("--full")
+
+    parts.extend(["--agent", "--limit", str(hits)])
+    return " ".join(parts)
+
+
+def _build_check_continuation(
+    target: str,
+    total: int,
+    *,
+    is_source_citations: bool = False,
+    is_source_anchors: bool = False,
+    include_retired: bool = False,
+) -> str:
+    """Construct runnable continuation command for check (E-04)."""
+    if is_source_citations:
+        return f"aw check --source-citations --agent --limit {total}"
+    if is_source_anchors:
+        return f"aw check --source-anchors --agent --limit {total}"
+    parts = ["aw", "check", target]
+    if include_retired:
+        parts.append("--all")
+    parts.extend(["--agent", "--limit", str(total)])
+    return " ".join(parts)
+
+
+def _emit_bounded_agent_record(
+    result: Any,
+    ctx: Any,
+    *,
+    payload_key: str = "diagnostics",
+    search_hits: Optional[int] = None,
+    search_matches: Optional[List[Dict[str, Any]]] = None,
+    continuation_cmd: Optional[str] = None,
+    repo_root: Optional[Any] = None,
+) -> int:
+    """Emit bounded agent record under ctx.limit or fall back to standard renderer emit.
+
+    Reused across all aw check emit sites and aw search (E-04).
+    On ctx.is_agent, builds an unprojected agent record, bounds the payload under ctx.limit,
+    records total/emitted/omitted counts, sets complete=False when truncated, applies --fields
+    projection, and serializes through agent_schema.render_jsonl_record.
+    On non-agent (human / --json), emits standard CommandResult unmodified.
+    """
+    import dataclasses
+    from agent_workflows import agent_schema as _schema
+    from agent_workflows.renderers import get_renderer
+
+    if (
+        not ctx.is_agent
+        or result.exit_code == 2
+        or result.status in ("error", "cannot-run")
+    ):
+        return get_renderer(ctx).emit(result, ctx)
+
+    # 1. Build unprojected agent record (clearing fields so projection does not strip payload early)
+    clean_ctx = dataclasses.replace(ctx, fields=None) if ctx.fields else ctx
+    rec = result.to_agent_record(clean_ctx)
+
+    # 2. Check vs Search handling
+    if payload_key == "matches":
+        # Search path (E-02, E-03)
+        hits = search_hits if search_hits is not None else result.data.get("hits", 0)
+        # Decision on search hit keys (E-02 / V-02):
+        # We carry all three keys ({"path", "line", "text"}) rather than dropping "text".
+        # Carrying "text" allows consuming agents to inspect matching line content directly
+        # without secondary file reads, matching the shape in data["matches"]. To prevent
+        # leakage and validator crashes on unsanitized home paths (F-09), "path" is normalized
+        # via normalize_repo_path and "text" is sanitized via redact_home_paths.
+        if search_matches is not None:
+            raw_matches = search_matches
+        else:
+            raw_matches = result.data.get("matches", [])
+
+        agent_matches = [
+            {
+                "path": _schema.normalize_repo_path(m.get("path", ""), repo_root),
+                "line": m.get("line", 0),
+                "text": _schema.redact_home_paths(m.get("text", "")),
+            }
+            for m in raw_matches
+        ]
+
+        # Fix reported hit count at search call site without altering shared CommandResult.data (E-02).
+        # data is ALSO the --json payload, so setting findings on data would break --json invariance.
+        rec["findings"] = hits
+        rec["matches"] = agent_matches
+
+        tot = hits
+        limit = ctx.limit
+        if limit is not None and limit < tot:
+            # Bound truncates: outcome must flip to "partial" and complete to False (greenwash guard, E-03)
+            rec["matches"] = agent_matches[:limit]
+            rec["total"] = tot
+            rec["emitted"] = limit
+            rec["omitted"] = tot - limit
+            rec["complete"] = False
+            rec["outcome"] = "partial"
+            rec["exit"] = 0
+            if continuation_cmd:
+                rec["next"] = _schema.redact_home_paths(continuation_cmd)
+        else:
+            rec["complete"] = True
+            if hits == 0:
+                rec["outcome"] = "findings"
+                rec["exit"] = 1
+            else:
+                rec["outcome"] = "clean"
+                rec["exit"] = 0
+
+    else:
+        # Check path (E-04)
+        diags = rec.get("diagnostics", [])
+        tot = len(diags)
+        limit = ctx.limit
+        # Slicing diagnostics post-to_agent_record preserves true findings count and exit code (OQ-03).
+        # We do NOT bound data["policy_findings"] because that array is the versioned machine finding
+        # shape carried in data, which --json serializes verbatim; --limit is token-control for the
+        # agent record and bounding the --json payload would break scope invariance.
+        if limit is not None and limit < tot:
+            rec["diagnostics"] = diags[:limit]
+            rec["total"] = tot
+            rec["emitted"] = limit
+            rec["omitted"] = tot - limit
+            rec["complete"] = False
+            if continuation_cmd:
+                rec["next"] = _schema.redact_home_paths(continuation_cmd)
+
+    # 3. Apply field projection (token control --fields)
+    if ctx.fields:
+        rec = _schema.filter_record_fields(rec, ctx.fields)
+
+    # 4. Serialize and write to stdout
+    line = _schema.render_jsonl_record(rec)
+    try:
+        ctx.stdout.write(line)
+        ctx.stdout.flush()
+    except (BrokenPipeError, OSError):
+        pass
+
+    return rec.get("exit", result.exit_code)
+
+
 def _run_search(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
@@ -12546,6 +12767,22 @@ def _run_search(
     )
 
     ctx = context or select_output(args)
+    limit_val = getattr(args, "limit", None)
+    if limit_val is not None and limit_val <= 0:
+        # Refuse non-positive --limit (E-05, OQ-02).
+        # Precedent: run_analytics_query._parse_limit refuses rather than clamping.
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="search",
+                status="cannot-run",
+                exit_code=2,
+                summary="--limit must be a positive integer.",
+                next_actions=[NextAction(command="aw search --help")],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", "--limit must be a positive integer.")
+        return 2
+
     raw_type = getattr(args, "type", None)
     raw_selector = list(getattr(args, "selector", None) or [])
     flag_types = list(getattr(args, "types", None) or [])
@@ -12893,7 +13130,16 @@ def _run_search(
                 "filters": filters_data,
             },
         )
-        return get_renderer(ctx).emit(res, ctx)
+        continuation_cmd = _build_search_continuation(args, norm, pattern, hits)
+        return _emit_bounded_agent_record(
+            res,
+            ctx,
+            payload_key="matches",
+            search_hits=hits,
+            search_matches=json_results,
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
 
     if not hits:
         term.empty_result(
@@ -12937,6 +13183,25 @@ def _run_check(
     raw_type = getattr(args, "type", None) or "all"
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     include_retired = bool(getattr(args, "all", False))
+
+    limit_val = getattr(args, "limit", None)
+    if limit_val is not None and limit_val <= 0:
+        # Refuse non-positive --limit (E-05, OQ-02).
+        # Precedent: run_analytics_query._parse_limit refuses rather than clamping.
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="check",
+                status="cannot-run",
+                exit_code=2,
+                summary="--limit must be a positive integer.",
+                next_actions=[NextAction(command="aw check --help")],
+                data={"target": raw_type, "repo_root": str(repo_root)},
+                verified=True,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", "--limit must be a positive integer.")
+        return 2
 
     if getattr(args, "source_citations", False):
         from agent_workflows import agent_schema as _schema
@@ -13010,7 +13275,16 @@ def _run_check(
             verified=True,
             complete=True,
         )
-        return get_renderer(ctx).emit(result, ctx)
+        continuation_cmd = _build_check_continuation(
+            "source-citations", len(diagnostics), is_source_citations=True
+        )
+        return _emit_bounded_agent_record(
+            result,
+            ctx,
+            payload_key="diagnostics",
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
 
     if getattr(args, "source_anchors", False):
         from agent_workflows import agent_schema as _schema
@@ -13094,7 +13368,16 @@ def _run_check(
             verified=True,
             complete=True,
         )
-        return get_renderer(ctx).emit(result, ctx)
+        continuation_cmd = _build_check_continuation(
+            "source-anchors", len(diagnostics), is_source_anchors=True
+        )
+        return _emit_bounded_agent_record(
+            result,
+            ctx,
+            payload_key="diagnostics",
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
 
     if raw_type in ("release-gates", "release-gate", "release_gates", "release_gate"):
         norm = "release-gates"
@@ -13318,7 +13601,18 @@ def _run_check(
         verified=True,
         complete=True,
     )
-    return get_renderer(ctx).emit(result, ctx)
+    continuation_cmd = _build_check_continuation(
+        target_label,
+        len(diagnostics),
+        include_retired=include_retired,
+    )
+    return _emit_bounded_agent_record(
+        result,
+        ctx,
+        payload_key="diagnostics",
+        continuation_cmd=continuation_cmd,
+        repo_root=repo_root,
+    )
 
 
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
@@ -13838,7 +14132,7 @@ def _oc_profile_store_display(path: Any) -> Optional[str]:
 def _oc_profile_out(args, result, data: Optional[Dict[str, Any]] = None) -> int:
     """Emit one profile-verb result through the SHARED output contract and return its exit code.
 
-    Human table/lines on a TTY, aw.agent/v1 JSONL when piped or `--agent`, structured JSON with
+    Human table/lines on a TTY, aw.agent/v1 JSONL with `--agent`, structured JSON with
     `--json` - the same `select_output` + `get_renderer` path every other owner verb uses
     (`releases.run_list` is the model), so no verb-local formatter can drift from the contract.
     """
@@ -15367,13 +15661,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
         subcmd = getattr(args, "upgrade_test_command", None)
         if not subcmd:
-            for sa in [
-                a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
-            ]:
-                if "upgrade-test" in sa.choices:
-                    sa.choices["upgrade-test"].print_help()
-                    break
-            return 2
+            return _show_family_help(
+                parser, "upgrade-test", "aw upgrade-test list", term, context
+            )
 
         if getattr(args, "install_args", None):
             args.install_args = [a for a in args.install_args if a != "--"]
@@ -15802,6 +16092,27 @@ def _maybe_notify_stale_completion(rc: int) -> None:
         pass
 
 
+def _redirect_stdout_to_devnull() -> None:
+    """Redirect stdout file descriptor to os.devnull on broken pipe (E-03).
+
+    Tolerates sys.stdout lacking a valid file descriptor (such as io.StringIO in
+    in-process tests, F-07) and OS-level redirect failures (e.g. hardened sandbox).
+    """
+    try:
+        fd = sys.stdout.fileno()
+    except (io.UnsupportedOperation, AttributeError, OSError):
+        return
+
+    try:
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(devnull_fd, fd)
+        finally:
+            os.close(devnull_fd)
+    except OSError:
+        pass
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry point. Catches CTRL-C / EOF at any prompt and exits cleanly (D-CLI-UX).
 
@@ -15851,7 +16162,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         rc = _dispatch(argv)
         _maybe_notify_stale_completion(rc)
+        # Flush stdout explicitly inside the guard so any buffered bytes that
+        # would otherwise fail during interpreter shutdown are flushed and caught
+        # here (E-02, F-05). When only the flush fails, rc is the fully computed
+        # domain verdict; redirect to devnull and return rc unchanged (E-04, OQ-02).
+        try:
+            sys.stdout.flush()
+        except BrokenPipeError:
+            _redirect_stdout_to_devnull()
+            return rc
         return rc
+    except BrokenPipeError:
+        # Mid-dispatch write failure: the command died before completing execution,
+        # so no verdict was ever computed. Redirect to devnull so shutdown flush
+        # does not re-raise exit 120, and return 0 (E-04, OQ-02).
+        # We catch BrokenPipeError SPECIFICALLY and NEVER bare OSError: catching
+        # OSError would swallow real write failures such as ENOSPC (F-06).
+        # Note: on this path, output is truncated and exit 0 describes the pipe,
+        # not the tree findings (F-12).
+        _redirect_stdout_to_devnull()
+        return 0
+    except SystemExit:
+        # argparse raises SystemExit for --help, --version, and usage errors (F-11).
+        # Flush stdout here so a broken pipe on --help is caught and redirected,
+        # preventing exit 120 on interpreter shutdown while re-raising the original code.
+        try:
+            sys.stdout.flush()
+        except BrokenPipeError:
+            _redirect_stdout_to_devnull()
+        raise
     except KeyboardInterrupt:
         print("\nCancelled.", file=sys.stderr)
         return 130

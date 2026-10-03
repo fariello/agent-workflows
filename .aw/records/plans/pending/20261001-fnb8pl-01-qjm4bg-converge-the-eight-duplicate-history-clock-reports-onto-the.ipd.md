@@ -124,6 +124,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE PRODUCTION CLOCK FIX IS NOT MADE HERE. `5ivkdh` owns it, declares all six production paths, and this plan takes a hard `executed:5ivkdh` dependency on it. Re-fixing it would collide with a review-ready plan.
   - Carrier: 5ivkdh
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE ENFORCING TIMEZONE GUARD IS NOT BUILT HERE. `ayhveg` owns it, including the SPEC-family divergence that no filed item mentions. This plan depends on it rather than reproducing it.
   - Carrier: ayhveg
 - THE `resolve_evidence_artifact` GATE HOLE IS NOT FIXED HERE (F-07). It is a distinct defect in the close predicate, not in the clock, and fixing a shared gate predicate while closing six items through that same gate would make this plan both the subject and the judge of its own close calls.

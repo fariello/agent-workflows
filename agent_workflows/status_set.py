@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime
 import re
 import shlex
 import sys
@@ -53,19 +52,10 @@ TYPE_STATUSES: dict[str, set[str]] = {
         "done",  # alias for executed
         "pending",  # alias for to-review
     },
-    "prompts": {
-        "draft",
-        "to-review",
-        "reviewed",
-        "approved",
-        "auto-approved",
-        "executed",
-        "superseded",
-        "not-executed",
-        "reusable",
-        "done",
-        "pending",
-    },
+    # prompts Order 01 (7z3ovv) E-01: DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]`, never
+    # re-listed, plus the retained `done` alias (normalize_target_status). A stale copy previously
+    # accepted six non-bucket statuses that write no valid bucket (bug um8ikz).
+    "prompts": set(_LD.LIFECYCLE_SUBDIRS["prompts"]) | {"done"},
     # Set placelib (d1lo52) E-05: DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["specs"]`, never re-listed.
     "specs": set(_LD.LIFECYCLE_SUBDIRS["specs"]),
     # bklgrad Order 01 (v58bvy) E-01: DERIVED from `backlog.STATUSES`, never re-listed. This copy is
@@ -239,6 +229,10 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
         yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
         if yaml_status:
             status = yaml_status.group(1)
+    if not status and rtype == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        status = _prompts.read_metadata_status(text)
 
     set_match = _SET_RE.search(meta)
     set_id = None
@@ -565,6 +559,7 @@ def normalize_target_status(raw_status: str, record_type: str) -> str:
     if record_type in ("plans", "prompts"):
         if norm == "done":
             return "executed"
+    if record_type == "plans":
         if norm == "pending":
             return "to-review"
     if record_type == "research":
@@ -887,14 +882,41 @@ def validate_transition_allowed(
                 "--work-kind ...`",
             )
 
-    if rec.record_type == "backlog" and norm_status == "blocked":
-        gk = getattr(args, "gate_kind", None)
-        gr = getattr(args, "gate_ref", None)
-        if not gk or not gr:
-            return (
-                False,
-                "Moving backlog item to blocked requires --gate-kind and --gate-ref",
-            )
+    if rec.record_type == "backlog":
+        from agent_workflows import attention_contract as _ac
+
+        # ORDERING CONSEQUENCE: this pre-flight loop runs BEFORE the evaluate_blocking_close
+        # loop in run_set_command. A request that is BOTH an illegal transition and an
+        # illegitimate release-gate close will now report the TRANSITION refusal and not
+        # the gate refusal. Both exit 1, so no exit code changes; only the message does.
+        #
+        # THREE COMPOSITION CONSTRAINTS:
+        # (1) SKIP THE SELF-EDGE: X -> X returns ok=True for every backlog status (measured).
+        #     aw backlog note exists so annotation does not need a transition call;
+        #     a same-status set is documented misuse, not an invalid transition error.
+        # (2) CASE-FOLD THE SOURCE: read_artifact_record captures - Status: token verbatim;
+        #     an uppercase - Status: DONE would bypass an unfolded check (matching plans).
+        #     Live corpus measured zero non-canonical tokens, so this is prophylactic.
+        # (3) PRESERVE EXISTING ->blocked GATE-FLAG RULE: checking gate flags is a distinct
+        #     question from transition legality and preserves its own refusal and message.
+        raw_source = rec.status or ""
+        old_status = normalize_target_status(raw_source, "backlog").strip().lower()
+
+        if old_status and old_status != norm_status:
+            if not _ac.backlog_transition_allowed(old_status, norm_status):
+                return (
+                    False,
+                    f"Illegal backlog transition {old_status} -> {norm_status}",
+                )
+
+        if norm_status == "blocked":
+            gk = getattr(args, "gate_kind", None)
+            gr = getattr(args, "gate_ref", None)
+            if not gk or not gr:
+                return (
+                    False,
+                    "Moving backlog item to blocked requires --gate-kind and --gate-ref",
+                )
 
     # THE ACTOR SHAPE GATE (plan fn2l1u E-07). Refused HERE, in the shared pre-flight, so the CLI
     # reports a one-line refusal BEFORE any record in the batch is written; `apply_status_change`
@@ -973,6 +995,70 @@ def same_status_message_is_duplicate(
     )
 
 
+class StatusChangeResult(tuple):
+    """Result of apply_status_change: a 2-tuple (dest_path, norm_status) with rewritten_paths attribute."""
+
+    def __new__(
+        cls,
+        dest_path: Path,
+        norm_status: str,
+        rewritten_paths: list[str] | None = None,
+    ):
+        return super().__new__(cls, (dest_path, norm_status))
+
+    def __init__(
+        self,
+        dest_path: Path,
+        norm_status: str,
+        rewritten_paths: list[str] | None = None,
+    ) -> None:
+        self.dest_path = dest_path
+        self.norm_status = norm_status
+        self.rewritten_paths = list(rewritten_paths or [])
+
+
+def inherit_from_backlog_release_gate(
+    text: str,
+    repo_root: Path,
+    from_backlog: str | None,
+    blocks_release: str | None,
+    verb_label: str = "aw set",
+) -> str:
+    """Inherit the backlog item's release gate at graduation if artifact has no gate.
+
+    nobugship di08i9 E-03: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION, so the handoff
+    obligation stops depending on prose.
+
+    Shared between `status_set.apply_status_change` and `specs.run_set` (c6f6sj E-02).
+    Text in, text out.
+
+    Three semantics preserved:
+    (1) A write, never a refusal: un-inheritable gate does not fail the call.
+    (2) An explicit blocks_release in the same call wins (guarded by blocks_release is None).
+    (3) An existing gate on the artifact is never overwritten (carrier_m is None).
+    """
+    if not from_backlog or from_backlog == "-":
+        return text
+    if blocks_release is not None:
+        return text
+    carrier_m = re.search(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", text)
+    if carrier_m is not None:
+        return text
+    from agent_workflows import backlog as _backlog
+    from agent_workflows import releases as _releases
+
+    item_gate = _backlog.blocks_release_of_item(Path(repo_root), from_backlog)
+    if not item_gate:
+        return text
+    prefix = verb_label if verb_label.endswith(":") else f"{verb_label}:"
+    updated_text = _releases.set_blocks_release_line(text, item_gate)
+    sys.stdout.write(
+        f"{prefix} inherited - Blocks-Release: {item_gate} from backlog item "
+        f"{from_backlog} (graduation handoff: the gate travels with the work)\n"
+    )
+    return updated_text
+
+
 def apply_status_change(
     rec: ArtifactRecord,
     target_status: str,
@@ -992,13 +1078,18 @@ def apply_status_change(
     field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
     are deduplicated against the newest record via `same_status_message_is_duplicate`."""
     norm_status = normalize_target_status(target_status, rec.record_type)
+    curr_rec_status = rec.status
+    if curr_rec_status is None and rec.record_type == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        curr_rec_status = _prompts.read_metadata_status(rec.raw_text)
     old_status = (
-        normalize_target_status((rec.status or "draft"), rec.record_type)
+        normalize_target_status((curr_rec_status or "draft"), rec.record_type)
         .strip()
         .lower()
     )
     is_same_status = old_status == norm_status.strip().lower()
-    today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
+    today = _core.utc_history_date()
 
     untooled_transition = False
     if is_same_status:
@@ -1106,56 +1197,70 @@ def apply_status_change(
 
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    # Update or insert - Status: <norm_status> in frontmatter only
-    status_updated = False
-    new_lines = []
-    in_frontmatter = True
-    is_fenced_yaml = bool(lines and lines[0].strip() == "---")
+    if rec.record_type == "prompts":
+        from agent_workflows import prompts as _prompts
 
-    for line in lines:
-        if is_fenced_yaml:
-            if in_frontmatter and line.strip() == "---" and new_lines:
-                in_frontmatter = False
-            if (
-                in_frontmatter
-                and not status_updated
-                and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
-            ):
-                new_lines.append(f"status: {norm_status}")
-                status_updated = True
-            else:
-                new_lines.append(line)
+        if _prompts.has_metadata_comment(text):
+            updated_text = _prompts.update_metadata_status(text, norm_status)
+            new_lines = updated_text.splitlines()
         else:
-            if in_frontmatter and line.startswith("## "):
-                in_frontmatter = False
-            if in_frontmatter and not status_updated and _STATUS_RE.match(line):
-                new_lines.append(f"- Status: {norm_status}")
-                status_updated = True
-            else:
-                new_lines.append(line)
+            # Commentless prompt (OQ-02): adopt refusal-to-mint posture; status lives in directory only.
+            new_lines = list(lines)
+            sys.stdout.write(
+                f"aw set: note: prompt {rec.id6 or rec.path.name} has no metadata comment; "
+                f"status lives in directory only\n"
+            )
+    else:
+        # Update or insert - Status: <norm_status> in frontmatter only
+        status_updated = False
+        new_lines = []
+        in_frontmatter = True
+        is_fenced_yaml = bool(lines and lines[0].strip() == "---")
 
-    if not status_updated:
-        if is_fenced_yaml:
-            # insert status: before closing ---
-            res_lines = []
-            inserted = False
-            for line in new_lines:
-                if not inserted and line.strip() == "---" and res_lines:
-                    res_lines.append(f"status: {norm_status}")
-                    inserted = True
-                res_lines.append(line)
-            new_lines = res_lines
-        else:
-            inserted = False
-            res_lines = []
-            for i, line in enumerate(new_lines):
-                res_lines.append(line)
-                if not inserted and (line.startswith(("# ", "- Date:"))):
-                    res_lines.append(f"- Status: {norm_status}")
-                    inserted = True
-            if not inserted:
-                res_lines.insert(0, f"- Status: {norm_status}")
-            new_lines = res_lines
+        for line in lines:
+            if is_fenced_yaml:
+                if in_frontmatter and line.strip() == "---" and new_lines:
+                    in_frontmatter = False
+                if (
+                    in_frontmatter
+                    and not status_updated
+                    and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
+                ):
+                    new_lines.append(f"status: {norm_status}")
+                    status_updated = True
+                else:
+                    new_lines.append(line)
+            else:
+                if in_frontmatter and line.startswith("## "):
+                    in_frontmatter = False
+                if in_frontmatter and not status_updated and _STATUS_RE.match(line):
+                    new_lines.append(f"- Status: {norm_status}")
+                    status_updated = True
+                else:
+                    new_lines.append(line)
+
+        if not status_updated:
+            if is_fenced_yaml:
+                # insert status: before closing ---
+                res_lines = []
+                inserted = False
+                for line in new_lines:
+                    if not inserted and line.strip() == "---" and res_lines:
+                        res_lines.append(f"status: {norm_status}")
+                        inserted = True
+                    res_lines.append(line)
+                new_lines = res_lines
+            else:
+                inserted = False
+                res_lines = []
+                for i, line in enumerate(new_lines):
+                    res_lines.append(line)
+                    if not inserted and (line.startswith(("# ", "- Date:"))):
+                        res_lines.append(f"- Status: {norm_status}")
+                        inserted = True
+                if not inserted:
+                    res_lines.insert(0, f"- Status: {norm_status}")
+                new_lines = res_lines
 
     # Gate fields: clear them on any transition OUT of the gate-carrying status. This is
     # record-type-agnostic in the SAME way the Blocks-Release write below is (bug 61qk4a): the guard
@@ -1261,42 +1366,17 @@ def apply_status_change(
         tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
         new_lines = tmp_text.splitlines()
 
-        # nobugship di08i9 E-03: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION, so the handoff
-        # obligation stops depending on prose. `AGENTS.md` already instructs an agent graduating an
-        # item to inherit its `- Blocks-Release:`, and that instruction was measurably not followed:
-        # every graduated gateless bug had a `From-Backlog` carrier and NONE of the carriers carried a
-        # gate. Writing it here makes the one route a setter OWNS carry it by construction.
-        #
-        # WHAT THIS DOES NOT CLOSE, stated as the deliverable rather than buried as a caveat: this
-        # covers `aw ipd set --from-backlog` ONLY. The dominant historical route is HAND AUTHORING
-        # (12 of 13 existing carriers carry the field in the file's FIRST commit), `aw ipd scaffold`
-        # has no `--from-backlog` flag at all, and `aw specs set` does not either, so a spec-first
-        # graduation has no setter route. This strictly reduces FUTURE mismatch on one route; the
-        # historical population and the uncovered routes belong to child 03's checker + backfill.
-        #
-        # IT IS A WRITE, NEVER A REFUSAL. Refusing `--from-backlog` when the gate cannot be applied
-        # would break a link the author is legitimately recording, and `check.from-backlog-gate-
-        # mismatch` already ships at ERROR to catch a mismatch afterwards. An EXPLICIT
-        # `--blocks-release` in the same call wins, and an existing gate on the artifact is never
-        # overwritten (that would silently discard a decision a plan made for its own reasons; a plan
-        # may legitimately gate a release its originating item never knew about).
-        if fb != "-" and getattr(args, "blocks_release", None) is None:
-            from agent_workflows import backlog as _backlog
-
-            _carrier_m = re.search(
-                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", "\n".join(new_lines)
-            )
-            if _carrier_m is None:
-                _item_gate = _backlog.blocks_release_of_item(repo_root, fb)
-                if _item_gate:
-                    tmp_text = _releases.set_blocks_release_line(
-                        "\n".join(new_lines), _item_gate
-                    )
-                    new_lines = tmp_text.splitlines()
-                    sys.stdout.write(
-                        f"aw set: inherited - Blocks-Release: {_item_gate} from backlog item "
-                        f"{fb} (graduation handoff: the gate travels with the work)\n"
-                    )
+        # nobugship di08i9 E-03 / c6f6sj E-02: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION.
+        # Collapsed to shared inherit_from_backlog_release_gate.
+        tmp_text = "\n".join(new_lines)
+        tmp_text = inherit_from_backlog_release_gate(
+            tmp_text,
+            repo_root,
+            fb,
+            getattr(args, "blocks_release", None),
+            verb_label="aw set",
+        )
+        new_lines = tmp_text.splitlines()
 
     # From-Spec write (IPD 0ykozn E-02): the same hoisted, status-branch-independent shape as the
     # Blocks-Release and From-Backlog writes above, so `aw ipd set --from-spec <id6|->` persists even
@@ -1523,7 +1603,7 @@ def apply_status_change(
     ) and not is_dup
 
     if not content_changed and not path_changed and not _write_history_anyway:
-        return rec.path, norm_status
+        return StatusChangeResult(rec.path, norm_status, [])
 
     # Write the Workflow history record. NEWEST-FIRST, NOT appended: the `insert(i + 1, ...)` below
     # PREPENDS the new record directly under the `## Workflow history` heading, so the FIRST record
@@ -1548,10 +1628,11 @@ def apply_status_change(
 
         if not has_hist_section:
             insert_idx = len(new_lines)
-            for i, line in enumerate(new_lines):
-                if line.startswith("## "):
-                    insert_idx = i
-                    break
+            if rec.record_type != "prompts":
+                for i, line in enumerate(new_lines):
+                    if line.startswith("## "):
+                        insert_idx = i
+                        break
             new_lines.insert(insert_idx, "")
             new_lines.insert(insert_idx, hist_entry)
             new_lines.insert(insert_idx, "## Workflow history")
@@ -1598,7 +1679,41 @@ def apply_status_change(
         except OSError:
             pass
 
-    return dest_path, norm_status
+    rewritten_citations: list[str] = []
+    if (
+        moving
+        and getattr(args, "rewrite_citations", False)
+        and not getattr(args, "dry_run", False)
+    ):
+        try:
+            old_rel = rec.path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            old_rel = rec.path.as_posix()
+        try:
+            new_rel = dest_path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            new_rel = dest_path.as_posix()
+
+        citation_changes = getattr(args, "_citation_changes", None)
+        if citation_changes is None and (
+            getattr(args, "agent", False) or getattr(args, "json", False)
+        ):
+            citation_changes = []
+            setattr(args, "_citation_changes", citation_changes)
+
+        from agent_workflows import artifact_refs as _refs
+
+        rewritten_citations = _refs.post_relocation_citation_rewrite(
+            repo_root,
+            old_rel,
+            new_rel,
+            is_agent_or_json=bool(
+                getattr(args, "agent", False) or getattr(args, "json", False)
+            ),
+            changes=citation_changes,
+        )
+
+    return StatusChangeResult(dest_path, norm_status, rewritten_citations)
 
 
 def _auto_index_types(
@@ -2679,7 +2794,8 @@ def run_set_command(
     touched_paths: list[str] = []
     for rec in matched_records:
         old_text = rec.raw_text
-        dest_path, norm_stat = apply_status_change(rec, target_status, repo_root, args)
+        res = apply_status_change(rec, target_status, repo_root, args)
+        dest_path, norm_stat = res
         new_text = dest_path.read_text(encoding="utf-8") if dest_path.exists() else ""
         changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())
         results.append((dest_path, norm_stat, rec, changed))
@@ -2699,6 +2815,10 @@ def run_set_command(
                 touched_paths.append(src_rel)
             if dest_rel not in touched_paths:
                 touched_paths.append(dest_rel)
+        if hasattr(res, "rewritten_paths"):
+            for rp in res.rewritten_paths:
+                if rp not in touched_paths:
+                    touched_paths.append(rp)
 
     if ctx.is_agent or ctx.is_json:
         changes = [
@@ -2714,6 +2834,8 @@ def run_set_command(
             )
             for dest, norm_stat, rec, changed in results
         ]
+        if hasattr(args, "_citation_changes") and args._citation_changes:
+            changes.extend(args._citation_changes)
         _auto_index_types(touched_types, repo_root, changes=changes)
         _offer_self_commit(
             args,

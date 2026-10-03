@@ -529,7 +529,9 @@ class TestCliSpecsSetFromBacklog(unittest.TestCase):
                 cwd=repo_root,
             )
             self.assertEqual(proc.returncode, 0)
-            self.assertIn("aw set: inherited - Blocks-Release: relaaa", proc.stdout)
+            self.assertIn(
+                "aw specs set: inherited - Blocks-Release: relaaa", proc.stdout
+            )
             content = spec_path.read_text(encoding="utf-8")
             self.assertIn("- From-Backlog: bkl001\n", content)
             self.assertIn("- Blocks-Release: relaaa\n", content)

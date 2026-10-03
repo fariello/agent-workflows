@@ -1758,24 +1758,18 @@ class BacklogPreservationTests(unittest.TestCase):
             self.assertIn("- Release-Exempt-Ref: D42\n", res2_text)
             self.assertIn("exempted reason", res2_text)
 
-            # Two asymmetries are normalized away here:
+            # One asymmetry is normalized away here:
             # 1. Actor: (aw backlog) vs (aw set) truthfully identifies the code path and is deliberate.
-            # 2. Date: backlog._reattach_history stamps the local clock while status_set stamps UTC.
-            #    This clock skew is live bug fnb8pl (out of scope for jbipfa), so dates are normalized by shape.
-            import re as _re
-
-            _DATE = _re.compile(r"^- \d{4}-\d{2}-\d{2} ", _re.MULTILINE)
-            norm1 = _DATE.sub(
-                "- HIST_DATE ",
+            # (History dates now both use UTC per spec 2vev8j 4.4 and are compared literally).
+            norm1 = (
                 res1_text.replace("bk0001", "bkXXXX")
                 .replace("Bug 1", "Bug X")
-                .replace("same-status (aw backlog)", "HIST_ACTOR"),
+                .replace("same-status (aw backlog)", "HIST_ACTOR")
             )
-            norm2 = _DATE.sub(
-                "- HIST_DATE ",
+            norm2 = (
                 res2_text.replace("bk0002", "bkXXXX")
                 .replace("Bug 2", "Bug X")
-                .replace("same-status (aw set)", "HIST_ACTOR"),
+                .replace("same-status (aw set)", "HIST_ACTOR")
             )
             self.assertEqual(norm1, norm2)
 

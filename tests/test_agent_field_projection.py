@@ -13,6 +13,7 @@ import json
 from typing import Any, Dict, List
 
 
+from agent_workflows import cli
 from agent_workflows.agent_schema import (
     _MANDATORY_FIELDS,
     filter_record_fields,
@@ -256,3 +257,97 @@ def test_projection_anti_overreach_and_combinatorial_sweep():
                     assert (
                         v == record[k]
                     ), f"Value altered for key {k}: {v} != {record[k]}"
+
+
+def test_cli_projection_releases_show_retains_next(tmp_path, capsys):
+    """E-01: aw releases show preserves non-null next across --fields projection."""
+    tmp = str(tmp_path)
+    # 1. Unprojected run
+    capsys.readouterr()
+    cli.main(["releases", "show", "zzzzzz", "--dir", tmp, "--agent"])
+    out_unproj, _ = capsys.readouterr()
+    lines_unproj = [line for line in out_unproj.strip().splitlines() if line.strip()]
+    assert len(lines_unproj) == 1, f"Expected exactly 1 record, got: {lines_unproj}"
+    rec_unproj = json.loads(lines_unproj[0])
+    assert rec_unproj.get("schema") == "aw.agent/v1"
+    assert rec_unproj.get("next") == "aw releases list"
+
+    # 2. Projected run with --fields findings
+    cli.main(
+        [
+            "releases",
+            "show",
+            "zzzzzz",
+            "--dir",
+            tmp,
+            "--agent",
+            "--fields",
+            "findings",
+        ]
+    )
+    out_proj, _ = capsys.readouterr()
+    lines_proj = [line for line in out_proj.strip().splitlines() if line.strip()]
+    assert len(lines_proj) == 1, f"Expected exactly 1 record, got: {lines_proj}"
+    rec_proj = json.loads(lines_proj[0])
+    assert rec_proj.get("schema") == "aw.agent/v1"
+    assert rec_proj.get("next") == rec_unproj.get("next")
+    assert rec_proj.get("next") == "aw releases list"
+
+
+def test_cli_projection_runs_query_retains_next(tmp_path, capsys):
+    """E-01: aw runs query preserves non-null next across --fields projection."""
+    tmp = str(tmp_path)
+    # 1. Unprojected run
+    capsys.readouterr()
+    cli.main(["runs", "query", "bogusview", "--dir", tmp, "--agent"])
+    out_unproj, _ = capsys.readouterr()
+    lines_unproj = [line for line in out_unproj.strip().splitlines() if line.strip()]
+    assert len(lines_unproj) == 1, f"Expected exactly 1 record, got: {lines_unproj}"
+    rec_unproj = json.loads(lines_unproj[0])
+    assert rec_unproj.get("schema") == "aw.agent/v1"
+    assert rec_unproj.get("next") == "aw runs query schema"
+
+    # 2. Projected run with --fields findings
+    cli.main(
+        [
+            "runs",
+            "query",
+            "bogusview",
+            "--dir",
+            tmp,
+            "--agent",
+            "--fields",
+            "findings",
+        ]
+    )
+    out_proj, _ = capsys.readouterr()
+    lines_proj = [line for line in out_proj.strip().splitlines() if line.strip()]
+    assert len(lines_proj) == 1, f"Expected exactly 1 record, got: {lines_proj}"
+    rec_proj = json.loads(lines_proj[0])
+    assert rec_proj.get("schema") == "aw.agent/v1"
+    assert rec_proj.get("next") == rec_unproj.get("next")
+    assert rec_proj.get("next") == "aw runs query schema"
+
+
+def test_summary_field_projection_retains_next_continuation():
+    """E-02: render_summary with fields projection retains non-null next continuation command."""
+    ctx = OutputContext(
+        mode=OutputMode.AGENT,
+        stdout=io.StringIO(),
+        stderr=io.StringIO(),
+        fields=["cmd"],
+    )
+    rendered = AgentRenderer().render_summary(
+        "runs query",
+        total=5,
+        emitted=2,
+        omitted=3,
+        outcome="clean",
+        exit_code=0,
+        next_cmd="aw runs query --offset 2",
+        complete=False,
+        context=ctx,
+    )
+    data = json.loads(rendered)
+    assert is_valid_agent_record(data)
+    assert data.get("next") == "aw runs query --offset 2"

@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -559,3 +559,302 @@ def _rp_type_facet(record_type: str):
     """The canonical ``.<facet>`` token for a record type (from the naming authority), or None."""
 
     return _naming.TYPE_FACET.get(record_type)
+
+
+# ----------------------------------------------------------------------------------------------
+# Scope-Paths citation rewriting for relocated records (IPD 5h3qyy E-03, E-04).
+# ----------------------------------------------------------------------------------------------
+
+_SCOPE_PATHS_LINE_RE = re.compile(r"^(-\s*Scope-Paths:\s*)(.*)$", re.MULTILINE)
+
+
+def _is_pending_plan_file(path: Path, repo_root: Path) -> bool:
+    """True iff path resolves to a pending plan under .aw/records/plans/pending/ or .agents/."""
+    try:
+        rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        rel = path.as_posix()
+    return (
+        rel.startswith(".aw/records/plans/pending/")
+        or rel.startswith(".agents/records/plans/pending/")
+    ) and rel.endswith(".ipd.md")
+
+
+def classify_citing_plans_for_rewrite(
+    repo_root: Path,
+    candidate_files: "Iterable[Path]",
+) -> Tuple[List[Path], List[Tuple[Path, str]]]:
+    """Classify candidate citing plan files into rewritable vs must-skip under an in-flight guard (E-04).
+
+    Fail CLOSED: a plan whose receipt file is present (at `ipd_lifecycle.receipt_path_for`, whether
+    readable or corrupt) or whose `- Id:` is missing/unreadable is treated as IN-FLIGHT and skipped,
+    because a wrong skip leaves a stale path string while a wrong rewrite strands an in-flight lane.
+    Deliberately does NOT reuse `check_engine._receipt_is_live`, which fails safe in the advisory
+    direction (treating unreachable/undeterminable receipts as NOT live).
+
+    Returns (rewritable_files, skipped_files_with_reasons).
+    """
+    from agent_workflows import ipd_lifecycle as _life
+
+    rewritable: List[Path] = []
+    must_skip: List[Tuple[Path, str]] = []
+
+    for path in candidate_files:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            must_skip.append((path, f"cannot read plan file: {exc}"))
+            continue
+
+        # Extract - Id: bullet
+        m = re.search(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$", text)
+        if not m:
+            must_skip.append((path, "missing - Id:"))
+            continue
+
+        plan_id = m.group(1)
+        receipt_path = _life.receipt_path_for(repo_root, plan_id)
+        if receipt_path.exists():
+            must_skip.append((path, "live begin receipt present"))
+            continue
+
+        rewritable.append(path)
+
+    return rewritable, must_skip
+
+
+def plan_scope_path_reference_rewrites(
+    repo_root: Path,
+    path_map: Dict[str, str],
+) -> Tuple[List[RefEdit], List[Tuple[Path, str]]]:
+    """Plan Scope-Paths citation rewrites in pending plans for relocated records (E-03).
+
+    Takes an `{old_repo_relative_path: new_repo_relative_path}` map. WHY PATH-KEYED: a status
+    transition relocates the record to a new directory while leaving the filename byte-identical.
+    The existing name-keyed rewriter (`plan_reference_rewrites`) begins its loop with
+    `if old_name == new_name: continue`, making a name-keyed call `{name: name}` a pure no-op (F-01).
+    Feeding it repo-relative paths bypasses that guard and reuses the existing matching logic (F-02).
+
+    RESTRICTED TO PENDING PLANS AND SCOPE-PATHS:
+    - Filters out executed plans, tests, and documentation files scanned by the bare planner (F-10).
+    - Rewrites ONLY inside the `- Scope-Paths:` line; prose mentions are historical citations left alone.
+    - SKIPS with a reason any plan whose `Scope-Paths` already declares the destination path, preserving
+      deliberate forward declarations (F-07/F-10).
+
+    Returns (edits, skipped_plans_with_reasons).
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    # Delegate to the existing planner to discover all citing candidate files
+    raw_edits = plan_reference_rewrites(repo_root, path_map)
+    if not raw_edits:
+        return [], []
+
+    # Map candidate pending plans to the raw edits found in them
+    pending_edits: Dict[Path, List[RefEdit]] = {}
+    for edit in raw_edits:
+        if _is_pending_plan_file(edit.file, repo_root):
+            pending_edits.setdefault(edit.file, []).append(edit)
+
+    planned_edits: List[RefEdit] = []
+    skipped: List[Tuple[Path, str]] = []
+
+    for plan_file, file_edits in pending_edits.items():
+        try:
+            text = plan_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        m = _SCOPE_PATHS_LINE_RE.search(text)
+        if not m:
+            continue
+
+        raw_val = m.group(2)
+        declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
+        if is_grandfathered:
+            continue
+
+        file_has_skip = False
+        file_scope_edits: List[RefEdit] = []
+        for old_path, new_path in path_map.items():
+            if new_path in declared_paths:
+                skipped.append(
+                    (plan_file, "destination already declared in Scope-Paths")
+                )
+                file_has_skip = True
+                break
+            if old_path in declared_paths:
+                file_scope_edits.append(
+                    RefEdit(
+                        file=plan_file,
+                        kind=FULL_NAME,
+                        old=old_path,
+                        new=new_path,
+                        hits=1,
+                    )
+                )
+
+        if not file_has_skip and file_scope_edits:
+            planned_edits.extend(file_scope_edits)
+
+    return planned_edits, skipped
+
+
+def apply_scope_path_reference_rewrites(
+    repo_root: Path,
+    edits: List[RefEdit],
+    *,
+    prefix: str = ".aw-ref-",
+) -> List[Path]:
+    """Apply planned Scope-Paths reference rewrites to pending plans.
+
+    Rewrites ONLY within the `- Scope-Paths:` line through `ipd_schema.parse_scope_paths`,
+    leaving prose mentions and fenced blocks elsewhere in the file byte-identical.
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    by_file: Dict[Path, List[RefEdit]] = {}
+    for e in edits:
+        by_file.setdefault(e.file, []).append(e)
+
+    modified_files: List[Path] = []
+    for plan_file, file_edits in by_file.items():
+        try:
+            text = plan_file.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        m = _SCOPE_PATHS_LINE_RE.search(text)
+        if not m:
+            continue
+
+        line_prefix = m.group(1)
+        raw_val = m.group(2)
+        declared_paths, is_grandfathered, _errs = _schema.parse_scope_paths(raw_val)
+        if is_grandfathered:
+            continue
+
+        edit_map = {e.old: e.new for e in file_edits}
+        new_declared = [edit_map.get(p, p) for p in declared_paths]
+        if new_declared == declared_paths:
+            continue
+
+        new_val = ", ".join(new_declared)
+        new_line = line_prefix + new_val
+        updated_text = text[: m.start()] + new_line + text[m.end() :]
+        _core.atomic_write(plan_file, updated_text, prefix=prefix)
+        modified_files.append(plan_file)
+
+    return modified_files
+
+
+def rewrite_scope_path_citations(
+    repo_root: Path,
+    path_map: Dict[str, str],
+    *,
+    guard_in_flight: bool = False,
+    is_agent_or_json: bool = False,
+    changes: Optional[List[Any]] = None,
+) -> Tuple[List[Path], List[Tuple[Path, str]]]:
+    """High-level helper to plan, guard, apply, and report Scope-Paths citation rewrites (E-03, E-04, E-06).
+
+    Returns (rewritten_files, skipped_files_with_reasons).
+    """
+    import sys
+    from agent_workflows.result_types import Change
+
+    planned_edits, initial_skips = plan_scope_path_reference_rewrites(
+        repo_root, path_map
+    )
+    if not planned_edits and not initial_skips:
+        return [], []
+
+    candidate_files = sorted(set(e.file for e in planned_edits))
+    if guard_in_flight:
+        safe_files, guard_skips = classify_citing_plans_for_rewrite(
+            repo_root, candidate_files
+        )
+        safe_file_set = set(safe_files)
+        edits_to_apply = [e for e in planned_edits if e.file in safe_file_set]
+        all_skips = initial_skips + guard_skips
+    else:
+        edits_to_apply = planned_edits
+        all_skips = initial_skips
+
+    rewritten_files = apply_scope_path_reference_rewrites(repo_root, edits_to_apply)
+
+    # Reporting (E-06)
+    for p in rewritten_files:
+        try:
+            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            rel = p.as_posix()
+        ed = next((e for e in edits_to_apply if e.file == p), None)
+        old_desc = ed.old if ed else ""
+        new_desc = ed.new if ed else ""
+        if is_agent_or_json:
+            if changes is not None:
+                changes.append(
+                    Change(
+                        path=str(p),
+                        kind="modify",
+                        applied=True,
+                        detail=f"rewrote Scope-Paths citation: {old_desc} -> {new_desc}",
+                    )
+                )
+        else:
+            sys.stdout.write(
+                f"aw set: rewritten Scope-Paths citation in {rel} ({old_desc} -> {new_desc})\n"
+            )
+
+    for p, reason in all_skips:
+        try:
+            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            rel = p.as_posix()
+        if is_agent_or_json:
+            if changes is not None:
+                changes.append(
+                    Change(
+                        path=str(p),
+                        kind="modify",
+                        applied=False,
+                        detail=f"skipped citation rewrite in {rel}: {reason}",
+                    )
+                )
+        else:
+            sys.stdout.write(f"aw set: skipped citation rewrite in {rel}: {reason}\n")
+
+    return rewritten_files, all_skips
+
+
+def post_relocation_citation_rewrite(
+    repo_root: Path,
+    old_rel_path: str,
+    new_rel_path: str,
+    *,
+    is_agent_or_json: bool = False,
+    changes: Optional[List[Any]] = None,
+) -> List[str]:
+    """Single shared post-relocation citation rewrite entrypoint called by relocating setters (E-05).
+
+    Returns the list of repo-relative paths of modified pending plan files.
+    """
+    if old_rel_path == new_rel_path:
+        return []
+
+    rewritten_files, _ = rewrite_scope_path_citations(
+        repo_root,
+        {old_rel_path: new_rel_path},
+        guard_in_flight=True,
+        is_agent_or_json=is_agent_or_json,
+        changes=changes,
+    )
+    res: List[str] = []
+    for p in rewritten_files:
+        try:
+            rel = p.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            rel = p.as_posix()
+        res.append(rel)
+    return res

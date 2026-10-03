@@ -4,10 +4,12 @@
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -82,20 +84,99 @@ class RunnerConflictFlagTests(unittest.TestCase):
         args = parser.parse_args(["start", "all", "--ask-conflicts"])
         self.assertEqual(args.on_conflict, "prompt")
 
+        # Negative control: invented value exits 2
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                parser.parse_args(["start", "all", "--on-conflict", "maybe"])
+            self.assertEqual(cm.exception.code, 2)
+
     def test_agy_runner_flag_registration_and_aliases(self) -> None:
         parser = agy_runipd.build_parser()
 
         args = parser.parse_args(["start", "all"])
         self.assertIsNone(args.on_conflict)
 
+        # Main flag --on-conflict
+        args = parser.parse_args(["start", "all", "--on-conflict", "refuse"])
+        self.assertEqual(args.on_conflict, "refuse")
+        args = parser.parse_args(["start", "all", "--on-conflict", "drop"])
+        self.assertEqual(args.on_conflict, "drop")
+        args = parser.parse_args(["start", "all", "--on-conflict", "force"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--on-conflict", "prompt"])
+        self.assertEqual(args.on_conflict, "prompt")
+        args = parser.parse_args(["start", "all", "--on-conflict", "ask"])
+        self.assertEqual(args.on_conflict, "ask")
+
+        # Alias --conflict
+        args = parser.parse_args(["start", "all", "--conflict", "drop"])
+        self.assertEqual(args.on_conflict, "drop")
+
+        # Convenience flags
         args = parser.parse_args(["start", "all", "--refuse-conflicts"])
+        self.assertEqual(args.on_conflict, "refuse")
+        args = parser.parse_args(["start", "all", "--refuse-running"])
         self.assertEqual(args.on_conflict, "refuse")
         args = parser.parse_args(["start", "all", "--drop-conflicts"])
         self.assertEqual(args.on_conflict, "drop")
+        args = parser.parse_args(["start", "all", "--drop-running"])
+        self.assertEqual(args.on_conflict, "drop")
         args = parser.parse_args(["start", "all", "--force-conflicts"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--dangerously-force-conflict"])
+        self.assertEqual(args.on_conflict, "force")
+        args = parser.parse_args(["start", "all", "--force-running"])
         self.assertEqual(args.on_conflict, "force")
         args = parser.parse_args(["start", "all", "--prompt-conflicts"])
         self.assertEqual(args.on_conflict, "prompt")
+        args = parser.parse_args(["start", "all", "--ask-conflicts"])
+        self.assertEqual(args.on_conflict, "prompt")
+
+        # Negative control: invented value exits 2
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                parser.parse_args(["start", "all", "--on-conflict", "maybe"])
+            self.assertEqual(cm.exception.code, 2)
+
+    def test_live_parser_accepted_choices_resolve_to_canonical_vocabulary(self) -> None:
+        """Every accepted --on-conflict choice from live parsers resolves to CANONICAL_ON_CONFLICT_CHOICES."""
+        for host_name, build_parser in [
+            ("oc", oc_runipd.build_parser),
+            ("agy", agy_runipd.build_parser),
+        ]:
+            with self.subTest(host=host_name):
+                parser = build_parser()
+                choices = None
+                for action in parser._actions:
+                    if isinstance(action, argparse._SubParsersAction):
+                        start_p = action.choices.get("start")
+                        if start_p:
+                            for a in start_p._actions:
+                                if (
+                                    getattr(a, "dest", None) == "on_conflict"
+                                    and a.choices is not None
+                                ):
+                                    choices = list(a.choices)
+                                    break
+                self.assertIsNotNone(
+                    choices,
+                    f"Failed to locate on_conflict choices in {host_name} parser",
+                )
+                resolved_set = set()
+                for choice in choices:
+                    ns = parser.parse_args(["start", "all", "--on-conflict", choice])
+                    resolved = resolve_on_conflict(ns.on_conflict)
+                    resolved_set.add(resolved)
+                    self.assertIn(resolved, runner_shared.CANONICAL_ON_CONFLICT_CHOICES)
+                self.assertEqual(
+                    resolved_set,
+                    set(runner_shared.CANONICAL_ON_CONFLICT_CHOICES),
+                    f"Resolved choices on {host_name} did not cover all canonical modes",
+                )
+
+
+# Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because
+# revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.
 
 
 class ConflictPolicyResolutionTests(unittest.TestCase):

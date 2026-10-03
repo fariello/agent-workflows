@@ -87,6 +87,9 @@ _STAGED_NAME_RE = re.compile(
 # `Key: value` shape of that comment, so a bare `Id:` elsewhere in a prompt BODY is not read as a
 # declaration.
 _METADATA_ID_RE = re.compile(r"(?:\A|\|)\s*Id:\s*([0-9a-z]{6})\s*(?=\||$)")
+_METADATA_STATUS_RE = re.compile(
+    r"(?:\A|\|)\s*Status:\s*([a-zA-Z0-9_-]+)\s*(?=\||$|\.|\-\->)"
+)
 
 
 def _now() -> _dt.datetime:
@@ -379,6 +382,85 @@ def inject_metadata_id6(text: str, *, id6: str, set_id: Optional[str] = None) ->
             updated = re.sub(r"\s*-->\s*\Z", f" | {insert} -->", first)
     lines[0] = " ".join(updated.split())
     return "\n".join(lines)
+
+
+def read_metadata_status(text: str) -> Optional[str]:
+    """The status declared inside a prompt's single `<!-- aw-prompt: ... -->` comment, or None.
+
+    Reads the FIRST LINE only, matching the prompt purity contract (R1/P4).
+    """
+    first = text.split("\n", 1)[0]
+    if "<!-- aw-prompt:" not in first:
+        return None
+    m = _METADATA_STATUS_RE.search(first)
+    return m.group(1).strip() if m else None
+
+
+def update_metadata_status(text: str, status: str) -> str:
+    """Return ``text`` with ``Status: <status>`` updated in its one metadata comment.
+
+    IPD `7z3ovv` E-02: the single status writer for prompt metadata comments, mirroring
+    `inject_metadata_id6`. Prompts record status in their leading HTML metadata comment,
+    never as a `- Status:` bullet (which would corrupt the prompt body).
+
+    IDEMPOTENT: if the comment already declares this status, ``text`` is returned unchanged.
+    A file with NO leading `aw-prompt` comment is also returned UNCHANGED: minting one here
+    would add a line above the body of a file whose purity this function exists to protect
+    (OQ-02 refusal-to-mint posture).
+    """
+    lines = text.split("\n")
+    if not lines or "<!-- aw-prompt:" not in lines[0]:
+        return text
+
+    first = lines[0]
+    current = read_metadata_status(text)
+    if current == status:
+        return text
+
+    if current is not None:
+        updated = re.sub(
+            r"((?:\A|\|)\s*Status:\s*)[^|.\s]+",
+            rf"\g<1>{status}",
+            first,
+            count=1,
+        )
+    else:
+        m_set = re.search(r"(Set:\s*[^|]+?)(\s*\|)", first)
+        if m_set:
+            updated = (
+                first[: m_set.end(1)] + f" | Status: {status}" + first[m_set.end(1) :]
+            )
+        else:
+            m_id = re.search(r"(Id:\s*[^|]+?)(\s*\|)", first)
+            if m_id:
+                updated = (
+                    first[: m_id.end(1)] + f" | Status: {status}" + first[m_id.end(1) :]
+                )
+            else:
+                m_kind = re.search(r"(Kind:\s*[^|]+?)(\s*\|)", first)
+                if m_kind:
+                    updated = (
+                        first[: m_kind.end(1)]
+                        + f" | Status: {status}"
+                        + first[m_kind.end(1) :]
+                    )
+                else:
+                    updated = first.replace(
+                        f" . {_METADATA_TRAILER}",
+                        f" | Status: {status} . {_METADATA_TRAILER}",
+                        1,
+                    )
+                    if updated == first:
+                        updated = re.sub(
+                            r"\s*-->\s*\Z", f" | Status: {status} -->", first
+                        )
+
+    lines[0] = " ".join(updated.split())
+    return "\n".join(lines)
+
+
+# Shared alias matching module naming conventions
+inject_metadata_status = update_metadata_status
 
 
 def _today_iso() -> str:
