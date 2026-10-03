@@ -78,10 +78,12 @@ ship known bugs. The rule, what counts as a bug (including when a slow-but-corre
 limits are stated in `AGENTS.md` under "Every live bug gates the next release"; read it there rather than
 here, so the policy has one home.
 
-The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy a release gate on a `done` close. Three properties define its contract:
+The `- Close-Evidence:` field records the in-tree artifact path cited to satisfy a release gate on a `done` close. Five properties define its contract:
 1. Written by the tool, never by hand: it is an attestation that a specific citation was resolved and accepted by the close predicate, so a hand-written value forges the acceptance (the same rule `AGENTS.md` states for `- Readiness:`).
 2. Retained on the item forever, since the close it records is permanent.
 3. Not a gate field, so it is never cleared by a status transition.
+4. Stored as a repo-relative path, because the record is read from other checkouts and because an absolute path would carry a machine path into a tracked file.
+5. Written by both setter spellings (`aw backlog set <path> --status done` and `aw backlog set done <selector>`), so the field's presence is a fact about the close and not about which command a caller happened to type.
 It is named `Close-Evidence` rather than `Gate-Evidence` because `Gate-*` is the blocked-gate family (`Gate-Kind`, `Gate-Ref`, and `Gate-Summary`, which `_render_item` deliberately drops on a non-`blocked` item), and a name in that family would be a magnet for that drop rule.
 
 ### Citing maintainer rulings (answer to backlog 0szu1p)

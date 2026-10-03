@@ -24,6 +24,7 @@ import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -1064,6 +1065,7 @@ def apply_status_change(
     target_status: str,
     repo_root: Path,
     args: argparse.Namespace,
+    close_verdict: Any = None,
 ) -> tuple[Path, str]:
     """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
     PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed.
@@ -1511,6 +1513,37 @@ def apply_status_change(
             new_lines = tmp_text.splitlines()
         if _gate_notice:
             sys.stdout.write(f"aw backlog set: {_gate_notice}\n")
+
+    # Close-Evidence write (gh409m byzkr7 E-03/E-04): write the cited evidence durably on an
+    # evidence-satisfied close for backlog records. Scoped to rec.record_type == "backlog".
+    # Keyed on verdict.legitimate and verdict.path == "SATISFIED", never on args.evidence alone.
+    if rec.record_type == "backlog":
+        verdict = close_verdict
+        if verdict is None and getattr(args, "evidence", None):
+            from agent_workflows import check_engine as _ce
+            from agent_workflows import backlog as _backlog_eval
+
+            verdict = _ce.evaluate_blocking_close(
+                repo_root,
+                rec.path,
+                norm_status,
+                evidence=getattr(args, "evidence", None),
+                item_text="\n".join(new_lines),
+                prior_priority=_backlog_eval.parse_item(text).priority,
+            )
+        if verdict and verdict.legitimate and verdict.path == "SATISFIED":
+            from agent_workflows import backlog as _backlog
+
+            accepted_evidence = (
+                getattr(args, "evidence", None)
+                or _backlog.parse_item("\n".join(new_lines)).close_evidence
+            )
+            if accepted_evidence:
+                tmp_text = "\n".join(new_lines)
+                tmp_text = _backlog.set_close_evidence_line(
+                    tmp_text, accepted_evidence, repo_root=repo_root
+                )
+                new_lines = tmp_text.splitlines()
 
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [
@@ -2452,6 +2485,7 @@ def run_set_command(
     from agent_workflows import check_engine as _ce
     from agent_workflows import releases as _releases
 
+    backlog_close_verdicts: dict[Path, _ce.CloseVerdict] = {}
     for rec in matched_records:
         if rec.record_type != "backlog":
             continue
@@ -2543,6 +2577,8 @@ def run_set_command(
 
         if verdict.severity == "warn":
             sys.stderr.write(f"{prefix}: warning: {verdict.reason}.\n")
+
+        backlog_close_verdicts[rec.path] = verdict
 
     # ipdgates Order wezhxg: a request to move a PLAN to `executed` (or its `done` alias) MUST NOT
     # use the raw ungated move - it transparently DELEGATES into the gated `aw ipd finalize`
@@ -2786,7 +2822,13 @@ def run_set_command(
     touched_paths: list[str] = []
     for rec in matched_records:
         old_text = rec.raw_text
-        res = apply_status_change(rec, target_status, repo_root, args)
+        res = apply_status_change(
+            rec,
+            target_status,
+            repo_root,
+            args,
+            close_verdict=backlog_close_verdicts.get(rec.path),
+        )
         dest_path, norm_stat = res
         new_text = dest_path.read_text(encoding="utf-8") if dest_path.exists() else ""
         changed = (old_text != new_text) or (dest_path.resolve() != rec.path.resolve())

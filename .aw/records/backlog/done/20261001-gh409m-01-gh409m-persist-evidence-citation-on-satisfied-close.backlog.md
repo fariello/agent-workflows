@@ -1,5 +1,5 @@
 - Id: gh409m
-- Status: graduated
+- Status: done
 - Graduated-To: gh409m
 - Set: gh409m
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Persist the --evidence citation on a backlog item when it closes via the SATISFIED path, so a later audit can distinguish a legitimately evidenced close from an ungated one
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD byzkr7 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-gh409m-01-byzkr7-persist-a-portable-close-evidence-citation-on-both-setter-sp.ipd.md); evidence .aw/records/plans/executed/20261002-gh409m-01-byzkr7-persist-a-portable-close-evidence-citation-on-both-setter-sp.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: byzkr7
 - 2026-10-01 created (aw backlog): Persist the --evidence citation on a backlog item when it closes via the SATISFIED path, so a later audit can distinguish a legitimately evidenced close from an ungated one
 

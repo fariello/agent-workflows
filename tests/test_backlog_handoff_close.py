@@ -922,6 +922,230 @@ class BacklogHandoffCloseBehaviorTests(unittest.TestCase):
         self.assertTrue(done_path2.exists())
         self.assertNotIn("- Close-Evidence:", done_path2.read_text(encoding="utf-8"))
 
+    def test_case_6e_satisfied_evidence_absolute_citation_stored_relative_and_relocation_safe(
+        self,
+    ) -> None:
+        """(6e) Absolute in-tree citation is stored relative and relocates safely to another directory."""
+        import shutil
+
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        ev_file = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "20260901-rel001-01-rel001-v1.release.md"
+        ).resolve()
+        rel_ev = ev_file.relative_to(self.repo.resolve()).as_posix()
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--evidence",
+                    str(ev_file),
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close on absolute evidence",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+        content = done_path.read_text(encoding="utf-8")
+        # Stored value must be repo-relative POSIX path, not the absolute path passed
+        self.assertIn(f"- Close-Evidence: {rel_ev}", content)
+        self.assertNotIn(f"- Close-Evidence: {str(ev_file)}", content)
+
+        # In-place evaluation succeeds
+        verdict_inplace = check_engine.evaluate_blocking_close(
+            self.repo, done_path, "done"
+        )
+        self.assertTrue(verdict_inplace.legitimate)
+        self.assertEqual(verdict_inplace.path, "SATISFIED")
+
+        # Copy the tree to a second location and evaluate there
+        with TemporaryDirectory() as tmp2:
+            repo_copy = Path(tmp2) / "repo_copy"
+            shutil.copytree(self.repo, repo_copy)
+            done_path_copy = (
+                repo_copy / ".aw" / "records" / "backlog" / "done" / item_path.name
+            )
+            verdict_copied = check_engine.evaluate_blocking_close(
+                repo_copy, done_path_copy, "done"
+            )
+            self.assertTrue(verdict_copied.legitimate)
+            self.assertEqual(verdict_copied.path, "SATISFIED")
+
+    def test_case_6f_satisfied_evidence_leak_safety_home_shaped_root(self) -> None:
+        """(6f) Storing an absolute citation under a home-shaped root yields zero leak scanner findings."""
+        from agent_workflows import backlog, leak_sanitizer
+
+        # Construct path from runtime fragments to avoid tripping local-leaks scan on this file
+        fake_home = "/home/" + "fixtureuser"
+        fake_root = Path(fake_home + "/workspace/agent-workflows")
+        fake_abs_ev = (
+            fake_root / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+        )
+
+        item_text = (
+            "- Id: item01\n"
+            "- Status: done\n"
+            "- Blocks-Release: next\n"
+            "- Set: testset\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: Test item\n\n"
+            "## Workflow history\n"
+            "- 2026-10-02 done (tester): closed\n"
+        )
+        stored_text = backlog.set_close_evidence_line(
+            item_text, str(fake_abs_ev), repo_root=fake_root
+        )
+        self.assertIn(
+            "- Close-Evidence: .aw/records/reviews/20260901-test.review.md", stored_text
+        )
+        self.assertNotIn(fake_home, stored_text)
+
+        ruleset = leak_sanitizer.build_ruleset(self.repo)
+        findings = leak_sanitizer.scan_text(
+            stored_text, ".aw/records/backlog/done/item01.md", ruleset
+        )
+        self.assertEqual(findings, [])
+
+    def test_case_6g_satisfied_evidence_citation_with_space_reader_agreement(
+        self,
+    ) -> None:
+        """(6g) Citation containing a space is accepted, persisted, and read back by the predicate."""
+        item_path = _write_backlog_item(
+            self.repo, "item01", status="graduated", blocks_release="next"
+        )
+        _write_plan(
+            self.repo,
+            "plan01",
+            bucket="pending",
+            status="approved",
+            from_backlog="item01",
+            blocks_release="next",
+        )
+        ev_dir = self.repo / ".aw" / "records" / "reviews"
+        ev_dir.mkdir(parents=True, exist_ok=True)
+        ev_file = ev_dir / "a b.review.md"
+        ev_file.write_text("# Review with space in name\n", encoding="utf-8")
+        rel_ev = ev_file.relative_to(self.repo).as_posix()
+
+        stderr_buf = io.StringIO()
+        with contextlib.redirect_stderr(stderr_buf), contextlib.redirect_stdout(
+            io.StringIO()
+        ):
+            rc = cli.main(
+                [
+                    "backlog",
+                    "set",
+                    "item01",
+                    "--status",
+                    "done",
+                    "--evidence",
+                    rel_ev,
+                    "--dir",
+                    str(self.repo),
+                    "--message",
+                    "close on space evidence",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        done_path = self.repo / ".aw" / "records" / "backlog" / "done" / item_path.name
+        self.assertTrue(done_path.exists())
+        content = done_path.read_text(encoding="utf-8")
+        self.assertIn(f"- Close-Evidence: {rel_ev}", content)
+
+        verdict = check_engine.evaluate_blocking_close(self.repo, done_path, "done")
+        self.assertTrue(verdict.legitimate)
+        self.assertEqual(verdict.path, "SATISFIED")
+
+    def test_case_6h_close_evidence_bounded_to_metadata_region(self) -> None:
+        """(6h) Body-quoted - Close-Evidence: does not legitimize close, but front matter does."""
+        ev_file = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "releases"
+            / "20260901-rel001-01-rel001-v1.release.md"
+        )
+        rel_ev = ev_file.relative_to(self.repo).as_posix()
+
+        # 1. Item with body-quoted bullet only
+        body_quoted_text = (
+            "- Id: item01\n"
+            "- Status: done\n"
+            "- Blocks-Release: next\n"
+            "- Set: testset\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: Test item item01\n\n"
+            "## Summary\n"
+            "Quoting an example bullet:\n"
+            f"- Close-Evidence: {rel_ev}\n"
+        )
+        p1 = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "done"
+            / "20261002-testset-01-item01-test.backlog.md"
+        )
+        p1.write_text(body_quoted_text, encoding="utf-8")
+
+        verdict_body = check_engine.evaluate_blocking_close(self.repo, p1, "done")
+        self.assertFalse(verdict_body.legitimate)
+        self.assertEqual(verdict_body.severity, "error")
+
+        # 2. Item with front-matter bullet
+        fm_text = (
+            "- Id: item02\n"
+            "- Status: done\n"
+            "- Blocks-Release: next\n"
+            f"- Close-Evidence: {rel_ev}\n"
+            "- Set: testset\n"
+            "- Priority: high\n"
+            "- Work-Kind: bug\n"
+            "- Summary: Test item item02\n\n"
+            "## Summary\n"
+            "Clean item.\n"
+        )
+        p2 = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "backlog"
+            / "done"
+            / "20261002-testset-01-item02-test.backlog.md"
+        )
+        p2.write_text(fm_text, encoding="utf-8")
+
+        verdict_fm = check_engine.evaluate_blocking_close(self.repo, p2, "done")
+        self.assertTrue(verdict_fm.legitimate)
+        self.assertEqual(verdict_fm.path, "SATISFIED")
+
     def test_case_7_degated_allowed(self) -> None:
         """(7) DE-GATED unchanged: pending plan only, --blocks-release - in the same call -> allowed (rc 0)."""
         item_path = _write_backlog_item(
