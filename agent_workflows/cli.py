@@ -1770,6 +1770,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    p_ipd_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     _add_commit_flags(p_ipd_set)  # selfcommit jgcm68 E-01/E-05
 
     # ipddeps Order g69y23: `aw ipd dependencies set` writes the machine-readable, id6-grounded
@@ -4547,6 +4552,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm execution without prompt."
     )
+    p_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     # selfcommit jgcm68 E-01: `aw set` (and every family routing through it) offers to commit its
     # own path-scoped metadata rewrite. The subcommand `set` parsers (ipd/spec/prompts/backlog) that
     # also route through status_set register the flags on their own parsers below.
@@ -5925,6 +5935,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    p_backlog_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     _add_commit_flags(p_backlog_set)  # selfcommit jgcm68 E-01/E-05
 
     # plan `vhbvwz` E-05: the ANNOTATION verb, mirroring the shipped `aw specs note`. Without it the
@@ -6248,6 +6263,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p_specs_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    p_specs_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
     _add_commit_flags(p_specs_set)  # selfcommit jgcm68 E-01/E-05/E-06 (dual path)
 
     p_specs_note = specs_sub.add_parser(
@@ -6399,6 +6419,28 @@ def _build_parser() -> argparse.ArgumentParser:
     p_prompts_new.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."
     )
+
+    p_prompts_set = prompts_sub.add_parser(
+        "set",
+        parents=[common],
+        help="Update status and metadata on a prompt record in .aw/records/prompts/.",
+    )
+    p_prompts_set.add_argument("args", nargs="*", help="[<status>] <selector>...")
+    p_prompts_set.add_argument(
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+    )
+    p_prompts_set.add_argument(
+        "--dry-run", action="store_true", help="Preview without writing."
+    )
+    p_prompts_set.add_argument(
+        "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
+    )
+    p_prompts_set.add_argument(
+        "--message", default=None, help="Workflow history message."
+    )
+    _add_commit_flags(p_prompts_set)
 
     # awinbox Order 01 (lznpv6): the ONE tooled crossing from the gitignored `.aw/inbox/` raw-drop
     # lane into a typed records tree. Registered as a TOP-LEVEL verb rather than under a family

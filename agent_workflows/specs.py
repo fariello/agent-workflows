@@ -1051,6 +1051,20 @@ def run_set(args) -> int:
                 dest_rel,
             )
         core.atomic_write(dest_path, new_text)
+        rewritten_citations: list[str] = []
+        if getattr(args, "rewrite_citations", False) and not getattr(
+            args, "dry_run", False
+        ):
+            from agent_workflows import artifact_refs as _refs
+
+            rewritten_citations = _refs.post_relocation_citation_rewrite(
+                repo_root,
+                src_rel,
+                dest_rel,
+                is_agent_or_json=bool(
+                    getattr(args, "agent", False) or getattr(args, "json", False)
+                ),
+            )
         sys.stdout.write(f"aw specs set: {dest_path} -> {new}\n")
     else:
         core.atomic_write(path, new_text)
@@ -1060,6 +1074,10 @@ def run_set(args) -> int:
     # status_set), so the offer must fire EXACTLY ONCE here for this form - the no-`--status` form
     # is covered by status_set (E-05), so the two forms never double-offer or miss.
     touched_paths = [src_rel, dest_rel] if moving else [src_rel]
+    if moving and rewritten_citations:
+        for rp in rewritten_citations:
+            if rp not in touched_paths:
+                touched_paths.append(rp)
     _offer_specs_set_commit(args, repo_root, touched_paths, new)
     return 0
 

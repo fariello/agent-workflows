@@ -1765,8 +1765,33 @@ def run_set(args) -> int:
         )
     dest_dir.mkdir(parents=True, exist_ok=True)
     core.atomic_write(dest, rendered)
-    if dest.resolve() != src.resolve():
+    moving = dest.resolve() != src.resolve()
+    if moving:
         src.unlink()
+    if (
+        moving
+        and getattr(args, "rewrite_citations", False)
+        and not getattr(args, "dry_run", False)
+    ):
+        try:
+            old_rel = src.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            old_rel = src.as_posix()
+        try:
+            new_rel = dest.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            new_rel = dest.as_posix()
+
+        from agent_workflows import artifact_refs as _refs
+
+        _refs.post_relocation_citation_rewrite(
+            repo_root,
+            old_rel,
+            new_rel,
+            is_agent_or_json=bool(
+                getattr(args, "agent", False) or getattr(args, "json", False)
+            ),
+        )
     sys.stdout.write(f"aw backlog set: {src.name} -> {new_status}\n")
     return 0
 
