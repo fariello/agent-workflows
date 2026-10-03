@@ -11,7 +11,7 @@
   OUT, each for a stated reason: WIDENING `aw check --source-anchors` to resolve Python-source offsets, which is the item's open design question, is a tool-and-test change to a shipped checker and is filed as carrier `7jl2bf` rather than smuggled into a comment fix (F-05). The IDENTICAL defect class in `agent_workflows/agy_runipd.py`, which carries 3 further past-EOF offsets into `oc_runipd.py` (F-06): measured and filed, not fixed, because this plan's fence is one file and sweeping a second host silently doubles the diff a reviewer must check. The 7 TRIVIAL-LANDING citations elsewhere in the tree (`check_engine.py`, `git_commit_helper.py`, `hooks/status_untooled_gate.py`, and three in `tests/`), which resolve to blank or punctuation lines (F-06). DELETED-TEST citations in these same comments, which are backlog `3tov52`'s declared subject and overlap this file. Any behavior change whatsoever: no constant is renamed, no set is widened, and `EXECUTION_SUCCESS_STATES` is left exactly `{"executed"}` because the CODE is right and the PROSE is wrong.
 - Scope-Paths: agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -21,9 +21,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: fnbtta
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fnbtta verified (set hostcite, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
