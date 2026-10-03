@@ -6,7 +6,7 @@
 - Scope: Restore both deferred classes as two per-module test files, `tests/test_run_analytics_privacy_docs.py` and `tests/test_lifecycle_legend_help_reach.py`, STRENGTHENED at the two points where I measured the recovered assertions to be weaker than their own stated intent: the privacy arm gains set-equality against the document's covered/blind list sections (the recovered substring arm cannot see a blind-to-covered move), and the legend arm gains an assertion that the `__{LIFECYCLE_LEGEND}__` placeholder is SUBSTITUTED rather than leaked plus coverage of the `both_forms=True` branch that today has no test caller. Out of scope and named with reasons below: any edit to `agent_workflows/`, `docs/`, or `tests/test_term.py`, and any restoration of the eight other classes from the deleted file (all dispositioned by `t9lcdu`).
 - Scope-Paths: tests/test_run_analytics_privacy_docs.py, tests/test_lifecycle_legend_help_reach.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bmxgt7
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bmxgt7 verified (set spvm3v, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004 (review record 20261002-spvm3v-01-bmxgt7-...review.md).
