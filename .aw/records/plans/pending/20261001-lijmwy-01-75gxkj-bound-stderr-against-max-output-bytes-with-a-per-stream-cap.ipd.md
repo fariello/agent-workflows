@@ -39,17 +39,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the recorded truncation fact per-stream before changing what is truncated
 
-- [ ] E-01 ADD `stdout_truncated` AND `stderr_truncated` KEYWORDS TO `run_evidence.build_tool_event` AND RECORD BOTH IN THE `tool_event`, keeping the existing `truncated` key as the DISJUNCTION of the two. Do this FIRST, because E-02 has nowhere honest to record a stderr truncation until the record can express one, and because the ordering makes the two changes separately reviewable.
+- [x] E-01 ADD `stdout_truncated` AND `stderr_truncated` KEYWORDS TO `run_evidence.build_tool_event` AND RECORD BOTH IN THE `tool_event`, keeping the existing `truncated` key as the DISJUNCTION of the two. Do this FIRST, because E-02 has nowhere honest to record a stderr truncation until the record can express one, and because the ordering makes the two changes separately reviewable.
   KEEP `truncated` AND KEEP ITS MEANING "SOMETHING WAS DISCARDED". Every existing reader must keep working: `run_evidence.validate_evidence` reads `record_or_envelope.get("truncated") is True` to emit `EV-TRUNCATED-OUTPUT`, and that read stays correct under a disjunction, becoming MORE correct rather than less (today it is measurably False while stderr was discarded, F-04). Do NOT redefine, rename, or remove it, and do NOT change `validate_evidence` in this plan.
   ACCEPT THE EXISTING `truncated=` PARAMETER UNCHANGED FOR BACK COMPATIBILITY, because `build_tool_event` is a PUBLIC constructor. Give the two new keywords a default of `None` (meaning "not reported"), and define the recorded `truncated` as `bool(truncated) or bool(stdout_truncated) or bool(stderr_truncated)`, so the legacy flag can never be silently overridden to False. When a caller passes NEITHER per-stream flag (both `None`), OMIT BOTH per-stream keys from the record rather than writing them: copying the legacy value into both would assert a stderr truncation nobody reported, and writing `False` into both would assert that neither stream was truncated, which is equally unreported. Omission is the honest "unknown", and it follows the existing precedent of `max_bytes`, which is recorded only when supplied. When a caller passes one per-stream flag, record both keys with the other as `False`. Say this at the symbol. `capture_command` (E-02) always supplies both, so every record it produces carries both keys.
   WHY NO SCHEMA EDIT IS NEEDED, measured rather than assumed (F-08): `run_ledger_schema.validate_record` checks the common envelope plus `_KIND_FIELDS["tool_event"]` (`argv`, `cwd`, `exit_code`, `stdout_sha256`) and never enumerates a permitted key set, so a record carrying the two new keys validates `ok=True` with zero findings. Do NOT add them to `_KIND_FIELDS`: that would make them REQUIRED and would retroactively invalidate every record already written.
   - Depends on: none
   - Expected outcome: `build_tool_event` accepts `stdout_truncated=` and `stderr_truncated=` (default `None`); when either is supplied the record carries both keys plus a `truncated` equal to the disjunction of all three inputs; a call passing neither records `truncated` exactly as today and carries NEITHER per-stream key (its key set is byte-identical to today's); `run_ledger_schema.validate_record` returns ok on the widened record; `_KIND_FIELDS` is byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: apply the bound to stderr without destroying the diagnostics
 
-- [ ] E-02 APPLY `max_output_bytes` TO `stderr_raw` WITH THE SAME RAW-BYTE SLICE `stdout_raw` ALREADY GETS, AND PASS BOTH PER-STREAM FLAGS INTO `build_tool_event`. This is the item's fix. The slice itself is two lines; the ordering around it is the whole risk.
+- [x] E-02 APPLY `max_output_bytes` TO `stderr_raw` WITH THE SAME RAW-BYTE SLICE `stdout_raw` ALREADY GETS, AND PASS BOTH PER-STREAM FLAGS INTO `build_tool_event`. This is the item's fix. The slice itself is two lines; the ordering around it is the whole risk.
   BOUND THE PROCESS OUTPUT, THEN APPEND THE DIAGNOSTIC, WHICH IS THE ONE THING AN EXECUTOR MUST GET RIGHT (F-05). `capture_command` builds stderr differently on each of its three paths: the success path takes `proc.stderr`; the `subprocess.TimeoutExpired` path takes `(exc.stderr or b"") + b"\nCommand timed out."`; the generic-exception path makes stderr the encoded exception text ENTIRELY. A single truncation applied after all three destroys the sentinel on the second and can destroy the whole explanation on the third. MEASURED: a timeout under `max_output_bytes=10` yields `stderr_len 219` ending `\nCommand timed out.`, and a front slice to 10 bytes keeps only `EEEEEEEEEE`. So bound the PROCESS-PRODUCED bytes and then append the diagnostic, so the sentinel survives any bound; and leave the generic-exception path's text UNBOUNDED, since it is bounded in practice by the length of an exception message and is the only account of a capture that never ran. State both carve-outs at the symbol with this reasoning, and note that the resulting stderr may therefore exceed `max_output_bytes` by the diagnostic's length: that is deliberate, and a bound that hides why a command failed is not a safety win.
   MATCH THE RAW-BYTE SEMANTICS EXACTLY, NOT CHARACTER SEMANTICS. The existing block slices a `bytes` object (`len(stdout_raw) > max_output_bytes`), and the text is decoded later with `errors="replace"`, so a bound landing mid-character yields `U+FFFD`. MEASURED on stdout today with `max_output_bytes=3` against five `e-acute` characters: `stdout_len 3` and the decoded text `'é\ufffd'`; the same input on stderr currently returns all five characters with `stderr_len 10`. After E-02 the stderr case must match the stdout case exactly. Do NOT invent a character-boundary-aware slice for one stream: one declared bound must not mean two different things, and a boundary-aware variant is a behavior change to stdout that this plan does not own.
   SET THE FLAGS FROM WHAT ACTUALLY HAPPENED, not from the bound being present: `stdout_truncated` only when the stdout slice shortened it, `stderr_truncated` only when the stderr slice shortened it. A capture whose output fits under a declared bound is NOT truncated, and recording otherwise would make the flag useless for the gate interaction of F-06.
@@ -58,18 +58,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALWAYS PASS BOTH PER-STREAM FLAGS from `capture_command`, including on an unbounded call (both `False`), so every record this function produces carries both keys and a reader never has to distinguish "unbounded" from "unknown" for a `capture_command` record.
   - Depends on: E-01
   - Expected outcome: with `max_output_bytes=10` against a command writing 100 bytes to each stream, `stdout_len` and `stderr_len` are both 10, `stdout_truncated` and `stderr_truncated` are both True, and `truncated` is True; with stdout at 5 bytes and stderr at 5000 under a bound of 100, `stderr_truncated` and `truncated` are True while `stdout_truncated` is False, and `len(event.stderr) == 100`; a timeout under a tiny bound still ends with `Command timed out.`; a spawn failure still carries its full exception text; `stderr_sha256` describes the retained bytes; an unbounded call carries both per-stream keys `False`; and the mid-character stderr case now matches the stdout case byte for byte.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 DOCUMENT THE BOUND'S CONTRACT AT `capture_command`'s DOCSTRING, which today says only that it captures "stdout/stderr SHA-256" and says nothing about what `max_output_bytes` governs. A reader currently has to read the body to learn that the bound applied to one stream, which is how this defect survived.
+- [x] E-03 DOCUMENT THE BOUND'S CONTRACT AT `capture_command`'s DOCSTRING, which today says only that it captures "stdout/stderr SHA-256" and says nothing about what `max_output_bytes` governs. A reader currently has to read the body to learn that the bound applied to one stream, which is how this defect survived.
   STATE FOUR THINGS AND NO MORE: that the bound is PER STREAM and not a shared budget (pointing at OQ-01's reasoning in one clause, not restating it); that it is applied to RAW BYTES before decoding, so the decoded text can contain `U+FFFD` and can re-encode larger than the bound; that the appended timeout sentinel and a spawn-failure message are DELIBERATELY outside the bound, with the reason (a bound that hides why a capture failed is not a safety win); and that `truncated` is the disjunction of the two per-stream flags, retained for existing readers.
   DO NOT NARRATE THE DEFECT'S HISTORY AT LENGTH. The existing comment block in this function is already long, and the repository's own convention is that a symbol's docstring states the contract that EXISTS. One sentence recording that the bound formerly applied to stdout only is enough to stop a future reader "simplifying" the two flags back into one.
   - Depends on: E-02
   - Expected outcome: `capture_command`'s docstring states the per-stream cap, the raw-byte semantics, the two deliberate carve-outs with their reason, and the disjunction; no existing comment is deleted other than text this change makes false.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the behavior in a dedicated file
 
-- [ ] E-04 ADD `tests/test_capture_command_stream_bounds.py` PINNING THE PER-STREAM BOUND WITH REAL SUBPROCESSES. Existing coverage of `capture_command` (`tests/test_capture_command_contract.py`, `tests/test_host_runner_output_bound.py`, F-07) pins the return shape, error paths and the stdout bound, but nothing pins a bound on stderr, and one existing test pins its ABSENCE; the defect's whole character is a bound that silently did nothing on one stream.
+- [x] E-04 ADD `tests/test_capture_command_stream_bounds.py` PINNING THE PER-STREAM BOUND WITH REAL SUBPROCESSES. Existing coverage of `capture_command` (`tests/test_capture_command_contract.py`, `tests/test_host_runner_output_bound.py`, F-07) pins the return shape, error paths and the stdout bound, but nothing pins a bound on stderr, and one existing test pins its ABSENCE; the defect's whole character is a bound that silently did nothing on one stream.
   THE CENTRAL CASE IS THE ITEM'S OWN MEASUREMENT TURNED INTO A TEST: a command writing 100 bytes to each stream under `max_output_bytes=10` must yield `stdout_len == 10` AND `stderr_len == 10`, with `stdout_truncated`, `stderr_truncated` and `truncated` all True. Assert the LENGTHS, not only the flags: a flag-only assertion would pass against a cosmetic fix that recorded truncation without discarding anything.
   COVER THE ASYMMETRIC CASE IN BOTH DIRECTIONS, because it is what makes the per-stream flags load-bearing rather than decorative: stdout 5 bytes with stderr 5000 under a bound of 100 must give `stdout_truncated is False`, `stderr_truncated is True`, `truncated is True`; and the mirror case must give the opposite pair. The first of these is the measured case where today's record reads `truncated: False` while 4,900 bytes were discarded (F-04), so it is the regression pin for the half-truth the item filed.
   ASSERT THE UNBOUNDED DEFAULT IS UNCHANGED, which is the guard protecting every existing caller: the same command with `max_output_bytes` OMITTED (so the `None` default is itself exercised, not passed explicitly) must return both streams in full with all three flags False.
@@ -80,32 +80,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DRIVE REAL SUBPROCESSES AND ASSERT OUTCOMES ONLY. No `inspect`, no `ast`, no reading of `agent_workflows/*.py`, no assertion about docstrings or comments, per the repository's outcomes-not-structure rule. Use a well-formed `run_id` of the form `run-<hex>` and `actor="executor"` throughout, per the conventions below.
   - Depends on: E-03
   - Expected outcome: a new passing test file pinning the symmetric bound, both asymmetric directions, the bounded `.stderr` attribute, the unbounded default, exit 124 with a surviving sentinel, exit 127 with a surviving message, the mid-character stderr boundary equal to stdout's, and the per-stream digests over retained bytes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE THE NEW TESTS ARE FALSIFIABLE AND THE RECORD STILL VALIDATES, in the same file, because a test that passes against the unfixed code is worthless and this defect class is precisely one that hid behind coverage that could not see it.
+- [x] E-05 PROVE THE NEW TESTS ARE FALSIFIABLE AND THE RECORD STILL VALIDATES, in the same file, because a test that passes against the unfixed code is worthless and this defect class is precisely one that hid behind coverage that could not see it.
   THE MUTATION PROOF, which is this item's load-bearing evidence: temporarily remove E-02's stderr slice, confirm the symmetric case and both asymmetric cases FAIL, and revert so the production file is byte-unchanged. Then separately force `stderr_truncated` to a constant `False` and confirm the asymmetric case fails. Record both in the validation evidence with the failing node ids.
   ASSERT THE WIDENED RECORD STILL PASSES THE LEDGER VALIDATOR, as a test and not only as a finding: `run_ledger_schema.validate_record` on a record returned by the real `capture_command` with `actor="executor"` must return ok. Per the conventions below, do NOT probe with `actor="driver"` (which `run_suite_check` passes in production): that value is absent from `run_ledger_schema.ROLES` and returns `RL-E014`, a PRE-EXISTING condition this plan must not change.
   ASSERT THE LEGACY `build_tool_event` CALL SHAPE IS UNBROKEN, which is what proves E-01 was additive: a direct `build_tool_event` call passing `truncated=True` and NEITHER per-stream flag must still record `truncated: True` and must carry NEITHER `stdout_truncated` nor `stderr_truncated` key (its key set equal to the same call made before E-01), rather than fabricating per-stream facts nobody reported. Also pin that `truncated=False, stderr_truncated=True` records `truncated: True`, so a legacy flag can never mask a per-stream one.
   ASSERT THE GATE ACCEPTS A STDERR-ONLY TRUNCATION UNDER A DECLARED BOUND, which is now the RIGHT test to write because executed plan `egywai` shipped the declared-bound exemption in `host_runner.evidence_gate` (F-06): the asymmetric capture (stdout 5, stderr 5000, bound 100) must give `evidence_gate(event).ok is True`, and the same record with `max_bytes` deleted must give `ok is False` with findings exactly `["EV-TRUNCATED-OUTPUT"]`. This is the pair that proves the newly-true flag reaches the validator and that the existing exemption, not a new one, admits it.
   - Depends on: E-04
   - Expected outcome: the stderr-slice mutation and the forced-flag mutation each produce named failing node ids and are reverted with no mutation residue in `git diff agent_workflows/run_evidence.py`; the widened record validates ok under `actor="executor"`; the legacy `build_tool_event` shape and the legacy-flag-cannot-mask rule are pinned; and the gate pair passes with `host_runner.evidence_gate` unedited.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: keep the host runner's two branches in parity and retire the claims this fix makes false
 
-- [ ] E-06 BRING `host_runner.run_worker_process`'s INJECTED-RUNNER BRANCH TO THE SAME PER-STREAM BOUND, AND CORRECT THE `host_runner` TEXT THAT STATES STDERR IS UNBOUNDED. Executed plan `egywai` built that function with two branches deliberately in parity: the real-spawn branch calls `capture_command(..., max_output_bytes=packet.max_output_bytes)`, and the `runner is not None` branch re-implements the stdout slice by hand (`stdout_bytes = (stdout or "").encode("utf-8")` ... `stdout_bytes[: packet.max_output_bytes]`). After E-02, the real-spawn branch bounds stderr and the injected branch does not, so the parity `egywai` pinned silently breaks.
+- [x] E-06 BRING `host_runner.run_worker_process`'s INJECTED-RUNNER BRANCH TO THE SAME PER-STREAM BOUND, AND CORRECT THE `host_runner` TEXT THAT STATES STDERR IS UNBOUNDED. Executed plan `egywai` built that function with two branches deliberately in parity: the real-spawn branch calls `capture_command(..., max_output_bytes=packet.max_output_bytes)`, and the `runner is not None` branch re-implements the stdout slice by hand (`stdout_bytes = (stdout or "").encode("utf-8")` ... `stdout_bytes[: packet.max_output_bytes]`). After E-02, the real-spawn branch bounds stderr and the injected branch does not, so the parity `egywai` pinned silently breaks.
   APPLY THE SAME RAW-BYTE SLICE TO `stderr` IN THE INJECTED BRANCH (encode, slice, decode with `errors="replace"`), and set `truncated` True when EITHER stream was shortened. `RawWorkerResult` keeps its single `truncated` field: do NOT add per-stream fields to it, since its readers only need "something was discarded" and widening a NamedTuple is out of proportion to this item. The injected branch has no timeout or spawn-failure sentinel of its own (the double returns its own stderr), so no carve-out applies there.
   CORRECT THE FALSE TEXT, which is otherwise left asserting the opposite of the shipped behavior: the `run_worker_process` docstring sentence "Captured stderr is deliberately left unbounded here and in `capture_command` (design decision for shared-vs-per-stream budget tracked in backlog `lijmwy`)", the comment "# Note: stderr is deliberately unbounded here and in capture_command (backlog lijmwy).", the comment "# Note: stderr is deliberately unbounded in capture_command (backlog lijmwy).", and the `RawWorkerResult` docstring sentence "`truncated` records whether captured stdout was shortened by a declared output bound" (now: either stream). Replace each with the per-stream contract in one clause pointing at `capture_command`'s docstring; do not restate it.
   - Depends on: E-02
   - Expected outcome: under `max_output_bytes=10` a `runner=` double returning 500 bytes of stderr yields `len(res.stderr) == 10` and `res.truncated is True`, and the real-spawn branch on an equivalent command yields the same; no `host_runner` docstring or comment still states that stderr is unbounded; `RawWorkerResult`'s field set is unchanged; `evidence_gate` is byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 UPDATE THE TWO EXISTING TESTS THAT PIN THE OLD BEHAVIOR, which a bare suite run will otherwise turn red (F-07). Edit them to pin the NEW contract; do not delete them, since each also pins something still true.
+- [x] E-07 UPDATE THE TWO EXISTING TESTS THAT PIN THE OLD BEHAVIOR, which a bare suite run will otherwise turn red (F-07). Edit them to pin the NEW contract; do not delete them, since each also pins something still true.
   `tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_stderr_remains_unbounded` asserts `len(res.stderr) == 5000` under `max_output_bytes=2`. Rename it to state the new contract (for example `test_stderr_is_bounded_per_stream`), assert `len(res.stderr) == 2` and `res.truncated is True`, keep its `res.stdout == "ou"` assertion, and add the same assertion through the `runner=` double so E-06's parity is pinned in the file that owns it. Update the module docstring's "leaves stderr unbounded per backlog lijmwy" clause to match.
   `tests/test_capture_command_contract.py::test_capture_command_key_set_per_call_shape` asserts `set(tool_event_unbounded.keys()) == BASE_SCHEMA_KEYS` and the bounded set `== BASE_SCHEMA_KEYS | {"max_bytes"}`. Since E-02 makes `capture_command` always write both per-stream keys, add `"stdout_truncated"` and `"stderr_truncated"` to `BASE_SCHEMA_KEYS`. That test is the one place the emitted key set is pinned, so this edit is the deliberate, reviewed record of the widening.
   - Depends on: E-06
   - Expected outcome: both edited tests pass against the new code and FAIL against `git stash`-reverted production code (paste both); no other existing test needed an edit, established by a bare suite run whose only changed node ids are these two plus the new file's.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -213,41 +213,413 @@ WHAT IS DOCUMENTED AT THE SYMBOL RATHER THAN IN A DOC (E-03) is the bound's per-
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the committed diff of `build_tool_event`. PASTE a live call supplying `stdout_truncated=False, stderr_truncated=True` and show the returned record carries all three keys with `truncated` True (the disjunction). PASTE a second live call supplying `stdout_truncated=False, stderr_truncated=False` showing `truncated` False. PASTE a LEGACY-SHAPE call passing `truncated=True` and NEITHER per-stream flag, showing `truncated` True and NEITHER per-stream key present (paste the sorted key set), which proves the widening did not fabricate per-stream facts. PASTE a call passing `truncated=False, stderr_truncated=True` showing `truncated` True. PASTE `run_ledger_schema.validate_record` on a widened record returning ok with zero findings, using `actor="executor"` (per the conventions, `actor="driver"` returns `RL-E014` and is pre-existing). CONFIRM by reading the diff that `run_ledger_schema._KIND_FIELDS` is UNCHANGED (paste `git diff --stat agent_workflows/run_ledger_schema.py`, expected empty) and that the docstring states what a legacy-only call records.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `build_tool_event` in `agent_workflows/run_evidence.py`:
+    ```diff
+    @@ -289,6 +289,8 @@ def build_tool_event(
+         start_time: Optional[str] = None,
+         end_time: Optional[str] = None,
+         truncated: bool = False,
+    +    stdout_truncated: Optional[bool] = None,
+    +    stderr_truncated: Optional[bool] = None,
+         max_bytes: Optional[int] = None,
+         env: Optional[Mapping[str, str]] = None,
+         env_allowlist: Optional[Sequence[str]] = None,
+    @@ -296,7 +298,15 @@ def build_tool_event(
+         parent: str = "",
+         seq: int = 0,
+     ) -> Dict[str, Any]:
+    -    """Build a schema-conforming `tool_event` ledger record with provenance."""
+    +    """Build a schema-conforming `tool_event` ledger record with provenance.
+    +
+    +    When neither `stdout_truncated` nor `stderr_truncated` is supplied (both None),
+    +    both per-stream keys are omitted from the record, preserving legacy call shape
+    +    without asserting unobserved per-stream truncation facts. When either keyword
+    +    is supplied, both keys are recorded (the omitted one defaulting to False).
+    +    The recorded `truncated` field is the disjunction of legacy `truncated`,
+    +    `stdout_truncated`, and `stderr_truncated` so legacy flags are never masked.
+    +    """
+         stdout_bytes = stdout.encode("utf-8") if isinstance(stdout, str) else stdout
+         stderr_bytes = stderr.encode("utf-8") if isinstance(stderr, str) else stderr
 
-- [ ] V-02 validates E-02
+    @@ -308,6 +318,11 @@ def build_tool_event(
+         )
+         ts = start_time or now_iso
+
+    +    has_per_stream = (stdout_truncated is not None) or (stderr_truncated is not None)
+    +    effective_truncated = (
+    +        bool(truncated) or bool(stdout_truncated) or bool(stderr_truncated)
+    +    )
+    +
+         rec: Dict[str, Any] = {
+             "schema_version": schema.LEDGER_SCHEMA_VERSION,
+             "kind": "tool_event",
+    @@ -323,9 +338,12 @@ def build_tool_event(
+             "stderr_sha256": stderr_sha256,
+             "stdout_len": len(stdout_bytes),
+             "stderr_len": len(stderr_bytes),
+    -        "truncated": bool(truncated),
+    +        "truncated": effective_truncated,
+             "env": filter_environment(env, env_allowlist),
+         }
+    +    if has_per_stream:
+    +        rec["stdout_truncated"] = bool(stdout_truncated)
+    +        rec["stderr_truncated"] = bool(stderr_truncated)
+         if start_time:
+             rec["start_time"] = start_time
+         if end_time:
+    ```
+    Live calls in python3:
+    ```
+    >>> r1 = ev.build_tool_event("run-abc123ff", ["echo"], ".", 0, "o", "e", stdout_truncated=False, stderr_truncated=True, actor="executor")
+    r1 truncated: True stdout_truncated: False stderr_truncated: True
+    >>> r2 = ev.build_tool_event("run-abc123ff", ["echo"], ".", 0, "o", "e", stdout_truncated=False, stderr_truncated=False, actor="executor")
+    r2 truncated: False stdout_truncated: False stderr_truncated: False
+    >>> r3 = ev.build_tool_event("run-abc123ff", ["echo"], ".", 0, "o", "e", truncated=True, actor="executor")
+    r3 truncated: True keys: ['actor', 'argv', 'cwd', 'env', 'exit_code', 'kind', 'parent', 'run_id', 'schema_version', 'seq', 'stderr_len', 'stderr_sha256', 'stdout_len', 'stdout_sha256', 'timestamp', 'truncated']
+    stdout_truncated in r3: False stderr_truncated in r3: False
+    >>> r4 = ev.build_tool_event("run-abc123ff", ["echo"], ".", 0, "o", "e", truncated=False, stderr_truncated=True, actor="executor")
+    r4 truncated: True stdout_truncated: False stderr_truncated: True
+    >>> rls.validate_record(r1)
+    EvidenceValidationResult(ok=True, findings=())
+    ```
+    `git diff --stat agent_workflows/run_ledger_schema.py`:
+    ```
+    $ git diff --stat agent_workflows/run_ledger_schema.py
+    (empty)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed diff of `capture_command`'s truncation block and its `build_tool_event` call. PASTE THE SYMMETRIC CASE before and after: `max_output_bytes=10` against 100 bytes per stream, showing `stderr_len` move from 100 to 10 with both per-stream flags True. PASTE THE ASYMMETRIC CASE before and after: stdout 5 bytes, stderr 5000, bound 100, showing `truncated` move from False to True with `stderr_truncated` True and `stdout_truncated` False; this is the item's half-truth claim discharged. PASTE THE MIRROR asymmetric case (stdout over, stderr under) showing the opposite flag pair. PASTE THE UNBOUNDED DEFAULT with `max_output_bytes` omitted, showing full lengths and all three flags False (both per-stream keys PRESENT). PASTE `len(event.stderr.encode("utf-8"))` for the asymmetric case showing the out-of-band attribute is 100 bytes. PASTE THE DIAGNOSTIC-SURVIVAL EVIDENCE, which is the load-bearing part of this item: a timeout under a tiny bound returning exit 124 with the literal stderr value ENDING in `Command timed out.`, and a nonexistent argv under a tiny bound returning exit 127 with the full `No such file or directory` text; paste the literal strings. PASTE THE DIGEST EVIDENCE: `stderr_sha256` equal to the SHA-256 of the RETAINED bytes, contrasted against the before-measurement where it equalled the digest of the full output. PASTE THE MID-CHARACTER CASE: five `e-acute` characters on stderr under `max_output_bytes=3` giving `stderr_len 3` and text `'é\ufffd'`, and show the stdout result on identical input is EQUAL.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `capture_command`'s truncation block and `build_tool_event` call:
+    ```diff
+    @@ -518,19 +550,29 @@ def capture_command(
+         except subprocess.TimeoutExpired as exc:
+             exit_code = 124
+             stdout_raw = exc.stdout or b""
+    -        stderr_raw = (exc.stderr or b"") + b"\nCommand timed out."
+    +        stderr_raw = exc.stderr or b""
+    +        is_timeout = True
+         except Exception as exc:
+             exit_code = 127
+             stdout_raw = b""
+             stderr_raw = str(exc).encode("utf-8")
+    +        is_spawn_error = True
 
-- [ ] V-03 validates E-03
+         end_dt = datetime.datetime.now(datetime.timezone.utc)
+         end_time = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    -    truncated = False
+    -    if max_output_bytes is not None and len(stdout_raw) > max_output_bytes:
+    -        stdout_raw = stdout_raw[:max_output_bytes]
+    -        truncated = True
+    +    stdout_truncated = False
+    +    stderr_truncated = False
+    +    if not is_spawn_error and max_output_bytes is not None:
+    +        if len(stdout_raw) > max_output_bytes:
+    +            stdout_raw = stdout_raw[:max_output_bytes]
+    +            stdout_truncated = True
+    +        if len(stderr_raw) > max_output_bytes:
+    +            stderr_raw = stderr_raw[:max_output_bytes]
+    +            stderr_truncated = True
+    +
+    +    if is_timeout:
+    +        stderr_raw = stderr_raw + b"\nCommand timed out."
+
+         tool_event = build_tool_event(
+             run_id=run_id,
+    @@ -541,7 +583,9 @@ def capture_command(
+             stderr=stderr_raw,
+             start_time=start_time,
+             end_time=end_time,
+    -        truncated=truncated,
+    +        truncated=stdout_truncated or stderr_truncated,
+    +        stdout_truncated=stdout_truncated,
+    +        stderr_truncated=stderr_truncated,
+             max_bytes=max_output_bytes,
+             env_allowlist=env_allowlist,
+             actor=actor,
+    ```
+    Symmetric case before:
+    `stdout_len: 10, stderr_len: 100, truncated: True, stdout_truncated: None, stderr_truncated: None`
+    Symmetric case after:
+    `sym stdout_len: 10, sym stderr_len: 10, sym truncated: True, sym stdout_truncated: True, sym stderr_truncated: True`
+    Asymmetric case before:
+    `stdout_len: 5, stderr_len: 5000, truncated: False, stdout_truncated: None, stderr_truncated: None`
+    Asymmetric case after:
+    `asym stdout_len: 5, asym stderr_len: 100, asym truncated: True, asym stdout_truncated: False, asym stderr_truncated: True`
+    `asym len(event.stderr.encode): 100`
+    Mirror asymmetric case:
+    `mirror stdout_len: 100, mirror stderr_len: 5, mirror truncated: True, mirror stdout_truncated: True, mirror stderr_truncated: False`
+    Unbounded default (max_output_bytes omitted):
+    `unbound stdout_len: 100, unbound stderr_len: 100, unbound truncated: False, unbound stdout_truncated: False, unbound stderr_truncated: False`
+    Diagnostic survival:
+    `timeout exit_code: 124, timeout stderr literal: 'EEEEEEEEEE\nCommand timed out.', timeout ends with sentinel: True`
+    `spawn exit_code: 127, spawn stderr literal: "[Errno 2] No such file or directory: '/nonexistent_bin_12345'"`
+    Digest:
+    Before: `stderr_sha256 == sha256(100 full bytes): True`, `stderr_sha256 == sha256(10 kept bytes): False`
+    After: `stderr_sha256 == sha256(10 kept bytes): True`, `stderr_sha256 == sha256(100 full bytes): False`
+    Mid-character case:
+    `mid stderr_len: 3 text: 'é\ufffd'`
+    `mid stdout_len: 3 text: 'é\ufffd'`
+    `mid stderr == stdout: True`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the committed docstring diff and CONFIRM by quoting it that it states all four required points: the cap is PER STREAM and not a shared budget; it applies to RAW BYTES before decoding so the decoded text may contain `U+FFFD` and may re-encode larger than the bound; the appended timeout sentinel and a spawn-failure message are deliberately OUTSIDE the bound, with the reason given; and `truncated` is the disjunction of the two per-stream flags, retained for existing readers. CONFIRM no pre-existing comment was deleted except text this change makes false, by reading the diff for deletions and stating what each removed line said.
   - Observed evidence:
-  - Result: pending
+    Committed docstring diff in `agent_workflows/run_evidence.py`:
+    ```diff
+    @@ -513,7 +513,18 @@ def capture_command(
+         max_output_bytes: Optional[int] = None,
+     ) -> Tuple[CapturedToolEvent, Dict[str, Any]]:
+         """Execute a command, capture provenance (start/end, exit, stdout/stderr SHA-256, HEAD, dirty digest,
+    -    worktree, env allowlist), and return (tool_event, evidence_envelope)."""
+    +    worktree, env allowlist), and return (tool_event, evidence_envelope).
+    +
+    +    When `max_output_bytes` is specified:
+    +    - The bound is applied per stream to stdout and stderr, not as a shared budget (see OQ-01
+    +      on deterministic preservation for multi-stream consumers; formerly applied to stdout only).
+    +    - It is applied to raw bytes before decoding with errors="replace", so decoded strings may contain
+    +      U+FFFD and re-encode larger than the declared bound.
+    +    - Appended timeout diagnostic ('\nCommand timed out.') and spawn-failure exception messages are
+    +      deliberately outside the bound, because a bound that hides why a capture failed is not a safety win.
+    +    - `truncated` records the disjunction of `stdout_truncated` and `stderr_truncated`, retained for
+    +      existing readers.
+    +    """
+    ```
+    Four points confirmed by quoting:
+    1. "The bound is applied per stream to stdout and stderr, not as a shared budget (see OQ-01 on deterministic preservation for multi-stream consumers; formerly applied to stdout only)."
+    2. "It is applied to raw bytes before decoding with errors="replace", so decoded strings may contain U+FFFD and re-encode larger than the declared bound."
+    3. "Appended timeout diagnostic ('\nCommand timed out.') and spawn-failure exception messages are deliberately outside the bound, because a bound that hides why a capture failed is not a safety win."
+    4. "`truncated` records the disjunction of `stdout_truncated` and `stderr_truncated`, retained for existing readers."
+    Deletions confirmed: only the original 1-line docstring summary was replaced by the expanded docstring. No pre-existing comments were deleted.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM by QUOTING the test code that it covers each of: (a) the symmetric bound asserting both LENGTHS and all three flags; (b) BOTH asymmetric directions asserting the per-stream flag pairs; (c) the unbounded default constructed WITHOUT the keyword; (d) exit 124 with stderr ending in the sentinel and exit 127 with the full message, neither raising; (e) the mid-character stderr boundary asserting the literal `'é\ufffd'` AND equality with the stdout result on identical input; and (f) `stderr_sha256` over the RETAINED bytes; and (g) the out-of-band `.stderr` attribute bounded in the asymmetric case. CONFIRM the file contains NO `inspect`, `ast.parse`, or `getsource` call and reads no `agent_workflows/*.py` source, by pasting a grep for those returning nothing. CONFIRM every capture uses a `run-<hex>` run id and `actor="executor"`.
   - Observed evidence:
-  - Result: pending
+    Passing test run:
+    ```
+    $ python3 -m pytest -o addopts="" -v tests/test_capture_command_stream_bounds.py
+    tests/test_capture_command_stream_bounds.py::test_ledger_validator_accepts_widened_record PASSED [ 10%]
+    tests/test_capture_command_stream_bounds.py::test_unbounded_default_preserves_full_output PASSED [ 20%]
+    tests/test_capture_command_stream_bounds.py::test_timeout_diagnostic_carve_out PASSED [ 30%]
+    tests/test_capture_command_stream_bounds.py::test_spawn_failure_diagnostic_carve_out PASSED [ 40%]
+    tests/test_capture_command_stream_bounds.py::test_symmetric_stream_bounds PASSED [ 50%]
+    tests/test_capture_command_stream_bounds.py::test_declared_bound_evidence_gate_pair PASSED [ 60%]
+    tests/test_capture_command_stream_bounds.py::test_asymmetric_stdout_over_bound PASSED [ 70%]
+    tests/test_capture_command_stream_bounds.py::test_legacy_build_tool_event_call_shape PASSED [ 80%]
+    tests/test_capture_command_stream_bounds.py::test_mid_character_byte_boundary PASSED [ 90%]
+    tests/test_capture_command_stream_bounds.py::test_asymmetric_stderr_over_bound PASSED [100%]
+    10 passed in 3.95s
+    ```
+    Coverage quotes:
+    (a) `assert tool_event["stdout_len"] == 10; assert tool_event["stderr_len"] == 10; assert tool_event["stdout_truncated"] is True; assert tool_event["stderr_truncated"] is True; assert tool_event["truncated"] is True`
+    (b) `assert tool_event["stdout_truncated"] is False; assert tool_event["stderr_truncated"] is True; assert tool_event["truncated"] is True` and `assert tool_event["stdout_truncated"] is True; assert tool_event["stderr_truncated"] is False; assert tool_event["truncated"] is True`
+    (c) `tool_event, _ = run_evidence.capture_command("run-abc123ff", cmd, actor="executor"); assert tool_event["stdout_len"] == 100; assert tool_event["stderr_len"] == 100; assert tool_event["stdout_truncated"] is False; assert tool_event["stderr_truncated"] is False; assert tool_event["truncated"] is False; assert "max_bytes" not in tool_event`
+    (d) `assert tool_event["exit_code"] == 124; assert tool_event.stderr.endswith("Command timed out."); assert tool_event.stderr == "E" * 10 + "\nCommand timed out."` and `assert tool_event["exit_code"] == 127; assert "No such file or directory" in tool_event.stderr`
+    (e) `assert event_stderr["stderr_len"] == 3; assert event_stderr.stderr == "é\ufffd"; assert event_stdout["stdout_len"] == 3; assert event_stdout.stdout == "é\ufffd"; assert event_stderr.stderr == event_stdout.stdout`
+    (f) `assert tool_event["stdout_sha256"] == hashlib.sha256(b"O" * 10).hexdigest(); assert tool_event["stderr_sha256"] == hashlib.sha256(b"E" * 10).hexdigest()`
+    (g) `assert len(tool_event.stderr.encode("utf-8")) == 100; assert tool_event.stderr == "E" * 100`
+    Grep check for inspection:
+    ```
+    $ grep -E "inspect|ast\.parse|getsource|open\(.*agent_workflows" tests/test_capture_command_stream_bounds.py
+    (empty, exit 1)
+    ```
+    Run ID format `run-abc123ff` and `actor="executor"` used throughout.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: PASTE THE MUTATION PROOF, which is this item's load-bearing evidence: remove E-02's stderr slice, paste the FAILING pytest output naming the failing node ids (the symmetric case and both asymmetric cases must fail), revert, and paste the restored green run; then force `stderr_truncated` to a constant `False`, paste the failing asymmetric node id, and revert. PASTE `git diff agent_workflows/run_evidence.py` afterward and account for every remaining hunk as intended E-01/E-02/E-03 work, with no mutation residue. PASTE the ledger-validation test, both legacy `build_tool_event` call-shape tests, and the declared-bound gate pair passing, quoting the gate-pair assertions (`ok is True` with `max_bytes`, `ok is False` with findings exactly `["EV-TRUNCATED-OUTPUT"]` without it). PASTE `git diff --stat agent_workflows/host_runner.py` limited to E-06's hunks, with `evidence_gate` absent from the diff.
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last step before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile it against the baseline measured at execution (authoring measured `3629 passed, 2 skipped`, F-10), explaining any difference against a named E-item rather than waving it through; PASTE the focused test files' output; PASTE `python3 -m agent_workflows check`; PASTE `aw ipd lint` reporting conforming; PASTE `aw sanitize --agent`; PASTE `aw ipd lint --phase pre-transition` reporting no `check.ipd-uncarried-obligation`; and PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY declared `- Scope-Paths:` entries and nothing else.
   - Observed evidence:
-  - Result: pending
+    Mutation 1: removed stderr slice. Output:
+    ```
+    FAILED tests/test_capture_command_stream_bounds.py::test_symmetric_stream_bounds
+    FAILED tests/test_capture_command_stream_bounds.py::test_timeout_diagnostic_carve_out
+    FAILED tests/test_capture_command_stream_bounds.py::test_declared_bound_evidence_gate_pair
+    FAILED tests/test_capture_command_stream_bounds.py::test_asymmetric_stderr_over_bound
+    FAILED tests/test_capture_command_stream_bounds.py::test_mid_character_byte_boundary
+    5 failed, 5 passed in 4.10s
+    ```
+    Restored green: 10 passed in 4.07s.
+    Mutation 2: forced `stderr_truncated = False`. Output:
+    ```
+    FAILED tests/test_capture_command_stream_bounds.py::test_asymmetric_stderr_over_bound
+    FAILED tests/test_capture_command_stream_bounds.py::test_symmetric_stream_bounds
+    FAILED tests/test_capture_command_stream_bounds.py::test_timeout_diagnostic_carve_out
+    3 failed, 7 passed in 3.78s
+    ```
+    Restored green: 10 passed in 4.14s.
+    No mutation residue in `git diff agent_workflows/run_evidence.py`.
+    Ledger validation test passed: `test_ledger_validator_accepts_widened_record`
+    Legacy build_tool_event call shape tests passed: `test_legacy_build_tool_event_call_shape`
+    Gate pair assertions quoted:
+    `gate_ok = host_runner.evidence_gate(tool_event); assert gate_ok.ok is True, f"Gate findings: {gate_ok.findings}"`
+    `tampered = dict(tool_event); del tampered["max_bytes"]; gate_tampered = host_runner.evidence_gate(tampered); assert gate_tampered.ok is False; assert [f.code for f in gate_tampered.findings] == ["EV-TRUNCATED-OUTPUT"]`
+    `git diff --stat agent_workflows/host_runner.py`:
+    ```
+     agent_workflows/host_runner.py | 19 ++++++++++++-------
+     1 file changed, 12 insertions(+), 7 deletions(-)
+    ```
+    (`evidence_gate` is absent from the diff).
+    Whole-plan no-regression evidence:
+    Bare pytest output:
+    `1 failed, 4862 passed, 2 skipped, 3 warnings in 416.82s (0:06:56)`
+    Baseline before edits was `1 failed, 4852 passed, 2 skipped, 3 warnings in 737.22s (0:12:17)` with the exact same single failure (`tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`, pre-existing live-corpus failure). Exactly +10 passed tests, matching E-04's 10 tests in `test_capture_command_stream_bounds.py`. Zero regressions.
+    Focused test suite: `219 passed in 51.17s`.
+    `python3 -m agent_workflows check`: 0 diagnostics for 75gxkj.
+    `aw ipd lint`: conforming.
+    `aw sanitize --agent`: clean (exit 0).
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the committed `host_runner.py` diff. PASTE a live `run_worker_process` call with a `runner=` double returning 500 stderr bytes under `max_output_bytes=10`, showing `len(res.stderr) == 10` and `res.truncated is True`, and the same through the real-spawn branch on an equivalent `python3 -c` command, showing the two branches agree; contrast against the pre-change measurement `worker 500 False` (F-09). PASTE `rg -n "unbounded" agent_workflows/host_runner.py` showing no remaining claim that stderr is unbounded. CONFIRM `RawWorkerResult`'s field list and `evidence_gate` are unchanged in the diff.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `agent_workflows/host_runner.py`:
+    ```diff
+    @@ -104,7 +104,8 @@ class TaskPacket(NamedTuple):
+     class RawWorkerResult(NamedTuple):
+         """The raw (pre-validation) result of a worker process: exit + captured streams + diff.
 
-- [ ] V-07 validates E-07
+    -    `truncated` records whether captured stdout was shortened by a declared output bound.
+    +    `truncated` records whether captured stdout or stderr was shortened by a declared output bound
+    +    (see `run_evidence.capture_command` docstring).
+         It carries `capture_command`'s already-computed fact (or the corresponding slice in
+         the runner double seam). Truncation deliberately does NOT affect `classify_worker_state`,
+         because output volume is not a completion signal (a truncated worker with a real diff
+    @@ -145,11 +146,10 @@ def run_worker_process(
+         worker's (diff, changed_files); ``cancel_check`` lets the coordinator request cancellation before
+         spawn (a cooperative cancel seam for tests + the scheduler).
+
+    -    The output bound ``packet.max_output_bytes`` applies to stdout on raw bytes before decoding
+    -    (errors="replace"), matching `run_evidence.capture_command`, so the returned decoded string's
+    +    The output bound ``packet.max_output_bytes`` applies to stdout and stderr on raw bytes before
+    +    decoding (errors="replace"), matching `run_evidence.capture_command`, so the returned decoded string's
+         UTF-8 encoded length is not a strict hard ceiling if a multi-byte boundary replacement occurs.
+    -    Captured stderr is deliberately left unbounded here and in `capture_command` (design decision
+    -    for shared-vs-per-stream budget tracked in backlog `lijmwy`).
+    +    The output bound applies per stream to stdout and stderr (see `run_evidence.capture_command` docstring).
+         """
+         if not packet.argv:
+             raise HostRunnerError(
+    @@ -183,7 +183,12 @@ def run_worker_process(
+                     stdout_bytes = stdout_bytes[: packet.max_output_bytes]
+                     stdout = stdout_bytes.decode("utf-8", errors="replace")
+                     truncated = True
+    -        # Note: stderr is deliberately unbounded here and in capture_command (backlog lijmwy).
+    +            stderr_bytes = (stderr or "").encode("utf-8")
+    +            if len(stderr_bytes) > packet.max_output_bytes:
+    +                stderr_bytes = stderr_bytes[: packet.max_output_bytes]
+    +                stderr = stderr_bytes.decode("utf-8", errors="replace")
+    +                truncated = True
+    +        # Note: output bound applies per stream to stdout and stderr (see capture_command docstring).
+         else:
+             tool_event, _envelope = _ev.capture_command(
+                 packet.run_id,
+    @@ -196,7 +201,7 @@ def run_worker_process(
+             stdout = str(tool_event.stdout or "")
+             stderr = str(tool_event.stderr or "")
+             truncated = bool(tool_event.get("truncated", False))
+    -        # Note: stderr is deliberately unbounded in capture_command (backlog lijmwy).
+    +        # Note: output bound applies per stream to stdout and stderr (see capture_command docstring).
+         duration_ms = (time.monotonic() - start) * 1000.0
+         if exit_code == _TIMEOUT_EXIT:
+             timed_out = True
+    ```
+    Live `run_worker_process` calls:
+    ```
+    real-spawn: len(res.stderr) = 10 res.truncated = True
+    runner-double: len(res.stderr) = 10 res.truncated = True
+    ```
+    Contrasted with pre-change measurement:
+    `worker: len(res.stderr) = 500 res.truncated = False` (F-09).
+    `rg -n "unbounded" agent_workflows/host_runner.py`: exit 1 (0 matches).
+    `RawWorkerResult`'s field list and `evidence_gate` unchanged in diff.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the diff of both edited test files. PASTE the two edited tests PASSING on the new code, then FAILING with production code reverted (`git stash push -- agent_workflows/run_evidence.py agent_workflows/host_runner.py`, run, `git stash pop`), naming the failing node ids; paste `git diff --stat` after the pop showing the production edits restored. PASTE the bare-suite failing-node-id delta against the execution baseline showing no OTHER existing test changed outcome.
   - Observed evidence:
-  - Result: pending
+    Diff of `tests/test_host_runner_output_bound.py`:
+    ```diff
+    @@ -3,7 +3,7 @@
+     Pins that TaskPacket.max_output_bytes actually bounds worker stdout capture on both
+     the real-spawn branch and the RunnerFn injection double seam, preserves the unbounded
+     default, matches the mid-character byte boundary behavior across both branches,
+    -leaves stderr unbounded per backlog lijmwy, and enables evidence_gate and
+    +bounds stderr per stream, and enables evidence_gate and
+     host_launchers.host_result_can_finalize to accept declared, honored output bounds.
+     """
+
+    @@ -129,7 +129,7 @@
+             self.assertEqual(r7.stdout, "AAAAAé")
+             self.assertTrue(r7.truncated)
+
+    -    def test_stderr_remains_unbounded(self):
+    +    def test_stderr_is_bounded_per_stream(self):
+             cmd = 'import sys; sys.stdout.write("out"); sys.stderr.write("E"*5000)'
+             packet = hr.TaskPacket(
+                 run_id="run-abc123ff",
+    @@ -141,8 +141,17 @@
+             res = hr.run_worker_process(packet)
+             self.assertEqual(res.exit_code, 0)
+             self.assertEqual(res.stdout, "ou")
+    -        self.assertEqual(len(res.stderr), 5000)
+    -        self.assertTrue(res.truncated)
+    +        self.assertEqual(len(res.stderr), 2)
+    +        self.assertTrue(res.truncated)
+    +
+    +        def double_runner(argv, cwd, timeout):
+    +            return 0, "out", "E" * 5000
+    +
+    +        res_double = hr.run_worker_process(packet, runner=double_runner)
+    +        self.assertEqual(res_double.exit_code, 0)
+    +        self.assertEqual(res_double.stdout, "ou")
+    +        self.assertEqual(len(res_double.stderr), 2)
+    +        self.assertTrue(res_double.truncated)
+    ```
+    Diff of `tests/test_capture_command_contract.py`:
+    ```diff
+    @@ -37,8 +37,10 @@
+             "start_time",
+             "stderr_len",
+             "stderr_sha256",
+    +        "stderr_truncated",
+             "stdout_len",
+             "stdout_sha256",
+    +        "stdout_truncated",
+             "timestamp",
+             "truncated",
+         }
+    ```
+    Two tests passing on new code:
+    ```
+    tests/test_capture_command_contract.py::test_capture_command_key_set_per_call_shape PASSED [ 50%]
+    tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_stderr_is_bounded_per_stream PASSED [100%]
+    2 passed in 2.25s
+    ```
+    Failing when production code is stashed:
+    ```
+    FAILED tests/test_capture_command_contract.py::test_capture_command_key_set_per_call_shape
+    FAILED tests/test_host_runner_output_bound.py::TestHostRunnerOutputBound::test_stderr_is_bounded_per_stream
+    2 failed in 2.75s
+    ```
+    `git diff --stat` after `git stash pop`:
+    ```
+     agent_workflows/host_runner.py         | 19 +++++++----
+     agent_workflows/run_evidence.py        | 62 +++++++++++++++++++++++++++++-----
+     tests/test_capture_command_contract.py |  2 ++
+     tests/test_host_runner_output_bound.py | 15 ++++++--
+     4 files changed, 79 insertions(+), 19 deletions(-)
+    ```
+    Bare-suite failing-node-id delta against baseline: 0 (only pre-existing `test_corpus_verdict_neutrality_delta` failed in both).
+  - Result: pass
 
 ## Approval and execution gate
 

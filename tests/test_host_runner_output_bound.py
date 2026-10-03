@@ -3,7 +3,7 @@
 Pins that TaskPacket.max_output_bytes actually bounds worker stdout capture on both
 the real-spawn branch and the RunnerFn injection double seam, preserves the unbounded
 default, matches the mid-character byte boundary behavior across both branches,
-leaves stderr unbounded per backlog lijmwy, and enables evidence_gate and
+bounds stderr per stream, and enables evidence_gate and
 host_launchers.host_result_can_finalize to accept declared, honored output bounds.
 """
 
@@ -129,7 +129,7 @@ class TestHostRunnerOutputBound(unittest.TestCase):
         self.assertEqual(r7.stdout, "AAAAAé")
         self.assertTrue(r7.truncated)
 
-    def test_stderr_remains_unbounded(self):
+    def test_stderr_is_bounded_per_stream(self):
         cmd = 'import sys; sys.stdout.write("out"); sys.stderr.write("E"*5000)'
         packet = hr.TaskPacket(
             run_id="run-abc123ff",
@@ -142,8 +142,17 @@ class TestHostRunnerOutputBound(unittest.TestCase):
         res = hr.run_worker_process(packet)
         self.assertEqual(res.exit_code, 0)
         self.assertEqual(res.stdout, "ou")
-        self.assertEqual(len(res.stderr), 5000)
+        self.assertEqual(len(res.stderr), 2)
         self.assertTrue(res.truncated)
+
+        def double_runner(argv, cwd, timeout):
+            return 0, "out", "E" * 5000
+
+        res_double = hr.run_worker_process(packet, runner=double_runner)
+        self.assertEqual(res_double.exit_code, 0)
+        self.assertEqual(res_double.stdout, "ou")
+        self.assertEqual(len(res_double.stderr), 2)
+        self.assertTrue(res_double.truncated)
 
 
 class TestEvidenceGateBoundedOutput(unittest.TestCase):
