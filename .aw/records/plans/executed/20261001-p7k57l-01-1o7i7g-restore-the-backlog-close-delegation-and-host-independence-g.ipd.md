@@ -6,7 +6,7 @@
 - Scope: IN: (a) a new `tests/test_runner_delegation_and_host_independence.py` carrying TWO behavioral guard classes, each exercising real callables and asserting observable outcomes: the DELEGATION guard, which proves each of the four backlog-close wrappers on BOTH hosts resolves `runner_shared.<same name>` AT CALL TIME, forwards its return value, and injects THIS host's `run_checked` rather than the peer's; and the HOST-INDEPENDENCE guard, which proves in a FRESH SUBPROCESS that each host driver imports and performs real work while its PEER is blocked from importing at all. (b) Correct the four `SharedNotCopied` citations to name the new guard where it covers the claim, and to state plainly where it does not. OUT: restoring `tests/test_runner_layering.py`'s `CLASSIFICATION` table, `FROZEN_OC_TO_AGY_IMPORTS`, `MOVE_UNSETTLED`, or any part of its AST machinery, all of which are code pins forbidden by maintainer ruling and by `GUIDING_PRINCIPLES` P16; restoring `tests/test_runner_backlog_close.py`'s own 2703 lines, whose behavioral coverage is a separate and far larger population owned by `xvp5vx`/`oyh28b`; the host-label defect itself (`2kspdy`/`nf71bz`, already executed); any change to close ELIGIBILITY, to the verdict, to the release-gate predicate, or to the lane-versus-main write tree; any change to an executable statement in the three production files, which V-06 proves by AST comparison.
 - Scope-Paths: tests/test_runner_delegation_and_host_independence.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1o7i7g
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1o7i7g verified (set p7k57l, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Review record: .aw/records/reviews/20261001-p7k57l-01-1o7i7g-restore-the-backlog-close-delegation-and-host-independence-g.review.md
