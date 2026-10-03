@@ -13,8 +13,9 @@ without ``--overwrite``, and a nonzero exit on any failure (never a false succes
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+import re
 from typing import List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
@@ -184,6 +185,31 @@ def _refuse_unsafe_descriptive(
     )
 
 
+def _refuse_unsafe_date(verb: str, value: Optional[str]) -> Optional[str]:
+    """Judge one candidate date string against research's date grammar and calendar validity.
+
+    E-01 (IPD iumgvk): Derived from research's own date grammar slot (_CORE_RE).
+    The regex check (\\A[0-9]{8}\\Z) is an ASCII format check, not a calendar check;
+    the regex alone admits unreachable calendar dates such as 99999999 and 20261332.
+    Per OQ-01, validate format first (ASCII-only [0-9]{8}, refusing fullwidth digits like
+    '２０２６０９２９'), then calendar validity via datetime.strptime(..., "%Y%m%d"),
+    refusing both with exit 2 and the same message shape naming the verb, --date,
+    YYYYMMDD, and the received value.
+    """
+    if value is None:
+        return None
+    # Format check: research grammar uses YYYYMMDD, not ISO YYYY-MM-DD.
+    # ASCII [0-9]{8} closes non-ASCII Unicode digits (PR-002).
+    if not re.match(r"\A[0-9]{8}\Z", value):
+        return f"{verb}: --date must be YYYYMMDD (got {value!r})"
+    # Calendar check: regex alone accepts 99999999 and 20261332.
+    try:
+        datetime.strptime(value, "%Y%m%d")
+    except ValueError:
+        return f"{verb}: --date must be YYYYMMDD (got {value!r})"
+    return None
+
+
 def plan_new(
     *,
     research_root: Path,
@@ -234,6 +260,11 @@ def plan_new(
     slug_k = R.kebab(slug) if slug else R.kebab(summary)
     if not slug_k:
         return None, "a --slug or --summary is required to derive the name"
+
+    # E-02 (IPD iumgvk): Validate --date format and calendar validity before minting an id6.
+    date_err = _refuse_unsafe_date("aw research new", date_str)
+    if date_err:
+        return None, date_err
 
     # Omitted set -> singleton whose set-id is the kebab slug (or summary fallback).
     derived_set = R.kebab(set_id) if set_id else slug_k
@@ -309,6 +340,11 @@ def plan_new_comparison(
             )
             if t_err:
                 return None, t_err
+
+    # E-02 (IPD iumgvk): Validate --date format and calendar validity before minting an id6.
+    date_err = _refuse_unsafe_date("aw research new-comparison", date_str)
+    if date_err:
+        return None, date_err
 
     today = date_str or date.today().strftime("%Y%m%d")
     # IPD sk7ggr E-01: seed the collision pool with the REPOSITORY-WIDE id6 set, then keep adding each
@@ -408,6 +444,37 @@ def _emit_and_write(
     )
 
     ctx = select_output(args) if args else None
+
+    # E-03 (IPD iumgvk): Destination-containment assertion (defense-in-depth).
+    # Placed above the no-clobber loop so BOTH the preview arm and the apply arm refuse.
+    # Uses Path.relative_to with ValueError as the escape signal (same idiom as
+    # check_engine.resolve_evidence_artifact and specs.run_new).
+    # OQ-02: When args is None, the research root cannot be derived, so SKIP the
+    # assertion rather than guessing. Every CLI path passes args and the planner-level
+    # guard still applies.
+    if args is not None:
+        research_root = _research_root(args)
+        resolved_root = research_root.resolve()
+        for f in files:
+            try:
+                resolved_target = f.path.resolve()
+                resolved_target.relative_to(resolved_root)
+                if resolved_target == resolved_root:
+                    raise ValueError(
+                        "destination matches records root rather than a record inside it"
+                    )
+            except ValueError:
+                msg = f"destination {f.path} escapes research tree {research_root}"
+                if ctx and (ctx.is_agent or ctx.is_json):
+                    res = CommandResult(
+                        command=command_name,
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=msg,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                print(f"error: {msg}")
+                return 2
 
     # No-clobber check up front (so a partial apply never happens).
     if not overwrite:
