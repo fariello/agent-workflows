@@ -6,7 +6,7 @@
 - Scope: Replace the wholesale `clear()` with single-entry LRU eviction so crossing the cap costs ONE entry instead of all of them, and pin the two properties that keep the cache a cache. IN: the `_INDEX_CACHE` declaration and the eviction branch of `artifact_audit.build_index`, the `_INDEX_CACHE` commentary's `RESIDUAL LIMIT 2` paragraph naming this item as carrier, and a new `tests/test_artifact_audit_cache_eviction.py`. OUT: `_dir_signature` (untouched), `build_index`'s enumeration, `find_artifact`'s tiers, the tier-one identity verification plan `0a7v0x` adds (carrier `ieg7q6`), `audit_artifact`'s fresh status read, `run_viewer`'s explicit-index threading, and `_INDEX_CACHE_MAX`'s VALUE, which F-06 shows is the knob that actually moves the measured workload and which F-07 declines to turn on memory grounds.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_cache_eviction.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bvw2nd
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bvw2nd verified (set 8mkt5l, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (RESIDUAL LIMIT 2 mislabels over-invalidation with an1a33; rewrite leaves the trade carrier-less), PR-002 (hot-root test needs >= MAX+2 interleaved fresh roots or insert-only mutation stays green), PR-003 (counts not the bar), PR-004 (after-change perf re-measure removed as unowned), PR-005 (gate finalize/paste/scope-reason; OQ owners; 0a7v0x pop compatibility). Cliff re-measured at lane HEAD cae85d5d5: [1..8,1,2].
 
