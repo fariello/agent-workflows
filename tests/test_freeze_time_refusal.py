@@ -759,6 +759,61 @@ class TestPredicateBoundaryCases(unittest.TestCase):
                 run_dir = module.initialize_run(args)
                 self.assertTrue(run_dir.exists())
 
+    def test_review_consumer_relaxation_admitted_for_state_spec_edge(self):
+        """Review consumer relaxation: efg456 at to-review consuming state:spec:approved:spc001 with spc001 at to-review is admitted."""
+        for label, module, _ in BOTH_HOSTS:
+            with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
+                repo = _init_repo(Path(td))
+                _write_spec(repo, "spc001", status="to-review")
+                _write_plan(
+                    repo,
+                    "efg456",
+                    status="to-review",
+                    dependencies=["state:spec:approved:spc001"],
+                    order=1,
+                )
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "add spec and plan"], cwd=repo, check=True
+                )
+
+                parser = module.build_parser()
+                args = parser.parse_args(
+                    ["start", "efg456", "--prepare-only", "--repo", str(repo)]
+                )
+                run_dir = module.initialize_run(args)
+                self.assertTrue(run_dir.exists())
+
+    def test_execute_consumer_refuses_unsatisfied_state_spec_edge(self):
+        """Execute consumer: efg456 at approved consuming state:spec:approved:spc001 with spc001 at to-review refuses."""
+        for label, module, _ in BOTH_HOSTS:
+            with self.subTest(host=label), tempfile.TemporaryDirectory() as td:
+                repo = _init_repo(Path(td))
+                _write_spec(repo, "spc001", status="to-review")
+                _write_plan(
+                    repo,
+                    "efg456",
+                    status="approved",
+                    dependencies=["state:spec:approved:spc001"],
+                    order=1,
+                )
+                subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "add spec and plan"], cwd=repo, check=True
+                )
+
+                parser = module.build_parser()
+                args = parser.parse_args(
+                    ["start", "efg456", "--prepare-only", "--repo", str(repo)]
+                )
+                with self.assertRaises(runner_shared.DriverError) as cm:
+                    module.initialize_run(args)
+                exc_msg = str(cm.exception)
+                self.assertIn("[RUN-DEPENDENCY-UNSATISFIABLE]", exc_msg)
+                self.assertIn("efg456 requires state:spec:approved:spc001", exc_msg)
+                self.assertIn("spc001 is to-review", exc_msg)
+                self.assertIn("needs exactly 'approved'", exc_msg)
+
 
 class TestFreezeRefusalColorStyling(unittest.TestCase):
     """Verify that freeze-time refusals format id6 references in bold yellow when color is active."""

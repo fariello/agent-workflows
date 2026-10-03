@@ -12,7 +12,7 @@
 - From-Backlog: 0livgf
 - Set: driftbound
 - Order: 0
-- Highest E allocated: 03
+- Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: itamry
 
@@ -33,31 +33,25 @@ THIS IS AN ORCHESTRATION CHECKLIST AND CARRIES NO WORK OF ITS OWN. Every item be
 
 ### Task group 1: sequence the Set
 
-- [ ] E-01 Confirm Order 01 (`9sbfea`, bound the stranded-lane detail by construction) is in `.aw/records/plans/executed/` with `- Status: executed` and every `V-*` carrying concrete pasted evidence.
+- [ ] E-01 CONFIRM 9sbfea REACHED executed
   THIS MUST BE FIRST AND THE REASON IS MEASURED, NOT STYLISTIC. The lane producer's worst reachable composition is 370 characters against a 300-character bound, using only a `run_id` length and a worktree directory name present in this tree today. So Order 02's constructor refusal, landing first, would raise inside `aw attention --check` for any lane whose worktree path is long enough. Order 02 declares `- Item-Dependencies: executed:9sbfea` for exactly this reason, and the runner re-checks that edge at dispatch.
   - Depends on: none
   - Expected outcome: `9sbfea` resolves to a file under `.aw/records/plans/executed/`, its `- Status:` is `executed`, and `aw ipd lint` reports it conforming.
   - Execution state: pending
 
-- [ ] E-02 Confirm Order 02 (`62pkkg`, refuse an over-bound detail in the `Drift` constructor) is in `.aw/records/plans/executed/` with `- Status: executed` and every `V-*` carrying concrete pasted evidence, including its spec amendment.
+- [ ] E-02 CONFIRM 62pkkg REACHED executed
   CHECK ITS SPEC AMENDMENT LANDED, because it is the item most easily dropped under time pressure and the refusal is illegitimate without it: Section 8.8's subject today is a list of AUTHORED artifact fields, so a refusal on a tool-composed detail enforces a contract the spec does not state until `62pkkg` E-06 extends it.
+  Also confirm backlog item `0livgf` reached `graduated` and that both of its residues are named as closed by a child, with neither silently dropped. Both rows must be accounted for individually: `9sbfea` closes residue 2 (the stranded-lane detail) and `62pkkg` closes residue 1 (the constructor refusal).
   - Depends on: E-01
   - Expected outcome: `62pkkg` resolves to a file under `.aw/records/plans/executed/`, its `- Status:` is `executed`, its `V-06` evidence shows the amended Section 8.8, and `aw ipd lint` reports it conforming.
   - Execution state: pending
 
-- [ ] E-03 Confirm backlog item `0livgf` reached `graduated` and that both of its residues are named as closed by a child, with neither silently dropped.
-  BOTH ROWS MUST BE ACCOUNTED FOR INDIVIDUALLY. The item is the carrier for two DISTINCT deferred rows from `mc6r92`, and a Set that closed only the mechanism (residue 1) or only the lane (residue 2) would leave the item half done while looking finished. Name which child closed which row.
-  DO NOT SET THE ITEM `done`. `graduated` means the design was handed off, which is what a plan-authoring Set achieves; `done` means the code is written and validated, which is the children's claim and is recorded by their own terminal transitions. The runner sets `graduated` on verification.
-  - Depends on: E-01, E-02
-  - Expected outcome: `aw find backlog 0livgf` shows `- Status: graduated`, and a recorded statement naming `9sbfea` as the closer of residue 2 and `62pkkg` as the closer of residue 1.
-  - Execution state: pending
-
 ## Child IPDs, sequence, and dependencies
 
-| Order | File | What it does | Depends on |
-|---|---|---|---|
-| 01 | `.aw/records/plans/pending/20261001-driftbound-01-9sbfea-bound-the-stranded-lane-detail-by-construction-with-a-reusab.ipd.md` | Residue 2. Adds `attention_contract.compose_bounded_detail`, a pure composer bounded by arithmetic over one budget, and routes `attention.stranded_lane_drift` through it. Converts the existing case (c) from a recorded observation into a real bound assertion. | none |
-| 02 | `.aw/records/plans/pending/20261001-driftbound-02-62pkkg-refuse-an-over-bound-detail-in-the-drift-constructor-itself.ipd.md` | Residue 1. Cleans the live over-bound population (two `check_engine` carrier rules, the `doctor` probe details), then makes `artifact_core.Drift` refuse a non-conforming `detail` at construction, and amends spec Section 8.8 to extend the bound to a tool-composed detail. | `executed:9sbfea` |
+| Order | Id | File | What it does | Depends on |
+|---|---|---|---|---|
+| 01 | `9sbfea` | `.aw/records/plans/pending/20261001-driftbound-01-9sbfea-bound-the-stranded-lane-detail-by-construction-with-a-reusab.ipd.md` | Residue 2. Adds `attention_contract.compose_bounded_detail`, a pure composer bounded by arithmetic over one budget, and routes `attention.stranded_lane_drift` through it. Converts the existing case (c) from a recorded observation into a real bound assertion. | none |
+| 02 | `62pkkg` | `.aw/records/plans/pending/20261001-driftbound-02-62pkkg-refuse-an-over-bound-detail-in-the-drift-constructor-itself.ipd.md` | Residue 1. Cleans the live over-bound population (two `check_engine` carrier rules, the `doctor` probe details), then makes `artifact_core.Drift` refuse a non-conforming `detail` at construction, and amends spec Section 8.8 to extend the bound to a tool-composed detail. | `executed:9sbfea` |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -125,12 +119,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste `aw find plans 62pkkg` showing the resolved path under `.aw/records/plans/executed/`, paste its `- Status:` line, paste `aw ipd lint` on it reporting conforming, and paste its `V-01` through `V-07` `Result:` lines showing every one `pass` with non-empty `Observed evidence`. Additionally paste its `V-06` `Observed evidence` block in full and confirm from it that spec Section 8.8 was amended and that no pre-existing bullet was weakened.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-03 validates E-03
-  - Required evidence: paste `aw find backlog 0livgf` showing `- Status: graduated` (NOT `done`). Paste a statement naming which child closed which residue, citing the child's id6 and the E-item that did it. Paste `aw check` exit code and confirm no `check.from-backlog-dangling` or carrier finding against either child.
+  - Required evidence: paste `aw find plans 62pkkg` showing the resolved path under `.aw/records/plans/executed/`, paste its `- Status:` line, paste `aw ipd lint` on it reporting conforming, and paste its `V-01` through `V-07` `Result:` lines showing every one `pass` with non-empty `Observed evidence`. Additionally paste its `V-06` `Observed evidence` block in full and confirm from it that spec Section 8.8 was amended and that no pre-existing bullet was weakened. Also verify that backlog item `0livgf` shows `- Status: graduated` (NOT `done`), naming which child closed which residue (`9sbfea` for residue 2, `62pkkg` for residue 1), with no dangling backlog findings.
   - Observed evidence:
   - Result: pending
 

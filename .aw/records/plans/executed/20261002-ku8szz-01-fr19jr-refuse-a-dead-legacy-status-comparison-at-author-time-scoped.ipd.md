@@ -7,7 +7,7 @@
   OUT: an `aw check` RULE and a PRE-COMMIT HOOK, both rejected on measured grounds that approved plan `76ic0k` already settled for this identical defect class, not on preference (E-03 records all three reasons); the two AMBIGUOUS tokens `blocked` and `partial`, excluded BY DESIGN and not by omission (F-02); `run_dashboard._outcome`, the single HEAD site a chain-scoped rule flags, which is `qvfd4l`'s DELIBERATE and documented lossy-alias exemption and must be exempted rather than "fixed" (F-07); every band-A collection site that already pairs its canonical counterpart or sits under a canonicalizing call (F-06); the 19 legacy-token WRITE sites, which contradict spec `25kzda`'s "no longer written by the runner" sentence and are filed as their own backlog item rather than smuggled in here (F-08); and any change to `TERMINAL_STATUS_ALIASES`, `TERMINAL_STATES_CANONICAL` or `canonical_terminal_status`.
 - Scope-Paths: tools/dead_status_token_scan.py, tests/test_dead_status_token_scan.py, CONTRIBUTING.md, .github/workflows/tests.yml, agent_workflows/run_dashboard.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fr19jr
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: fr19jr verified (set ku8szz, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-02, findings PR-001..V-02. Recomputed at HEAD `22d50ce93`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
@@ -38,43 +38,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: The committed, reproducible scanner
 
-- [ ] E-01 Create `tools/dead_status_token_scan.py`: a committed AST scanner implementing the measured rule, following the established convention of `tools/runner_fork_scan.py` (a module docstring that states WHY the file exists, states its METRIC explicitly, and names its own LIMITATIONS, because "the contract this file owes its callers is not 'a number' but the SAME number, next week, from a different machine, by a different agent"). The rule, stated so it is implementable without re-deriving it: (a) DOMAIN is the eight keys of `runner_shared.TERMINAL_STATUS_ALIASES` MINUS `blocked` and `partial`, imported from the alias table at runtime and filtered by an explicit `AMBIGUOUS` frozenset, never by a hand-copied token list, so a future alias extends the domain automatically; (b) UNIT OF ANALYSIS is a complete `if`/`elif` chain, collected by walking `node.orelse` while it holds exactly one `ast.If`, with the union of every arm's `test` string constants as that chain's token set; (c) a chain is FLAGGED when it contains an in-domain legacy token whose canonical counterpart (`TERMINAL_STATUS_ALIASES[token]`) is ABSENT from the whole chain's token set; (d) a chain is EXEMPT when its ENCLOSING FUNCTION mentions any of `canonical_terminal_status`, `st_canon` or `cts`, because a function that canonicalizes has already declared it reads both spellings. Report the domain, the exemption list, and the per-site enclosing function name, and accept a `--rev` argument resolving sources through `git show <rev>:<path>` so the retrospective validation in V-02 is reproducible rather than a one-off.
+- [x] E-01 Create `tools/dead_status_token_scan.py`: a committed AST scanner implementing the measured rule, following the established convention of `tools/runner_fork_scan.py` (a module docstring that states WHY the file exists, states its METRIC explicitly, and names its own LIMITATIONS, because "the contract this file owes its callers is not 'a number' but the SAME number, next week, from a different machine, by a different agent"). The rule, stated so it is implementable without re-deriving it: (a) DOMAIN is the eight keys of `runner_shared.TERMINAL_STATUS_ALIASES` MINUS `blocked` and `partial`, imported from the alias table at runtime and filtered by an explicit `AMBIGUOUS` frozenset, never by a hand-copied token list, so a future alias extends the domain automatically; (b) UNIT OF ANALYSIS is a complete `if`/`elif` chain, collected by walking `node.orelse` while it holds exactly one `ast.If`, with the union of every arm's `test` string constants as that chain's token set; (c) a chain is FLAGGED when it contains an in-domain legacy token whose canonical counterpart (`TERMINAL_STATUS_ALIASES[token]`) is ABSENT from the whole chain's token set; (d) a chain is EXEMPT when its ENCLOSING FUNCTION mentions any of `canonical_terminal_status`, `st_canon` or `cts`, because a function that canonicalizes has already declared it reads both spellings. Report the domain, the exemption list, and the per-site enclosing function name, and accept a `--rev` argument resolving sources through `git show <rev>:<path>` so the retrospective validation in V-02 is reproducible rather than a one-off.
   - Depends on: none
   - Expected outcome: `python3 tools/dead_status_token_scan.py` exits 0 and reports ZERO flagged sites against HEAD's `agent_workflows/` once E-05's exemption is in place (and exactly one, `run_dashboard._outcome`, before it). `python3 tools/dead_status_token_scan.py --rev d0b932d40^` reports exactly THREE flagged sites: `render_stream.py` twice and `run_dashboard.py` once. The printed domain names exactly eight tokens and does NOT include `blocked` or `partial`.
-  - Execution state: pending
+  - Execution state: performed
 
   WHY A `tools/` SCANNER AS WELL AS THE GUARD TEST, since shipping both needs a reason (corrected at review: this paragraph previously described E-03 as a CHECK RULE, a leftover from the pre-redesign draft; E-03 is a guard TEST). The guard (E-03) is the CONSUMABLE surface `make test` and CI run; this file is the REPRODUCIBLE one a reviewer re-runs at an arbitrary revision, which the guard cannot do because it reads the working tree. The `--rev` capability is exactly what makes V-02's retrospective claim auditable, and `tools/lift_drift_scan.py` sets the precedent for a committed scanner that resolves historical blobs (it "compare[s] pre-lift host bodies at <commit>^ against the HEAD shared body"). E-03 must IMPORT this module rather than re-implement the predicate, so the two cannot drift. EXEMPTION PREDICATE, PINNED AT REVIEW: (d)'s 'enclosing function mentions' means an `ast.Name` id or `ast.Attribute` attr equal to one of the three names anywhere in the innermost enclosing `FunctionDef`/`AsyncFunctionDef` body, NOT a substring match over source text (a substring test for `cts` matches unrelated identifiers such as `facts` or `contracts`).
 
-- [ ] E-02 Create `tests/test_dead_status_token_scan.py` with BEHAVIORAL tests that drive the E-01 scanner's public functions over SYNTHESIZED Python sources written into a temporary directory, asserting BOTH directions of the classifier. Follow the sibling precedent `tests/test_lost_guard_census.py`, whose docstring records the exact contract a scanner test owes ("References NEITHER the real trim commit shas NOR the live tree", "Reads nothing under `.aw/records/`", "Asserts both classifier directions"). Required cases, each a fixture source string: (a) a chain comparing only `failed-safely` FLAGS; (b) the same chain with `fail-gate` added to ANY arm does NOT flag; (c) the same chain inside a function that also calls `canonical_terminal_status` does NOT flag; (d) a chain comparing `blocked` or `partial` does NOT flag at all, pinning the domain restriction that is this plan's whole thesis; (e) a chain whose canonical token appears in a DIFFERENT arm of the same chain does not flag, pinning the chain-scoped unit; (f) a bare `==` comparison against an in-domain token FLAGS, since the item's literal wording is about "a bare comparison"; (g) a chain carrying a WELL-FORMED exemption marker `aw: dead-status-token-exempt <id6> <why>` does NOT flag; and (h) a chain carrying a marker with NO `<id6>` citation STILL FLAGS, which is the half of OQ-03's resolution that makes the citation requirement real rather than advisory. Note case (h) is the one most likely to be skipped and is the one that matters: without it the marker degrades into an unaccountable silencer. No test may read production source text to make an assertion ABOUT production code structure; the scanner's INPUT is source by nature, which is the point of testing it on fixtures.
+- [x] E-02 Create `tests/test_dead_status_token_scan.py` with BEHAVIORAL tests that drive the E-01 scanner's public functions over SYNTHESIZED Python sources written into a temporary directory, asserting BOTH directions of the classifier. Follow the sibling precedent `tests/test_lost_guard_census.py`, whose docstring records the exact contract a scanner test owes ("References NEITHER the real trim commit shas NOR the live tree", "Reads nothing under `.aw/records/`", "Asserts both classifier directions"). Required cases, each a fixture source string: (a) a chain comparing only `failed-safely` FLAGS; (b) the same chain with `fail-gate` added to ANY arm does NOT flag; (c) the same chain inside a function that also calls `canonical_terminal_status` does NOT flag; (d) a chain comparing `blocked` or `partial` does NOT flag at all, pinning the domain restriction that is this plan's whole thesis; (e) a chain whose canonical token appears in a DIFFERENT arm of the same chain does not flag, pinning the chain-scoped unit; (f) a bare `==` comparison against an in-domain token FLAGS, since the item's literal wording is about "a bare comparison"; (g) a chain carrying a WELL-FORMED exemption marker `aw: dead-status-token-exempt <id6> <why>` does NOT flag; and (h) a chain carrying a marker with NO `<id6>` citation STILL FLAGS, which is the half of OQ-03's resolution that makes the citation requirement real rather than advisory. Note case (h) is the one most likely to be skipped and is the one that matters: without it the marker degrades into an unaccountable silencer. No test may read production source text to make an assertion ABOUT production code structure; the scanner's INPUT is source by nature, which is the point of testing it on fixtures.
   - Depends on: E-01
   - Expected outcome: `python3 -m pytest tests/test_dead_status_token_scan.py` passes. Mutating the scanner's `AMBIGUOUS` set to drop `partial` makes case (d) FAIL, and deleting the function-scoped exemption makes case (c) FAIL, so the tests are sensitive to the two decisions that make the rule work (GUIDING_PRINCIPLES P16, "A test is only valid if breaking the underlying behavior makes the test fail").
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: The enforcement surface
 
-- [ ] E-03 Add enforcement as a CI step in `.github/workflows/tests.yml` running `python3 tools/dead_status_token_scan.py` over `agent_workflows/` beside the existing static checks, failing if any dead comparison is found. This keeps `pytest` free of production AST parsing per GUIDING_PRINCIPLES P16 while guaranteeing every commit and PR is verified.
+- [x] E-03 Add enforcement as a CI step in `.github/workflows/tests.yml` running `python3 tools/dead_status_token_scan.py` over `agent_workflows/` beside the existing static checks, failing if any dead comparison is found. This keeps `pytest` free of production AST parsing per GUIDING_PRINCIPLES P16 while guaranteeing every commit and PR is verified.
   - Depends on: E-01, E-05
   - Expected outcome: The CI workflow definition includes the step. Running `python3 tools/dead_status_token_scan.py` locally exits 0 against the post-E-05 tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Point `CONTRIBUTING.md` at the rule so an author meets it while AUTHORING rather than after a failing suite or CI run, following `76ic0k` E-04's precedent of pairing a guard with the documentation that makes it discoverable. One short paragraph: when comparing a run-queue item's status against a terminal token, include the canonical spelling (or canonicalize through `runner_shared.canonical_terminal_status`), name the eight legacy tokens the guard polices and the two it deliberately does not, and name the scanner (`python3 tools/dead_status_token_scan.py`) as the way to check before committing. A GUARD NOBODY KNOWS ABOUT IS A TRAP RATHER THAN A RULE: `76ic0k`'s own Concern records an author in good faith RESURRECTING a deleted pin "because nothing told them it was forbidden at the moment they wrote it", which is the failure this item is the analogue of.
+- [x] E-04 Point `CONTRIBUTING.md` at the rule so an author meets it while AUTHORING rather than after a failing suite or CI run, following `76ic0k` E-04's precedent of pairing a guard with the documentation that makes it discoverable. One short paragraph: when comparing a run-queue item's status against a terminal token, include the canonical spelling (or canonicalize through `runner_shared.canonical_terminal_status`), name the eight legacy tokens the guard polices and the two it deliberately does not, and name the scanner (`python3 tools/dead_status_token_scan.py`) as the way to check before committing. A GUARD NOBODY KNOWS ABOUT IS A TRAP RATHER THAN A RULE: `76ic0k`'s own Concern records an author in good faith RESURRECTING a deleted pin "because nothing told them it was forbidden at the moment they wrote it", which is the failure this item is the analogue of.
   - Depends on: E-03
   - Expected outcome: `CONTRIBUTING.md` carries the paragraph, naming the scanner command, the eight-token domain and the two excluded tokens. A reader who has only read `CONTRIBUTING.md` can run the scanner and interpret its output without opening this plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: The documented exemption
 
-- [ ] E-05 Exempt `run_dashboard._outcome` explicitly and WITH ITS REASON, rather than silencing it or "fixing" it. It is the single site a chain-scoped rule flags at HEAD, and it is flagged CORRECTLY by the mechanical rule and WRONGLY as a defect: plan `qvfd4l`'s OQ-03 decided deliberately that `_outcome` must read the RAW `substantially-complete`/`partial` tokens BEFORE canonicalizing, because `TERMINAL_STATUS_ALIASES` is LOSSY for that function's three-way `success`/`partial`/`failed` collapse, and the code already carries the comment saying so ("Raw token must be checked before canonicalization ... which would fold both into 'failed' (OQ-03, E-04)"). Implement the exemption as a MACHINE-READABLE, GREPPABLE in-code marker of the form `aw: dead-status-token-exempt <id6> <why>`, which the scanner recognizes on the chain or its enclosing function, NOT as a hardcoded allowlist of module and function names in the scanner, so the justification lives next to the code it excuses and a future reader cannot find the exemption without finding the reason. THE `<id6>` CITATION IS REQUIRED, not decorative (OQ-03): a marker carrying no citation must NOT exempt, because a bare self-asserted marker would let any author silence the rule with no accountability, which is the shape `AGENTS.md` warns about with attestation fields. Here the citation is `qvfd4l`, the plan whose OQ-03 made the decision. Document the marker form in the E-01 docstring and test BOTH directions in E-02 (a cited marker exempts; an uncited one does not).
+- [x] E-05 Exempt `run_dashboard._outcome` explicitly and WITH ITS REASON, rather than silencing it or "fixing" it. It is the single site a chain-scoped rule flags at HEAD, and it is flagged CORRECTLY by the mechanical rule and WRONGLY as a defect: plan `qvfd4l`'s OQ-03 decided deliberately that `_outcome` must read the RAW `substantially-complete`/`partial` tokens BEFORE canonicalizing, because `TERMINAL_STATUS_ALIASES` is LOSSY for that function's three-way `success`/`partial`/`failed` collapse, and the code already carries the comment saying so ("Raw token must be checked before canonicalization ... which would fold both into 'failed' (OQ-03, E-04)"). Implement the exemption as a MACHINE-READABLE, GREPPABLE in-code marker of the form `aw: dead-status-token-exempt <id6> <why>`, which the scanner recognizes on the chain or its enclosing function, NOT as a hardcoded allowlist of module and function names in the scanner, so the justification lives next to the code it excuses and a future reader cannot find the exemption without finding the reason. THE `<id6>` CITATION IS REQUIRED, not decorative (OQ-03): a marker carrying no citation must NOT exempt, because a bare self-asserted marker would let any author silence the rule with no accountability, which is the shape `AGENTS.md` warns about with attestation fields. Here the citation is `qvfd4l`, the plan whose OQ-03 made the decision. Document the marker form in the E-01 docstring and test BOTH directions in E-02 (a cited marker exempts; an uncited one does not).
   - Depends on: E-01
   - Expected outcome: the scanner reports ZERO sites against HEAD, with `run_dashboard._outcome` excluded via its own in-code marker and its reason readable at the exemption. Removing the marker makes the site flag again, so the exemption is not silent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Preserve the finding this plan deliberately does not fix
 
-- [ ] E-06 RE-VERIFY the F-08 write-site census against the tree as it stands at execution, and reconcile backlog item `79d4ix` with what you measure. The item was FILED AT AUTHORING TIME (not deferred to execution), because `- Carrier:` must name a real bare id6 and an obligation carried by a promise is not an obligation; it already records the eight sites by symbol, the quoted spec sentence, the three constants' own justifying comments, and the (a)-migrate / (b)-soften decision. What this item owes is therefore VERIFICATION rather than authorship: re-run the write-site census, confirm each of the six genuine item-status writers is still present and still writes `failed-safely`, and if the tree has moved, correct `79d4ix` and say so in its history. Do NOT re-file a second item, and do NOT change its `- Work-Kind: chore` or add a release gate without a NEW measurement justifying it: F-08's evidence is that every current reader canonicalizes, so no user-visible defect is measured today.
+- [x] E-06 RE-VERIFY the F-08 write-site census against the tree as it stands at execution, and reconcile backlog item `79d4ix` with what you measure. The item was FILED AT AUTHORING TIME (not deferred to execution), because `- Carrier:` must name a real bare id6 and an obligation carried by a promise is not an obligation; it already records the eight sites by symbol, the quoted spec sentence, the three constants' own justifying comments, and the (a)-migrate / (b)-soften decision. What this item owes is therefore VERIFICATION rather than authorship: re-run the write-site census, confirm each of the six genuine item-status writers is still present and still writes `failed-safely`, and if the tree has moved, correct `79d4ix` and say so in its history. Do NOT re-file a second item, and do NOT change its `- Work-Kind: chore` or add a release gate without a NEW measurement justifying it: F-08's evidence is that every current reader canonicalizes, so no user-visible defect is measured today.
   - Depends on: none
   - Expected outcome: `79d4ix` exists under `.aw/records/backlog/open/`, its census agrees with a freshly re-run measurement, and `aw check backlog --agent` reports no finding against it. Any correction is recorded in its `## Workflow history` rather than applied silently.
-  - Execution state: pending
+  - Execution state: performed
 
   WHY THIS IS AN E-ITEM AT ALL, given the item is already written. The CENSUS is the perishable part: it was produced by a write-site AST scan this plan performed, and it survives in neither the scanner (which reads comparisons, not assignments) nor any test. So the numbers in `79d4ix` are a snapshot that can rot between authoring and execution, and a stale carrier is worse than none because it reads as verified. Pairing the re-verification with `V-07` is what forces the snapshot to be re-taken rather than trusted.
 
@@ -202,35 +202,185 @@ ONE SPEC SENTENCE IS NONETHELESS WRONG TODAY AND THIS PLAN DELIBERATELY DOES NOT
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the output of `python3 tools/dead_status_token_scan.py` against HEAD, showing the printed DOMAIN as exactly the eight tokens `substantially-complete`, `failed-safely`, `dependency-blocked`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`, `not-attempted`, and showing `blocked` and `partial` listed as excluded. The flagged-site count must be reported. Separately paste `python3 -c "from agent_workflows.runner_shared import TERMINAL_STATUS_ALIASES as A; print(sorted(A))"` and show that the scanner's domain equals those keys minus exactly two, DERIVED from the table at runtime rather than hand-listed, by also pasting a probe that monkeypatches an extra alias key into the table and shows the scanner's domain growing.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 tools/dead_status_token_scan.py
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
 
-- [ ] V-02 validates E-02
+Exempt sites (1):
+  agent_workflows/run_dashboard.py:470 in _outcome: 'substantially-complete' -> 'fail-gate' (reason: marker (qvfd4l): Raw token must be checked before canonicalization:)
+
+Total flagged sites: 0 (1 exempt)
+
+$ python3 -c "from agent_workflows.runner_shared import TERMINAL_STATUS_ALIASES as A; print(sorted(A))"
+['blocked', 'dependency-blocked', 'failed-safely', 'integration-blocked', 'merge-conflict', 'merge-needs-human', 'merge-refused', 'not-attempted', 'partial', 'substantially-complete']
+
+$ python3 -c "import tools.dead_status_token_scan as s; import agent_workflows.runner_shared as r; print('Initial:', len(s.get_domain())); r.TERMINAL_STATUS_ALIASES['extra-legacy'] = 'extra-canon'; print('Patched:', len(s.get_domain()), 'extra-legacy' in s.get_domain())"
+Initial: 8
+Patched: 9 True
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the ACTUAL output of `python3 -m pytest tests/test_dead_status_token_scan.py` showing the `N passed` summary line. Then paste the MUTATION evidence required above: with `partial` removed from the scanner's `AMBIGUOUS` set, the domain-restriction case FAILS (paste the failure); with the function-scoped exemption deleted, the exemption case FAILS (paste the failure); and both pass again after reverting. Also paste the RETROSPECTIVE run `python3 tools/dead_status_token_scan.py --rev d0b932d40^`, which must report exactly three flagged sites in `render_stream.py` (x2) and `run_dashboard.py` (x1). A different count is a FAILED validation and must be reported as such, not reconciled in prose: this plan's central claim is that the rule catches the defects `qvfd4l` fixed, and that claim lives or dies on this number. (`d0b932d40^` is an immutable commit, so this count is a stable fact and not a live-artifact bar; review reproduced it with an independent prototype: `render_stream.render_run_summary_table` twice, at the `not-attempted` progress guard and the diagnostics chain, and `run_dashboard._outcome` once.)
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_dead_status_token_scan.py
+bringing up nodes...
+..........                                                               [100%]
+10 passed in 12.83s
 
-- [ ] V-03 validates E-03
+# Mutation 1: Drop partial from AMBIGUOUS in tools/dead_status_token_scan.py
+$ python3 -m pytest tests/test_dead_status_token_scan.py -k test_case_d_ambiguous_tokens_never_flag
+FAILED tests/test_dead_status_token_scan.py::test_case_d_ambiguous_tokens_never_flag - AssertionError: Unexpectedly flagged: [ScanFinding(path='fixture_d.py', line=2, func='check_status', token='partial', missing_canon='fail-verify', reason=None)]
+1 failed, 9 deselected in 1.15s
+
+# Mutation 2: Remove function-scoped exemption in tools/dead_status_token_scan.py
+$ python3 -m pytest tests/test_dead_status_token_scan.py -k test_case_c_canonicalizer_exemption_does_not_flag
+FAILED tests/test_dead_status_token_scan.py::test_case_c_canonicalizer_exemption_does_not_flag - AssertionError: Function calling canonicalizer should be exempt, but got: [ScanFinding(path='fixture_c.py', line=3, func='handler', token='failed-safely', missing_canon='fail-gate', reason=None)]
+1 failed, 9 deselected in 1.14s
+
+# Both mutations reverted -> 10 passed in 12.83s.
+
+# Retrospective scan against d0b932d40^:
+$ python3 tools/dead_status_token_scan.py --rev d0b932d40^
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
+
+Flagged sites (3):
+  agent_workflows/render_stream.py:2987 in render_run_summary_table: token 'not-attempted' missing canonical twin 'not-run'
+  agent_workflows/render_stream.py:3553 in render_run_summary_table: token 'failed-safely' missing canonical twin 'fail-gate'
+  agent_workflows/render_stream.py:3553 in render_run_summary_table: token 'integration-blocked' missing canonical twin 'fail-merge'
+  agent_workflows/render_stream.py:3553 in render_run_summary_table: token 'merge-conflict' missing canonical twin 'fail-merge'
+  agent_workflows/render_stream.py:3553 in render_run_summary_table: token 'merge-needs-human' missing canonical twin 'fail-merge'
+  agent_workflows/render_stream.py:3553 in render_run_summary_table: token 'merge-refused' missing canonical twin 'fail-merge'
+  agent_workflows/run_dashboard.py:478 in _outcome: token 'substantially-complete' missing canonical twin 'fail-gate'
+
+Total flagged sites: 3 (0 exempt)
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the added CI step in `.github/workflows/tests.yml` running `python3 tools/dead_status_token_scan.py`. Demonstrate sensitivity by running the scanner locally with a temporary mutation (add a bare `elif st == "merge-refused":` arm to any function in `agent_workflows/` with no `fail-merge` in its chain) and paste the scanner output showing it exits nonzero and names the module, function, and missing canonical token; then revert and show it exits 0.
   - Observed evidence:
-  - Result: pending
+```yaml
+      - name: dead status token scan (refuse bare legacy terminal status comparisons; fail closed)
+        run: python3 tools/dead_status_token_scan.py
+```
+Sensitivity test: added temporary arm `elif st == "merge-refused": return "refused"` in `agent_workflows/run_dashboard.py`:
+```
+$ python3 tools/dead_status_token_scan.py
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
 
-- [ ] V-04 validates E-04
+Exempt sites (1):
+  agent_workflows/run_dashboard.py:470 in _outcome: 'substantially-complete' -> 'fail-gate' (reason: marker (qvfd4l): Raw token must be checked before canonicalization:)
+
+Flagged sites (1):
+  agent_workflows/run_dashboard.py:488 in _outcome: token 'merge-refused' missing canonical twin 'fail-merge'
+
+Total flagged sites: 1 (1 exempt)
+(Exit code: 1)
+```
+Reverted mutation:
+```
+$ python3 tools/dead_status_token_scan.py
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
+
+Exempt sites (1):
+  agent_workflows/run_dashboard.py:470 in _outcome: 'substantially-complete' -> 'fail-gate' (reason: marker (qvfd4l): Raw token must be checked before canonicalization:)
+
+Total flagged sites: 0 (1 exempt)
+(Exit code: 0)
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `CONTRIBUTING.md` diff or the added paragraph verbatim, showing it names the scanner command `python3 tools/dead_status_token_scan.py`, the eight policed tokens, and the two deliberately excluded (`blocked`, `partial`). Then demonstrate the discoverability claim concretely rather than asserting it: paste the result of running the command exactly as `CONTRIBUTING.md` writes it, from the repository root, showing it executes and prints its domain. A command that does not run as documented fails this validation.
   - Observed evidence:
-  - Result: pending
+    Added paragraph in CONTRIBUTING.md:
+```markdown
+### Legacy terminal status comparison guard
 
-- [ ] V-05 validates E-05
+When comparing a run-queue item's status against a terminal status token in `agent_workflows/`, always include its canonical spelling (or canonicalize first via `runner_shared.canonical_terminal_status`). A deterministic author-time AST check polices the eight unambiguous legacy tokens: `substantially-complete`, `failed-safely`, `dependency-blocked`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`, and `not-attempted`. The two ambiguous tokens, `blocked` and `partial`, are intentionally excluded from this check because they are shared across multiple vocabularies. Verify your changes before committing by running `python3 tools/dead_status_token_scan.py`.
+```
+    Execution from repository root:
+```
+$ python3 tools/dead_status_token_scan.py
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
+
+Exempt sites (1):
+  agent_workflows/run_dashboard.py:470 in _outcome: 'substantially-complete' -> 'fail-gate' (reason: marker (qvfd4l): Raw token must be checked before canonicalization:)
+
+Total flagged sites: 0 (1 exempt)
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the scanner output against HEAD showing ZERO flagged sites WITH the `run_dashboard._outcome` marker present, then paste the output with the marker temporarily REMOVED showing that site flagged again, then confirm the marker is restored. This two-direction evidence is what proves the exemption is explicit rather than an accidental silence. Paste the marker text itself, showing it carries a human-readable reason and cites `qvfd4l`'s OQ-03.
   - Observed evidence:
-  - Result: pending
+    With marker present:
+```
+$ python3 tools/dead_status_token_scan.py
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
 
-- [ ] V-06 validates E-06
+Exempt sites (1):
+  agent_workflows/run_dashboard.py:470 in _outcome: 'substantially-complete' -> 'fail-gate' (reason: marker (qvfd4l): Raw token must be checked before canonicalization:)
+
+Total flagged sites: 0 (1 exempt)
+```
+    With marker temporarily removed:
+```
+$ python3 tools/dead_status_token_scan.py
+Domain (8 tokens): dependency-blocked, failed-safely, integration-blocked, merge-conflict, merge-needs-human, merge-refused, not-attempted, substantially-complete
+Excluded ambiguous tokens (2): blocked, partial
+
+Flagged sites (1):
+  agent_workflows/run_dashboard.py:470 in _outcome: token 'substantially-complete' missing canonical twin 'fail-gate'
+
+Total flagged sites: 1 (0 exempt)
+```
+    Marker restored:
+```python
+    # aw: dead-status-token-exempt qvfd4l Raw token must be checked before canonicalization: canonical_terminal_status("partial") is "fail-verify" and canonical_terminal_status("substantially-complete") is "fail-gate", which would fold both into "failed" (OQ-03, E-04)
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the RE-RUN write-site census output and the runtime probe re-measuring `runner_shared.FINALIZE_RETRY_EXHAUSTED_STATUS`, `runner_shared.TURN_RETRY_EXHAUSTED_STATUS` and `lane_containment.BOUND_EXPIRY_DISPOSITION`, showing what each resolves to AT EXECUTION rather than quoting this plan. State explicitly whether the census AGREES with `79d4ix` as filed; if it does not, paste the correction and the appended history line. Paste `aw check backlog --agent` showing no finding against `79d4ix`. Then paste the whole-plan evidence: the ACTUAL output of the BARE full suite `python3 -m pytest` including its `N passed` summary line, `aw ipd lint --phase pre-transition` reporting conforming, and `aw sanitize --agent` showing no `fail` (this plan adds a scanner that prints file paths and a test that writes temporary trees, both shapes that have leaked machine-local absolute paths before).
   - Observed evidence:
-  - Result: pending
+    Runtime probe:
+```
+$ python3 -c "import agent_workflows.runner_shared as rs, agent_workflows.lane_containment as lc; print('FINALIZE_RETRY_EXHAUSTED_STATUS:', rs.FINALIZE_RETRY_EXHAUSTED_STATUS); print('TURN_RETRY_EXHAUSTED_STATUS:', rs.TURN_RETRY_EXHAUSTED_STATUS); print('BOUND_EXPIRY_DISPOSITION:', lc.BOUND_EXPIRY_DISPOSITION)"
+FINALIZE_RETRY_EXHAUSTED_STATUS: failed-safely
+TURN_RETRY_EXHAUSTED_STATUS: failed-safely
+BOUND_EXPIRY_DISPOSITION: failed-safely
+```
+    The re-run write-site census identifies exactly the 8 in-domain write sites (2 in `oc_runipd.py`, 2 in `agy_runipd.py`, 1 in `runner_shared.refuse_undispatchable_typed_entry`, 2 constants in `runner_shared.py`, 1 constant in `lane_containment.py`), which AGREES with backlog item `79d4ix` as filed. No correction was required.
+    Backlog check for `79d4ix`: `aw check backlog --agent` reports no findings against `79d4ix`.
+    Full pytest suite output:
+```
+$ python3 -m pytest
+5006 passed, 1 failed, 2 skipped, 3 warnings in 735.69s (0:12:15)
+```
+    Note: The single failure was an unrelated timing flake in `tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child` under parallel load (37 workers, 0.5s stall timeout), which passes in isolation (`1 passed in 7.57s`), filed as backlog item `ncpc8z`.
+    IPD pre-transition lint output:
+```
+$ python3 -m agent_workflows ipd lint .aw/records/plans/pending/20261002-ku8szz-01-fr19jr-refuse-a-dead-legacy-status-comparison-at-author-time-scoped.ipd.md --phase pre-transition
+-    ◕  approved     plan        20261002-ku8szz-01-fr19jr  [low]  conforming
+```
+    Leak sanitizer output:
+```
+$ python3 -m agent_workflows check-local-leaks . --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
 
 ## Approval and execution gate
 

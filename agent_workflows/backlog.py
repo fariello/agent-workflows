@@ -1616,12 +1616,38 @@ def run_set(args) -> int:
     # preserve prior history by re-emitting it):
     prior_status = parse_item(text).status
     label = new_status if prior_status != new_status else "same-status"
+
+    # histdedup evbx9s E-02/E-04 / backlog r74211: consult the shared predicate for same-status writes,
+    # making this the third consumer of status_set.same_status_message_is_duplicate.
+    # Four binding details:
+    # (1) Date: same clock _reattach_history stamps with (core.utc_history_date() per 5ivkdh / 2vev8j 4.4).
+    # (2) Message: resolved message including the status -> <status> fallback, matching what would be written.
+    # (3) Status token: label ('same-status'), matching the record token.
+    # (4) Suppress only the record; metadata rewrite, gate fields, and moves continue untouched.
+    # PR-001 / E-04: fail safe against the bounding disagreement (F-03) where _history_section_lines
+    # sees indented lines while _prior_history_records requires column zero. Suppress only when
+    # prior records exist, preventing an empty history block. One suppress decision drives both
+    # the inline record (write_record) and the advisory sidecar below.
+    is_dup = False
+    if label == "same-status":
+        from agent_workflows.status_set import same_status_message_is_duplicate
+
+        today = core.utc_history_date()
+        resolved_msg = (
+            getattr(args, "message", "") or f"status -> {new_status}"
+        ).strip()
+        is_dup = same_status_message_is_duplicate(
+            text, status=label, date=today, message=resolved_msg
+        )
+    suppress = is_dup and bool(_prior_history_records(text))
+
     rendered = _reattach_history(
         text,
         rendered,
         f"{new_status}",
         getattr(args, "message", "") or "",
         label=label,
+        write_record=not suppress,
     )
 
     # awrelease Order 02 / rendrop 2yqt0a E-02: set/clear the Blocks-Release gate field when requested
@@ -1768,7 +1794,9 @@ def run_set(args) -> int:
     # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
     # inline record, which `_reattach_history` has already assembled into `rendered` above and which is
     # written by the `atomic_write` below regardless of what this call returns.
-    if item.id:
+    # histdedup evbx9s E-03/E-04: skip sidecar appending on suppressed duplicate same-status writes,
+    # following the specs.run_set precedent so the advisory log does not record phantom transitions.
+    if item.id and not suppress:
         from agent_workflows import record_history as _rh
 
         _rh.append_advisory(
@@ -1971,6 +1999,7 @@ def _reattach_history(
     new_status: str,
     message: str,
     label: str = "set",
+    write_record: bool = True,
 ) -> str:
     """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
 
@@ -1997,6 +2026,11 @@ def _reattach_history(
     which names the transition rather than writing an uninformative "set". The default "set" preserves
     the legacy record token for an unaware caller.
 
+    THE WRITE_RECORD PARAMETER (plan `evbx9s`, backlog `r74211`) allows the caller to suppress the
+    new record on an idempotent same-status re-assertion, preserving prior history while writing no
+    duplicate record. The caller consults `status_set.same_status_message_is_duplicate` to decide;
+    the default True preserves existing behavior for an unaware caller.
+
     THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
     store, so it can never gate this write (see `record_history.append_advisory`).
     """
@@ -2014,7 +2048,7 @@ def _reattach_history(
         body_parts = tail.split("\n\n", 1)
         body = body_parts[1] if len(body_parts) > 1 else ""
     prior = _prior_history_records(old_text)
-    hist_block = "\n".join([new_record] + prior)
+    hist_block = "\n".join(([new_record] + prior) if write_record else prior)
     result = head + "\n## Workflow history\n" + hist_block
     if body.strip():
         result += "\n\n" + body.rstrip()

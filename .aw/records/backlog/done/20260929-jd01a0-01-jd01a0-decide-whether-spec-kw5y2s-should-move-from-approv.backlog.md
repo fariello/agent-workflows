@@ -1,5 +1,5 @@
 - Id: jd01a0
-- Status: graduated
+- Status: done
 - Graduated-To: jd01a0
 - Set: jd01a0
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether spec kw5y2s should move from approved to implemented now its wslayout Set has fully executed
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD dwivqd executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-jd01a0-01-dwivqd-transition-spec-kw5y2s-to-implemented-through-implementing-w.ipd.md); evidence .aw/records/plans/executed/20261001-jd01a0-01-dwivqd-transition-spec-kw5y2s-to-implemented-through-implementing-w.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: dwivqd
 - 2026-09-29 created (aw backlog): Decide whether spec kw5y2s should move from approved to implemented now its wslayout Set has fully executed
 

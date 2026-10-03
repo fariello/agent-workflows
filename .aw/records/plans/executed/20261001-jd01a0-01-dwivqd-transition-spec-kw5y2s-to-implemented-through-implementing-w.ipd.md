@@ -6,7 +6,7 @@
 - Scope: IN: re-measure the four evidence points plus the two newly measured mechanics at the executing HEAD, with explicit stop conditions if any has inverted; move `kw5y2s` `approved -> implementing` recording the `wslayout` Set via `--graduated-to`; move `implementing -> implemented` with a resolvable `--evidence` citation naming the executed `wslayout` orchestrator; confirm `aw attention` reclassifies the spec from `ready` to `done` and that `aw check`/`aw specs check` stay clean across both hops; verify the two relocations landed as git renames and that no stale copy remains in `approved/` or `implementing/`. OUT: every WORD of the spec's body, which this plan does not edit (plan `xx5b7a` owns the text corrections and must land first); Section 3.4's traversal-exclusion widening, declared out of scope by the spec itself; any code, test, or `AGENTS.md` change, since the lifecycle machinery is working exactly as specified and the only thing missing is the transition; and the `- Status:` of any other spec.
 - Scope-Paths: .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md, .aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md, .aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
 - Item-Dependencies: executed:xx5b7a
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: kw5y2s
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: dwivqd
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dwivqd verified (set jd01a0, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md: declared-but-unmodified (auto-acknowledged by aw agy run); in-scope-unmodified .aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (stop condition 5 / E-05 / V-05 required `aw attention` `valid: true`, but the view is `valid: false` on 14 PRE-EXISTING violations unrelated to kw5y2s, so the plan could never complete; rebarred to an unchanged violation set), PR-002 (`rg -rn` is replace-mode and mangles output; corrected to `rg -n`), PR-003 (`aw specs check` is NOT clean today: one pre-existing `89xjll` finding; rebarred to no NEW finding), PR-004 (`git status --porcelain` shows `D`+`??`, never `R`, until staged; V-03 rename evidence redefined), PR-005 (`implemented` is terminal: `SPEC_TRANSITIONS['implemented']` = deferred/superseded only, so E-04 is one-way; stated), PR-006 (default commit path: pass `--no-commit` on both hops, commit once via `aw commit`; verified offer_commit tolerates the vanished intermediate path and records one rename), PR-007 (dependency on xx5b7a now satisfied, xx5b7a executed). Premises re-measured at lane HEAD 5a2415e03: all four evidence points hold, graph unchanged, evidence resolves, two-hop dry run moves the file.
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure the premise before moving anything
 
-- [ ] E-01 RE-MEASURE THE BACKLOG ITEM'S FOUR EVIDENCE POINTS at the executing HEAD and paste each result. Do NOT trust this plan's snapshot; the whole point of the item is that a human wants the four points verified at the then-current HEAD. Let `SPEC` be the spec's path AS IT IS AT THAT MOMENT (it is under `approved/` before this plan runs, but resolve it rather than assuming: `aw find specs kw5y2s` or `ls .aw/records/specs/*/*kw5y2s*`).
+- [x] E-01 RE-MEASURE THE BACKLOG ITEM'S FOUR EVIDENCE POINTS at the executing HEAD and paste each result. Do NOT trust this plan's snapshot; the whole point of the item is that a human wants the four points verified at the then-current HEAD. Let `SPEC` be the spec's path AS IT IS AT THAT MOMENT (it is under `approved/` before this plan runs, but resolve it rather than assuming: `aw find specs kw5y2s` or `ls .aw/records/specs/*/*kw5y2s*`).
   - (a) ALL SIX `wslayout` PLANS EXECUTED: `find .aw/records/plans -name "*wslayout*" | sort`, and confirm every hit is under `executed/`. Also paste `grep -n "From-Spec" .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-*.ipd.md` to confirm the orchestrator still carries `- From-Spec: kw5y2s`.
   - (b) THE LAYOUT MODEL AND CLI EXIST (Sections 3/4/6): `ls agent_workflows/layout.py` and `aw layout --help` (usage, exit 0).
   - (c) THE ELEVEN-CLASS VOCABULARY SHIPPED IN BOTH VOCABULARIES (Section 3.2): run the census `python3 -c "from agent_workflows import artifact_types, record_producers; AT=set(artifact_types.ARTIFACT_TYPES); RC={m.value for m in record_producers.RecordClass}; rows=['plans','specs','research','backlog','reviews','releases','prompts','walkthroughs','roadmaps','comms','other']; [print(r, r in AT, r in RC) for r in rows]; print(len(AT), len(RC), sorted(RC-AT), sorted(AT-RC))"`.
@@ -45,48 +45,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - WHY ALL FOUR AND NOT A SPOT CHECK: the item's "WHAT TO DO" names verification of the four points as the precondition for the transition, and the `->implemented` authority is `evidence: True` with no semantic verification (`attention_contract.TRANSITION_AUTHORITY`, `specs._evidence_resolvable`). The tool checks that the citation RESOLVES to an executed IPD, NOT that the work happened, so this item is the only thing standing between a resolvable string and a false `implemented` claim.
   - Depends on: none
   - Expected outcome: (a) six files, all under `.aw/records/plans/executed/`, orchestrator carries `- From-Spec: kw5y2s`; (b) the file exists and `aw layout --help` exits 0; (c) all eleven rows `True True`, `len(AT)` 11, `len(RC)` 12, `RC-AT == ['records']`, `AT-RC` empty; (d) `engine.py` references both emitted paths, `.aw/.gitignore` carries `system/layout.json` and `system/layout.schema.json`, `git check-ignore` confirms both ignored, root `.gitignore` has `0` layout hits. IF ANY POINT FAILS, STOP and report which: the premise of the transition is that the spec is implemented, and a failed point means it is not.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 RE-MEASURE THE TWO MECHANICS THIS PLAN DISCOVERED, because both are claims about tooling behavior that a reviewer should not have to take on trust and that a later commit could change.
+- [x] E-02 RE-MEASURE THE TWO MECHANICS THIS PLAN DISCOVERED, because both are claims about tooling behavior that a reviewer should not have to take on trust and that a later commit could change.
   - (a) THE TRANSITION GRAPH: `python3 -c "from agent_workflows import attention_contract as A; print(sorted(A.SPEC_TRANSITIONS['approved'])); print(sorted(A.SPEC_TRANSITIONS['implementing'])); print(A.transition_allowed('approved','implemented'), A.transition_allowed('approved','implementing'), A.transition_allowed('implementing','implemented')); print(A.TRANSITION_AUTHORITY['->implemented'])"`.
   - (b) THE REFUSAL IS REAL, not merely inferred from the table: run the one-step form the backlog item asks for and paste its refusal, `aw specs set "$SPEC" --status implemented --evidence .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md --dry-run`. THIS IS SAFE TO RUN: it refuses at the transition gate before writing, and `--dry-run` writes nothing even on the paths that pass.
   - (c) THE EVIDENCE CITATION RESOLVES: `python3 -c "from pathlib import Path; from agent_workflows import specs; print(specs._evidence_resolvable(Path('<SPEC>'), '.aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md'))"` with `<SPEC>` substituted. Measured `True` at authoring.
   - (d) THE SETTER RELOCATES: `aw specs set "$SPEC" --status implementing --graduated-to wslayout --dry-run` and paste the `would move ... -> .../specs/implementing/...` line WITHOUT applying it.
   - Depends on: E-01
   - Expected outcome: (a) `approved` permits `implementing` and NOT `implemented`; `implementing` permits `implemented`; the three booleans are `False True True`; the authority dict reads `{'who': 'executor', 'by_human': False, 'human_token': False, 'evidence': True}`. (b) stderr contains `illegal transition approved -> implemented`. (c) `True`. (d) a `would move` line naming the `implementing/` destination. IF (a) NOW PERMITS `approved -> implemented` DIRECTLY, skip E-03 and say so in V-03 rather than performing a hop the graph no longer requires; the two-hop route is a consequence of the graph, not a goal.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: perform the two legal hops
 
-- [ ] E-03 MOVE `kw5y2s` `approved -> implementing`, recording the Set that implemented it: `aw specs set "$SPEC" --status implementing --graduated-to wslayout --message "wslayout Set fully executed (all six plans, Orders 00-05, under .aw/records/plans/executed/; orchestrator rh5tt6 carries - From-Spec: kw5y2s); advancing from approved to implementing ahead of the implemented transition, per backlog jd01a0 and the precedent of spec 20260810-1447-01." --yes --no-commit`. PASS `--no-commit` ON BOTH HOPS and commit ONCE at the end through `aw commit` (see the gate): the setter self-commits only under `--commit` or an interactive yes, so in a lane it would otherwise leave the move uncommitted anyway, and a single commit records the whole `approved/ -> implemented/` relocation as ONE rename.
+- [x] E-03 MOVE `kw5y2s` `approved -> implementing`, recording the Set that implemented it: `aw specs set "$SPEC" --status implementing --graduated-to wslayout --message "wslayout Set fully executed (all six plans, Orders 00-05, under .aw/records/plans/executed/; orchestrator rh5tt6 carries - From-Spec: kw5y2s); advancing from approved to implementing ahead of the implemented transition, per backlog jd01a0 and the precedent of spec 20260810-1447-01." --yes --no-commit`. PASS `--no-commit` ON BOTH HOPS and commit ONCE at the end through `aw commit` (see the gate): the setter self-commits only under `--commit` or an interactive yes, so in a lane it would otherwise leave the move uncommitted anyway, and a single commit records the whole `approved/ -> implemented/` relocation as ONE rename.
   - WHY `--graduated-to wslayout` BELONGS ON THIS HOP AND NOT THE NEXT: the specs README documents the field's setter spelling as `aw spec set implementing <id6> --graduated-to <setid>`, i.e. on the `implementing` transition, and the field is the FORWARD half of the `- From-Spec: kw5y2s` link the orchestrator already carries backwards. Setting it here closes that link at the moment the spec starts claiming implementation.
   - WHY THIS HOP IS NOT BOOKKEEPING THEATER: it is the ONLY legal route to `implemented` (E-02a), so skipping it does not shorten the plan, it makes the plan impossible. The precedent spec recorded the identical two-step with the identical reason, which is why E-03's message echoes its wording.
   - Depends on: E-02
   - Expected outcome: `- Status: implementing` in the file; the file now at `.aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-...spec.md` and ABSENT from `approved/`; a `- Graduated-To: wslayout` bullet present; a new `implementing` line at the top of `## Workflow history`; `aw specs check` reporting NO finding naming `kw5y2s` (it is NOT clean today: one pre-existing finding on spec `89xjll`, `attention.unsafe-field`, measured at review; compare against a pre-change run and require the set unchanged apart from nothing new).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MOVE `kw5y2s` `implementing -> implemented` WITH THE REQUIRED EVIDENCE CITATION, using the spec's NEW path under `implementing/`: `aw specs set "<new-path>" --status implemented --evidence .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md --message "Implemented by the wslayout Set (all six plans executed): agent_workflows/layout.py is the canonical layout model (Sections 3-5), the eleven-class record vocabulary is closed in BOTH artifact_types.ARTIFACT_TYPES and record_producers.RecordClass (Section 3.2), engine.emit_layout_artifacts writes .aw/system/layout.json + layout.schema.json and back-fills .aw/.gitignore (Sections 2.3/6.1), and aw layout plus check.system-layout-missing/-drift ship the Section 6.2 surface. Re-measured at the executing HEAD per backlog jd01a0 E-01." --yes --no-commit`.
+- [x] E-04 MOVE `kw5y2s` `implementing -> implemented` WITH THE REQUIRED EVIDENCE CITATION, using the spec's NEW path under `implementing/`: `aw specs set "<new-path>" --status implemented --evidence .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md --message "Implemented by the wslayout Set (all six plans executed): agent_workflows/layout.py is the canonical layout model (Sections 3-5), the eleven-class record vocabulary is closed in BOTH artifact_types.ARTIFACT_TYPES and record_producers.RecordClass (Section 3.2), engine.emit_layout_artifacts writes .aw/system/layout.json + layout.schema.json and back-fills .aw/.gitignore (Sections 2.3/6.1), and aw layout plus check.system-layout-missing/-drift ship the Section 6.2 surface. Re-measured at the executing HEAD per backlog jd01a0 E-01." --yes --no-commit`.
   - THIS HOP IS ONE-WAY. `SPEC_TRANSITIONS['implemented']` is `{deferred, superseded}` (measured at review), so there is no tooled route back to `implementing` or `approved` if the claim proves wrong. That is why E-01's stop conditions must be honored BEFORE E-03, and why E-04 must not run if anything in E-01 to E-03 surprised you.
   - USE THE PATH THE FILE IS AT AFTER E-03, NOT THE ORIGINAL. E-03 relocated it (E-02d measures this), so the `approved/` path no longer exists and passing it would fail to resolve. Re-resolve with `ls .aw/records/specs/implementing/*kw5y2s*` rather than hand-assembling it.
   - THE `--evidence` FLAG IS MANDATORY AND ITS VALUE IS CONSTRAINED, not free prose: `specs._evidence_resolvable` requires a safe, in-tree, EXISTING path under an `executed/` plans tree, so a summary string or a non-executed plan is refused. The orchestrator `rh5tt6` is cited because it is the Set-level artifact carrying `- From-Spec: kw5y2s`; E-02c verifies it resolves before this item runs.
   - Depends on: E-03
   - Expected outcome: `- Status: implemented`; the file at `.aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-...spec.md` and ABSENT from both `approved/` and `implementing/`; a new `implemented` history line at the top naming the evidence; `aw specs check` reporting no finding naming `kw5y2s` and no new finding versus the pre-change run.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: confirm the tree agrees
 
-- [ ] E-05 CONFIRM THE RECLASSIFICATION AND THE CLEAN TREE, which is the OUTCOME the item actually wants rather than a field edit. Paste: `aw attention --format json` filtered to this spec (for example piping through `python3 -c "import json,sys; [print(r) for r in json.load(sys.stdin).get('items', []) if 'kw5y2s' in json.dumps(r)]"`, adapting the key names to what the command actually emits rather than assuming them) showing its class is now `done` rather than `ready`, plus the `valid` field of the whole view AND its `violations` list, captured BEFORE E-03 and again after E-04; `aw specs check`; `aw check release-gates`; and `git status --porcelain`. THE VIEW IS `valid: false` TODAY on 14 PRE-EXISTING violations (stranded lanes and one `89xjll` unsafe field, measured at review at HEAD `5a2415e03`), none naming `kw5y2s`, so the bar is an UNCHANGED violation set with no entry naming `kw5y2s`, not `valid: true`. Do NOT try to clear those violations: they are other parties' lanes and records.
+- [x] E-05 CONFIRM THE RECLASSIFICATION AND THE CLEAN TREE, which is the OUTCOME the item actually wants rather than a field edit. Paste: `aw attention --format json` filtered to this spec (for example piping through `python3 -c "import json,sys; [print(r) for r in json.load(sys.stdin).get('items', []) if 'kw5y2s' in json.dumps(r)]"`, adapting the key names to what the command actually emits rather than assuming them) showing its class is now `done` rather than `ready`, plus the `valid` field of the whole view AND its `violations` list, captured BEFORE E-03 and again after E-04; `aw specs check`; `aw check release-gates`; and `git status --porcelain`. THE VIEW IS `valid: false` TODAY on 14 PRE-EXISTING violations (stranded lanes and one `89xjll` unsafe field, measured at review at HEAD `5a2415e03`), none naming `kw5y2s`, so the bar is an UNCHANGED violation set with no entry naming `kw5y2s`, not `valid: true`. Do NOT try to clear those violations: they are other parties' lanes and records.
   - WHY `aw attention` IS THE ACCEPTANCE SURFACE: AGENTS.md says to consume the attention view rather than re-scanning raw files, and a spec at `approved` maps to `ready` while `implemented` maps to `done` (the specs README states the mapping). A status edit that did not move the class would mean the edit did not take effect where it matters. If the AFTER violation set contains anything not in the BEFORE set, or any entry naming `kw5y2s`, STOP and report it rather than claiming success.
   - ALSO CONFIRM NO STALE COPY SURVIVED: `ls .aw/records/specs/approved/ | grep -c kw5y2s` and the same for `implementing/`, both expected `0`, and `ls .aw/records/specs/implemented/ | grep kw5y2s` expected one hit. A relocation that COPIED rather than MOVED would leave two specs with the same `- Id:`, which is a far worse defect than the stale status this plan is fixing.
   - Depends on: E-04
   - Expected outcome: the spec's attention class is `done` (it reads `ready` before, measured at review); the violation set is identical before and after with no entry naming `kw5y2s`; `aw specs check` has no new finding and `aw check release-gates` exits as it did before; `git status --porcelain` shows ONLY the spec's move (a ` D` under `approved/` plus `??` under `implemented/` while unstaged, which `git add` folds into one `R`) and nothing outside `- Scope-Paths:` (the history sidecar `.aw/records/history.jsonl` is gitignored by `.aw/.gitignore` and does not appear); zero hits in `approved/` and `implementing/`, exactly one in `implemented/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE SUITE BARE as `python3 -m pytest` and paste the summary line. Do NOT add `-n0`, a second `-q`, or `-p no:randomly`.
+- [x] E-06 RUN THE SUITE BARE as `python3 -m pytest` and paste the summary line. Do NOT add `-n0`, a second `-q`, or `-p no:randomly`.
   - WHY THIS IS A CHEAP REGRESSION CHECK AND NOT A COUPLING THIS EDIT SHOULD BREAK: three tests cite `kw5y2s` in PROSE (`test_installer.py`, `test_layout.py`, `test_record_producers.py` per plan `xx5b7a`'s F-07, which measured that none opens the spec by path). RE-MEASURE that rather than inheriting it, with `rg -n "kw5y2s" tests/`, because this plan MOVES the file and a test that globbed `specs/approved/` would break where a test reading the text would not. If a test does resolve the spec by its directory, report it: that is a real coupling to a path this plan changes.
   - Depends on: E-04
   - Expected outcome: the suite's `N passed` summary with no new failures versus a pre-change baseline; `rg -n "kw5y2s" tests/` hits are all prose citations, none resolving the spec through `specs/approved/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,35 +169,325 @@ All measured at HEAD `850e6a19` on 2026-10-01.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste all four E-01 outputs (a) through (d) VERBATIM, including the complete eleven-row census with both boolean columns rather than a summary, and the `git check-ignore -v` lines in full. State the executing HEAD from `git rev-parse HEAD`. Then state, in one sentence per point, whether it HOLDS. IF ANY POINT FAILED, this item must record that the plan STOPPED and that the honest outcome is the backlog item's alternative branch ("record why the spec stays approved"), naming the failing point; do NOT mark it verified on three of four.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Executing HEAD: `01252997b7b3f5805c877e8fad0daeae8ef89d6f`.
+    All four evidence points hold at this executing HEAD.
 
-- [ ] V-02 validates E-02
+    Point (a) HOLDS: All six wslayout plans are executed under `.aw/records/plans/executed/`, and the orchestrator still carries `- From-Spec: kw5y2s` at line 16.
+    `find .aw/records/plans -name "*wslayout*" | sort`:
+    ```
+    .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md
+    .aw/records/plans/executed/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md
+    .aw/records/plans/executed/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md
+    .aw/records/plans/executed/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md
+    .aw/records/plans/executed/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md
+    .aw/records/plans/executed/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md
+    ```
+    `grep -n "From-Spec" .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-*.ipd.md`:
+    ```
+    16:- From-Spec: kw5y2s
+    ```
+
+    Point (b) HOLDS: The canonical layout model exists at `agent_workflows/layout.py` and `aw layout --help` exits 0 with full command usage.
+    `ls agent_workflows/layout.py`:
+    ```
+    agent_workflows/layout.py
+    ```
+    `aw layout --help`:
+    ```
+    usage: agent-workflows layout [-h] [--no-color | --color] [--no-interactive |
+                                  --interactive] [--agent] [--json]
+                                  [--fields FIELDS] [--verbose] [--repo REPO]
+                                  [--schema]
+
+    Print the canonical workspace LAYOUT MODEL: the record-class vocabulary
+    (subpath, file pattern, lifecycle subdirectories, aliases), the state-class
+    map, the four logical roots, and the traversal exclusions. READ-ONLY: it
+    writes nothing and moves nothing (contrast 'aw migrate-layout', which
+    transactionally migrates a legacy .agents/ tree). --json emits the machine-
+    readable layout document, --schema emits the JSON Schema that validates it.
+    Prefers the install-emitted .aw/system/layout.json and falls back to the in-
+    process model, so it still works on a fresh clone where that gitignored file
+    does not exist yet; the source actually used is always reported. See also 'aw
+    context' (resolved logical root PATHS for this repo) and 'aw path <root>' (one
+    resolved path, for scripting).
+
+    options:
+      -h, --help        show this help message and exit
+      --no-color        Disable ANSI color (also honored via NO_COLOR).
+      --color           Force ANSI color on even when stdout is not a terminal
+                        (beats NO_COLOR).
+      --no-interactive  Disable interactive prompting (declining confirmations and
+                        taking non-interactive defaults).
+      --interactive     Force interactive prompting on even when streams are non-
+                        interactive.
+      --agent           Machine-readable output (aw.agent/v1 JSONL).
+      --json            Emit full structured JSON representation.
+      --fields FIELDS   Comma-separated field projection for --agent output
+                        (envelope fields are preserved).
+      --verbose         Include full nested diagnostics, change details, and
+                        evidence dictionaries.
+      --repo REPO       Target repository directory (default: current directory).
+      --schema          Emit the JSON Schema that validates the layout document
+                        (instead of the document).
+    ```
+
+    Point (c) HOLDS: All eleven record classes exist in both `artifact_types.ARTIFACT_TYPES` and `record_producers.RecordClass`, with `len(AT) == 11`, `len(RC) == 12`, `RC-AT == ['records']`, and `AT-RC == []`.
+    `python3 -c "from agent_workflows import artifact_types, record_producers; AT=set(artifact_types.ARTIFACT_TYPES); RC={m.value for m in record_producers.RecordClass}; rows=['plans','specs','research','backlog','reviews','releases','prompts','walkthroughs','roadmaps','comms','other']; [print(r, r in AT, r in RC) for r in rows]; print(len(AT), len(RC), sorted(RC-AT), sorted(AT-RC))"`:
+    ```
+    plans True True
+    specs True True
+    research True True
+    backlog True True
+    reviews True True
+    releases True True
+    prompts True True
+    walkthroughs True True
+    roadmaps True True
+    comms True True
+    other True True
+    11 12 ['records'] []
+    ```
+
+    Point (d) HOLDS: Install-time emission is wired in `engine.py`, `.aw/.gitignore` explicitly ignores `system/layout.json` and `system/layout.schema.json`, `git check-ignore -v` confirms both are effectively ignored, and root `.gitignore` contains 0 layout hits.
+    `grep -n "layout.json\|layout.schema.json" agent_workflows/engine.py | head`:
+    ```
+    104:AW_LAYOUT_JSON_PATH = f"{AW_SYSTEM_DIR}/layout.json"
+    105:AW_LAYOUT_SCHEMA_PATH = f"{AW_SYSTEM_DIR}/layout.schema.json"
+    5164:system/layout.json
+    5165:system/layout.schema.json
+    5168:# derived and tracking them is the same git drift the layout.json lines above exist to avoid. They
+    6410:    # this the generated `.aw/system/layout.json` would show up as an untracked file in every
+    6413:    for _layout_pattern in ("system/layout.json", "system/layout.schema.json"):
+    6489:    """wslayout Order 04 (hauwqh), spec kw5y2s Section 6.1: write `.aw/system/layout.json` and
+    6490:    `.aw/system/layout.schema.json` into a target workspace. Returns the repo-relative paths written.
+    ```
+    `grep -n "layout" .aw/.gitignore`:
+    ```
+    29:# The install-time-emitted machine-readable layout document and its JSON Schema (wslayout Order 04,
+    31:# `engine.emit_layout_artifacts`, regenerated by every install, and therefore never committed -
+    33:system/layout.json
+    34:system/layout.schema.json
+    37:# derived and tracking them is the same git drift the layout.json lines above exist to avoid. They
+    ```
+    `git check-ignore -v .aw/system/layout.json .aw/system/layout.schema.json`:
+    ```
+    .aw/.gitignore:33:system/layout.json	.aw/system/layout.json
+    .aw/.gitignore:34:system/layout.schema.json	.aw/system/layout.schema.json
+    ```
+    `grep -c layout .gitignore || true`:
+    ```
+    0
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste (a) the three transition-graph lines and the authority dict, (b) the VERBATIM refusal text of the one-step attempt including the words `illegal transition approved -> implemented`, (c) the `_evidence_resolvable` boolean, and (d) the `would move` line. THE LOAD-BEARING CHECK IS (b): it is what proves F-05 empirically rather than by reading a table, and it is the reason this plan has two move items instead of the one the backlog item asked for. If (a) now permits `approved -> implemented` directly, state that here and explain what E-03 did instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    (a) Transition graph and authority dict:
+    `python3 -c "from agent_workflows import attention_contract as A; print(sorted(A.SPEC_TRANSITIONS['approved'])); print(sorted(A.SPEC_TRANSITIONS['implementing'])); print(A.transition_allowed('approved','implemented'), A.transition_allowed('approved','implementing'), A.transition_allowed('implementing','implemented')); print(A.TRANSITION_AUTHORITY['->implemented'])"`:
+    ```
+    ['deferred', 'implementing', 'parked', 'reviewed', 'superseded']
+    ['approved', 'deferred', 'implemented', 'parked', 'superseded']
+    False True True
+    {'who': 'executor', 'by_human': False, 'human_token': False, 'evidence': True}
+    ```
 
-- [ ] V-03 validates E-03
+    (b) VERBATIM refusal text of one-step attempt:
+    `aw specs set .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md --status implemented --evidence .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md --dry-run`:
+    ```
+    aw specs set: illegal transition approved -> implemented
+    ```
+    Exit code 1.
+
+    (c) Evidence resolvability:
+    `python3 -c "from pathlib import Path; from agent_workflows import specs; print(specs._evidence_resolvable(Path('.aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md'), '.aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md'))"`:
+    ```
+    True
+    ```
+
+    (d) Relocation dry run output:
+    `aw specs set .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md --status implementing --graduated-to wslayout --dry-run`:
+    ```
+    --- would move .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md -> <repo>/.aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md (status implementing) ---
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `aw specs set` invocation and its output; the resulting `- Status: implementing` line; the `- Graduated-To: wslayout` line; the new top-most `## Workflow history` record; `ls .aw/records/specs/implementing/ | grep kw5y2s` (one hit) alongside `ls .aw/records/specs/approved/ | grep -c kw5y2s` (`0`); and `aw specs check` with no new finding. Also paste `git status --porcelain` for this hop: unstaged, git shows ` D <approved path>` plus `?? <implementing path>` (it never shows `R` for an unstaged move, measured at review), so paste that pair and confirm the new file carries `- Id: kw5y2s`; the rename proof is the single final commit's `R` line, pasted in V-05.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Invocation:
+    ```
+    aw specs set .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md --status implementing --graduated-to wslayout --message "wslayout Set fully executed (all six plans, Orders 00-05, under .aw/records/plans/executed/; orchestrator rh5tt6 carries - From-Spec: kw5y2s); advancing from approved to implementing ahead of the implemented transition, per backlog jd01a0 and the precedent of spec 20260810-1447-01." --yes --no-commit
+    ```
+    Output:
+    ```
+    aw specs set: <repo>/.aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md -> implementing
+    ```
+    Resulting lines in `.aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md`:
+    `- Status: implementing` line:
+    ```
+    - Status: implementing
+    ```
+    `- Graduated-To: wslayout` line:
+    ```
+    - Graduated-To: wslayout
+    ```
+    New top-most `## Workflow history` line:
+    ```
+    - 2026-10-03 implementing (aw specs): wslayout Set fully executed (all six plans, Orders 00-05, under .aw/records/plans/executed/; orchestrator rh5tt6 carries - From-Spec: kw5y2s); advancing from approved to implementing ahead of the implemented transition, per backlog jd01a0 and the precedent of spec 20260810-1447-01.
+    ```
+    Location checks:
+    `ls .aw/records/specs/implementing/ | grep kw5y2s`:
+    ```
+    20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    ```
+    `ls .aw/records/specs/approved/ | grep -c kw5y2s`:
+    ```
+    0
+    ```
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+    `git status --porcelain`:
+    ```
+     D .aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    ?? .aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    ```
+    Confirmed that `.aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md` carries `- Id: kw5y2s`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the `aw specs set` invocation (showing the `implementing/` path was used, not the original `approved/` one) and its output; the resulting `- Status: implemented` line; the new history record naming the evidence citation; `ls .aw/records/specs/implemented/ | grep kw5y2s` (one hit); and `aw specs check` with no new finding. CONFIRM EXPLICITLY that the `--evidence` value names a file that exists under `.aw/records/plans/executed/`, by pasting `ls` on that exact path, since the transition is gated on resolvability and a plan quoting a path it never listed has not shown the gate was really satisfied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Invocation:
+    ```
+    aw specs set ".aw/records/specs/implementing/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md" --status implemented --evidence .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md --message "Implemented by the wslayout Set (all six plans executed): agent_workflows/layout.py is the canonical layout model (Sections 3-5), the eleven-class record vocabulary is closed in BOTH artifact_types.ARTIFACT_TYPES and record_producers.RecordClass (Section 3.2), engine.emit_layout_artifacts writes .aw/system/layout.json + layout.schema.json and back-fills .aw/.gitignore (Sections 2.3/6.1), and aw layout plus check.system-layout-missing/-drift ship the Section 6.2 surface. Re-measured at the executing HEAD per backlog jd01a0 E-01." --yes --no-commit
+    ```
+    Output:
+    ```
+    aw specs set: <repo>/.aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md -> implemented
+    ```
+    Resulting lines in `.aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md`:
+    `- Status: implemented` line:
+    ```
+    - Status: implemented
+    ```
+    New top-most `## Workflow history` line:
+    ```
+    - 2026-10-03 implemented (aw specs): Implemented by the wslayout Set (all six plans executed): agent_workflows/layout.py is the canonical layout model (Sections 3-5), the eleven-class record vocabulary is closed in BOTH artifact_types.ARTIFACT_TYPES and record_producers.RecordClass (Section 3.2), engine.emit_layout_artifacts writes .aw/system/layout.json + layout.schema.json and back-fills .aw/.gitignore (Sections 2.3/6.1), and aw layout plus check.system-layout-missing/-drift ship the Section 6.2 surface. Re-measured at the executing HEAD per backlog jd01a0 E-01.
+    ```
+    Location checks:
+    `ls .aw/records/specs/implemented/ | grep kw5y2s`:
+    ```
+    20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    ```
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+    Evidence path verification:
+    `ls -la .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md`:
+    ```
+    -rw-r--r-- 1 <user> <group> 48905 Oct  3 10:03 .aw/records/plans/executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the `aw attention` output for this spec showing its class is `done` (and state what it was BEFORE, namely `ready`, from a pre-change run or from the mapping the specs README documents), plus the view's `valid` field and the BEFORE and AFTER violation lists (or their rule/location pairs) showing them identical with none naming `kw5y2s`. Paste `aw specs check` and `aw check release-gates` outputs. Paste `git show --name-status --format= HEAD` for the final commit showing exactly one `R` line from `specs/approved/...kw5y2s...` to `specs/implemented/...kw5y2s...` and nothing else. Paste the three directory censuses (`approved/` `0`, `implementing/` `0`, `implemented/` exactly one). Paste `git status --porcelain` and confirm in one sentence that no path outside `- Scope-Paths:` was modified. If the AFTER violation set gains any entry, or any entry names `kw5y2s`, this item FAILS regardless of the spec's own class.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    `aw attention --format json`:
+    BEFORE (pre-transition baseline):
+    Spec kw5y2s had `native_status: "approved"` and `attention_class: "ready"`.
+    View `valid: True`, `violations count: 0`, `violations: []`.
 
-- [ ] V-06 validates E-06
+    AFTER (post-transition):
+    Spec kw5y2s:
+    ```json
+    {
+      "id": "kw5y2s",
+      "path": ".aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md",
+      "tree": "specs",
+      "native_status": "implemented",
+      "attention_class": "done",
+      "gate": null,
+      "last_history_at": "2026-10-03",
+      "priority": null,
+      "blocks_release": null,
+      "readiness": null,
+      "oqs": 0,
+      "rqs": 0,
+      "detail_kind": "scope",
+      "detail_text": "Consolidate workspace directory definitions into a unified Python layout model and emit machine-readable layout.json during repository installation for non-Python tools."
+    }
+    ```
+    View `valid: True`, `violations count: 0`, `violations: []`.
+    Violation lists are identical before and after (both empty); zero violations naming `kw5y2s`.
+
+    `aw specs check`:
+    ```
+    aw specs check: all specs conform. 40 specs checked.
+    ```
+
+    `aw check release-gates`:
+    ```
+    AW check  release-gates                                                  7869 ms
+    ✓ CONFORMS  442 release-gates checked
+
+    Evidence
+      backlog  278   specs  21   plans  142   releases  1
+      errors  0   warnings  0   info  0
+
+    Next  aw releases list
+    Agent output: --agent
+    ```
+
+    Commit rename proof (`git show --name-status --format= HEAD`):
+    ```
+    R096	.aw/records/specs/approved/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md	.aw/records/specs/implemented/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md
+    ```
+    Shows exactly one `R` line and nothing else.
+
+    Directory censuses:
+    `ls .aw/records/specs/approved/ | grep -c kw5y2s || true`: `0`
+    `ls .aw/records/specs/implementing/ | grep -c kw5y2s || true`: `0`
+    `ls .aw/records/specs/implemented/ | grep kw5y2s`:
+    `20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md` (exactly 1 hit).
+
+    `git status --porcelain`:
+    Clean working tree; no path outside `- Scope-Paths:` was modified or committed.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the bare `python3 -m pytest` summary line (the `N passed` line; if it is missing you added a second `-q`, so re-run bare). State the after-minus-before failing node-ID set, which must be empty. Paste the full `rg -n "kw5y2s" tests/` output with a one-line statement per hit confirming it is a prose citation rather than a resolution of the spec through `specs/approved/`. If any test DOES resolve it by directory, say so and report it as a real coupling this plan's relocation broke.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Bare `python3 -m pytest` summary:
+    ```
+    4997 passed, 2 skipped, 3 warnings in 535.06s (0:08:55)
+    ```
+    After-minus-before failing node-ID set is empty (0 failures).
+
+    `rg -n "kw5y2s" tests/`:
+    ```
+    tests/test_json_surface_leak_posture.py
+    236:        # Invariant: data remains an unredacted passthrough (approved spec kw5y2s)
+    239:            "data must retain raw home path to satisfy spec kw5y2s Section 2.4",
+
+    tests/test_layout.py
+    1:"""Unit tests for the canonical layout model (`agent_workflows/layout.py`; spec `kw5y2s`, Set
+
+    tests/test_record_producers.py
+    3:Spec `kw5y2s` Section 5.1 items 2 and 4; Set `wslayout` Order 03 (`rodj06`).
+    ```
+    Confirmation for each hit:
+    - `tests/test_json_surface_leak_posture.py:236`: prose comment noting spec citation; does not resolve spec path.
+    - `tests/test_json_surface_leak_posture.py:239`: assertion error string citing Section 2.4; does not resolve spec path.
+    - `tests/test_layout.py:1`: module docstring citing spec kw5y2s; does not resolve spec path.
+    - `tests/test_record_producers.py:3`: module docstring citing spec kw5y2s; does not resolve spec path.
+    None resolves spec kw5y2s by directory or file path.
+  - Result: pass
 
 ## Approval and execution gate
 

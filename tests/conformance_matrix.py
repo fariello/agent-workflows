@@ -316,6 +316,22 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
     ),
 }
 
+# --------------------------------------------------------------------------------------------------
+# Declared unreachable command allow-set (declabsent Order 01 gm9baj E-02)
+# --------------------------------------------------------------------------------------------------
+# THE ALLOW-SET IS A CEILING, NOT A CONVENIENCE. Every entry requires an open
+# item id and an active plan carrier. An entry that becomes reachable fails the
+# gate until deleted. There is no catch-all, wildcard, or default-skip permitted;
+# every exempted command must be individually enumerated with a valid typed reason
+# and resolvable citation.
+#
+# History:
+# - 'prompts set' (backlog 68sur3, plan 7z3ovv) was the sole initial seed; plan 7z3ovv
+#   registered its parser leaf, making it reachable, so the entry was deleted
+#   per gm9baj Scope check ("whichever plan runs second must delete it").
+
+UNREACHABLE_COMMAND_ALLOW_SET: Dict[str, Exemption] = {}
+
 # A leaf + argv that deterministically triggers a usage error (invalid flag).
 USAGE_ERROR_FLAG = "--this-flag-does-not-exist"
 
@@ -541,7 +557,9 @@ def build_matrix(parser) -> MatrixReport:
             continue
         if decl.command not in parser_leaves and decl.command_class != "alias":
             # Declared but no longer in the parser: not a coverage row (kept out of
-            # the live matrix; the declaration-vs-parser drift is asserted elsewhere).
+            # the live matrix; unreachable declarations are gated behaviorally by
+            # test_command_surface_declarations.test_zero_unreachable_command_declarations,
+            # while declared_absent is reported on MatrixReport but no longer asserted over).
             report.declared_absent.append(decl.command)
             continue
         is_live = decl.command in LIVE_SAFE_LEAVES

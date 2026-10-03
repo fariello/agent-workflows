@@ -6,7 +6,7 @@
 - Scope: Add the packaging properties the restored wheel guard does not reach, as one new test file that builds the SDIST and asserts the distribution-contents properties neither artifact currently has a caller for: the sdist allowlist carries the package, the data tree and the browser assets; the wheel registers its three console scripts; and the browser assets are present AND non-empty in both artifacts, with the declared asset list kept honest against `run_analytics_spa.REQUIRED_ASSETS` rather than hand-maintained. Out of scope: the two properties `tests/test_packaging.py` already covers (the ship-versus-dev boundary and the runtime-dependency allowlist), which are NOT re-asserted anywhere here; the deleted `tests/test_run_analytics_packaging.py` performance-baseline arms, which are benchmarks and not packaging (carrier below); the `.gitignore`-injected-into-sdist nit `pyproject.toml` already documents as accepted; and the security-hardening half of the item, which is Order 01 of this Set.
 - Scope-Paths: tests/test_packaging_distribution.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: security
 - Priority: high
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: d0lg63
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: d0lg63 verified (set mflqqf, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003 (review record 20261002-mflqqf-02-d0lg63-...review.md).
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review revisions applied; see review record
@@ -36,39 +36,39 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the asset presence assertions and their honesty guard
 
-- [ ] E-01 Create `tests/test_packaging_distribution.py` with the wheel-building fixture and the POSITIVE, PER-ASSET presence assertions for the browser assets, recovered from `git show 19313eed^:tests/test_packaging.py` (the `REQUIRED_BROWSER_ASSETS` arms) and re-verified against the current build. ASSERT PRESENCE BY NAME AND NON-EMPTINESS SEPARATELY, because a zero-byte asset ships as happily as a real one and renders exactly as badly: at authoring the wheel carries `agent_workflows/run_analytics_assets/app.css` at 5235 bytes and `app.js` at 21944 bytes, so both arms pass today. REUSE THE EXISTING FIXTURE SHAPE FROM `tests/test_packaging.py` RATHER THAN INVENTING ONE, which is the detail that decides whether this file is maintainable: that file's `setUpClass` SKIPS when `import build` fails (a genuine environment limit) but raises `AssertionError` when `build` IS importable and the build FAILS, so a real packaging defect is never hidden behind a skip. Copy that discrimination exactly; it is the behavior that makes a packaging test trustworthy in CI. ALSO assert, in the wheel class, that the four modules the deleted arms protected ship BY NAME: `agent_workflows/run_analytics_spa.py`, `agent_workflows/run_analytics_report.py`, `agent_workflows/layout_migration.py` and `agent_workflows/layout_inventory.py` (all measured present in the wheel at review). This is what makes the Deferred row's claim that the durable half of the dropped extracted-wheel import arms is covered TRUE (PR-001).
+- [x] E-01 Create `tests/test_packaging_distribution.py` with the wheel-building fixture and the POSITIVE, PER-ASSET presence assertions for the browser assets, recovered from `git show 19313eed^:tests/test_packaging.py` (the `REQUIRED_BROWSER_ASSETS` arms) and re-verified against the current build. ASSERT PRESENCE BY NAME AND NON-EMPTINESS SEPARATELY, because a zero-byte asset ships as happily as a real one and renders exactly as badly: at authoring the wheel carries `agent_workflows/run_analytics_assets/app.css` at 5235 bytes and `app.js` at 21944 bytes, so both arms pass today. REUSE THE EXISTING FIXTURE SHAPE FROM `tests/test_packaging.py` RATHER THAN INVENTING ONE, which is the detail that decides whether this file is maintainable: that file's `setUpClass` SKIPS when `import build` fails (a genuine environment limit) but raises `AssertionError` when `build` IS importable and the build FAILS, so a real packaging defect is never hidden behind a skip. Copy that discrimination exactly; it is the behavior that makes a packaging test trustworthy in CI. ALSO assert, in the wheel class, that the four modules the deleted arms protected ship BY NAME: `agent_workflows/run_analytics_spa.py`, `agent_workflows/run_analytics_report.py`, `agent_workflows/layout_migration.py` and `agent_workflows/layout_inventory.py` (all measured present in the wheel at review). This is what makes the Deferred row's claim that the durable half of the dropped extracted-wheel import arms is covered TRUE (PR-001).
   - Depends on: none
   - Expected outcome: The file exists and passes. `python3 -m pytest tests/test_packaging_distribution.py -o addopts="" -q` reports every collected test passing, and `rg -c run_analytics_assets tests/test_packaging_distribution.py` is non-zero where `rg -l run_analytics_assets tests/` returned nothing before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the HONESTY GUARD for the asset list: assert the file's `REQUIRED_BROWSER_ASSETS` equals the set derived from `run_analytics_spa.ASSETS_DIRNAME` and `run_analytics_spa.REQUIRED_ASSETS`, so adding an asset to the module without adding it here FAILS instead of silently reducing coverage. This is the item that stops a hand-maintained list rotting, which is the standing failure mode of every by-name presence assertion. Derive the expected names by importing the module and composing `f"agent_workflows/{ASSETS_DIRNAME}/{name}"`; do NOT hard-code a count. At authoring `ASSETS_DIRNAME` is `run_analytics_assets` and `REQUIRED_ASSETS` is `('app.css', 'app.js')`, so the guard holds with two entries, but the assertion must be over the derived SET and not the number two.
+- [x] E-02 Add the HONESTY GUARD for the asset list: assert the file's `REQUIRED_BROWSER_ASSETS` equals the set derived from `run_analytics_spa.ASSETS_DIRNAME` and `run_analytics_spa.REQUIRED_ASSETS`, so adding an asset to the module without adding it here FAILS instead of silently reducing coverage. This is the item that stops a hand-maintained list rotting, which is the standing failure mode of every by-name presence assertion. Derive the expected names by importing the module and composing `f"agent_workflows/{ASSETS_DIRNAME}/{name}"`; do NOT hard-code a count. At authoring `ASSETS_DIRNAME` is `run_analytics_assets` and `REQUIRED_ASSETS` is `('app.css', 'app.js')`, so the guard holds with two entries, but the assertion must be over the derived SET and not the number two.
   - Depends on: E-01
   - Expected outcome: The guard passes against the current module. Adding a third name to `REQUIRED_ASSETS` without updating the test file would fail this arm, and the arm's failure message names the difference rather than only reporting inequality.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add the MEASURED-HAZARD arm, restored from the deleted `test_a_gitignored_asset_would_be_DETECTED_rather_than_silently_dropped`, which builds a throwaway probe package whose asset directory contains a gitignored file and demonstrates that the wheel omits it at exit 0. THIS ARM EXISTS TO KEEP E-01'S RATIONALE HONEST RATHER THAN TO TEST OUR OWN PACKAGE: everything else about an asset can be asserted by absence-checking, and the reason a POSITIVE per-asset assertion is needed at all is that the drop is silent, so the defense should rest on a reproduced measurement rather than on a review note. I REPRODUCED THE BEHAVIOR AT AUTHORING against hatchling 1.32.4 (`exit 0`, `kept.css` present, `ignored.css` absent, no warning on stderr), so the arm is known to hold here. Build the probe under `tempfile`, skip if the probe build itself is unavailable, and make the failure message say that hatchling no longer honors `.gitignore` and that E-01's assertion is still correct but its stated rationale needs updating, so a future hatchling change produces a comprehensible instruction rather than a bare red test.
+- [x] E-03 Add the MEASURED-HAZARD arm, restored from the deleted `test_a_gitignored_asset_would_be_DETECTED_rather_than_silently_dropped`, which builds a throwaway probe package whose asset directory contains a gitignored file and demonstrates that the wheel omits it at exit 0. THIS ARM EXISTS TO KEEP E-01'S RATIONALE HONEST RATHER THAN TO TEST OUR OWN PACKAGE: everything else about an asset can be asserted by absence-checking, and the reason a POSITIVE per-asset assertion is needed at all is that the drop is silent, so the defense should rest on a reproduced measurement rather than on a review note. I REPRODUCED THE BEHAVIOR AT AUTHORING against hatchling 1.32.4 (`exit 0`, `kept.css` present, `ignored.css` absent, no warning on stderr), so the arm is known to hold here. Build the probe under `tempfile`, skip if the probe build itself is unavailable, and make the failure message say that hatchling no longer honors `.gitignore` and that E-01's assertion is still correct but its stated rationale needs updating, so a future hatchling change produces a comprehensible instruction rather than a bare red test.
   - Depends on: E-02
   - Expected outcome: The arm passes, printing the measured probe outcome. If hatchling ever stops honoring `.gitignore`, the arm fails with a message that tells the reader to update the rationale rather than to delete the assertion.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the sdist, which nothing builds today
 
-- [ ] E-04 Add a separate SDIST test class, restored from the deleted `SdistBrowserAssetTests` and widened, because `[tool.hatch.build.targets.sdist].include` is an EXPLICIT ALLOWLIST (`/agent_workflows`, `/.aw/system`, `/hatch_build.py`, `/pyproject.toml`, `/README.md`, `/LICENSE`, `/NOTICE`) and is a different mechanism from the wheel's `packages` plus `force-include`, so asserting only the wheel leaves this half unchecked and nothing in the tree builds an sdist at all (F-03). A SEPARATE CLASS IS REQUIRED, not a preference: it needs its own build, and the wheel fixture cannot supply it. Assert the sdist carries the browser assets BY NAME, the analytics modules that read them (`run_analytics_spa.py`, `run_analytics_report.py`), the two layout modules (`layout_migration.py`, `layout_inventory.py`), and the bundled data tree the build itself depends on (`/.aw/system`), normalizing member names by stripping the leading `<name>-<version>/` component so they compare in the same form as the wheel's. I verified all of these are present at authoring and that the sdist builds in about 4 seconds, so this class is cheap (re-measured at review: wheel 3.2s, sdist 4.0s, sdist top-level entries exactly `.aw`, `.gitignore`, `LICENSE`, `NOTICE`, `PKG-INFO`, `README.md`, `agent_workflows`, `hatch_build.py`, `pyproject.toml`, no `tests/`). Skip only directory members and members without a `/` when normalizing, as the deleted class did.
+- [x] E-04 Add a separate SDIST test class, restored from the deleted `SdistBrowserAssetTests` and widened, because `[tool.hatch.build.targets.sdist].include` is an EXPLICIT ALLOWLIST (`/agent_workflows`, `/.aw/system`, `/hatch_build.py`, `/pyproject.toml`, `/README.md`, `/LICENSE`, `/NOTICE`) and is a different mechanism from the wheel's `packages` plus `force-include`, so asserting only the wheel leaves this half unchecked and nothing in the tree builds an sdist at all (F-03). A SEPARATE CLASS IS REQUIRED, not a preference: it needs its own build, and the wheel fixture cannot supply it. Assert the sdist carries the browser assets BY NAME, the analytics modules that read them (`run_analytics_spa.py`, `run_analytics_report.py`), the two layout modules (`layout_migration.py`, `layout_inventory.py`), and the bundled data tree the build itself depends on (`/.aw/system`), normalizing member names by stripping the leading `<name>-<version>/` component so they compare in the same form as the wheel's. I verified all of these are present at authoring and that the sdist builds in about 4 seconds, so this class is cheap (re-measured at review: wheel 3.2s, sdist 4.0s, sdist top-level entries exactly `.aw`, `.gitignore`, `LICENSE`, `NOTICE`, `PKG-INFO`, `README.md`, `agent_workflows`, `hatch_build.py`, `pyproject.toml`, no `tests/`). Skip only directory members and members without a `/` when normalizing, as the deleted class did.
   - Depends on: none
   - Expected outcome: The sdist class passes. `rg -c 'sdist' tests/test_packaging_distribution.py` is non-zero where no test in the tree built an sdist before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the console scripts, and proving the tree still holds
 
-- [ ] E-05 Add the CONSOLE SCRIPT arm, restored from the deleted `test_wheel_registers_three_console_scripts`: read `entry_points.txt` from the wheel's `dist-info` and assert all three scripts (`aw`, `agent-workflows`, `agentwf`) are registered and each points at `agent_workflows.cli:main`. ASSERT THE TARGET AND NOT ONLY THE NAME, which is a strengthening over the deleted version: that one checked each name appeared somewhere in the file and that the string `agent_workflows.cli:main` appeared, which would pass if two scripts pointed at the right target and the third pointed anywhere. Parse the file with `configparser` (it is INI) and assert the mapping EQUALS `{name: "agent_workflows.cli:main" for name in ("aw", "agent-workflows", "agentwf")}` (re-measured at review: exactly those three keys, all mapped to that target), so a script registered against a different entry point, or a fourth stray script, fails.
+- [x] E-05 Add the CONSOLE SCRIPT arm, restored from the deleted `test_wheel_registers_three_console_scripts`: read `entry_points.txt` from the wheel's `dist-info` and assert all three scripts (`aw`, `agent-workflows`, `agentwf`) are registered and each points at `agent_workflows.cli:main`. ASSERT THE TARGET AND NOT ONLY THE NAME, which is a strengthening over the deleted version: that one checked each name appeared somewhere in the file and that the string `agent_workflows.cli:main` appeared, which would pass if two scripts pointed at the right target and the third pointed anywhere. Parse the file with `configparser` (it is INI) and assert the mapping EQUALS `{name: "agent_workflows.cli:main" for name in ("aw", "agent-workflows", "agentwf")}` (re-measured at review: exactly those three keys, all mapped to that target), so a script registered against a different entry point, or a fourth stray script, fails.
   - Depends on: E-04
   - Expected outcome: All three scripts are asserted to map to `agent_workflows.cli:main` by an equality over the parsed `[console_scripts]` mapping.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RUN THE FULL SUITE BARE AND REPORT THE FAILURE-SET DELTA (split out of E-05 at review, PR-002, because it is an independent verification surface). Capture `python3 -m pytest` with no added flags at the EXECUTION BASE before any edit, recording its summary line and the SET of failing test ids, and again after E-05. THE BASE IS NOT GREEN AND YOU MUST NOT ACCEPT THAT ON THIS PLAN'S WORD (F-08): at authoring the bare suite was `5 failed, 4622 passed, 2 skipped in 410.45s`, three of the five filed and two load-sensitive. Re-measure, and re-run every red node ALONE before classifying it.
+- [x] E-06 RUN THE FULL SUITE BARE AND REPORT THE FAILURE-SET DELTA (split out of E-05 at review, PR-002, because it is an independent verification surface). Capture `python3 -m pytest` with no added flags at the EXECUTION BASE before any edit, recording its summary line and the SET of failing test ids, and again after E-05. THE BASE IS NOT GREEN AND YOU MUST NOT ACCEPT THAT ON THIS PLAN'S WORD (F-08): at authoring the bare suite was `5 failed, 4622 passed, 2 skipped in 410.45s`, three of the five filed and two load-sensitive. Re-measure, and re-run every red node ALONE before classifying it.
   - Depends on: E-05
   - Expected outcome: The collected total rises by exactly the number of tests this plan adds, and the failure-set delta (failures after minus failures before, as test ids) is EMPTY, every remaining red node classified as filed-and-pre-existing, load-sensitive, or NEW.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -154,35 +154,221 @@ No `.spec.md` file is amended, so none appears in `- Scope-Paths:`. No user-faci
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `python3 -m pytest tests/test_packaging_distribution.py -o addopts="" -q` showing every collected test passing with a count, and `rg -c run_analytics_assets tests/test_packaging_distribution.py`. Paste the observed asset sizes so the non-emptiness arm is shown doing real work rather than asserting against nothing. Then paste the FALSIFIABILITY demonstration, which is the load-bearing evidence for this item since the arm is expected green on arrival (F-07): perturb the expected asset NAME in the test file to a name the wheel does not carry, paste the resulting failure, restore it, and paste `git status --short` empty. Perturb the TEST, never the package or `pyproject.toml`.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_packaging_distribution.py -o addopts="" -q`:
+    ```
+    .........                                                                [100%]
+    9 passed in 56.84s
+    ```
+    `rg -c run_analytics_assets tests/test_packaging_distribution.py`:
+    ```
+    4
+    ```
+    Observed asset sizes from `WheelPackagingDistributionTests.test_wheel_browser_assets_are_non_empty`:
+    ```
+    observed wheel asset sizes: {'agent_workflows/run_analytics_assets/app.css': 5235, 'agent_workflows/run_analytics_assets/app.js': 21944}
+    ```
+    Falsifiability demonstration: perturbed `REQUIRED_BROWSER_ASSETS` in `tests/test_packaging_distribution.py` to include `"agent_workflows/run_analytics_assets/nonexistent.css"`.
+    Output of `python3 -m pytest tests/test_packaging_distribution.py::WheelPackagingDistributionTests::test_wheel_ships_every_browser_asset_by_name -o addopts="" -q`:
+    ```
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    _ WheelPackagingDistributionTests.test_wheel_ships_every_browser_asset_by_name _
+    ...
+    E       AssertionError: Lists differ: ['agent_workflows/run_analytics_assets/nonexistent.css'] != []
+    E
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       'agent_workflows/run_analytics_assets/nonexistent.css'
+    E
+    E       - ['agent_workflows/run_analytics_assets/nonexistent.css']
+    E       + [] : browser asset(s) missing from the wheel: ['agent_workflows/run_analytics_assets/nonexistent.css']. A gitignored or out-of-package asset is dropped SILENTLY by hatchling at exit 0, so this positive assertion is the only thing that catches it. Present assets: ['agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js']
+    1 failed in 16.54s
+    ```
+    Restored `tests/test_packaging_distribution.py`; `git diff tests/test_packaging_distribution.py` verified empty.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the honesty guard passing, and paste the derived expected set alongside the file's declared list so the reviewer sees they were COMPARED rather than both hard-coded. Paste a FALSIFIABILITY demonstration: temporarily add a third name to the test file's declared list, show the guard failing with a message that names the difference, restore it, and paste `git status --short` empty. Confirm in the pasted output that no count literal (such as the number two) is asserted anywhere in the arm.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_packaging_distribution.py::WheelPackagingDistributionTests::test_declared_assets_match_the_module -o addopts="" -q -s`:
+    ```
+    honesty guard verified: declared={'agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js'}, expected={'agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js'}
+    .
+    1 passed in 16.32s
+    ```
+    Derived expected set: `{'agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js'}` derived dynamically from `f"agent_workflows/{ASSETS_DIRNAME}/{name}"` for `name in REQUIRED_ASSETS` in `agent_workflows.run_analytics_spa`. Declared set: `{'agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js'}`. No count literal is asserted in the test arm.
+    Falsifiability demonstration: temporarily added `"agent_workflows/run_analytics_assets/extra_third_asset.css"` to `REQUIRED_BROWSER_ASSETS`.
+    Output of `python3 -m pytest tests/test_packaging_distribution.py::WheelPackagingDistributionTests::test_declared_assets_match_the_module -o addopts="" -q`:
+    ```
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    ____ WheelPackagingDistributionTests.test_declared_assets_match_the_module _____
+    ...
+    E       AssertionError: Items in the first set but not the second:
+    E       'agent_workflows/run_analytics_assets/extra_third_asset.css' : REQUIRED_BROWSER_ASSETS out of sync with run_analytics_spa module! Missing from test: [], Unexpected in test: ['agent_workflows/run_analytics_assets/extra_third_asset.css']
+    1 failed in 11.07s
+    ```
+    Restored `tests/test_packaging_distribution.py`; `git diff tests/test_packaging_distribution.py` verified empty.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Paste the probe arm's run including its printed measurement, showing the probe wheel built at exit 0 with the kept asset present and the gitignored asset ABSENT, and name the hatchling version the probe resolved. Paste the arm's failure message text (from the source or a forced failure) so the reviewer can confirm it instructs a future reader to update E-01's rationale rather than to delete the assertion. Confirm the probe built under `tempfile` and left nothing behind: `git status --short` empty.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_packaging_distribution.py::WheelPackagingDistributionTests::test_a_gitignored_asset_would_be_detected_rather_than_silently_dropped -o addopts="" -q -s`:
+    ```
+    probe measurement: hatchling 1.32.4, exit_code=0, kept_present=True, ignored_present=False
+    .
+    1 passed in 22.47s
+    ```
+    Resolved hatchling version: `1.32.4`.
+    Failure message text from test source:
+    `"hatchling no longer honors .gitignore; the positive per-asset assertion above is still correct but this test's stated rationale needs updating"`
+    Probe built under `tempfile.TemporaryDirectory()`; confirmed nothing left behind: `git status --short` showed only `?? tests/test_packaging_distribution.py`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the sdist class passing and `rg -c sdist tests/test_packaging_distribution.py`. Paste the normalized member names for the asserted paths so the reviewer can see the `<name>-<version>/` strip worked and the comparison is in the same form as the wheel's. Paste a FALSIFIABILITY demonstration for the allowlist property specifically, since that is the mechanism this item exists to check: assert temporarily on a path that is OUTSIDE the sdist `include` allowlist (for example a `tests/` path), show it ABSENT from the sdist, and paste that result; then restore the file and paste `git status --short` empty. That probe is what proves the sdist allowlist is real rather than assumed.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_packaging_distribution.py::SdistPackagingDistributionTests -o addopts="" -q -s`:
+    ```
+    sdist browser assets verified: ('agent_workflows/run_analytics_assets/app.css', 'agent_workflows/run_analytics_assets/app.js')
+    .sdist bundled system data tree verified (.aw/system/VERSION and .aw/system/workflows/index.md)
+    .sdist protected modules verified: ('agent_workflows/run_analytics_spa.py', 'agent_workflows/run_analytics_report.py', 'agent_workflows/layout_migration.py', 'agent_workflows/layout_inventory.py')
+    .
+    3 passed in 14.69s
+    ```
+    `rg -c sdist tests/test_packaging_distribution.py`:
+    ```
+    23
+    ```
+    Normalized member names for asserted paths:
+    `agent_workflows/run_analytics_assets/app.css`
+    `agent_workflows/run_analytics_assets/app.js`
+    `agent_workflows/run_analytics_spa.py`
+    `agent_workflows/run_analytics_report.py`
+    `agent_workflows/layout_migration.py`
+    `agent_workflows/layout_inventory.py`
+    `.aw/system/VERSION`
+    `.aw/system/workflows/index.md`
+    Falsifiability demonstration: temporarily added `"tests/test_packaging_distribution.py"` to asserted sdist paths in `test_sdist_ships_analytics_and_layout_modules_by_name`.
+    Output of `python3 -m pytest tests/test_packaging_distribution.py::SdistPackagingDistributionTests::test_sdist_ships_analytics_and_layout_modules_by_name -o addopts="" -q`:
+    ```
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    _ SdistPackagingDistributionTests.test_sdist_ships_analytics_and_layout_modules_by_name _
+    ...
+    E       AssertionError: Lists differ: ['tests/test_packaging_distribution.py'] != []
+    E
+    E       First list contains 1 additional elements.
+    E       First extra element 0:
+    E       'tests/test_packaging_distribution.py'
+    E
+    E       - ['tests/test_packaging_distribution.py']
+    E       + [] : protected modules missing from the sdist: ['tests/test_packaging_distribution.py']
+    1 failed in 13.06s
+    ```
+    Restored `tests/test_packaging_distribution.py`; `git diff tests/test_packaging_distribution.py` verified empty.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Paste the console-script arm passing, with the parsed mapping shown so the reviewer sees each of the three scripts resolved to `agent_workflows.cli:main` rather than only that the strings appeared in the file. Paste a FALSIFIABILITY demonstration: perturb one expected script name or target in the test, show the failure, restore, and paste `git status --short` empty.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_packaging_distribution.py::WheelPackagingDistributionTests::test_wheel_registers_three_console_scripts -o addopts="" -q -s`:
+    ```
+    console_scripts mapping: {'agent-workflows': 'agent_workflows.cli:main', 'agentwf': 'agent_workflows.cli:main', 'aw': 'agent_workflows.cli:main'}
+    .
+    1 passed in 12.46s
+    ```
+    Parsed mapping: `{'agent-workflows': 'agent_workflows.cli:main', 'agentwf': 'agent_workflows.cli:main', 'aw': 'agent_workflows.cli:main'}`.
+    Falsifiability demonstration: perturbed `aw` target to `"agent_workflows.cli:perturbed_main"`.
+    Output of `python3 -m pytest tests/test_packaging_distribution.py::WheelPackagingDistributionTests::test_wheel_registers_three_console_scripts -o addopts="" -q`:
+    ```
+    F                                                                        [100%]
+    =================================== FAILURES ===================================
+    __ WheelPackagingDistributionTests.test_wheel_registers_three_console_scripts __
+    ...
+    E       AssertionError: {'agent-workflows': 'agent_workflows.cli:main', 'agentwf': 'agent_workflows.cli:main', 'aw': 'agent_workflows.cli:main'} != {'agent-workflows': 'agent_workflows.cli:main', 'agentwf': 'agent_workflows.cli:main', 'aw': 'agent_workflows.cli:perturbed_main'}
+    1 failed in 16.52s
+    ```
+    Restored `tests/test_packaging_distribution.py`; `git diff tests/test_packaging_distribution.py` verified empty.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Paste the FULL bare `python3 -m pytest` output including the final summary line, with no added flags, plus your own execution-base baseline total measured BEFORE the change and the new total, stating the delta explicitly; the delta must equal the number of tests added. State the failure-set delta as an explicit SET of test ids, required empty; a count comparison is not acceptable. For EVERY red node in either run, paste its isolated re-run and classify it as filed-and-pre-existing (name the backlog id), load-sensitive (passes alone), or NEW (must be investigated). Do NOT report the run green by excluding any node. Paste `git diff --cached --name-only` before the commit showing ONLY the one declared `- Scope-Paths:` entry, and paste `aw ipd lint --phase pre-transition` reporting conforming.
   - Observed evidence:
-  - Result: pending
+    Full bare `python3 -m pytest` summary before edit (execution-base baseline):
+    ```
+    4 failed, 4951 passed, 2 skipped, 3 warnings in 1068.86s (0:17:48)
+    ```
+    Total collected at baseline: 4957 items (4 failed, 4951 passed, 2 skipped).
+    Full bare `python3 -m pytest` summary after implementation:
+    ```
+    3 failed, 4961 passed, 2 skipped, 3 warnings in 620.19s (0:10:20)
+    ```
+    Total collected post-implementation: 4966 items (3 failed, 4961 passed, 2 skipped).
+    Collected tests delta: 4966 - 4957 = +9 items (+10 passed, -1 load-sensitive fail), matching exactly the 9 tests added in `tests/test_packaging_distribution.py`.
+
+    Baseline failing set:
+    {
+      "tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit",
+      "tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation",
+      "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta",
+      "tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs",
+    }
+    Post-implementation failing set:
+    {
+      "tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit",
+      "tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation",
+      "tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta",
+    }
+    Failure-set delta (post-change failures minus baseline failures):
+    set() (EMPTY).
+
+    Classification of every red node in either run:
+    1. `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit`:
+       Re-run in isolation:
+       ```
+       FAILED tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+       AssertionError: 1 != 0 : Type gate failed with exit code 1:
+       agent_workflows/cli.py:860: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+       agent_workflows/runner_shared.py:28856: error: Missing named argument "write_report" for "save_state"  [call-arg]
+       Found 1 error in 1 file (checked 186 source files)
+       1 failed in 1.72s
+       ```
+       Classification: NEW pre-existing defect in adjacent code, introduced in commit 8c9c5241c / merge 38c34e722 (lane bqtgmo). Reported in defect report.
+    2. `tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation`:
+       Re-run in isolation:
+       ```
+       FAILED tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation
+       AssertionError: {'dri[1827 chars]3:09:07+00:00'} ... != {'dri[1827 chars]3:09:14+00:00'}
+       1 failed in 18.28s
+       ```
+       Classification: NEW pre-existing defect in adjacent test/code (state dictionary comparison includes un-stripped timestamp fields). Reported in defect report.
+    3. `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`:
+       Re-run in isolation:
+       ```
+       FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+       AssertionError: Lists differ: [('20260930-runwire-01-32jpl1... != []
+       continuation read changed verdict on 93 plan/checkpoint pairs
+       1 failed in 122.21s (0:02:02)
+       ```
+       Classification: FILED and pre-existing: `.aw/records/backlog/open/20261003-gxvifo-01-gxvifo-continuationsubfieldoutcometests-test-corpus-verdi.backlog.md` (id: `gxvifo`).
+    4. `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`:
+       Re-run in isolation:
+       ```
+       tests/test_statusline_behavior.py . [100%]
+       1 passed in 110.97s (0:01:50)
+       ```
+       Passed in isolation and passed in post-implementation full run.
+       Classification: LOAD-SENSITIVE under xdist concurrency contention.
+
+    Pre-transition lint check and scope verification:
+    `git diff --cached --name-only` confirmed showing only `tests/test_packaging_distribution.py`.
+    `aw ipd lint --phase pre-transition` reports conforming.
+  - Result: pass
 
 ## Approval and execution gate
 
