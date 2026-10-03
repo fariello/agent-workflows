@@ -13,7 +13,7 @@
   OUT, each for a stated reason: RENUMBERING any `EXIT_*` constant, which is a consumed contract pinned by `tests/test_run_cli_corruption_exit.py` and `tests/test_run_cli_declarations.py` and refused by `u28vqb` F-05 on the same evidence; the `Redacts sensitive values in both human and machine outputs` claim, MEASURED FALSE but owned by security item `94op6l` with its own release gate, because the honest fix is wiring redaction into the human path (a behavior change) and not deleting the sentence (F-04); the two-table divergence between `run_cli`'s codes and spec `25kzda` 5.6's run-aggregate table, which is `858lhj`'s subject and `u28vqb`'s mandate and which this plan must not pre-empt by declaring either table canonical; DOCUMENTING the run vocabulary in `docs/`, which is `u28vqb` E-05's declared deliverable and whose destination is itself contested (`2cqs11`); `u28vqb`'s own `### 3.1` collision, filed as `2cqs11` because editing an approved sibling plan's checklist is outside a docstring fix; the unreachable-`EXIT_BLOCKED`-on-`runs resume` defect, owned by `tzqvjn` and pending plan `hrdmfy`, which also declares `run_cli.py` in scope (see F-06 on why that is not a conflict); and converting this module's bare machine payloads into `aw.agent/v1` records, which `run_cli._emit_error`'s own docstring records as "a real gap on a different contract".
 - Scope-Paths: agent_workflows/run_cli.py, tests/test_run_recovery_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -23,9 +23,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: arhzce
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: arhzce verified (set runclidoc, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
