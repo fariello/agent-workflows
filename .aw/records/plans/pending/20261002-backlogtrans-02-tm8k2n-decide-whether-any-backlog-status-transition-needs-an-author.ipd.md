@@ -120,6 +120,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - GIVING BACKLOG AN ENUMERATED TRANSITION TABLE (is this edge legal). Owned by sibling plan `cc2m29`, which this plan depends on. The two questions are independent and specs keep them in two separate structures for that reason. This plan does not touch legality, and the `Item-Dependencies: executed:cc2m29` edge exists so the backlog README gains its legal-move statement from `cc2m29` first and its authority statement from E-05 second, rather than two plans rewriting one README section.
   - Carrier: cc2m29
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-backlogtrans-01-cc2m29-give-backlog-items-an-enumerated-transition-table-so-an-ille.ipd.md
 - EXTENDING THE HAND-EDIT TRANSITION GATE TO BACKLOG. A hand-edited status that lands an illegal or unattested move bypasses the setter entirely, which is a different surface from the one this plan reasons about. Already filed and already dependent on `cc2m29`.
   - Carrier: qbn1dx
 - ACTIVATING `--allow-terminal-reopen` FOR BACKLOG. This is the live alternative, recorded in OQ-01 with its measured price rather than buried. It is NOT carried to a new item, because filing one would presuppose the answer: the recommendation is to decline it, and if the maintainer instead accepts it the work belongs in this plan's own execution after a re-spec, not in a follow-on item that assumes a ruling the maintainer has not given.
