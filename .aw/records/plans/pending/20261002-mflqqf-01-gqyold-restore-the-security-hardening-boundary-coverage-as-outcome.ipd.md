@@ -35,44 +35,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: restore the boundary coverage
 
-- [ ] E-01 Create `tests/test_security_hardening.py` covering the four boundary checkers whose decision surface needs no temporary filesystem, recovered from `git show 19313eed^:tests/test_security_hardening.py` and re-verified against the CURRENT signatures rather than pasted blind. The four are `check_local_server_binding`, `check_untrusted_text_isolated` (with `classify_untrusted_text`), `check_destructive_tool_gated`, and the `run_boundary_checks`/`HardeningReport` aggregate. KEEP THE RECOVERED FILE'S TABLE-DRIVEN SHAPE AND ITS CENTRAL ARGUMENT, which is a security argument and not a tidiness one: every table must carry BOTH a holding row and a refusing row, because `BoundaryResult.ok=True` is the PERMISSIVE answer, so a checker degraded to "always allow" is the realistic regression and is precisely what a table of only-holding rows cannot see. Assert on the `boundary`, `ok` and `reason` fields and on `evidence`, not merely on truthiness, so a refusal that carries no justifying evidence is caught. THE MEASURED ROWS ARE RECORDED HERE SO THIS COSTS NO ROUND TRIP (F-07): binding holds for `127.0.0.1`, `::1`, `localhost` and refuses `0.0.0.0`, `1270.0.0.1`, `127evil.example.com`, `localhost.evil.com`, `[::1]`, `::ffff:127.0.0.1`; an authenticated-but-routable bind and an unauthenticated loopback bind each refuse; untrusted text refuses whenever `treated_as_instructions` is True REGARDLESS of content and holds otherwise even when an injection marker matched (the marker set is reported in `evidence`); the destructive gate holds for `('git_push','human',True)`, refuses `('git_push','human',False)`, refuses `('git_push','executor',True)` and `('git_push','bogus',True)`, and holds for a non-destructive `read_file` with no consent at all.
+- [x] E-01 Create `tests/test_security_hardening.py` covering the four boundary checkers whose decision surface needs no temporary filesystem, recovered from `git show 19313eed^:tests/test_security_hardening.py` and re-verified against the CURRENT signatures rather than pasted blind. The four are `check_local_server_binding`, `check_untrusted_text_isolated` (with `classify_untrusted_text`), `check_destructive_tool_gated`, and the `run_boundary_checks`/`HardeningReport` aggregate. KEEP THE RECOVERED FILE'S TABLE-DRIVEN SHAPE AND ITS CENTRAL ARGUMENT, which is a security argument and not a tidiness one: every table must carry BOTH a holding row and a refusing row, because `BoundaryResult.ok=True` is the PERMISSIVE answer, so a checker degraded to "always allow" is the realistic regression and is precisely what a table of only-holding rows cannot see. Assert on the `boundary`, `ok` and `reason` fields and on `evidence`, not merely on truthiness, so a refusal that carries no justifying evidence is caught. THE MEASURED ROWS ARE RECORDED HERE SO THIS COSTS NO ROUND TRIP (F-07): binding holds for `127.0.0.1`, `::1`, `localhost` and refuses `0.0.0.0`, `1270.0.0.1`, `127evil.example.com`, `localhost.evil.com`, `[::1]`, `::ffff:127.0.0.1`; an authenticated-but-routable bind and an unauthenticated loopback bind each refuse; untrusted text refuses whenever `treated_as_instructions` is True REGARDLESS of content and holds otherwise even when an injection marker matched (the marker set is reported in `evidence`); the destructive gate holds for `('git_push','human',True)`, refuses `('git_push','human',False)`, refuses `('git_push','executor',True)` and `('git_push','bogus',True)`, and holds for a non-destructive `read_file` with no consent at all.
   - Depends on: none
   - Expected outcome: The file exists and passes against unmodified source EXCEPT the prefix-confusion rows added by E-02, which are expected red until E-03. `python3 -m pytest tests/test_security_hardening.py -o addopts="" -q` collects and runs, and `rg -c security_hardening tests/test_security_hardening.py` is non-zero where `rg -l security_hardening tests/` returned nothing before.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add to the binding table in `tests/test_security_hardening.py` the PREFIX-CONFUSION rows the deleted suite never carried, each asserting a REFUSAL: `127.0.0.1.evil.com`, `127.evil.com`, `127.0.0.1@evil.com` and `127.0.0.1 evil.com`. These are the rows that express the property the checker's docstring and `docs/security.md` both already claim, namely that a routable address is refused, and a hostname whose label merely BEGINS with `127.` resolves wherever its owner points it. This item is expected to FAIL until E-03 lands; that failure is the point, and it must be observed BEFORE the fix rather than reconstructed after. Keep `127.1.2.3` as a HOLDING row: it is a genuine loopback address in `127.0.0.0/8` and must not be caught by the fix, so it is the control proving E-03 narrowed the gate rather than closing it. ALSO ADD the two spellings E-03 deliberately flips (review PR-002), each asserting a REFUSAL and each likewise expected red before E-03: `127.0.0.1:8080` and `127.1`. Add `LOCALHOST` and `127.0.0.0/8` as HOLDING rows so the case-folding and the OQ-01 decision are pinned rather than implied.
+- [x] E-02 Add to the binding table in `tests/test_security_hardening.py` the PREFIX-CONFUSION rows the deleted suite never carried, each asserting a REFUSAL: `127.0.0.1.evil.com`, `127.evil.com`, `127.0.0.1@evil.com` and `127.0.0.1 evil.com`. These are the rows that express the property the checker's docstring and `docs/security.md` both already claim, namely that a routable address is refused, and a hostname whose label merely BEGINS with `127.` resolves wherever its owner points it. This item is expected to FAIL until E-03 lands; that failure is the point, and it must be observed BEFORE the fix rather than reconstructed after. Keep `127.1.2.3` as a HOLDING row: it is a genuine loopback address in `127.0.0.0/8` and must not be caught by the fix, so it is the control proving E-03 narrowed the gate rather than closing it. ALSO ADD the two spellings E-03 deliberately flips (review PR-002), each asserting a REFUSAL and each likewise expected red before E-03: `127.0.0.1:8080` and `127.1`. Add `LOCALHOST` and `127.0.0.0/8` as HOLDING rows so the case-folding and the OQ-01 decision are pinned rather than implied.
   - Depends on: E-01
   - Expected outcome: Run before E-03 is performed, the six new refusal rows (four prefix-confusion plus `127.0.0.1:8080` and `127.1`) fail, each reporting that a refusal was expected and `ok=True` was returned with the reason "server binds loopback and requires an auth token". This reproduces the measurement this plan was authored from. The `127.1.2.3` holding row passes both before and after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Fix `security_hardening.check_local_server_binding` so the loopback test is an ADDRESS test rather than a string-prefix test. The defect is the `normalized.startswith("127.")` disjunct, which accepts any hostname beginning with those four characters. Parse the candidate with `ipaddress` (stdlib, so D138 is untouched) and accept it only when it is a genuine loopback address or the exact literal `localhost`; anything that does not parse as an address and is not `localhost` must REFUSE. Keep the function's signature, its return type, the `BOUNDARY_SERVER_BINDING` identifier and the existing refusal `reason` wording, so no caller or assertion of the boundary id changes. PRESERVE THE WHOLE EXISTING HOLDING SET, which is what makes this a narrowing and not a rewrite: `127.0.0.1`, `::1`, `localhost`, `127.1.2.3` and the surrounding-whitespace spelling `'  127.0.0.1  '` must all still hold, and all five are asserted in E-01 and E-02 so a fix that broke one would be caught. ALSO DECIDE THE `127.0.0.0/8` ENTRY DELIBERATELY: it currently sits in `LOOPBACK_HOSTS` and holds today, but a CIDR block is not a bind target, so either keep it holding for compatibility or refuse it, and state which in the diff comment. Do not silently change its verdict without saying so. GUARD THE IPv4-MAPPED SPELLING EXPLICITLY, BECAUSE `ipaddress` DISAGREES WITH ITSELF ACROSS SUPPORTED PYTHONS (review PR-001): `ipaddress.ip_address('::ffff:127.0.0.1').is_loopback` is `True` on 3.9.25 and 3.11.15 and `False` on 3.12.3 and 3.14.6, and the repository floor is `requires-python = ">=3.9"` with a 3.9 CI leg. A bare `ip_address(n).is_loopback` fix would therefore make `::ffff:127.0.0.1` HOLD on 3.9/3.11 while E-01 asserts it REFUSES, a red CI leg on one interpreter and a silent verdict change on another. Refuse any IPv6 address whose `ipv4_mapped` is not `None` before consulting `is_loopback`, so the verdict is interpreter-independent and matches the refusal E-01 already pins. TWO OTHER SPELLINGS HOLD TODAY ONLY THROUGH THE PREFIX TEST AND WILL FLIP TO REFUSE (review PR-002), and the flip is intended, not collateral, so name both in the diff comment: `127.0.0.1:8080` (a host:port string is not a bind host, and accepting it lets `127.0.0.1:x@evil.com`-style strings ride the same prefix) and the inet_aton shorthand `127.1` (not a valid `ipaddress` literal; refusing it is the fail-closed choice). `LOCALHOST` in upper case holds today through the existing `.lower()` and must still hold. A shape that was demonstrated at review to give exactly these verdicts on Python 3.9.25, 3.11.15, 3.12.3 and 3.14.6 (`mismatches: []` on each, across the 20 spellings named in E-01, E-02 and here): exact-set membership in `LOOPBACK_HOSTS` first, else `ipaddress.ip_address(normalized)` with `ValueError` mapped to refusal, else refuse when `version == 6 and ipv4_mapped is not None`, else `is_loopback`.
+- [x] E-03 Fix `security_hardening.check_local_server_binding` so the loopback test is an ADDRESS test rather than a string-prefix test. The defect is the `normalized.startswith("127.")` disjunct, which accepts any hostname beginning with those four characters. Parse the candidate with `ipaddress` (stdlib, so D138 is untouched) and accept it only when it is a genuine loopback address or the exact literal `localhost`; anything that does not parse as an address and is not `localhost` must REFUSE. Keep the function's signature, its return type, the `BOUNDARY_SERVER_BINDING` identifier and the existing refusal `reason` wording, so no caller or assertion of the boundary id changes. PRESERVE THE WHOLE EXISTING HOLDING SET, which is what makes this a narrowing and not a rewrite: `127.0.0.1`, `::1`, `localhost`, `127.1.2.3` and the surrounding-whitespace spelling `'  127.0.0.1  '` must all still hold, and all five are asserted in E-01 and E-02 so a fix that broke one would be caught. ALSO DECIDE THE `127.0.0.0/8` ENTRY DELIBERATELY: it currently sits in `LOOPBACK_HOSTS` and holds today, but a CIDR block is not a bind target, so either keep it holding for compatibility or refuse it, and state which in the diff comment. Do not silently change its verdict without saying so. GUARD THE IPv4-MAPPED SPELLING EXPLICITLY, BECAUSE `ipaddress` DISAGREES WITH ITSELF ACROSS SUPPORTED PYTHONS (review PR-001): `ipaddress.ip_address('::ffff:127.0.0.1').is_loopback` is `True` on 3.9.25 and 3.11.15 and `False` on 3.12.3 and 3.14.6, and the repository floor is `requires-python = ">=3.9"` with a 3.9 CI leg. A bare `ip_address(n).is_loopback` fix would therefore make `::ffff:127.0.0.1` HOLD on 3.9/3.11 while E-01 asserts it REFUSES, a red CI leg on one interpreter and a silent verdict change on another. Refuse any IPv6 address whose `ipv4_mapped` is not `None` before consulting `is_loopback`, so the verdict is interpreter-independent and matches the refusal E-01 already pins. TWO OTHER SPELLINGS HOLD TODAY ONLY THROUGH THE PREFIX TEST AND WILL FLIP TO REFUSE (review PR-002), and the flip is intended, not collateral, so name both in the diff comment: `127.0.0.1:8080` (a host:port string is not a bind host, and accepting it lets `127.0.0.1:x@evil.com`-style strings ride the same prefix) and the inet_aton shorthand `127.1` (not a valid `ipaddress` literal; refusing it is the fail-closed choice). `LOCALHOST` in upper case holds today through the existing `.lower()` and must still hold. A shape that was demonstrated at review to give exactly these verdicts on Python 3.9.25, 3.11.15, 3.12.3 and 3.14.6 (`mismatches: []` on each, across the 20 spellings named in E-01, E-02 and here): exact-set membership in `LOOPBACK_HOSTS` first, else `ipaddress.ip_address(normalized)` with `ValueError` mapped to refusal, else refuse when `version == 6 and ipv4_mapped is not None`, else `is_loopback`.
   - Depends on: E-02
   - Expected outcome: `check_local_server_binding` refuses each of the four prefix-confusion spellings, refuses `::ffff:127.0.0.1`, `127.0.0.1:8080` and `127.1`, and still holds for all five legitimate spellings plus `LOCALHOST` and `127.0.0.0/8` (or `127.0.0.0/8` refuses, if OQ-01 is overturned, stated in the diff comment). The E-02 rows now pass, and the binding table passes identically under a Python 3.9 or 3.11 interpreter and under the default `python3` (3.12 or later), since the IPv4-mapped verdict is the one that varies by interpreter.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add to `tests/test_security_hardening.py` the three boundary checkers that need a real temporary filesystem, restored from the recovered file and re-verified: `check_external_file_access`, `check_real_home_excluded` and `check_evidence_redaction`. Build every input with `tmp_path` or `tempfile`, never by writing into the repository tree. THE CONTAINMENT ARM MUST CARRY THE SYMLINK-ESCAPE ROW, which I verified holds today and which is the row most worth pinning because it is the one an in-string path check would miss: a symlink inside the base pointing at a file outside it is REFUSED (`reason` begins "external file access escapes the consented base"). For `check_real_home_excluded`, assert the real HOME, its parent and `/` are each REFUSED while a `tempfile` base holds, and note in the test prose the measured asymmetry that a directory UNDER the real HOME holds (the guard refuses a base that CONTAINS home, not one contained BY it) so a reader does not mistake the arm for a stronger claim than it makes. For `check_evidence_redaction`, pin the TWO-STAGE property specifically, which is the whole point of that checker: a secret in a sensitive KEY is masked by the `RedactionPolicy` and the boundary HOLDS, while a home path in a non-sensitive key survives redaction and is caught by the canonical leak sanitizer, failing closed with a `home-path` finding in `evidence`. Pass `repo_root` explicitly so the arm does not depend on the module's `__file__` walk.
+- [x] E-04 Add to `tests/test_security_hardening.py` the three boundary checkers that need a real temporary filesystem, restored from the recovered file and re-verified: `check_external_file_access`, `check_real_home_excluded` and `check_evidence_redaction`. Build every input with `tmp_path` or `tempfile`, never by writing into the repository tree. THE CONTAINMENT ARM MUST CARRY THE SYMLINK-ESCAPE ROW, which I verified holds today and which is the row most worth pinning because it is the one an in-string path check would miss: a symlink inside the base pointing at a file outside it is REFUSED (`reason` begins "external file access escapes the consented base"). For `check_real_home_excluded`, assert the real HOME, its parent and `/` are each REFUSED while a `tempfile` base holds, and note in the test prose the measured asymmetry that a directory UNDER the real HOME holds (the guard refuses a base that CONTAINS home, not one contained BY it) so a reader does not mistake the arm for a stronger claim than it makes. For `check_evidence_redaction`, pin the TWO-STAGE property specifically, which is the whole point of that checker: a secret in a sensitive KEY is masked by the `RedactionPolicy` and the boundary HOLDS, while a home path in a non-sensitive key survives redaction and is caught by the canonical leak sanitizer, failing closed with a `home-path` finding in `evidence`. Pass `repo_root` explicitly so the arm does not depend on the module's `__file__` walk.
   - Depends on: none
   - Expected outcome: Every arm passes against unmodified source. The redaction arm shows both stages doing work: `{'authorization': 'Bearer abc123'}` holds, and `{'stdout': <runtime-built home path>}` refuses with a `home-path` finding. The planted path must be assembled at runtime from a lowercase alphanumeric probe user (the recovered file used `"/home/" + "hardeningprobe" + "/proj/notes.md"`); measured at review, the literal placeholder `/home/<some-user>/secret/path` HOLDS (`ok=True`) because the `home-path` rule excludes a `<` user segment, so copying that spelling would make the refusal row vacuous.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add to `tests/test_security_hardening.py` the skill least-privilege arm and the two canonical-scanner adapter arms, restored from the recovered `SkillLeastPrivilegeTests` and `CanonicalScannerReuseTests`. The skill arm's two rows are a matched pair and neither is meaningful alone: the package `host_adapters.build_skill_package` actually produces must PASS its own guard (without this holding row the tamper row is vacuous, since a checker that rejects everything would satisfy it), and the same package with a verbatim imperative chunk of the canonical body spliced into `main_file_content` must be REFUSED with the justifying findings present in `evidence`. Construct the tampered package by rebuilding a `SkillPackage` with the spliced `main_file_content`, as the recovered file did. For the adapters, assert each finds its PLANTED input and clears its CLEAN one, so neither is asserted in only the permissive direction: `scan_text_for_secrets` on a planted AWS-key-shaped string returns a finding and returns none on innocuous text, and `scan_artifact_for_leaks` runs over a `tmp_path` tree rather than the live repository, since the live tree's finding count is a population another lane can move.
+- [x] E-05 Add to `tests/test_security_hardening.py` the skill least-privilege arm and the two canonical-scanner adapter arms, restored from the recovered `SkillLeastPrivilegeTests` and `CanonicalScannerReuseTests`. The skill arm's two rows are a matched pair and neither is meaningful alone: the package `host_adapters.build_skill_package` actually produces must PASS its own guard (without this holding row the tamper row is vacuous, since a checker that rejects everything would satisfy it), and the same package with a verbatim imperative chunk of the canonical body spliced into `main_file_content` must be REFUSED with the justifying findings present in `evidence`. Construct the tampered package by rebuilding a `SkillPackage` with the spliced `main_file_content`, as the recovered file did. For the adapters, assert each finds its PLANTED input and clears its CLEAN one, so neither is asserted in only the permissive direction: `scan_text_for_secrets` on a planted AWS-key-shaped string returns a finding and returns none on innocuous text, and `scan_artifact_for_leaks` runs over a `tmp_path` tree rather than the live repository, since the live tree's finding count is a population another lane can move.
   - Depends on: E-04
   - Expected outcome: Both skill rows behave as specified and both adapter arms show a planted-versus-clean pair. `python3 -m pytest tests/test_security_hardening.py -o addopts="" -q` is fully green at this point.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: cover the one production integration point
 
-- [ ] E-06 Create `tests/test_host_runner_redaction.py` giving `host_runner.redact_worker_output` its first test caller. THIS IS THE ONLY PLACE ANY OF THIS MODULE IS WIRED INTO THE PACKAGE (F-09): `check_evidence_redaction` has exactly one non-test caller in the package and it is that function, whose own docstring states the contract an uncovered function cannot be trusted to keep, that "the caller must treat that as a failure to record rather than admitting the raw text". Note that the wiring is itself unreached: `redact_worker_output`'s only caller is `host_runner.run_task`, and `run_task` has no caller anywhere in the package (measured at review), so "production" here means shipped code, not a live path. DO NOT ASSERT THAT `redact_worker_output` MASKS ANYTHING; THAT HALF IS UNREACHABLE (review PR-004). The function always builds its payload with the three keys `stdout`, `stderr` and `diff`, none of which is in `default_redaction_policy`'s key list, and that policy carries no value patterns, so the masking step can never change a value: measured at review, `RawWorkerResult(stdout='Authorization: Bearer abc123', ...)` comes back with `ok=True` and `stdout` unchanged. Drive it with a `RawWorkerResult` and assert the OBSERVABLE outcomes instead: (a) a planted home path in `stdout` returns a `BoundaryResult` whose `ok` is False with a `home-path` finding in `evidence`, AND the returned `stdout` STILL CARRIES THE RAW TEXT, because the `RedactionPolicy` masks sensitive KEYS and the leak sanitizer only DETECTS; (b) clean output returns `ok=True` and is passed through unchanged. Then (c) drive `host_runner.run_task` with an injected `runner` double and `diff_capturer` double (no real spawn) and pin the caller-side half of the contract, which is where the fail-closed promise is actually kept: with a planted home path in the runner's stdout the returned worker state is `failed_final`, the envelope `status` is `failed`, and the returned stdout is `[REDACTED-LEAK]`, while the same call with clean output is `completed`/`performed` (both measured at review). The test prose must say which half is masking (none, today), which is detection (`redact_worker_output`), and which is refusal (`run_task`). Build every planted home path at runtime, for example `"/ho" + "me/" + "<probe-user>" + "/x"` with a lowercase alphanumeric probe user, never as a literal: a literal trips the tracked-tree `local-leaks` pre-commit hook, and a placeholder containing `<` (as in F-10's quoted probe) is EXCLUDED by the `home-path` rule (`leak_sanitizer.py` pattern `/home/(?!u/|alice/|user/|USER/|<)`) and so would make the refusal row silently hold. Do not change `host_runner.py` in this plan; it is not in `- Scope-Paths:` and the gap is recorded, not fixed.
+- [x] E-06 Create `tests/test_host_runner_redaction.py` giving `host_runner.redact_worker_output` its first test caller. THIS IS THE ONLY PLACE ANY OF THIS MODULE IS WIRED INTO THE PACKAGE (F-09): `check_evidence_redaction` has exactly one non-test caller in the package and it is that function, whose own docstring states the contract an uncovered function cannot be trusted to keep, that "the caller must treat that as a failure to record rather than admitting the raw text". Note that the wiring is itself unreached: `redact_worker_output`'s only caller is `host_runner.run_task`, and `run_task` has no caller anywhere in the package (measured at review), so "production" here means shipped code, not a live path. DO NOT ASSERT THAT `redact_worker_output` MASKS ANYTHING; THAT HALF IS UNREACHABLE (review PR-004). The function always builds its payload with the three keys `stdout`, `stderr` and `diff`, none of which is in `default_redaction_policy`'s key list, and that policy carries no value patterns, so the masking step can never change a value: measured at review, `RawWorkerResult(stdout='Authorization: Bearer abc123', ...)` comes back with `ok=True` and `stdout` unchanged. Drive it with a `RawWorkerResult` and assert the OBSERVABLE outcomes instead: (a) a planted home path in `stdout` returns a `BoundaryResult` whose `ok` is False with a `home-path` finding in `evidence`, AND the returned `stdout` STILL CARRIES THE RAW TEXT, because the `RedactionPolicy` masks sensitive KEYS and the leak sanitizer only DETECTS; (b) clean output returns `ok=True` and is passed through unchanged. Then (c) drive `host_runner.run_task` with an injected `runner` double and `diff_capturer` double (no real spawn) and pin the caller-side half of the contract, which is where the fail-closed promise is actually kept: with a planted home path in the runner's stdout the returned worker state is `failed_final`, the envelope `status` is `failed`, and the returned stdout is `[REDACTED-LEAK]`, while the same call with clean output is `completed`/`performed` (both measured at review). The test prose must say which half is masking (none, today), which is detection (`redact_worker_output`), and which is refusal (`run_task`). Build every planted home path at runtime, for example `"/ho" + "me/" + "<probe-user>" + "/x"` with a lowercase alphanumeric probe user, never as a literal: a literal trips the tracked-tree `local-leaks` pre-commit hook, and a placeholder containing `<` (as in F-10's quoted probe) is EXCLUDED by the `home-path` rule (`leak_sanitizer.py` pattern `/home/(?!u/|alice/|user/|USER/|<)`) and so would make the refusal row silently hold. Do not change `host_runner.py` in this plan; it is not in `- Scope-Paths:` and the gap is recorded, not fixed.
   - Depends on: E-05
   - Expected outcome: The file passes, pinning that `redact_worker_output` returns `ok=False` with a `home-path` finding on a planted home path and does NOT itself mask it, passes clean output through with `ok=True`, and that `run_task` refuses the leaking output (`failed_final`, envelope `failed`, stdout `[REDACTED-LEAK]`) while admitting the clean run (`completed`, `performed`). `rg -c redact_worker_output tests/` is non-zero where it was zero before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the document and prove the tree still holds
 
-- [ ] E-07 Update `docs/security.md` to drop the now-false statement that these boundaries ship "without dedicated test coverage (tracked in backlog item mflqqf)" and to state the narrowed loopback rule E-03 implements, so the document stops describing a gate more absolute than the code enforced. ALSO CORRECT BOUNDARY 4 (review PR-003): it says `check_evidence_redaction` "fails closed" "if a secret survives", but stage 2 runs only the identifying-info leak sanitizer, so an AWS-shaped credential under a non-sensitive key HOLDS (`ok=True`, measured at review) while `scan_text_for_secrets` flags it `generic-secret-env`. Reword boundary 4 to say what is true: sensitive KEYS are masked and maintainer or machine identifying info (for example a home path) fails closed, while credential detection in free text is not part of this boundary today (backlog `lfko0e`). Do not change the code for this. Then run the full suite BARE as `python3 -m pytest` with no added flags and confirm no regression, measuring the collected total against a baseline taken AT THE EXECUTION BASE rather than trusting any number in this plan. THE BASE IS NOT GREEN AND YOU MUST NOT ACCEPT THAT ON THIS PLAN'S WORD (F-08): at authoring the bare suite was `5 failed, 4622 passed, 2 skipped in 410.45s`, and only two of the five are filed. Re-measure at your base, and for every red node re-run it ALONE before accepting it as pre-existing; two of the five authoring failures PASSED in isolation (`2 passed in 118.59s`), so they are load-sensitive rather than standing, and a node that fails under load but passes alone must be reported as such and not waved through.
+- [x] E-07 Update `docs/security.md` to drop the now-false statement that these boundaries ship "without dedicated test coverage (tracked in backlog item mflqqf)" and to state the narrowed loopback rule E-03 implements, so the document stops describing a gate more absolute than the code enforced. ALSO CORRECT BOUNDARY 4 (review PR-003): it says `check_evidence_redaction` "fails closed" "if a secret survives", but stage 2 runs only the identifying-info leak sanitizer, so an AWS-shaped credential under a non-sensitive key HOLDS (`ok=True`, measured at review) while `scan_text_for_secrets` flags it `generic-secret-env`. Reword boundary 4 to say what is true: sensitive KEYS are masked and maintainer or machine identifying info (for example a home path) fails closed, while credential detection in free text is not part of this boundary today (backlog `lfko0e`). Do not change the code for this. Then run the full suite BARE as `python3 -m pytest` with no added flags and confirm no regression, measuring the collected total against a baseline taken AT THE EXECUTION BASE rather than trusting any number in this plan. THE BASE IS NOT GREEN AND YOU MUST NOT ACCEPT THAT ON THIS PLAN'S WORD (F-08): at authoring the bare suite was `5 failed, 4622 passed, 2 skipped in 410.45s`, and only two of the five are filed. Re-measure at your base, and for every red node re-run it ALONE before accepting it as pre-existing; two of the five authoring failures PASSED in isolation (`2 passed in 118.59s`), so they are load-sensitive rather than standing, and a node that fails under load but passes alone must be reported as such and not waved through.
   - Depends on: E-06
   - Expected outcome: `docs/security.md` no longer claims the boundaries are untested, boundary 1 states the address-based loopback rule, boundary 4 no longer claims a surviving secret fails closed, and the bare suite shows no newly failing test against the executor's own base baseline, with the collected total rising by exactly the number of tests this plan adds.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -170,40 +170,295 @@ No `.spec.md` file is amended, so none appears in `- Scope-Paths:`. `docs/securi
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `python3 -m pytest tests/test_security_hardening.py -o addopts="" -q` showing the collected count, and the output of `rg -c security_hardening tests/test_security_hardening.py`. Then paste a NEGATIVE CONTROL proving the tables can fail in the PERMISSIVE direction, which is the one that matters: temporarily make `check_destructive_tool_gated` return an `ok=True` result unconditionally, paste the resulting failure showing the REFUSAL rows breaking, revert it, and paste `git status --short` empty. A run that only shows passing tests does not satisfy this item.
   - Observed evidence:
-  - Result: pending
+    1. Narrowed test run on tests/test_security_hardening.py:
+    ```
+    $ python3 -m pytest tests/test_security_hardening.py -o addopts="" -q
+    ....                                                                     [100%]
+    4 passed in 0.97s
+    ```
 
-- [ ] V-02 validates E-02
+    2. Reachability count:
+    ```
+    $ rg -c security_hardening tests/test_security_hardening.py
+    2
+    ```
+
+    3. Negative control (bypassing check_destructive_tool_gated to unconditionally return ok=True):
+    ```
+    FAILED tests/test_security_hardening.py::DestructiveToolGateTests::test_only_a_human_role_with_recorded_consent_opens_the_destructive_gate
+    AssertionError: ... check_destructive_tool_gated mishandled 4 of 5 invocations. 3 REFUSAL row(s) failed, which is the fail-open direction: a destructive, irreversible action was permitted without a genuine human gate.
+    FAILED tests/test_security_hardening.py::AggregateTests::test_failures_aggregate_without_being_swallowed_or_invented
+    2 failed, 2 passed in 0.86s
+    ```
+    After reverting the temporary bypass:
+    ```
+    $ git checkout -- agent_workflows/security_hardening.py
+    $ git status --short
+    ?? tests/test_security_hardening.py
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the six new refusal rows (the four prefix-confusion spellings plus `127.0.0.1:8080` and `127.1`) FAILING before E-03 is performed, with the returned `ok=True` and the reason "server binds loopback and requires an auth token" visible, and separately paste them PASSING after. The before-and-after pair is the required shape; a single passing run does not satisfy this item. Paste the `127.1.2.3` holding row passing in BOTH runs, since that is what proves the fix narrowed the gate rather than closing it.
   - Observed evidence:
-  - Result: pending
+    1. Before E-03 fix: 6 new refusal rows FAILING with returned ok=True and reason 'server binds loopback and requires an auth token':
+    ```
+    FAILED tests/test_security_hardening.py::LocalServerBindingTests::test_a_bind_holds_only_when_it_is_both_loopback_and_authenticated
+    AssertionError: Lists differ: ["  prefix-confusion 127.0.0.1.evil.com:\n[2366 chars]e)."] != []
+    check_local_server_binding mishandled 6 of 20 bindings. 6 REFUSAL row(s) are among the failures, which is the fail-open direction: a bind that should have been refused was PERMITTED.
+      prefix-confusion 127.0.0.1.evil.com:
+        - expected a REFUSAL (ok=False); the bind was PERMITTED: ok=True boundary='local_server_binding' reason='server binds loopback and requires an auth token'
+      prefix-confusion 127.evil.com:
+        - expected a REFUSAL (ok=False); the bind was PERMITTED: ok=True boundary='local_server_binding' reason='server binds loopback and requires an auth token'
+      prefix-confusion 127.0.0.1@evil.com:
+        - expected a REFUSAL (ok=False); the bind was PERMITTED: ok=True boundary='local_server_binding' reason='server binds loopback and requires an auth token'
+      prefix-confusion 127.0.0.1 evil.com:
+        - expected a REFUSAL (ok=False); the bind was PERMITTED: ok=True boundary='local_server_binding' reason='server binds loopback and requires an auth token'
+      host:port string 127.0.0.1:8080:
+        - expected a REFUSAL (ok=False); the bind was PERMITTED: ok=True boundary='local_server_binding' reason='server binds loopback and requires an auth token'
+      inet_aton shorthand 127.1:
+        - expected a REFUSAL (ok=False); the bind was PERMITTED: ok=True boundary='local_server_binding' reason='server binds loopback and requires an auth token'
+    1 failed, 3 passed in 0.74s
+    ```
+    Note that 127.1.2.3 PASSED in this before-run (zero holding rows failed).
 
-- [ ] V-03 validates E-03
+    2. After E-03 fix: all 20 bindings pass, including the 6 refusal rows and 127.1.2.3:
+    ```
+    $ python3 -m pytest tests/test_security_hardening.py -o addopts="" -q
+    ....                                                                     [100%]
+    4 passed in 0.91s
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `git diff agent_workflows/security_hardening.py` so the reviewer sees the address-based test, the preserved signature and boundary id, and the explicit comment recording the `127.0.0.0/8` decision (OQ-01). Paste a direct call result showing each of the four confusing spellings plus `::ffff:127.0.0.1`, `127.0.0.1:8080` and `127.1` refused AND all five legitimate spellings (`127.0.0.1`, `::1`, `localhost`, `127.1.2.3`, `'  127.0.0.1  '`) plus `LOCALHOST` still holding. Paste the binding-table run under BOTH a Python 3.9 or 3.11 interpreter and the default `python3` (3.12 or later), because `ipaddress` gives `::ffff:127.0.0.1` opposite `is_loopback` answers across that boundary (PR-001); if no pre-3.12 interpreter is available locally, say so explicitly and name the CI 3.9 leg as the remaining proof rather than claiming it. Paste a NEGATIVE CONTROL: restore the `startswith("127.")` disjunct, show the E-02 rows failing again, restore the fix, and paste `git status --short` empty. Hold that edit for the narrowed run only.
   - Observed evidence:
-  - Result: pending
+    1. git diff of agent_workflows/security_hardening.py:
+    ```diff
+    diff --git a/agent_workflows/security_hardening.py b/agent_workflows/security_hardening.py
+    index c91dc9014..c3aa4edb5 100644
+    --- a/agent_workflows/security_hardening.py
+    +++ b/agent_workflows/security_hardening.py
+    @@ -34,6 +34,7 @@ Pure stdlib (D138); no runtime YAML (D139). Python 3.9+.
+     from __future__ import annotations
 
-- [ ] V-04 validates E-04
+     import importlib.util
+    +import ipaddress
+     from collections.abc import Mapping, Sequence
+     from dataclasses import dataclass, field
+     from pathlib import Path
+    @@ -112,7 +113,22 @@ def check_local_server_binding(
+         address, or an unauthenticated endpoint, FAILS closed.
+         """
+         normalized = (bind_host or "").strip().lower()
+    -    is_loopback = normalized in LOOPBACK_HOSTS or normalized.startswith("127.")
+    +    # Address-based loopback check replacing the prefix test `normalized.startswith("127.")`.
+    +    # Per OQ-01, "127.0.0.0/8" in LOOPBACK_HOSTS is kept holding for compatibility.
+    +    # Deliberate flips: "127.0.0.1:8080" (host:port) and "127.1" (inet_aton shorthand)
+    +    # now refuse rather than passing via string prefix.
+    +    # Guard against IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) across Python versions (PR-001).
+    +    if normalized in LOOPBACK_HOSTS:
+    +        is_loopback = True
+    +    else:
+    +        try:
+    +            addr = ipaddress.ip_address(normalized)
+    +            if addr.version == 6 and addr.ipv4_mapped is not None:
+    +                is_loopback = False
+    +            else:
+    +                is_loopback = addr.is_loopback
+    +        except ValueError:
+    +            is_loopback = False
+         if not is_loopback:
+             return BoundaryResult(
+                 boundary=BOUNDARY_SERVER_BINDING,
+    ```
+
+    2. Direct call result:
+    ```
+    --- REFUSED SPELLINGS ---
+    '127.0.0.1.evil.com'      -> ok=False reason="server bound to non-loopback address '127.0.0.1.evil.com'; a local headless server must bind 127.0.0.1/::1/localhost only"
+    '127.evil.com'            -> ok=False reason="server bound to non-loopback address '127.evil.com'; a local headless server must bind 127.0.0.1/::1/localhost only"
+    '127.0.0.1@evil.com'      -> ok=False reason="server bound to non-loopback address '127.0.0.1@evil.com'; a local headless server must bind 127.0.0.1/::1/localhost only"
+    '127.0.0.1 evil.com'      -> ok=False reason="server bound to non-loopback address '127.0.0.1 evil.com'; a local headless server must bind 127.0.0.1/::1/localhost only"
+    '::ffff:127.0.0.1'        -> ok=False reason="server bound to non-loopback address '::ffff:127.0.0.1'; a local headless server must bind 127.0.0.1/::1/localhost only"
+    '127.0.0.1:8080'          -> ok=False reason="server bound to non-loopback address '127.0.0.1:8080'; a local headless server must bind 127.0.0.1/::1/localhost only"
+    '127.1'                   -> ok=False reason="server bound to non-loopback address '127.1'; a local headless server must bind 127.0.0.1/::1/localhost only"
+
+    --- HOLDING SPELLINGS ---
+    '127.0.0.1'               -> ok=True reason='server binds loopback and requires an auth token'
+    '::1'                     -> ok=True reason='server binds loopback and requires an auth token'
+    'localhost'               -> ok=True reason='server binds loopback and requires an auth token'
+    '127.1.2.3'               -> ok=True reason='server binds loopback and requires an auth token'
+    '  127.0.0.1  '           -> ok=True reason='server binds loopback and requires an auth token'
+    'LOCALHOST'               -> ok=True reason='server binds loopback and requires an auth token'
+    ```
+
+    3. Pre-3.12 interpreter evaluation:
+    Direct probe under Python 3.9 (~/.local/bin/python3.9) across all 19 test cases yielded `Python 3.9 Mismatches: []`. Python 3.9 does not have repository test dependencies (`filelock`) installed in its isolated environment, so the CI 3.9 leg provides full-suite test execution.
+
+    4. Negative control:
+    Temporarily restored `is_loopback = normalized in LOOPBACK_HOSTS or normalized.startswith("127.")`. Observed:
+    `FAILED tests/test_security_hardening.py::LocalServerBindingTests::test_a_bind_holds_only_when_it_is_both_loopback_and_authenticated (1 failed, 3 passed in 0.72s)`.
+    Restored fix and confirmed `git status --short` clean of temporary edits.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the passing run covering the three filesystem arms. Paste specifically the SYMLINK-ESCAPE result, showing the refusal reason beginning "external file access escapes the consented base", and the TWO-STAGE redaction pair, showing `{'authorization': ...}` holding while a home path in a non-sensitive key refuses with a `home-path` finding in `evidence`. A redaction arm that only shows the holding case does not satisfy this item, because it cannot distinguish a working two-stage check from one whose sanitizer stage never runs. Paste evidence that no test wrote into the repository tree: `git status --short` empty after the run.
   - Observed evidence:
-  - Result: pending
+    1. Passing run for filesystem arms (ExternalFileAccessTests, RealHomeExcludedTests, EvidenceRedactionTests):
+    ```
+    $ python3 -m pytest tests/test_security_hardening.py -k "ExternalFileAccess or RealHomeExcluded or EvidenceRedaction" -o addopts="" -q
+    ...                                                                      [100%]
+    3 passed in 0.45s
+    ```
 
-- [ ] V-05 validates E-05
+    2. Symlink-escape observed refusal:
+    ```
+    ok: False
+    reason: external file access escapes the consented base: Isolation guard violation: Path '/tmp/.../secret.txt' escapes base directory '/tmp/...'.
+    ```
+
+    3. Two-stage redaction pair:
+    - Sensitive key holding:
+      `check_evidence_redaction({'authorization': 'Bearer abc123'}, repo_root=...)` -> `ok=True, reason='evidence redacted and clean under the canonical leak sanitizer', evidence={'redacted': True}`
+    - Non-sensitive key with home path refusing:
+      `check_evidence_redaction({'stdout': PLANTED_HOME_LEAK}, repo_root=...)` -> `ok=False, reason='redacted evidence still trips the canonical leak sanitizer', evidence={'findings': ['home-path@evidence:2']}`
+
+    4. Repository tree clean: `git status --short` confirmed no temp files written to repo tree.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the passing run covering the skill arm and both adapter arms. Paste the skill arm's two outcomes explicitly: the generated package HOLDING and the spliced package REFUSED with non-empty `findings` in `evidence`. Paste each adapter's planted-versus-clean pair with its counts. Confirm in the pasted output that the leak-scan arm ran over a temporary tree, not the live repository.
   - Observed evidence:
-  - Result: pending
+    1. Passing run:
+    ```
+    $ python3 -m pytest tests/test_security_hardening.py -k "SkillLeastPrivilege or CanonicalScannerReuse" -o addopts="" -q
+    ..                                                                       [100%]
+    2 passed in 0.52s
+    ```
 
-- [ ] V-06 validates E-06
+    2. Skill arm outcomes:
+    - Generated package: `ok=True`
+    - Spliced package: `ok=False`, `findings=['authoritative canonical body content is inlined into SKILL.md (must reference, not inline)']`
+
+    3. Scanner adapters planted vs clean pairs:
+    - Secret scanner: clean text -> 0 findings; planted AWS credential -> findings: `['generic-secret-env']`
+    - Leak scanner: clean tree -> 0 findings; planted maintainer home path -> findings: `['home-path']`
+
+    4. Leak-scan executed on temporary directory created with `tempfile.mkdtemp(prefix="aw-scan-")`, not the live repository.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste `python3 -m pytest tests/test_host_runner_redaction.py -o addopts="" -q` passing, and `rg -c redact_worker_output tests/`. Paste the observed `redact_worker_output` outcome for a planted home path, showing BOTH halves: the returned `BoundaryResult.ok` is False with a `home-path` finding AND the returned `stdout` still carries the raw text (F-10). Pinning only the `ok=False` half does not satisfy this item, because the plan's claim is specifically that the docstring's "masked/blocked" overclaims and the test must record which half is which. Paste the `run_task` pair (leaking runner double -> `failed_final`, `failed`, `[REDACTED-LEAK]`; clean runner double -> `completed`, `performed`), and paste `git status --short` empty after the run, proving the planted path was built at runtime and nothing was written into the tree. A test asserting that `redact_worker_output` MASKED a value does not satisfy this item: that outcome is unreachable today (PR-004).
   - Observed evidence:
-  - Result: pending
+    1. Test run:
+    ```
+    $ python3 -m pytest tests/test_host_runner_redaction.py -o addopts="" -q
+    ..                                                                       [100%]
+    2 passed in 0.97s
+    ```
 
-- [ ] V-07 validates E-07
+    2. Reachability count:
+    ```
+    $ rg -c redact_worker_output tests/
+    tests/test_host_runner_redaction.py:8
+    ```
+
+    3. Observed redact_worker_output outcome on planted home path:
+    - boundary.ok: `False` with findings `['home-path@evidence:2']`
+    - redacted.stdout carries raw planted path: `True` (raw text preserved because stdout is not a sensitive key and sanitizer only detects)
+    Clean run: `boundary.ok: True`, stdout passed through untouched.
+
+    4. run_task pair:
+    - Leaking runner double: `worker_state: failed_final`, `envelope status: failed`, `redacted stdout: [REDACTED-LEAK]`
+    - Clean runner double: `worker_state: completed`, `envelope status: performed`, `redacted stdout: clean run`
+
+    5. Planted path built dynamically at runtime; `git status --short` clean after run.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste `git diff docs/security.md` showing the removed "without dedicated test coverage" claim, the stated loopback rule, and the corrected boundary 4 wording (PR-003). Paste the FULL bare `python3 -m pytest` output including the final summary line, with no added flags. Paste your own execution-base baseline total measured BEFORE the change and the new total, and state the delta explicitly; the delta must equal the number of tests this plan added. For EVERY red node in either run, paste its isolated re-run and classify it: filed and pre-existing (name the backlog id), load-sensitive (passes alone, must be reported), or NEW (must be investigated, never accepted). Do NOT report the run green by excluding any node. Paste `git diff --cached --name-only` before the commit showing ONLY the four declared `- Scope-Paths:` entries, and paste `aw ipd lint --phase pre-transition` reporting conforming.
   - Observed evidence:
-  - Result: pending
+    1. git diff docs/security.md:
+    ```diff
+    diff --git a/docs/security.md b/docs/security.md
+    index 744143ca3..4833621ed 100644
+    --- a/docs/security.md
+    +++ b/docs/security.md
+    @@ -2,9 +2,8 @@
+
+     This document describes the hardened security boundaries of the execution runtime and host
+     integration, and the runbooks that prove each one. The checkers live in
+    -`agent_workflows/security_hardening.py`. The dedicated threat-model test suite was deleted on
+    -2026-09-24 (commit 19313eed), so the boundaries below are enforced in production by the checkers
+    -without dedicated test coverage (tracked in backlog item mflqqf).
+    +`agent_workflows/security_hardening.py` and are covered by dedicated threat-model tests in
+    +`tests/test_security_hardening.py` and `tests/test_host_runner_redaction.py`.
+
+     Leak and secret checks REUSE the repository's canonical tooling. There is no forked scanner:
+
+    @@ -15,17 +14,19 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
+     ## The boundaries
+
+     1. Local servers bind loopback and require auth. `check_local_server_binding` refuses a bind to
+    -   a routable address and refuses an unauthenticated loopback endpoint. A local headless server
+    -   may be unauthenticated by default on some hosts; the integration must bind 127.0.0.1 (or ::1)
+    -   AND require a token.
+    +   a routable address, refuses non-loopback hostnames or host:port strings, and refuses an
+    +   unauthenticated loopback endpoint. A local headless server may be unauthenticated by default
+    +   on some hosts; the integration must bind a genuine loopback address (such as 127.0.0.1,
+    +   127.0.0.0/8, ::1, or localhost) AND require a token.
+     2. External files are consented and contained. `check_external_file_access` refuses an access
+        with no explicit consent and refuses a path that escapes the consented base (it reuses the
+        containment guard `host_capability_registry.assert_contained`).
+     3. Skills are least privilege. `check_skill_least_privilege` refuses a skill entry point that
+        inlines the canonical authoritative body or fails package validation.
+    -4. Evidence is redacted. `check_evidence_redaction` applies the ledger redaction policy and then
+    -   runs the CANONICAL leak sanitizer over the redacted text; if a secret survives, it fails
+    -   closed.
+    +4. Evidence is redacted. `check_evidence_redaction` applies the ledger redaction policy (masking
+    +   sensitive keys) and then runs the CANONICAL leak sanitizer over the payload; maintainer or machine
+    +   identifying info (such as a home path) fails closed with findings in evidence, while credential
+    +   detection in free text is not evaluated by this boundary today (backlog lfko0e).
+     5. The real HOME is excluded from probes. `check_real_home_excluded` reuses
+        `assert_isolated_base`, which refuses a base equal to or containing the real home.
+     6. Untrusted text is isolated as data. `check_untrusted_text_isolated` refuses any path that
+    ```
+
+    2. Baseline bare suite:
+    ```
+    1 failed, 5014 passed, 2 skipped, 3 warnings in 912.68s (0:15:12)
+    ```
+    Failed node in baseline: `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs` (timed out under xdist parallel load with 240s wall ceiling).
+    Isolated re-run:
+    ```
+    $ python3 -m pytest tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs -o addopts="" -q
+    .                                                                        [100%]
+    1 passed in 117.72s (0:01:57)
+    ```
+    Classification: Load-sensitive under xdist parallel execution (passes in isolation).
+
+    3. Post-change bare suite:
+    ```
+    5026 passed, 2 skipped, 3 warnings in 474.59s (0:07:54)
+    ```
+    Baseline total collected: 5017 (5014 passed + 1 failed + 2 skipped).
+    Post-change total collected: 5028 (5026 passed + 2 skipped).
+    Delta: +11 tests (9 in `tests/test_security_hardening.py`, 2 in `tests/test_host_runner_redaction.py`), exactly matching the number of added tests, with zero newly failing tests.
+
+    4. Staged set before commit:
+    ```
+    agent_workflows/security_hardening.py
+    docs/security.md
+    tests/test_host_runner_redaction.py
+    tests/test_security_hardening.py
+    ```
+
+    5. aw ipd lint --phase pre-transition: conforming.
+  - Result: pass
 
 ## Approval and execution gate
 
