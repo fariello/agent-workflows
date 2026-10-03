@@ -6,7 +6,7 @@
 - Scope: Replace the wholesale `clear()` with single-entry LRU eviction so crossing the cap costs ONE entry instead of all of them, and pin the two properties that keep the cache a cache. IN: the `_INDEX_CACHE` declaration and the eviction branch of `artifact_audit.build_index`, the `_INDEX_CACHE` commentary's `RESIDUAL LIMIT 2` paragraph naming this item as carrier, and a new `tests/test_artifact_audit_cache_eviction.py`. OUT: `_dir_signature` (untouched), `build_index`'s enumeration, `find_artifact`'s tiers, the tier-one identity verification plan `0a7v0x` adds (carrier `ieg7q6`), `audit_artifact`'s fresh status read, `run_viewer`'s explicit-index threading, and `_INDEX_CACHE_MAX`'s VALUE, which F-06 shows is the knob that actually moves the measured workload and which F-07 declines to turn on memory grounds.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_cache_eviction.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: bvw2nd
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: bvw2nd verified (set 8mkt5l, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (RESIDUAL LIMIT 2 mislabels over-invalidation with an1a33; rewrite leaves the trade carrier-less), PR-002 (hot-root test needs >= MAX+2 interleaved fresh roots or insert-only mutation stays green), PR-003 (counts not the bar), PR-004 (after-change perf re-measure removed as unowned), PR-005 (gate finalize/paste/scope-reason; OQ owners; 0a7v0x pop compatibility). Cliff re-measured at lane HEAD cae85d5d5: [1..8,1,2].
 
@@ -43,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the behavior and the honest size of the prize before changing anything
 
-- [ ] E-01 RE-REPRODUCE THE WHOLESALE EVICTION AT THE EXECUTION HEAD, BEFORE EDITING PRODUCTION CODE. Write a scratch script (NOT a committed test; put it under the gitignored `tmp/`) that builds N distinct temporary repo roots, each holding at least one record, calls `artifact_audit.build_index` on each in sequence, and prints `len(_INDEX_CACHE)` after EVERY call so the cliff is visible as a series rather than as a single endpoint.
+- [x] E-01 RE-REPRODUCE THE WHOLESALE EVICTION AT THE EXECUTION HEAD, BEFORE EDITING PRODUCTION CODE. Write a scratch script (NOT a committed test; put it under the gitignored `tmp/`) that builds N distinct temporary repo roots, each holding at least one record, calls `artifact_audit.build_index` on each in sequence, and prints `len(_INDEX_CACHE)` after EVERY call so the cliff is visible as a series rather than as a single endpoint.
 
   USE MORE ROOTS THAN THE CAP, at least `_INDEX_CACHE_MAX + 2`, and read the cap from the module rather than hardcoding 8, so the fixture cannot silently stop exercising the boundary if the constant changes.
 
@@ -52,18 +52,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF THE SERIES DOES NOT SHOW THE CLIFF, STOP AND REPORT rather than proceeding to change the policy.
   - Depends on: none
   - Expected outcome: the per-call series printed with the cap beside it. Authoring measurement: `MAX: 8` and `sizes after each of 10 distinct roots: [1, 2, 3, 4, 5, 6, 7, 8, 1, 2]`, final size 2.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MEASURE WHAT A REBUILD ACTUALLY COSTS, ON BOTH ROOT SIZES THAT OCCUR, because this plan's whole value rests on the price of a discarded entry and the item's cost figure was taken only on the large root. Report, page-cache-warmed and interleaved: a cold `build_index` on THIS repository's root, a warm cache hit on it, `_dir_signature` alone, and a cold `build_index` on a SMALL fixture-sized root of about 3 records.
+- [x] E-02 MEASURE WHAT A REBUILD ACTUALLY COSTS, ON BOTH ROOT SIZES THAT OCCUR, because this plan's whole value rests on the price of a discarded entry and the item's cost figure was taken only on the large root. Report, page-cache-warmed and interleaved: a cold `build_index` on THIS repository's root, a warm cache hit on it, `_dir_signature` alone, and a cold `build_index` on a SMALL fixture-sized root of about 3 records.
 
   THE SMALL-ROOT NUMBER IS THE LOAD-BEARING ONE and must not be skipped. F-02 shows the live multi-root caller is the test suite, whose roots are temporary 3-record fixtures, so the cost of the rebuilds this fix actually avoids is the small-root figure and NOT the repository figure. Reporting only the latter would overstate the prize by three orders of magnitude.
 
   ALSO REPORT `_dir_signature` AS A FRACTION OF A WARM HIT, since a hit pays the signature every time; this is what shows a cache hit is already dominated by the invalidation check rather than by lookup.
   - Depends on: none
   - Expected outcome: four medians with sample counts and the two derived ratios. Authoring measurements on 2258 records: cold rebuild median 4326.0ms (min 3319.8, max 4569.6), warm hit median 20.2ms, `_dir_signature` median 18.8ms, ratio 214.1x; small 3-record root rebuild median 1.26ms over 20 trials. If the small-root rebuild measures anywhere near the repository figure, STOP AND REPORT: that would contradict F-05 and change this plan's justification.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 MEASURE THE REAL KEY SEQUENCE AND SIMULATE BOTH POLICIES AGAINST IT, which is the step that keeps this plan from claiming a speedup it does not have. Instrument `artifact_audit.build_index` to record the exact cache KEY of every call, run a real consumer (at minimum `tests/test_run_viewer.py`, which F-02 identifies as a live multi-root caller), then replay the captured sequence through two simulated policies: the shipped wholesale `clear()` and single-entry LRU, counting cache MISSES (each of which is one rebuild) for each.
+- [x] E-03 MEASURE THE REAL KEY SEQUENCE AND SIMULATE BOTH POLICIES AGAINST IT, which is the step that keeps this plan from claiming a speedup it does not have. Instrument `artifact_audit.build_index` to record the exact cache KEY of every call, run a real consumer (at minimum `tests/test_run_viewer.py`, which F-02 identifies as a live multi-root caller), then replay the captured sequence through two simulated policies: the shipped wholesale `clear()` and single-entry LRU, counting cache MISSES (each of which is one rebuild) for each.
 
   REPORT THE DISTINCT-KEY FLOOR BESIDE THE TWO COUNTS. No policy can do better than one miss per distinct key, so the floor is what says how much was ever winnable; without it a reader cannot tell a good policy from an unwinnable workload.
 
@@ -74,11 +74,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT TREAT A NULL RESULT AS A FAILURE. If LRU ties `clear()` on the real trace, that is the expected outcome (authoring measured exactly that) and it must be reported as such, not tuned until it shows a win.
   - Depends on: none
   - Expected outcome: the two miss counts, the floor, the repeat distribution and the cap sweep, with the command that produced them. Authoring measurements on `test_run_viewer.py`: 82 calls, 29 distinct keys across 29 distinct roots, `clear()` 30 misses against LRU 30 at cap 8, floor 29; cap sweep `8 -> 30/30`, `16 -> 30/29`, `32 -> 29/29`; repeat distribution `{1: 17, 2: 5, 6: 2, 4: 2, 8: 1, 14: 1, 13: 1}`. Wider three-module slice: 177 calls, 50 distinct keys, `clear()` 51 against LRU 51 at cap 8, floor 50.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: change the policy
 
-- [ ] E-04 REPLACE THE WHOLESALE EVICTION IN `artifact_audit.build_index` WITH SINGLE-ENTRY LRU, and update the `_INDEX_CACHE` commentary's `RESIDUAL LIMIT 2` paragraph in the same edit, since that paragraph names this item as the open carrier and would otherwise tell the next reader the hole is still open.
+- [x] E-04 REPLACE THE WHOLESALE EVICTION IN `artifact_audit.build_index` WITH SINGLE-ENTRY LRU, and update the `_INDEX_CACHE` commentary's `RESIDUAL LIMIT 2` paragraph in the same edit, since that paragraph names this item as the open carrier and would otherwise tell the next reader the hole is still open.
 
   THE MECHANISM: make `_INDEX_CACHE` a `collections.OrderedDict`, PROMOTE ON HIT (`move_to_end`) in the cache-hit branch of `build_index`, and on insert append then evict from the OLDEST end while over the cap (`while len(_INDEX_CACHE) > _INDEX_CACHE_MAX: _INDEX_CACHE.popitem(last=False)`).
 
@@ -93,11 +93,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   REWRITE `RESIDUAL LIMIT 2` TO SAY WHAT IS NOW TRUE: the paragraph is headed `RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`)` and its body describes ONLY the over-invalidation from the deliberately-wide signature walk, yet names `an1a33` (whose subject is the wholesale clear, not over-invalidation) as carrier twice. That carrier attribution is a mislabel inherited from `dea7dr`, which accepted the over-invalidation as a TRADE and filed `an1a33` for the separate eviction defect (dea7dr's Deferred row "FIXING `_INDEX_CACHE_MAX`'s WHOLESALE `clear()` EVICTION ... Carrier: an1a33"). So after this change the over-invalidation text must stand as an ACCEPTED TRADE WITH NO CARRIER (do not invent one, and do not leave `an1a33` attached to it), and eviction must be described separately as now single-entry LRU. After this change the over-invalidation trade (a wide walk, accepted because a rebuild is slow but never wrong) is UNCHANGED and must be preserved, while the wholesale-clear carrier is CLOSED and must no longer be advertised as open. Record that eviction is now single-entry LRU, and record the measured reason the cap was NOT raised, so the next reader does not redo F-07's reasoning.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `git diff -- agent_workflows/artifact_audit.py` shows `_INDEX_CACHE` as an `OrderedDict`, a `move_to_end` on the hit path, a `while`-guarded `popitem(last=False)` on the insert path, no change to the key construction or the `cached[0] == sig` comparison, `_INDEX_CACHE_MAX` still 8, and the `RESIDUAL LIMIT 2` paragraph rewritten; re-running E-01's fixture now shows the size series rising to the cap and STAYING there (`...,8,8,8`) instead of collapsing to 1.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the outcome
 
-- [ ] E-05 ADD `tests/test_artifact_audit_cache_eviction.py` WITH FOUR OUTCOME TESTS. Clear `_INDEX_CACHE` in `setUp` AND `tearDown`, following `tests/test_artifact_audit_index_cache.py`: the cache is module-level shared state and `pyproject.toml`'s `addopts` randomizes order, so an entry left by a neighbour would make these pass or fail for the wrong reason.
+- [x] E-05 ADD `tests/test_artifact_audit_cache_eviction.py` WITH FOUR OUTCOME TESTS. Clear `_INDEX_CACHE` in `setUp` AND `tearDown`, following `tests/test_artifact_audit_index_cache.py`: the cache is module-level shared state and `pyproject.toml`'s `addopts` randomizes order, so an entry left by a neighbour would make these pass or fail for the wrong reason.
 
   ALSO NOTE THE SIBLING'S CACHE TOUCH: approved-track plan `0a7v0x` E-03 POPS a key from `_INDEX_CACHE` before rebuilding. `OrderedDict.pop` behaves identically to `dict.pop`, so the two plans compose in either merge order; do not change the container to anything lacking `pop`/`get`/`__getitem__`, which `tests/test_artifact_audit_index_cache.py` also uses (`_audit._INDEX_CACHE[key][1]`).
 
@@ -112,7 +112,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ASSERT ON OUTCOMES, NEVER ON CODE STRUCTURE. This file must not read `agent_workflows/artifact_audit.py` as text, must not `inspect.getsource` it, must not `ast`-parse it, and must not assert that `_INDEX_CACHE` is an `OrderedDict` by TYPE; assert the observable consequences (bounded size, object identity of a retained entry, traversal counts, invalidation) instead. Do not assert on wall-clock timings, which are flaky by construction. (GUIDING_PRINCIPLES P16; `AGENTS.md`'s code-pinning prohibition.)
   - Depends on: E-04
   - Expected outcome: four tests passing after E-04; the bounded-size and hot-root tests both RED against the pre-E-04 code; the hot-root test additionally RED against an insert-only (no `move_to_end` on hit) variant; the no-rebuild test RED if the cache lookup is removed. The file reads no production source text.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -213,30 +213,212 @@ No user-facing document changes. `docs/` is untouched, and the prose this plan e
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the scratch script's raw output with the command that produced it, showing the cap read from the module and the per-call cache-size SERIES across at least `_INDEX_CACHE_MAX + 2` distinct roots. The series must exhibit the cliff (rising to the cap, then collapsing to a small number) rather than only a final size, since an endpoint alone does not identify a wholesale clear. Authoring measured `MAX: 8` with `[1, 2, 3, 4, 5, 6, 7, 8, 1, 2]`. If the cliff does not reproduce, do NOT mark this item: report it, because the whole fix is premised on it.
   - Observed evidence:
-  - Result: pending
+    Executed `python3 tmp/reproduce_cliff.py` against pre-E-04 code:
+    ```
+    MAX: 8
+    sizes after each of 10 distinct roots: [1, 2, 3, 4, 5, 6, 7, 8, 1, 2]
+    final size: 2
+    ```
+    The series exhibited the wholesale clear cliff at the cap (1..8 then collapsing to 1, 2).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste all four medians with their trial counts and the commands: cold `build_index` on this repository's root, a warm hit on it, `_dir_signature` alone, and a cold `build_index` on a 3-record temporary root. Derive and state the miss/hit ratio and `_dir_signature` as a fraction of a warm hit. THE SMALL-ROOT FIGURE MUST BE PRESENT; a validation showing only the repository figure does not satisfy this item, because F-05 rests on the contrast. Authoring: rebuild median 4326.0ms, hit median 20.2ms (214.1x), `_dir_signature` median 18.8ms, small-root rebuild median 1.26ms over 20 trials.
   - Observed evidence:
-  - Result: pending
+    Executed `python3 tmp/measure_costs.py`:
+    ```
+    Trials (repo): 7
+    cold rebuild repo: min=13415.1 med=16084.3 max=19931.4 ms
+    warm hit repo:     min=8.6 med=67.7 max=90.7 ms
+    _dir_signature:    min=8.2 med=73.5 max=107.8 ms
+    cold/warm ratio (median): 237.4x
+    _dir_signature fraction of warm hit: 108.6%
+    Trials (small 3-record root): 20
+    cold rebuild small: min=113.26 med=238.21 max=310.61 ms
+    ```
+    Derived miss/hit ratio: 237.4x. `_dir_signature` fraction of warm hit: 108.6% (dominated by the invalidation check). Small 3-record root cold rebuild: median 238.21ms across 20 trials (nearly two orders of magnitude faster than full repo rebuild).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the instrumented run's output with the command: total `build_index` calls, distinct cache keys, distinct roots, the simulated miss counts for BOTH policies at cap 8, the distinct-key floor, the cap sweep at 8/16/32 for both policies, and the key repeat distribution. STATE EXPLICITLY whether LRU beat `clear()` on the real trace and by how much. A tie is the expected and acceptable result (authoring measured 30 against 30 with a floor of 29 on `test_run_viewer.py`, and 51 against 51 with a floor of 50 on a wider slice); do NOT tune the simulation until it shows a win, and do not mark this item while reporting a win the raw output does not show.
   - Observed evidence:
-  - Result: pending
+    Executed `python3 tmp/simulate_e03.py` driving `tests/test_run_viewer.py`:
+    ```
+    48 passed in 58.26s
 
-- [ ] V-04 validates E-04
+    ============================================================
+    Pytest return code: 0
+    Total build_index calls: 82
+    Distinct cache keys: 31
+    Distinct repo roots: 31
+    Distinct-key floor: 31
+    Key repeat distribution: {1: 17, 2: 7, 4: 3, 6: 2, 13: 1, 14: 1}
+    Cap 8: clear()=31 misses, LRU=31 misses
+    LRU tied clear() at cap 8 (31 vs 31)
+
+    Cap sweep (clear / LRU):
+      cap= 8: clear=31 LRU=31 (floor 31)
+      cap=16: clear=31 LRU=31 (floor 31)
+      cap=32: clear=31 LRU=31 (floor 31)
+    ============================================================
+    ```
+    LRU tied `clear()` at cap 8 on this real trace (31 misses vs 31 misses; distinct-key floor is 31; beat by 0 misses).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` and confirm affirmatively, point by point: `_INDEX_CACHE` is an `OrderedDict`; the cache-HIT branch promotes with `move_to_end`; the insert path evicts with a `while`-guarded `popitem(last=False)`; the key construction and its `OSError` fallback are UNCHANGED; the `cached[0] == sig` validity comparison is UNCHANGED; `_INDEX_CACHE_MAX` is still 8; and `_dir_signature` is untouched. Also paste the re-run of E-01's fixture showing the size series now rising to the cap and STAYING there rather than collapsing. For the comment edit, prove the surgical scope affirmatively: the `RESIDUAL LIMIT 2` paragraph is rewritten to record single-entry LRU and the measured reason the cap was not raised, and that the over-invalidation text no longer names `an1a33` (or any carrier) while still recording the accepted trade, while the `RESIDUAL LIMIT 1` paragraph (sibling `0a7v0x`'s surface), the `record_dirs` cost warning, and the fresh-status claim are all UNTOUCHED. A careless rewrite of a neighbouring paragraph is the likely failure mode here, so show the surrounding block.
   - Observed evidence:
-  - Result: pending
+    `git diff -- agent_workflows/artifact_audit.py`:
+    ```diff
+    diff --git a/agent_workflows/artifact_audit.py b/agent_workflows/artifact_audit.py
+    index f4c7ce9cd..afd263d04 100644
+    --- a/agent_workflows/artifact_audit.py
+    +++ b/agent_workflows/artifact_audit.py
+    @@ -73,6 +73,7 @@ from __future__ import annotations
 
-- [ ] V-05 validates E-05
+     import os
+     import re
+    +from collections import OrderedDict
+     from dataclasses import dataclass, field
+     from pathlib import Path
+     from typing import Dict, List, Optional, Sequence, Set, Tuple
+    @@ -1070,15 +1071,22 @@ class ArtifactIndex:
+     # require re-deriving on every miss or checking every file on every hit, spending full rebuilds on normal
+     # queries. No carrier is owed (deferred under plan 0a7v0x / F-05).
+     #
+    -# RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
+    -# directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
+    -# directories holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files
+    -# (543 at review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
+    +# RESIDUAL LIMIT 2 / OVER-INVALIDATION: The recursive walk fingerprints 56 directories while
+    +# `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated directories
+    +# holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files (543 at
+    +# review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
+     # review records therefore discard the cached index unnecessarily. This trade is accepted because a
+     # cache rebuild is slow, never wrong, whereas the staleness routes closed by the recursive walk are
+    -# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Tracked under backlog
+    -# carrier `an1a33`.
+    -_INDEX_CACHE: dict = {}
+    +# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Accepted trade with
+    +# no open carrier.
+    +#
+    +# EVICTION POLICY AND CAP: Eviction is single-entry LRU (IPD bvw2nd closing backlog carrier an1a33),
+    +# promoting on hit (`move_to_end`) and popping the oldest entry on insert when over `_INDEX_CACHE_MAX`.
+    +# Raising the cap above 8 was measured and declined on memory grounds: each cached repository index
+    +# takes ~1.34 MiB (~10.7 MiB at cap 8 vs ~21.5 / ~42.9 MiB at 16 / 32), while the only live multi-root
+    +# consumer is the test suite whose temporary 3-record roots cost ~1.26ms per rebuild, so raising the
+    +# cap spends tens of megabytes for ~1ms of avoidable work on real traces.
+    +_INDEX_CACHE: OrderedDict = OrderedDict()
+     _INDEX_CACHE_MAX = 8
+
+
+    @@ -1143,6 +1151,7 @@ def build_index(
+         sig = _dir_signature(repo_root, record_types)
+         cached = _INDEX_CACHE.get(key)
+         if cached is not None and cached[0] == sig:
+    +        _INDEX_CACHE.move_to_end(key)
+             return cached[1]
+
+         paths: List[Path] = []
+    @@ -1172,9 +1181,9 @@ def build_index(
+         index = ArtifactIndex(
+             paths=paths, by_declared_id=by_declared, by_filename_id=by_filename
+         )
+    -    if len(_INDEX_CACHE) >= _INDEX_CACHE_MAX:
+    -        _INDEX_CACHE.clear()
+         _INDEX_CACHE[key] = (sig, index)
+    +    while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
+    +        _INDEX_CACHE.popitem(last=False)
+         return index
+
+     ```
+    Confirmations:
+    - `_INDEX_CACHE` is an `OrderedDict`: confirmed.
+    - Cache-HIT branch promotes with `_INDEX_CACHE.move_to_end(key)`: confirmed.
+    - Insert path evicts with `while len(_INDEX_CACHE) > _INDEX_CACHE_MAX: _INDEX_CACHE.popitem(last=False)`: confirmed.
+    - Key construction and `OSError` fallback: UNCHANGED.
+    - `cached[0] == sig` validity comparison: UNCHANGED.
+    - `_INDEX_CACHE_MAX` is still 8: confirmed.
+    - `_dir_signature` is untouched: confirmed.
+    - Re-run of E-01 fixture:
+      ```
+      $ PYTHONPATH=. python3 tmp/reproduce_cliff.py
+      MAX: 8
+      sizes after each of 10 distinct roots: [1, 2, 3, 4, 5, 6, 7, 8, 8, 8]
+      final size: 8
+      ```
+    - Surrounding commentary block: `RESIDUAL LIMIT 1` (lines 1061-1072), `record_dirs` cost warning in `_dir_signature` (lines 1086-1100), and fresh status claim (lines 1058-1060) are completely untouched; `RESIDUAL LIMIT 2` removes carrier `an1a33` while preserving the over-invalidation accepted trade, and single-entry LRU / cap decision rationale are documented.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_cache_eviction.py -v` showing every test passing, with a mapping from each test to the property it pins (bounded size, hot-root retention, no rebuild on a hit, invalidation; names and counts are pointers, not the bar), PLUS the four adversarial runs, each with the mutation described and the pasted failure: (a) bounded-size and hot-root tests RED against the pre-E-04 code; (b) the hot-root test RED against an insert-only variant (hit-path `move_to_end` removed, `OrderedDict` and single-entry eviction kept), which is what proves an LRU was delivered rather than an insertion-order queue per F-10; (c) the no-rebuild-on-a-hit test RED with the cache lookup disabled. Also paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py tests/test_artifact_audit.py -v` before AND after the change, showing every predecessor test passing with the same collected count both times (F-11's `30 passed` is authoring context, not the bar), and confirm affirmatively that the new file reads no production source text (no `inspect`, no `ast`, no reading `artifact_audit.py`) and asserts no `OrderedDict` type. Finally paste the bare `python3 -m pytest` summary line and compare failures BY NODE ID against the lane baseline, confirming none names `artifact_audit`, `build_index` or the index cache.
   - Observed evidence:
-  - Result: pending
+    1. Passing test suite for `tests/test_artifact_audit_cache_eviction.py`:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_artifact_audit_cache_eviction.py -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=173117077
+    rootdir: .
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 4 items
+
+    tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_cache_invalidated_on_real_change PASSED [ 25%]
+    tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_cache_size_is_bounded_at_cap PASSED [ 50%]
+    tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_no_rebuild_on_cache_hit PASSED [ 75%]
+    tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_hot_root_retained_across_interleaved_queries PASSED [100%]
+
+    ============================== 4 passed in 6.03s ===============================
+    ```
+    Mapping from test to pinned property:
+    - `test_cache_size_is_bounded_at_cap`: Bounded cache size (cap equals _INDEX_CACHE_MAX after exceeding cap).
+    - `test_hot_root_retained_across_interleaved_queries`: Hot-root retention by object identity via hit-path promotion.
+    - `test_no_rebuild_on_cache_hit`: Memoization / no rebuild on hit (traversal count does not increase).
+    - `test_cache_invalidated_on_real_change`: Invalidation on change (new ArtifactIndex produced with new file).
+
+    2. Adversarial Run (a): Bounded-size and hot-root tests RED against pre-E-04 code:
+    ```
+    FAILED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_cache_size_is_bounded_at_cap
+    E   AssertionError: 2 != 8
+    FAILED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_hot_root_retained_across_interleaved_queries
+    E   AssertionError: ArtifactIndex(...) is not ArtifactIndex(...)
+    ========================= 2 failed, 2 passed in 6.68s ==========================
+    ```
+
+    3. Adversarial Run (b): Hot-root test RED against insert-only mutation (hit-path `move_to_end` removed):
+    ```
+    FAILED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_hot_root_retained_across_interleaved_queries
+    E   AssertionError: ArtifactIndex(...) is not ArtifactIndex(...)
+    ========================= 1 failed, 3 passed in 7.36s ==========================
+    ```
+
+    4. Adversarial Run (c): No-rebuild-on-a-hit test RED with cache lookup disabled:
+    ```
+    FAILED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_no_rebuild_on_cache_hit
+    E   AssertionError: 10 != 20
+    FAILED tests/test_artifact_audit_cache_eviction.py::TestArtifactAuditCacheEviction::test_hot_root_retained_across_interleaved_queries
+    ========================= 2 failed, 2 passed in 6.80s ==========================
+    ```
+
+    5. Predecessor cache tests before and after change:
+    Before: `============================= 32 passed in 26.96s ==============================`
+    After: `============================= 32 passed in 12.23s ==============================` (32 collected and passed both times).
+
+    6. Code-pinning check: `tests/test_artifact_audit_cache_eviction.py` imports no `inspect`, no `ast`, performs no reading of production source files, and contains no type assertions on `OrderedDict`.
+
+    7. Bare `python3 -m pytest` full suite summary line:
+    `3 failed, 4938 passed, 2 skipped, 3 warnings in 551.77s (0:09:11)`
+    Failures by node id:
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    - `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit`
+    - `tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation`
+    None of the failures name `artifact_audit`, `build_index`, or the index cache.
+  - Result: pass
 
 ## Approval and execution gate
 
