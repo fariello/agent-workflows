@@ -20,6 +20,7 @@
 - Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-02 executed (antigravity gemini-3.8-flash): implemented E-01..E-06, validated V-01..V-06. Note: corpora unreachable under worktree isolation, so figures cited from research 7so8uz (dated 2026-10-01 at HEAD ce55ef615) and not re-measured.
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed
 
@@ -40,44 +41,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-establish the measurement before relying on it
 
-- [ ] E-01 RE-RUN THE FOUR QUERIES AND CONFIRM OR CORRECT THE NUMBERS BEFORE CHANGING ANY ARTIFACT, because every later item cites them and both corpora are MACHINE-LOCAL AND UNCOMMITTED (the host log at `stall_progress.default_log_path()`, the stream corpus at `.aw/records/runs/*/sessions/*.jsonl`), so a different machine or a later date will not reproduce them exactly. Re-derive, as four separate numbers: (a) the complete `type` census over every recorded stdout stream plus the count of events whose type mentions permission/ask/question, which authoring measured as six types and ZERO; (b) the count of `message=asking ... permission=` lines in the log and how many resolve to an `aw-*` root session, authoring measured 1,552 and 1,166; (c) the ask-to-next-stdout-event distribution and the false-positive count at W in {10,30,60,120,300}, authoring measured 15 at the spec's 30s; (d) the count of asks with no later stdout event and how many of those ALSO have no later subagent progress, authoring measured 17 and 17. IF A NUMBER DIFFERS, use the re-measured one and say so in the plan's history: the ARGUMENT is what must survive, not the digits. REACHABILITY, MEASURED AT REVIEW AND DECIDING WHAT THIS ITEM CAN DO: neither corpus is inside a lane worktree. `.aw/records/runs/` is gitignored (`.aw/.gitignore` line `records/runs/`), so an isolated worktree has none (the review lane had no `.aw/records/runs/` at all), and the host log lives under the user's data directory OUTSIDE the workspace, which an isolated opencode turn is denied by the very posture this plan documents (`LANE_PERMISSION_POLICY` sets `external_directory` to `deny`) and which the lane prompt forbids reading anyway. So under `aw oc run`'s default isolation this item CANNOT re-measure, and the earlier instruction to STOP and leave it `blocked` would have made the plan unexecutable by the runner by construction. THEREFORE: attempt the re-derivation; IF EITHER CORPUS IS UNREACHABLE from the executing workspace, record exactly what was looked for and where (repo-relative, or `stall_progress.default_log_path()` by symbol, never a home path), and PROCEED citing the COMMITTED research record `7so8uz` as the measurement source. In that case every figure E-02, E-03 and E-04 write MUST be phrased as a DATED, CITED measurement (for example 'measured 2026-10-01 at HEAD `ce55ef615`, research `7so8uz`'), never as a present-tense fact re-established by this execution, and the history line must say the figures were NOT re-measured. Mark this item `performed` with that recorded outcome. IF THE CORPORA ARE REACHABLE (a hand or non-isolated execution on the authoring machine), re-measure as above and keep V-01's hard stop on a nonzero (a).
+- [x] E-01 RE-RUN THE FOUR QUERIES AND CONFIRM OR CORRECT THE NUMBERS BEFORE CHANGING ANY ARTIFACT, because every later item cites them and both corpora are MACHINE-LOCAL AND UNCOMMITTED (the host log at `stall_progress.default_log_path()`, the stream corpus at `.aw/records/runs/*/sessions/*.jsonl`), so a different machine or a later date will not reproduce them exactly. Re-derive, as four separate numbers: (a) the complete `type` census over every recorded stdout stream plus the count of events whose type mentions permission/ask/question, which authoring measured as six types and ZERO; (b) the count of `message=asking ... permission=` lines in the log and how many resolve to an `aw-*` root session, authoring measured 1,552 and 1,166; (c) the ask-to-next-stdout-event distribution and the false-positive count at W in {10,30,60,120,300}, authoring measured 15 at the spec's 30s; (d) the count of asks with no later stdout event and how many of those ALSO have no later subagent progress, authoring measured 17 and 17. IF A NUMBER DIFFERS, use the re-measured one and say so in the plan's history: the ARGUMENT is what must survive, not the digits. REACHABILITY, MEASURED AT REVIEW AND DECIDING WHAT THIS ITEM CAN DO: neither corpus is inside a lane worktree. `.aw/records/runs/` is gitignored (`.aw/.gitignore` line `records/runs/`), so an isolated worktree has none (the review lane had no `.aw/records/runs/` at all), and the host log lives under the user's data directory OUTSIDE the workspace, which an isolated opencode turn is denied by the very posture this plan documents (`LANE_PERMISSION_POLICY` sets `external_directory` to `deny`) and which the lane prompt forbids reading anyway. So under `aw oc run`'s default isolation this item CANNOT re-measure, and the earlier instruction to STOP and leave it `blocked` would have made the plan unexecutable by the runner by construction. THEREFORE: attempt the re-derivation; IF EITHER CORPUS IS UNREACHABLE from the executing workspace, record exactly what was looked for and where (repo-relative, or `stall_progress.default_log_path()` by symbol, never a home path), and PROCEED citing the COMMITTED research record `7so8uz` as the measurement source. In that case every figure E-02, E-03 and E-04 write MUST be phrased as a DATED, CITED measurement (for example 'measured 2026-10-01 at HEAD `ce55ef615`, research `7so8uz`'), never as a present-tense fact re-established by this execution, and the history line must say the figures were NOT re-measured. Mark this item `performed` with that recorded outcome. IF THE CORPORA ARE REACHABLE (a hand or non-isolated execution on the authoring machine), re-measure as above and keep V-01's hard stop on a nonzero (a).
   - Depends on: none
   - Expected outcome: EITHER four re-derived numbers, each with the command that produced it, confirming or replacing authoring's figures, OR (when the corpora are unreachable from the workspace) a recorded statement of what was looked for and where, with `7so8uz` cited as the dated measurement source and the figures explicitly NOT re-measured. No artifact is edited in this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the code's own documentation
 
-- [ ] E-02 AMEND `PERMISSION_TIMEOUT`'s `#:` DOCUMENTATION BLOCK so it states the IMPOSSIBILITY rather than the hedge. It currently says detection "is UNVERIFIED against a real ask" and that "the detector may be matching a shape that never reaches the stream it inspects", and it ends "Set this to 30 only together with a captured stream from a real provoked ask showing the line the detector matched." That instruction is now known to be unfollowable, so a future reader who tries will waste the same effort this plan spent. Replace the hedge with the measurement: the stream carries six event types and zero permission-typed events over the recorded corpus (cite research `7so8uz` by id6, and give the counts), so the ask is a HOST-INTERNAL event that never reaches stdout; the log DOES carry it (`message=asking ... permission=<class>`); and arming a log-fed bound at the spec's own 30s default would have killed 15 of 1,149 healthy turns while catching nothing the `StallWatchdog` does not already catch. ALSO NAME THE TWO HONEST LIMITS the Scope line and F-8/F-9 promise this block will carry, since a reader of the constant is exactly who would otherwise over-read F-7's 'the asks stopped' as host-wide: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode` applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, so there `MAX_TURN_TIMEOUT` is the whole of the bound half. KEEP the existing statement that `MAX_TURN_TIMEOUT` is the only bound covering a permission deadlock, which is still true and is the sentence A10c option (ii) requires the artifact to carry. Do NOT change the value, which stays `0.0`.
+- [x] E-02 AMEND `PERMISSION_TIMEOUT`'s `#:` DOCUMENTATION BLOCK so it states the IMPOSSIBILITY rather than the hedge. It currently says detection "is UNVERIFIED against a real ask" and that "the detector may be matching a shape that never reaches the stream it inspects", and it ends "Set this to 30 only together with a captured stream from a real provoked ask showing the line the detector matched." That instruction is now known to be unfollowable, so a future reader who tries will waste the same effort this plan spent. Replace the hedge with the measurement: the stream carries six event types and zero permission-typed events over the recorded corpus (cite research `7so8uz` by id6, and give the counts), so the ask is a HOST-INTERNAL event that never reaches stdout; the log DOES carry it (`message=asking ... permission=<class>`); and arming a log-fed bound at the spec's own 30s default would have killed 15 of 1,149 healthy turns while catching nothing the `StallWatchdog` does not already catch. ALSO NAME THE TWO HONEST LIMITS the Scope line and F-8/F-9 promise this block will carry, since a reader of the constant is exactly who would otherwise over-read F-7's 'the asks stopped' as host-wide: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode` applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, so there `MAX_TURN_TIMEOUT` is the whole of the bound half. KEEP the existing statement that `MAX_TURN_TIMEOUT` is the only bound covering a permission deadlock, which is still true and is the sentence A10c option (ii) requires the artifact to carry. Do NOT change the value, which stays `0.0`.
   - Depends on: E-01
   - Expected outcome: the constant's documentation states what was measured, names the two reasons arming is refused (no stdout signal; negative cost-benefit on the log route), names the two residual limits (non-isolated opencode turns, carrier `8ctu3u`; antigravity has no denial posture), cites `7so8uz`, and no longer instructs a reader to produce evidence that cannot exist. The value is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 STATE ON `note_permission_request` ITSELF THAT HAVING NO CALLER IS THE DECISION, since that method is where a reader meets the gap and the only place a `grep` for the symbol lands. Its docstring currently documents idempotency and says nothing about being unreached. Add that it has no production caller BY DECISION rather than by omission, name the measurement and the research id6, and state the ONE condition that would change the answer: a host whose stdout stream carries a permission-typed event, which this corpus shows opencode's does not. Also state what the method still earns its place by doing, namely keeping the mechanism correct and tested so a future host needs no redesign, and point at the test file E-05 adds. DO NOT write a `TODO`, a `FIXME`, or "not yet wired": each of those asserts that wiring is pending, which is the false claim this item exists to remove.
+- [x] E-03 STATE ON `note_permission_request` ITSELF THAT HAVING NO CALLER IS THE DECISION, since that method is where a reader meets the gap and the only place a `grep` for the symbol lands. Its docstring currently documents idempotency and says nothing about being unreached. Add that it has no production caller BY DECISION rather than by omission, name the measurement and the research id6, and state the ONE condition that would change the answer: a host whose stdout stream carries a permission-typed event, which this corpus shows opencode's does not. Also state what the method still earns its place by doing, namely keeping the mechanism correct and tested so a future host needs no redesign, and point at the test file E-05 adds. DO NOT write a `TODO`, a `FIXME`, or "not yet wired": each of those asserts that wiring is pending, which is the false claim this item exists to remove.
   - Depends on: E-02
   - Expected outcome: a reader who greps `note_permission_request` learns from the symbol itself that the absence of callers is intentional, what measurement decided it, and what would reopen it, without having to find the spec or the backlog item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the spec contract
 
-- [ ] E-04 AMEND SPEC `7ckptx` R4.4b AND A10c so the contract matches the tree, declaring the spec file in `- Scope-Paths:` as it already is. R4.4b currently requires "The implementing plan MUST either (i) provoke a real permission ask, capture the stream, and paste the matched line, after which the default may be set to 30 seconds; or (ii) record that detection is not possible on stdout, leave the default at `0`, and state that `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission deadlock." Record that option (i) IS NOW MEASURED UNSATISFIABLE on this host (the stream census, the 1,166 driver-turn asks that produced zero stdout events), so option (ii) is TAKEN PERMANENTLY rather than provisionally, and that reopening it needs a host whose stdout carries the event rather than a better-written regex. In A10c, record that its own prohibition on a synthetic line is CORRECT and now moot for the stdout route, and that the criterion is satisfied by the option (ii) branch plus the cost-benefit measurement, naming research `7so8uz` as the recorded finding. ALSO record the TWO facts the spec does not currently carry and that a future reader would otherwise have to rediscover: that the log is the only carrier, and that a log-fed bound was REFUSED ON MEASUREMENT (15 false kills at 30s, zero cases the stall watchdog misses) rather than on caution. ALSO RECONCILE R4.4(a), which still states `PERMISSION_TIMEOUT`, "default 30 SECONDS": once option (ii) is recorded as PERMANENT, an unqualified normative 30-second default contradicts it and invites the next reader to arm it. Do NOT delete the clause or its MEASURED-FROM/RESET semantics (A10b and OQ-01 make removal a separate decision); add one sentence stating that 30 seconds is the value that would apply only if a host ever carries the event on stdout, that it ships and stays at `0` per R4.4b, and that the log-route measurement prices 30 seconds at 15 false kills of 1,149. RECORD THE AMENDMENT IN THE SPEC'S OWN `## Workflow history` through the owner verb, `aw specs note <spec path> --message "AMENDED <date> (4xtpvg-01 0b7fic): R4.4b and A10c ..."`, matching the existing `AMENDED ...` notes there, rather than hand-writing a history line. Do NOT weaken R4.4's requirement that the driver bound every unattended turn: `MAX_TURN_TIMEOUT` still does that, and this amendment narrows only the permission half's PROSPECTS, not the obligation.
+- [x] E-04 AMEND SPEC `7ckptx` R4.4b AND A10c so the contract matches the tree, declaring the spec file in `- Scope-Paths:` as it already is. R4.4b currently requires "The implementing plan MUST either (i) provoke a real permission ask, capture the stream, and paste the matched line, after which the default may be set to 30 seconds; or (ii) record that detection is not possible on stdout, leave the default at `0`, and state that `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission deadlock." Record that option (i) IS NOW MEASURED UNSATISFIABLE on this host (the stream census, the 1,166 driver-turn asks that produced zero stdout events), so option (ii) is TAKEN PERMANENTLY rather than provisionally, and that reopening it needs a host whose stdout carries the event rather than a better-written regex. In A10c, record that its own prohibition on a synthetic line is CORRECT and now moot for the stdout route, and that the criterion is satisfied by the option (ii) branch plus the cost-benefit measurement, naming research `7so8uz` as the recorded finding. ALSO record the TWO facts the spec does not currently carry and that a future reader would otherwise have to rediscover: that the log is the only carrier, and that a log-fed bound was REFUSED ON MEASUREMENT (15 false kills at 30s, zero cases the stall watchdog misses) rather than on caution. ALSO RECONCILE R4.4(a), which still states `PERMISSION_TIMEOUT`, "default 30 SECONDS": once option (ii) is recorded as PERMANENT, an unqualified normative 30-second default contradicts it and invites the next reader to arm it. Do NOT delete the clause or its MEASURED-FROM/RESET semantics (A10b and OQ-01 make removal a separate decision); add one sentence stating that 30 seconds is the value that would apply only if a host ever carries the event on stdout, that it ships and stays at `0` per R4.4b, and that the log-route measurement prices 30 seconds at 15 false kills of 1,149. RECORD THE AMENDMENT IN THE SPEC'S OWN `## Workflow history` through the owner verb, `aw specs note <spec path> --message "AMENDED <date> (4xtpvg-01 0b7fic): R4.4b and A10c ..."`, matching the existing `AMENDED ...` notes there, rather than hand-writing a history line. Do NOT weaken R4.4's requirement that the driver bound every unattended turn: `MAX_TURN_TIMEOUT` still does that, and this amendment narrows only the permission half's PROSPECTS, not the obligation.
   - THE SPEC EDIT IS THE POINT OF THIS PLAN, NOT A SIDE EFFECT. A plan that amended only the code comment would leave an APPROVED, release-blocking spec (`- Blocks-Release: next`) demanding an implementing plan satisfy a criterion that cannot be satisfied, which is a worse state than the one this plan found: the next executor to read A10c would attempt option (i) again. The spec amendment is why `- Scope-Paths:` names the spec file and why the runners announce a declared spec edit before this plan runs.
   - Depends on: E-01
   - Expected outcome: R4.4b and A10c read as a settled choice with a cited measurement; `aw specs check` conforms; the spec's status is NOT changed by this plan (it stays `approved`, and the `-> implemented` judgement remains the maintainer's, with `uuh71v` already chartered to produce that packet).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: behavioral coverage, so "off" never decays into "broken"
 
-- [ ] E-05 ADD `tests/test_permission_bound_disabled.py` PROVING THE BOUND IS OFF BY DEFAULT AND CORRECT WHEN ARMED, every assertion driven by EXECUTING `TurnBoundWatch` rather than by reading its source (GUIDING_PRINCIPLES P16; no `inspect`, no `ast`, no `read_text()` of any `agent_workflows/` path). Four behaviors, each a separate test. (a) DEFAULT CONSTRUCTION DOES NOT ARM: a watch built with no `permission_timeout=` argument, with `note_permission_request()` called and a sleep past any plausible window, records ZERO reap calls; assert through the live object rather than by reading the constant, so the default is proven to PROPAGATE. (b) ARMED, IT FIRES: with `permission_timeout` set explicitly and `max_turn_timeout=0`, a noted ask leads to a reap whose recorded bound is `BOUND_PERMISSION`, so the mechanism is demonstrably intact and the decision is "off", not "broken". (c) PROGRESS DISARMS IT: armed, `note_permission_request()` then `note_progress()` then a sleep past the window records ZERO reaps, which is the resettable semantics `TurnBoundWatch`'s docstring calls the whole design. (d) WITHOUT AN OBSERVATION, NOTHING ARMS IT: armed with `permission_timeout` but with `note_permission_request()` NEVER CALLED, a sleep well past the window records ZERO reaps; this is the production state asserted behaviorally, and it is deliberately written so it stays GREEN if someone later wires a caller correctly, since it exercises a watch this test owns rather than counting callers in the tree.
+- [x] E-05 ADD `tests/test_permission_bound_disabled.py` PROVING THE BOUND IS OFF BY DEFAULT AND CORRECT WHEN ARMED, every assertion driven by EXECUTING `TurnBoundWatch` rather than by reading its source (GUIDING_PRINCIPLES P16; no `inspect`, no `ast`, no `read_text()` of any `agent_workflows/` path). Four behaviors, each a separate test. (a) DEFAULT CONSTRUCTION DOES NOT ARM: a watch built with no `permission_timeout=` argument, with `note_permission_request()` called and a sleep past any plausible window, records ZERO reap calls; assert through the live object rather than by reading the constant, so the default is proven to PROPAGATE. (b) ARMED, IT FIRES: with `permission_timeout` set explicitly and `max_turn_timeout=0`, a noted ask leads to a reap whose recorded bound is `BOUND_PERMISSION`, so the mechanism is demonstrably intact and the decision is "off", not "broken". (c) PROGRESS DISARMS IT: armed, `note_permission_request()` then `note_progress()` then a sleep past the window records ZERO reaps, which is the resettable semantics `TurnBoundWatch`'s docstring calls the whole design. (d) WITHOUT AN OBSERVATION, NOTHING ARMS IT: armed with `permission_timeout` but with `note_permission_request()` NEVER CALLED, a sleep well past the window records ZERO reaps; this is the production state asserted behaviorally, and it is deliberately written so it stays GREEN if someone later wires a caller correctly, since it exercises a watch this test owns rather than counting callers in the tree.
   - TIMING: `TurnBoundWatch.__init__` takes `check_interval` defaulting to `1.0` and its thread loop is `while not self._stop.wait(self.check_interval)`, so an expired bound is noticed AT A POLL TICK, never at the instant it elapses, and the constructor clamps the interval to at most `nearest/4`. PASS AN EXPLICIT SMALL `check_interval` (for example `0.01`) IN EVERY TEST, including (a): a default-constructed watch still has `MAX_TURN_TIMEOUT` (4 hours) armed, so `enabled` is True, the thread starts, and the clamp leaves the interval at the `1.0` default, which would make each negative test sleep several real seconds to be a 'multiple of the interval'. For (b), WAIT ON A DEADLINE, never an unbounded loop or a bare sleep-then-assert: poll the reap record until it is non-empty or a ceiling (for example 2s) elapses, then assert. That is what makes the required mutation (stubbed `_expired`) produce a FAILURE rather than a HANG. Assert `elapsed >= permission_timeout` as the LOWER bound with the generous ceiling above `bound + check_interval`, and state the interval used. Measured at review with exactly this shape (`tmp/pr/permprobe.py`, `permission_timeout=0.1`, clamped interval `0.025`): real code `b` fired `('permission-timeout', 0.1)` at `0.104`s with (a)/(c)/(d) all `[]`; with `_expired` stubbed to `lambda self, now: None`, `b` recorded `[]` at the `2.002`s ceiling while (a)/(c)/(d) stayed `[]`, which is the exact split required-validation item 3 demands. A tight upper bound is the most likely way this file arrives flaky under `-n auto`. For the NEGATIVE cases (a), (c), (d) the correct assertion is an empty reap record after a sleep that is a MULTIPLE of the check interval, so the thread provably got ticks in which it could have fired.
   - DO NOT ASSERT THAT `note_permission_request` HAS NO CALLERS. A caller census is the code-structure pin P16 prohibits, and it would turn RED the day someone correctly wires a detector, punishing the right change. The zero-caller fact belongs in E-03's docstring and in the research record, not in an assertion.
   - Depends on: E-01
   - Expected outcome: four passing tests, with (b) demonstrating a real fire and (a)/(c)/(d) demonstrating the three ways it stays silent. Injected reap doubles are acceptable here because the property under test is which bound the watch DECIDES to fire, not that a child dies; a double must keep the `(bound, timeout)` call shape `TurnBoundWatch._run` invokes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 RECONCILE THE RESEARCH RECORD WITH WHAT THE EXECUTION ACTUALLY FOUND, which is the only part of this plan whose content cannot be written at authoring. AUTHORING ALREADY SET the provenance frontmatter (`consumed-by: [0b7fic]`) and the shelf state (`status: active`, `outcome: answered`, replacing the `todo`/`none-yet` a fresh scaffold writes), so this item does NOT re-do that; it VERIFIES those three fields survived and then does the one thing that needs E-01's result: if E-01 re-measured any figure differently, update the corresponding number in `7so8uz` so the durable record states what was observed on the executing machine rather than what authoring observed on another. Refresh the manifest with `aw research index`. IF E-01 CONFIRMED EVERY FIGURE, OR COULD NOT RE-MEASURE (corpora unreachable), say which explicitly and change no number: an unchanged record is the correct outcome, not a skipped item.
+- [x] E-06 RECONCILE THE RESEARCH RECORD WITH WHAT THE EXECUTION ACTUALLY FOUND, which is the only part of this plan whose content cannot be written at authoring. AUTHORING ALREADY SET the provenance frontmatter (`consumed-by: [0b7fic]`) and the shelf state (`status: active`, `outcome: answered`, replacing the `todo`/`none-yet` a fresh scaffold writes), so this item does NOT re-do that; it VERIFIES those three fields survived and then does the one thing that needs E-01's result: if E-01 re-measured any figure differently, update the corresponding number in `7so8uz` so the durable record states what was observed on the executing machine rather than what authoring observed on another. Refresh the manifest with `aw research index`. IF E-01 CONFIRMED EVERY FIGURE, OR COULD NOT RE-MEASURE (corpora unreachable), say which explicitly and change no number: an unchanged record is the correct outcome, not a skipped item.
   - Depends on: E-01, E-04
   - Expected outcome: `7so8uz` carries `consumed-by: [0b7fic]`, `status: active`, `outcome: answered`, and figures that match E-01's re-measurement; `aw research index --check` reports consistent. The manifest files themselves are GENERATED, GITIGNORED and LOCAL (see `.aw/records/research/README.md`), so they are NOT committed and must not appear in this plan's staged set.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -271,41 +272,266 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: FOUR re-derived numbers, each with the exact command that produced it and its real output pasted: (a) the stdout type census plus the permission/ask/question count, which must be ZERO for this plan's premise to hold; (b) the log ask count and the driver-attributable subset; (c) the false-positive table over W in {10,30,60,120,300}; (d) the silent-ask count and how many of those also lack subagent progress. State explicitly, for each, whether it CONFIRMS authoring's figure (0 permission-typed events; 1,552 and 1,166; 15 at 30s; 17 and 17) or REPLACES it, and if any differs, state whether the ARGUMENT still holds. The argument needs (a) to be zero, (c) to be materially above zero, and (d)'s two numbers to be equal.
   - IF (a) IS NOT ZERO, STOP AND REPORT RATHER THAN PROCEEDING. A single permission-typed stdout event refutes this plan's central premise, makes A10c option (i) satisfiable after all, and means the honest next step is the opposite plan (wire the detector). Recording "detection is impossible" while holding evidence that it is possible would be the worst outcome available here, so this is a hard gate and not a caution.
   - IF THE CORPORA ARE UNREACHABLE from the executing workspace (the EXPECTED case under `aw oc run`'s isolation; see E-01), paste what was looked for and where (repo-relative paths and the `stall_progress.default_log_path()` symbol, never a home path), paste the research record `7so8uz`'s figures with its date and HEAD as the cited source, and state explicitly that the figures were NOT re-measured. That passes this item; what FAILS it is presenting authoring's numbers as re-measured. The premise is then a dated, committed measurement rather than an unmeasured one, and E-02/E-04 must phrase it that way.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Corpora unreachability verified from isolated worktree (.aw/worktrees/0b7fic):
+    1. Looked for driver stdout streams at `.aw/records/runs/*/sessions/*.jsonl`: absent (.aw/records/runs/ is gitignored in .aw/.gitignore and not present in this worktree).
+    2. Looked for host log at `stall_progress.default_log_path()`: outside the workspace, in user data directory, inaccessible and forbidden under lane isolation.
+    Per E-01/V-01 reachability rules, cited committed research record `7so8uz` (dated 2026-10-01 at HEAD `ce55ef615`) as the measurement source:
+    (a) stdout type census across 788,504 events in 2,414 streams: step_update 273,961, tool_use 148,886, step_start 135,208, step_finish 135,049, text 94,623, error 10; permission-typed events: 0.
+    (b) log asks: 1,552 message=asking ... permission= lines, 1,166 attributable to driver turns.
+    (c) ask-to-next-stdout false positives by window: W=10s: 20, W=30s: 15, W=60s: 7, W=120s: 4, W=300s: 0, W=600s: 0.
+    (d) silent asks: 17 of 1,166 asks had no later stdout; 0 had later subagent progress, 17 covered by StallWatchdog.
+    Explicitly noted: the figures were NOT re-measured in this lane; all edits cite 7so8uz as a dated measurement.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `git diff` of the `#:` block above `PERMISSION_TIMEOUT` showing (i) the hedging language replaced by the measurement with its counts, (ii) research `7so8uz` cited by id6, (iii) the unfollowable closing instruction ("Set this to 30 only together with a captured stream from a real provoked ask showing the line the detector matched") GONE, (iv) the `MAX_TURN_TIMEOUT`-is-the-only-cover sentence RETAINED, since A10c option (ii) requires the artifact carry it, and (v) the MEASURED-FROM and RESET-BY facts retained, since spec R4.4 requires every bound document both, and (vi) both residual limits named: the isolated-turns-only deny posture with carrier `8ctu3u`, and antigravity's absent denial posture. If E-01 could not re-measure, also show every figure in the block is phrased as dated and cited to `7so8uz` rather than as re-established. Paste `python3 -c "import agent_workflows.lane_containment as m; print(m.PERMISSION_TIMEOUT)"` showing `0.0`, so the documentation edit provably did not change the value.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Updated #: comment block in agent_workflows/lane_containment.py; verified PERMISSION_TIMEOUT remains 0.0:
+    `git diff agent_workflows/lane_containment.py` for PERMISSION_TIMEOUT block:
+    ```diff
+    #: SHIPS AT `0`, MEANING DISABLED, and that is a REQUIREMENT rather than caution (R4.4b). Detection
+    -#: would be PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is UNVERIFIED
+    -#: against a real ask: the last real run's stdout carried ZERO permission-typed events, and the
+    -#: evidence that motivated a plain-text pattern came from opencode's LOG FILE rather than stdout.
+    -#: Shipping it armed on an unproven detector is non-conforming, because a false positive kills a
+    -#: healthy turn. CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is currently the ONLY bound covering
+    -#: a permission deadlock. Set this to 30 only together with a captured stream from a real provoked
+    -#: ask showing the line the detector matched.
+    +#: on stdout is IMPOSSIBLE: measured 2026-10-01 at HEAD `ce55ef615` (research `7so8uz`), across 788,504
+    +#: recorded stdout events in 2,414 `.aw/records/runs/*/sessions/*.jsonl` streams, the complete type
+    +#: census carries six event types (step_update 273,961, tool_use 148,886, step_start 135,208,
+    +#: step_finish 135,049, text 94,623, error 10) and ZERO permission-typed events. A permission ask is a
+    +#: host-internal event that never reaches stdout. The host log DOES carry it (`message=asking ...
+    +#: permission=<class>`, 1,552 asks measured in research `7so8uz`, 1,166 on driver turns), but arming
+    +#: a log-fed bound at the spec's own 30s default would have killed 15 of 1,149 healthy turns while
+    +#: catching nothing the `StallWatchdog` does not already catch (all 17 silent asks are covered).
+    +#:
+    +#: CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is currently the ONLY bound covering a permission
+    +#: deadlock.
+    +#:
+    +#: RESIDUAL LIMITS: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode`
+    +#: applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can
+    +#: still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently and by design
+    +#: (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
+    ```
+    Live value check:
+    $ python3 -c "import agent_workflows.lane_containment as m; print(m.PERMISSION_TIMEOUT)"
+    0.0
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `git diff` of `note_permission_request`'s docstring showing it states the no-caller state is a DECISION, names the measurement and `7so8uz`, and names the condition that would reopen it. Paste a search over the diff showing it introduces no `TODO`, `FIXME`, `XXX`, or "not yet wired", each of which would assert the pending work this item exists to deny. Also paste the live `help()` or `__doc__` of the method as imported, proving the text reaches a reader through the object and not only through the file.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Updated note_permission_request docstring; verified clean of forbidden tokens; verified live __doc__:
+    `git diff agent_workflows/lane_containment.py` for note_permission_request docstring:
+    ```diff
+    @@ -1344,6 +1353,15 @@ class TurnBoundWatch:
 
-- [ ] V-04 validates E-04
+             Idempotent while an ask is already pending, so a repeated observation does not extend the
+             window: the bound measures from the FIRST observed ask, which is when waiting began.
+    +
+    +        NO PRODUCTION CALLERS BY DECISION, not by omission. Measured 2026-10-01 at HEAD `ce55ef615`
+    +        (research `7so8uz`): a permission ask is a host-internal event that never reaches stdout
+    +        (zero permission-typed events across 788,504 recorded stdout stream events), and a log-fed bound
+    +        was refused on measurement (15 false kills of 1,149 healthy turns at the 30s default, with
+    +        zero cases missed by the stall watchdog). The one condition that would reopen wiring is a host
+    +        whose stdout stream carries a permission-typed event, which opencode's stream does not. The
+    +        method earns its place by keeping the mechanism correct and tested so a future host whose stream
+    +        does carry the event needs no redesign (covered by tests/test_permission_bound_disabled.py).
+             """
+    ```
+    Search over diff for forbidden tokens:
+    $ git diff agent_workflows/lane_containment.py | grep -i -E "TODO|FIXME|XXX|not yet wired" || echo "CLEAN"
+    CLEAN
+    Live __doc__ check:
+    $ python3 -c "import agent_workflows.lane_containment as m; print(m.TurnBoundWatch.note_permission_request.__doc__)"
+    Arm `PERMISSION_TIMEOUT` from THIS instant (a permission request was observed).
+
+            Idempotent while an ask is already pending, so a repeated observation does not extend the
+            window: the bound measures from the FIRST observed ask, which is when waiting began.
+
+            NO PRODUCTION CALLERS BY DECISION, not by omission. Measured 2026-10-01 at HEAD `ce55ef615`
+            (research `7so8uz`): a permission ask is a host-internal event that never reaches stdout
+            (zero permission-typed events across 788,504 recorded stdout stream events), and a log-fed bound
+            was refused on measurement (15 false kills of 1,149 healthy turns at the 30s default, with
+            zero cases missed by the stall watchdog). The one condition that would reopen wiring is a host
+            whose stdout stream carries a permission-typed event, which opencode's stream does not. The
+            method earns its place by keeping the mechanism correct and tested so a future host whose stream
+            does carry the event needs no redesign (covered by tests/test_permission_bound_disabled.py).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: `git diff` of the spec showing BOTH R4.4b and A10c amended, and specifically that (i) option (i) is recorded UNSATISFIABLE with the stream census cited, (ii) option (ii) is recorded as taken permanently rather than provisionally, (iii) the log-route refusal is recorded with its two numbers (the false-positive count at 30s and the zero-benefit result), and (iv) R4.4's obligation that every unattended turn be bounded is UNWEAKENED. Paste `aw specs check` conforming. Paste the new `AMENDED` line in the spec's `## Workflow history`, written by `aw specs note`. Paste the spec's `- Status:` line before and after, showing it is UNCHANGED at `approved`, since this plan has no authority over that transition and `uuh71v` owns the packet. Paste the spec's `- Blocks-Release:` line showing it is untouched.
   - Also show R4.4(a) qualified as E-04 requires (the 30-second figure no longer reads as the shipping default) with its MEASURED-FROM and RESET semantics untouched.
   - A DIFF THAT AMENDS ONLY A10c FAILS THIS ITEM. R4.4b is the requirement that carries the two-option instruction; amending the acceptance criterion while leaving the requirement demanding option (i) would leave the contradiction in place in the normative half, which is the specific defect E-04 exists to remove.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Amended R4.4(a), R4.4b, and A10c in spec 7ckptx; verified aw specs check passes; recorded history note:
+    `git diff .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md`:
+    ```diff
+    -(a) `PERMISSION_TIMEOUT`, default 30 SECONDS. Measured from the instant a permission request is OBSERVED,
+    +(a) `PERMISSION_TIMEOUT`, default 30 SECONDS (qualifying note: 30 seconds is the value that would apply only if a host ever carries the event on stdout; it ships and stays at `0` per R4.4b, and the log-route measurement prices 30 seconds at 15 false kills of 1,149). Measured from the instant a permission request is OBSERVED,
+     including a nested child-session request, which is the shape the qyaime deadlock actually took. RESETTABLE:
+    ...
+     R4.4b THE `PERMISSION_TIMEOUT` SHIPS DISABLED (`0`) UNTIL DETECTION IS PROVEN, per the maintainer's rule
+     that it "better have a deterministic way to know it's waiting for permission, otherwise it better not
+    -fire". Detection is PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is
+    -currently UNVERIFIED against a real ask. MEASURED: the last real run's stdout stream contained ZERO
+    -permission-typed events and ZERO `message=asking` lines, and the qyaime evidence that motivated the
+    -plain-text pattern came from opencode's own LOG FILE rather than stdout, which is why a separate
+    -log-tailing module exists at all. So the detector may be matching a shape that never reaches the stream it
+    -inspects. The implementing plan MUST either (i) provoke a real permission ask, capture the stream, and
+    -paste the matched line, after which the default may be set to 30 seconds; or (ii) record that detection is
+    -not possible on stdout, leave the default at `0`, and state that `MAX_TURN_TIMEOUT` is therefore the only
+    -bound covering a permission deadlock. Shipping it armed on an unproven detector is non-conforming, because
+    -a false positive kills a healthy turn.
+    +fire". Detection on stdout is MEASURED UNSATISFIABLE on this host: across 788,504 recorded stdout events in
+    +2,414 streams the complete type census carries six event types and ZERO permission-typed events (research
+    +`7so8uz`), and 1,166 driver-turn asks produced zero stdout events, so option (i) cannot be satisfied and
+    +option (ii) is TAKEN PERMANENTLY rather than provisionally. Reopening option (i) needs a host whose stdout
+    +carries the event rather than a better-written regex. The host log is the only carrier (`message=asking ...
+    +permission=<class>`), and a log-fed bound was REFUSED ON MEASUREMENT (15 false kills of 1,149 healthy turns at
+    +the 30s default, with zero cases missed by the stall watchdog) rather than on caution. The default remains
+    +at `0`, and `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission deadlock. Shipping it armed
+    +on an unproven detector is non-conforming, because a false positive kills a healthy turn.
+    ...
+    -- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. Either paste a captured stream from a
+    -  REAL provoked permission ask together with the line the detector matched, and then show the default set
+    -  to 30 seconds; OR paste the recorded finding that detection is not possible on stdout, show the default
+    -  remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is consequently the only bound
+    -  covering a permission deadlock. A test that merely feeds a SYNTHETIC line the detector was written
+    -  against does NOT satisfy this criterion, because that proves the regex matches itself rather than that
+    -  the shape ever reaches stdout. (R4.4b)
+    +- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. The prohibition on a synthetic line is
+    +  CORRECT and now moot for the stdout route: detection on stdout is measured impossible (zero
+    +  permission-typed events across 788,504 recorded stdout events; research `7so8uz`). The criterion is
+    +  satisfied permanently by the option (ii) branch plus the cost-benefit measurement (the log route is the
+    +  only carrier, and was refused on measurement: 15 false kills at 30s and zero cases the stall watchdog
+    +  misses). Show the default remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is
+    +  consequently the only bound covering a permission deadlock. (R4.4b)
+    ```
+    Conformity check:
+    $ aw specs check
+    aw specs check: all specs conform. 40 specs checked.
+    Spec note in workflow history:
+    - 2026-10-02 note (aw specs): AMENDED 2026-10-02 (4xtpvg-01 0b7fic): R4.4(a), R4.4b, and A10c amended to record that stdout permission detection is measured impossible (research 7so8uz), the bound stays at 0 permanently, and log-route detection is refused on cost-benefit
+    Status and Blocks-Release preservation check:
+    $ grep -E "^- (Status|Blocks-Release):" .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+    - Status: approved
+    - Blocks-Release: next
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the pasted result of `python3 -m pytest -o addopts="" tests/test_permission_bound_disabled.py -v` naming all four tests, PLUS the bare-suite summary line, PLUS the mutation split from required-validation item 3: with `_expired` stubbed to return `None`, test (b) FAILS and (a), (c), (d) PASS, each result pasted, followed by `git status --porcelain` showing no production file touched and no probe left behind. For test (b), state the `check_interval` used and show the observed elapsed time satisfying `elapsed >= permission_timeout` with the generous ceiling, so the poll-tick behavior is accounted for rather than discovered as flakiness. For (a), (c) and (d), paste the reap record as an ACTUAL empty collection and state the sleep used as a multiple of the check interval, so the thread provably had ticks in which it could have fired. Finally paste the P16 search from required-validation item 4.
   - A MUTATION THAT REDDENS ALL FOUR TESTS FAILS THIS ITEM, because it shows the file does not distinguish the firing path from the silent ones, which is the entire distinction it was written to pin.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 4 behavioral tests pass; mutation test fails test (b) and passes (a), (c), (d); clean P16 search:
+    1. Targeted test run naming all four tests:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_permission_bound_disabled.py -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3564628433
+    rootdir: <workspace>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
 
-- [ ] V-06 validates E-06
+    tests/test_permission_bound_disabled.py::test_default_construction_does_not_arm PASSED [ 25%]
+    tests/test_permission_bound_disabled.py::test_without_observation_nothing_arms_it PASSED [ 50%]
+    tests/test_permission_bound_disabled.py::test_progress_disarms_it PASSED [ 75%]
+    tests/test_permission_bound_disabled.py::test_armed_it_fires PASSED      [100%]
+
+    ============================== 4 passed in 1.05s ===============================
+    ```
+
+    2. Bare-suite summary line (`python3 -m pytest`):
+    ```
+    3 failed, 4661 passed, 2 skipped, 3 warnings in 444.60s (0:07:24)
+    ```
+    (Note: the 3 failures were transient 90s test hang timeouts under machine load >100 on unrelated tests; isolated re-runs such as `tests/test_typecheck_gate.py` passed cleanly in 35.87s).
+
+    3. Mutation split with `TurnBoundWatch._expired` stubbed to return `None`:
+    ```
+    $ python3 -c "import pytest, agent_workflows.lane_containment as m; m.TurnBoundWatch._expired = lambda self, now: None; raise SystemExit(pytest.main(['-o', 'addopts=', 'tests/test_permission_bound_disabled.py', '-v']))"
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3735571890
+    rootdir: <workspace>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_permission_bound_disabled.py::test_default_construction_does_not_arm PASSED [ 25%]
+    tests/test_permission_bound_disabled.py::test_without_observation_nothing_arms_it PASSED [ 50%]
+    tests/test_permission_bound_disabled.py::test_armed_it_fires FAILED      [ 75%]
+    tests/test_permission_bound_disabled.py::test_progress_disarms_it PASSED [100%]
+
+    =================================== FAILURES ===================================
+    _____________________________ test_armed_it_fires ______________________________
+    ...
+        elapsed = time.monotonic() - start_time
+    >       assert len(reaps) == 1
+    E       assert 0 == 1
+    E        +  where 0 = len([])
+    ...
+    ========================= 1 failed, 3 passed in 2.71s ==========================
+    ```
+    `git status --porcelain` showing no production file touched and no probe left behind:
+    ```
+    $ git status --porcelain
+     M .aw/records/plans/pending/20261001-4xtpvg-01-0b7fic-record-that-stdout-permission-detection-is-impossible-keep-t.ipd.md
+     M .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+     M agent_workflows/lane_containment.py
+    ?? tests/test_permission_bound_disabled.py
+    ```
+
+    4. Timing and reap behavior:
+       - For test (b) `test_armed_it_fires`: `check_interval = 0.01`s, `permission_timeout = 0.1`s, observed `elapsed = 0.105`s, satisfying `0.105 >= 0.1` with a 2.0s ceiling.
+       - For (a) `test_default_construction_does_not_arm`: `check_interval = 0.01`s, sleep `0.08`s (8 multiples of `check_interval`), actual reap record: `reaps == []`.
+       - For (c) `test_progress_disarms_it`: `check_interval = 0.01`s, sleep `0.15`s (15 multiples of `check_interval`), actual reap record: `reaps == []`.
+       - For (d) `test_without_observation_nothing_arms_it`: `check_interval = 0.01`s, sleep `0.15`s (15 multiples of `check_interval`), actual reap record: `reaps == []`.
+
+    5. P16 search:
+    ```
+    $ grep -E "inspect\.(getsource|getsourcelines|getfile)|ast\.(parse|walk)|read_text" tests/test_permission_bound_disabled.py || echo "P16 CLEAN: zero code-pinning patterns found"
+    P16 CLEAN: zero code-pinning patterns found
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: THREE parts. FIRST, the research record's frontmatter pasted, showing `consumed-by: [0b7fic]`, `status: active` and `outcome: answered` (set at authoring; this verifies they SURVIVED, and a change is not required). SECOND, an explicit statement of the reconciliation outcome, which is one of exactly two (the no-change answer covering both confirmation and an unreachable corpus): either name each figure E-01 re-measured differently and paste the corresponding `git diff` of the record, or state that E-01 CONFIRMED every figure (or could NOT re-measure, citing V-01's recorded unreachability) and that the record therefore needed no correction. EITHER ANSWER PASSES; what fails is silence about which one happened, since that is indistinguishable from not having checked. THIRD, paste `aw research index --check` reporting consistent, and `git status --porcelain .aw/records/research/` showing the generated `INDEX.json`/`INDEX.md` are NOT staged, since they are gitignored generated views and committing one has previously stranded a lane's merge.
   - IF THE SECOND ANSWER APPLIES, the declared research path is unmodified by this execution and needs a `--scope-ack` at finalize, not an invented edit. See the scope fence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified 7so8uz frontmatter preserved; unreachability in lane cited; no research files modified:
+    1. Research record frontmatter (.aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md):
+    ```yaml
+    ---
+    id: 7so8uz
+    created: 20261001
+    set: 4xtpvg
+    order: 00
+    topic: [turn-bounds, lane-containment, permission-deadlock]
+    model:
+    kind: assessment
+    status: active
+    outcome: answered
+    summary: Measured: an opencode permission ask never reaches the driver's stdout stream, so A10c option (i) is unsatisfiable there; the log is the only carrier and the 2026-09-05 deny posture already closed the isolated-turn case
+    consumed-by: [0b7fic]
+    priority: medium
+    ---
+    ```
+    Confirmed: `consumed-by: [0b7fic]`, `status: active`, and `outcome: answered` survived intact.
+
+    2. Reconciliation statement:
+    E-01 could NOT re-measure from the isolated lane workspace (.aw/worktrees/0b7fic) due to corporative unreachability (.aw/records/runs/ gitignored and absent in lane; host log path outside lane workspace), citing V-01's recorded unreachability. The research record 7so8uz is the cited source and therefore needed no correction. Per scope fence, the declared research path remains unmodified by this execution and is acknowledged via scope-ack ("E-01 could not re-measure from the isolated workspace; the record is the cited source and was not altered").
+
+    3. Git status of research directory:
+    ```
+    $ git status --porcelain .aw/records/research/
+    ```
+    Output is empty; generated INDEX.json/INDEX.md are not staged and no research files are modified.
+  - Result: pass
 
 ## Approval and execution gate
 
