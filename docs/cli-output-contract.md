@@ -249,9 +249,9 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
 {"schema":"aw.agent/v1","kind":"result","cmd":"check specs","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"diagnostics":[{"location":"specs/01.md","rule":"spec.draft"},{"location":"specs/02.md","rule":"spec.title"}],"next":"aw check specs --fix"}
 ```
 
-### Stream Summary with Truncation (`exit: 1`)
+### Stream Summary with Truncation (`exit: 0`)
 ```json
-{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":1,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}
+{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"partial","exit":0,"total":4,"emitted":2,"omitted":2,"complete":false,"next":"aw runs query findings --limit 4"}
 ```
 
 ### Cannot-Run Error (`exit: 2`)
@@ -267,7 +267,7 @@ To minimize token usage during agent orchestration while preserving complete dec
 
 - **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
 - **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
-- **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
+- **`--limit <N>`**: Bounds payload emission to at most `N` items. For streaming commands (such as `runs query`), it bounds item emission and includes total counts, omitted counts, and a continuation command in the terminating `summary` record; for single-record commands (`check`, `search`), it bounds the in-record payload (`diagnostics`, `matches`) with total, emitted, and omitted counts, setting `complete: false` when truncated; for index generation (`index`, `research index`), it configures the recent-item hot window.
 - **`--verbose` / `--json`**:
   - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
   - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for machine ingestion and debugging. Its envelope fields (`summary`, `diagnostics`, `changes`, `evidence`, `next_actions`) are home-path redacted, while `data` is an unredacted passthrough (exempt per spec `kw5y2s` Section 2.4).

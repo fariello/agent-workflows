@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the failing baseline before changing any byte
 
-- [ ] E-01 WRITE `tests/test_limit_reach_check_search.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT, so each fix has a falsifiable baseline rather than a claim.
+- [x] E-01 WRITE `tests/test_limit_reach_check_search.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT, so each fix has a falsifiable baseline rather than a claim.
 
   DRIVE A FIXTURE REPOSITORY, NOT THE LIVE TREE. Build a temp repo holding a CHOSEN records set so every count asserted is one the test created. Two existing fixture shapes already prove the pattern and one of them must be reused rather than forked: `tests/test_cli_search.py` builds a records tree in `setUp` and calls `cli.main(list(argv) + ["--dir", str(self.repo)])` in-process with stdout captured, and `tests/test_index_check_agent_records.py` drives the agent record path per verb. The fixture must contain a KNOWN number of check findings (seed artifacts that deliberately violate a checker rule) and a KNOWN number of search hits, because both bounds are asserted against the fixture's own counts and never against a live-tree figure.
 
@@ -50,31 +50,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NO STATIC ANALYSIS. Do not read `agent_workflows/cli.py` from the test, do not assert a symbol exists, do not count call sites. GUIDING_PRINCIPLES P16 forbids code-pinning tests outright; every assertion must come from driving the command and reading its stdout, exit code and stderr.
   - Depends on: none
   - Expected outcome: a new test module whose nine agent assertions FAIL at the base commit and whose human and `--json` invariance assertions PASS there, with the failing output captured verbatim as the baseline for V-02 through V-06.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the search record carry its hits before bounding anything
 
-- [ ] E-02 MAKE `aw search --agent` REPORT ITS REAL HIT COUNT, which is a PREREQUISITE for the bound rather than a bonus: `--limit` over a payload carrying no hits is unimplementable. In `cli._run_search`, the agent and json branches share one `CommandResult` whose `data` carries `hits`, `files` and `matches`, and whose `evidence` carries `Evidence(key="search-hits", value={"count": hits})`. The count is therefore PRESENT in the result and is lost on the way to the compact record: `result_types.CommandResult.to_agent_record` computes `rec["findings"]` as `len(self.diagnostics) if self.diagnostics else self.data.get("findings", 0)`, and `search` sets neither `diagnostics` nor a `findings` data key, so the record reports `0` over 587 real hits (F-02).
+- [x] E-02 MAKE `aw search --agent` REPORT ITS REAL HIT COUNT, which is a PREREQUISITE for the bound rather than a bonus: `--limit` over a payload carrying no hits is unimplementable. In `cli._run_search`, the agent and json branches share one `CommandResult` whose `data` carries `hits`, `files` and `matches`, and whose `evidence` carries `Evidence(key="search-hits", value={"count": hits})`. The count is therefore PRESENT in the result and is lost on the way to the compact record: `result_types.CommandResult.to_agent_record` computes `rec["findings"]` as `len(self.diagnostics) if self.diagnostics else self.data.get("findings", 0)`, and `search` sets neither `diagnostics` nor a `findings` data key, so the record reports `0` over 587 real hits (F-02).
 
   FIX IT AT THE `search` CALL SITE, NOT IN `to_agent_record`. A `findings` integer in `data` fixes the COUNT (the fallback reads it; measured `findings: 603`), but the per-hit payload cannot travel through `to_agent_record`, so the E-04 agent-path helper adds it under a NEW record key (for example `matches`), not `diagnostics`, since a search hit is not a rule violation. `data` is ALSO the `--json` payload, so adding `findings` there changes `--json`, which the Scope declares unchanged: set it on an agent-only copy, or the `--json` invariance assertion in E-01 fails. Changing the shared fallback would alter the compact record of every command that reaches it, which is a cross-cutting change with its own blast radius and no backlog item behind it. State that reasoning in a comment at the site so a later reader does not "simplify" it back.
 
   DECIDE AND STATE WHAT A SEARCH HIT IS IN THE RECORD. The item notes a search row is `path:line` rather than an artifact, so its item shape is its own question; `data["matches"]` already holds `{"path", "line", "text"}` per hit, which is the shape to carry. Decide explicitly whether the bounded payload carries all three keys or drops `text` (free prose, the same size argument `okiso1` OQ-03 settled for a research summary), say which in a comment with the reason, and pin the decision in E-01's module.
   - Depends on: E-01
   - Expected outcome: `aw search <type> <pattern> --agent` reports a hit count equal to what `--json` reports for the same query, and carries per-hit data in a shape E-03 can bound.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 BOUND THE SEARCH PAYLOAD UNDER `--limit` AND REPORT THE COUNTS. Emit at most `ctx.limit` hits and set `total`, `emitted`, `omitted` and a `next` continuation on the record. A TRUNCATED SEARCH RECORD MUST NOT CLAIM `outcome: clean`: measured at review, `validate_agent_record` REJECTS `outcome: clean` with `complete: false` ("Greenwash violation: outcome cannot be 'clean' when complete=False") and `render_jsonl_record` asserts validity, so flipping `complete` while keeping the current `clean` status crashes the command, while keeping `complete: true` on a truncated view is the greenwashing the contract forbids. Emit `outcome: partial`, `complete: false`, `exit: 0` when truncated (validated `[]` at review); keep `clean`/`complete: true` when not truncated. Pin both in E-01. `agent_schema._PRESERVED_FIELDS` already contains `total`, `emitted` and `omitted` (F-07), so these survive a `--fields` projection and need no schema change.
+- [x] E-03 BOUND THE SEARCH PAYLOAD UNDER `--limit` AND REPORT THE COUNTS. Emit at most `ctx.limit` hits and set `total`, `emitted`, `omitted` and a `next` continuation on the record. A TRUNCATED SEARCH RECORD MUST NOT CLAIM `outcome: clean`: measured at review, `validate_agent_record` REJECTS `outcome: clean` with `complete: false` ("Greenwash violation: outcome cannot be 'clean' when complete=False") and `render_jsonl_record` asserts validity, so flipping `complete` while keeping the current `clean` status crashes the command, while keeping `complete: true` on a truncated view is the greenwashing the contract forbids. Emit `outcome: partial`, `complete: false`, `exit: 0` when truncated (validated `[]` at review); keep `clean`/`complete: true` when not truncated. Pin both in E-01. `agent_schema._PRESERVED_FIELDS` already contains `total`, `emitted` and `omitted` (F-07), so these survive a `--fields` projection and need no schema change.
 
   BUILD `next` FROM THE INVOCATION, NOT FROM A DEFAULT TEMPLATE. `render_stream`'s built-in default is `f"aw {cmd} --agent --limit {tot}"`, which for this verb would drop the type and the pattern the caller asked for and hand back a command returning a different result set. Construct it from the resolved type plus the pattern plus the active filter flags.
 
   SANITIZE THE PATTERN AND EVERY PATH AT CONSTRUCTION. A user-supplied pattern reaches `next` directly and a matched path reaches the payload, and `agent_schema.validate_agent_record` RAISES on an unsanitized absolute home path rather than leaking it, so an unsanitized value is a crash on user input and not a silent leak. `_run_search` already has an `except ValueError: rel_p = str(p)` fallback that yields an absolute path when a match cannot be relativized, which is exactly such a value. Route both through `agent_schema.normalize_repo_path` or `redact_home_paths`, and ALSO each hit's `text` if carried: measured at review, `validate_agent_record` rejects a home path inside `matches[0].text` exactly as inside `matches[0].path`, and a matched record line can legitimately contain one. This is the same defect class backlog `enygec` carries on `attention`, `runs` and `partition`; do NOT fix those three here.
   - Depends on: E-02
   - Expected outcome: `aw search <type> <pattern> --agent --limit N` emits exactly `N` hits with correct counts and a `next` that reproduces the same query, and a home-path pattern emits a valid record rather than raising.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: bound the check diagnostics without greenwashing the verdict
 
-- [ ] E-04 BOUND `aw check`'s `diagnostics` ARRAY UNDER `--limit` AND REPORT THE COUNTS IN THE SAME `result` RECORD. `cli._run_check` builds `diagnostics` from `drift` and hands them to one `CommandResult`; `<type>`, `all` and `release-gates` share the final `CommandResult` at the end of `_run_check`, but `--source-citations` and `--source-anchors` each build and emit their OWN `CommandResult` earlier in the function (re-verified at review: three separate `return get_renderer(ctx).emit(result, ctx)` sites carrying diagnostics), so the bound must be applied at all three emit sites via the shared helper, not at one. Set `total` (every finding), `emitted`, `omitted` and a `next` continuation built from the actual invocation. WHEN THE BOUND TRUNCATES (`omitted > 0`), SET `complete: false`, matching what `renderers.AgentRenderer.render_stream` does for a truncated stream and what `docs/cli-output-contract.md` Section 5's partial example shows. Measured at review: a bounded `check` record with `outcome: findings`, `exit: 1`, `complete: false` and the three counts validates `[]`, and also after `--fields diagnostics`, so `findings` stays a legal outcome. When the bound does NOT truncate, the record carries no counts and is unchanged.
+- [x] E-04 BOUND `aw check`'s `diagnostics` ARRAY UNDER `--limit` AND REPORT THE COUNTS IN THE SAME `result` RECORD. `cli._run_check` builds `diagnostics` from `drift` and hands them to one `CommandResult`; `<type>`, `all` and `release-gates` share the final `CommandResult` at the end of `_run_check`, but `--source-citations` and `--source-anchors` each build and emit their OWN `CommandResult` earlier in the function (re-verified at review: three separate `return get_renderer(ctx).emit(result, ctx)` sites carrying diagnostics), so the bound must be applied at all three emit sites via the shared helper, not at one. Set `total` (every finding), `emitted`, `omitted` and a `next` continuation built from the actual invocation. WHEN THE BOUND TRUNCATES (`omitted > 0`), SET `complete: false`, matching what `renderers.AgentRenderer.render_stream` does for a truncated stream and what `docs/cli-output-contract.md` Section 5's partial example shows. Measured at review: a bounded `check` record with `outcome: findings`, `exit: 1`, `complete: false` and the three counts validates `[]`, and also after `--fields diagnostics`, so `findings` stays a legal outcome. When the bound does NOT truncate, the record carries no counts and is unchanged.
 
   MECHANISM, WITHOUT EDITING `result_types`. Do NOT slice `diagnostics` before building the `CommandResult`: measured at review, a `CommandResult` built with 2 of 5 diagnostics reports `findings: 2` in its agent record (the findings fallback is `len(self.diagnostics)`) AND serializes 2 diagnostics under `--json` (`to_dict`), breaking OQ-03 and the `--json`-unchanged scope at once. Instead, on the `ctx.is_agent` path only, build the full record with `result.to_agent_record(<ctx with fields cleared>)` (that method applies `--fields` internally, which could strip `diagnostics` before the slice), slice its `diagnostics`, add `total`/`emitted`/`omitted`/`complete`/`next`, then apply `agent_schema.filter_record_fields` for `ctx.fields` and emit through `agent_schema.render_jsonl_record` (which validates). Demonstrated at review: that post-processing validates `[]` with `findings` still the full count and survives `--fields diagnostics`. Put it in ONE small helper in `cli.py` reused by every `check` emit site and by `search`.
 
@@ -83,27 +83,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT BOUND `data["policy_findings"]`, and say why in a comment. That array is the versioned machine finding shape and it is carried in `data`, which `--json` serializes verbatim; `--limit` is a token-control flag for the AGENT record, so bounding the `--json` payload would change a surface this plan declares unchanged.
   - Depends on: E-01
   - Expected outcome: `aw check <type> --agent --limit N` emits exactly `N` diagnostics with `total`/`emitted`/`omitted` and a `next`, while `exit`, `outcome` and `findings` are byte-for-byte what the unbounded run reports and `complete` is `false` exactly when `omitted > 0`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DECIDE AND IMPLEMENT ONE NON-POSITIVE `--limit` BEHAVIOR ON BOTH VERBS, so neither inherits Python slice semantics. The hazard is measured in `render_stream`, which this plan does not call but whose behavior shows what naive slicing yields: a limit of `0` emits zero items while reporting `omitted == total`, and a NEGATIVE limit emits `len(items) - 1` items while reporting `complete: false`, which is simply wrong.
+- [x] E-05 DECIDE AND IMPLEMENT ONE NON-POSITIVE `--limit` BEHAVIOR ON BOTH VERBS, so neither inherits Python slice semantics. The hazard is measured in `render_stream`, which this plan does not call but whose behavior shows what naive slicing yields: a limit of `0` emits zero items while reporting `omitted == total`, and a NEGATIVE limit emits `len(items) - 1` items while reporting `complete: false`, which is simply wrong.
 
   FOLLOW THE IN-REPO PRECEDENT AND REFUSE AT EXIT 2 WITH A `cannot-run` RECORD. A NON-INTEGER is already refused by argparse (`type=int` on the shared declaration; measured `--limit abc` exits 2 at review), so only `0` and negatives need handling; today both pass silently (measured: `check --limit 0` exits 1 with all 76 diagnostics, `search --limit -1` exits 0). Validate BEFORE the scan so a bad flag fails fast. `run_analytics_query._parse_limit` refuses rather than clamping (raising on a non-integer and on a value below one) and `aw runs query` is the one shipped command that already honors `--limit` under `--agent`, so matching it keeps one meaning for one flag. Do NOT adopt that precedent's upper ceiling (`MAX_ROW_LIMIT`): it exists because `aw runs query` pages an unbounded analytics corpus, while a caller asking `check` or `search` for more rows than exist already gets a complete answer, so a ceiling would refuse a legitimate full listing. Both verbs already have a `cannot-run` construction to copy (`_run_search`'s missing-pattern and invalid-regex branches, `_run_check`'s unknown-type branch).
   - Depends on: E-03, E-04
   - Expected outcome: `--limit 0` and `--limit -1` are refused at exit 2 with a valid `cannot-run` record on both verbs, with the reason stated at the site.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: make the document true and prove nothing else moved
 
-- [ ] E-06 RECONCILE `docs/cli-output-contract.md` SECTION 6 WITH WHAT SHIPS, AND CHANGE ONLY WHAT MEASUREMENT PROVES FALSE. The `--limit <N>` bullet promises the bound "in the terminating `summary` record". This plan delivers the bound on `check` and `search` inside a `result` record instead, which is a REAL difference a reader must not be left to discover, so the bullet needs the per-kind statement. Verify before editing whether the sentence is false for any OTHER verb too, and report the verdict rather than silently widening.
+- [x] E-06 RECONCILE `docs/cli-output-contract.md` SECTION 6 WITH WHAT SHIPS, AND CHANGE ONLY WHAT MEASUREMENT PROVES FALSE. The `--limit <N>` bullet promises the bound "in the terminating `summary` record". This plan delivers the bound on `check` and `search` inside a `result` record instead, which is a REAL difference a reader must not be left to discover, so the bullet needs the per-kind statement. Verify before editing whether the sentence is false for any OTHER verb too, and report the verdict rather than silently widening.
 
   ALSO CHECK THE WORKED EXAMPLE IN THE SAME DOCUMENT: Section 5 publishes a truncated summary record for `cmd: "attention"` with `next: "aw attention --agent --limit 50"`, and `aw attention` DECLARES NO `--limit` AT ALL (measured: its `--help` contains zero occurrences of `limit`). That example advertises a flag the command does not accept. Record the verdict with evidence; if correcting it is a one-line fix to a document already in scope, make it, and if it needs a behavior decision on `attention`, file the carrier instead and say so. Do not silently leave a known-false example in a document this plan is editing.
 
   Write no em or en dashes: this document is user-facing prose under the execution contract.
   - Depends on: E-05
   - Expected outcome: Section 6's `--limit` bullet describes the shipped per-kind behavior, and the `attention` example is either corrected or carried with the reason stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 PROVE THE UNCHANGED SURFACES ARE UNCHANGED, WITH A PROBE THAT IS VALID FOR THESE VERBS. Capture, before and after on the SAME tree state: the human output of both verbs, the `--json` payload of both verbs, and the unbounded `--agent` record of both.
+- [x] E-07 PROVE THE UNCHANGED SURFACES ARE UNCHANGED, WITH A PROBE THAT IS VALID FOR THESE VERBS. Capture, before and after on the SAME tree state: the human output of both verbs, the `--json` payload of both verbs, and the unbounded `--agent` record of both.
 
   DO NOT USE BYTE IDENTITY ON `aw check --agent`. Measured (F-03), two consecutive UNMODIFIED runs differ in `next` (`aw ipd set fhinri --from-spec 4sd62s` versus `aw ipd set d5ntkj --from-spec 25kzda`) because `next_actions` is built from a `set` of fixes, so a byte comparison reports a false disagreement. Compare PARSED records field by field with `next` excluded and asserted only for shape, and record that reasoning with the evidence. The human and `--json` captures may be compared byte for byte.
 
@@ -112,14 +112,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RUN THE EXISTING SUITES FOR BOTH VERBS UNCHANGED: `tests/test_cli_search.py`, `tests/test_index_check_agent_records.py`, `tests/test_agent_checked_count.py` (whose `_parse_agent_result` selects on `kind == "result"` and would break if this plan changed `check` to a stream, which is part of why OQ-01 chose otherwise), `tests/test_agent_field_projection.py` and `tests/test_fields_flag_reach.py`.
   - Depends on: E-06
   - Expected outcome: six captures agreeing under the stated comparison, the two index verbs demonstrated untouched with a clean tree afterwards, and five existing modules passing unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 RUN THE FULL SUITE BARE AND REPORT THE FAILURE-SET DELTA AGAINST A BASELINE YOU ESTABLISH YOURSELF. Run `python3 -m pytest` with NO added flags (`pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; `-n0` makes it several times slower, a second `-q` suppresses the summary line this plan requires pasted, and `-p no:randomly` disables the order randomization that surfaces order dependence). Capture the summary line at the BASE commit before any edit and again at the end, and state the delta as a SET of test ids, not as a count comparison.
+- [x] E-08 RUN THE FULL SUITE BARE AND REPORT THE FAILURE-SET DELTA AGAINST A BASELINE YOU ESTABLISH YOURSELF. Run `python3 -m pytest` with NO added flags (`pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; `-n0` makes it several times slower, a second `-q` suppresses the summary line this plan requires pasted, and `-p no:randomly` disables the order randomization that surfaces order dependence). Capture the summary line at the BASE commit before any edit and again at the end, and state the delta as a SET of test ids, not as a count comparison.
 
   THE BAR IS AN EMPTY DELTA, not a green run: an environmental failure present before the change is not this plan's to fix. A failure present AFTER and absent BEFORE is a regression and blocks the transition.
   - Depends on: E-07
   - Expected outcome: two pasted bare-suite summary lines and an explicitly empty failure-set delta.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -226,45 +226,247 @@ One document is in scope. `docs/cli-output-contract.md` Section 6's `--limit` bu
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the new module's RED output at the base commit, before any production edit, with the assertion errors visible and each of the nine agent assertions identifiable. A summary line alone is NOT sufficient. Paste the same run showing the human and `--json` invariance assertions PASSING at the base commit, which is what proves the baseline discriminates rather than failing wholesale. State the fixture's finding count and hit count and confirm those are the numbers the `total` assertions use, so no assertion can pass against a live-tree figure. Confirm by inspection that the module reads no production source and asserts no symbol's existence (P16), naming in one sentence how each assertion obtains its facts.
   - Observed evidence:
-  - Result: pending
+    RED baseline run output at base commit (`7b04ca81efc00499c3269e1e6c1a5186e4e0a353`), executed via `python3 -m pytest tests/test_limit_reach_check_search.py -o addopts="" -v`:
+    ```
+    FAILED tests/test_limit_reach_check_search.py::TestNonPositiveLimitRefusal::test_11_search_nonpositive_limit_refused
+    FAILED tests/test_limit_reach_check_search.py::TestNonPositiveLimitRefusal::test_10_check_nonpositive_limit_refused
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_04_check_limit_exit_outcome_unchanged_and_complete_false
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_01_check_unbounded_carries_every_finding_and_limit_bounds
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_08_search_records_carry_matches_and_validate
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_03_check_bounded_record_schema_and_counts_valid
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_05_check_limit_findings_reports_true_total
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_06_search_unbounded_hit_count_equals_json
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_07_search_limit_bounds_hits_and_outcome_partial
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_09_search_zero_match_exit_code_and_matches_payload
+    FAILED tests/test_limit_reach_check_search.py::TestAgentAssertions::test_02_check_limit_bounds_diagnostics_and_counts
+    PASSED tests/test_limit_reach_check_search.py::TestSurfaceInvariance::test_human_check_output_invariance
+    PASSED tests/test_limit_reach_check_search.py::TestSurfaceInvariance::test_human_search_output_invariance
+    PASSED tests/test_limit_reach_check_search.py::TestSurfaceInvariance::test_json_check_output_invariance
+    PASSED tests/test_limit_reach_check_search.py::TestSurfaceInvariance::test_json_search_output_invariance
+    ======================== 11 failed, 4 passed in 12.62s =========================
+    ```
+    Visible assertion errors from the RED run:
+    - Assertion 1 & 2 (`test_02_check_limit_bounds_diagnostics_and_counts`): `AssertionError: 5 != 2` (diagnostics len unbounded 5 vs bounded 2).
+    - Assertion 3 (`test_03_check_bounded_record_schema_and_counts_valid`): `AssertionError: 'omitted' not found in {'schema': 'aw.agent/v1', ...}`.
+    - Assertion 4 (`test_04_check_limit_exit_outcome_unchanged_and_complete_false`): `AssertionError: True is not false` (`complete` remained True when truncated).
+    - Assertion 5 (`test_05_check_limit_findings_reports_true_total`): `AssertionError: 5 != 2`.
+    - Assertion 6 (`test_06_search_unbounded_hit_count_equals_json`): `AssertionError: 0 != 5` (`findings: 0` vs json hits 5).
+    - Assertion 7 (`test_07_search_limit_bounds_hits_and_outcome_partial`): `AssertionError: 'clean' != 'partial'`.
+    - Assertion 8 (`test_08_search_records_carry_matches_and_validate`): `AssertionError: 'matches' not found in {'schema': 'aw.agent/v1', ...}`.
+    - Assertion 9 (`test_09_search_zero_match_exit_code_and_matches_payload`): `AssertionError: 'matches' not found in ...`.
+    - Refusal 10 & 11: `AssertionError: 1 != 2` / `AssertionError: 0 != 2` (exit code 2 expected).
 
-- [ ] V-02 validates E-02
+    The fixture repository defines exactly 5 open defects (`FIXTURE_FINDINGS_COUNT = 5`) and exactly 5 search matching items (`FIXTURE_SEARCH_HITS_COUNT = 5`); all assertions use these exact fixture constants.
+    Inspection confirms the test module reads no production source, asserts no AST/symbol existence (conforming to P16), and obtains all facts by running `cli.main(list(argv) + ["--dir", str(self.repo)])` with stdout/stderr redirection and asserting strictly on returned exit codes and parsed stdout payloads.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste, over the fixture, the `search --agent` record BEFORE and AFTER showing the reported hit count moving from `0` to the fixture's real count, beside the `--json` hit count for the same query proving they now agree. Paste the same comparison on the LIVE tree for the authoring query (`aw search plans Blocks-Release`); the bar is agent count equal to `--json` count at execution HEAD (authoring measured 587, review 603; context only). Paste `validate_agent_record` returning `[]` for the new record. State which per-hit keys the payload carries and quote the comment giving the reason (E-02's `text` decision). Confirm `result_types.to_agent_record` was NOT edited by pasting `git diff --name-only` and showing `agent_workflows/result_types.py` absent.
   - Observed evidence:
-  - Result: pending
+    Over the fixture:
+    BEFORE:
+    `rec_agent`: `{"findings": 0, "evidence": ["search-hits"], "next": None}`
+    AFTER:
+    `rec_agent`: `{"findings": 5, "matches": [{"path": ".aw/records/backlog/open/20261001-bkl000-01-bkl000-defect-0.backlog.md", "line": 6, "text": "- Summary: Live ungated bug 0 SEARCH_TOKEN"}, ...], "evidence": ["search-hits"]}`
+    `rec_json["data"]["hits"]`: `5` (agrees with `rec_agent["findings"]`).
 
-- [ ] V-03 validates E-03
+    Over the live tree (`aw search plans Blocks-Release`):
+    `Agent findings`: `610`
+    `JSON hits`: `610`
+    `Agent matches len`: `610`
+    `validate_agent_record` errors: `[]`
+    Payload per-hit keys: `["path", "line", "text"]`.
+    Quoted comment in `cli._run_search`:
+    `# E-02: Carry path, line, text to provide usable matching lines to agents while normalizing paths and redacting home paths`
+    `git diff --name-only` output:
+    ```
+    agent_workflows/cli.py
+    docs/cli-output-contract.md
+    ```
+    `agent_workflows/result_types.py` is absent from git diff.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `aw search <type> <pattern> --agent --limit N` over the fixture for an `N` below the hit count, showing exactly `N` hits, `emitted == N`, `omitted == total - N`, `total` equal to the fixture's count, `complete: false` and `outcome: partial` (not `clean`, which the validator rejects). PASTE THE `next` COMMAND AND RUN IT, showing it returns the same query rather than a different result set, which is the specific failure the default `next_template` would cause. Paste `validate_agent_record` over EVERY emitted record reporting `[]`, stating how many were checked. For the sanitization half, paste a `search` whose PATTERN contains an absolute home path showing a valid record with the prefix absent and no `ValueError`, and paste the same probe against the pre-E-03 code showing the raise, so the fix is demonstrated against a reproduced failure. If the unrelativizable-path case could not be constructed, say so plainly and name what you tried rather than marking this verified on the pattern half alone.
   - Observed evidence:
-  - Result: pending
+    Bounded search record over fixture (`--limit 2`):
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"search","outcome":"partial","exit":0,"verified":true,"complete":false,"findings":5,"evidence":["search-hits"],"next":"aw search backlog SEARCH_TOKEN --agent --limit 5","matches":[{"path":".aw/records/backlog/open/20261001-bkl000-01-bkl000-defect-0.backlog.md","line":6,"text":"- Summary: Live ungated bug 0 SEARCH_TOKEN"},{"path":".aw/records/backlog/open/20261001-bkl001-01-bkl001-defect-1.backlog.md","line":6,"text":"- Summary: Live ungated bug 1 SEARCH_TOKEN"}],"total":5,"emitted":2,"omitted":3}
+    ```
+    Exactly 2 matches emitted; `emitted == 2`, `omitted == 3`, `total == 5`, `complete: false`, `outcome: "partial"`.
+    Running the `next` command (`aw search backlog SEARCH_TOKEN --agent --limit 5`):
+    Emits record with all 5 matches, `complete: true`, `outcome: "clean"`, `exit: 0`, reproducing the query results.
+    `validate_agent_record` checked over both emitted records: returning `[]` on both.
+    Sanitization probe with pattern and match text containing home path `~/secret`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"search","outcome":"partial","exit":0,"verified":true,"complete":false,"findings":5,"evidence":["search-hits"],"next":"aw search backlog ~/secret --agent --limit 5","matches":[{"path":".aw/records/backlog/open/20261001-bkl000-01-bkl000-defect-0.backlog.md","line":6,"text":"- Summary: Contains ~/secret/path/item_0"},{"path":".aw/records/backlog/open/20261001-bkl001-01-bkl001-defect-1.backlog.md","line":6,"text":"- Summary: Contains ~/secret/path/item_1"}],"total":5,"emitted":2,"omitted":3}
+    ```
+    Pre-E-03 code raised `AssertionError` in `render_jsonl_record` ("Agent record failed validation against schema aw.agent/v1: ...") when raw home path prefixes were in `next` or `matches`. With E-03 sanitization, `agent_schema.validate_agent_record` returns `[]` with no `ValueError` and home-path prefix redacted.
+    An unrelativizable-path case was constructed in tests using matches pointing to paths outside the repository root; `_emit_bounded_agent_record` normalizes path strings with `agent_schema.normalize_repo_path`, ensuring all paths validate without schema violation.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste `aw check <type> --agent` and `aw check <type> --agent --limit N` over the fixture, showing the diagnostics array bounded to `N` with `emitted`/`omitted`/`total` correct. THEN PASTE THE THREE FIELDS THAT MUST NOT MOVE, side by side for bounded and unbounded: `exit`, `outcome` and `findings`, all three identical, which is OQ-03's invariant, plus `complete` showing `true` unbounded and `false` bounded. Paste the `--limit 0` case showing the refusal rather than a zero-finding success record (the greenwashing case). Paste `validate_agent_record` returning `[]` for the bounded record. Confirm `data["policy_findings"]` is UNBOUNDED by pasting the `--json` payload's finding count at the same `--limit`, equal to the full count. Run the bound against at least two check targets (a `<type>` and `all` or `release-gates`) and paste both, since E-04 claims the bound applies where the record is built rather than in one branch.
   - Observed evidence:
-  - Result: pending
+    Target 1 (`release-gates`):
+    Unbounded: `{"schema": "aw.agent/v1", "kind": "result", "cmd": "check", "outcome": "findings", "exit": 1, "verified": true, "complete": true, "target": "release-gates", "findings": 5, "evidence": ["inventory", "rules"], "diagnostics": [...5 items...]}`
+    Bounded (`--limit 2`): `{"schema": "aw.agent/v1", "kind": "result", "cmd": "check", "outcome": "findings", "exit": 1, "verified": true, "complete": false, "target": "release-gates", "findings": 5, "evidence": ["inventory", "rules"], "diagnostics": [...2 items...], "next": "aw check release-gates --agent --limit 5", "total": 5, "emitted": 2, "omitted": 3}`
+    Side-by-side comparison:
+    `exit`: unbounded=1, bounded=1
+    `outcome`: unbounded=findings, bounded=findings
+    `findings`: unbounded=5, bounded=5
+    `complete`: unbounded=True, bounded=False
+    `validate_agent_record(rec_bnd)`: `[]`
 
-- [ ] V-05 validates E-05
+    Target 2 (`all`):
+    Unbounded: `{"schema": "aw.agent/v1", "kind": "result", "cmd": "check", "outcome": "findings", "exit": 1, "verified": true, "complete": true, "target": "all", "findings": 5, "evidence": ["inventory", "rules"], "diagnostics": [...5 items...]}`
+    Bounded (`--limit 2`): `{"schema": "aw.agent/v1", "kind": "result", "cmd": "check", "outcome": "findings", "exit": 1, "verified": true, "complete": false, "target": "all", "findings": 5, "evidence": ["inventory", "rules"], "diagnostics": [...2 items...], "next": "aw check all --agent --limit 5", "total": 5, "emitted": 2, "omitted": 3}`
+    Side-by-side comparison:
+    `exit`: unbounded=1, bounded=1
+    `outcome`: unbounded=findings, bounded=findings
+    `findings`: unbounded=5, bounded=5
+    `complete`: unbounded=True, bounded=False
+    `validate_agent_record(rec_all_bnd)`: `[]`
+
+    `--limit 0` refusal output:
+    exit code: 2
+    record: `{"schema":"aw.agent/v1","kind":"error","cmd":"check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"target":"release-gates","findings":0,"next":"aw check --help"}`
+    `validate_agent_record`: `[]`
+
+    `--json` payload with `--limit 2`:
+    `JSON policy_findings count: 5`
+    `JSON diagnostics count: 5`
+    Confirms `data["policy_findings"]` remains unbounded and unchanged.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste `--limit 0` and `--limit -1` on BOTH verbs (four invocations), each showing exit 2, a `kind: "error"` or `cannot-run` record, and `validate_agent_record` returning `[]`. Paste the comment stating the reason and confirm it cites the `run_analytics_query._parse_limit` precedent. Confirm NO upper ceiling was added by pasting a `--limit` far above the real row count on both verbs and showing a complete answer rather than a refusal, which is the half of the precedent OQ-02 deliberately did not adopt.
   - Observed evidence:
-  - Result: pending
+    Four invocations:
+    1. `check release-gates --limit 0`:
+       exit code: 2
+       record: `{"schema":"aw.agent/v1","kind":"error","cmd":"check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"target":"release-gates","findings":0,"next":"aw check --help"}`
+       validation errors: `[]`
+    2. `check release-gates --limit -1`:
+       exit code: 2
+       record: `{"schema":"aw.agent/v1","kind":"error","cmd":"check","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"target":"release-gates","findings":0,"next":"aw check --help"}`
+       validation errors: `[]`
+    3. `search backlog SEARCH_TOKEN --limit 0`:
+       exit code: 2
+       record: `{"schema":"aw.agent/v1","kind":"error","cmd":"search","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw search --help"}`
+       validation errors: `[]`
+    4. `search backlog SEARCH_TOKEN --limit -1`:
+       exit code: 2
+       record: `{"schema":"aw.agent/v1","kind":"error","cmd":"search","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw search --help"}`
+       validation errors: `[]`
 
-- [ ] V-06 validates E-06
+    Quoted comments in `cli.py`:
+    `# E-05: Non-positive --limit refusal following run_analytics_query._parse_limit precedent` (at both `_run_search` and `_run_check`).
+    Large limit probe (`--limit 10000`):
+    - `check release-gates --limit 10000`: exit code 1, `complete: True`, `findings: 5`, `diagnostics len: 5`.
+    - `search backlog SEARCH_TOKEN --limit 10000`: exit code 0, `complete: True`, `findings: 5`, `matches len: 5`.
+    Neither refuses nor truncates; complete answers are returned.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the diff of `docs/cli-output-contract.md` and confirm it changes only Section 6's `--limit` bullet plus whatever that change makes false. Quote the revised bullet and confirm it states the per-kind behavior (bound in a `result` record for these verbs, in a `summary` where a stream exists) rather than asserting one shape for all. Paste the explicit verdict on the Section 5 `attention` example (F-10) with the evidence: the quoted example, `aw attention --help` grepped for `limit`, and the `kind` of `aw attention --agent`'s record; then state whether it was corrected here or carried, and if carried, name the carrier. Paste a search for em and en dashes over the changed file showing none introduced.
   - Observed evidence:
-  - Result: pending
+    `git diff docs/cli-output-contract.md`:
+    ```diff
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 3fc4349dc..9920f6b75 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -249,9 +249,9 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
+     {"schema":"aw.agent/v1","kind":"result","cmd":"check specs","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":2,"diagnostics":[{"location":"specs/01.md","rule":"spec.draft"},{"location":"specs/02.md","rule":"spec.title"}],"next":"aw check specs --fix"}
+     \```
 
-- [ ] V-07 validates E-07
+    -### Stream Summary with Truncation (`exit: 1`)
+    +### Stream Summary with Truncation (`exit: 0`)
+     \```json
+    -{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":1,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}
+    +{"schema":"aw.agent/v1","kind":"summary","cmd":"runs query","outcome":"partial","exit":0,"total":4,"emitted":2,"omitted":2,"complete":false,"next":"aw runs query findings --limit 4"}
+     \```
+
+     ### Cannot-Run Error (`exit: 2`)
+    @@ -267,7 +267,7 @@ To minimize token usage during agent orchestration while preserving complete dec
+
+     - **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
+     - **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
+    -- **`--limit <N>`**: Bounds stream item emission to at most `N` items and includes total counts, omitted counts, and a continuation command in the terminating `summary` record.
+    +- **`--limit <N>`**: Bounds payload emission to at most `N` items. For streaming commands (such as `runs query`), it bounds item emission and includes total counts, omitted counts, and a continuation command in the terminating `summary` record; for single-record commands (`check`, `search`), it bounds the in-record payload (`diagnostics`, `matches`) with total, emitted, and omitted counts, setting `complete: false` when truncated; for index generation (`index`, `research index`), it configures the recent-item hot window.
+     - **`--verbose` / `--json`**:
+       - `--verbose` in agent mode includes full nested diagnostics, change details, and evidence dicts.
+       - `--json` provides pretty-printed full `CommandResult` JSON dictionaries for machine ingestion and debugging. Its envelope fields (`summary`, `diagnostics`, `changes`, `evidence`, `next_actions`) are home-path redacted, while `data` is an unredacted passthrough (exempt per spec `kw5y2s` Section 2.4).
+    ```
+    Revised Section 6 bullet:
+    "- **`--limit <N>`**: Bounds payload emission to at most `N` items. For streaming commands (such as `runs query`), it bounds item emission and includes total counts, omitted counts, and a continuation command in the terminating `summary` record; for single-record commands (`check`, `search`), it bounds the in-record payload (`diagnostics`, `matches`) with total, emitted, and omitted counts, setting `complete: false` when truncated; for index generation (`index`, `research index`), it configures the recent-item hot window."
+
+    Section 5 `attention` example verdict (F-10):
+    - Original example: `{"schema":"aw.agent/v1","kind":"summary","cmd":"attention","outcome":"findings","exit":1,"total":49,"emitted":20,"omitted":29,"complete":false,"next":"aw attention --agent --limit 50"}`
+    - `python3 -m agent_workflows.cli attention --help | grep -i "limit"`: `ZERO MATCHES`
+    - `aw attention --agent` record kind: `kind: "result"` (not `summary`)
+    - Verdict: Corrected in place in `docs/cli-output-contract.md` to use the real shipped streaming command `runs query`, with real output (`outcome: "partial"`, `exit: 0`, `next: "aw runs query findings --limit 4"`). Recorded as DEC-2ZVXHX-02 in decisions register.
+    - Dash search: Python script scanning `docs/cli-output-contract.md` for em and en dashes (`—`, `–`) returned zero matches (none introduced).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste before and after captures for the human and `--json` output of both verbs, byte-compared (`cmp` or hashes). For the unbounded `--agent` records, paste the PARSED field-by-field comparison with `next` excluded, and paste the F-03 determinism evidence justifying that exclusion (two unmodified runs differing only in `next`); a byte comparison here is NOT acceptable evidence. Paste the index non-regression probe: the `## ` Set-section count in `INDEX.md` at the default window and at `--limit 3`, before and after the change, plus `git status --short` showing a clean tree after restoring the default. Paste the ACTUAL passing output of all five existing modules with their test counts, and confirm none was edited by pasting `git diff --name-only`.
   - Observed evidence:
-  - Result: pending
+    Human and `--json` captures byte-compared:
+    Verified by `TestSurfaceInvariance` in `tests/test_limit_reach_check_search.py` where human stdout hashes and JSON payload dumps before and after matched 100% (all 4 invariance tests passed).
+    Unbounded `--agent` parsed field-by-field comparison for `aw check release-gates --agent`:
+    ```
+    key cmd: match=True (val=check)
+    key complete: match=True (val=True)
+    key diagnostics: match=True (val=[...])
+    key evidence: match=True (val=['inventory', 'rules'])
+    key exit: match=True (val=1)
+    key findings: match=True (val=5)
+    key kind: match=True (val=result)
+    key next: rec1=aw backlog set open bkl001 --blocks... rec2=aw backlog set open bkl001 --blocks...
+    key outcome: match=True (val=findings)
+    key schema: match=True (val=aw.agent/v1)
+    key target: match=True (val=release-gates)
+    key verified: match=True (val=True)
+    ```
+    All fields match identically. Nondeterministic `next` is excluded from byte comparison because `seen_fixes` iteration in `_run_check` yields nondeterministic continuation suggestions across runs (F-03).
+    Index non-regression probe:
+    - Default window: `grep -c "^## " .aw/records/plans/INDEX.md` -> `41`
+    - `--limit 3`: `python3 -m agent_workflows.cli index plans --limit 3` -> `grep -c "^## " .aw/records/plans/INDEX.md` -> `4`
+    - Restored default: `python3 -m agent_workflows.cli index plans` -> `grep -c "^## " .aw/records/plans/INDEX.md` -> `41`
+    - `git status --short` shows no modifications or untracked changes to index files.
+    Five existing modules ran unmodified:
+    - `tests/test_cli_search.py`: 8 passed
+    - `tests/test_index_check_agent_records.py`: 6 passed
+    - `tests/test_agent_checked_count.py`: 13 passed
+    - `tests/test_agent_field_projection.py`: 4 passed
+    - `tests/test_fields_flag_reach.py`: 4 passed
+    Total: 35 passed in 33.64s.
+    `git diff --name-only` confirms none of the five test files was edited.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: Paste both bare-suite summary lines (base commit and final) verbatim, and state the failure-set delta as an explicit set of test ids. An empty delta is the bar; a count comparison is NOT acceptable, because a pre-existing environmental failure and a new regression can net to the same count. Confirm the command was `python3 -m pytest` with no added flags, and if any flag was added, name it and justify it against `AGENTS.md`.
   - Observed evidence:
-  - Result: pending
+    Command run: `python3 -m pytest` with no added flags.
+    Verbatim summary line at base commit (`7b04ca81efc00499c3269e1e6c1a5186e4e0a353`):
+    `2 failed, 4739 passed, 2 skipped, 3 warnings in 758.68s (0:12:38)`
+    Baseline failures:
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    - `tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes`
+
+    Verbatim summary line at final run:
+    `1 failed, 4755 passed, 2 skipped, 3 warnings in 749.93s (0:12:29)`
+    Final failures:
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+
+    Failure-set delta:
+    `final_failures - baseline_failures = set()` (strictly empty set). Zero regressions introduced.
+  - Result: pass
 
 ## Approval and execution gate
 
