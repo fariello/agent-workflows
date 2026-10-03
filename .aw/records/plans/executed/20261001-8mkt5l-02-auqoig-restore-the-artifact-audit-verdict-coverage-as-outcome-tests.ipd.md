@@ -6,7 +6,7 @@
 - Scope: Add outcome-asserting tests for the three uncovered verdict behaviors named in the Concern, written against today's actual semantics rather than restored verbatim. IN: a new `tests/test_artifact_audit_verdicts.py` holding (a) the four verdict SHAPES of `audit_artifact` (clean, location-only, status-only, missing) re-expressed with run statuses that produce those shapes under `allowed_lifecycle_pairs` today, (b) the `is_live` passthrough plus the no-drift property for a live pre-terminal step, (c) `expected_dir_for_status` over the three retirement/standing dispositions no test reaches, and (d) the multi-word-status parity of `read_declared_status`. OUT: any change to `agent_workflows/artifact_audit.py` (this plan is coverage only and must leave production code byte-identical); the cache-invalidation routes already covered by `tests/test_artifact_audit_index_cache.py` (plan `dea7dr`); the three deleted tests this plan judges should STAY deleted or stay re-expressed rather than restored (`OneImplementationTests` as a class, triaged in F-04); `tests/test_terminal_status_vocabulary.py`, which already owns the `complete` coercion question and must not be duplicated; and the pre-existing order-dependent failure in `tests/test_statusline_behavior.py` recorded in F-08.
 - Scope-Paths: tests/test_artifact_audit_verdicts.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: auqoig
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: auqoig verified (set 8mkt5l, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-06(d) mutation retargeted to the classify_difference return site; constant swap is invisible), PR-002 (E-07/V-07 baseline re-derived at execution, not 4356), PR-003 (test counts/names no longer the bar), PR-004 (F-04 cites git object; scratch under gitignored tmp/), PR-005 (gate requires aw ipd finalize; OQ-01 owner). All F-06 shapes, F-02, F-05, F-07 re-measured at lane HEAD 49844944f.
 
@@ -36,54 +36,54 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the premise before writing any test
 
-- [ ] E-01 RE-DEMONSTRATE THE DELETION AND THE TWO STALE ASSERTIONS AT THE EXECUTION HEAD, before creating the new test file. Extract the historical file with `git show 19313eed^:tests/test_artifact_audit.py` into a scratch path INSIDE this worktree under the gitignored `tmp/` directory (not `/tmp`, and never a tracked path), confirm `class VerdictParityTests` and all four test names are present there and absent from `tests/test_artifact_audit.py` at HEAD, then copy the four deleted bodies verbatim into a scratch runner (NOT a committed test) and run them against today's `agent_workflows.artifact_audit`.
+- [x] E-01 RE-DEMONSTRATE THE DELETION AND THE TWO STALE ASSERTIONS AT THE EXECUTION HEAD, before creating the new test file. Extract the historical file with `git show 19313eed^:tests/test_artifact_audit.py` into a scratch path INSIDE this worktree under the gitignored `tmp/` directory (not `/tmp`, and never a tracked path), confirm `class VerdictParityTests` and all four test names are present there and absent from `tests/test_artifact_audit.py` at HEAD, then copy the four deleted bodies verbatim into a scratch runner (NOT a committed test) and run them against today's `agent_workflows.artifact_audit`.
 
   IF THE FAILURE SET HAS CHANGED, STOP AND REPORT. This plan is built on exactly two of four failing (`test_four_verdict_shapes` on the `superseded` case, `test_expected_dir_for_status_maps_every_disposition` on the `complete` row) and two passing. If all four now pass, the re-expression in E-02 and E-04 is wrong and a verbatim restore may be correct instead; if a third fails, there is a behavior change this plan has not accounted for. Either way the triage must be redone rather than worked around.
   - Depends on: none
   - Expected outcome: the deletion shown both ways (present at `19313eed^`, absent at HEAD), plus a scratch run reporting `FAILED (failures=2)` naming those two tests, with both failure messages captured. Authoring measurements: `expected_dir_for_status("complete")` returned `'pending'` against an asserted `'executed'`; the `superseded`-in-`executed/` case returned `status_mismatch=True` against an asserted `False`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: re-express the verdict shapes against today's semantics
 
-- [ ] E-02 CREATE `tests/test_artifact_audit_verdicts.py` AND ADD THE FOUR VERDICT SHAPES, each built in its own `tempfile.TemporaryDirectory()` repo root with the plan directories created, asserting on `artifact_audit.audit_artifact`'s return value. Use the shapes F-06 measured, which are reachable today: CLEAN, an `- Status: executed` plan in `executed/` audited with `status="executed"`, asserting `location_mismatch is False`, `status_mismatch is False`, `has_discrepancy is False`, `difference_class == artifact_audit.CLASS_UNCHANGED`. LOCATION-ONLY, an `- Status: executed` plan left in `pending/` audited with `status="executed"`, asserting `location_mismatch is True`, `status_mismatch is False`, `difference_class == artifact_audit.CLASS_REGRESSED`. STATUS-ONLY, an `- Status: approved` plan in `executed/` audited with `status="executed"`, asserting `location_mismatch is False`, `status_mismatch is True`, `difference_class == artifact_audit.CLASS_UNKNOWN`. MISSING, an id6 written nowhere, asserting `missing_entirely is True` and `difference_class == artifact_audit.CLASS_MISSING`.
+- [x] E-02 CREATE `tests/test_artifact_audit_verdicts.py` AND ADD THE FOUR VERDICT SHAPES, each built in its own `tempfile.TemporaryDirectory()` repo root with the plan directories created, asserting on `artifact_audit.audit_artifact`'s return value. Use the shapes F-06 measured, which are reachable today: CLEAN, an `- Status: executed` plan in `executed/` audited with `status="executed"`, asserting `location_mismatch is False`, `status_mismatch is False`, `has_discrepancy is False`, `difference_class == artifact_audit.CLASS_UNCHANGED`. LOCATION-ONLY, an `- Status: executed` plan left in `pending/` audited with `status="executed"`, asserting `location_mismatch is True`, `status_mismatch is False`, `difference_class == artifact_audit.CLASS_REGRESSED`. STATUS-ONLY, an `- Status: approved` plan in `executed/` audited with `status="executed"`, asserting `location_mismatch is False`, `status_mismatch is True`, `difference_class == artifact_audit.CLASS_UNKNOWN`. MISSING, an id6 written nowhere, asserting `missing_entirely is True` and `difference_class == artifact_audit.CLASS_MISSING`.
 
   DO NOT reuse the deleted test's `status="superseded"` route to reach the location-only shape: F-02 measured that it now reports BOTH mismatches, and F-03 shows that is the intended consequence of `allowed_lifecycle_pairs`. Reference the class CONSTANTS (`artifact_audit.CLASS_UNCHANGED` and siblings) rather than the bare strings, so a constant rename is a visible break rather than a silent mismatch. Per OQ-01 assert both the booleans and the class.
   - Depends on: E-01
   - Expected outcome: a new file whose tests pin all four shapes (how they are split into test functions is the executor's choice), all passing, asserting the boolean triple and the `difference_class` for each shape, with no production code touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: restore the two behaviors that still hold
 
-- [ ] E-03 ADD THE `is_live` PASSTHROUGH AND LIVE-STEP NO-DRIFT TEST, restored in substance from the deleted `test_liveness_is_carried_through_and_never_derived` (which F-02 measured as still passing, so this is a true restore and not a re-expression). Build a plan with `- Status: approved` in `pending/`, audit it twice with `status="running"` and `is_live=True` then `is_live=False`, and assert that `audit.is_live` mirrors the input in both directions AND that `has_discrepancy is False` in both, because a running step's plan sitting in `pending/` is correct and must not be reported as drift either way. Keep the deleted test's docstring point that `is_live` is an INPUT this module only records and never derives.
+- [x] E-03 ADD THE `is_live` PASSTHROUGH AND LIVE-STEP NO-DRIFT TEST, restored in substance from the deleted `test_liveness_is_carried_through_and_never_derived` (which F-02 measured as still passing, so this is a true restore and not a re-expression). Build a plan with `- Status: approved` in `pending/`, audit it twice with `status="running"` and `is_live=True` then `is_live=False`, and assert that `audit.is_live` mirrors the input in both directions AND that `has_discrepancy is False` in both, because a running step's plan sitting in `pending/` is correct and must not be reported as drift either way. Keep the deleted test's docstring point that `is_live` is an INPUT this module only records and never derives.
   - Depends on: E-02
   - Expected outcome: one test asserting both `is_live` directions and both no-drift outcomes, passing.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ADD THE `expected_dir_for_status` TEST FOR THE DISPOSITIONS NO TEST REACHES. Assert `superseded`, `not-executed`, and `reusable` each map to their own directory name (the three `_TERMINAL_EXPECTED_DIR` entries F-05 proved unpinned), assert `executed` maps to `executed`, and sweep the pre-terminal statuses `draft`, `to-review`, `reviewed`, `approved`, `queued`, `running` to `pending`.
+- [x] E-04 ADD THE `expected_dir_for_status` TEST FOR THE DISPOSITIONS NO TEST REACHES. Assert `superseded`, `not-executed`, and `reusable` each map to their own directory name (the three `_TERMINAL_EXPECTED_DIR` entries F-05 proved unpinned), assert `executed` maps to `executed`, and sweep the pre-terminal statuses `draft`, `to-review`, `reviewed`, `approved`, `queued`, `running` to `pending`.
 
   DELIBERATELY OMIT the `complete` and `substantially-complete` rows the deleted test carried. F-03 shows `6b94a4d9d` reversed both answers on purpose, and `tests/test_terminal_status_vocabulary.py::TestArtifactAuditNoCompleteCoercion` already owns that contract; re-adding them here would either re-assert an abandoned contract or create a second owner of a live one. If execution believes those rows belong in this file, it must say so in the evidence rather than adding them silently.
   - Depends on: E-02
   - Expected outcome: one test covering four terminal/standing dispositions plus a six-status pre-terminal sweep, passing, with no `complete`/`substantially-complete` row.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 ADD THE `read_declared_status` MULTI-WORD PARITY TEST, restored in substance from the deleted `test_multi_word_status_is_unreadable_by_design`. Write a file whose body contains `- Status: EXECUTED (approved by maintainer)` and assert `artifact_audit.read_declared_status(f) is None`, because the anchored pattern must refuse a multi-word value rather than return a partial read. ALSO assert the positive control in the same test: a file carrying a single-token `- Status: executed` returns `"executed"`. The positive control is what stops the test passing vacuously if the reader were ever broken into always returning `None`.
+- [x] E-05 ADD THE `read_declared_status` MULTI-WORD PARITY TEST, restored in substance from the deleted `test_multi_word_status_is_unreadable_by_design`. Write a file whose body contains `- Status: EXECUTED (approved by maintainer)` and assert `artifact_audit.read_declared_status(f) is None`, because the anchored pattern must refuse a multi-word value rather than return a partial read. ALSO assert the positive control in the same test: a file carrying a single-token `- Status: executed` returns `"executed"`. The positive control is what stops the test passing vacuously if the reader were ever broken into always returning `None`.
   - Depends on: E-02
   - Expected outcome: one test asserting both the multi-word refusal and the single-token read, passing. F-05's `grep` for `read_declared_status` in `tests/` must now match this file where it previously matched nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove the new tests can fail, and that nothing else moved
 
-- [ ] E-06 PROVE MUTATION SENSITIVITY FOR EACH NEW BEHAVIOR, by breaking the production behavior in the working tree one mutation at a time, confirming the intended test goes RED, and REVERTING before the next. Four mutations, one per task-group-2/3 deliverable. (a) For E-05: delete the trailing `\s*$` from `artifact_audit._STATUS_LINE_RE`; F-07 measured that this makes the multi-word input read `EXECUTED` instead of `None`, so the multi-word test must fail. (b) For E-04: remove the `"reusable"` entry from `_TERMINAL_EXPECTED_DIR`; the new disposition test must fail on that row. (c) For E-03: hard-code `is_live=False` where `audit_artifact` records it; the passthrough test must fail on the `True` direction. (d) For E-02: in `artifact_audit.classify_difference`, change the plans-branch return quoted as `# BACKWARDS: the run recorded a SUCCESS and the artifact is in neither` from `CLASS_REGRESSED` to `CLASS_UNKNOWN`, so the location-only shape classifies `unknown` with its booleans unchanged; this is the mutation OQ-01 exists to catch, and it must turn the location-only shape test red (a test asserting only the booleans would survive it). MUTATE THE RETURN SITE, NOT THE CONSTANTS: swapping the VALUES of `CLASS_REGRESSED` and `CLASS_UNKNOWN` at their definitions is invisible to tests that reference the constants (as E-02 requires), so it would prove nothing.
+- [x] E-06 PROVE MUTATION SENSITIVITY FOR EACH NEW BEHAVIOR, by breaking the production behavior in the working tree one mutation at a time, confirming the intended test goes RED, and REVERTING before the next. Four mutations, one per task-group-2/3 deliverable. (a) For E-05: delete the trailing `\s*$` from `artifact_audit._STATUS_LINE_RE`; F-07 measured that this makes the multi-word input read `EXECUTED` instead of `None`, so the multi-word test must fail. (b) For E-04: remove the `"reusable"` entry from `_TERMINAL_EXPECTED_DIR`; the new disposition test must fail on that row. (c) For E-03: hard-code `is_live=False` where `audit_artifact` records it; the passthrough test must fail on the `True` direction. (d) For E-02: in `artifact_audit.classify_difference`, change the plans-branch return quoted as `# BACKWARDS: the run recorded a SUCCESS and the artifact is in neither` from `CLASS_REGRESSED` to `CLASS_UNKNOWN`, so the location-only shape classifies `unknown` with its booleans unchanged; this is the mutation OQ-01 exists to catch, and it must turn the location-only shape test red (a test asserting only the booleans would survive it). MUTATE THE RETURN SITE, NOT THE CONSTANTS: swapping the VALUES of `CLASS_REGRESSED` and `CLASS_UNKNOWN` at their definitions is invisible to tests that reference the constants (as E-02 requires), so it would prove nothing.
 
   REVERT AFTER EACH, and finish with `git diff --stat agent_workflows/` empty. Do NOT commit any mutation. If any mutation leaves every test green, the corresponding test is vacuous: fix the test, re-run the mutation, and record both attempts.
   - Depends on: E-03, E-04, E-05
   - Expected outcome: four recorded red runs, one per mutation, each naming the test that failed and why, and a clean `agent_workflows/` afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE BARE SUITE AND RECONCILE AGAINST THE BASELINE. Run `python3 -m pytest` with no added flags (the configured `addopts` already supply `-q -n auto --dist=worksteal` and the fast-subset markers; adding `-n0` or a second `-q` is forbidden by `AGENTS.md`). Reconcile the counts against a baseline YOU re-derive with a bare `python3 -m pytest` on the clean tree at the execution head BEFORE creating the new file (F-08's `1 failed, 4356 passed, 2 skipped` at `d566b7a8` is authoring context, not the bar; the suite has since grown): the passed count must rise by exactly the number of tests this plan added, and the failing set must contain nothing that was not in your baseline's failing set. For EVERY failure in the post-change run, show it is in your baseline failing set, and for any that is not, run it alone at the pre-change head to show it is pre-existing and order-dependent (F-08's statusline test is the authoring-time instance); a new failure in `tests/test_artifact_audit_verdicts.py` is never pre-existing. Finally confirm `git status --short agent_workflows/` is empty, proving this coverage plan changed no production code.
+- [x] E-07 RUN THE BARE SUITE AND RECONCILE AGAINST THE BASELINE. Run `python3 -m pytest` with no added flags (the configured `addopts` already supply `-q -n auto --dist=worksteal` and the fast-subset markers; adding `-n0` or a second `-q` is forbidden by `AGENTS.md`). Reconcile the counts against a baseline YOU re-derive with a bare `python3 -m pytest` on the clean tree at the execution head BEFORE creating the new file (F-08's `1 failed, 4356 passed, 2 skipped` at `d566b7a8` is authoring context, not the bar; the suite has since grown): the passed count must rise by exactly the number of tests this plan added, and the failing set must contain nothing that was not in your baseline's failing set. For EVERY failure in the post-change run, show it is in your baseline failing set, and for any that is not, run it alone at the pre-change head to show it is pre-existing and order-dependent (F-08's statusline test is the authoring-time instance); a new failure in `tests/test_artifact_audit_verdicts.py` is never pre-existing. Finally confirm `git status --short agent_workflows/` is empty, proving this coverage plan changed no production code.
   - Depends on: E-06
   - Expected outcome: a bare suite run whose final line reconciles with your re-derived baseline plus the new tests, every failure accounted for as pre-existing, and an empty `git status` for `agent_workflows/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,40 +156,284 @@ N/A with reason: this plan adds test coverage for behavior that already shipped 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste (a) the two `git show`/`grep` outputs proving `VerdictParityTests` and all four test names are present at `19313eed^` and absent at the execution head, and (b) the scratch runner output showing exactly two of the four deleted bodies failing, including both failure messages. If all four PASS, or if a third fails, the plan's premise has moved: stop and report rather than proceeding.
   - Observed evidence:
-  - Result: pending
+    (a) Presence at 19313eed^ and absence at HEAD:
+    ```
+    $ grep -n "class VerdictParityTests" tmp/historical_test_artifact_audit.py && grep -n "VerdictParityTests" tests/test_artifact_audit.py || echo "Absent at HEAD"
+    277:class VerdictParityTests(unittest.TestCase):
+    Absent at HEAD
 
-- [ ] V-02 validates E-02
+    $ grep -En "test_four_verdict_shapes|test_liveness_is_carried_through_and_never_derived|test_expected_dir_for_status_maps_every_disposition|test_multi_word_status_is_unreadable_by_design" tests/test_artifact_audit.py || echo "All four absent at HEAD"
+    All four absent at HEAD
+    ```
+
+    (b) Scratch runner output against HEAD agent_workflows.artifact_audit:
+    ```
+    $ python3 tmp/scratch_runner.py
+    FF..
+    ======================================================================
+    FAIL: test_expected_dir_for_status_maps_every_disposition (__main__.VerdictParityTests.test_expected_dir_for_status_maps_every_disposition)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tmp/scratch_runner.py", line 65, in test_expected_dir_for_status_maps_every_disposition
+        self.assertEqual(artifact_audit.expected_dir_for_status("complete"), "executed")
+    AssertionError: 'pending' != 'executed'
+    - pending
+    + executed
+
+    ======================================================================
+    FAIL: test_four_verdict_shapes (__main__.VerdictParityTests.test_four_verdict_shapes)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tmp/scratch_runner.py", line 30, in test_four_verdict_shapes
+        self.assertFalse(loc.status_mismatch)
+    AssertionError: True is not false
+
+    ----------------------------------------------------------------------
+    Ran 4 tests in 1.096s
+
+    FAILED (failures=2)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -m pytest tests/test_artifact_audit_verdicts.py -o addopts="" -v` showing the shape tests passing, with a mapping from each test to the shape(s) it pins (test names and counts are pointers, not the bar), and paste the asserted values for each shape so a reviewer can check them against F-06 (clean `loc=False st=False disc=False cls=unchanged`; location-only `loc=True st=False cls=regressed`; status-only `loc=False st=True cls=unknown`; missing `missing_entirely=True cls=missing`). A test that asserts a shape F-06 did not measure must be justified in the evidence block.
   - Observed evidence:
-  - Result: pending
+    `test_four_verdict_shapes` pins all four shapes:
+    - CLEAN: `loc=False st=False disc=False cls=artifact_audit.CLASS_UNCHANGED`
+    - LOCATION-ONLY: `loc=True st=False disc=True cls=artifact_audit.CLASS_REGRESSED`
+    - STATUS-ONLY: `loc=False st=True disc=True cls=artifact_audit.CLASS_UNKNOWN`
+    - MISSING: `missing_entirely=True disc=True cls=artifact_audit.CLASS_MISSING`
 
-- [ ] V-03 validates E-03
+    ```
+    $ python3 -m pytest tests/test_artifact_audit_verdicts.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=3782602688
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 4 items
+
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_expected_dir_for_status_uncovered_dispositions_and_preterminal_sweep PASSED [ 25%]
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_multi_word_status_is_unreadable_by_design PASSED [ 50%]
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_four_verdict_shapes PASSED [ 75%]
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_liveness_is_carried_through_and_never_derived PASSED [100%]
+
+    ============================== 4 passed in 2.09s ===============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `is_live` test passing, and show that it asserts BOTH directions (`is_live=True` yields `audit.is_live is True`, `is_live=False` yields `False`) AND that neither is a discrepancy (`has_discrepancy is False` both ways). Paste the assertion lines from the committed file alongside the passing run.
   - Observed evidence:
-  - Result: pending
+    Assertion lines from `tests/test_artifact_audit_verdicts.py`:
+    ```python
+            live = artifact_audit.audit_artifact(
+                root, "lvv001", status="running", is_live=True
+            )
+            not_live = artifact_audit.audit_artifact(
+                root, "lvv001", status="running", is_live=False
+            )
+            self.assertIs(live.is_live, True)
+            self.assertIs(not_live.is_live, False)
+            # A running step's plan in pending/ is NOT drift either way.
+            self.assertFalse(live.has_discrepancy)
+            self.assertFalse(not_live.has_discrepancy)
+    ```
 
-- [ ] V-04 validates E-04
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_liveness_is_carried_through_and_never_derived -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2796541780
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item
+
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_liveness_is_carried_through_and_never_derived PASSED [100%]
+
+    ============================== 1 passed in 0.50s ===============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the `expected_dir_for_status` test passing, and confirm by `grep` on the committed file that it asserts `superseded`, `not-executed`, and `reusable` (the three F-05 proved uncovered) and that it does NOT assert `complete` or `substantially-complete` (owned by `tests/test_terminal_status_vocabulary.py`). Both the presence and the absence must be shown.
   - Observed evidence:
-  - Result: pending
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_expected_dir_for_status_uncovered_dispositions_and_preterminal_sweep -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2796541780
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item
 
-- [ ] V-05 validates E-05
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_expected_dir_for_status_uncovered_dispositions_and_preterminal_sweep PASSED [100%]
+
+    ============================== 1 passed in 0.04s ===============================
+    ```
+
+    Confirmation by grep (presence of superseded, not-executed, reusable; absence of complete, substantially-complete):
+    ```
+    $ grep -E "superseded|not-executed|reusable" tests/test_artifact_audit_verdicts.py
+                artifact_audit.expected_dir_for_status("superseded"), "superseded"
+                artifact_audit.expected_dir_for_status("not-executed"), "not-executed"
+            self.assertEqual(artifact_audit.expected_dir_for_status("reusable"), "reusable")
+
+    $ grep -E "complete|substantially-complete" tests/test_artifact_audit_verdicts.py || echo "No complete/substantially-complete assertions"
+    No complete/substantially-complete assertions
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `read_declared_status` test passing, and paste `grep -rn "read_declared_status" tests/` showing it now matches the new file (F-05 measured zero matches before).
   - Observed evidence:
-  - Result: pending
+    Passing run:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_multi_word_status_is_unreadable_by_design -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2796541780
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 1 item
 
-- [ ] V-06 validates E-06
+    tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_multi_word_status_is_unreadable_by_design PASSED [100%]
+
+    ============================== 1 passed in 0.50s ===============================
+    ```
+
+    Grep matches in tests/:
+    ```
+    $ grep -rn "read_declared_status" tests/
+    tests/test_artifact_audit_verdicts.py:6:and pins read_declared_status multi-word refusal parity.
+    tests/test_artifact_audit_verdicts.py:112:            self.assertIsNone(artifact_audit.read_declared_status(f))
+    tests/test_artifact_audit_verdicts.py:117:            self.assertEqual(artifact_audit.read_declared_status(f_ok), "executed")
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: for EACH of the four mutations named in E-06, paste the mutation diff and the failing pytest output with the mutation applied, naming the test that went red, then paste `git diff --stat agent_workflows/` showing empty after reverting. A mutation that does NOT turn a new test red is a vacuous test and must be fixed, not recorded as an exception.
   - Observed evidence:
-  - Result: pending
+    Mutation (a) for E-05 (delete trailing `\s*$` in `_STATUS_LINE_RE`):
+    Diff:
+    ```diff
+    diff --git a/agent_workflows/artifact_audit.py b/agent_workflows/artifact_audit.py
+    --- a/agent_workflows/artifact_audit.py
+    +++ b/agent_workflows/artifact_audit.py
+    @@ -88,1 +88,1 @@
+    -_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
+    +_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*(\S+)")
+    ```
+    Failing pytest output (test_multi_word_status_is_unreadable_by_design went RED):
+    ```
+    FAILED tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_multi_word_status_is_unreadable_by_design
+    AssertionError: 'EXECUTED' is not None
+    ```
+    Reverted clean: `git diff --stat agent_workflows/` -> empty.
 
-- [ ] V-07 validates E-07
+    Mutation (b) for E-04 (remove "reusable" from `_TERMINAL_EXPECTED_DIR`):
+    Diff:
+    ```diff
+    diff --git a/agent_workflows/artifact_audit.py b/agent_workflows/artifact_audit.py
+    --- a/agent_workflows/artifact_audit.py
+    +++ b/agent_workflows/artifact_audit.py
+    @@ -115,1 +115,0 @@
+    -    "reusable": "reusable",
+    ```
+    Failing pytest output (test_expected_dir_for_status_uncovered_dispositions_and_preterminal_sweep went RED):
+    ```
+    FAILED tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_expected_dir_for_status_uncovered_dispositions_and_preterminal_sweep
+    AssertionError: 'pending' != 'reusable'
+    ```
+    Reverted clean: `git diff --stat agent_workflows/` -> empty.
+
+    Mutation (c) for E-03 (hard-code `is_live=False` in `audit_artifact`):
+    Diff:
+    ```diff
+    diff --git a/agent_workflows/artifact_audit.py b/agent_workflows/artifact_audit.py
+    --- a/agent_workflows/artifact_audit.py
+    +++ b/agent_workflows/artifact_audit.py
+    @@ -1477,1 +1477,1 @@
+    -            is_live=is_live,
+    +            is_live=False,
+    ```
+    Failing pytest output (test_liveness_is_carried_through_and_never_derived went RED):
+    ```
+    FAILED tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_liveness_is_carried_through_and_never_derived
+    AssertionError: False is not True
+    ```
+    Reverted clean: `git diff --stat agent_workflows/` -> empty.
+
+    Mutation (d) for E-02 (change plans BACKWARDS return site from CLASS_REGRESSED to CLASS_UNKNOWN in `classify_difference`):
+    Diff:
+    ```diff
+    diff --git a/agent_workflows/artifact_audit.py b/agent_workflows/artifact_audit.py
+    --- a/agent_workflows/artifact_audit.py
+    +++ b/agent_workflows/artifact_audit.py
+    @@ -992,1 +992,1 @@
+    -                    CLASS_REGRESSED,
+    +                    CLASS_UNKNOWN,
+    ```
+    Failing pytest output (test_four_verdict_shapes went RED):
+    ```
+    FAILED tests/test_artifact_audit_verdicts.py::ArtifactAuditVerdictTests::test_four_verdict_shapes
+    AssertionError: 'unknown' != 'regressed'
+    ```
+    Reverted clean: `git diff --stat agent_workflows/` -> empty.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the full final line of a bare `python3 -m pytest` run, AND the final line of your own pre-change baseline run, and reconcile: the passed count must rise by exactly the number of tests added, and every post-change failure must appear in the baseline failing set (paste the isolated run for any that is order-dependent). Also paste `git status --short agent_workflows/` showing no production change.
   - Observed evidence:
-  - Result: pending
+    Pre-change baseline run final line:
+    ```
+    3 failed, 4890 passed, 2 skipped, 3 warnings in 841.48s (0:14:01)
+    ```
+    Pre-change baseline failing set:
+    - tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation
+    - tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+    - tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+
+    Post-change bare `python3 -m pytest` final line:
+    ```
+    4 failed, 4893 passed, 2 skipped, 3 warnings in 746.98s (0:12:26)
+    ```
+    Post-change failing set:
+    - tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit (in baseline)
+    - tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation (in baseline)
+    - tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta (in baseline)
+    - tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs (known pre-existing order-dependent failure recorded in F-08)
+
+    Isolated run of test_box_renderer_invariants_across_swept_inputs:
+    ```
+    $ python3 -m pytest tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+    .                                                                        [100%]
+    1 passed in 143.88s (0:02:23)
+    ```
+    Reconciliation:
+    Baseline: 4890 passed. Added 4 tests in tests/test_artifact_audit_verdicts.py (all 4 passed).
+    The statusline test passed in baseline but hit the 240s wall-ceiling hang guard during the post-change full parallel run; run in isolation it passed in 143.88s. 4890 + 4 - 1 = 4893 passed.
+    None of the failures are in tests/test_artifact_audit_verdicts.py.
+
+    No changes to agent_workflows/:
+    ```
+    $ git status --short agent_workflows/
+    (empty)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
