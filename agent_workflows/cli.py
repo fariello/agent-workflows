@@ -624,7 +624,7 @@ _DESCRIPTIONS = {
         "bypass-catcher for a hand-edit that skips 'aw backlog set done'. Inspects the staged diff and "
         "delegates to the shared 'check_engine.evaluate_blocking_close' predicate (via the commit-scoped "
         "'check.blocking-item-closed-without-gate' rule), reconstructing legitimacy from PERSISTED state "
-        "(HANDOFF: an EXECUTED From-Backlog blocking plan; DE-GATED: Blocks-Release cleared), so the hook, setter, "
+        "(HANDOFF: EVERY same-gate From-Backlog carrier executed or implemented; DE-GATED: Blocks-Release cleared), so the hook, setter, "
         "and 'aw check' never diverge. Gates the 'done' case only (park/demote warns are surfaced by "
         "'aw check'/'aw attention'). LOCAL best-effort, OPT-IN only (--no-verify bypasses it; the "
         "portable authority is the 'aw check' rule + CI); commit-scoped (historical done items "
