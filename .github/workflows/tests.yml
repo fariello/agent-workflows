@@ -222,6 +222,10 @@ jobs:
             --config 'lint.dummy-variable-rgx="^$"' \
             agent_workflows/ tests/ tools/
 
+      - name: dead status token scan (refuse bare legacy terminal status comparisons; fail closed)
+        shell: bash
+        run: python3 tools/dead_status_token_scan.py
+
 
   output-conformance:
     name: CLI output-conformance harness (fail-closed)

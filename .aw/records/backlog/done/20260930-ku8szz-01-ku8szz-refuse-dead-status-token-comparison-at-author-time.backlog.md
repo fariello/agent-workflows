@@ -1,5 +1,5 @@
 - Id: ku8szz
-- Status: graduated
+- Status: done
 - Graduated-To: ku8szz
 - Set: ku8szz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether a deterministic author-time rule can refuse a bare comparison against a retired status token without firing on the six unrelated vocabularies that share the spellings blocked and partial
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD fr19jr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-ku8szz-01-fr19jr-refuse-a-dead-legacy-status-comparison-at-author-time-scoped.ipd.md); evidence .aw/records/plans/executed/20261002-ku8szz-01-fr19jr-refuse-a-dead-legacy-status-comparison-at-author-time-scoped.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: fr19jr
 - 2026-09-30 created (aw backlog): Decide whether a deterministic author-time rule can refuse a bare comparison against a retired status token without firing on the six unrelated vocabularies that share the spellings blocked and partial
 
