@@ -744,11 +744,12 @@ def plan_adoption(
 
     existing = repository_id6s(repo_root)
     research_root = _R.resolve_research_root(repo_root)
+    heading_text = _first_heading(text)
     files, err = _rc.plan_new(
         research_root=research_root,
         kind=suggestion.kind,
         slug=suggestion.slug,
-        summary=summary or _first_heading(text) or suggestion.slug,
+        summary=summary or heading_text or suggestion.slug,
         set_id=suggestion.set_id,
         model=suggestion.model,
         topic=list(topic or []),
@@ -756,6 +757,11 @@ def plan_adoption(
         existing_ids=existing,
     )
     if err or not files:
+        if err and not summary and heading_text:
+            err = (
+                f"{err} (summary was derived from the drop's first heading; "
+                "--summary overrides it)"
+            )
         return None, err or "could not derive a conforming name"
     planned = files[0]
 

@@ -159,6 +159,31 @@ class PlannedFile(NamedTuple):
     content: str
 
 
+def _refuse_unsafe_descriptive(
+    verb: str,
+    flag: str,
+    value: Optional[str],
+    *,
+    bound_length: bool = True,
+) -> Optional[str]:
+    """Judge one descriptive value against Section 8.8 output-safety.
+
+    Delegates to attention_contract.refuse_unsafe_descriptive if present (IPD 685iq8),
+    otherwise to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical
+    across trees without a fourth copy (IPD deftzy E-01).
+    """
+    from agent_workflows import attention_contract as _A
+
+    delegate = getattr(_A, "refuse_unsafe_descriptive", None)
+    if delegate is not None:
+        return delegate(verb, flag, value, bound_length=bound_length)
+    from agent_workflows import backlog as _backlog
+
+    return _backlog._refuse_unsafe_descriptive(
+        verb, flag, value, bound_length=bound_length
+    )
+
+
 def plan_new(
     *,
     research_root: Path,
@@ -191,6 +216,20 @@ def plan_new(
         if not model_res.ok:
             return None, model_res.message
         model = model_res.value
+
+    # E-02: Refuse unsafe descriptive value for --summary before minting an id6.
+    sum_err = _refuse_unsafe_descriptive("aw research new", "--summary", summary)
+    if sum_err:
+        return None, sum_err
+
+    # E-03: Refuse unsafe descriptive values for each --topic token before minting an id6.
+    if topic:
+        for t in topic:
+            t_err = _refuse_unsafe_descriptive(
+                "aw research new", f"--topic token '{t}'", t
+            )
+            if t_err:
+                return None, t_err
 
     slug_k = R.kebab(slug) if slug else R.kebab(summary)
     if not slug_k:
@@ -255,6 +294,21 @@ def plan_new_comparison(
         if not res.ok:
             return None, res.message
         norm_models.append(res.value or m)
+
+    # E-03: Refuse unsafe descriptive values for --summary and each --topic token.
+    sum_err = _refuse_unsafe_descriptive(
+        "aw research new-comparison", "--summary", summary
+    )
+    if sum_err:
+        return None, sum_err
+
+    if topic:
+        for t in topic:
+            t_err = _refuse_unsafe_descriptive(
+                "aw research new-comparison", f"--topic token '{t}'", t
+            )
+            if t_err:
+                return None, t_err
 
     today = date_str or date.today().strftime("%Y%m%d")
     # IPD sk7ggr E-01: seed the collision pool with the REPOSITORY-WIDE id6 set, then keep adding each
@@ -486,6 +540,13 @@ def plan_set_outcome(
 
     if outcome is not None and outcome not in R.OUTCOMES:
         return None, None, f"outcome must be one of {sorted(R.OUTCOMES)}"
+    if consumed_by is not None:
+        for c in consumed_by:
+            c_err = _refuse_unsafe_descriptive(
+                "aw research set-outcome", f"--consumed-by token '{c}'", c
+            )
+            if c_err:
+                return None, None, c_err
     if repo_root is None:
         repo_root = _core.repo_root_of(research_root)
     from agent_workflows.research_archive import _resolve_one_research

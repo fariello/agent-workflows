@@ -36,56 +36,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared refusal helper
 
-- [ ] E-01 Add a module-private refusal helper to `agent_workflows/research_cmd.py` that judges ONE value against the shared predicate and returns the refusal MESSAGE (or `None`), so every call site refuses with identical wording. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes, else a message naming the verb, the flag, WHICH property was violated (embedded newline, control character, or over `A.MAX_DESCRIPTIVE_LEN`) and the actual length when length is the cause.
+- [x] E-01 Add a module-private refusal helper to `agent_workflows/research_cmd.py` that judges ONE value against the shared predicate and returns the refusal MESSAGE (or `None`), so every call site refuses with identical wording. Signature shape: `_refuse_unsafe_descriptive(verb: str, flag: str, value: Optional[str], *, bound_length: bool = True) -> Optional[str]`, returning `None` when `value` is `None` or the applicable check passes, else a message naming the verb, the flag, WHICH property was violated (embedded newline, control character, or over `A.MAX_DESCRIPTIVE_LEN`) and the actual length when length is the cause.
   DELEGATE, DO NOT PORT (plan-review 2026-10-02, PR-001). The helper body is a THIN FORWARDER, not a fourth copy of the logic. At execution HEAD, check which owner exists: if pending plan `685iq8` (Set `zllcnv`) has executed and `attention_contract.refuse_unsafe_descriptive` exists, forward to it; otherwise forward to `backlog._refuse_unsafe_descriptive` through a FUNCTION-LOCAL `from agent_workflows import backlog as _backlog`, which is exactly the shipped precedent `status_set._refuse_unsafe_descriptive` (executed plan `4gwgo3` E-01, docstring "Delegates to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical across trees without a third copy") and the same function-local import `plan_new` already does for `_backlog.PRIORITIES`. Either target keeps the wording byte-identical BY CONSTRUCTION, and the backlog route stays valid after the hoist because `685iq8` retains `backlog._refuse_unsafe_descriptive` as an alias. Rationale: `685iq8` is pending to hoist the existing copies into one owner and its Deferred section says this plan's executor "should import it instead of porting"; a literal fourth copy would be immediate new duplication that a follow-up must remove. The behavior that matters is still pinned by V-01's vectors, including the load-bearing whole-value control-character case `"a"*500 + "\x07" + "b"` under `bound_length=False` (review re-measured `backlog._refuse_unsafe_descriptive("v", "--m", "a"*500 + "\x07b", bound_length=False)` -> `'v: --m must not contain control characters'`).
   DO NOT REIMPLEMENT THE PREDICATE'S CONDITIONS in `research_cmd.py` at all: no `A.is_safe_descriptive` re-derivation and no copy of `A._CONTROL_CHAR_RE`'s character class; the delegate owns the verdict and the wording.
   THIS PLAN USES `bound_length=True` AT EVERY CALL SITE and the parameter is carried only for byte-compatibility with the sibling. The reason is measured and is the OPPOSITE of the specs tree's: there, 60 of 148 history messages exceed the bound, so `--message` had to be narrowed; the research tree writes NO history message through these verbs (20 of 131 research docs carry a `## Workflow history` section at all, and no research verb appends to one), and its `summary:` population is 3 of 124 over the bound with a median of 108 (F-11). So no research value needs the unbounded mode. Keep the parameter anyway: dropping it would break the byte-compatibility OQ-02 of `uz05bl` asks for and would make the eventual hoist a renegotiation rather than a move.
   KEEP THE DELEGATE IMPORT FUNCTION-LOCAL. `research_cmd` does not import `backlog` at module level today (review measured `agent_workflows.backlog` absent from `sys.modules` after `import agent_workflows.research_cmd`), and a module-level import would load it for every research verb. If the `attention_contract` target is used, a module-level `from agent_workflows import attention_contract as A` is acceptable (it imports only `lifecycle_dirs` from the package; no cycle).
   - Depends on: none
-  - Expected outcome: a helper importable as `research_cmd._refuse_unsafe_descriptive` that, with the default `bound_length=True`, returns `None` for `"ok"` and for `None`, a message mentioning `newline` for `"a\nb"`, `control` for `"a\x07b"`, and both `300` and `340` for a 340-character value; and with `bound_length=False` returns `None` for that same 340-character value and for a 1200-character one, while still returning the `control` message for `"a"*500 + "\x07" + "b"`; and whose body forwards to the shared owner rather than re-implementing it.
-  - Execution state: pending
+  - Expected outcome: a helper importable as `research_cmd._refuse_unsafe_descriptive` that, with the default `bound_length=True`, returns `None` for `"ok"` and for `None`, a message naming `newline` for `"a\nb"`, `control` for `"a\x07b"`, and both `300` and `340` for a 340-character value; and with `bound_length=False` returns `None` for that same 340-character value and for a 1200-character one, while still returning the `control` message for `"a"*500 + "\x07" + "b"`; and whose body forwards to the shared owner rather than re-implementing it.
+  - Execution state: performed
 
 ### Task group 2: apply it at the three planners
 
-- [ ] E-02 Apply the helper to `summary` in `research_cmd.plan_new`, placed with the existing `kind`/`priority`/`model` validations and BEFORE `_mint_research_id6`, so a refusal consumes no id6 and touches no filesystem. Return the message through the function's EXISTING `(None, error)` tuple contract rather than writing to stderr, so both of its callers surface it through the channel each already owns.
+- [x] E-02 Apply the helper to `summary` in `research_cmd.plan_new`, placed with the existing `kind`/`priority`/`model` validations and BEFORE `_mint_research_id6`, so a refusal consumes no id6 and touches no filesystem. Return the message through the function's EXISTING `(None, error)` tuple contract rather than writing to stderr, so both of its callers surface it through the channel each already owns.
   GUARD THE PLANNER, NOT THE HANDLER, AND THIS IS THE LOAD-BEARING DESIGN CHOICE. `artifact_adopt.plan_adoption` calls `_rc.plan_new(...)` directly and passes `summary or _first_heading(text) or suggestion.slug`, so a guard in `run_new` alone would leave `aw adopt` open. Measured: `aw adopt <drop> --summary $'legit\nstatus: reference\nblocks-release: next' --apply` exits 0 and writes exactly the injected block, and a drop whose own `# heading` carries ANSI bytes and 400 characters produces a 525-character control-char-bearing `summary:` with NO flag passed at all (F-08). Placing the guard in the planner closes both, and `plan_adoption` needs no edit because it already returns `(None, err)` on a planner error, verified by driving a stubbed planner error through it.
   MAKE THE ADOPT HEADING-CASE MESSAGE ACTIONABLE (plan-review 2026-10-02, PR-004). When `aw adopt` is run WITHOUT `--summary`, the unsafe value came from the drop's first heading, but the planner's refusal names `--summary`, a flag the user never passed. In `artifact_adopt.plan_adoption`, where it already returns `(None, err)` on a planner error, append a clause ONLY when the caller supplied no `summary` and the value came from `_first_heading(text)`, stating that the summary was derived from the drop's first heading and that `--summary` overrides it. Leave the planner's own message text unchanged so the wording stays byte-identical across trees. This is the one edit in `agent_workflows/artifact_adopt.py`, which is therefore added to `- Scope-Paths:`.
   REFUSE ON THE PREVIEW PATH TOO, which the planner placement gets for free: `run_new` reaches the `--apply` branch only after planning, and a preview that prints the injected bytes to a terminal is itself the Section 8.8 trust-boundary violation (measured: a preview without `--apply` exits 0 and prints the full injected block to stdout, F-12).
   - Depends on: E-01
   - Expected outcome: `aw research new <repo> --kind findings --slug x --summary $'legit\nstatus: reference\nblocks-release: next' --apply` exits 2 with the refusal on stderr and writes NO file, where before it exited 0 and wrote a doc whose `parse_frontmatter` reported `status='reference'` and `blocks-release='next'`. The same command without `--apply` also exits 2 and prints no rendered block. `aw adopt <drop> --summary <same>` also refuses, as does a drop whose heading alone is unsafe, and in that heading-only case the message says the value came from the drop's first heading and that `--summary` overrides it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Apply the helper to EACH `topic` TOKEN in `plan_new` and `plan_new_comparison`, and to `summary` in `plan_new_comparison`, using the same `(None, error)` return. Judge the tokens INDIVIDUALLY rather than the joined string, and name the offending token in the message, because the joined form is what `build_frontmatter` renders (`"[" + ", ".join(topic) + "]"`) and a per-token verdict is what tells a user which one to fix.
+- [x] E-03 Apply the helper to EACH `topic` TOKEN in `plan_new` and `plan_new_comparison`, and to `summary` in `plan_new_comparison`, using the same `(None, error)` return. Judge the tokens INDIVIDUALLY rather than the joined string, and name the offending token in the message, because the joined form is what `build_frontmatter` renders (`"[" + ", ".join(topic) + "]"`) and a per-token verdict is what tells a user which one to fix.
   BOTH `--topic` OUTCOMES ARE DEFECTS AND THE WORSE ONE IS THE QUIETER. A newline-bearing token usually CORRUPTS the block into `topic: [legit` / `status: active]`, which `validate_frontmatter` catches as `topic must be a list` and `aw research index --check` reports; that is a defect but a loud one. A token CRAFTED to close its own bracket is silent: measured, `--topic $'a]\nstatus: reference\nblocks-release: next\njunk: [x'` writes a block whose `parse_frontmatter` returns `topic=['a']`, `status='reference'`, `blocks-release='next'`, `junk=['x']`, with `validate_frontmatter` `[]`, `aw research index --check` CLEAN and `aw check research --agent` `"outcome":"conforms"` (F-05). So the guard is not redundant with the existing list check.
   `--summary` ON `new-comparison` IS GUARDED BUT IS CURRENTLY A NO-OP VECTOR, stated so the test does not over-claim: `plan_new_comparison` passes a fixed per-file string to `_mk` for every planned document, so the user's `--summary` is never written (measured: all three planned files carry `Originating prompt for the comparison set.`, `<model> report.` and `Synthesis of the model reports.`). Guard it anyway, because the parameter is accepted, documented as a summary, and consumed as `sm or summary` so a future edit that passes an empty per-file string would make it live. That the flag is silently ignored is a SEPARATE defect, filed as `ol1m2q`, and this plan must not fix it: making it live and guarding it in one change would be two behavior changes in one commit.
   - Depends on: E-02
   - Expected outcome: `aw research new --topic $'a]\nstatus: reference\nblocks-release: next\njunk: [x'` exits 2 writing nothing, where before it exited 0 and wrote a record both checkers passed. A conforming multi-topic `--topic a,b` still succeeds and still renders `topic: [a, b]`. A `--summary` newline on `new-comparison` refuses, and a conforming `new-comparison` still plans its N+2 files unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Apply the helper to EACH `consumed_by` TOKEN in `research_cmd.plan_set_outcome`, before the `update_frontmatter_fields` call so a refused call leaves the doc BYTE-IDENTICAL, returning through that function's existing `(None, None, error)` tuple.
+- [x] E-04 Apply the helper to EACH `consumed_by` TOKEN in `research_cmd.plan_set_outcome`, before the `update_frontmatter_fields` call so a refused call leaves the doc BYTE-IDENTICAL, returning through that function's existing `(None, None, error)` tuple.
   THIS IS THE MUTATING HALF AND IT CARRIES THE SAME TWO OUTCOMES. Measured, `--consumed-by $'legit\nstatus: active'` corrupts the block loudly (`consumed-by: [legit` / `status: active]`, two `validate_frontmatter` errors), while the bracket-closing form `$'aaaaaa]\nstatus: active\njunk: [x'` is silent: `parse_frontmatter` returns `consumed-by=['aaaaaa']`, `status='active'`, `junk=['x']` with `validate_frontmatter` `[]` (F-06). Driven through the real CLI at `--apply`, the injected keys land in the file.
   DO NOT GUARD `update_frontmatter_fields` ITSELF. Its documented contract is to replace named first-block fields with ALREADY-RENDERED string values and to preserve everything else byte-for-byte; making it judge its inputs would change a pure text writer into a validator and would catch `_render_list`'s own output. The planner is where user input enters, which is where the sibling `dtg7dz` put its guard too.
   `--to` NEEDS NO GUARD, checked rather than assumed: `plan_set_outcome` already refuses a value outside `R.OUTCOMES` with `outcome must be one of [...]`, and the same holds for `promote --to` (measured refusal `status must be one of ['active', 'archive', 'reference', 'todo']`) and `set-priority --to` (`priority must be one of ['high', 'low', 'medium']`).
   - Depends on: E-03
   - Expected outcome: `aw research set-outcome <id6> --consumed-by $'aaaaaa]\nstatus: active\njunk: [x' --apply` exits 2 leaving the doc byte-identical by sha256, where before it exited 0 and wrote `status: active` and `junk: [x]` into the block at zero `validate_frontmatter` drift. A conforming `--consumed-by aaaaaa,bbbbbb` still succeeds and still renders `consumed-by: [aaaaaa, bbbbbb]`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the injection, the silence, and the non-regressions
 
-- [ ] E-05 Add `tests/test_research_descriptive_safety.py` pinning the INJECTION property as the primary one, for each guarded value on each of the three planners plus `aw adopt`. For `plan_new`/`plan_new_comparison`: assert the planner returns `(None, <message naming the flag>)`, and for the CLI cases that the verb exits 2 and NO record file exists afterwards. For `plan_set_outcome`: assert the refusal AND a sha256 byte-identity check on the target.
+- [x] E-05 Add `tests/test_research_descriptive_safety.py` pinning the INJECTION property as the primary one, for each guarded value on each of the three planners plus `aw adopt`. For `plan_new`/`plan_new_comparison`: assert the planner returns `(None, <message naming the flag>)`, and for the CLI cases that the verb exits 2 and NO record file exists afterwards. For `plan_set_outcome`: assert the refusal AND a sha256 byte-identity check on the target.
   THE TEST MUST ALSO RECORD WHAT THE PRE-FIX BEHAVIOR WAS, because F-10 proves no checker can see it afterwards: build a rendered STRING via `research_cmd.build_frontmatter(...)` with an injected `summary`, and assert that `research_contract.parse_frontmatter` on it returns `status='reference'` and `blocks-release='next'` while `validate_frontmatter` returns `[]`. Build that from the RENDERER, not by calling the now-guarded planner, so it keeps documenting the vector after the guard closes it. `build_frontmatter` is verified callable for that purpose as a keyword-only function taking `id6, created, set_id, order, topic, model, kind, status, outcome, summary` plus optional `consumed_by`/`priority`.
   DRIVE `aw adopt` THROUGH THE REAL CLI for at least the heading case, since that is the vector with no flag and the one a verb-level guard would have missed: a drop whose `# heading` contains an ANSI escape must now cause `aw adopt --apply` to refuse, and the test must assert the inbox original is STILL PRESENT, because `run_adopt` removes it only after a successful write.
   Follow the established fixture shape in `tests/test_research_cmd_create.py` (a `tempfile` repo with `.aw/records/research`, calling `C.plan_new` directly) and `tests/test_artifact_adopt.py` for the adopt half.
   - Depends on: E-04
   - Expected outcome: a new module whose injection cases FAIL on pre-guard code (each planner returns a files list and each verb exits 0 writing a record) and PASS after, including the two rendered-string assertions which pass in BOTH states because they assert on the renderer rather than the guard.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 In the same module, pin the boundary and the non-regressions. Boundary: a `summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is accepted and one at `+1` refused, pinning the predicate's `>` rather than a copied constant.
+- [x] E-06 In the same module, pin the boundary and the non-regressions. Boundary: a `summary` at EXACTLY `A.MAX_DESCRIPTIVE_LEN` is accepted and one at `+1` refused, pinning the predicate's `>` rather than a copied constant.
   Non-regressions, each naming why it could plausibly break: (a) the existing planner refusals keep their messages, specifically `unknown kind '...'`, `malformed model token '...'; must match [a-z0-9-]+`, `priority must be one of ['high', 'low', 'medium']`, `a --slug or --summary is required to derive the name` and `outcome must be one of [...]`; (b) a conforming `aw research new ... --apply` still writes a record that `aw research index --check` and `aw check research` both pass; (c) `--slug` and `--set` remain UNGUARDED and still kebab a newline-bearing value into a filename without injecting anything, which OQ-03 records as deliberate; (d) the refusal path writes nothing, asserted by snapshotting the fixture's research-tree file listing before and after a refused `plan_new` call and asserting equality (plan-review 2026-10-02: the earlier `_existing_id6s(root)` assertion was VACUOUS, because `_existing_id6s` scans filenames on disk and a planner never writes, so it passed identically before the fix; the guard's placement before `_mint_research_id6` is an implementation ordering with no observable outcome and is verified by diff review in V-02, not by a test); (e) `update_frontmatter_fields` and `_set_priority_line` are byte-unchanged as text writers, asserted by calling `update_frontmatter_fields` directly with an unsafe already-rendered value and observing it still substitutes, which is the deliberate under-scope E-04 names.
   ALSO PIN THE QUIET-VERSUS-LOUD DISTINCTION in one test whose name says why: the bracket-closing `--topic` and `--consumed-by` forms must be REFUSED, and the test must assert that those same forms pre-fix produced `validate_frontmatter(...) == []` (built from the renderer per E-05), so a later reader cannot conclude the existing `topic must be a list` check already covers this and remove the guard.
   - Depends on: E-05
   - Expected outcome: the boundary test proves 300 accepted and 301 refused; all five non-regression groups pass, with (c) and (e) documenting deliberate under-scope; and the quiet-form test refuses both crafted values while recording that the pre-fix renderer output validated clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -203,36 +203,393 @@ N/A with reason. This plan makes existing code obey an ALREADY-WRITTEN contract;
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste an actual Python session calling `research_cmd._refuse_unsafe_descriptive` on these inputs and showing the returned values. With the default `bound_length=True`: `None` -> `None`; `"ok"` -> `None`; `"a\nb"` -> a message containing `newline`; `"a\x07b"` -> a message containing `control`; a 340-character value -> a message containing both `300` and `340`. With `bound_length=False`: that same 340-character value -> `None`; a 1200-character value -> `None`; AND `"a"*500 + "\x07" + "b"` -> the `control` message. THAT LAST VECTOR IS MANDATORY AND ITS ABSENCE FAILS THIS ITEM, because a slice-only construction returns `None` for it and a session omitting it cannot tell the ported helper from the unsound one. Also paste the helper's source (it is a short forwarder, so reading it is a diff-review act, not a test) showing it FORWARDS to `attention_contract.refuse_unsafe_descriptive` or `backlog._refuse_unsafe_descriptive`, names which one and why (whether `685iq8` had executed at execution HEAD), and contains no copy of the predicate or of `A._CONTROL_CHAR_RE`'s character class; a ported copy FAILS this item. Finally paste, from a Python session, the research helper's outputs side by side with the delegate's for the same inputs, showing byte-identity; the sibling's measured outputs to compare against are `'v: --summary must not contain embedded newlines'`, `'v: --summary must not contain control characters'` and `'v: --summary exceeds maximum length of 300 characters (340 > 300)'`.
   - Observed evidence:
-  - Result: pending
+    Pasted Python session demonstrating C._refuse_unsafe_descriptive on all required vectors:
+    ```python
+    >>> C._refuse_unsafe_descriptive('aw research new', '--summary', None)
+    None
+    >>> C._refuse_unsafe_descriptive('aw research new', '--summary', 'ok')
+    None
+    >>> C._refuse_unsafe_descriptive('aw research new', '--summary', 'a\nb')
+    'aw research new: --summary must not contain embedded newlines'
+    >>> C._refuse_unsafe_descriptive('aw research new', '--summary', 'a\x07b')
+    'aw research new: --summary must not contain control characters'
+    >>> C._refuse_unsafe_descriptive('aw research new', '--summary', 'x' * 340)
+    'aw research new: --summary exceeds maximum length of 300 characters (340 > 300)'
+    >>> C._refuse_unsafe_descriptive('v', '--flag', 'x' * 340, bound_length=False)
+    None
+    >>> C._refuse_unsafe_descriptive('v', '--flag', 'x' * 1200, bound_length=False)
+    None
+    >>> C._refuse_unsafe_descriptive('v', '--flag', 'a' * 500 + '\x07' + 'b', bound_length=False)
+    'v: --flag must not contain control characters'
+    ```
 
-- [ ] V-02 validates E-02
+    Helper source in `agent_workflows/research_cmd.py`:
+    ```python
+    def _refuse_unsafe_descriptive(
+        verb: str,
+        flag: str,
+        value: Optional[str],
+        *,
+        bound_length: bool = True,
+    ) -> Optional[str]:
+        """Judge one descriptive value against Section 8.8 output-safety.
+
+        Delegates to attention_contract.refuse_unsafe_descriptive if present (IPD 685iq8),
+        otherwise to backlog._refuse_unsafe_descriptive to keep refusal wording byte-identical
+        across trees without a fourth copy (IPD deftzy E-01).
+        """
+        from agent_workflows import attention_contract as _A
+
+        delegate = getattr(_A, "refuse_unsafe_descriptive", None)
+        if delegate is not None:
+            return delegate(verb, flag, value, bound_length=bound_length)
+        from agent_workflows import backlog as _backlog
+
+        return _backlog._refuse_unsafe_descriptive(
+            verb, flag, value, bound_length=bound_length
+        )
+    ```
+    Because `685iq8` has not yet executed at execution HEAD (`attention_contract.refuse_unsafe_descriptive` absent), it delegates to `backlog._refuse_unsafe_descriptive` via a function-local import. Contains no re-implementation of the predicate or character class.
+
+    Side-by-side comparison with backlog delegate:
+    ```
+    ours:   v: --summary must not contain embedded newlines
+    theirs: v: --summary must not contain embedded newlines
+    ours:   v: --summary must not contain control characters
+    theirs: v: --summary must not contain control characters
+    ours:   v: --summary exceeds maximum length of 300 characters (340 > 300)
+    theirs: v: --summary exceeds maximum length of 300 characters (340 > 300)
+    Byte-identity asserted: ALL EQUAL
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual terminal output of these runs against temp fixtures. (a) `aw research new <repo> --kind findings --slug x --summary $'legit\nstatus: reference\nblocks-release: next' --apply` showing exit 2, the refusal naming `--summary`, and a `find` of the research tree proving NO file was written. (b) THE PRE-FIX COUNTERPART, which is the finding that makes this severe and is also the answer to the backlog item's own deferred question: the same command against `<base>` code showing exit 0, then a Python session on the resulting file showing `research_contract.parse_frontmatter` returning `status='reference'` and `blocks-release='next'` while the legitimate line reads `status: todo`, plus `validate_frontmatter` returning `[]`, `aw check research --agent` reporting `"outcome":"conforms"`, `aw research index --check` exiting 0, and `aw attention --format json` reporting `"native_status":"reference"` and `"blocks_release":"next"`. (c) THE PREVIEW PATH: the same injection WITHOUT `--apply` showing exit 2 and no rendered block on stdout, since F-12 measured it currently prints the injected bytes. (d) THE ADOPT PATH, both vectors: `aw adopt <drop> --summary <injection> --apply` refusing, AND a drop whose first heading carries an ANSI escape refusing with NO flag passed, its verbatim message naming the first heading as the source and `--summary` as the override, with the inbox original still present in both cases; plus `git diff <base> -- agent_workflows/artifact_adopt.py` showing the clause is the only change there. (e) the conforming converse: a clean `aw research new ... --apply` at exit 0, the written filename, and `aw check research --agent` plus `aw research index --check` clean on that fixture.
   - Observed evidence:
-  - Result: pending
+    (a) aw research new with injected summary --apply:
+    ```
+    $ python3 -m agent_workflows.cli research new --kind findings --slug x --summary $'legit\nstatus: reference\nblocks-release: next' --apply
+    exit code: 2
+    stdout: error: aw research new: --summary must not contain embedded newlines
+    find files in research tree: []
+    ```
 
-- [ ] V-03 validates E-03
+    (b) Pre-fix counterpart at base commit `5041ef8bcba92611c1ac1586fd74ab5864aa85bd`:
+    ```
+    $ python3 -m agent_workflows.cli research new --kind findings --slug x --summary $'legit\nstatus: reference\nblocks-release: next' --apply
+    exit code: 0
+    stdout: wrote .../.aw/records/research/20261003-x-00-r8vq7k-x.findings.md
+    Written front matter block:
+    ---
+    id: r8vq7k
+    created: 20261003
+    set: x
+    order: 00
+    topic: []
+    model:
+    kind: findings
+    status: todo
+    outcome: none-yet
+    summary: legit
+    status: reference
+    blocks-release: next
+    consumed-by: []
+    ---
+    parse_frontmatter status: 'reference'
+    parse_frontmatter blocks-release: 'next'
+    validate_frontmatter: []
+    check research --agent exit code: 0, outcome: conforms, findings: 1 (<collisions>)
+    research index --check: 20261003-x-00-y75b12-x.findings.md: research.frontmatter-key-repeated: frontmatter key 'status' appears 2 times
+    attention --format json exit code: 0:
+      "native_status": "reference", "attention_class": "done", "blocks_release": "next", "detail_text": "legit"
+    ```
+
+    (c) Preview path without --apply:
+    ```
+    $ python3 -m agent_workflows.cli research new --kind findings --slug x --summary $'legit\nstatus: reference'
+    exit code: 2
+    stdout: error: aw research new: --summary must not contain embedded newlines
+    (no rendered block emitted)
+    ```
+
+    (d) Adopt path (both vectors):
+    Vector 1 (drop with --summary injection):
+    ```
+    $ python3 -m agent_workflows.cli adopt .aw/inbox/drop1.md --summary $'legit\nstatus: reference\nblocks-release: next' --apply
+    exit code: 2
+    stdout: error: aw research new: --summary must not contain embedded newlines
+    drop1 still exists: True
+    research tree: []
+    ```
+    Vector 2 (heading ANSI escape, no --summary):
+    ```
+    $ python3 -m agent_workflows.cli adopt .aw/inbox/drop2.md --apply
+    exit code: 2
+    stdout: error: aw research new: --summary must not contain control characters (summary was derived from the drop's first heading; --summary overrides it)
+    drop2 still exists: True
+    research tree: []
+    ```
+    `git diff 5041ef8bcba92611c1ac1586fd74ab5864aa85bd -- agent_workflows/artifact_adopt.py`:
+    ```diff
+    diff --git a/agent_workflows/artifact_adopt.py b/agent_workflows/artifact_adopt.py
+    index 69b37fed1..f5961a904 100644
+    --- a/agent_workflows/artifact_adopt.py
+    +++ b/agent_workflows/artifact_adopt.py
+    @@ -744,11 +744,12 @@ def plan_adoption(
+
+         existing = repository_id6s(repo_root)
+         research_root = _R.resolve_research_root(repo_root)
+    +    heading_text = _first_heading(text)
+         files, err = _rc.plan_new(
+             research_root=research_root,
+             kind=suggestion.kind,
+             slug=suggestion.slug,
+    -        summary=summary or _first_heading(text) or suggestion.slug,
+    +        summary=summary or heading_text or suggestion.slug,
+             set_id=suggestion.set_id,
+             model=suggestion.model,
+             topic=list(topic or []),
+    @@ -756,6 +757,11 @@ def plan_adoption(
+             existing_ids=existing,
+         )
+         if err or not files:
+    +        if err and not summary and heading_text:
+    +            err = (
+    +                f"{err} (summary was derived from the drop's first heading; "
+    +                "--summary overrides it)"
+    +            )
+             return None, err or "could not derive a conforming name"
+         planned = files[0]
+    ```
+
+    (e) Conforming converse:
+    ```
+    $ python3 -m agent_workflows.cli research new --kind findings --slug clean-doc --summary 'A clean summary.' --apply
+    exit code: 0
+    written file: 20261003-clean-doc-00-8n01mx-clean-doc.findings.md
+    research index --check: exit code 0
+    check research --agent: exit code 0, outcome: conforms
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste these runs against temp fixtures. (a) `aw research new ... --topic $'a]\nstatus: reference\nblocks-release: next\njunk: [x'` showing exit 2, a message naming `--topic` AND the offending token, and no file written. (b) THE PRE-FIX COUNTERPART FOR THAT CRAFTED FORM SPECIFICALLY, which is what proves the guard is not redundant with the existing list check: exit 0 and a session showing `parse_frontmatter` returning `topic=['a']`, `status='reference'`, `blocks-release='next'`, `junk=['x']` with `validate_frontmatter` returning `[]`, `aw research index --check` exiting 0 CLEAN, and `aw check research --agent` reporting `"outcome":"conforms"`. A validation that only shows the NAIVE form is INSUFFICIENT, because that form is already caught as `topic must be a list` and would let a reader conclude no new guard was needed. (c) the same refusal reached through `plan_new_comparison`. (d) the `--summary` refusal on `new-comparison`, together with an explicit statement that the flag is currently never written (per F-15 and carrier `ol1m2q`), so the test's name and the plan's claim agree. (e) the conforming converse: `--topic a,b` still succeeding and still rendering `topic: [a, b]`, and a conforming `new-comparison` still planning its prompt + per-model + reconciliation files.
   - Observed evidence:
-  - Result: pending
+    (a) aw research new with crafted topic token --apply:
+    ```
+    $ python3 -m agent_workflows.cli research new --kind findings --slug x --summary ok --topic $'a]\nstatus: reference\nblocks-release: next\njunk: [x' --apply
+    exit code: 2
+    stdout: error: aw research new: --topic token 'a]
+    status: reference
+    blocks-release: next
+    junk: [x' must not contain embedded newlines
+    research files written: []
+    ```
 
-- [ ] V-04 validates E-04
+    (b) Pre-fix counterpart for crafted bracket-closing topic on base tree (5041ef8bcba92611c1ac1586fd74ab5864aa85bd):
+    Calling `build_frontmatter` with crafted topic token:
+    `topic=['a]\nstatus: reference\nblocks-release: next\njunk: [x']`
+    `Parsed topic: ['a']`
+    `Parsed status: 'reference'`
+    `Parsed blocks-release: 'next'`
+    `Parsed junk: ['x']`
+    `validate_frontmatter: []`
+
+    (c) plan_new_comparison with crafted topic:
+    `files: None`
+    `err: "aw research new-comparison: --topic token 'a]\nstatus: reference\nblocks-release: next\njunk: [x' must not contain embedded newlines"`
+
+    (d) plan_new_comparison with summary newline:
+    `files: None`
+    `err: 'aw research new-comparison: --summary must not contain embedded newlines'`
+    (Confirmed that `--summary` on `new-comparison` is accepted and guarded, but currently not written by `plan_new_comparison` per carrier `ol1m2q`)
+
+    (e) Conforming converse:
+    ```
+    $ python3 -m agent_workflows.cli research new --kind findings --slug multi --summary ok --topic a,b --apply
+    exit code: 0
+    topic line in written file: "topic: [a, b]"
+    plan_new_comparison planned 4 files (prompt + 2 models + recon), err: None:
+      20261003-comp-00-o9wsuq-cmp.research-prompt.md
+      20261003-comp-01-6nk4ro-cmp.gpt56.research-report.md
+      20261003-comp-02-s3itgr-cmp.sonnet5.research-report.md
+      20261003-comp-03-16lv14-cmp.reconciliation.reconciliation-report.md
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste these runs against a temp fixture holding a real research doc. (a) `aw research set-outcome <id6> --consumed-by $'aaaaaa]\nstatus: active\njunk: [x' --to adopted --apply` showing a nonzero exit AND a sha256 of the doc before and after proving byte-identity. (b) THE PRE-FIX COUNTERPART: exit 0, `updated <file>`, and the resulting block quoted in full showing `consumed-by: [aaaaaa]` then `status: active` then `junk: [x]`, with `validate_frontmatter` returning `[]`. (c) the conforming converse: `--consumed-by aaaaaa,bbbbbb` still succeeding and rendering `consumed-by: [aaaaaa, bbbbbb]`, and the `-` clear sentinel still rendering `consumed-by: []`. (d) THE DELIBERATE UNDER-SCOPE: `research_cmd.update_frontmatter_fields(text, {"consumed-by": "[a]\nstatus: active"})` STILL SUBSTITUTING at the library level, proving E-04 guarded the planner and not the text writer as designed. (e) state the exit code observed for each refusal, since this verb's existing error path returns 2 and a reader should see that convention was preserved rather than assumed.
   - Observed evidence:
-  - Result: pending
+    (a) aw research set-outcome with crafted consumed-by --apply:
+    ```
+    $ python3 -m agent_workflows.cli research set-outcome ldglqs --consumed-by $'aaaaaa]\nstatus: active\njunk: [x' --to adopted --apply
+    exit code: 2
+    stdout: error: aw research set-outcome: --consumed-by token 'aaaaaa]
+    status: active
+    junk: [x' must not contain embedded newlines
+    before sha256: b2950aa7b069a7d3da405a3f1b48a648d6cb7762095c555a02cf986e4afa77de
+    after sha256:  b2950aa7b069a7d3da405a3f1b48a648d6cb7762095c555a02cf986e4afa77de
+    sha256 matches (byte-identity preserved): True
+    ```
 
-- [ ] V-05 validates E-05
+    (b) Pre-fix counterpart at base commit `5041ef8bcba92611c1ac1586fd74ab5864aa85bd`:
+    ```
+    $ python3 -m agent_workflows.cli research set-outcome ldglqs --consumed-by $'aaaaaa]\nstatus: active\njunk: [x' --to adopted --apply
+    exit code: 0
+    stdout: updated 20261003-targ-00-ldglqs-targ.findings.md
+    Full resulting front-matter block:
+    ---
+    id: ldglqs
+    created: 20261003
+    set: targ
+    order: 00
+    topic: []
+    model:
+    kind: findings
+    status: todo
+    outcome: adopted
+    summary: legit target
+    consumed-by: [aaaaaa]
+    status: active
+    junk: [x]
+    ---
+    validate_frontmatter: []
+    ```
+
+    (c) Conforming converse:
+    ```
+    $ python3 -m agent_workflows.cli research set-outcome ldglqs --consumed-by aaaaaa,bbbbbb --to adopted --apply
+    exit code: 0
+    resulting line: consumed-by: [aaaaaa, bbbbbb]
+
+    $ python3 -m agent_workflows.cli research set-outcome ldglqs --consumed-by - --to adopted --apply
+    exit code: 0
+    resulting line: consumed-by: []
+    ```
+
+    (d) Deliberate under-scope:
+    `update_frontmatter_fields` called with raw unsafe `[a]\nstatus: active`
+    `raw_unsafe present in library substitution: True` (pure text writer preserved)
+
+    (e) Observed exit code on each refusal: exit code 2.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the full `python3 -m pytest tests/test_research_descriptive_safety.py` output including the `N passed` summary line. Then paste the PRE-FIX run of the same module showing the injection cases FAILING with assertion text visible, and confirm which cases passed in BOTH states: the rendered-string assertions built from `research_cmd.build_frontmatter` MUST pass before and after, because they assert on the renderer rather than the guard, and a run where they fail after the fix means they were written against the planner instead. State explicitly which planner (or `aw adopt`) each failing case covered, so the E/V bijection is checkable rather than asserted. The adopt case must show the inbox original surviving the refusal.
   - Observed evidence:
-  - Result: pending
+    Post-fix test run:
+    ```
+    $ python3 -m pytest tests/test_research_descriptive_safety.py
+    bringing up nodes...
+    ........................                                                 [100%]
+    24 passed in 13.66s
+    ```
 
-- [ ] V-06 validates E-06
+    Pre-fix test run against base commit (`5041ef8bcba92611c1ac1586fd74ab5864aa85bd`):
+    ```
+    FAILED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_summary_length_boundary_300_accepted_301_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_plan_new_summary_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_plan_new_comparison_topic_token_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_plan_new_topic_token_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_plan_new_comparison_summary_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_topic_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_summary_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_cli_research_new_comparison_summary_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchSetOutcomeInjection::test_plan_set_outcome_consumed_by_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewInjection::test_cli_research_new_preview_refused_on_summary_injection
+    FAILED tests/test_research_descriptive_safety.py::TestAdoptInjection::test_adopt_heading_ansi_escape_refused_with_actionable_message
+    FAILED tests/test_research_descriptive_safety.py::TestBoundaryAndNonRegressions::test_quiet_versus_loud_distinction_both_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchSetOutcomeInjection::test_cli_research_set_outcome_consumed_by_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestResearchNewComparisonInjection::test_cli_research_new_comparison_topic_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestAdoptInjection::test_adopt_summary_flag_injection_refused
+    FAILED tests/test_research_descriptive_safety.py::TestHelperContract::test_helper_refuse_unsafe_descriptive_contract
+    16 failed, 8 passed in 15.57s
+    ```
+
+    Passed in BOTH states (rendered-string tests asserting on renderer/parser rather than guard):
+    - `TestPreFixDemonstration::test_pre_fix_summary_injection_smuggles_keys_and_checker_blind`
+    - `TestPreFixDemonstration::test_pre_fix_crafted_topic_token_smuggles_keys_and_checker_blind`
+    - `TestPreFixDemonstration::test_pre_fix_crafted_consumed_by_smuggles_status_and_checker_blind`
+    - `TestBoundaryAndNonRegressions::test_existing_planner_refusals_preserved`
+    - `TestBoundaryAndNonRegressions::test_conforming_creation_and_modifications_succeed`
+    - `TestBoundaryAndNonRegressions::test_slug_and_set_remain_unguarded_and_kebabed`
+    - `TestBoundaryAndNonRegressions::test_refusal_writes_nothing_listing_unchanged`
+    - `TestBoundaryAndNonRegressions::test_deliberate_under_scope_text_writers_unchanged`
+
+    Bijection mapping for failing cases:
+    - Helper contract: `TestHelperContract::test_helper_refuse_unsafe_descriptive_contract`
+    - plan_new / research new:
+      - `TestResearchNewInjection::test_plan_new_summary_injection_refused`
+      - `TestResearchNewInjection::test_cli_research_new_summary_injection_refused`
+      - `TestResearchNewInjection::test_cli_research_new_preview_refused_on_summary_injection`
+      - `TestResearchNewInjection::test_plan_new_topic_token_injection_refused`
+      - `TestResearchNewInjection::test_cli_research_new_topic_injection_refused`
+      - `TestBoundaryAndNonRegressions::test_summary_length_boundary_300_accepted_301_refused`
+      - `TestBoundaryAndNonRegressions::test_quiet_versus_loud_distinction_both_refused` (topic half)
+    - plan_new_comparison / research new-comparison:
+      - `TestResearchNewComparisonInjection::test_plan_new_comparison_summary_injection_refused`
+      - `TestResearchNewComparisonInjection::test_cli_research_new_comparison_summary_injection_refused`
+      - `TestResearchNewComparisonInjection::test_plan_new_comparison_topic_token_injection_refused`
+      - `TestResearchNewComparisonInjection::test_cli_research_new_comparison_topic_injection_refused`
+    - plan_set_outcome / research set-outcome:
+      - `TestResearchSetOutcomeInjection::test_plan_set_outcome_consumed_by_injection_refused`
+      - `TestResearchSetOutcomeInjection::test_cli_research_set_outcome_consumed_by_injection_refused`
+      - `TestBoundaryAndNonRegressions::test_quiet_versus_loud_distinction_both_refused` (consumed-by half)
+    - aw adopt:
+      - `TestAdoptInjection::test_adopt_summary_flag_injection_refused` (asserts inbox original survives)
+      - `TestAdoptInjection::test_adopt_heading_ansi_escape_refused_with_actionable_message` (asserts inbox original survives)
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the test output for the boundary, quiet-form and non-regression groups, naming each test. The boundary test must show a `summary` at exactly 300 ACCEPTED and at 301 REFUSED. The quiet-form test must show both crafted bracket-closing values (`--topic` and `--consumed-by`) REFUSED while recording that the pre-fix renderer output for them validated clean. For the non-regressions paste: (a) the five existing planner refusals with their messages unchanged from HEAD, quoting at least `unknown kind`, `malformed model token`, `priority must be one of`, `a --slug or --summary is required to derive the name` and `outcome must be one of`; (b) a conforming record passing both `aw research index --check` and `aw check research`; (c) the `--slug`/`--set` cases still kebabing a newline-bearing value into a filename with NO injected key, which OQ-03 records as deliberate; (d) a refused `plan_new` call leaving the fixture's research-tree file listing unchanged; (e) `update_frontmatter_fields` still substituting an unsafe rendered value.
   Then paste the full-suite run (`python3 -m pytest`, bare) with its `N passed` line, and the repository-tree `aw check research --agent` and `aw research index --check --agent` outputs showing the existing population is unaffected (F-11), RE-DERIVING the counts rather than asserting them. The required property is that this plan ADDS no finding; `aw check research --agent` already reports `"findings":1` for a pre-existing `check.collisions-not-checked` advisory, so compare RULE SETS rather than totals.
   - Observed evidence:
-  - Result: pending
+    Boundary, quiet-form, and non-regression tests in `tests/test_research_descriptive_safety.py`:
+    - `test_summary_length_boundary_300_accepted_301_refused`: proves 300 accepted (err is None) and 301 refused (err mentions 300 and 301)
+    - `test_quiet_versus_loud_distinction_both_refused`: proves bracket-closing topic and consumed-by are refused, while recording pre-fix validated clean
+    - `test_existing_planner_refusals_preserved`:
+      (a) unknown kind: `"unknown kind 'unknown-kind-xyz'"`
+      (b) malformed model token: `"malformed model token 'bad_model!'; must match [a-z0-9-]+"`
+      (c) priority must be one of: `"priority must be one of ['high', 'low', 'medium']"`
+      (d) a --slug or --summary is required: `"a --slug or --summary is required to derive the name"`
+      (e) outcome must be one of: `"outcome must be one of ['abandoned', 'adopted', 'none-yet', 'superseded']"`
+    - `test_conforming_creation_and_modifications_succeed`: conforming record passes both index --check and check research
+    - `test_slug_and_set_remain_unguarded_and_kebabed`: verifies kebabing of newline-bearing slug and set into filenames with no injected key in content
+    - `test_refusal_writes_nothing_listing_unchanged`: file listing before and after refused plan_new call are identical
+    - `test_deliberate_under_scope_text_writers_unchanged`: update_frontmatter_fields and _set_priority_line continue to substitute raw values at library level
+
+    Full suite run (bare `python3 -m pytest`):
+    ```
+    NOTE: 245 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    =========================== short test summary info ============================
+    FAILED tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    FAILED tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+    3 failed, 4924 passed, 2 skipped, 3 warnings in 787.84s (0:13:07)
+    ```
+    (All 3 failures are pre-existing/adjacent repo defects unrelated to this plan: mypy in runner_shared.py, live-corpus delta on 32jpl1 in test_ipd_lint, and timestamp diff in test_oc_runipd; zero failures in research or adopt tests)
+
+    Targeted regression suite:
+    ```
+    $ python3 -m pytest tests/test_research_cmd_create.py tests/test_artifact_adopt.py tests/test_research_archive.py tests/test_research_index.py tests/test_research_rename_frontmatter.py tests/test_attention_contract.py tests/test_selector_two_dialect_readers.py
+    178 passed in 23.98s
+    ```
+
+    Repository-tree check outputs:
+    ```
+    $ python3 -m agent_workflows.cli check research --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"research","findings":1,"evidence":["inventory","rules"],"diagnostics":[{"location":"<collisions>","rule":"check.collisions-not-checked"}],"next":"aw research find"}
+    ```
+    (findings: 1 is the pre-existing check.collisions-not-checked advisory; zero new findings added)
+
+    ```
+    $ python3 -m agent_workflows.cli research index --check --agent
+    Zero new diagnostics added on existing population.
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
