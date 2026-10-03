@@ -1,5 +1,5 @@
 - Id: jnpl08
-- Status: graduated
+- Status: done
 - Graduated-To: jnpl08
 - Blocks-Release: next
 - Set: jnpl08
@@ -8,6 +8,7 @@
 - Summary: research_contract.parse_frontmatter accepts a duplicated YAML key with last-wins semantics, so a record with two status keys parses as valid rather than reporting the duplication; the bullet trees' sibling rule 7ohskw flags a duplicated metadata bullet and the YAML dialect has no equivalent
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 7d4bgs executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-jnpl08-01-7d4bgs-report-a-repeated-research-front-matter-key-instead-of-silen.ipd.md); evidence .aw/records/plans/executed/20261002-jnpl08-01-7d4bgs-report-a-repeated-research-front-matter-key-instead-of-silen.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: 7d4bgs
 - 2026-10-01 created (aw backlog): research_contract.parse_frontmatter accepts a duplicated YAML key with last-wins semantics, so a record with two status keys parses as valid rather than reporting the duplication; the bullet trees' sibling rule 7ohskw flags a duplicated metadata bullet and the YAML dialect has no equivalent
 
