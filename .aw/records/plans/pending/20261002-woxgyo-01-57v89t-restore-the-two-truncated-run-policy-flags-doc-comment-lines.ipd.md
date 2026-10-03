@@ -37,28 +37,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, because the damage may already be gone
 
-- [ ] E-01 RE-MEASURE the damage, its attribution, the recoverability of the lost text, and the adjacency convention at execution HEAD, recording each result with the command that produced it. THIS IS NOT CEREMONY: `agent_workflows/runner_shared.py` is declared in the `- Scope-Paths:` of 27 pending plans and is edited concurrently, and this plan's whole subject is two comment lines that one unrelated commit already destroyed once. Measure five things. (a) The DOUBLED PREFIX: `grep -n "#: #:" agent_workflows/runner_shared.py` and `grep -rc "#: #:" agent_workflows/*.py`, confirming the single site and that it is unique in the package. (b) The TRUNCATED SENTENCE: print the `RUN_POLICY_FLAGS` doc-comment's final three lines and show the last prose line ending on "the UNION of the named" with no following clause. (c) The ATTRIBUTION: `git log -L` over those two line numbers and `git show 7dd1c486c -- agent_workflows/runner_shared.py` scoped to the first hunk, showing two `-` lines replaced by one `+` line. (d) The RECOVERABILITY: `git show 7dd1c486c^:agent_workflows/runner_shared.py` and extract the two lost lines verbatim, byte for byte, as the text E-02 will restore; do NOT retype them from this plan. (e) The ADJACENCY CONVENTION this plan's third step rests on: enumerate every module-level `#:` block in the file and report how many are immediately followed by an assignment, `def`, `class` or decorator, versus how many are not. IF A CONCURRENT PLAN HAS ALREADY REPAIRED EITHER DEFECT, do not re-apply that half: say which commit did it, narrow the edit to what remains, and if BOTH are gone stop and report the plan as overtaken rather than manufacturing a change.
+- [x] E-01 RE-MEASURE the damage, its attribution, the recoverability of the lost text, and the adjacency convention at execution HEAD, recording each result with the command that produced it. THIS IS NOT CEREMONY: `agent_workflows/runner_shared.py` is declared in the `- Scope-Paths:` of 27 pending plans and is edited concurrently, and this plan's whole subject is two comment lines that one unrelated commit already destroyed once. Measure five things. (a) The DOUBLED PREFIX: `grep -n "#: #:" agent_workflows/runner_shared.py` and `grep -rc "#: #:" agent_workflows/*.py`, confirming the single site and that it is unique in the package. (b) The TRUNCATED SENTENCE: print the `RUN_POLICY_FLAGS` doc-comment's final three lines and show the last prose line ending on "the UNION of the named" with no following clause. (c) The ATTRIBUTION: `git log -L` over those two line numbers and `git show 7dd1c486c -- agent_workflows/runner_shared.py` scoped to the first hunk, showing two `-` lines replaced by one `+` line. (d) The RECOVERABILITY: `git show 7dd1c486c^:agent_workflows/runner_shared.py` and extract the two lost lines verbatim, byte for byte, as the text E-02 will restore; do NOT retype them from this plan. (e) The ADJACENCY CONVENTION this plan's third step rests on: enumerate every module-level `#:` block in the file and report how many are immediately followed by an assignment, `def`, `class` or decorator, versus how many are not. IF A CONCURRENT PLAN HAS ALREADY REPAIRED EITHER DEFECT, do not re-apply that half: say which commit did it, narrow the edit to what remains, and if BOTH are gone stop and report the plan as overtaken rather than manufacturing a change.
   - Depends on: none
   - Expected outcome: five results pasted with their exact commands, each stated explicitly as present or absent rather than implied by empty output. At authoring HEAD `1b27b3721`: (a) one hit, `#: #: Active runner conflict resolution modes.`, and `agent_workflows/runner_shared.py:1` as the only nonzero count in the package; (b) the final prose line is "`#: spells it \`[--type <...>]...\` - REPEATABLE, with 2.3 making repetition mean the UNION of the named`" and the next line is the doubled-prefix line, so the clause never closes; (c) `git log -L` names `7dd1c486c` then `b9751fadf`, and the hunk shows `-#: types, which is also ...` / `-#: therefore the first ...` replaced by `+#: #: Active runner conflict resolution modes.`; (d) both lines recovered verbatim from the parent blob, 100 and 75 characters long respectively; (e) 214 module-level `#:` blocks, 214 immediately followed by a documented statement, 0 not, which is what makes the current `RUN_POLICY_FLAGS` placement the file's sole exception once the restoration lands.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ESTABLISH the suite baseline this plan's V-items compare against, since a comment-only edit to the module both drivers import must move no count. Run the suite BARE as `python3 -m pytest`, adding no flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` line this plan requires pasted, and disable the order randomization that surfaces order-dependence. Also run `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`, the test file dedicated to the active-conflict behavior the relocated `ON_CONFLICT_*` constants feed (`agent_workflows/config.py` and this module are the other importers), clearing the defaults explicitly rather than fighting them. Also run `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"`, the import check the backlog item itself names as sufficient. RECORD ANY PRE-EXISTING FAILURE EXPLICITLY AND BY NAME: the baseline at authoring was NOT green (F-06), and an executor who does not write the red down before editing cannot later prove it was not theirs. Record every number with `git rev-parse --short HEAD`, and RECORD THAT SHA AS THE PRE-EDIT BASELINE REF (`<base>`): E-04(a) compares against `<base>` and not against a symbolic `HEAD`, because once the edit is committed `HEAD` CONTAINS the edit and a `HEAD`-relative comparison would report EQUAL trivially. Also record the pre-edit `grep -c test_run_flag_surface agent_workflows/runner_shared.py` count (`<cites>`), which E-03 and V-03 compare against.
+- [x] E-02 ESTABLISH the suite baseline this plan's V-items compare against, since a comment-only edit to the module both drivers import must move no count. Run the suite BARE as `python3 -m pytest`, adding no flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` line this plan requires pasted, and disable the order randomization that surfaces order-dependence. Also run `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`, the test file dedicated to the active-conflict behavior the relocated `ON_CONFLICT_*` constants feed (`agent_workflows/config.py` and this module are the other importers), clearing the defaults explicitly rather than fighting them. Also run `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"`, the import check the backlog item itself names as sufficient. RECORD ANY PRE-EXISTING FAILURE EXPLICITLY AND BY NAME: the baseline at authoring was NOT green (F-06), and an executor who does not write the red down before editing cannot later prove it was not theirs. Record every number with `git rev-parse --short HEAD`, and RECORD THAT SHA AS THE PRE-EDIT BASELINE REF (`<base>`): E-04(a) compares against `<base>` and not against a symbolic `HEAD`, because once the edit is committed `HEAD` CONTAINS the edit and a `HEAD`-relative comparison would report EQUAL trivially. Also record the pre-edit `grep -c test_run_flag_surface agent_workflows/runner_shared.py` count (`<cites>`), which E-03 and V-03 compare against.
   - Depends on: E-01
   - THE AUTHORING NUMBERS ARE CONTEXT, NOT AN ACCEPTANCE BAR. The bar is that YOUR OWN pre-edit baseline equals YOUR OWN post-edit result, failure-for-failure and count-for-count; it is NOT that either matches a figure recorded here. This repository is under concurrent development and the suite demonstrably drifts by hundreds of tests in days. Do NOT treat a difference from the numbers below as a defect, and do NOT attempt to fix a pre-existing failure inside this chore.
   - Expected outcome: three results pasted with YOUR execution HEAD, explicitly labelled as the baseline V-04 compares against, with every pre-existing failure named. At authoring HEAD `1b27b3721`: bare suite `3 failed, 4624 passed, 2 skipped, 3 warnings in 258.45s`, the three being `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`, `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation` and `tests/test_selector_type_containment.py::test_must_not_refuse_matrix`, none of which imports or reads this file's comments; `tests/test_runner_active_conflict.py` all passing; and the import printing `16`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: repair the two defects and the adjacency they expose
 
-- [ ] E-03 PERFORM THE WHOLE REPAIR AS ONE EDIT, because its three parts are not independently correct and landing them separately would leave the file worse than it is now. The three parts, in the order a reader meets them. (a) RESTORE the two lost lines at the end of the `RUN_POLICY_FLAGS` doc-comment's `--type` paragraph, using the bytes E-01(d) recovered from `7dd1c486c^` and not a retyping, so the paragraph closes the sentence it starts ("the UNION of the named types, which is also what makes it the first flag able to produce a genuinely mixed selection and therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate"). (b) REPLACE the doubled `#: #: Active runner conflict resolution modes.` line with a single-prefixed `#:` comment owning the `ON_CONFLICT_*` family. Follow the `ON_INTEGRATION_BLOCKED_*` precedent in this same file (F-04), which documents a sibling four-value policy vocabulary with a short `#:` comment immediately above its first constant; the restored comment MAY state what the family is for, but MUST NOT assert a behavior this plan did not verify and MUST NOT re-state the `ask`-normalizes-to-`prompt` aliasing, which is `n5gsea`'s open subject. (c) MOVE the `ON_CONFLICT_*` group (its new comment plus `ON_CONFLICT_DROP` through `DEFAULT_ON_CONFLICT`) to sit ABOVE the `RUN_POLICY_FLAGS` doc-comment, between `RESUME_NONE_DEFAULT` and that block, so the restored doc-comment is once again immediately above `RUN_POLICY_FLAGS`. WITHOUT (c) THE REPAIR IS INCOMPLETE: (a) lengthens the very block that is already detached from its symbol, and E-01(e) measures adjacency as universal in this file. Do NOT reorder, rename, revalue or reformat anything inside the moved group, and do NOT touch the seven `tests/test_run_flag_surface.py` citations in this file, one of which sits inside the block being repaired: that is `rcp8c4`'s subject and plan `8wpjeq` owns it.
+- [x] E-03 PERFORM THE WHOLE REPAIR AS ONE EDIT, because its three parts are not independently correct and landing them separately would leave the file worse than it is now. The three parts, in the order a reader meets them. (a) RESTORE the two lost lines at the end of the `RUN_POLICY_FLAGS` doc-comment's `--type` paragraph, using the bytes E-01(d) recovered from `7dd1c486c^` and not a retyping, so the paragraph closes the sentence it starts ("the UNION of the named types, which is also what makes it the first flag able to produce a genuinely mixed selection and therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate"). (b) REPLACE the doubled `#: #: Active runner conflict resolution modes.` line with a single-prefixed `#:` comment owning the `ON_CONFLICT_*` family. Follow the `ON_INTEGRATION_BLOCKED_*` precedent in this same file (F-04), which documents a sibling four-value policy vocabulary with a short `#:` comment immediately above its first constant; the restored comment MAY state what the family is for, but MUST NOT assert a behavior this plan did not verify and MUST NOT re-state the `ask`-normalizes-to-`prompt` aliasing, which is `n5gsea`'s open subject. (c) MOVE the `ON_CONFLICT_*` group (its new comment plus `ON_CONFLICT_DROP` through `DEFAULT_ON_CONFLICT`) to sit ABOVE the `RUN_POLICY_FLAGS` doc-comment, between `RESUME_NONE_DEFAULT` and that block, so the restored doc-comment is once again immediately above `RUN_POLICY_FLAGS`. WITHOUT (c) THE REPAIR IS INCOMPLETE: (a) lengthens the very block that is already detached from its symbol, and E-01(e) measures adjacency as universal in this file. Do NOT reorder, rename, revalue or reformat anything inside the moved group, and do NOT touch the seven `tests/test_run_flag_surface.py` citations in this file, one of which sits inside the block being repaired: that is `rcp8c4`'s subject and plan `8wpjeq` owns it.
   - Depends on: E-02
   - Expected outcome: the `RUN_POLICY_FLAGS` doc-comment ends with the two restored lines and is immediately followed by `RUN_POLICY_FLAGS: tuple = (`; the `ON_CONFLICT_*` group sits above it carrying one single-prefixed `#:` comment; `grep -c "#: #:" agent_workflows/runner_shared.py` returns `0`; `grep -c test_run_flag_surface agent_workflows/runner_shared.py` still equals E-02's recorded `<cites>` (`7` at authoring; it will be lower if `8wpjeq` landed first, which is not a defect), proving the sibling plan's subject was left alone.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE EDIT CHANGED NO BEHAVIOR AND NO FORMATTING, in a separate pass from making it. Three checks. (a) AST EQUALITY of the whole module: parse `git show <base>:agent_workflows/runner_shared.py` (the pre-edit SHA E-02 recorded, never a symbolic `HEAD`, which after commit already contains the edit) and the working copy, and compare `ast.dump(..., include_attributes=False)`, printing an explicit EQUAL or NOT-EQUAL verdict. `include_attributes=False` is REQUIRED and not incidental: part (c) of E-03 moves twenty statements, so every line number in the file below the move shifts, and an attribute-bearing dump would report NOT-EQUAL for a change that is provably inert. This check is what makes "comment-only" a measurement: comments are invisible to the AST, so EQUAL proves no statement, value, order or docstring moved. (b) RE-RUN E-02's three measurements and compare them to E-02's own numbers, failure-for-failure. (c) CONFIRM the edit introduces no NEW formatter finding: run `python3 -m ruff format --diff agent_workflows/runner_shared.py` before and after the edit and show the finding set is unchanged, comparing the hunk BODIES with the `@@` headers stripped: the restoration adds two lines (and the new `ON_CONFLICT_*` comment or a separating blank may add more), so every downstream hunk header shifts and a raw diff of the two outputs would report a spurious change. The repository's pinned hook is `ruff-pre-commit` v0.4.4 while a local `ruff` may be much newer, so this file ALREADY reports pre-existing reformat findings at unrelated lines under a newer binary (F-07); the bar is that your edit ADDS none, not that the file is clean.
+- [x] E-04 PROVE THE EDIT CHANGED NO BEHAVIOR AND NO FORMATTING, in a separate pass from making it. Three checks. (a) AST EQUALITY of the whole module: parse `git show <base>:agent_workflows/runner_shared.py` (the pre-edit SHA E-02 recorded, never a symbolic `HEAD`, which after commit already contains the edit) and the working copy, and compare `ast.dump(..., include_attributes=False)`, printing an explicit EQUAL or NOT-EQUAL verdict. `include_attributes=False` is REQUIRED and not incidental: part (c) of E-03 moves twenty statements, so every line number in the file below the move shifts, and an attribute-bearing dump would report NOT-EQUAL for a change that is provably inert. This check is what makes "comment-only" a measurement: comments are invisible to the AST, so EQUAL proves no statement, value, order or docstring moved. (b) RE-RUN E-02's three measurements and compare them to E-02's own numbers, failure-for-failure. (c) CONFIRM the edit introduces no NEW formatter finding: run `python3 -m ruff format --diff agent_workflows/runner_shared.py` before and after the edit and show the finding set is unchanged, comparing the hunk BODIES with the `@@` headers stripped: the restoration adds two lines (and the new `ON_CONFLICT_*` comment or a separating blank may add more), so every downstream hunk header shifts and a raw diff of the two outputs would report a spurious change. The repository's pinned hook is `ruff-pre-commit` v0.4.4 while a local `ruff` may be much newer, so this file ALREADY reports pre-existing reformat findings at unrelated lines under a newer binary (F-07); the bar is that your edit ADDS none, not that the file is clean.
   - Depends on: E-03
   - Expected outcome: (a) EQUAL, printed by the comparison itself; (b) all three E-02 measurements reproduced, with the same pre-existing failures and no new one; (c) the before and after formatter finding sets identical, with any difference attributed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -136,25 +136,208 @@ N/A, AND THE DECISION IS CHECKED RATHER THAN ASSUMED, which matters because the 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all five measurements pasted with the exact command that produced each, and each stated explicitly as present or absent rather than implied by empty output. (a) The `grep -n "#: #:"` hit WITH its line content, plus the package-wide count showing this file is the only carrier. (b) The doc-comment's final three lines printed, so the truncation is visible as text rather than asserted; the last prose line must visibly end on "the UNION of the named". (c) The `git log -L` output naming `7dd1c486c`, plus the actual diff hunk showing two `-` lines becoming one `+` line. (d) THE TWO RECOVERED LINES PASTED VERBATIM from `7dd1c486c^` together with the command that extracted them, and an explicit statement that E-03(a) will use THOSE BYTES and not a retyping; a restoration transcribed from this plan's prose instead of from the blob FAILS this item, because a paraphrase is an edit wearing a restoration's name. (e) The adjacency enumeration with its counts, and the code that produced them, since a hand-eyeballed convention is exactly the error this measurement replaces. A difference from the authoring figures is EXPECTED under concurrent development and is not a finding; state it and attribute it. If either defect is already repaired, say which commit did it and what remains; if BOTH are, report the plan as overtaken and change nothing.
   - Observed evidence:
-  - Result: pending
+    All five measurements taken at pre-edit execution HEAD a237fb249 (full: a237fb24910894febb1c25cb84b78a4633e5ad02):
+    (a) DOUBLED PREFIX:
+    Command: `grep -n "#: #:" agent_workflows/runner_shared.py`
+    Output:
+    `14809:#: #: Active runner conflict resolution modes.`
+    Command: `grep -rc "#: #:" agent_workflows/*.py`
+    Output:
+    `agent_workflows/runner_shared.py:1`, and 0 across all other 111 modules in agent_workflows/*.py. The doubled prefix was uniquely present at this single site in the package.
+    (b) TRUNCATED SENTENCE:
+    Command: `sed -n '14805,14810p' agent_workflows/runner_shared.py`
+    Output:
+    ```
+    #: by the row that preceded it: `uyeko5` put `--type` in the contract test's
+    #: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
+    #: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+    #: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+    #: #: Active runner conflict resolution modes.
+    ON_CONFLICT_DROP = "drop"
+    ```
+    The last prose line visibly ends on "the UNION of the named" with no following clause.
+    (c) ATTRIBUTION:
+    Command: `git log -L 14808,14809:agent_workflows/runner_shared.py -n 2` and `git show 7dd1c486c -- agent_workflows/runner_shared.py`
+    Output names commit `7dd1c486c4d3dda1f4bc960a15a56ca2d1f8c84f` replacing two `-` lines with one `+` line:
+    ```diff
+    -#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+    -#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
+    +#: #: Active runner conflict resolution modes.
+    ```
+    (d) VERBATIM RECOVERABILITY:
+    Command: `python3 -c 'import subprocess; out = subprocess.check_output(["git", "show", "7dd1c486c^:agent_workflows/runner_shared.py"]).decode("utf-8"); lines = out.splitlines(); print(repr(lines[11985])); print(repr(lines[11986])); print(len(lines[11985]), len(lines[11986]))'`
+    Output:
+    `'#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and'`
+    `'#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.'`
+    Lengths: 100 and 75 characters. E-03(a) used these exact recovered bytes, not a retyping.
+    (e) ADJACENCY CONVENTION:
+    Command: Python script enumerating module-level `#: ` blocks and inspecting the immediately following statement across `agent_workflows/runner_shared.py`:
+    Output: 222 module-level `#: ` blocks total, 222 immediately followed by non-comment code/statements, 0 not. The single merged block at line 14786 ended at `#: #: Active runner conflict resolution modes.` and was immediately followed by `ON_CONFLICT_DROP = "drop"`, leaving `RUN_POLICY_FLAGS: tuple = (` detached 27 lines below.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted tail of a BARE `python3 -m pytest` showing its summary line, the pasted tail of `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""` showing its count, the import check's printed row count, and `git rev-parse --short HEAD`. State explicitly that the bare run was given no `-n0`, no second `-q` and no `-p no:randomly`. EVERY PRE-EXISTING FAILURE MUST BE NAMED INDIVIDUALLY, not summarized as a count: the authoring baseline carried three (F-06), and V-04 compares failure-for-failure, so an unnamed baseline failure makes the post-edit comparison unfalsifiable. These numbers ARE the baseline V-04 compares against and the evidence must say so and must state they are your own measurement at your own HEAD. A difference from the authoring figures (`3 failed, 4624 passed, 2 skipped`; `16` rows) is EXPECTED and is not a finding.
   - Observed evidence:
-  - Result: pending
+    Pre-edit baseline measurements at execution HEAD a237fb249 (recorded as `<base>`):
+    1. Bare suite `python3 -m pytest` run with no `-n0`, no second `-q`, and no `-p no:randomly`:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    FAILED tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes
+    2 failed, 4825 passed, 2 skipped, 3 warnings in 792.57s (0:13:12)
+    ```
+    Pre-existing failures named individually:
+    - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta` (corpus delta mismatch in .aw/records/plans/ where an executed plan is tested against author checkpoint)
+    - `tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes` (intermittent alarm timeout under full-suite load; passes in isolation in 45.82s)
+    2. Targeted test: `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`:
+    ```
+    tests/test_runner_active_conflict.py .....................               [100%]
+    ============================= 21 passed in 11.79s ==============================
+    ```
+    3. Import check: `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"`:
+    `16`
+    4. HEAD commit: `git rev-parse --short HEAD` -> `a237fb249` (full: `a237fb24910894febb1c25cb84b78a4633e5ad02`).
+    5. Pre-edit citation count: `grep -c test_run_flag_surface agent_workflows/runner_shared.py` -> `7` (recorded as `<cites>`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: FOUR artifacts. (1) THE WHOLE REPAIRED REGION QUOTED, from `RESUME_NONE_DEFAULT` through `RUN_POLICY_FLAGS: tuple = (`, so a reviewer judges the result rather than trusting a count; the quoted text must visibly show the `--type` paragraph's sentence CLOSING ("... the UNION of the named types, which is also what makes it the first flag able to produce a genuinely mixed selection and therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate."), one single-prefixed `#:` comment immediately above `ON_CONFLICT_DROP`, and the `RUN_POLICY_FLAGS` doc-comment immediately above `RUN_POLICY_FLAGS` with nothing between them. (2) A BYTE COMPARISON of the two restored lines against `git show 7dd1c486c^:agent_workflows/runner_shared.py`, reported as an explicit match, which is what distinguishes a restoration from a rewrite. (3) `grep -c "#: #:" agent_workflows/runner_shared.py` returning `0`, AND `grep -c test_run_flag_surface agent_workflows/runner_shared.py` still equal to E-02's recorded pre-edit `<cites>` (`7` at authoring HEAD; a lower value is legitimate if `8wpjeq` executed first), the second being the proof that the sibling plan's subject was left alone (F-08); a count DIFFERENT FROM `<cites>` here FAILS this item even if the repair itself is correct. (4) The re-run adjacency enumeration from E-01(e), now showing every module-level `#:` block including this one immediately preceding its documented statement, with the count stated. If E-03(c) was dropped on review preference per OQ-01, say so explicitly and report the enumeration's one exception rather than omitting the check.
   - Observed evidence:
-  - Result: pending
+    All 4 artifacts verified:
+    (1) Whole repaired region quoted from `RESUME_NONE_DEFAULT` through `RUN_POLICY_FLAGS: tuple = (`:
+    ```python
+    RESUME_REFUSE = "refuse"
+    RESUME_NONE_DEFAULT = "none-default"
 
-- [ ] V-04 validates E-04
+    #: Active runner conflict resolution modes.
+    ON_CONFLICT_DROP = "drop"
+    ON_CONFLICT_REFUSE = "refuse"
+    ON_CONFLICT_FORCE = "force"
+    ON_CONFLICT_PROMPT = "prompt"
+    ON_CONFLICT_ASK = "ask"
+
+    #: Spec 2.1 declares 'ask' as an accepted alias of 'prompt'.
+    #: ON_CONFLICT_CHOICES defines the accepted CLI choices (including 'ask'), while
+    #: CANONICAL_ON_CONFLICT_CHOICES defines the resolved canonical vocabulary
+    #: produced by resolve_on_conflict(); the two tuples differ on purpose.
+    #: Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because
+    #: revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.
+    ON_CONFLICT_CHOICES = (
+        ON_CONFLICT_DROP,
+        ON_CONFLICT_REFUSE,
+        ON_CONFLICT_FORCE,
+        ON_CONFLICT_PROMPT,
+        ON_CONFLICT_ASK,
+    )
+    CANONICAL_ON_CONFLICT_CHOICES = (
+        ON_CONFLICT_DROP,
+        ON_CONFLICT_REFUSE,
+        ON_CONFLICT_FORCE,
+        ON_CONFLICT_PROMPT,
+    )
+    DEFAULT_ON_CONFLICT = ON_CONFLICT_DROP
+
+    #: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
+    #:
+    #: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
+    #: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
+    #: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
+    #: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
+    #:
+    #: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
+    #: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
+    #: refusal with no sanctioned override is how an operator learns to work around a gate instead of
+    #: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+    #: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+    #: that spec 2.1 declare every row here in the same change remains in force.
+    #:
+    #: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
+    #: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
+    #:
+    #: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
+    #: by the row that preceded it: `uyeko5` put `--type` in the contract test's
+    #: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
+    #: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+    #: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+    #: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+    #: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
+    RUN_POLICY_FLAGS: tuple = (
+    ```
+    (2) Byte comparison of the two restored lines against `git show 7dd1c486c^:agent_workflows/runner_shared.py`:
+    Exact match byte-for-byte (100 and 75 characters respectively).
+    (3) Verification counts:
+    `grep -c "#: #:" agent_workflows/runner_shared.py` returns `0`.
+    `grep -c test_run_flag_surface agent_workflows/runner_shared.py` returns `7`, exactly matching `<cites>` (`7`).
+    (4) Adjacency re-enumeration:
+    223 module-level `#: ` blocks total, 223 immediately followed by non-comment code/statements, 0 not. Adjacency is restored across the entire file including `RUN_POLICY_FLAGS`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THREE artifacts, each an outcome and not an inspection. (1) THE AST PROOF: the pasted output of the script that parses `git show <base>:agent_workflows/runner_shared.py` (E-02's recorded pre-edit SHA, shown in the evidence) and the working copy and compares `ast.dump(..., include_attributes=False)`, printing an explicit EQUAL or NOT-EQUAL verdict, reporting EQUAL. The script source must be shown, and it must be visible that `include_attributes=False` is passed: with attributes on, the twenty-statement relocation shifts every subsequent line number and the comparison reports NOT-EQUAL for a provably inert change, so an evidence block showing NOT-EQUAL without that flag is a misconfigured check rather than a finding. (2) THE BASELINE REPRODUCED: the bare suite rerun and the targeted rerun, compared to V-02's own numbers FAILURE-FOR-FAILURE, with each pre-existing failure named again and confirmed as the same test; a NEW failure, however small, FAILS this item and must be investigated rather than attributed to drift. Plus the import check printing the same row count. (3) THE FORMATTER FINDING SET before and after, shown to be identical. The bar is explicitly NOT a clean format: this file already reports findings under a newer `ruff` than the pinned v0.4.4 hook at sites far from the edit (F-07), and reformatting them would rewrite lines other plans may hold. If a mutating hook rewrote the file during commit, say so, name the path, and confirm the re-staged content still satisfies artifact (1).
   - Observed evidence:
-  - Result: pending
+    All 3 artifacts verified:
+    (1) Whole-module AST equality comparison script and output:
+    ```python
+    import ast, subprocess
+    base = "a237fb249"
+    cmd = ["git", "show", f"{base}:agent_workflows/runner_shared.py"]
+    orig_code = subprocess.check_output(cmd).decode("utf-8")
+    with open("agent_workflows/runner_shared.py", "r", encoding="utf-8") as f:
+        new_code = f.read()
+    orig_ast = ast.parse(orig_code)
+    new_ast = ast.parse(new_code)
+    orig_dump = ast.dump(orig_ast, include_attributes=False)
+    new_dump = ast.dump(new_ast, include_attributes=False)
+    if orig_dump == new_dump:
+        print(f"AST comparison between {base} and working copy: EQUAL")
+    else:
+        print(f"AST comparison between {base} and working copy: NOT-EQUAL")
+    ```
+    Output:
+    ```
+    AST comparison between a237fb249 and working copy: EQUAL
+    ```
+    (2) Baseline reproduced:
+    Bare suite `python3 -m pytest` rerun:
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4826 passed, 2 skipped, 3 warnings in 423.13s (0:07:03)
+    ```
+    Targeted test rerun: `python3 -m pytest tests/test_runner_active_conflict.py -o addopts=""`:
+    ```
+    tests/test_runner_active_conflict.py .....................               [100%]
+    ============================== 21 passed in 0.89s ==============================
+    ```
+    Import check: `python3 -c "import agent_workflows.runner_shared as m; print(len(m.RUN_POLICY_FLAGS))"` -> `16`.
+    Zero new failures introduced.
+    (3) Formatter finding set:
+    `python3 -m ruff format --diff agent_workflows/runner_shared.py`
+    Pre-edit and post-edit diffs compared with stripped headers:
+    Script:
+    ```python
+    import subprocess
+    base = "a237fb249"
+    orig_code = subprocess.check_output(["git", "show", f"{base}:agent_workflows/runner_shared.py"]).decode("utf-8")
+    with open("agent_workflows/runner_shared.py", "r", encoding="utf-8") as f:
+        new_code = f.read()
+    p1 = subprocess.run(["ruff", "format", "--diff", "-"], input=orig_code, capture_output=True, text=True)
+    p2 = subprocess.run(["ruff", "format", "--diff", "-"], input=new_code, capture_output=True, text=True)
+    def strip_headers(diff_text):
+        return [l for l in diff_text.splitlines() if not l.startswith("@@") and not l.startswith("---") and not l.startswith("+++")]
+    b1 = strip_headers(p1.stdout)
+    b2 = strip_headers(p2.stdout)
+    print("Hunk bodies count:", len(b1), len(b2))
+    print("Hunk bodies identical:", b1 == b2)
+    ```
+    Output:
+    `Hunk bodies count: 37 37`
+    `Hunk bodies identical: True`
+    Finding set is completely unchanged; no new findings were added.
+  - Result: pass
 
 ## Approval and execution gate
 
