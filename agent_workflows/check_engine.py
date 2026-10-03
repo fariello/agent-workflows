@@ -7937,10 +7937,7 @@ def _resolve_carrier(
         (o[1] or "").strip().lower() in _CARRIER_FINISHED_STATUSES for o in owners
     )
     if all_finished:
-        detail = (
-            f"carrier {id6} finished ({statuses}); an agent must confirm it did this work "
-            "and record Carrier-Evidence, or re-point the row"
-        )
+        detail = f"carrier {id6} finished ({statuses})"
         return "finished", detail, finished_relpaths
 
     detail = f"carrier {id6} resolves only to an abandoned artifact ({statuses}); nothing revisits it"
@@ -8159,12 +8156,9 @@ def evaluate_carrier_obligation(
                     if more_count == 0
                     else f" (and {more_count} more finished owner(s))",
                 )
-                reason = (
-                    "{0}: {1}\n"
-                    "this obligation was discharged by finished work; cite it instead of the carrier:\n"
-                    "{2}\n"
-                    "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
-                ).format(obligation.locator, "; ".join(problems), evidence_line)
+                reason = ("{0}: {1}; shipped: add `{2}`, not Carrier-Declined").format(
+                    obligation.locator, "; ".join(problems), evidence_line
+                )
                 remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
                 return CloseVerdict(
                     False,
@@ -8191,12 +8185,9 @@ def evaluate_carrier_obligation(
                 if more_count == 0
                 else f" (and {more_count} more finished owner(s))",
             )
-            reason = (
-                "{0}: {1}\n"
-                "this obligation was discharged by finished work; cite it instead of the carrier:\n"
-                "{2}\n"
-                "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
-            ).format(obligation.locator, "; ".join(problems), evidence_line)
+            reason = ("{0}: {1}; shipped: add `{2}`, not Carrier-Declined").format(
+                obligation.locator, "; ".join(problems), evidence_line
+            )
             remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
             return CloseVerdict(
                 False,
@@ -8245,8 +8236,8 @@ def evaluate_durable_carrier(
     directly by ``tests/test_durable_capture.py``.
 
     Returns AT MOST ONE Drift per plan per rule (at most two: finished unverified at `info`, and
-    uncarried/abandoned at `error`), enumerating up to five offending locators plus the total count
-    (DECISION 07-rnkqrc-D4, plan cnzrxb E-01).
+    uncarried/abandoned at `error`), enumerating grouped offending locators selected by descriptive
+    budget plus the total count (DECISION 07-rnkqrc-D4, plan cnzrxb E-01).
 
     Severity is per plan via :func:`carrier_severity_for_plan` for `check.ipd-uncarried-obligation`
     (post-cutover `error`, else the grandfathered advisory tier). `check.ipd-carrier-finished-unverified`
@@ -8290,16 +8281,83 @@ def evaluate_durable_carrier(
         rule_failures = failures_by_rule.get(rule)
         if not rule_failures:
             continue
-        shown = rule_failures[:5]
-        fixes = shown[0][1].fixes
+        fixes = rule_failures[0][1].fixes
+
+        # Partition rule failures by reason text with leading locator removed (E-04).
+        partition_map: Dict[Tuple[str, str], List[str]] = {}
+        for ob, v in rule_failures:
+            loc = ob.locator
+            if v.reason.startswith(loc + ": "):
+                sep = ": "
+                body = v.reason[len(loc) + 2 :]
+            elif v.reason.startswith(loc + " "):
+                sep = " "
+                body = v.reason[len(loc) + 1 :]
+            elif v.reason.startswith(loc):
+                sep = ""
+                body = v.reason[len(loc) :]
+            else:
+                sep = ": "
+                body = v.reason
+            partition_map.setdefault((sep, body), []).append(loc)
+
         if rule == _CARRIER_FINISHED_RULE:
-            detail = "{0} obligation(s) name a finished carrier needing verification: {1}{2}".format(
-                len(rule_failures),
-                "; ".join(v.reason for _ob, v in shown),
-                ""
-                if len(rule_failures) == len(shown)
-                else f" (and {len(rule_failures) - len(shown)} more)",
+            header_prefix = f"{len(rule_failures)} obligation(s) name a finished carrier needing verification: "
+        else:
+            header_prefix = (
+                f"{len(rule_failures)} obligation(s) name no durable carrier: "
             )
+
+        from agent_workflows import attention_contract as _ac
+
+        max_len = _ac.MAX_DESCRIPTIVE_LEN
+
+        shown_clauses: List[str] = []
+        shown_count = 0
+        total_failures = len(rule_failures)
+
+        for (sep, body), locs in partition_map.items():
+            # Check if whole partition fits
+            clause = f"{', '.join(locs)}{sep}{body}"
+            cand_clauses = shown_clauses + [clause]
+            cand_shown = shown_count + len(locs)
+            cand_hidden = total_failures - cand_shown
+            cand_tail = "" if cand_hidden == 0 else f" (and {cand_hidden} more)"
+            cand_detail = f"{header_prefix}{'; '.join(cand_clauses)}{cand_tail}"
+
+            if len(cand_detail) <= max_len:
+                shown_clauses = cand_clauses
+                shown_count = cand_shown
+                continue
+
+            # Whole partition does not fit: show as many locators as fit (partial group)
+            added_partial = False
+            for k in range(len(locs) - 1, 0, -1):
+                part_clause = f"{', '.join(locs[:k])}{sep}{body}"
+                cand_clauses = shown_clauses + [part_clause]
+                cand_shown = shown_count + k
+                cand_hidden = total_failures - cand_shown
+                cand_tail = f" (and {cand_hidden} more)"
+                cand_detail = f"{header_prefix}{'; '.join(cand_clauses)}{cand_tail}"
+                if len(cand_detail) <= max_len:
+                    shown_clauses = cand_clauses
+                    shown_count = cand_shown
+                    added_partial = True
+                    break
+
+            if not added_partial and shown_count == 0:
+                # Floor of one locator (OQ-01)
+                part_clause = f"{locs[0]}{sep}{body}"
+                shown_clauses = [part_clause]
+                shown_count = 1
+
+            break
+
+        hidden_count = total_failures - shown_count
+        tail = "" if hidden_count == 0 else f" (and {hidden_count} more)"
+        detail = f"{header_prefix}{'; '.join(shown_clauses)}{tail}"
+
+        if rule == _CARRIER_FINISHED_RULE:
             drift.append(
                 enrich_drift(
                     _core.Drift(str(plan_path), rule, detail, severity="info"),
@@ -8313,13 +8371,6 @@ def evaluate_durable_carrier(
             )
         else:
             severity = carrier_severity_for_plan(plan_text, repo_root=repo_root)
-            detail = "{0} obligation(s) name no durable carrier: {1}{2}".format(
-                len(rule_failures),
-                "; ".join(v.reason for _ob, v in shown),
-                ""
-                if len(rule_failures) == len(shown)
-                else f" (and {len(rule_failures) - len(shown)} more)",
-            )
             drift.append(
                 enrich_drift(
                     _core.Drift(str(plan_path), rule, detail, severity=severity),
@@ -8416,7 +8467,7 @@ _IPD_LINT_RULE = "check.ipd-lint-diagnostic"
 _IPD_LINT_SWEEP_CHECKPOINT = "author"
 
 #: How many underlying diagnostics one plan's finding enumerates before it summarizes the rest.
-#: Mirrors `evaluate_durable_carrier`'s DECISION 07-rnkqrc-D4 (five, then "(and N more)"), for the same
+#: Mirrors `evaluate_durable_carrier`'s original fixed-five form of DECISION 07-rnkqrc-D4 (five, then "(and N more)"), for the same
 #: reason: a per-diagnostic Drift would let one badly-formed plan add dozens of lines to every
 #: `aw check plans`. The full list always remains one command away via the `recovery` field.
 _IPD_LINT_SHOWN = 5

@@ -1,5 +1,5 @@
 - Id: 7stpjm
-- Status: graduated
+- Status: done
 - Graduated-To: 7stpjm
 - Set: 7stpjm
 - Priority: low
@@ -7,6 +7,8 @@
 - Summary: Twelve aw check findings carry a detail over the Section 8.8 descriptive bound, the longest at 942 characters
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD lxcexr executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-7stpjm-01-lxcexr-bring-every-carrier-obligation-check-detail-inside-the-secti.ipd.md); evidence .aw/records/plans/executed/20261001-7stpjm-01-lxcexr-bring-every-carrier-obligation-check-detail-inside-the-secti.ipd.md
+- 2026-10-03 note (aw backlog): lxcexr: resolved via combination of route (b) and budget-driven variant of (a) rather than (b) alone; route (a) as framed (smaller fixed cap) was refused because a fixed cap unconditionally loses locators whereas the budget-driven cap keeps every obligation named or counted (naming more on single-body findings and fewer on findings with distinct long evidence paths); fixed a second unstated violation (embedded newlines in all finished-carrier details); corrected premise that shortening removes operator information since evwmm2 closed and aw check prints pasteable path in Fix: field
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: lxcexr
 - 2026-09-30 created (aw backlog): Twelve aw check findings carry a detail over the Section 8.8 descriptive bound, the longest at 942 characters
 
