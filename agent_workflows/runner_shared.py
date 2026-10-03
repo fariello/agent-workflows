@@ -9861,6 +9861,7 @@ DEFAULT_INTEGRATION_STALENESS_LIMIT = 3600.0
 POLL_BOUND_COUNT = "poll-count-exhausted"
 POLL_BOUND_STALE = "main-inactive"
 POLL_BOUND_CLEARED = "dirt-cleared"
+POLL_BOUND_MERGE = "merge-in-progress"
 
 
 def classify_integration_refusal(integ_kind: str) -> bool:
@@ -10207,8 +10208,8 @@ def main_last_activity_age(repo: Path, *, now: float | None = None) -> float | N
 class PollOutcome(NamedTuple):
     """The result of one rung-2 poll episode, shaped so a report can be HONEST about it.
 
-    `bound` is which of the three conditions ended it (:data:`POLL_BOUND_CLEARED`,
-    :data:`POLL_BOUND_COUNT`, :data:`POLL_BOUND_STALE`), `polls` how many checks were made, and
+    `bound` is which of the four conditions ended it (:data:`POLL_BOUND_CLEARED`,
+    :data:`POLL_BOUND_COUNT`, :data:`POLL_BOUND_STALE`, :data:`POLL_BOUND_MERGE`), `polls` how many checks were made, and
     `last_activity_age` main's measured idle time at the end (`None` when unmeasurable). `detail` is
     one operator-facing sentence naming both the bound and the age, because "polled 10x over 5m; main
     last active 3m ago" and "gave up immediately, main idle 4h" demand different human responses.
@@ -10233,6 +10234,7 @@ def poll_for_integration_window(
     sleep: Callable[[float], None] | None = None,
     overlap: Callable[[Path, Sequence[str]], list[str]] | None = None,
     activity_age: Callable[[Path], float | None] | None = None,
+    merge_check: Callable[[Path], bool] | None = None,
     now: Callable[[], float] | None = None,
     report: Callable[[str], None] | None = None,
 ) -> PollOutcome:
@@ -10255,14 +10257,20 @@ def poll_for_integration_window(
     _now = time.monotonic if now is None else now
     _overlap = dirty_tree_overlap if overlap is None else overlap
     _age = main_last_activity_age if activity_age is None else activity_age
+    _merge_check = merge_in_progress if merge_check is None else merge_check
 
     polls = 0
     last_age = _age(repo)
     stale_exit = False
+    last_blocker = "dirt"
 
     def _try_once() -> tuple[bool, str]:
-        nonlocal polls, last_age, stale_exit
-        if not _overlap(repo, changed_files):
+        nonlocal polls, last_age, stale_exit, last_blocker
+        if _overlap(repo, changed_files):
+            last_blocker = "dirt"
+        elif _merge_check(repo):
+            last_blocker = "merge"
+        else:
             return True, "cleared"
         last_age = _age(repo)
         if last_age is None or last_age > staleness_limit:
@@ -10290,6 +10298,21 @@ def poll_for_integration_window(
 
     if stale_exit:
         described = "unmeasurable" if last_age is None else f"{int(last_age)}s ago"
+        if last_blocker == "merge":
+            commits = merge_head_commits(repo)
+            commits_str = ", ".join(commits) if commits else "unknown"
+            return PollOutcome(
+                cleared=False,
+                bound=POLL_BOUND_STALE,
+                polls=polls,
+                last_activity_age=last_age,
+                detail=(
+                    f"stopped polling after {polls} poll(s): main was last active {described} "
+                    f"(staleness bound {int(staleness_limit)}s), so the staged merge "
+                    f"(MERGE_HEAD for commit(s): {commits_str}) looks ABANDONED; "
+                    "it needs whoever staged it to conclude or abort it, not more waiting"
+                ),
+            )
         return PollOutcome(
             cleared=False,
             bound=POLL_BOUND_STALE,
@@ -10315,6 +10338,22 @@ def poll_for_integration_window(
         )
 
     # Timed out on wall time
+    if last_blocker == "merge":
+        commits = merge_head_commits(repo)
+        commits_str = ", ".join(commits) if commits else "unknown"
+        return PollOutcome(
+            cleared=False,
+            bound=POLL_BOUND_MERGE,
+            polls=polls,
+            last_activity_age=last_age,
+            detail=(
+                f"stopped polling after {polls} poll(s) ({int(res.waited)}s of {int(timeout)}s bound); "
+                f"main was last active {int(last_age) if last_age is not None else 'unmeasurable'}s ago, "
+                f"with a staged merge in progress (MERGE_HEAD for commit(s): {commits_str}); "
+                "it needs whoever staged the merge to conclude or abort it, but this run has waited its budget"
+            ),
+        )
+
     return PollOutcome(
         cleared=False,
         bound=POLL_BOUND_COUNT,

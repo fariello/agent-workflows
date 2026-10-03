@@ -6,8 +6,8 @@
 - Scope: Make per-row verdicts truthful in the four affected `subTest` blocks, and ship one sound reusable driver so row-level evidence is a repeatable paste rather than a per-plan ad-hoc script.
 - Scope-Paths: tests/test_executed_transition_gate_e2e.py, tests/test_subtest_row_verdicts.py, agent_workflows/subtest_rows.py, docs/row-level-test-evidence.md
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: no-go
+- Status: approved
+- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: nos070
@@ -16,9 +16,12 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: t5txjk
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 
+- 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-29, findings PR-001..OQ-01. Recomputed at HEAD `22d50ce93`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored in full from backlog `nos070`; ready for `/plan-review`.
 - 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-007 recorded, six FIXED and one escalated. Every one of F-01 through F-07 was independently re-measured at review HEAD `1aaa74e4` and ALL REPRODUCE, including F-01 empirically and F-06's 33-row census exactly (15+4+7+4+3). BUT E-01's PRESCRIBED FIX WAS MEASURED TO DESTROY THE VERY DIAGNOSTIC CHANNEL THE PLAN'S OWN FENCE SAYS MUST BE PRESERVED: under this repository's real runner (no `pytest-subtests`), a `self.fail` inside the subtest context makes pytest report ONLY THE FIRST failing row and NEVER REACH the trailing aggregate assertion, so the maintainer's diagnostic prose and the full list of wrong rows both vanish from a normal `python3 -m pytest` run. The plan's F-04 is not wrong, it measured `unittest`; pytest differs, and pytest is what this repository runs. A mechanism satisfying BOTH properties was found and demonstrated at review (opt-in strict mode, default off), so E-01 is rewritten around it rather than the plan being replanned. OQ-01 remains OPEN and is now escalated as BLOCKING per the release-gate contract, which is why readiness is `no-go`.
@@ -140,10 +143,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Blocking: yes
 - Finding: PR-002
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Carrier-Declined: No obligation outlives this plan, because the question is about how the work already being done here should be CLASSIFIED, not about work left undone. The defect itself is fixed by E-01 and verified by V-01 under either answer, so nothing needs a later owner. Recorded so review puts the classification question to the maintainer rather than letting it pass unasked; if the maintainer answers `bug`, the consequence is a `- Blocks-Release:` gate set on the artifact at that moment, which is a field change and not a work handoff.
-- Resolution or deferral rationale: NOT resolvable from repository evidence, and deliberately left to the maintainer because it is a release-gating and risk-appetite call, which the repository's instructions reserve to the human. The case for `followup`, which is what this plan inherits from backlog `nos070` and therefore carries: no user waits on it, no shipped behaviour is wrong, the four tests correctly FAIL on a wrong row through their aggregate assertion, and the false verdicts appear only in an ad-hoc driver an agent runs by hand. The case for `bug`: the artifact it corrupts is EVIDENCE, and the repository's gating rule would then oblige a `- Blocks-Release:` gate while the item is live. The author did NOT set `- Work-Kind: bug` or invent a gate, because writing a release gate the maintainer has not agreed to is not the author's call; it is recorded here so review can put the question rather than let it pass unasked. ESCALATED TO BLOCKING AT REVIEW (PR-002, F-09), correcting the authored `- Blocking: no`. The author's instinct not to self-answer was right; the non-blocking label was the error. THE REASON IT BLOCKS: the repository's contract is that a LIVE artifact whose `- Work-Kind:` is in the gating set (default `bug`; measured, `.aw/config/project.json` declares no `release_gate_work_kinds`, so the default applies) MUST carry `- Blocks-Release:`. So this answer decides a FRONT-MATTER FIELD on this plan, and executing under the wrong answer ships a release-gating defect with no gate recorded, which is exactly the silent gap that contract exists to prevent. It is therefore not a classification nicety an executor may proceed past. WHAT THE MAINTAINER IS DECIDING, in one line: is forgeable-by-accident EVIDENCE a `bug` (gate the next release) or a `followup` (no gate)? REVIEW ADDS ONE MEASUREMENT TO INFORM IT (F-10): the repository's own `bug` test is USER-PERCEPTIBLE IMPACT, and by that test this leans `followup`, because no shipped command changes, the four tests DO still fail on a wrong row through their aggregate assertion, and the false verdicts appear only in an ad-hoc hand-run driver. The countervailing argument, which is the maintainer's to weigh and not the reviewer's to settle, is that the corrupted artifact is EVIDENCE rather than output, and evidence integrity is not the latency question that test was written for. Every E-item here remains executable and verifiable under either answer; what cannot proceed without the answer is the front-matter field.
+- Resolution or deferral rationale: Resolved on 2026-10-02 per maintainer ruling: classified as `followup`. Shipped runtime behavior is unaffected, aggregate assertions continue to fail, and the harness row verdict is an internal followup with no release gate.
+
 
 ## Validation and cross-check (verify before reporting done)
 

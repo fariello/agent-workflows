@@ -21,6 +21,7 @@ from agent_workflows import term as _T
 class TestStatuslineBoxInvariants:
     """E-01: Box renderer invariants across swept inputs."""
 
+    @pytest.mark.timeout(240)
     def test_box_renderer_invariants_across_swept_inputs(self) -> None:
         """Assert four properties across the swept input space:
         (a) exactly 4 lines returned, joined into 4 newline-delimited lines;

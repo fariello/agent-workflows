@@ -1046,9 +1046,17 @@ class ArtifactIndex:
 # ONLY PATH FACTS ARE CACHED HERE: a record's `- Status:` is always read fresh in `audit_artifact`,
 # so an in-place status edit needs no cache invalidation.
 #
-# RESIDUAL LIMIT 1 (carrier `ieg7q6`): An in-place edit to a file's `- Id:` line changes no filename
-# and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still
-# resolve a stale id6. Tracked under backlog carrier `ieg7q6`.
+# RESIDUAL LIMIT 1: An in-place edit to a file's `- Id:` line changes no filename and no directory
+# mtime, so the invalidation signature remains blind to it BY DESIGN: widening the signature to per-file
+# mtime and size fails on a size-preserving id6 rewrite in 140/200 immediate trials and costs ~3.8x.
+# The three wrong answers reachable from a stale hit (stale positive, wrong path, phantom collision)
+# are closed at the point of USE in `find_artifact` by verifying tier-one identity claims against disk
+# (<0.01% of a rebuild). The MISS-ON-NEW half remains open: a record's newly assigned id6 is unfindable
+# from a cached index until an invalidation occurs, and similarly an in-place collision created by
+# rewriting Y to X's id6 returns a clean single hit on X because X's claim verifies and nothing reads Y.
+# Both are omissions (failing to assert something true) rather than false assertions; closing them would
+# require re-deriving on every miss or checking every file on every hit, spending full rebuilds on normal
+# queries. No carrier is owed (deferred under plan 0a7v0x / F-05).
 #
 # RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
 # directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
@@ -1165,6 +1173,7 @@ def find_artifact(
     *,
     record_types: Sequence[str] = TYPE_PRECEDENCE,
     artifact_index: Optional[ArtifactIndex] = None,
+    _verify_tier_one: bool = True,
 ) -> ArtifactLookup:
     """Locate the artifact declaring ``id6`` (or named by ``stem``), through ``selectors``.
 
@@ -1193,12 +1202,51 @@ def find_artifact(
     # collision is reported rather than masked by the type ordering.
     if id6:
         exact = index.by_declared_id.get(id6, ())
-        if len(exact) == 1:
-            return ArtifactLookup(path=exact[0], kind="id6")
-        if len(exact) > 1:
-            return ArtifactLookup(
-                path=None, collisions=sorted(exact, key=str), kind="id6"
-            )
+        if exact:
+            if _verify_tier_one:
+                # Verify that every claimed path still declares the queried id6, reading through the
+                # same selectors._read_header and selectors._read_id reader build_index used.
+                # Both single hits and collision lists are verified.
+                def _claims_id6(p: Path) -> bool:
+                    hdr = _sel._read_header(p)
+                    return hdr is not None and _sel._read_id(hdr) == id6
+
+                if not all(_claims_id6(p) for p in exact):
+                    # Invalidate only this root's entry, and ONLY when it is the stale object.
+                    # Popping before rebuild is mandatory: build_index checks _dir_signature,
+                    # which is structurally blind to an in-place - Id: rewrite, so without
+                    # popping the key first build_index would return the same stale object.
+                    # Popping ONLY when cached[1] is index protects repeat lookups against a
+                    # caller's stale explicit index from evicting a fresh cache entry and forcing
+                    # repeated disk traversals.
+                    try:
+                        cache_key = (str(repo_root.resolve()), tuple(record_types))
+                    except OSError:
+                        cache_key = (str(repo_root), tuple(record_types))
+                    cached_entry = _INDEX_CACHE.get(cache_key)
+                    if cached_entry is not None and cached_entry[1] is index:
+                        _INDEX_CACHE.pop(cache_key, None)
+
+                    # Re-derive once from a fresh index. When the caller passed artifact_index=,
+                    # the caller owns that object's lifetime; we deliberately do NOT mutate the
+                    # caller's ArtifactIndex, leaving it untouched while answering this query
+                    # from the rebuilt index.
+                    fresh = build_index(repo_root, record_types=record_types)
+                    return find_artifact(
+                        repo_root,
+                        id6,
+                        stem,
+                        record_types=record_types,
+                        artifact_index=fresh,
+                        _verify_tier_one=False,
+                    )
+
+            if len(exact) == 1:
+                return ArtifactLookup(path=exact[0], kind="id6")
+            if len(exact) > 1:
+                return ArtifactLookup(
+                    path=None, collisions=sorted(exact, key=str), kind="id6"
+                )
 
         # TIER TWO: the clustered filename's id6 FIELD (never a bare substring), which the bounded
         # header read makes necessary; see the module docstring's 268-of-1202 measurement.

@@ -6,7 +6,7 @@
 - Scope: IN: (a) re-deriving the decay at the execution base (E-01); (b) recording the IRREPARABLE loss honestly against the 15 terminal plans in `.aw/records/plans/README.md` and appending the dated `## Workflow history` pointer line D156 explicitly authorizes onto `d0cbt3` (E-05); (c) closing backlog `iguvci` against this plan (E-06). OUT: the dropped check rule half (E-02, E-03, E-04), descoped per maintainer ruling on OQ-03 (Option B); editing any terminal plan's `Priority`/`Work-Kind`/`Blocks-Release` fields, which this plan REFUSES on measured grounds (F-05); a new `decisions/` records tree for rulings (OQ-01, carried by backlog `0szu1p`); widening `check.scope-path-target-stale`.
 - Scope-Paths: .aw/records/plans/README.md, .aw/records/plans/executed/20260910-planprio-00-d0cbt3-require-priority-and-work-kind-on-a-plan-going-forward-grand.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: nllamb
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-30, findings PR-701..E-03. Recomputed at HEAD `c0fc00ba7`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-02 maintainer decision: OQ-03 answered with Option B (drop rule half, ship recording half E-01, E-05, E-06). E-02, E-03, E-04 descoped. Backlog 0szu1p holds the open records-model question.
 

@@ -14,6 +14,8 @@ import io
 import json
 import unittest
 
+import pytest
+
 from agent_workflows import cli
 
 
@@ -90,6 +92,7 @@ class FieldsFlagReachTests(unittest.TestCase):
         args = parser.parse_args(["find", "plans", "--agent", "--fields", "findings"])
         self.assertEqual(getattr(args, "fields", None), "findings")
 
+    @pytest.mark.livecorpus
     def test_fields_flag_end_to_end_projection(self) -> None:
         """Drive aw check plans --agent --fields findings end to end and assert projection.
 

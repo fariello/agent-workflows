@@ -11,6 +11,7 @@
 
 ## Workflow history
 
+- 2026-10-02 note (aw specs): AMENDED 2026-10-02 (4xtpvg-01 0b7fic): R4.4(a), R4.4b, and A10c amended to record that stdout permission detection is measured impossible (research 7so8uz), the bound stays at 0 permanently, and log-route detection is refused on cost-benefit
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 by malgate Order 02 (38pxaz): constraints 0.3, R6.2, and A16 amended following the deletion of wtiso_gate.py under GUIDING_PRINCIPLES P15 (measured zero product callers across all nine predicates; two cited test files were deleted in commit 19313eed; AW_MISSING_INPUT re-homed to lane_containment). R6.1 and R6.3 are preserved untouched; R6.2 and A16 clauses 1-3 have no live subject.
 - 2026-10-01 note (aw specs): AMENDED 2026-10-01 (specfin7ck-01 e9ekuj): A12b coverage sentence corrected to cite behavioral test coverage restored by 654a3adb (dmxc5h) in tests/test_lane_input_manifest.py
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
@@ -322,7 +323,7 @@ two facts, because they are what an implementer and a post-mortem reader actuall
 exactly what was missing (establishing them required reading `_started` versus `_last_activity`): WHAT
 INSTANT it is measured from, and WHETHER ANYTHING RESETS IT.
 
-(a) `PERMISSION_TIMEOUT`, default 30 SECONDS. Measured from the instant a permission request is OBSERVED,
+(a) `PERMISSION_TIMEOUT`, default 30 SECONDS (qualifying note: 30 seconds is the value that would apply only if a host ever carries the event on stdout; it ships and stays at `0` per R4.4b, and the log-route measurement prices 30 seconds at 15 false kills of 1,149). Measured from the instant a permission request is OBSERVED,
 including a nested child-session request, which is the shape the qyaime deadlock actually took. RESETTABLE:
 observed progress clears the pending ask and disarms it. Seconds rather than minutes is the whole point,
 because an unattended turn has NO answerer, so a permission ask is not a slow operation but a dead one and
@@ -347,16 +348,15 @@ deadlock from an over-long turn from a silent stall.
 
 R4.4b THE `PERMISSION_TIMEOUT` SHIPS DISABLED (`0`) UNTIL DETECTION IS PROVEN, per the maintainer's rule
 that it "better have a deterministic way to know it's waiting for permission, otherwise it better not
-fire". Detection is PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is
-currently UNVERIFIED against a real ask. MEASURED: the last real run's stdout stream contained ZERO
-permission-typed events and ZERO `message=asking` lines, and the qyaime evidence that motivated the
-plain-text pattern came from opencode's own LOG FILE rather than stdout, which is why a separate
-log-tailing module exists at all. So the detector may be matching a shape that never reaches the stream it
-inspects. The implementing plan MUST either (i) provoke a real permission ask, capture the stream, and
-paste the matched line, after which the default may be set to 30 seconds; or (ii) record that detection is
-not possible on stdout, leave the default at `0`, and state that `MAX_TURN_TIMEOUT` is therefore the only
-bound covering a permission deadlock. Shipping it armed on an unproven detector is non-conforming, because
-a false positive kills a healthy turn.
+fire". Detection on stdout is MEASURED UNSATISFIABLE on this host: across 788,504 recorded stdout events in
+2,414 streams the complete type census carries six event types and ZERO permission-typed events (research
+`7so8uz`), and 1,166 driver-turn asks produced zero stdout events, so option (i) cannot be satisfied and
+option (ii) is TAKEN PERMANENTLY rather than provisionally. Reopening option (i) needs a host whose stdout
+carries the event rather than a better-written regex. The host log is the only carrier (`message=asking ...
+permission=<class>`), and a log-fed bound was REFUSED ON MEASUREMENT (15 false kills of 1,149 healthy turns at
+the 30s default, with zero cases missed by the stall watchdog) rather than on caution. The default remains
+at `0`, and `MAX_TURN_TIMEOUT` is therefore the only bound covering a permission deadlock. Shipping it armed
+on an unproven detector is non-conforming, because a false positive kills a healthy turn.
 
 R4.4d THE ANTIGRAVITY OVERLAP MUST BE STATED, NOT DISCOVERED. That host ALREADY has a per-turn ceiling:
 `agy_runipd.DEFAULT_TIMEOUT` is `"240m"` and is passed to the child as `--print-timeout`, so it is
@@ -592,13 +592,13 @@ re-flag it as a traceability gap.
   isolated one. Paste each constant's docstring showing it states WHAT INSTANT it measures from and
   WHETHER ANYTHING RESETS IT. Also show the non-isolated turn's PROMPT is still byte-identical, which is
   what R1.3 protects and what makes the uniform supervision scope safe. (R4.4, R4.4a)
-- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. Either paste a captured stream from a
-  REAL provoked permission ask together with the line the detector matched, and then show the default set
-  to 30 seconds; OR paste the recorded finding that detection is not possible on stdout, show the default
-  remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is consequently the only bound
-  covering a permission deadlock. A test that merely feeds a SYNTHETIC line the detector was written
-  against does NOT satisfy this criterion, because that proves the regex matches itself rather than that
-  the shape ever reaches stdout. (R4.4b)
+- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. The prohibition on a synthetic line is
+  CORRECT and now moot for the stdout route: detection on stdout is measured impossible (zero
+  permission-typed events across 788,504 recorded stdout events; research `7so8uz`). The criterion is
+  satisfied permanently by the option (ii) branch plus the cost-benefit measurement (the log route is the
+  only carrier, and was refused on measurement: 15 false kills at 30s and zero cases the stall watchdog
+  misses). Show the default remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is
+  consequently the only bound covering a permission deadlock. (R4.4b)
 - A10e. NO NEW CONFIGURATION SURFACE WAS ADDED. Show that neither bound gained a config-file entry or a
   CLI flag, and that `test_command_surface_declarations` is no worse than its measured baseline. This is a
   criterion in the NEGATIVE direction, which is deliberate: the natural instinct is to make a new constant

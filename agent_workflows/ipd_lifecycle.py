@@ -2046,6 +2046,76 @@ def refreeze_receipt(
     )
 
 
+def record_scope_reasons(
+    repo_root: Path,
+    plan_id: str,
+    reasons: Dict[str, str],
+    *,
+    timestamp: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """Merge commit-time scope justifications into the plan's EXISTING begin receipt.
+
+    Keeps ``base_head`` untouched, merges ``reasons`` into the additive
+    ``scope_justifications`` key, appends an auditable entry to
+    ``scope_justifications_audit``, and writes via ``_atomic_write_json`` at
+    ``receipt_path_for(repo_root, plan_id)``.
+
+    Returns ``(ok, detail)``. If no readable receipt exists, returns ``(False, reason)``
+    without creating a new receipt (never mints execution authority).
+    """
+    if not plan_id:
+        return False, "no plan_id provided"
+    rcpt_path = receipt_path_for(repo_root, plan_id)
+    try:
+        receipt = json.loads(rcpt_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False, f"no readable begin receipt at {rcpt_path}"
+
+    if not isinstance(receipt, dict):
+        return False, f"invalid receipt format at {rcpt_path}"
+
+    # base_head is kept untouched: a fresh begin would make already-committed paths
+    # invisible to scope reconciliation.
+    current_reasons = receipt.setdefault("scope_justifications", {})
+    if not isinstance(current_reasons, dict):
+        current_reasons = {}
+        receipt["scope_justifications"] = current_reasons
+
+    from datetime import datetime, timezone
+
+    ts = timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    audit_entries = []
+    for path, reason in sorted(reasons.items()):
+        previous_reason = current_reasons.get(path)
+        current_reasons[path] = reason
+        audit_entries.append(
+            {
+                "path": path,
+                "reason": reason,
+                "previous_reason": previous_reason,
+                "timestamp": ts,
+            }
+        )
+
+    receipt.setdefault("scope_justifications_audit", []).extend(audit_entries)
+    _atomic_write_json(rcpt_path, receipt)
+    return (
+        True,
+        f"recorded {len(reasons)} scope reason(s) in begin receipt for {plan_id}",
+    )
+
+
+def read_scope_reasons(repo_root: Path, plan_id: str) -> Dict[str, str]:
+    """Read commit-time scope justifications recorded in the begin receipt for ``plan_id``."""
+    receipt = read_receipt(repo_root, plan_id)
+    if not receipt or not isinstance(receipt, dict):
+        return {}
+    justifications = receipt.get("scope_justifications")
+    if not isinstance(justifications, dict):
+        return {}
+    return {str(k): str(v) for k, v in justifications.items() if str(v).strip()}
+
+
 def _repo_relative(repo_root: Path, path: Path) -> str:
     """Return ``path`` relative to ``repo_root`` (POSIX), or the resolved absolute path if outside."""
     try:
@@ -2699,6 +2769,7 @@ def finalize_precheck(
     plan_id = (doc.meta_fields.get("Id") or "").strip()
     if not plan_id:
         return EXIT_CANNOT_RUN, f"plan {plan_path} has no '- Id:' handle.", evidence, ()
+    evidence["plan_id"] = plan_id
 
     journal = read_finalize_journal(repo_root, plan_id)
     if journal is not None and journal.get("phase") == PHASE_UNKNOWN_OUTCOME:
@@ -4557,13 +4628,26 @@ def finalize(
     # rcptwiden `63425h` E-04: paths ADDED to `Scope-Paths` under an accepted additive widening each
     # demand their own reason, unconditionally and independently of `out_of_scope`.
     widened = list(audit.get("widened_paths", []))
+    plan_id = str(evidence.get("plan_id") or "")
+    if not plan_id and plan_path.is_file():
+        try:
+            from agent_workflows import ipd_lint as _lint
+
+            plan_id = (
+                _lint.parse(plan_path.read_text(encoding="utf-8")).meta_fields.get("Id")
+                or ""
+            ).strip()
+        except OSError:
+            plan_id = ""
+    receipt_reasons = read_scope_reasons(repo_root, plan_id) if plan_id else {}
+    effective_scope_reasons = {**receipt_reasons, **(scope_reasons or {})}
     reconcile = _reconcile_scope(
         plan_selector or (plan_path.name),
         actor,
         message,
         out_of_scope,
         in_scope_unmodified,
-        scope_reasons=scope_reasons,
+        scope_reasons=effective_scope_reasons,
         scope_acks=scope_acks,
         interactive=interactive,
         prompt=prompt,
