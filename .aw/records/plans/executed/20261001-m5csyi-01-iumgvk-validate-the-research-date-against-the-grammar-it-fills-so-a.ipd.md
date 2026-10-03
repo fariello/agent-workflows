@@ -6,7 +6,7 @@
 - Scope: Validate `date_str` at `research_cmd.plan_new` and `research_cmd.plan_new_comparison` against the date slot of the grammar those functions fill (`\A\d{8}\Z` plus a calendar check), refusing through each function's EXISTING `(None, error)` return channel before any id6 is minted or any path is derived; then assert destination containment in `research_cmd._emit_and_write`, the one preview-and-apply funnel both planners feed, so a derived path outside the resolved research root is refused on BOTH the `--apply` and the dry-run arm. DELIBERATELY NOT COVERED: `aw research set-assign`, whose identical traversal MOVES an existing record and is already carried by open backlog item `0ougsh`; the descriptive-field injection through `--summary`, `--topic` and `--consumed-by`, which plan `deftzy` owns; and `prompts.run_new`'s format-only guard, which this plan does not upgrade (see Deferred).
 - Scope-Paths: agent_workflows/research_cmd.py, tests/test_research_date_containment.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: iumgvk
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: iumgvk verified (set m5csyi, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review complete; APPROVE WITH REVISIONS APPLIED
 
