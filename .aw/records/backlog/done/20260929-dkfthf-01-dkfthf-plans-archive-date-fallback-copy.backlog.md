@@ -1,5 +1,5 @@
 - Id: dkfthf
-- Status: graduated
+- Status: done
 - Graduated-To: dkfthf
 - Blocks-Release: next
 - Set: dkfthf
@@ -8,6 +8,7 @@
 - Summary: plans_archive._plan_date is a second copy of the 20260101 fabricating fallback, so a plan with no usable - Date: shards to the wrong week and ages about nine months early
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 6i8knl executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.ipd.md); evidence .aw/records/plans/executed/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 6i8knl
 - 2026-09-29 created (aw backlog): Filed while authoring plan 949enf (graduating j84jg3): the deferred half of that plan's fence, filed with its measurement rather than left as prose.
 
