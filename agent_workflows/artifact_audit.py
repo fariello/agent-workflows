@@ -117,6 +117,18 @@ _TERMINAL_EXPECTED_DIR = {
 
 # The recorded statuses that mean THE RUN BELIEVED IT SUCCEEDED. A difference under one of these is
 # backwards-looking: the run says done, so the artifact had better be terminal.
+#
+# DECISION (2026-10-01, backlog `64a03w`, IPD `8fo926`): the question of whether `substantially-complete`
+# should share `complete`'s audit tolerance was asked and ANSWERED NO on measurement.
+# (a) The asymmetry the backlog item was filed about does not exist, because this set is consulted on the
+# canonical status and `substantially-complete` canonicalizes to `fail-gate` while `complete` is not in
+# the set either, so both statuses are flagged in the identical shape.
+# (b) Adding the legacy spelling `substantially-complete` to this set is a silent NO-OP, so a future editor
+# who tries it and sees green has demonstrated nothing.
+# (c) Adding `fail-gate` WOULD work and is REFUSED, because `fail-gate` is also the canonical form of
+# `blocked` and `failed-safely`, so the one-line change tolerates three statuses while naming one.
+# (d) Fenced by tests `test_substantially_complete_and_complete_plans_lifecycle_symmetry` (E-02) and
+# `test_fail_gate_family_matches_complete_reference` (E-03) in `tests/test_artifact_audit.py`.
 _RUN_SUCCESS_STATUSES = frozenset({"executed"})
 
 # The terminal dispositions that are a RETIREMENT rather than an execution. Reaching one of these is
