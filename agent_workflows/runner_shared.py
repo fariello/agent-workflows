@@ -19827,7 +19827,30 @@ def enforce_freeze_time_refusal(
                             else:
                                 why = bridge_reason
                     else:
-                        target_status = "absent"
+                        target_type = getattr(edge, "target_type", None) or "plan"
+                        if target_type in ("plan", "ipd") or edge.kind == "executed":
+                            try:
+                                dep_path = resolve_plan_path(repo, "", target_id6)
+                                target_status = (
+                                    _read_status(dep_path.read_text(encoding="utf-8"))
+                                    or "unknown"
+                                )
+                            except Exception:
+                                target_status = "absent"
+                        else:
+                            from agent_workflows import ipd_schema as _schema
+
+                            record_type = _schema.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(
+                                target_type
+                            )
+                            owners = _artifact_owners(
+                                repo, record_type or "", target_id6
+                            )
+                            if owners:
+                                target_status = owners[0][0]
+                            else:
+                                target_status = "absent"
+
                         why = (
                             edge_reason
                             or "is not satisfied and this run cannot change that"
@@ -38057,6 +38080,28 @@ def edge_satisfied(
     # runner never mutates a `spec`/`backlog` target, and an in-queue IPD target that would advance
     # is ordered AFTER its dependent by `queue_sort_key` (dependency depth).
     if status != edge.status:
+        if not is_exec:
+            # Review consumer relaxation: reviewing an artifact writes no code and needs
+            # only text/design context, not execution or approval prerequisites.
+            if edge.target_type == "spec" and edge.status in ("approved", "reviewed"):
+                if status in (
+                    "to-review",
+                    "reviewed",
+                    "approved",
+                    "implementing",
+                    "implemented",
+                ):
+                    return True, ""
+            elif edge.target_type == "backlog" and edge.status in ("graduated", "done"):
+                if status in ("open", "graduated", "done"):
+                    return True, ""
+            elif edge.target_type == "ipd" and edge.status in (
+                "approved",
+                "reviewed",
+                "executed",
+            ):
+                if status in ("to-review", "reviewed", "approved", "executed"):
+                    return True, ""
         return False, (
             f"{tok}: {edge.target_type} {edge.id6} is {status!r}, needs exactly {edge.status!r}"
         )
