@@ -1,5 +1,5 @@
 - Id: 8jl0rx
-- Status: graduated
+- Status: done
 - Graduated-To: 8jl0rx
 - Blocks-Release: next
 - Set: 8jl0rx
@@ -8,6 +8,7 @@
 - Summary: Fix non-recursive spec resolution in agy_run.resolve_spec
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD a6ootg executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-8jl0rx-01-a6ootg-make-agy-run-resolve-spec-recursive-with-ignored-path-filter.ipd.md); evidence .aw/records/plans/executed/20261001-8jl0rx-01-a6ootg-make-agy-run-resolve-spec-recursive-with-ignored-path-filter.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: a6ootg
 - 2026-09-30 created (aw backlog): Fix non-recursive spec resolution in agy_run.resolve_spec
 

@@ -6,7 +6,7 @@
 - Scope: Replace the non-recursive glob in `agy_run.resolve_spec` by DELEGATING enumeration to `specs._spec_files`, the single existing definition of "which files are this repository's specs", so the recursive walk, the ignored-path filter, the `README.md`/`INDEX.md`/`STATUS.md` skip, the legacy `.agents/docs/specs` read path and the resolved-path dedup all come from one place rather than being re-implemented a second time. Add the behavioral test coverage the symbol has never had (measured: zero tests reference `resolve_spec`'s subdirectory case, which is why this shipped broken), placing it under `tests/` because `pyproject.toml` sets `testpaths = ["tests"]` and CI runs `python -m pytest tests/`, so the existing `tools/test_agy_run.py` module is NOT collected by the default suite or by CI. Does NOT change the matching semantics (exact-name-or-substring), the ambiguity error, the `direct.is_file()` early return, the function signature, or any caller. Does NOT fix the same latent defect in the sibling `resolve_ipd` (measured and real, but it needs a different enumeration source and is handed off, see the deferred section).
 - Scope-Paths: agent_workflows/agy_run.py, tests/test_agy_run_resolve_spec_recursive.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: a6ootg
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: a6ootg verified (set 8jl0rx, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 (review record 20261002-8jl0rx-01-a6ootg-...review.md).
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): plan-review revisions applied; see review record
@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the failing baseline before changing any byte
 
-- [ ] E-01 CAPTURE THE REPRODUCTION AT THE BASE COMMIT, before any edit, so the fix is demonstrated against a measured failure rather than asserted.
+- [x] E-01 CAPTURE THE REPRODUCTION AT THE BASE COMMIT, before any edit, so the fix is demonstrated against a measured failure rather than asserted.
 
   NEVER LAUNCH A REAL AGENT FROM A PROBE. `agy` is on PATH on the authoring box, and `agy_run.run` calls `run_agy` as soon as `resolve_mode_and_target` returns, so a probe that RESOLVES (every after-fix probe, and the positional before-fix probe, which resolves to mode `prompt`) would start a real Antigravity turn. Every CLI probe in this plan therefore runs as `aw agy exec --agy <stub> --no-audit ...`, where `<stub>` is a throwaway executable created outside the repo (for example under the system temp dir) that prints its argv to stderr and exits 1; the `Executing [<mode> mode] <target> in Antigravity...` line `agy_run.run` prints before calling `run_agy` is the observation. Measured at review: `--spec pqsx96` exits 2 with the not-found error, and positional `pqsx96` prints `Executing [prompt mode] pqsx96 in Antigravity...` then reaches the stub. The stub run leaves a `tmp/antigravity/agy-*.jsonl` event log (gitignored `tmp/`); delete it afterwards.
 
@@ -46,9 +46,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO CAPTURE THE TWO CASES THAT MUST KEEP WORKING, because they bound the blast radius: the EXACT existing path `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md` (which resolves today through the `direct.is_file()` early return, NOT through the glob) and the full `tools/test_agy_run.py` module (44 passed at authoring and at review; context only, the bar is "every collected test passes"). Re-derive the spec's real subdirectory at execution rather than trusting the path above: its status may have advanced, and a stale path would make this item appear to fail for the wrong reason.
   - Depends on: none
   - Expected outcome: four pasted failures and two pasted passes at the base commit, forming the discriminating baseline for V-01.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 WRITE `tests/test_agy_run_resolve_spec_recursive.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT.
+- [x] E-02 WRITE `tests/test_agy_run_resolve_spec_recursive.py` AND SHOW IT RED BEFORE ANY PRODUCTION EDIT.
 
   PUT IT UNDER `tests/`, NOT IN `tools/test_agy_run.py`. This is the point of F-04 and it is not a style preference: `pyproject.toml` sets `testpaths = ["tests"]` and `.github/workflows/tests.yml` runs `python -m pytest tests/`, so a test added to the `tools/` module is run by NOBODY unless a human names the file. Measured at authoring: a bare `python3 -m pytest --collect-only` collects `tests/test_agy_runipd_cli.py` and does not collect `tools/test_agy_run.py` at all. Coverage that no gate runs is how this defect survived; do not reproduce that.
 
@@ -61,11 +61,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NO STATIC ANALYSIS. Do not read `agent_workflows/agy_run.py` from the test, do not assert that `rglob` appears in its source, do not count callers. GUIDING_PRINCIPLES P16 forbids code-pinning tests outright; every assertion here must call `resolve_spec` (or drive the CLI) and assert on its real return value or raised exception.
   - Depends on: E-01
   - Expected outcome: a new collected test module whose subdirectory assertions (1) and (2) FAIL at the base commit and whose legacy-root, gitignored (4a/4b), out-of-repo (6), ambiguity and exact-path assertions PASS there (the base glob cannot see subdirectories or out-of-repo dirs at all, so those exclusions hold vacuously before the fix and become meaningful only after it), and whose README assertion (5) FAILS at the base commit (`resolve_spec(root, "README")` returns the specs README today), with that red output captured verbatim.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fix the enumeration at its one definition
 
-- [ ] E-03 DELEGATE ENUMERATION TO `specs._spec_files` IN `agy_run.resolve_spec`.
+- [x] E-03 DELEGATE ENUMERATION TO `specs._spec_files` IN `agy_run.resolve_spec`.
 
   REPLACE the candidate-building block (the loop over `(root / ".agents" / "docs" / "specs", root / ".aw" / "records" / "specs")` calling `d.glob("*.md")`, followed by `candidates = sorted(set(candidates))`) with a call to `specs._spec_files(root)`. Import it the way this module already imports its one package sibling, LOCALLY inside the function rather than at module top level: `agy_run` imports `agy_sessions` locally inside a function and has no top-level `agent_workflows` import at all, so a module-level import here would be the first and would change this module's import graph for no benefit.
 
@@ -78,27 +78,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   KEEP THE CANDIDATE SET INSIDE THE REPOSITORY ROOT (F-10). `specs._spec_files` resolves its primary root through `record_producers.resolve_record_read_paths`, which follows the configured records backend, so under a `home` or `companion` backend it returns specs OUTSIDE `root`. Every downstream consumer of `resolve_spec` assumes an in-repo path: the ambiguity branch renders `p.relative_to(root)`, both callers wrap the result in `agy_run.relative_posix`, and the Turn-1 prompt hands the agent a repo-relative path. Measured at review in a temp git repo with an isolated `AW_HOME`: a spec planted in the backend's specs dir IS returned by `_spec_files`, and `relative_posix(root, <it>)` raises `ValueError`, which is not a `ScriptError` and so escapes the positional caller's `except ScriptError` as a traceback. So after calling the helper, normalize and fence its output: `candidates = sorted({p.resolve() for p in specs._spec_files(root)})`, then keep only `p` with `p.is_relative_to(root.resolve())` (available on the repository's 3.9 floor), and render the ambiguity list relative to `root.resolve()`. This preserves today's scope (the old loop only ever looked inside `root`) and is the one deliberate narrowing of the helper's output; say so in the comment. The matching expression and both message texts are still left as found. Review prototype of exactly this shape, run over the fixture and the live tree: `abc123` and its bare filename resolve to `.aw/records/specs/approved/...`; `README`, the untracked-dir spec, the `.git/info/exclude`-ignored spec and the out-of-repo backend spec all raise `No specification matching ... found.`; `abc12` and `attention` raise `is ambiguous` listing two repo-relative candidates; live `pqsx96` and the flat-looking path both resolve to `.aw/records/specs/draft/20260828-pqsx96-...spec.md`.
   - Depends on: E-02
   - Expected outcome: `resolve_spec` resolves specs in status subdirectories, in the legacy root, by id6 and by bare filename; gitignored specs, `README.md` and specs outside the repository root are excluded; the matching expression and both error message texts are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove nothing else moved
 
-- [ ] E-04 PROVE THE CALLERS AND THE EXISTING MODULE ARE UNAFFECTED.
+- [x] E-04 PROVE THE CALLERS AND THE EXISTING MODULE ARE UNAFFECTED.
 
   `resolve_spec` HAS EXACTLY TWO CALLERS, both in `resolve_mode_and_target`: the explicit `--spec` branch (`args.spec_target`) and the positional auto-detection fallback, which calls it inside a `try`/`except ScriptError` and falls through to treating the string as an INLINE PROMPT when it raises. That second path is why the defect is worse than a plain error: a mistyped-looking-but-valid spec selector is currently not reported as a missing spec, it is silently executed as a prompt. Exercise BOTH callers after the fix and paste the resolved mode for each, and confirm the auto-detection path now returns mode `spec` where it previously returned mode `prompt`. Do it two ways: in process, `agy_run.resolve_mode_and_target(<resolved root>, agy_run.parse_args([...]))` for `["--spec", "pqsx96"]` and `["pqsx96"]` (measured before the fix at review: `ERR No specification matching 'pqsx96' found.` and `('prompt', 'pqsx96', '')`); and end to end, `aw agy exec --agy <stub> --no-audit pqsx96` per E-01's stub rule, NEVER against the real `agy`, reading the `Executing [spec mode] ...` line.
 
   RUN `tools/test_agy_run.py` EXPLICITLY, by name, since the default suite does not collect it (F-04). Its `test_resolve_spec_by_path_and_name` is the legacy-root fixture this delegation must not break (F-05). Paste its full result; the bar is that it passes with zero failures at the count it has at E-01 (44 at authoring and at review, context only).
   - Depends on: E-03
   - Expected outcome: both callers exercised with pasted modes, the positional path demonstrably returning `spec` instead of `prompt`, no real agent launched, and `tools/test_agy_run.py` passing with zero failures at its E-01 count.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RUN THE FULL SUITE BARE AND REPORT THE FAILURE-SET DELTA AGAINST A BASELINE YOU ESTABLISH YOURSELF.
+- [x] E-05 RUN THE FULL SUITE BARE AND REPORT THE FAILURE-SET DELTA AGAINST A BASELINE YOU ESTABLISH YOURSELF.
 
   Run `python3 -m pytest` with NO added flags. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; `AGENTS.md` names the three flags not to add and the measured reason for each (`-n0` makes the suite several times slower, a second `-q` compounds to `-qq` and suppresses the very summary line this item requires pasted, `-p no:randomly` disables the order randomization that surfaces order dependence). Capture the summary line at the BASE commit before any edit and again at the end.
 
   THE BAR IS AN EMPTY FAILURE-SET DELTA, not a green run, and it must be stated as a SET OF TEST IDS rather than a count comparison: this suite is large, a pre-existing environmental failure is not this plan's to fix, and a pre-existing failure plus a new regression can net to an unchanged count. A failure present AFTER and absent BEFORE blocks the transition.
   - Depends on: E-04
   - Expected outcome: two pasted bare-suite summary lines and an explicitly empty failure-set delta stated as test ids.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -186,30 +186,335 @@ No user-facing documentation change is due either. The defect is that a document
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste all four base-commit failures VERBATIM: the `aw agy exec --agy <stub> --no-audit --spec pqsx96` invocation (stub per E-01; name the stub path and paste its contents) with its exit code and the exact `error: No specification matching 'pqsx96' found.` line, and the three in-process `ScriptError` captures (bare id6, bare filename, flat-looking path). Paste the two must-keep-working captures: the exact existing path resolving, and `tools/test_agy_run.py` passing with zero failures (paste its summary line). State the base commit hash. Confirm no real `agy` was launched by any probe. State the spec's ACTUAL status subdirectory as re-derived at execution and confirm it is the one used in the probes, rather than reusing the authoring path, so an advanced spec status cannot make this item read as a failure for the wrong reason.
   - Observed evidence:
-  - Result: pending
+    1. Base commit hash:
+    `eca89e1a65736f7621eac5c59f3678b2698fcf4d`
 
-- [ ] V-02 validates E-02
+    2. Stub path and contents:
+    Stub path: `/tmp/agy_stub_a6ootg.sh`
+    ```bash
+    #!/usr/bin/env bash
+    echo "STUB agy invoked with argv: $@" >&2
+    exit 1
+    ```
+    No real `agy` was launched; `--agy /tmp/agy_stub_a6ootg.sh --no-audit` was passed for all CLI invocations.
+
+    3. Actual status subdirectory of `pqsx96`:
+    Re-derived path on live tree: `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md` (status subdirectory is `draft/`).
+
+    4. Verbatim output for the four base-commit failures:
+    - CLI invocation:
+    `python3 -m agent_workflows.cli agy exec --agy /tmp/agy_stub_a6ootg.sh --no-audit --spec pqsx96`
+    Exit code: 2
+    Output:
+    ```
+    error: No specification matching 'pqsx96' found.
+    ```
+    - In-process bare id6:
+    `agy_run.resolve_spec(root, "pqsx96")`
+    `ScriptError: No specification matching 'pqsx96' found.`
+    - In-process bare filename:
+    `agy_run.resolve_spec(root, "20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md")`
+    `ScriptError: No specification matching '20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md' found.`
+    - In-process flat-looking path:
+    `agy_run.resolve_spec(root, ".aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md")`
+    `ScriptError: No specification matching '.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md' found.`
+
+    5. Verbatim output for the two must-keep-working captures:
+    - Exact path resolving:
+    `agy_run.resolve_spec(root, ".aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md")`
+    Resolved to: `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`
+    - `python3 -m pytest tools/test_agy_run.py -o addopts=""` summary line:
+    ```
+    ============================== 44 passed in 2.56s ==============================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the new module's RED output at the base commit, before any production edit, with the individual assertion errors visible, and identify WHICH assertions failed and which passed. The expected split is that the status-subdirectory assertions (1)/(2) and the README assertion (5) FAIL, while the legacy-root (3), both gitignored (4a/4b), out-of-repo (6), ambiguity and exact-path assertions PASS (the exclusions pass vacuously at base because the flat glob cannot reach those dirs; they become discriminating only after E-03, which V-03 shows); if the split differs, explain why, because a module that fails wholesale is not a discriminating baseline. Confirm the module is COLLECTED by the default suite by pasting a bare `python3 -m pytest --collect-only` line showing the new file (this is the specific failure mode F-04 identifies, and a module under `tools/` would silently not appear). Confirm by inspection that the module reads no production source and asserts no symbol's existence (P16), and say in one sentence how each assertion obtains its facts. Paste the fixture construction for (4b) showing that spec sits under a path with NO `untracked` component and is ignored ONLY by a rule in the fixture's `.git/info/exclude` (or `.gitignore`), and paste `git -C <fixture> check-ignore -v <that path>` output naming the rule, since `is_ignored_path` rejects any `untracked` path by a hardcoded check (F-11). For (6), paste the assertion that the planted backend spec path is outside the fixture root.
   - Observed evidence:
-  - Result: pending
+    1. New module RED output at base commit:
+    Command: `python3 -m pytest tests/test_agy_run_resolve_spec_recursive.py -o addopts=""`
+    ```
+    =================================== FAILURES ===================================
+    __ TestAgyRunResolveSpecRecursive.test_05_specs_readme_not_resolvable_as_spec __
 
-- [ ] V-03 validates E-03
+    self = <tests.test_agy_run_resolve_spec_recursive.TestAgyRunResolveSpecRecursive testMethod=test_05_specs_readme_not_resolvable_as_spec>
+
+        def test_05_specs_readme_not_resolvable_as_spec(self) -> None:
+            """(5) README.md at specs root is not resolvable as a specification."""
+    >       with self.assertRaises(agy_run.ScriptError) as ctx:
+    E       AssertionError: ScriptError not raised
+
+    tests/test_agy_run_resolve_spec_recursive.py:168: AssertionError
+    _ TestAgyRunResolveSpecRecursive.test_02_resolve_spec_in_status_subdirectory_by_bare_filename _
+
+    self = <tests.test_agy_run_resolve_spec_recursive.TestAgyRunResolveSpecRecursive testMethod=test_02_resolve_spec_in_status_subdirectory_by_bare_filename>
+
+        def test_02_resolve_spec_in_status_subdirectory_by_bare_filename(self) -> None:
+            """(2) A spec planted in a status subdirectory resolves by bare filename."""
+    >       resolved = agy_run.resolve_spec(
+                self.root, "20261001-abc123-01-abc123-test-spec.spec.md"
+            )
+
+    tests/test_agy_run_resolve_spec_recursive.py:127:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    root = PosixPath('/dev/shm/tmpkiqzju4t/repo')
+    value = '20261001-abc123-01-abc123-test-spec.spec.md'
+
+        def resolve_spec(root: Path, value: str) -> Path:
+            ...
+            if not matches:
+    >           raise ScriptError(f"No specification matching {value!r} found.")
+    E           agent_workflows.agy_run.ScriptError: No specification matching '20261001-abc123-01-abc123-test-spec.spec.md' found.
+
+    agent_workflows/agy_run.py:406: ScriptError
+    _ TestAgyRunResolveSpecRecursive.test_01_resolve_spec_in_status_subdirectory_by_bare_id6 _
+
+    self = <tests.test_agy_run_resolve_spec_recursive.TestAgyRunResolveSpecRecursive testMethod=test_01_resolve_spec_in_status_subdirectory_by_bare_id6>
+
+        def test_01_resolve_spec_in_status_subdirectory_by_bare_id6(self) -> None:
+            """(1) A spec planted in a status subdirectory resolves by bare id6."""
+    >       resolved = agy_run.resolve_spec(self.root, "abc123")
+
+    tests/test_agy_run_resolve_spec_recursive.py:122:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    root = PosixPath('/dev/shm/tmprbhcz5o3/repo'), value = 'abc123'
+
+        def resolve_spec(root: Path, value: str) -> Path:
+            ...
+            if not matches:
+    >           raise ScriptError(f"No specification matching {value!r} found.")
+    E           agent_workflows.agy_run.ScriptError: No specification matching 'abc123' found.
+
+    agent_workflows/agy_run.py:406: ScriptError
+    =========================== short test summary info ============================
+    FAILED tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_05_specs_readme_not_resolvable_as_spec
+    FAILED tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_02_resolve_spec_in_status_subdirectory_by_bare_filename
+    FAILED tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_01_resolve_spec_in_status_subdirectory_by_bare_id6
+    ========================= 3 failed, 6 passed in 1.26s ==========================
+    ```
+
+    2. Failure/pass split breakdown:
+    - FAILED (3):
+      - `test_01_resolve_spec_in_status_subdirectory_by_bare_id6`
+      - `test_02_resolve_spec_in_status_subdirectory_by_bare_filename`
+      - `test_05_specs_readme_not_resolvable_as_spec`
+    - PASSED (6):
+      - `test_03_resolve_spec_in_legacy_root_by_bare_filename`
+      - `test_04a_gitignored_spec_in_untracked_dir_not_resolved`
+      - `test_04b_gitignored_spec_by_git_exclude_not_resolved`
+      - `test_06_out_of_repo_backend_spec_not_resolved`
+      - `test_07_ambiguous_selector_raises_with_candidates`
+      - `test_08_exact_existing_path_resolves`
+
+    3. Collection confirmation via bare `python3 -m pytest --collect-only`:
+    ```
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_04b_gitignored_spec_by_git_exclude_not_resolved
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_07_ambiguous_selector_raises_with_candidates
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_02_resolve_spec_in_status_subdirectory_by_bare_filename
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_08_exact_existing_path_resolves
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_04a_gitignored_spec_in_untracked_dir_not_resolved
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_03_resolve_spec_in_legacy_root_by_bare_filename
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_01_resolve_spec_in_status_subdirectory_by_bare_id6
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_05_specs_readme_not_resolvable_as_spec
+    tests/test_agy_run_resolve_spec_recursive.py::TestAgyRunResolveSpecRecursive::test_06_out_of_repo_backend_spec_not_resolved
+    ```
+
+    4. Inspection for P16 compliance:
+    The module reads no production source code and asserts no symbol's existence; each assertion directly calls `agy_run.resolve_spec(self.root, ...)` against a real temporary git repository and asserts on returned Path values or raised ScriptError exceptions.
+
+    5. Fixture construction for (4b) and check-ignore:
+    ```python
+    self.scratch_dir = self.root / ".aw" / "records" / "specs" / "scratch"
+    self.scratch_dir.mkdir(parents=True, exist_ok=True)
+    self.scratch_spec = self.scratch_dir / "20261001-scrt01-01-scrt01-scratch.spec.md"
+    self.scratch_spec.write_text("# Scratch\n", encoding="utf-8")
+    exclude_file = self.root / ".git" / "info" / "exclude"
+    exclude_file.write_text(".aw/records/specs/scratch/\n", encoding="utf-8")
+    ```
+    `git -C <fixture> check-ignore -v <path>` output:
+    `.git/info/exclude:1:.aw/records/specs/scratch/	.aw/records/specs/scratch/20261001-scrt01-01-scrt01-scratch.spec.md`
+
+    6. Assertion that backend spec path is outside fixture root:
+    `self.assertFalse(self.out_repo_spec.is_relative_to(self.root))`
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the full diff of `agent_workflows/agy_run.py`. CONFIRM TEXTUALLY that the matching expression `p.name == supplied.name or value in p.name` and both error strings (`No specification matching ... found.` and `Specification reference ... is ambiguous:`) are UNCHANGED, by quoting them from the post-change file. Confirm the import of `specs` is LOCAL to the function and that no top-level `agent_workflows` import was added, quoting the surrounding lines. Confirm the comment records why delegation rather than a bare `rglob` and cites backlog `8jl0rx`. Paste the new module passing GREEN. Paste the four E-01 reproductions re-run and now succeeding, including the end-to-end `aw agy exec --spec pqsx96` no longer exiting 2 on resolution. Paste a set-comparison showing the post-fix candidate set equals the in-root subset of `specs._spec_files`' resolved output (on this repository, whose `records_backend` is `repository`, that subset is the whole output; state whether it was), so delegation is demonstrated rather than assumed. Quote the root-fence lines (resolve plus `is_relative_to(root.resolve())`) and the ambiguity renderer's `relative_to(root.resolve())` from the post-change file. Every CLI re-run uses the stub `--agy` and must show `Executing [spec mode] ...`.
   - Observed evidence:
-  - Result: pending
+    1. Full diff of `agent_workflows/agy_run.py`:
+    ```diff
+    diff --git a/agent_workflows/agy_run.py b/agent_workflows/agy_run.py
+    index e4a9bd7bf..f7d8c7f20 100755
+    --- a/agent_workflows/agy_run.py
+    +++ b/agent_workflows/agy_run.py
+    @@ -394,18 +394,31 @@ def resolve_spec(root: Path, value: str) -> Path:
+         if direct.is_file():
+             return direct.resolve()
 
-- [ ] V-04 validates E-04
+    -    # Search common specs directories
+    -    candidates: list[Path] = []
+    -    for d in (root / ".agents" / "docs" / "specs", root / ".aw" / "records" / "specs"):
+    -        if d.is_dir():
+    -            candidates.extend(d.glob("*.md"))
+    -    candidates = sorted(set(candidates))
+    +    # Backlog 8jl0rx / IPD a6ootg: Delegate enumeration to specs._spec_files rather
+    +    # than re-implementing a recursive walk. Non-recursion in the previous glob masked
+    +    # the lack of an ignored-path filter; specs._spec_files couples the recursive walk,
+    +    # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
+    +    # of non-spec files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.
+    +    # We import locally to avoid introducing top-level package imports in agy_run.
+    +    from agent_workflows import specs
+    +
+    +    # specs._spec_files may return out-of-repo paths under non-repository backends;
+    +    # downstream consumers (relative_posix, Turn-1 prompt) require in-repo paths.
+    +    # Normalize and fence candidates to the repository root.
+    +    resolved_root = root.resolve()
+    +    candidates = sorted(
+    +        {
+    +            p.resolve()
+    +            for p in specs._spec_files(root)
+    +            if p.resolve().is_relative_to(resolved_root)
+    +        }
+    +    )
+
+         matches = [p for p in candidates if p.name == supplied.name or value in p.name]
+         if not matches:
+             raise ScriptError(f"No specification matching {value!r} found.")
+         if len(matches) > 1:
+    -        rendered = "\n".join(f"  - {p.relative_to(root)}" for p in matches)
+    +        rendered = "\n".join(f"  - {p.relative_to(resolved_root)}" for p in matches)
+             raise ScriptError(
+                 f"Specification reference {value!r} is ambiguous:\n{rendered}"
+             )
+    ```
+
+    2. Textual confirmation of matching expression and error strings from post-change file:
+    ```python
+    matches = [p for p in candidates if p.name == supplied.name or value in p.name]
+    if not matches:
+        raise ScriptError(f"No specification matching {value!r} found.")
+    if len(matches) > 1:
+        rendered = "\n".join(f"  - {p.relative_to(resolved_root)}" for p in matches)
+        raise ScriptError(
+            f"Specification reference {value!r} is ambiguous:\n{rendered}"
+        )
+    ```
+
+    3. Local import of `specs` and absence of top-level import:
+    Surrounding lines (lines 402-404):
+    ```python
+        # We import locally to avoid introducing top-level package imports in agy_run.
+        from agent_workflows import specs
+    ```
+    Grep for `from agent_workflows` in `agent_workflows/agy_run.py`:
+    `403:    from agent_workflows import specs`
+    `832:        from agent_workflows import agy_sessions`
+    Confirmed: no top-level package imports exist.
+
+    4. Comment citation:
+    `# Backlog 8jl0rx / IPD a6ootg: Delegate enumeration to specs._spec_files rather than re-implementing a recursive walk. Non-recursion in the previous glob masked the lack of an ignored-path filter; specs._spec_files couples the recursive walk, the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion of non-spec files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.`
+
+    5. New test module passing GREEN:
+    `tests/test_agy_run_resolve_spec_recursive.py ......... [100%]`
+    `9 passed in 1.21s`
+
+    6. Four E-01 reproductions re-run and now succeeding:
+    - CLI probe:
+    `aw agy exec --agy /tmp/agy_stub_a6ootg.sh --no-audit --spec pqsx96`
+    Output:
+    `Executing [spec mode] .aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md in Antigravity...`
+    - In-process `pqsx96`:
+    Resolved to: `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`
+    - In-process bare filename:
+    Resolved to: `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`
+    - In-process flat-looking path:
+    Resolved to: `.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`
+
+    7. Set-comparison of post-fix candidates against `specs._spec_files`:
+    - Total `specs._spec_files(root)`: 40
+    - Total in-root subset: 40
+    - Is subset equal to whole output on this repo (`records_backend: repository`): True
+    - Candidates set == in-root subset: True
+
+    8. Root-fence lines and ambiguity renderer quote:
+    ```python
+    resolved_root = root.resolve()
+    candidates = sorted(
+        {
+            p.resolve()
+            for p in specs._spec_files(root)
+            if p.resolve().is_relative_to(resolved_root)
+        }
+    )
+    ...
+    rendered = "\n".join(f"  - {p.relative_to(resolved_root)}" for p in matches)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the resolved mode and target for BOTH callers: the explicit `--spec pqsx96` form and the POSITIONAL `pqsx96` form. Paste both the in-process `resolve_mode_and_target` tuples and the stub-`--agy` CLI `Executing [<mode> mode] ...` lines. For the positional form, paste the BEFORE result showing mode `prompt` (the silent misrouting F-02 measures) and the AFTER result showing mode `spec`, since that correction is the most consequential behavior change in this plan and must not be reported as a mere resolution fix. Paste the full output of `python3 -m pytest tools/test_agy_run.py -o addopts=""` showing zero failures and the same count as the V-01 capture (44 at authoring, context only), and confirm `test_resolve_spec_by_path_and_name` is among the passes. Confirm `git diff --name-only` does NOT list `tools/test_agy_run.py`.
   - Observed evidence:
-  - Result: pending
+    1. Caller 1 (explicit `--spec pqsx96`):
+    - In-process `resolve_mode_and_target`:
+      `('spec', '.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md', '')`
+    - CLI execution output:
+      `Executing [spec mode] .aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md in Antigravity...`
 
-- [ ] V-05 validates E-05
+    2. Caller 2 (positional `pqsx96`):
+    - BEFORE result:
+      In-process: `('prompt', 'pqsx96', '')`
+      CLI execution: `Executing [prompt mode] pqsx96 in Antigravity...`
+    - AFTER result:
+      In-process: `('spec', '.aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md', '')`
+      CLI execution: `Executing [spec mode] .aw/records/specs/draft/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md in Antigravity...`
+
+    3. Full output of `python3 -m pytest tools/test_agy_run.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1611710850
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 44 items
+
+    tools/test_agy_run.py ............................................       [100%]
+
+    ============================== 44 passed in 0.64s ==============================
+    ```
+    Confirmed: 44 passed, zero failures, matching the baseline count.
+    Confirmed: `tools/test_agy_run.py::AgyRunTargetResolutionTests::test_resolve_spec_by_path_and_name` is among the passes.
+
+    4. `git diff --name-only` check:
+    Outputs only `agent_workflows/agy_run.py` (and the plan file); `tools/test_agy_run.py` is NOT listed.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste both bare-suite summary lines (base commit and final) verbatim, and state the failure-set delta as an explicit SET of test ids. An empty delta is the bar; a count comparison is NOT acceptable evidence, because a pre-existing environmental failure and a new regression can net to the same count. Confirm the command was `python3 -m pytest` with no added flags, and if any flag was added, name it and justify it against `AGENTS.md`'s three named prohibitions.
   - Observed evidence:
-  - Result: pending
+    1. Base-commit summary line (command: `python3 -m pytest` with no added flags):
+    `1 failed, 4879 passed, 2 skipped, 3 warnings in 781.31s (0:13:01)`
+    Base failure set:
+    `{'tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta'}`
+
+    2. Final summary line (command: `python3 -m pytest` with no added flags):
+    `1 failed, 4888 passed, 2 skipped, 3 warnings in 278.93s (0:04:38)`
+    Final failure set:
+    `{'tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta'}`
+
+    3. Failure-set delta:
+    `delta = final_failures - base_failures = set()` (EMPTY).
+    No new failures were introduced. Exactly 9 new tests were added and passed (4879 -> 4888).
+
+    4. Command confirmation:
+    Both runs executed `python3 -m pytest` with no added flags; `pyproject.toml` `addopts` was honored with no prohibitions violated.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -394,18 +394,31 @@ def resolve_spec(root: Path, value: str) -> Path:
     if direct.is_file():
         return direct.resolve()
 
-    # Search common specs directories
-    candidates: list[Path] = []
-    for d in (root / ".agents" / "docs" / "specs", root / ".aw" / "records" / "specs"):
-        if d.is_dir():
-            candidates.extend(d.glob("*.md"))
-    candidates = sorted(set(candidates))
+    # Backlog 8jl0rx / IPD a6ootg: Delegate enumeration to specs._spec_files rather
+    # than re-implementing a recursive walk. Non-recursion in the previous glob masked
+    # the lack of an ignored-path filter; specs._spec_files couples the recursive walk,
+    # the mandatory ignored-path filter (artifact_core.is_ignored_path), the exclusion
+    # of non-spec files (README.md, INDEX.md, STATUS.md), and legacy root compatibility.
+    # We import locally to avoid introducing top-level package imports in agy_run.
+    from agent_workflows import specs
+
+    # specs._spec_files may return out-of-repo paths under non-repository backends;
+    # downstream consumers (relative_posix, Turn-1 prompt) require in-repo paths.
+    # Normalize and fence candidates to the repository root.
+    resolved_root = root.resolve()
+    candidates = sorted(
+        {
+            p.resolve()
+            for p in specs._spec_files(root)
+            if p.resolve().is_relative_to(resolved_root)
+        }
+    )
 
     matches = [p for p in candidates if p.name == supplied.name or value in p.name]
     if not matches:
         raise ScriptError(f"No specification matching {value!r} found.")
     if len(matches) > 1:
-        rendered = "\n".join(f"  - {p.relative_to(root)}" for p in matches)
+        rendered = "\n".join(f"  - {p.relative_to(resolved_root)}" for p in matches)
         raise ScriptError(
             f"Specification reference {value!r} is ambiguous:\n{rendered}"
         )
