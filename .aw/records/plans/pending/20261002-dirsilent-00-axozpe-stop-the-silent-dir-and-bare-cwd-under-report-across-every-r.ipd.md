@@ -34,22 +34,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: sequence the Set
 
-- [ ] E-01 CONFIRM `i6mby8` (Order 01, the shared refusal primitive) REACHED `executed`, and that it shipped the primitive ADDITIVELY with no verb converted and the two existing hand-rolled call sites untouched. This is the dependency every later child declares, so a partial landing here silently weakens three plans.
+- [ ] E-01 CONFIRM i6mby8 REACHED executed
+  Confirm child 01 (`i6mby8`, the shared refusal primitive) reached `executed`, and that it shipped the primitive ADDITIVELY with no verb converted and the two existing hand-rolled call sites untouched. This is the dependency every later child declares, so a partial landing here silently weakens three plans.
   - Depends on: none
   - Expected outcome: `i6mby8` is in `.aw/records/plans/executed/` with `- Status: executed`, and the primitive exists in `project_context` with its regression test passing.
   - Execution state: pending
 
-- [ ] E-02 CONFIRM `jei45f` (Order 02, the two fail-closed validators) REACHED `executed`, and that `aw specs check --dir <subdir>` and `aw backlog check --dir <subdir>` now refuse at exit 2 rather than announcing conformance over zero artifacts. This is the item's own named starting point and the highest-severity surface in the Set.
+- [ ] E-02 CONFIRM jei45f REACHED executed
+  Confirm child 02 (`jei45f`, the two fail-closed validators) reached `executed`, and that `aw specs check --dir <subdir>` and `aw backlog check --dir <subdir>` now refuse at exit 2 rather than announcing conformance over zero artifacts. This is the item's own named starting point and the highest-severity surface in the Set.
   - Depends on: E-01
   - Expected outcome: `jei45f` is in `.aw/records/plans/executed/` with `- Status: executed`, and both validators refuse a non-surveyable root on both surfaces while the single-file form and the empty-but-real project still behave as before.
   - Execution state: pending
 
-- [ ] E-03 CONFIRM `sjsb04` (Order 03, the six resolver-bypass sites) REACHED `executed`, and that a BARE invocation from a project subdirectory now climbs for all six verbs, including `aw doctor` no longer reporting an installed project as `not installed`.
+- [ ] E-03 CONFIRM sjsb04 REACHED executed
+  Confirm child 03 (`sjsb04`, the six resolver-bypass sites) reached `executed`, and that a BARE invocation from a project subdirectory now climbs for all six verbs, including `aw doctor` no longer reporting an installed project as `not installed`.
   - Depends on: E-02
   - Expected outcome: `sjsb04` is in `.aw/records/plans/executed/` with `- Status: executed`, and the bare-cwd climb matrix shows the subdirectory and root columns agreeing for `check`, `find`, `search`, `record-history`, `graduation` and `doctor`.
   - Execution state: pending
 
-- [ ] E-04 CONFIRM `rlhmt9` (Order 04, the helper split, the remaining read-class callers and the duplication retirement) REACHED `executed`, and that no write-class verb gained a refusal. That negative is the Set's policy boundary and is the one outcome a careless execution could invert.
+- [ ] E-04 CONFIRM rlhmt9 REACHED executed
+  Confirm child 04 (`rlhmt9`, the helper split, the remaining read-class callers and the duplication retirement) reached `executed`, and that no write-class verb gained a refusal. That negative is the Set's policy boundary and is the one outcome a careless execution could invert.
   - Depends on: E-03
   - Expected outcome: `rlhmt9` is in `.aw/records/plans/executed/` with `- Status: executed`; the mixed helpers are split, the read-class verbs refuse, `attention.run` and `cli._run_plans` call the shared primitive with byte-identical output, and every write-class verb behaves exactly as before.
   - Execution state: pending
