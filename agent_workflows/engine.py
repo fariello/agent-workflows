@@ -5595,9 +5595,9 @@ _BACKLOG_CLOSE_GATE_PRECOMMIT_TEMPLATE = """\
 # hook below into your existing .pre-commit-config.yaml instead of this file.
 repos:
   # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
-  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF via an EXECUTED From-Backlog plan or implemented spec, DE-GATED,
-  # or a persisted evidence citation). Delegates to the shared close-legitimacy predicate. LOCAL
-  # best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
+  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF: EVERY same-gate From-Backlog carrier (plan or spec)
+  # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
+  # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
   - repo: local
     hooks:
       - id: backlog-blocking-close-gate
@@ -5611,9 +5611,9 @@ repos:
 # The hook block to hand a user (or append) when a .pre-commit-config.yaml already exists.
 _BACKLOG_CLOSE_GATE_PRECOMMIT_BLOCK = """\
   # OPT-IN local guard (bklggrad f1dhht): refuse committing a release-blocking backlog item closed to
-  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF via an EXECUTED From-Backlog plan or implemented spec, DE-GATED,
-  # or a persisted evidence citation). Delegates to the shared close-legitimacy predicate. LOCAL
-  # best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
+  # `- Status: done` without a preserved-or-satisfied gate (HANDOFF: EVERY same-gate From-Backlog carrier (plan or spec)
+  # must be executed or implemented, DE-GATED, or a persisted evidence citation). Delegates to the shared close-legitimacy
+  # predicate. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the `aw check` rule + CI.
   - repo: local
     hooks:
       - id: backlog-blocking-close-gate

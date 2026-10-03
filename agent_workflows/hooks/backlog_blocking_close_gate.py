@@ -16,11 +16,11 @@ diverge. Per OQ-01 the hook gates the fail-closed `done` case ONLY (blocking->pa
 WARNs are surfaced by `aw check`/`aw attention`, not at commit time).
 
 Commit-time legitimacy is reconstructed from PERSISTED state only (the predicate is called WITHOUT an
-`evidence=` arg): HANDOFF (a `From-Backlog` blocking plan present in the staged tree with the same
-`Blocks-Release`) and DE-GATED (`Blocks-Release` absent from the staged item) are decidable from the
-staged tree. A transient `--evidence` CLI arg is NOT visible to the hook, so the SATISFIED path is only
-honored here if child 02 durably records the evidence citation into the item (it does not today; that is
-out of the hook's reach by design).
+`evidence=` arg): HANDOFF (EVERY same-gate `From-Backlog` carrier present in the staged tree with the
+same `Blocks-Release` must be executed or implemented) and DE-GATED (`Blocks-Release` absent from the
+staged item) are decidable from the staged tree. A transient `--evidence` CLI arg is NOT visible to the
+hook, but the setter now durably persists the citation as a `- Close-Evidence:` bullet (gateatrest
+f7igdu, via `backlog.set_close_evidence_line`), so the SATISFIED path IS honored from persisted state.
 
 Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and skippable with
 `--no-verify`. This hook is OPT-IN (NOT installed by default) - the authoritative, portable boundary is
