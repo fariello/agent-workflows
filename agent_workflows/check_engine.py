@@ -5074,13 +5074,6 @@ def evaluate_blocking_close(
     return CloseVerdict(True, "ok", "unchecked transition", (), None)
 
 
-def _backlog_done_dirs(repo_root: Path):
-    for root_rel in (".aw/records/backlog", ".agents/backlog"):
-        d = Path(repo_root) / root_rel / "done"
-        if d.is_dir():
-            yield d
-
-
 _BACKLOG_DONE_RE = _re.compile(r"(?:^|/)backlog/done/[^/]+\.md$")
 
 
