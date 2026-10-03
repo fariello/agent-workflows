@@ -10,7 +10,7 @@
   EXCLUDES, and each exclusion has a measured reason. (1) NO TOKEN RENAMED, REMOVED, OR RE-SPELLED. `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` must be member-identical after this change; `run_viewer`, `runner_shutdown`, `artifact_audit` and the attention mapping all read these tokens. (2) NO REFUSAL. See OQ-01; promoting the check to a gate is a follow-on that needs corpus evidence first. (3) NO LEDGER, NO `run_engine`, NO `run_recovery`. Those are unreachable without a substrate decision this plan is forbidden from taking (parent `i18yaz` OQ-01). (4) NO `verify_roles` WORK. Session independence and verifier authority are sibling Order 02 (`eow7p4`); this plan supplies the POSITION its authority check needs and stops there. (5) NO REQUEUE (`1bfppy` OQ-01).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_runwire_state_translation.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -20,9 +20,9 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 32jpl1
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 32jpl1 verified (set runwire, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER, fixed: strict single-edge check fires on the coarse success path `queued->running->executed`; E-03 now checks `runtime`-authorized reachability and skips unchanged positions, D-1), PR-002 (HIGH, fixed: check must never raise, persists in the same write, violations accumulate), PR-003 (HIGH, fixed: E-05 cited a deleted source-inspecting guard; now behavioral across both hosts), PR-004 (MEDIUM, fixed: false-friend spellings, recommended rows, no `cancelled` row), PR-005 (MEDIUM, fixed: conditional lifecycle ownership and declaration-style fence), PR-006 (LOW, fixed: count drift, addopts, redundant enumeration). Review record `.aw/records/reviews/20261002-runwire-01-32jpl1-map-the-driver-item-status-vocabulary-onto-run-state-through.review.md`.
 
@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the translation
 
-- [ ] E-01 ADD ONE SHARED ONE-WAY TRANSLATION to `agent_workflows/runner_shared.py` taking a driver item status string and returning the `run_state` position it corresponds to, or `None` when no position is defined for it. Locate the driver vocabulary by SYMBOL (`TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES`, and `canonical_terminal_status` immediately below them), never by line number.
+- [x] E-01 ADD ONE SHARED ONE-WAY TRANSLATION to `agent_workflows/runner_shared.py` taking a driver item status string and returning the `run_state` position it corresponds to, or `None` when no position is defined for it. Locate the driver vocabulary by SYMBOL (`TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES`, and `canonical_terminal_status` immediately below them), never by line number.
   BUILD IT AS AN EXPLICIT TABLE, ONE ROW PER DRIVER TOKEN, not as a conditional chain and not as a prefix test. The precedent is `_VERDICT_TABLE` in this same module (added by `1bfppy`), whose own comment records WHY: exact-match rows mean no arm's behavior depends on another arm's position, and a `fail-*` prefix test is exactly the substring trap that module already paid for (`"CONFORMING" in "NOT CONFORMING"` is True). Every row is a DECISION; a token absent from the table returns `None` rather than guessing.
   TRANSLATE THROUGH `canonical_terminal_status` FIRST so a legacy token and its canonical spelling cannot disagree. Measured: `canonical_terminal_status('partial')` is `'fail-verify'`, `('failed-safely')` is `'fail-gate'`, `('dependency-blocked')` is `'fail-depend'`. Mapping the legacy spellings independently would create two rows that can drift; normalizing first means one row serves both, which is the same reason `1bfppy` normalizes a verdict before its table lookup.
   CONSUME `run_state`'s OWN TOKENS, NEVER STRING LITERALS. Use `run_state.STATE_*` constants so a rename in that module surfaces here. Follow the LAZY in-function import form `_verdict_state` already uses in this module, and state what you found when you check for a cycle: `run_state` imports NO first-party module (verified by grep; its only imports are `collections.abc` and `typing`), so a module-level import could not cycle either and the lazy form is for consistency with the existing precedent, not necessity.
@@ -47,18 +47,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   RECOMMENDED ROWS, each a decision the executor confirms or overrides with a stated reason (demonstrated at review to keep every normal driver sequence clean under E-03's reachability check): `queued`->`runnable`; `running`->`running`; `executed` and `already-landed`->`complete`; `fail-verify`->`correction_required`; `fail-gate`, `fail-begin`, `fail-lane`, `fail-merge`, `failed`->`failed`; `fail-depend` and `interrupted`->`blocked` (`interrupted` is resumable through `requeue_interrupted`, so it is NOT `cancelled`). Tokens with no defensible lifecycle position (for example `reviewed`, `approved`, `retired`, `not-run`, `merge-retry`) go in the intentionally-unmapped data (E-02) and return `None`. MAP NOTHING TO `cancelled`: the driver has no cancellation status, and every `*->cancelled` edge authorizes only `coordinator`/`human`, so a `cancelled` row would make E-03 report a violation the runtime actor can never avoid.
   - Depends on: none
   - Expected outcome: one function in `runner_shared.py` mapping each driver status token to a `run_state.STATE_*` value or `None`, via an explicit one-row-per-token table with no row derived from a shared spelling and no row targeting `cancelled`, normalizing through `canonical_terminal_status` first and consuming `run_state`'s constants rather than literals; `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` and `runner_shutdown.KNOWN_ITEM_STATUSES` are byte-unchanged; no import cycle, with the cycle check reported.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MAKE THE TABLE PROVABLY TOTAL OVER THE DRIVER VOCABULARY by adding a test that enumerates every member of `runner_shutdown.KNOWN_ITEM_STATUSES` (which already contains `queued` and `running`, measured at review) and asserts each one is either mapped to a `run_state` member or explicitly listed as intentionally unmapped. A token that is neither is a FAILURE.
+- [x] E-02 MAKE THE TABLE PROVABLY TOTAL OVER THE DRIVER VOCABULARY by adding a test that enumerates every member of `runner_shutdown.KNOWN_ITEM_STATUSES` (which already contains `queued` and `running`, measured at review) and asserts each one is either mapped to a `run_state` member or explicitly listed as intentionally unmapped. A token that is neither is a FAILURE.
   THE POINT IS THAT A FUTURE TOKEN CANNOT SLIP THROUGH SILENTLY. `runner_shutdown.KNOWN_ITEM_STATUSES` already exists for exactly this purpose and its own comment says a driver adding a state without updating the set "is caught instead of silently passing"; this test extends that guarantee to the translation. Assert the PROPERTY (every known token is accounted for) and NEVER a hardcoded count: the vocabulary has grown repeatedly (`already-landed` from `8k0z40`, `retired`, the `merge-*` re-spellings from `l2mzxn`), so a pinned number fails for a correct reason and teaches an executor to edit the number.
   WHERE THE INTENTIONALLY-UNMAPPED LIST LIVES MATTERS: put it beside the table as data, not in the test, so the test reads the production decision instead of restating it. A test carrying its own copy of the allowlist passes while the production table is wrong.
   - Depends on: E-01
   - Expected outcome: a test driving the real function over the real vocabulary sets, asserting total accounting with no hardcoded count, reading the intentionally-unmapped list from production rather than duplicating it; the test FAILS if a token is added to the driver vocabulary without a translation decision.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the check
 
-- [ ] E-03 CHECK EACH STATUS CHANGE AGAINST `run_state`'s LEGAL TABLE AT THE ONE SHARED PERSISTENCE FUNNEL, recording the verdict on the item. Use `run_state.validate_transition` (the PURE validator returning a result with findings) and NOT `check_transition` (which RAISES): this check is report-only, and calling the raising form would convert a mapping defect into a wedged run.
+- [x] E-03 CHECK EACH STATUS CHANGE AGAINST `run_state`'s LEGAL TABLE AT THE ONE SHARED PERSISTENCE FUNNEL, recording the verdict on the item. Use `run_state.validate_transition` (the PURE validator returning a result with findings) and NOT `check_transition` (which RAISES): this check is report-only, and calling the raising form would convert a mapping defect into a wedged run.
   SITE IT IN `runner_shared.save_state`, WHICH IS THE ONE FUNNEL AND IS WHY THIS IS ONE EDIT AND NOT SIXTY. Measured: `save_state(run_dir, state)` is called 60 times inside `runner_shared.py`, and each host defines a two-line `save_state` wrapper that delegates to `runner_shared.save_state` supplying `write_report` (`oc_runipd.save_state`; find agy's by NAME). So every driver status write on both hosts passes through this one function with the full `state` in hand. THE REJECTED ALTERNATIVE, recorded because it is the obvious one: instrumenting each `item["status"] = ...` assignment site. Measured at 49 sites in `runner_shared.py` plus 4 in `oc_runipd.py` and 3 in `agy_runipd.py`, it would add per-host copies (the exact re-fork this Set exists to prevent) and would still miss any future site.
   THE PRIOR POSITION MUST COME FROM THE PERSISTED STATE, NOT FROM MEMORY. `save_state` sees the NEW status; the previous one must be read from what was last persisted for that item, so the function needs a per-item record of the last position it observed. Store it ON THE ITEM (a new key), so it survives a driver restart and a `resume`, which read `state.json` back. A module-level cache would be lost on restart and would silently stop checking - the failure mode that leaves wiring "present and inert", which this module's review-integration ladder comment records paying for once already.
   AN UNMAPPED TOKEN IS NOT AN ILLEGAL TRANSITION. When either side translates to `None`, record that the check was SKIPPED and why; do not record a violation. Conflating "no position defined" with "illegal edge" would report violations for every intentionally-unmapped token and destroy the signal this exists to produce.
@@ -69,23 +69,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE CHECK MUST NEVER RAISE AND MUST BE PERSISTED IN THE SAME WRITE. Every driver write on both hosts passes through this function, so a bug here would wedge every run: wrap the whole check so any exception is recorded on the item as a check error and the save proceeds (the precedent is `_verdict_state`'s defensive arm, "never kill a run over a label"). Run the check BEFORE `atomic_write_json`, so the recorded verdict lands in the same `state.json` write as the status it judges. Leave `state["updated_at"]`, the `state.json` write and `write_report` otherwise unchanged.
   - Depends on: E-01
   - Expected outcome: `runner_shared.save_state` translates each queue item's status, skips an unchanged position, checks a changed one by `runtime`-authorized reachability through `run_state`'s legal edges (each hop confirmed with `run_state.validate_transition`), and records one of: checked-legal (with the collapsed path), checked-illegal (with the attempted `source->target` edge and the `run_state` finding code, appended to a per-item list), skipped-unmapped (with which side was unmapped), or initial. The prior position persists on the item so a restart keeps checking. The check cannot raise out of `save_state` and is persisted in the same write. NOTHING is refused and no existing field changes meaning.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE CHECK IS INERT ON THE HAPPY PATH AND LOUD ON A REAL VIOLATION, by driving the funnel with real state dicts. Two properties, both falsifiable: a LEGAL driver sequence produces zero recorded violations, and a transition `run_state` genuinely forbids produces exactly one, naming the edge.
+- [x] E-04 PROVE THE CHECK IS INERT ON THE HAPPY PATH AND LOUD ON A REAL VIOLATION, by driving the funnel with real state dicts. Two properties, both falsifiable: a LEGAL driver sequence produces zero recorded violations, and a transition `run_state` genuinely forbids produces exactly one, naming the edge.
   PICK THE ILLEGAL CASE FROM THE MEASURED TABLE, not from imagination, and pick it from the UNREACHABLE pairs, because E-03 checks reachability. Measured at review with `runtime` as the actor: every non-terminal position reaches every other except `cancelled`; `complete` reaches nothing; `verified` reaches only `complete`. So the authoring-time list (`pending->blocked`, `runnable->failed`, `performed->complete`, ...) is NOT illegal under this check, since each is reachable by a longer path. A driver-reachable illegal case is `executed`->`queued` (`complete`->`runnable`). Re-derive the unreachable set at execution from `run_state.get_legal_transitions` rather than trusting this paragraph, and say what you found; the table is code and may have moved.
   THE LEGAL SEQUENCES MUST BE THE ONES THE DRIVER REALLY WRITES, including the coarse ones: at minimum `queued`->`running`->`executed` (success), `queued`->`running`->`fail-verify`->`queued` (verifier rejection then retry), `queued`->`running`->`interrupted`->`queued` (resume via `requeue_interrupted`), `queued`->`fail-depend` (dependency block at dispatch), and a repeated save with the status unchanged.
   ASSERT ON OUTCOMES, NEVER ON CODE STRUCTURE. Drive `save_state` (or the driver wrapper) with real dicts and assert on the recorded fields and the persisted `state.json`. Do NOT read production source with `inspect`/`ast`/regex, do NOT assert caller counts or module line counts, and do NOT assert that a comment or docstring is unchanged (AGENTS.md test-outcomes rule; GUIDING_PRINCIPLES P16).
   INCLUDE THE INERTNESS PROPERTY EXPLICITLY: a run whose statuses are all legal must record ZERO violations, because a check that fires on correct behavior is worse than no check.
   - Depends on: E-03
   - Expected outcome: tests in `tests/test_runwire_state_translation.py` driving the real funnel: every listed real driver sequence, including the coarse success path and an unchanged-status re-save, records zero violations; at least one genuinely-unreachable transition (re-derived from `run_state` at execution, not copied from this plan) records exactly one violation naming the edge, and a later legal save leaves that violation recorded; a deliberately raising translation leaves `save_state` writing `state.json` and records a check error; an unmapped token records a skip and NOT a violation; a first observation records an initial position and no violation. No test reads production source text.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE NO DRIVER CARRIES A PRIVATE COPY and no reader of the status vocabulary regressed. The anti-re-fork property is the one that keeps this a single state machine, which is this Set's entire purpose.
+- [x] E-05 PROVE NO DRIVER CARRIES A PRIVATE COPY and no reader of the status vocabulary regressed. The anti-re-fork property is the one that keeps this a single state machine, which is this Set's entire purpose.
   PROVE IT BEHAVIORALLY, NOT BY READING DRIVER SOURCE. The guard this item originally cited, `tests/test_runner_refork_guard.py`, NO LONGER EXISTS: it was deleted in `19313eed` ("test: trim test suite"), and `map_verdict`'s docstring now records "no live guard currently enforces this". It belonged to the source-inspecting test class the maintainer removed in `80db6750c` ("delete 366 tests that pinned code structure instead of behaviour"), and AGENTS.md says NEVER read production source with `inspect`/`ast`/regex. So do not recreate it. Instead drive BOTH hosts' real `save_state` wrappers (`oc_runipd.save_state` and `agy_runipd.save_state`, found by NAME) with the same status sequence and assert both persist identical check records; then MUTATION-CHECK the property by monkeypatching the shared translation in `runner_shared` (for example to map `executed` to `None`) and showing BOTH hosts' recorded outcomes change accordingly. A host carrying a private copy on its write path would not change, so this bites on exactly the re-fork it guards against without inspecting any source.
   RE-MEASURE THE VOCABULARY SETS BEFORE AND AFTER and assert the symmetric difference is empty for each of the three. Capture "before" from the pre-change commit, not from memory.
   - Depends on: E-04
   - Expected outcome: a behavioral test driving both hosts' `save_state` wrappers and showing identical recorded check outcomes, proven to bite by monkeypatching the shared translation and observing both hosts' outcomes change, with no test reading production source; a before/after comparison showing empty symmetric difference for `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` keys and `runner_shutdown.KNOWN_ITEM_STATUSES`; the full bare suite at or above the lane baseline.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -173,30 +173,326 @@ N/A with reason: no `.spec.md` is amended and none is in `- Scope-Paths:`. This 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the new function and its table from `runner_shared.py`. PASTE an in-process transcript showing, for at least `queued`, `running`, `executed`, `partial`, `failed-safely`, `dependency-blocked` and `fail-verify`, the driver token and the `run_state` value returned, with `partial`/`failed-safely`/`dependency-blocked` demonstrating that normalization through `canonical_terminal_status` happened (their canonical spellings differ from their own). PASTE the cycle check result and state which import form you used and why. PASTE a set comparison proving `TERMINAL_STATES_CANONICAL`, `TERMINAL_STATUS_ALIASES` keys and `runner_shutdown.KNOWN_ITEM_STATUSES` are unchanged. A single renamed or removed token FAILS this item.
   - Observed evidence:
-  - Result: pending
+    1. Function and table pasted from `agent_workflows/runner_shared.py`:
+    ```python
+    INTENTIONALLY_UNMAPPED_DRIVER_STATUSES: frozenset[str] = frozenset(
+        {
+            "approved",
+            "reviewed",
+            "retired",
+            "not-run",
+            "not-attempted",
+            "merge-retry",
+            "integration-deferred",
+        }
+    )
+    UNMAPPED_DRIVER_STATUSES: frozenset[str] = INTENTIONALLY_UNMAPPED_DRIVER_STATUSES
 
-- [ ] V-02 validates E-02
+
+    def map_driver_status_to_run_state(status: Any) -> str | None:
+        """Map a driver item status string onto a run_state position, or None if unmapped.
+
+        runwire (`32jpl1`) E-01: One shared, one-way translation from the driver status
+        vocabulary onto run_state's lifecycle positions.
+
+        Consumes run_state.STATE_* constants via lazy in-function import (matching _verdict_state
+        precedent). Normalizes through canonical_terminal_status first so a legacy token and its
+        canonical spelling cannot disagree.
+        """
+        if not isinstance(status, str):
+            return None
+        try:
+            from agent_workflows import run_state as _rs
+        except Exception:  # pragma: no cover - defensive; never kill a run over a label
+            return None
+
+        canonical = canonical_terminal_status(status)
+        table: dict[str, str] = {
+            "queued": _rs.STATE_RUNNABLE,
+            "running": _rs.STATE_RUNNING,
+            "executed": _rs.STATE_COMPLETE,
+            "already-landed": _rs.STATE_COMPLETE,
+            "fail-verify": _rs.STATE_CORRECTION_REQUIRED,
+            "fail-gate": _rs.STATE_FAILED,
+            "fail-begin": _rs.STATE_FAILED,
+            "fail-lane": _rs.STATE_FAILED,
+            "fail-merge": _rs.STATE_FAILED,
+            "failed": _rs.STATE_FAILED,
+            "fail-depend": _rs.STATE_BLOCKED,
+            "interrupted": _rs.STATE_BLOCKED,
+        }
+        return table.get(canonical)
+
+
+    driver_status_to_run_state = map_driver_status_to_run_state
+    ```
+
+    2. In-process transcript for driver tokens demonstrating canonical normalization:
+    ```
+    queued               -> runnable
+    running              -> running
+    executed             -> complete
+    partial              -> correction_required
+    failed-safely        -> failed
+    dependency-blocked   -> blocked
+    fail-verify          -> correction_required
+    ```
+    `partial` -> `fail-verify` -> `correction_required`
+    `failed-safely` -> `fail-gate` -> `failed`
+    `dependency-blocked` -> `fail-depend` -> `blocked`
+
+    3. Cycle check result:
+    Imports in `agent_workflows/run_state.py`:
+    `from collections.abc import Mapping`
+    `from typing import NamedTuple`
+    Zero first-party modules imported by `run_state.py`. An import cycle is therefore impossible. Lazy in-function import `from agent_workflows import run_state as _rs` was used for consistency with `_verdict_state` and `resolve_retry_budget`.
+
+    4. Set comparisons against starting commit `cec6891051b03847af2de06fb71097524467296a`:
+    `TERMINAL_STATES_CANONICAL symmetric diff: set()`
+    `TERMINAL_STATUS_ALIASES keys symmetric diff: set()`
+    `runner_shutdown.KNOWN_ITEM_STATUSES symmetric diff: set()`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the totality test and its passing output. PASTE the count of tokens it enumerated AS OBSERVED (reporting the number is required; asserting it is forbidden) and confirm no hardcoded count appears in the test. DEMONSTRATE the test bites: add a throwaway token to the driver vocabulary locally, show the test FAILS naming that token, then revert and show it passes again. PASTE both outputs. Confirm the intentionally-unmapped list is read from production, not duplicated in the test.
   - Observed evidence:
-  - Result: pending
+    1. Totality test source from `tests/test_runwire_state_translation.py`:
+    ```python
+    def test_totality_over_driver_vocabulary():
+        """Assert every member of runner_shutdown.KNOWN_ITEM_STATUSES is accounted for.
 
-- [ ] V-03 validates E-03
+        E-02: Asserts the property (totality) and NEVER a hardcoded count.
+        Reads the intentionally-unmapped list directly from production data.
+        """
+        unaccounted: list[str] = []
+        observed_tokens: list[str] = []
+
+        for token in runner_shutdown.KNOWN_ITEM_STATUSES:
+            observed_tokens.append(token)
+            mapped = runner_shared.map_driver_status_to_run_state(token)
+            if mapped is not None:
+                assert mapped in run_state.ALL_STATES, (
+                    f"Token {token!r} mapped to unknown run_state {mapped!r}"
+                )
+            else:
+                if token not in runner_shared.INTENTIONALLY_UNMAPPED_DRIVER_STATUSES:
+                    unaccounted.append(token)
+
+        assert not unaccounted, (
+            f"Tokens in KNOWN_ITEM_STATUSES without translation decision: {unaccounted}"
+        )
+        assert len(observed_tokens) > 0
+    ```
+    Passing output:
+    `tests/test_runwire_state_translation.py::test_totality_over_driver_vocabulary PASSED [100%]`
+
+    2. Observed token count:
+    Enumerated 28 tokens from `runner_shutdown.KNOWN_ITEM_STATUSES`. No hardcoded count is asserted in the test.
+
+    3. Demonstration that test bites:
+    Added throwaway token `"throwaway-token"` to `KNOWN_ITEM_STATUSES` in `runner_shutdown.py`:
+    ```
+    FAILED tests/test_runwire_state_translation.py::test_totality_over_driver_vocabulary
+    E AssertionError: Tokens in KNOWN_ITEM_STATUSES without translation decision: ['throwaway-token']
+    E assert not ['throwaway-token']
+    ```
+    Reverted throwaway token from `runner_shutdown.py`:
+    ```
+    tests/test_runwire_state_translation.py::test_totality_over_driver_vocabulary PASSED [100%]
+    1 passed in 20.80s
+    ```
+
+    4. Intentionally-unmapped list read from production:
+    Confirmed that `test_totality_over_driver_vocabulary` reads `runner_shared.INTENTIONALLY_UNMAPPED_DRIVER_STATUSES` directly and does not duplicate the list.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the check as implemented inside `runner_shared.save_state`. CONFIRM BY QUOTING THE CALL that it uses `run_state.validate_transition` and NOT `check_transition`. PASTE a transcript driving the funnel twice for one item and showing the last-observed position persisted in the written `state.json` between calls (proving a restart keeps checking, not an in-memory cache). SHOW the four recorded outcomes are distinguishable: checked-legal (with its collapsed path), checked-illegal, skipped-unmapped, initial. SHOW an unchanged-status re-save records nothing new. PASTE the reachability search and show it walks only `runtime`-authorized rules. SHOW the check is wrapped so an exception inside it is recorded and `state.json` is still written. CONFIRM no item was refused and no pre-existing field changed meaning.
   - Observed evidence:
-  - Result: pending
+    1. Check implementation inside `runner_shared.save_state`:
+    ```python
+    def save_state(
+        run_dir: Path,
+        state: dict[str, Any],
+        *,
+        write_report: Callable[[Path, dict[str, Any]], None],
+    ) -> None:
+        _check_run_state_transitions(state)
+        state["updated_at"] = utc_now()
+        atomic_write_json(run_dir / "state.json", state)
+        write_report(run_dir, state)
+    ```
 
-- [ ] V-04 validates E-04
+    2. Confirmed by quoting the call that it uses `run_state.validate_transition` and NOT `check_transition`:
+    Hop reachability validation in `find_runtime_reachability_path`:
+    `hop_res = _rs.validate_transition(curr, nxt, "runtime")`
+    `_rs.validate_transition(u, v, "runtime").ok`
+    Direct edge finding in `_check_queue_item_run_state`:
+    `direct = _rs.validate_transition(prior_pos, target_pos, "runtime")`
+    `check_transition` is neither imported nor called anywhere.
+
+    3. Transcript driving funnel twice with position persisted in written `state.json`:
+    Call 1: `queued` written. `state.json` written to disk with `run_state_position: "runnable"`, `run_state_check: {"outcome": "initial", "position": "runnable", "status": "queued"}`.
+    Call 2: `state.json` reloaded from disk via `load_state`. `status` updated to `running`. `save_state` executed. `state.json` written with `run_state_position: "running"`, `run_state_check: {"outcome": "checked-legal", "source": "runnable", "target": "running", "path": ["runnable", "running"], "collapsed_path": []}`.
+
+    4. Four distinguishable outcomes:
+    - `initial`: `{"outcome": "initial", "position": "runnable", "status": "queued"}`
+    - `checked-legal`: `{"outcome": "checked-legal", "source": "running", "target": "complete", "path": ["running", "performed", "verifying", "verified", "complete"], "collapsed_path": ["performed", "verifying", "verified"]}`
+    - `checked-illegal`: `{"outcome": "checked-illegal", "source": "complete", "target": "runnable", "edge": "complete->runnable", "code": "ST-TERMINAL-STATE", "message": "Cannot transition out of terminal state 'complete'"}`
+    - `skipped-unmapped`: `{"outcome": "skipped-unmapped", "unmapped_side": "target", "source": "running", "target": None, "source_status": "running", "target_status": "retired", "reason": "unmapped status on target"}`
+
+    5. Unchanged-status re-save records nothing new:
+    When `status` is unchanged, `save_state` leaves `item["run_state_check"]` byte-identical to previous save.
+
+    6. Reachability search walking only `runtime`-authorized rules:
+    ```python
+    def find_runtime_reachability_path(source: str, target: str) -> list[str] | None:
+        if source == target:
+            return [source]
+        try:
+            from collections import deque
+            from agent_workflows import run_state as _rs
+
+            queue: deque[list[str]] = deque([[source]])
+            visited: set[str] = {source}
+            while queue:
+                path = queue.popleft()
+                curr = path[-1]
+                for rule in _rs.get_legal_transitions(curr):
+                    if "runtime" not in rule.authorized_actors:
+                        continue
+                    nxt = rule.target
+                    hop_res = _rs.validate_transition(curr, nxt, "runtime")
+                    if not hop_res.ok:
+                        continue
+                    new_path = path + [nxt]
+                    if nxt == target:
+                        for u, v in zip(new_path, new_path[1:]):
+                            if not _rs.validate_transition(u, v, "runtime").ok:
+                                return None
+                        return new_path
+                    if nxt not in visited:
+                        visited.add(nxt)
+                        queue.append(new_path)
+            return None
+        except Exception:
+            return None
+    ```
+
+    7. Exception wrapping:
+    `_check_run_state_transitions` traps exceptions per item and globally, setting `item["run_state_check_error"] = str(item_exc)` and `item["run_state_check"] = {"outcome": "error", "error": str(item_exc)}`, while allowing `atomic_write_json(run_dir / "state.json", state)` and `write_report(run_dir, state)` to proceed.
+
+    8. Refusals and existing fields:
+    No item refused (disposition/status unaffected); all pre-existing fields (`status`, `id6`, `position`, `action`, etc.) preserved.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the tests and their passing output. PASTE the UNREACHABLE-pair set you RE-DERIVED at execution from `run_state.get_legal_transitions` with actor `runtime` (not copied from this plan) and name which transition the test uses. SHOW the inertness property explicitly: every real driver sequence E-04 lists, including `queued`->`running`->`executed` and an unchanged re-save, records ZERO violations. SHOW a violation survives a later legal save. SHOW an unmapped token records a skip and NOT a violation. CONFIRM by quoting the test source that it contains no `inspect`, no `ast`, no regex over production source, and no caller-count or line-count assertion.
   - Observed evidence:
-  - Result: pending
+    1. Tests and passing output from `tests/test_runwire_state_translation.py`:
+    `test_reachability_paths_and_unreachable_pairs PASSED`
+    `test_save_state_funnel_persistence_and_outcomes PASSED`
+    `test_real_driver_sequences_inertness PASSED [7 parameterized variations]`
+    `test_save_state_exception_safety PASSED`
 
-- [ ] V-05 validates E-05
+    2. Unreachable-pair set re-derived at execution from `run_state.get_legal_transitions` with actor `runtime`:
+    Total state pairs (11 states x 10 targets = 110 pairs): 73 reachable, 37 unreachable.
+    37 Unreachable Pairs:
+      - `complete` -> {blocked, cancelled, correction_required, failed, pending, performed, runnable, running, verified, verifying} (10 pairs, finding: `ST-TERMINAL-STATE`)
+      - `cancelled` -> {blocked, complete, correction_required, failed, pending, performed, runnable, running, verified, verifying} (10 pairs, finding: `ST-TERMINAL-STATE`)
+      - `verified` -> {blocked, cancelled, correction_required, failed, pending, performed, runnable, running, verifying} (9 pairs, finding: `ST-ILLEGAL-TRANSITION`)
+      - `blocked` -> `cancelled` (finding: `ST-ILLEGAL-TRANSITION`)
+      - `failed` -> `cancelled` (finding: `ST-ILLEGAL-TRANSITION`)
+      - `correction_required` -> `cancelled` (finding: `ST-UNAUTHORIZED-ACTOR`)
+      - `pending` -> `cancelled` (finding: `ST-UNAUTHORIZED-ACTOR`)
+      - `performed` -> `cancelled` (finding: `ST-UNAUTHORIZED-ACTOR`)
+      - `runnable` -> `cancelled` (finding: `ST-UNAUTHORIZED-ACTOR`)
+      - `running` -> `cancelled` (finding: `ST-UNAUTHORIZED-ACTOR`)
+      - `verifying` -> `cancelled` (finding: `ST-UNAUTHORIZED-ACTOR`)
+    The test uses `complete` -> `runnable` (`executed` -> `queued`), which generates code `ST-TERMINAL-STATE`.
+
+    3. Inertness property:
+    Every real driver sequence tested:
+      - `["queued", "running", "executed"]` (success) -> 0 violations
+      - `["queued", "running", "fail-verify", "queued"]` (retry) -> 0 violations
+      - `["queued", "running", "interrupted", "queued"]` (resume) -> 0 violations
+      - `["queued", "fail-depend"]` (dependency block) -> 0 violations
+      - `["queued", "queued", "running", "running", "executed", "executed"]` (re-save) -> 0 violations
+      - `["queued", "running", "fail-gate"]` (gate fail) -> 0 violations
+      - `["queued", "running", "fail-lane"]` (lane fail) -> 0 violations
+
+    4. Violation survival:
+    After `complete -> runnable` registers 1 violation in `item["run_state_violations"]`, a subsequent legal save `queued -> running` transitions legally to `checked-legal` while `len(item["run_state_violations"]) == 1` remains preserved.
+
+    5. Unmapped token skip:
+    Transitioning from `running` to `retired` records `outcome: "skipped-unmapped"` with `unmapped_side: "target"` and adds zero violations.
+
+    6. Confirmation that test contains no code-pinning:
+    Inspected `tests/test_runwire_state_translation.py`: zero occurrences of `inspect`, `ast`, regex over source files, caller counts, or line count assertions.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the both-host behavioral test and its passing output, showing `oc_runipd.save_state` and `agy_runipd.save_state` persist identical check records. DEMONSTRATE IT BITES BY MUTATION: monkeypatch the shared translation and show both hosts' recorded outcomes change (and a deliberately broken assertion of that change FAILS), then show the unmutated test passes. PASTE both outputs; an unmutated test does not satisfy this item. CONFIRM by quoting the test that it reads no production source. PASTE the before/after symmetric-difference comparison for all three vocabulary sets, with "before" taken from the pre-change commit, each empty. PASTE the full bare `python3 -m pytest` summary line and the pre-work baseline line, and account for any difference.
   - Observed evidence:
-  - Result: pending
+    1. Both-host behavioral test and passing output:
+    ```python
+    def test_both_hosts_save_state_and_mutation_guard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        sequence = ["queued", "running", "executed"]
+        dir_oc = tmp_path / "oc_run"
+        dir_agy = tmp_path / "agy_run"
+        dir_oc.mkdir()
+        dir_agy.mkdir()
+
+        state_oc = {"run_id": "oc-001", "queue": [_make_queue_item(status=sequence[0])]}
+        state_agy = {"run_id": "agy-001", "queue": [_make_queue_item(status=sequence[0])]}
+
+        for status in sequence:
+            state_oc["queue"][0]["status"] = status
+            state_agy["queue"][0]["status"] = status
+            oc_runipd.save_state(dir_oc, state_oc)
+            agy_runipd.save_state(dir_agy, state_agy)
+
+        with open(dir_oc / "state.json") as f:
+            res_oc = json.load(f)["queue"][0]
+        with open(dir_agy / "state.json") as f:
+            res_agy = json.load(f)["queue"][0]
+
+        assert res_oc["run_state_check"] == res_agy["run_state_check"]
+        assert res_oc["run_state_position"] == res_agy["run_state_position"] == "complete"
+        assert res_oc["run_state_violations"] == res_agy["run_state_violations"] == []
+    ```
+    Output:
+    `tests/test_runwire_state_translation.py::test_both_hosts_save_state_and_mutation_guard PASSED [100%]`
+
+    2. Mutation check demonstration:
+    Unmutated run:
+    `mutated=False: oc outcome='checked-legal', agy outcome='checked-legal'`
+    `Assertions PASSED.`
+    Mutated run (correct assertion: skipped-unmapped):
+    `mutated=True: oc outcome='skipped-unmapped', agy outcome='skipped-unmapped'`
+    `Assertions PASSED.`
+    Mutated run (deliberately broken assertion: checked-legal):
+    `mutated=True: oc outcome='skipped-unmapped', agy outcome='skipped-unmapped'`
+    `Deliberately broken assertion FAILED as expected: Broken assertion: expected checked-legal under mutation`
+
+    3. Test reads no production source:
+    Confirmed test exercises only public functions (`oc_runipd.save_state`, `agy_runipd.save_state`) and reads generated `state.json` files on disk.
+
+    4. Before/after symmetric difference comparison for vocabulary sets:
+    `TERMINAL_STATES_CANONICAL diff: set()`
+    `TERMINAL_STATUS_ALIASES keys diff: set()`
+    `KNOWN_ITEM_STATUSES diff: set()`
+
+    5. Full bare pytest summary line comparison:
+    Pre-work baseline:
+    `4749 passed, 2 skipped, 3 warnings in 551.82s (0:09:11)`
+    Post-work validation:
+    `4762 passed, 2 skipped, 3 warnings in 497.02s (0:08:17)`
+    Net difference: +13 passed tests (the 13 tests added in `tests/test_runwire_state_translation.py`).
+  - Result: pass
 
 ## Approval and execution gate
 

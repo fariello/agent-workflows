@@ -1093,6 +1093,7 @@ def save_state(
     *,
     write_report: Callable[[Path, dict[str, Any]], None],
 ) -> None:
+    _check_run_state_transitions(state)
     state["updated_at"] = utc_now()
     atomic_write_json(run_dir / "state.json", state)
     write_report(run_dir, state)
@@ -30339,6 +30340,235 @@ def canonical_terminal_status(status: Any) -> str:
     if not isinstance(status, str):
         return ""
     return TERMINAL_STATUS_ALIASES.get(status, status)
+
+
+# statusvocab (`32jpl1`) E-01 / E-02: Driver statuses intentionally having no lifecycle position.
+# Kept beside the table as production data (E-02) so totality tests read the production decision.
+INTENTIONALLY_UNMAPPED_DRIVER_STATUSES: frozenset[str] = frozenset(
+    {
+        "approved",
+        "reviewed",
+        "retired",
+        "not-run",
+        "not-attempted",
+        "merge-retry",
+        "integration-deferred",
+    }
+)
+UNMAPPED_DRIVER_STATUSES: frozenset[str] = INTENTIONALLY_UNMAPPED_DRIVER_STATUSES
+
+
+def map_driver_status_to_run_state(status: Any) -> str | None:
+    """Map a driver item status string onto a run_state position, or None if unmapped.
+
+    runwire (`32jpl1`) E-01: One shared, one-way translation from the driver status
+    vocabulary onto run_state's lifecycle positions.
+
+    Consumes run_state.STATE_* constants via lazy in-function import (matching _verdict_state
+    precedent). Normalizes through canonical_terminal_status first so a legacy token and its
+    canonical spelling cannot disagree.
+    """
+    if not isinstance(status, str):
+        return None
+    try:
+        from agent_workflows import run_state as _rs
+    except Exception:  # pragma: no cover - defensive; never kill a run over a label
+        return None
+
+    canonical = canonical_terminal_status(status)
+    table: dict[str, str] = {
+        "queued": _rs.STATE_RUNNABLE,
+        "running": _rs.STATE_RUNNING,
+        "executed": _rs.STATE_COMPLETE,
+        "already-landed": _rs.STATE_COMPLETE,
+        "fail-verify": _rs.STATE_CORRECTION_REQUIRED,
+        "fail-gate": _rs.STATE_FAILED,
+        "fail-begin": _rs.STATE_FAILED,
+        "fail-lane": _rs.STATE_FAILED,
+        "fail-merge": _rs.STATE_FAILED,
+        "failed": _rs.STATE_FAILED,
+        "fail-depend": _rs.STATE_BLOCKED,
+        "interrupted": _rs.STATE_BLOCKED,
+    }
+    return table.get(canonical)
+
+
+driver_status_to_run_state = map_driver_status_to_run_state
+
+
+def find_runtime_reachability_path(source: str, target: str) -> list[str] | None:
+    """Find the shortest runtime-authorized path from source to target in run_state.
+
+    runwire (`32jpl1`) E-03 / D-1: Walk run_state.get_legal_transitions, keeping
+    only rules whose authorized_actors contain 'runtime'. Validate each hop with
+    run_state.validate_transition.
+    """
+    if source == target:
+        return [source]
+    try:
+        from collections import deque
+        from agent_workflows import run_state as _rs
+
+        queue: deque[list[str]] = deque([[source]])
+        visited: set[str] = {source}
+        while queue:
+            path = queue.popleft()
+            curr = path[-1]
+            for rule in _rs.get_legal_transitions(curr):
+                if "runtime" not in rule.authorized_actors:
+                    continue
+                nxt = rule.target
+                hop_res = _rs.validate_transition(curr, nxt, "runtime")
+                if not hop_res.ok:
+                    continue
+                new_path = path + [nxt]
+                if nxt == target:
+                    # Double-check full path
+                    for u, v in zip(new_path, new_path[1:]):
+                        if not _rs.validate_transition(u, v, "runtime").ok:
+                            return None
+                    return new_path
+                if nxt not in visited:
+                    visited.add(nxt)
+                    queue.append(new_path)
+        return None
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+_find_runtime_reachability_path = find_runtime_reachability_path
+
+
+def _check_queue_item_run_state(item: dict[str, Any]) -> None:
+    """Check a single queue item's status against run_state positions.
+
+    runwire (`32jpl1`) E-03: Report-only transition check.
+    Persists last-observed position on the item.
+    Accumulates violations in item['run_state_violations'].
+    """
+    status = item.get("status")
+    target_pos = map_driver_status_to_run_state(status)
+
+    item.setdefault("run_state_violations", [])
+
+    # 1. First observation: item has no previously observed position recorded
+    if "run_state_position" not in item:
+        if target_pos is not None:
+            item["run_state_position"] = target_pos
+            item["run_state_check"] = {
+                "outcome": "initial",
+                "position": target_pos,
+                "status": status,
+            }
+        else:
+            item["run_state_position"] = None
+            item["run_state_check"] = {
+                "outcome": "skipped-unmapped",
+                "unmapped_side": "target",
+                "source": None,
+                "target": None,
+                "source_status": None,
+                "target_status": status,
+                "reason": f"unmapped driver status {status!r}",
+            }
+        item["run_state_status"] = status
+        return
+
+    prior_pos = item.get("run_state_position")
+    prior_status = item.get("run_state_status")
+
+    # 2. Unchanged position: record nothing new and check nothing
+    if prior_pos is not None and target_pos == prior_pos:
+        return
+    if prior_pos is None and target_pos is None and status == prior_status:
+        return
+
+    # 3. Unmapped position on either side: skipped-unmapped (no violation)
+    if prior_pos is None or target_pos is None:
+        side = (
+            "both"
+            if (prior_pos is None and target_pos is None)
+            else ("source" if prior_pos is None else "target")
+        )
+        item["run_state_position"] = target_pos
+        item["run_state_status"] = status
+        item["run_state_check"] = {
+            "outcome": "skipped-unmapped",
+            "unmapped_side": side,
+            "source": prior_pos,
+            "target": target_pos,
+            "source_status": prior_status,
+            "target_status": status,
+            "reason": f"unmapped status on {side}",
+        }
+        return
+
+    # 4. Changed positions: check reachability
+    path = find_runtime_reachability_path(prior_pos, target_pos)
+    if path is not None:
+        item["run_state_position"] = target_pos
+        item["run_state_status"] = status
+        item["run_state_check"] = {
+            "outcome": "checked-legal",
+            "source": prior_pos,
+            "target": target_pos,
+            "path": path,
+            "collapsed_path": list(path[1:-1]),
+        }
+    else:
+        # Unreachable illegal transition
+        try:
+            from agent_workflows import run_state as _rs
+
+            direct = _rs.validate_transition(prior_pos, target_pos, "runtime")
+            code = (
+                direct.findings[0].code if direct.findings else "ST-ILLEGAL-TRANSITION"
+            )
+            msg = (
+                direct.findings[0].message
+                if direct.findings
+                else f"Illegal transition from '{prior_pos}' to '{target_pos}'"
+            )
+        except Exception:
+            code = "ST-ILLEGAL-TRANSITION"
+            msg = f"Illegal transition from '{prior_pos}' to '{target_pos}'"
+
+        viol = {
+            "outcome": "checked-illegal",
+            "source": prior_pos,
+            "target": target_pos,
+            "edge": f"{prior_pos}->{target_pos}",
+            "code": code,
+            "message": msg,
+        }
+        item["run_state_violations"].append(viol)
+        item["run_state_check"] = viol
+        item["run_state_position"] = target_pos
+        item["run_state_status"] = status
+
+
+def _check_run_state_transitions(state: dict[str, Any]) -> None:
+    """Examine queue items in state and perform report-only run_state transition checks.
+
+    runwire (`32jpl1`) E-03: Never raises out of save_state.
+    """
+    try:
+        queue = state.get("queue")
+        if not isinstance(queue, list):
+            return
+        for item in queue:
+            if not isinstance(item, dict):
+                continue
+            try:
+                _check_queue_item_run_state(item)
+            except Exception as item_exc:
+                item["run_state_check_error"] = str(item_exc)
+                item["run_state_check"] = {
+                    "outcome": "error",
+                    "error": str(item_exc),
+                }
+    except Exception:  # pragma: no cover - defensive; never kill a run over a check
+        pass
 
 
 # statusvocab (`9x7otz`) E-01: Shared directory-to-verdict predicate for run summary Landed column.
