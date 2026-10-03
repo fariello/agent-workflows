@@ -194,6 +194,7 @@ No spec is amended and no `.spec.md` appears in `- Scope-Paths:`. No `CHANGELOG.
 
 - THE SETTER-FAMILY CLOCK FIX IS NOT MADE HERE. `5ivkdh` owns `backlog.py`, `specs.py`, `status_set.py`, `releases.py` and `readiness_recheck.py` and declares them all. This plan touches a caller that plan does not declare, so the two are disjoint on every path and need no ordering edge.
   - Carrier: 5ivkdh
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE CROSS-SPELLING TIMEZONE GUARD IS NOT BUILT HERE. `ayhveg` owns a `COMMAND_INVENTORY`-derived differential guard over setter/note verbs. `aw ipd scaffold` is not a setter and would not appear in its derivation, so E-04's guard is additive rather than a duplicate of it.
   - Carrier: ayhveg
 - THE DUPLICATE-ITEM CONVERGENCE IS NOT PERFORMED HERE. `qjm4bg` E-03 closes `jvw1kg` along with four other pure duplicates once its two carriers execute. This plan writes no status onto any backlog item; the runner sets `jvw1kg` to `graduated` on the `From-Backlog` handoff, which preserves its gate.

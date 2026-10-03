@@ -123,6 +123,7 @@ Established in this lane at HEAD `3fca2e6c7` by driving the real CLI against the
 
 - EVERY HISTORY WRITER IS OUT. `5ivkdh` owns the shared UTC helper plus the backlog/specs/releases/readiness writers, `9wcei0` and `rfyrvp` own the plan-family created records, and `dmrbqa` owns the gitignored sidecar. This plan takes NO dependency on them: a reader comparing like-for-like clocks is correct whether they land before or after, which is why it is safe to review in parallel rather than queued behind four plans.
   - Carrier: 5ivkdh
+  - Carrier-Evidence: .aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md
 - THE CROSS-SPELLING WRITER GUARD IS OUT. `ayhveg` derives a timezone-parameterized guard from `command_surface.COMMAND_INVENTORY` setter/note verbs. That instrument covers writers; neither reader here is a CLI verb that writes a history record, so it would not reach them.
   - Carrier: ayhveg
 - THE LIFECYCLE-GATE COVERAGE COMPANION IS OUT. `5xq2ng` reports when `check.lifecycle-transition-invalid` validates nothing once the writer fix removes the date variation it depends on. That is a different reader with a different failure mode (silent loss of coverage, not a timezone-dependent verdict).
