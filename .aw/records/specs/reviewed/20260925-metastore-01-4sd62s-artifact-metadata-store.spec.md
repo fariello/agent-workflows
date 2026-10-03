@@ -9,6 +9,7 @@
 - Work-Kind: feature
 - Relation to prior work: AMENDS approved spec `2vev8j` (artifact metadata storage). Keeps its seq ordering (4.3), UTC rule (4.4), SQLite-as-cache rule (4.6), legacy import rule (4.7), and backward-edge ruling (4.8). REPLACES its C4 (current state inline), 4.5 (one inline history line), C8 (incremental migration) and AC-11 (partially migrated corpus valid), and resolves its OQ-2 (backlog/specs migrate too) and OQ-3 (flat path).
 
+- Set: metastore
 ## 1. Problem statement
 
 Artifact metadata today is a hand-editable `- Field: value` bullet block plus an unbounded

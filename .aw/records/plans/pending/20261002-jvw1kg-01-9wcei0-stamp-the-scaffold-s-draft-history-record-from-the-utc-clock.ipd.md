@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/ipd_authoring.py, tests/test_scaffold_history_clock.py
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: jvw1kg
@@ -19,6 +19,7 @@
 - Id: 9wcei0
 
 ## Workflow history
+- 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-02, findings PR-001..E-01. Recomputed at HEAD `9b562dc8f`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001, PR-002, PR-003, PR-004, PR-005. Defect re-reproduced at lane HEAD e4dba9b13 under TZ=XXX-20 (check plans rc=1; Honolulu rc=0). PR-001 OPEN: pending plan rfyrvp makes the same ipd_authoring split (escalated as blocking OQ-03). Fixed: always-in-window fixed-offset zones for the guard (PR-002); runnable E-01 scaffold flags and narrowed STOP (PR-003); scope fence + conditional finalize (PR-004); OQ owners (PR-005).
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `jvw1kg`. The item describes the `backlog.run_set`-versus-`status_set` divergence, which is ALREADY owned by three review-ready plans (`5ivkdh` the production fix, `ayhveg` the guard, `qjm4bg` the duplicate convergence, that last one naming this very item as one of five pure duplicates it closes). Rather than author a ninth copy of the same fix, the authoring turn re-derived the item's own claim and found a SITE OF THE SAME DEFECT that none of the three covers: the `aw ipd scaffold` history writer, which `5ivkdh` deliberately classifies as a filename-only site. Reproduced end to end at HEAD `a3ed40a35` under `TZ=XXX-20`: `aw check plans --agent` exits 1 on a freshly scaffolded, freshly transitioned plan. The proposed fix shape was pre-verified in process (stamping the draft record UTC takes the same fixture from 1 finding to 0). Bare suite baseline at authoring: `3 failed, 4623 passed, 2 skipped` (all three failures pre-existing and in unrelated modules).
@@ -261,10 +262,10 @@ in the transition message so whoever executes it knows to cover this site in its
 ### OQ-03: This plan and pending plan `rfyrvp` both fix the same `run_scaffold` clock split in `agent_workflows/ipd_authoring.py`. Which one should carry the fix?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
-- Resolution or deferral rationale: OPEN, because choosing which of two review-ready, release-gated plans to retire, and which backlog item's gate (`jvw1kg` or `lq2w86`) inherits the fix, is a scope decision the repository cannot settle. Options: (a) keep THIS plan (it carries the checker-verdict assertion and the F-04 three-state cases, which `rfyrvp` lacks) and fold `rfyrvp`'s `--path`-branch probe and module date audit into E-03/E-04 here, retiring `rfyrvp` as `superseded` with `lq2w86` re-pointed; (b) keep `rfyrvp` and fold this plan's verdict and three-state assertions into it, retiring this one; (c) sequence them with an `Item-Dependencies` edge so the second becomes a guard-only plan. Reviewer recommendation: (a), because the user-visible harm is the `check plans` verdict, and only this plan asserts it.
+- Resolution or deferral rationale: RESOLVED 2026-10-02 by maintainer: Keep plan 9wcei0, fold in rfyrvp's --path-branch probe and module date audit into E-03/E-04, and retire rfyrvp as superseded. Plan 9wcei0 asserts the check plans checker verdict and three-state cases.
 
 ## Validation and cross-check (verify before reporting done)
 

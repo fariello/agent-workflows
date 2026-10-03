@@ -78,7 +78,8 @@ class ResolvePlanPathTypedTests(unittest.TestCase):
             specs_dir = repo / ".aw" / "records" / "specs"
             specs_dir.mkdir(parents=True)
             spec_file = (
-                specs_dir / "20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md"
+                specs_dir
+                / "20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md"
             )
             spec_file.write_text(
                 "# Spec\n\n- Id: 4sd62s\n- Status: approved\n", encoding="utf-8"

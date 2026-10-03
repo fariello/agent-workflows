@@ -34,3 +34,11 @@ I also confirmed the `build_skeleton(when=...)` single-value shape, `run_scaffol
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Which zones should the guard use? | Fixed POSIX offsets `XXX-24` / `XXX+23:59` with a loud precondition | Real zones (time-of-day dependent); mocking `date.today` (pins structure, P16) | Review probe output; F-07 | yes |
 | D-2 | Should the review resolve the `9wcei0`/`rfyrvp` collision itself? | No; escalate it as blocking OQ-03 with a recommendation | Retire `rfyrvp` from this review (it is not in this review's ledger, and retiring it is a scope decision) | AGENTS.md "asking the human ... when the decision is theirs (scope ...)"; plan-review Step 4 escalation rule | yes |
+
+## Round 2
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+| --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+| PR-001 | high | OVER-SCOPE | Plan collision (C/G) | `.aw/records/plans/pending/20261002-lq2w86-01-rfyrvp-...ipd.md` declares `agent_workflows/ipd_authoring.py`, same split, `Blocks-Release: next`, committed `de75a42c1` (00:32) before this plan's `3f84d12b3` (01:03); `5ivkdh` E-05 "pending plans `9wcei0` and `rfyrvp` both own that split" | The plan's central F-02 claim, "THIS SITE IS IN NO OTHER PLAN'S SCOPE", is false. Two review-ready, release-gated plans make the same production edit, so executing both would apply the split twice. | C:Medium; U:Low; S:Low; F:Medium-High; Overall:Medium-High | fixed | STALE ESCALATION CLOSED 2026-10-02 by agent (aw ipd recheck-readiness). The question this finding was escalated as (OQ-03) is `- Status: resolved`, so the finding it gated on has been answered and the record is caught up. NO FINDING WAS RE-DERIVED and no plan content was re-critiqued: the match was made on the question's declared `- Finding: PR-001` back-reference, not on a judgement about what the question was about. Previous decision: open. |

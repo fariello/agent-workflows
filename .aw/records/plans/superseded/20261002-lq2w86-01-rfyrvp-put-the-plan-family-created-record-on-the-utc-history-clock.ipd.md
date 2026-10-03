@@ -6,7 +6,7 @@
 - Scope: IN: split the one overloaded date in `ipd_authoring.run_scaffold` so the FILENAME stays local per D55 while the `draft` history record it renders becomes UTC per `2vev8j` 4.4, and add the behavioral guard that no existing test provides for the plan family's created record. OUT, each with a reason recorded under "Deferred": the shared UTC helper and the backlog/specs/releases/readiness writers (owned by `5ivkdh`); the cross-spelling setter guard (owned by `ayhveg`); the records convergence closing the duplicate cluster (owned by `qjm4bg`); the plan `- Date:` front-matter field, which is not a history record; filename dates, which D55 rules LOCAL; and the four pre-existing suite failures.
 - Scope-Paths: agent_workflows/ipd_authoring.py, tests/test_ipd_authoring.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: superseded
 - From-Spec: 2vev8j
 - Work-Kind: bug
 - Priority: medium
@@ -19,6 +19,7 @@
 - Id: rfyrvp
 
 ## Workflow history
+- 2026-10-03 superseded (aw set): Superseded by pending plan 9wcei0 which carries the scaffold clock fix per maintainer ruling
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `lq2w86`. The authoring turn found that the item's own described symptom (the `backlog set` versus `aw set` divergence) is ALREADY owned by three review-ready plans, two of which name this item's cluster for closure, so re-fixing it would have produced a fourth colliding plan. Scoped instead to a genuine RESIDUAL measured in this lane at HEAD `ebc28ee39`: the plan family's own `created` record, which `5ivkdh` E-05 classifies as "leave" and which `ayhveg`'s setter-derived guard does not reach. The clock question itself was RESOLVED from repository evidence (spec `2vev8j` 4.4, approved and human-attested, rules history dates UTC; `DECISIONS.md` D55 rules filename dates LOCAL), so no maintainer decision gates this plan. Bare suite baseline at authoring: `4 failed, 4618 passed, 2 skipped` (all four failures pre-existing, named in F-07, and untouched by this plan).
 - 2026-10-02 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
