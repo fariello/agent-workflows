@@ -6,7 +6,7 @@
 - Scope: IN: (1) add a BEHAVIORAL gate asserting that every command in `COMMAND_INVENTORY` is actually INVOKABLE (its `--help` does not die with an argparse `invalid choice`), with an explicit per-command allow-set for the two measured exceptions, each citing its owning item; (2) correct the two in-code comments that cite the deleted test and the "asserted elsewhere" claim as if the gate were live. OUT: this plan does NOT register the `prompts set` subparser, does NOT touch `status_set.TYPE_STATUSES`, and does NOT touch the prompts writer: all three are `7z3ovv`'s declared scope and duplicating them would collide. It does NOT delete the `upgrade-test` root declaration or fix its wrong `agent_record_kind` (that is `lbbo9s`). It does NOT widen, narrow, or re-home `EXEMPTION_REGISTRY`, does NOT change `build_matrix`'s behavior, and adds NO coverage row for any absent command.
 - Scope-Paths: tests/test_command_surface_declarations.py, tests/conformance_matrix.py, agent_workflows/command_surface.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gm9baj
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: gm9baj verified (set declabsent, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 
