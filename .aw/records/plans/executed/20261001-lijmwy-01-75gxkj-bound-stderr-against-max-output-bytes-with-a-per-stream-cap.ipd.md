@@ -6,7 +6,7 @@
 - Scope: Make a declared `max_output_bytes` bind BOTH captured streams, and make the recorded truncation fact per-stream so it stops being a half-truth. IN: applying the cap to `stderr_raw` with the SAME raw-byte slice `stdout_raw` already gets; adding `stdout_truncated`/`stderr_truncated` to the `tool_event` record while KEEPING the existing `truncated` as the honest disjunction of the two, so every current reader keeps working and gains precision; preserving the timeout and spawn-failure diagnostic text that `capture_command` appends to stderr, which a naive slice destroys (F-05, the single most important finding here); and tests pinning all of it in a new file; bringing `host_runner.run_worker_process`'s injected-runner seam to the same per-stream bound so its two branches keep the parity `egywai` pinned, and correcting the `host_runner` docstrings and comments that state stderr is "deliberately unbounded ... (backlog `lijmwy`)" (E-06); and updating the two EXISTING tests that pin the old behavior and would otherwise turn red (E-07, F-07). OUT: a SHARED budget across the two streams, which is the design alternative and is declined with reasons in OQ-01; changing `max_output_bytes`'s default, which stays `None`/unbounded; changing `build_tool_event`'s existing fields or `run_ledger_schema._KIND_FIELDS` (F-08 measures that the schema is add-only, so the two new keys need no schema edit); `host_runner.evidence_gate`'s declared-bound exemption, which EXECUTED plan `egywai` shipped and which this plan relies on but MUST NOT change (F-06); and `capture_command`'s return shape, which EXECUTED plan `emzbut` already changed to `CapturedToolEvent` (F-09).
 - Scope-Paths: agent_workflows/run_evidence.py, agent_workflows/host_runner.py, tests/test_capture_command_stream_bounds.py, tests/test_capture_command_contract.py, tests/test_host_runner_output_bound.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 75gxkj
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 75gxkj verified (set lijmwy, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Siblings `egywai` and `emzbut` had EXECUTED since authoring, so F-06/F-07/F-09 and OQ-02 were re-derived at lane HEAD `f24bea8d1`; Scope-Paths grew by `host_runner.py` and two existing test files (new E-06, E-07); stale carrier rows that failed `pre-transition` lint were repointed; the legacy-call rule now omits per-stream keys instead of writing `False`. Review record: `.aw/records/reviews/20261002-lijmwy-01-75gxkj-bound-stderr-against-max-output-bytes-with-a-per-stream-cap.review.md`.
 
