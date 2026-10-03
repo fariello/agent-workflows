@@ -888,13 +888,17 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     # Registered `error` because each is a contract violation of the backlog item format published in
     # .aw/records/backlog/README.md. `error` is not a free choice dressed as one:
     # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the exit code identically
-    # while stating a weaker contract (rnkqrc E-05). All three are deterministic line-shape checks over
+    # while stating a weaker contract (rnkqrc E-05). All four are deterministic line-shape checks over
     # the file's own bytes with no inference (ASSURANCE_REPOSITORY, DET_DETERMINISTIC).
     # Invariant is `""`: the catalog in spec pqsx96 has no invariant for record-metadata well-formedness
     # (I-09 is filename grammar, I-03 is lifecycle-status authority, I-07 is release-gate preservation),
     # and inventing one is out of scope.
     # Rule ids avoid the substrings `graduation` and `duplicate` (tests/test_check_engine_spec_criteria.py).
+    # Repeated metadata bullet rules cover both backlog items and specs (IPD 7ohskw and 1znlxy).
     "backlog.metadata-bullet-repeated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "spec.metadata-bullet-repeated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
     "backlog.gate-summary-unexpected": RuleSpec(

@@ -19,7 +19,7 @@ import datetime as _dt
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
@@ -213,6 +213,24 @@ _PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")
 _WORK_KIND_RE = re.compile(r"^- Work-Kind:\s*(\S+)\s*$")
 _SCOPE_RE = re.compile(r"^- Scope:[ \t]*(.*?)[ \t]*$")
 _SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(.*?)[ \t]*$")
+_TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
+
+# Multi-valued metadata keys allowlist (IPD 1znlxy E-01).
+# Membership means "repetition is legal". A key absent from the set is treated as
+# single-valued and reported as a defect if repeated in the front-matter metadata block.
+# The backlog detector needs no such set because backlog._TOP_KEY_RE governs a closed,
+# all-single-valued field block.
+SPEC_MULTI_VALUED_KEYS: frozenset[str] = frozenset(
+    (
+        "Constrained-by",
+        "Related",
+        "Sources",
+        "Evidence",
+        "Supersedes",
+        "Grounding",
+        "Implemented-by",
+    )
+)
 
 
 def _repo_root_of(spec_path: Path) -> Path:
@@ -376,6 +394,27 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
     loc = drift_location(path)
     drift: List[core.Drift] = []
     lines = _lines(text)
+    end = _metadata_end(lines)
+
+    # Duplicate-bullet rule (IPD 1znlxy E-02): count top-level `- Key:` bullets
+    # within the metadata block delimited by _metadata_end. Keys not in
+    # SPEC_MULTI_VALUED_KEYS must appear at most once.
+    key_counts: Dict[str, int] = {}
+    for line in lines[:end]:
+        m = _TOP_KEY_RE.match(line)
+        if m:
+            k = m.group(1)
+            key_counts[k] = key_counts.get(k, 0) + 1
+
+    for k, count in key_counts.items():
+        if count > 1 and k not in SPEC_MULTI_VALUED_KEYS:
+            drift.append(
+                core.Drift(
+                    loc,
+                    "spec.metadata-bullet-repeated",
+                    A.escape_detail(f"metadata bullet - {k}: appears {count} times"),
+                )
+            )
 
     status = _read_status(lines)
     if status is None:
