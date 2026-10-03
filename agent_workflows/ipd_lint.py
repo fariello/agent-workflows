@@ -28,6 +28,7 @@ from agent_workflows import ipd_schema as S
 from agent_workflows import lifecycle_dirs as _LD
 from agent_workflows import lifecycle_style as _LS
 from agent_workflows import plans as _plans
+from agent_workflows import selectors as _sel
 from agent_workflows import term as _T
 from agent_workflows.term import Term
 
@@ -2565,8 +2566,7 @@ def run_lint(args: argparse.Namespace) -> int:
         m_prio = re.search(r"(?m)^-\s*Priority:\s*(\S+)", raw_text)
         priority = m_prio.group(1).lower() if m_prio else None
 
-        m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", raw_text)
-        blocks_release = m_br.group(1) if m_br else None
+        blocks_release = _sel.read_front_matter_blocks_release(raw_text)
 
         prio_txt = ""
         if priority:

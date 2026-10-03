@@ -483,6 +483,7 @@ def _read_status(text: str) -> str | None:
 # HERE explicitly with its own evidence; do not infer it from the internal readers having one.
 _FRONT_MATTER_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _FRONT_MATTER_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
+_FRONT_MATTER_BLOCKS_RELEASE_RE = re.compile(r"(?m)^-\s*Blocks-Release:\s*(\S+)\s*$")
 
 
 def read_front_matter_id(text: str) -> str | None:
@@ -504,6 +505,18 @@ def read_front_matter_status(text: str) -> str | None:
     Bounded to `metadata_region`, like its `read_front_matter_id` twin.
     """
     m = _FRONT_MATTER_STATUS_RE.search(metadata_region(text))
+    return m.group(1) if m else None
+
+
+def read_front_matter_blocks_release(text: str) -> str | None:
+    """Return the `- Blocks-Release:` value from a record's METADATA REGION, or ``None``.
+
+    The value is a release id6 or the literal `next`. Note that `-` means ABSENT at every
+    consumer. Bounded to `metadata_region`, like `read_front_matter_id` and
+    `read_front_matter_status`, so a QUOTED `- Blocks-Release:` in a body is not read
+    as a declaration.
+    """
+    m = _FRONT_MATTER_BLOCKS_RELEASE_RE.search(metadata_region(text))
     return m.group(1) if m else None
 
 

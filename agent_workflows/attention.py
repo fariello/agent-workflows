@@ -43,6 +43,7 @@ from agent_workflows import lifecycle_style as LS
 from agent_workflows import plans as plans_mod
 from agent_workflows import prompts as prompts_mod
 from agent_workflows import research_contract
+from agent_workflows import selectors as _sel
 from agent_workflows import specs as specs_mod
 from agent_workflows import term as T
 
@@ -1369,13 +1370,7 @@ def _plans_record(
     # IPD 7mw7m5 E-02: populate Item.blocks_release for a release-blocking plan so it renders with
     # the `>` glyph / `[blocking]` label like specs/backlog blockers (the release_blockers SET scan
     # already re-reads the file, so set-membership does not depend on this; display parity does).
-    br = None
-    if "Blocks-Release:" in text:
-        br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text[:4096])
-        if not br_m and len(text) > 4096:
-            br_m = re.search(r"(?m)^- Blocks-Release:\s*(\S+)\s*$", text)
-        if br_m:
-            br = br_m.group(1)
+    br = _sel.read_front_matter_blocks_release(text)
     # xprio 1b45el E-03: populate Item.priority from the plan's `- Priority:` line so the board LABELS
     # a plan's priority via the existing type-agnostic renderer (absent = None = no label). This does
     # NOT alter the shared attention sort key (core), which excludes priority for all trees today.

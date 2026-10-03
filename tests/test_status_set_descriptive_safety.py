@@ -482,7 +482,7 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
         self.assertTrue(plan_readiness.is_plan_review_approved(probe_path))
 
     def test_plans_vs_backlog_blocks_release_escalation(self):
-        """F-03/F-04 asymmetry: history bullet - Blocks-Release: rel001 gates plans, inert for backlog."""
+        """IPD b92m14 (adopting 4gwgo3 F-03): history bullet - Blocks-Release: rel001 is inert for both plans and backlog."""
         # Release record required for get_release_blockers to resolve
         self.create_release("20261001-rel-01-rl0002-rel.release.md", "rl0002")
 
@@ -520,7 +520,7 @@ class TestAttestationForgeryAndEscalation(StatusSetDescriptiveSafetyTestBase):
 
         blockers = releases.get_release_blockers(self.repo, "rl0002")
         blocker_ids = [b["id"] for b in blockers]
-        self.assertIn("pl0004", blocker_ids)
+        self.assertNotIn("pl0004", blocker_ids)
         self.assertNotIn("bk0006", blocker_ids)
 
 

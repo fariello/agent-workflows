@@ -5266,7 +5266,7 @@ def check_release_gate_consistency(
                     continue
                 if _status_meta(item_txt) != "done":
                     continue
-                if not _META_BLOCKS_RELEASE_RE.search(item_txt):
+                if not _read_blocks_release(item_txt):
                     continue
                 cdate = _item_close_date(item_txt)
                 if cdate is None or cdate < cutover:

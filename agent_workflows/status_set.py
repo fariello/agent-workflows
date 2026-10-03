@@ -114,7 +114,6 @@ _ID_RE = re.compile(r"^-\s*Id:\s*([0-9a-z]{6})\s*$", re.MULTILINE)
 _STATUS_RE = re.compile(r"^-\s*Status:\s*(\S+)\s*$", re.MULTILINE)
 _SET_RE = re.compile(r"^-\s*Set:\s*(.+?)\s*$", re.MULTILINE)
 _HISTORY_HDR_RE = re.compile(r"^##\s*Workflow history\s*$", re.MULTILINE)
-_BLOCKS_RELEASE_RE = re.compile(r"^-\s*Blocks-Release:\s*(\S+)\s*$", re.MULTILINE)
 _GATE_KIND_RE = re.compile(r"^-\s*Gate-Kind:\s*(\S+)\s*$", re.MULTILINE)
 _GATE_REF_RE = re.compile(r"^-\s*Gate-Ref:\s*(.+?)\s*$", re.MULTILINE)
 _GATE_SUMMARY_RE = re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$", re.MULTILINE)
@@ -504,8 +503,9 @@ def _format_status_transition_line(
     if br_arg:
         blocks_release = None if br_arg == "-" else br_arg
     else:
-        m_br = re.search(r"(?m)^-\s*Blocks-Release:\s*(\S+)", rec.raw_text)
-        blocks_release = m_br.group(1) if m_br else None
+        # Note: the previous unanchored regex r"(?m)^-\s*Blocks-Release:\s*(\S+)" was missing the
+        # '$' anchor and unbounded to metadata region, diverging from releases.py.
+        blocks_release = _sel.read_front_matter_blocks_release(rec.raw_text)
 
     m_gk = re.search(r"(?m)^-\s*Gate-Kind:\s*(\S+)", rec.raw_text)
     m_gr = re.search(r"(?m)^-\s*Gate-Ref:\s*(\S+)", rec.raw_text)
@@ -1035,14 +1035,14 @@ def inherit_from_backlog_release_gate(
     Three semantics preserved:
     (1) A write, never a refusal: un-inheritable gate does not fail the call.
     (2) An explicit blocks_release in the same call wins (guarded by blocks_release is None).
-    (3) An existing gate on the artifact is never overwritten (carrier_m is None).
+    (3) An existing gate on the artifact is never overwritten (carrier_br is None).
     """
     if not from_backlog or from_backlog == "-":
         return text
     if blocks_release is not None:
         return text
-    carrier_m = re.search(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", text)
-    if carrier_m is not None:
+    carrier_br = _sel.read_front_matter_blocks_release(text)
+    if carrier_br is not None:
         return text
     from agent_workflows import backlog as _backlog
     from agent_workflows import releases as _releases
@@ -1490,10 +1490,7 @@ def apply_status_change(
 
         _current_text = "\n".join(new_lines)
         _effective_kind = work_kind or _backlog.parse_item(_current_text).kind
-        _existing_m = re.search(
-            r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text
-        )
-        _existing_br = _existing_m.group(1) if _existing_m else None
+        _existing_br = _sel.read_front_matter_blocks_release(_current_text)
         _parsed_item = _backlog.parse_item(_current_text)
         _is_exempt = bool(
             _parsed_item.release_exempt_kind
@@ -2300,8 +2297,6 @@ def run_set_command(
         # ALWAYS refuses; a filename SUBSTRING multi-match refuses unless --force. Determine the
         # winning kind via the unified resolver (scoped to the matched type when known).
         if len(matches) > 1:
-            from agent_workflows import selectors as _sel
-
             _kind = None
             _probe_type = scoped_type_canonical or (
                 matches[0].record_type if matches else None
@@ -2485,10 +2480,7 @@ def run_set_command(
                 getattr(args, "work_kind", None)
                 or _backlog_mod.parse_item(_current_text).kind
             )
-            _existing_m = re.search(
-                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", _current_text
-            )
-            _existing_br = _existing_m.group(1) if _existing_m else None
+            _existing_br = _sel.read_front_matter_blocks_release(_current_text)
             _parsed_item = _backlog_mod.parse_item(_current_text)
             _is_exempt = bool(
                 _parsed_item.release_exempt_kind

@@ -21,6 +21,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
+from agent_workflows import selectors as _sel
 
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
 
@@ -162,9 +163,12 @@ def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
     (falling back to after `- Id:`, or the top of the bullet block). Tolerates any value so an
     existing malformed line is still replaced (matching precedent in `set_priority_line` and
-    `set_work_kind_line`)."""
-    # Always strip any existing line first.
-    text = _BLOCKS_RELEASE_LINE_RE.sub("", text)
+    `set_work_kind_line`). Bounded to metadata_region so body lines are preserved."""
+    # Always strip any existing line from the metadata region first (idempotent replace).
+    region = _sel.metadata_region(text)
+    remainder = text[len(region) :]
+    region = _BLOCKS_RELEASE_LINE_RE.sub("", region)
+    text = region + remainder
     if value in (None, "-"):
         return text
     new_line = f"- Blocks-Release: {value}\n"
@@ -499,9 +503,9 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
                     )
                     return str(v).strip() if v else None
                 return None
-            m = _ITEM_BLOCKS_RELEASE_RE.search(text)
-            if m:
-                return m.group(1)
+            br = _sel.read_front_matter_blocks_release(text)
+            if br is not None:
+                return br
         except OSError:
             continue
     return None
@@ -642,7 +646,6 @@ def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
     return text
 
 
-_ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
 _ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 
 # ======================================================================================
@@ -792,8 +795,8 @@ def count_blocks_release_sentinel(repo_root: Path) -> int:
                     text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
-                m = _ITEM_BLOCKS_RELEASE_RE.search(text)
-                if m and m.group(1).strip() == "next":
+                br = _sel.read_front_matter_blocks_release(text)
+                if br and br.strip() == "next":
                     count += 1
     return count
 
@@ -845,10 +848,10 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
                     text = p.read_text(encoding="utf-8")
                 except OSError:
                     continue
-                m = _ITEM_BLOCKS_RELEASE_RE.search(text)
-                if not m:
+                br = _sel.read_front_matter_blocks_release(text)
+                if not br:
                     continue
-                val = m.group(1).strip()
+                val = br.strip()
                 if val == "next":
                     has_next_references = True
                     if sentinel_res.outcome != SENTINEL_RESOLVED:
