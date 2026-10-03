@@ -1,5 +1,5 @@
 - Id: 7w6zsl
-- Status: graduated
+- Status: done
 - Graduated-To: 7w6zsl
 - Blocks-Release: next
 - Set: 7w6zsl
@@ -8,6 +8,7 @@
 - Summary: aw research new writes an unvalidated --summary into YAML front matter, so a newline in it injects a sibling key; measured 2026-09-29 while fixing the same class in specs and releases under qbz8i1
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD deftzy executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-7w6zsl-01-deftzy-refuse-an-unsafe-descriptive-value-at-every-research-write-p.ipd.md); evidence .aw/records/plans/executed/20261001-7w6zsl-01-deftzy-refuse-an-unsafe-descriptive-value-at-every-research-write-p.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: deftzy
 - 2026-09-29 created (aw backlog): aw research new writes an unvalidated --summary into YAML front matter, so a newline in it injects a sibling key; measured 2026-09-29 while fixing the same class in specs and releases under qbz8i1
 
