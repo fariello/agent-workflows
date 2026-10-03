@@ -1,5 +1,5 @@
 - Id: t1gbwg
-- Status: graduated
+- Status: done
 - Graduated-To: backlogtrans
 - Set: backlogtrans
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Give backlog items a transition table so an illegal backlog status move fails closed like a spec or plan move
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD cc2m29 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-backlogtrans-01-cc2m29-give-backlog-items-an-enumerated-transition-table-so-an-ille.ipd.md); evidence .aw/records/plans/executed/20261001-backlogtrans-01-cc2m29-give-backlog-items-an-enumerated-transition-table-so-an-ille.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053053Z-3200037: cc2m29
 - 2026-09-29 created (aw backlog): Give backlog items a transition table so an illegal backlog status move fails closed like a spec or plan move
 
