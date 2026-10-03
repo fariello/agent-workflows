@@ -6,7 +6,7 @@
 - Scope: Add outcome-asserting tests for the three uncovered verdict behaviors named in the Concern, written against today's actual semantics rather than restored verbatim. IN: a new `tests/test_artifact_audit_verdicts.py` holding (a) the four verdict SHAPES of `audit_artifact` (clean, location-only, status-only, missing) re-expressed with run statuses that produce those shapes under `allowed_lifecycle_pairs` today, (b) the `is_live` passthrough plus the no-drift property for a live pre-terminal step, (c) `expected_dir_for_status` over the three retirement/standing dispositions no test reaches, and (d) the multi-word-status parity of `read_declared_status`. OUT: any change to `agent_workflows/artifact_audit.py` (this plan is coverage only and must leave production code byte-identical); the cache-invalidation routes already covered by `tests/test_artifact_audit_index_cache.py` (plan `dea7dr`); the three deleted tests this plan judges should STAY deleted or stay re-expressed rather than restored (`OneImplementationTests` as a class, triaged in F-04); `tests/test_terminal_status_vocabulary.py`, which already owns the `complete` coercion question and must not be duplicated; and the pre-existing order-dependent failure in `tests/test_statusline_behavior.py` recorded in F-08.
 - Scope-Paths: tests/test_artifact_audit_verdicts.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: auqoig
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: auqoig verified (set 8mkt5l, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-06(d) mutation retargeted to the classify_difference return site; constant swap is invisible), PR-002 (E-07/V-07 baseline re-derived at execution, not 4356), PR-003 (test counts/names no longer the bar), PR-004 (F-04 cites git object; scratch under gitignored tmp/), PR-005 (gate requires aw ipd finalize; OQ-01 owner). All F-06 shapes, F-02, F-05, F-07 re-measured at lane HEAD 49844944f.
 
