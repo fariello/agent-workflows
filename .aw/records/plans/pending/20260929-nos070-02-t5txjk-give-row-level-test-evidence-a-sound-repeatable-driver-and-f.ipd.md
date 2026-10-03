@@ -6,7 +6,7 @@
 - Scope: Make per-row verdicts truthful in the four affected `subTest` blocks, and ship one sound reusable driver so row-level evidence is a repeatable paste rather than a per-plan ad-hoc script.
 - Scope-Paths: tests/test_executed_transition_gate_e2e.py, tests/test_subtest_row_verdicts.py, agent_workflows/subtest_rows.py, docs/row-level-test-evidence.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
@@ -16,8 +16,10 @@
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: t5txjk
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-09-29, findings PR-001..OQ-01. Recomputed at HEAD `22d50ce93`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.

@@ -7,7 +7,7 @@
   OUT: an `aw check` RULE and a PRE-COMMIT HOOK, both rejected on measured grounds that approved plan `76ic0k` already settled for this identical defect class, not on preference (E-03 records all three reasons); the two AMBIGUOUS tokens `blocked` and `partial`, excluded BY DESIGN and not by omission (F-02); `run_dashboard._outcome`, the single HEAD site a chain-scoped rule flags, which is `qvfd4l`'s DELIBERATE and documented lossy-alias exemption and must be exempted rather than "fixed" (F-07); every band-A collection site that already pairs its canonical counterpart or sits under a canonicalizing call (F-06); the 19 legacy-token WRITE sites, which contradict spec `25kzda`'s "no longer written by the runner" sentence and are filed as their own backlog item rather than smuggled in here (F-08); and any change to `TERMINAL_STATUS_ALIASES`, `TERMINAL_STATES_CANONICAL` or `canonical_terminal_status`.
 - Scope-Paths: tools/dead_status_token_scan.py, tests/test_dead_status_token_scan.py, CONTRIBUTING.md, .github/workflows/tests.yml, agent_workflows/run_dashboard.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -17,8 +17,10 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: fr19jr
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-02, findings PR-001..V-02. Recomputed at HEAD `22d50ce93`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-007. Independent prototype reproduces the central claim (HEAD 0 flags/1 exempt, d0b932d40^ 3 flags). OPEN, Blocking: PR-001/OQ-05 (E-05 would flip canonical fail-gate BLOCKED->FAILED, which tests/test_zero_dispatch_outcome.py pins as BLOCKED outside Scope-Paths; and F-04 was not found by the rule, which flags nothing in render_run_summary_table at HEAD) and PR-002/OQ-06 (E-03's pytest guard ast.parses agent_workflows/, which GUIDING_PRINCIPLES P16 names as forbidden in tests). Fixed: stale check-rule residue (E-01 rationale, spec sync), exemption predicate pinned to AST names (cts substring hazard), finalize ownership and backlog-close wording, V-02 bar note. Non-interactive run, maintainer not asked.
