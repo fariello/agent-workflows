@@ -388,7 +388,7 @@ def tool_call_from_event(obj: Any) -> ToolCall | None:
 
         inp = state_dict.get("input")
         inp_dict = inp if isinstance(inp, (dict, Mapping)) else {}
-        command: str | None = None
+        command = None
         command_missing = False
         if tool_name == "bash":
             raw_cmd = inp_dict.get("command")
