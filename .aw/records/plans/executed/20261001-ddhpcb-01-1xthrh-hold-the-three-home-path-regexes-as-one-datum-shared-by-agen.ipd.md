@@ -6,7 +6,7 @@
 - Scope: IN: introduce a single stdlib-only leaf datum module naming the three home-path classes once (pattern body plus the cheap required-substring prefilter each needs), and derive BOTH existing surfaces from it with ZERO change to any pattern byte, any rule name, or any rule ORDER; add a cross-module agreement test that is SENSITIVE to divergence (perturbing the datum must move both derived surfaces together, and a corpus differential must fail if either copy drifts). OUT: the REWRITE patterns on either side, namely `agent_schema._REDACT_WINDOWS_HOME_RE` / `_REDACT_POSIX_HOME_RE` / `_REDACT_USERS_HOME_RE` and `leak_sanitizer._HOME_ANY_RE` / `_USERS_ANY_RE`, whose bodies DELIBERATELY differ from the detectors (they carry capture groups and lookaheads and intentionally drop the placeholder exemptions, because a rewrite must neutralize a path the detector is content to ignore) and which `tests/test_json_surface_leak_posture.py` already pins against the detector; the five NON-home rows of `_FAIL_PATTERNS` (`vc-home`, `private-repo`, `other-account`, `session-id`, `handle`) and their `_REQUIRED_RULE_SUBSTRINGS` entries, which encode maintainer-specific fragments unrelated to home paths; `run_analytics_privacy.pseudonymize_paths`' own path regexes, which pseudonymize rather than detect and answer to a different contract; the per-rule severity model, allowlists, and config gating in `build_ruleset`; and any change to WHICH inputs are detected.
 - Scope-Paths: agent_workflows/home_path_patterns.py, agent_workflows/agent_schema.py, agent_workflows/leak_sanitizer.py, tests/test_home_path_pattern_source.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 1xthrh
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1xthrh verified (set ddhpcb, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed
 
