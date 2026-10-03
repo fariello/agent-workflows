@@ -1,5 +1,5 @@
 - Id: lijmwy
-- Status: graduated
+- Status: done
 - Graduated-To: lijmwy
 - Blocks-Release: next
 - Set: lijmwy
@@ -8,6 +8,7 @@
 - Summary: capture_command truncates stdout but never stderr, so max_output_bytes bounds only half the captured output
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 75gxkj executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-lijmwy-01-75gxkj-bound-stderr-against-max-output-bytes-with-a-per-stream-cap.ipd.md); evidence .aw/records/plans/executed/20261001-lijmwy-01-75gxkj-bound-stderr-against-max-output-bytes-with-a-per-stream-cap.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 75gxkj
 - 2026-09-29 created (aw backlog): capture_command truncates stdout but never stderr, so max_output_bytes bounds only half the captured output
 

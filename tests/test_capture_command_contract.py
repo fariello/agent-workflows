@@ -37,8 +37,10 @@ BASE_SCHEMA_KEYS = frozenset(
         "start_time",
         "stderr_len",
         "stderr_sha256",
+        "stderr_truncated",
         "stdout_len",
         "stdout_sha256",
+        "stdout_truncated",
         "timestamp",
         "truncated",
     }
