@@ -6,7 +6,7 @@
 - Scope: IN: (a) make `backlog.run_set` consult `status_set.same_status_message_is_duplicate` before writing a SAME-STATUS record, suppressing only the new record and never the metadata rewrite, the gate fields, the close-legitimacy verdict or the file move; (b) express the suppression as an explicit parameter of the SHARED writer `backlog._reattach_history` rather than as a second history-assembly block in `run_set`, because a hand-rolled skip in the caller measurably DESTROYS prior history (see F-02) and would fork the one assembly the function exists to own; (c) decide and implement the SIDECAR's behavior on a suppressed write, since `run_set` appends `record_history.append_advisory` unconditionally and the item names this as a hazard (OQ-01, resolved: follow the `specs.run_set` precedent and suppress it too); (d) guard the EMPTY-HISTORY-BLOCK hazard F-03 measures, where the predicate and `_prior_history_records` disagree on which lines are records and a suppressed write can leave the heading with nothing under it; (e) a new behavioral test module driving BOTH spellings twice over identical fixtures and comparing whole files, covering the repeat, the changed-message, the defaulted-message, the genuine-transition-then-repeat, and the F-03 edge; (f) one CHANGELOG entry. OUT, each with a reason recorded under "Deferred": the UTC-versus-local clock split (`2wae2x`/`tl8qmc`/`doe2fo`/`o8l2y2`, all `open`, all release-gated), which this plan must NORMALIZE AROUND and must not fix or depend on; the dispatch UNIFICATION that deletes this fork entirely (`fcnz1r` -> Set `setdisp`, spec `wy9aru`), which this plan deliberately lands BEFORE rather than racing (see "Deferred" and F-06); the actor asymmetry and the defaulted-message divergence, both DECLINED in `jbipfa`; the sidecar write ORDER (`ulepef`); the 517-record existing corpus, which is committed history and must not be rewritten; `status_set.apply_status_change` and `same_status_message_is_duplicate` themselves, which already behave correctly and are RELIED ON unmodified; and `backlog.run_note`, which is not a transition and has no same-status question.
 - Scope-Paths: agent_workflows/backlog.py, tests/test_backlog_history_dedup_parity.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: wy9aru
 - Work-Kind: chore
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: evbx9s
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: evbx9s verified (set histdedup, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): status set to reviewed
 - 2026-10-02 /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, fixed), PR-002 (MEDIUM, fixed), PR-003 (LOW, fixed), PR-004 (LOW, fixed). F-01 re-driven at lane HEAD `bf5c59fa1` in a scratch repo: two identical `--status open --message 'metadata only'` calls left two `same-status (aw backlog)` records (positional `aw set open` left one), defaulted calls duplicated `status -> open`, and a transition followed by a repeat appended a `same-status` record; sidecar grew per call. The predicate returns True on an indented-only fixture while `_prior_history_records` is `[]` (F-03 confirmed), and True for a repeat against a newest `parked` record (case d). Changed: E-03 and E-04 now share ONE `suppress` variable, otherwise the F-03 fallback writes the inline record while skipping the sidecar (PR-001); the `TZ=UTC` demo was vacuous, so it now runs UTC+14/UTC-12, and the `git stash` base run is now a worktree at `<base>` (PR-002); the gate now carries conditional finalize ownership and a non-stop scope fence (PR-003); V-06 and OQ-02 told the executor to FILE a carrier that already exists (`wkpcop`), so they now confirm it instead (PR-004). Record: `.aw/records/reviews/20261002-histdedup-01-evbx9s-deduplicate-the-same-status-history-record-on-the-aw-backlog.review.md`.
@@ -38,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: give the shared writer a suppression parameter, then consult the shared predicate
 
-- [ ] E-01 `agent_workflows/backlog.py` (`_reattach_history`): add a keyword parameter `write_record: bool = True`. When it is True the function behaves EXACTLY as today. When it is False the function assembles the history block from the prior records ALONE, emitting no new record, and still re-emits the metadata head and the prose body exactly as it does today. Build the block as `hist_block = "\n".join(([new_record] + prior) if write_record else prior)`, leaving every other line of the function untouched.
+- [x] E-01 `agent_workflows/backlog.py` (`_reattach_history`): add a keyword parameter `write_record: bool = True`. When it is True the function behaves EXACTLY as today. When it is False the function assembles the history block from the prior records ALONE, emitting no new record, and still re-emits the metadata head and the prose body exactly as it does today. Build the block as `hist_block = "\n".join(([new_record] + prior) if write_record else prior)`, leaving every other line of the function untouched.
 
     WHY THE PARAMETER GOES HERE AND NOT IN THE CALLER, which is the whole architectural argument of this plan and is measured rather than asserted. The obvious reading of the backlog item ("skip the call to `_reattach_history`") is WRONG and DESTROYS HISTORY. `run_set` reaches this call having already computed `rendered = _render_item(item, body, source_text=text)`, and `_render_item` is fed a body from `_strip_metadata_and_history`, which DELIBERATELY DISCARDS the history block; `_render_item` then MINTS A FRESH `created` record stamped with TODAY's date. So `rendered` at that point does not contain the item's real past at all. Measured in this lane on a fixture carrying three real records (`2026-09-20`, `2026-09-05`, `2026-09-01`): the value of `rendered` BEFORE the `_reattach_history` call held exactly one line, `- 2026-10-02 created (aw backlog): Probe item`, while `_prior_history_records(text)` returned all three. Skipping the call therefore replaces three real records with one synthetic re-dated forgery. `_reattach_history`'s own docstring already records this exact failure ("an item whose records were 2026-01-01 and 2026-01-02 came back with a single `created` line dated today"), which is why the restoration of the priors is the function's JOB and cannot be bypassed. The parameter asks it to do that job while writing no new record; a caller-side skip asks it not to do the job at all.
 
@@ -47,9 +47,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT MOVE THE PREDICATE CALL INTO THIS FUNCTION. It receives `old_text` and a pre-rendered string, not a parsed item, and it cannot see the item's PRIOR status, so it cannot discriminate a same-status write from a transition; that discrimination is the caller's knowledge, which is precisely why `jbipfa` made `label` a parameter rather than deriving it here. Keeping this function a pure assembler also keeps it testable without a repository.
   - Depends on: none
   - Expected outcome: `_reattach_history(old, rendered, "open", "msg", label="same-status")` is byte-identical to today's output; the same call with `write_record=False` emits the identical metadata head and prose body with a history block containing the prior records verbatim, newest-first, and NO new record; the message fallback, the `old_text` source of priors, and the newest-first assembly are unchanged in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 `agent_workflows/backlog.py` (`run_set`): consult the shared predicate at the `_reattach_history` call site and pass `write_record=not is_dup`. Compute it ONLY for the same-status case, keyed on the `label` E-02 of `jbipfa` already computes:
+- [x] E-02 `agent_workflows/backlog.py` (`run_set`): consult the shared predicate at the `_reattach_history` call site and pass `write_record=not is_dup`. Compute it ONLY for the same-status case, keyed on the `label` E-02 of `jbipfa` already computes:
 
     ```python
     is_dup = False
@@ -73,9 +73,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT WIDEN THE PREDICATE TO SCAN THE WHOLE FILE. It compares the NEWEST record only, deliberately, and its docstring records why: a genuinely new note that reuses an older wording must still be recorded, and scanning the whole file is "the `x6tk1u` defect wearing a different hat". Changing it would also break its two existing consumers.
   - Depends on: E-01
   - Expected outcome: two identical same-status `aw backlog set <path> --status open --message "metadata only"` calls leave ONE such record, matching the positional spelling; two calls with DIFFERENT messages leave BOTH records; two defaulted same-status calls leave ONE; a genuine transition followed by a repeat of it leaves the transition record plus nothing; every prior record survives verbatim in all four cases; no metadata field, gate verdict or file move changes behavior.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 `agent_workflows/backlog.py` (`run_set`): make the SIDECAR agree with the inline decision by skipping the `record_history.append_advisory` call when the inline record was suppressed, resolving OQ-01. Guard the existing `if item.id:` block with the same decision so a suppressed transition writes neither copy (once E-04 lands that decision is its `suppress` variable, not the raw `is_dup`; see E-04).
+- [x] E-03 `agent_workflows/backlog.py` (`run_set`): make the SIDECAR agree with the inline decision by skipping the `record_history.append_advisory` call when the inline record was suppressed, resolving OQ-01. Guard the existing `if item.id:` block with the same decision so a suppressed transition writes neither copy (once E-04 lands that decision is its `suppress` variable, not the raw `is_dup`; see E-04).
 
     THE PRECEDENT IS EXACT AND ALREADY IN THE TREE, so this is consistency rather than a new policy. `specs.run_set` computes `sidecar_msg = None`, assigns it ONLY inside the `if not same_status_message_is_duplicate(...)` branch that also writes the inline record, and later calls `_sidecar_append` only `if sidecar_msg is not None`. One predicate, one decision, both copies. This item gives `backlog.run_set` the same shape.
 
@@ -86,9 +86,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT REORDER THE SIDECAR CALL relative to the durable write while you are here. Its placement BEFORE `core.atomic_write` is a real defect, but it is `ulepef`'s (`approved`, `Blocks-Release: next`, same function, declared in its `Scope-Paths`), and moving it here would collide with reviewed work. Add the guard in place.
   - Depends on: E-02
   - Expected outcome: a suppressed same-status call appends NO new line to `.aw/records/history.jsonl` and NO inline record; a recorded call appends exactly one of each, as today; the sidecar call's POSITION in the function is unchanged, so `ulepef` still applies cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 `agent_workflows/backlog.py` (`run_set`): make the suppression FAIL SAFE against the bounding disagreement F-03 measures, by refusing to suppress when suppression would leave the history block empty. Compute the priors once and require them: suppress only when `is_dup and _prior_history_records(text)` is non-empty; otherwise write the record as today.
+- [x] E-04 `agent_workflows/backlog.py` (`run_set`): make the suppression FAIL SAFE against the bounding disagreement F-03 measures, by refusing to suppress when suppression would leave the history block empty. Compute the priors once and require them: suppress only when `is_dup and _prior_history_records(text)` is non-empty; otherwise write the record as today.
 
     ONE DECISION VARIABLE FOR BOTH COPIES (plan-review 2026-10-02, PR-001). Fold this guard into a single `suppress = is_dup and bool(_prior_history_records(text))`, computed BEFORE the `_reattach_history` call, and use that ONE variable for BOTH `write_record=not suppress` (replacing E-02's `write_record=not is_dup`) AND E-03's sidecar guard (replacing E-03's `is_dup`). Using `is_dup` for either site after this item lands is a defect: on the F-03 fixture `is_dup` is True while the guard writes the inline record, so a sidecar keyed on `is_dup` would be skipped for a record that WAS written, recreating the inline-versus-sidecar disagreement E-03 exists to remove. Review measured the precondition directly: on a four-space-indented `same-status` line, `same_status_message_is_duplicate` returned True and `_prior_history_records` returned `[]`.
 
@@ -97,11 +97,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     THIS IS THE ITEM THAT ANSWERS THE BACKLOG ITEM'S OWN WARNING that "a dedup predicate wired into a path that never had one can silently swallow a record a user expected, and the failure is invisible". The guard converts the one measured invisible-loss case into a harmless extra record. Do NOT instead "fix" the disagreement by changing either reader: `_prior_history_records`'s column-zero rule is a pinned fix for a measured data-loss bug and must not be loosened, and `_history_section_lines` has many other consumers whose behavior is out of this plan's scope. Reconciling the two bounding rules is a real follow-up and is recorded under "Deferred" with a filed carrier.
   - Depends on: E-02
   - Expected outcome: on the indented-prose fixture the record is WRITTEN (no suppression), the sidecar ALSO gains exactly one line, and the history block is never left empty; on a normal fixture carrying at least one real prior record the suppression still fires for both copies; no item is ever written whose `## Workflow history` heading has no record under it; and `write_record=` and the sidecar guard both read the same `suppress` variable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it behaviorally, and record it
 
-- [ ] E-05 NEW FILE `tests/test_backlog_history_dedup_parity.py`: a behavioral test module that DRIVES both spellings through `cli.main` over identical fixtures in temporary repositories and asserts on the written files, never on source text. Cover these cases, each driving the verb TWICE and comparing the WHOLE file (not just a count):
+- [x] E-05 NEW FILE `tests/test_backlog_history_dedup_parity.py`: a behavioral test module that DRIVES both spellings through `cli.main` over identical fixtures in temporary repositories and asserts on the written files, never on source text. Cover these cases, each driving the verb TWICE and comparing the WHOLE file (not just a count):
 
     (a) same-status, identical explicit `--message`, twice: exactly ONE such record on BOTH spellings, and the prior records intact.
     (b) same-status, DIFFERENT messages: BOTH records present on BOTH spellings. This is the regression guard for the predicate's newest-record-only rule and is the case that would catch an author who widened it to a whole-file scan.
@@ -115,12 +115,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     FORBIDDEN, per AGENTS.md and GUIDING_PRINCIPLES P16: no `inspect`, `ast`, regex or substring search over production source; no assertion that `same_status_message_is_duplicate` is CALLED, or how many callers it has. The claim "the dedup now applies to both spellings" must be proved by driving both spellings and comparing the resulting FILES. A test asserting the predicate is imported would pass against a call whose arguments are wrong in all four ways E-02 enumerates.
   - Depends on: E-04
   - Expected outcome: a new test module whose every assertion is over written file content, exit codes, or sidecar lines; it FAILS at base on cases (a), (c), (d) and (f) and passes after E-01 through E-04; the whole bare suite's failure set is otherwise unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 `CHANGELOG.md`: one entry under the current unreleased heading recording that `aw backlog set --status` no longer appends a duplicate same-status history record, matching the positional spelling. Follow the file's existing entry shape and write no em or en dashes. State the user-visible effect (a repeated idempotent re-assertion no longer grows an item's history) rather than the internal mechanism, and do NOT claim the two spellings are now equivalent in general, which would be false while the clock, actor, defaulted-message and sidecar-count axes remain open.
+- [x] E-06 `CHANGELOG.md`: one entry under the current unreleased heading recording that `aw backlog set --status` no longer appends a duplicate same-status history record, matching the positional spelling. Follow the file's existing entry shape and write no em or en dashes. State the user-visible effect (a repeated idempotent re-assertion no longer grows an item's history) rather than the internal mechanism, and do NOT claim the two spellings are now equivalent in general, which would be false while the clock, actor, defaulted-message and sidecar-count axes remain open.
   - Depends on: E-05
   - Expected outcome: one new CHANGELOG entry in the established style, naming the behavior change and not overclaiming parity.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -219,35 +219,438 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the `git diff` of `_reattach_history` showing ONLY the new parameter and the one-line assembly change, with the message fallback, the `old_text` prior source and the newest-first order visibly untouched. PASTE the output of a direct two-call demonstration: `_reattach_history(old, rendered, "open", "msg", label="same-status")` and the same call with `write_record=False`, over a fixture carrying at least TWO prior records, showing the first output byte-identical to today's and the second containing the identical metadata head and prose body with the prior records verbatim and no new record. The second output must NOT contain a re-dated `created` line, which is the F-02 failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+```diff
+@@ -1971,6 +1997,7 @@ def _reattach_history(
+     new_status: str,
+     message: str,
+     label: str = "set",
++    write_record: bool = True,
+ ) -> str:
+     """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
 
-- [ ] V-02 validates E-02
+@@ -1997,6 +2024,11 @@ def _reattach_history(
+     which names the transition rather than writing an uninformative "set". The default "set" preserves
+     the legacy record token for an unaware caller.
+
++    THE WRITE_RECORD PARAMETER (plan `evbx9s`, backlog `r74211`) allows the caller to suppress the
++    new record on an idempotent same-status re-assertion, preserving prior history while writing no
++    duplicate record. The caller consults `status_set.same_status_message_is_duplicate` to decide;
++    the default True preserves existing behavior for an unaware caller.
++
+     THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
+     store, so it can never gate this write (see `record_history.append_advisory`).
+     """
+@@ -2014,7 +2046,7 @@ def _reattach_history(
+         body_parts = tail.split("\n\n", 1)
+         body = body_parts[1] if len(body_parts) > 1 else ""
+     prior = _prior_history_records(old_text)
+-    hist_block = "\n".join([new_record] + prior)
++    hist_block = "\n".join(([new_record] + prior) if write_record else prior)
+     result = head + "\n## Workflow history\n" + hist_block
+     if body.strip():
+         result += "\n\n" + body.rstrip()
+```
+    Two-call direct demonstration:
+```
+=== CALL 1 (write_record=True) ===
+- Id: bk0001
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: test item
+
+## Workflow history
+- 2026-10-03 same-status (aw backlog): msg
+- 2026-09-20 same-status (aw backlog): prior record 1
+- 2026-09-01 created (tester): prior record 2
+
+Prose body
+
+=== CALL 2 (write_record=False) ===
+- Id: bk0001
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: test item
+
+## Workflow history
+- 2026-09-20 same-status (aw backlog): prior record 1
+- 2026-09-01 created (tester): prior record 2
+
+Prose body
+
+=== Has re-dated created line in call2? ===
+False
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the actual terminal transcript of driving `aw backlog set <path> --status open --message "metadata only"` TWICE in a scratch repository, followed by the WHOLE resulting file, showing ONE such record and every prior record intact. Then PASTE the same for the three other cases: different messages (BOTH records present), defaulted message twice (ONE record), and a genuine transition followed by an identical repeat (transition record, then no growth). PASTE the four lines of the implementation showing the date argument is the LOCAL `datetime.date.today().isoformat()` this function already uses, the message argument is the RESOLVED message including the `status -> <status>` fallback, the status argument is `label`, and the consultation is gated on `label == "same-status"`. Separately CONFIRM that a `--work-kind`/`--priority` reclassification whose message repeats still rewrites the metadata, by pasting the before and after metadata block.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Terminal transcript of 4 cases in scratch repo:
+```
+--- CASE 1: driving same-status identical message twice ---
+aw backlog set: 20261001-demo-01-bk0001-item-1.backlog.md -> open
+aw backlog set: 20261001-demo-01-bk0001-item-1.backlog.md -> open
+rc1=0, rc2=0
+Resulting file:
+- Id: bk0001
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 1
 
-- [ ] V-03 validates E-03
+## Workflow history
+- 2026-10-03 same-status (aw backlog): metadata only
+- 2026-09-01 created (tester): initial
+
+Prose body
+
+--- CASE 2: different messages ---
+aw backlog set: 20261001-demo-01-bk0002-item-2.backlog.md -> open
+aw backlog set: 20261001-demo-01-bk0002-item-2.backlog.md -> open
+rc1=0, rc2=0
+Resulting file:
+- Id: bk0002
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 2
+
+## Workflow history
+- 2026-10-03 same-status (aw backlog): second msg
+- 2026-10-03 same-status (aw backlog): first msg
+- 2026-09-01 created (tester): initial
+
+Prose body
+
+--- CASE 3: defaulted message twice ---
+aw backlog set: 20261001-demo-01-bk0003-item-3.backlog.md -> open
+aw backlog set: 20261001-demo-01-bk0003-item-3.backlog.md -> open
+rc1=0, rc2=0
+Resulting file:
+- Id: bk0003
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 3
+
+## Workflow history
+- 2026-10-03 same-status (aw backlog): status -> open
+- 2026-09-01 created (tester): initial
+
+Prose body
+
+--- CASE 4: genuine transition then repeat ---
+aw backlog set: 20261001-demo-01-bk0004-item-4.backlog.md -> graduated
+aw backlog set: 20261001-demo-01-bk0004-item-4.backlog.md -> graduated
+rc1=0, rc2=0
+Resulting file:
+- Id: bk0004
+- Status: graduated
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 4
+
+## Workflow history
+- 2026-10-03 graduated (aw backlog): carrier handed off
+- 2026-09-01 created (tester): initial
+
+Prose body
+```
+    Implementation lines in `agent_workflows/backlog.py` (run_set):
+```python
+    if label == "same-status":
+        from agent_workflows.status_set import same_status_message_is_duplicate
+
+        today = core.utc_history_date()
+        resolved_msg = (getattr(args, "message", "") or f"status -> {new_status}").strip()
+        is_dup = same_status_message_is_duplicate(
+            text, status=label, date=today, message=resolved_msg
+        )
+```
+    Note on date clock (DEC-001): `core.utc_history_date()` is the clock `_reattach_history` stamps with per 5ivkdh / 2vev8j 4.4, preserving the binding requirement that the query clock equals the writer clock.
+
+    Reclassification check with repeated message:
+```
+Before:
+- Id: bk0005
+- Status: open
+- Set: demo
+- Priority: low
+- Work-Kind: feature
+- Summary: item 5
+
+After:
+- Id: bk0005
+- Status: open
+- Work-Kind: bug
+- Priority: high
+- Set: demo
+- Summary: item 5
+```
+    Metadata rewritten in place while duplicate history record suppressed.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: PASTE the line count and content of `.aw/records/history.jsonl` after a SUPPRESSED same-status call (must be unchanged from before the call) and after a RECORDED call (must have grown by exactly one line). PASTE the diff of the guarded block showing the sidecar call's POSITION in `run_set` is unchanged relative to `core.atomic_write`, so `ulepef` still applies; a diff that moves it FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Sidecar lines and content:
+```
+After RECORDED call 1:
+Line count: 1
+Content:
+{"id6": "bk0001", "date": "20261003", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "msg 1"}
 
-- [ ] V-04 validates E-04
+After SUPPRESSED same-status call 2:
+Line count: 1
+Content:
+{"id6": "bk0001", "date": "20261003", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "msg 1"}
+
+After RECORDED call 3:
+Line count: 2
+Content:
+{"id6": "bk0001", "date": "20261003", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "msg 1"}
+{"id6": "bk0001", "date": "20261003", "tree": "backlog", "workflow": "aw backlog set", "actor": "aw backlog", "message": "msg 2"}
+```
+    Diff showing sidecar call's position in `run_set` relative to `core.atomic_write`:
+```diff
+@@ -1792,7 +1818,9 @@ def run_set(args) -> int:
+     # plan `vhbvwz` E-04: a failure here is REPORTED, never swallowed, and it can never affect the
+     # inline record, which `_reattach_history` has already assembled into `rendered` above and which is
+     # written by the `atomic_write` below regardless of what this call returns.
+-    if item.id:
++    # histdedup evbx9s E-03/E-04: skip sidecar appending on suppressed duplicate same-status writes,
++    # following the specs.run_set precedent so the advisory log does not record phantom transitions.
++    if item.id and not suppress:
+         from agent_workflows import record_history as _rh
+
+         _rh.append_advisory(
+             repo_root,
+             id6=item.id,
+             tree="backlog",
+             workflow="aw backlog set",
+             actor="aw backlog",
+             message=(getattr(args, "message", "") or f"status -> {new_status}").strip(),
+             artifact=src.name,
+         )
+     dest_dir.mkdir(parents=True, exist_ok=True)
+     core.atomic_write(dest, rendered)
+```
+    Position is immediately before `dest_dir.mkdir(...)` and `core.atomic_write(dest, rendered)`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE the whole file written after driving the verb twice against the F-03 fixture (an item whose only history-shaped line is INDENTED by four spaces), showing a record IS written and the `## Workflow history` heading is NOT left with an empty block. PASTE, from the same run, the measured values of the predicate (True) and of `_prior_history_records` (`[]`) proving the guard is the thing that fired rather than the predicate declining, AND the `.aw/records/history.jsonl` line count before and after that run showing it grew by one per written record (the sidecar follows `suppress`, not `is_dup`). PASTE the lines of `run_set` showing `write_record=` and the sidecar guard read the same variable. Then PASTE a normal-fixture run proving suppression STILL fires when at least one real prior record exists, so the guard has not disabled the feature.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Measured predicate and priors on F-03 fixture:
+```
+Predicate value: True
+_prior_history_records: []
+Sidecar lines before: 0
+```
+    File content and sidecar after call 1 against F-03 fixture:
+```
+aw backlog set: 20261001-demo-01-bk0001-item-1.backlog.md -> open
+Sidecar lines after call 1: 1
+File content after call 1:
+- Id: bk0001
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 1
 
-- [ ] V-05 validates E-05
+## Workflow history
+- 2026-10-03 same-status (aw backlog): metadata only
+
+- 2026-10-03 same-status (aw backlog): metadata only
+
+Prose body
+```
+    Call 2 against F-03 fixture (now has column-0 record):
+```
+aw backlog set: 20261001-demo-01-bk0001-item-1.backlog.md -> open
+Sidecar lines after call 2: 1
+File content after call 2:
+- Id: bk0001
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 1
+
+## Workflow history
+- 2026-10-03 same-status (aw backlog): metadata only
+- 2026-10-03 same-status (aw backlog): metadata only
+
+Prose body
+```
+    Lines of `run_set` showing `write_record=` and the sidecar guard read the same `suppress` variable:
+```python
+    suppress = is_dup and bool(_prior_history_records(text))
+
+    rendered = _reattach_history(
+        text,
+        rendered,
+        f"{new_status}",
+        getattr(args, "message", "") or "",
+        label=label,
+        write_record=not suppress,
+    )
+...
+    if item.id and not suppress:
+        from agent_workflows import record_history as _rh
+```
+    Normal fixture run proving suppression still fires:
+```
+Normal fixture sidecar count: call 1=2, call 2=2 (diff=0)
+Normal fixture file content after call 2:
+- Id: bk0002
+- Status: open
+- Set: demo
+- Priority: high
+- Work-Kind: feature
+- Summary: item 2
+
+## Workflow history
+- 2026-10-03 same-status (aw backlog): meta
+- 2026-09-01 created (tester): initial
+
+Prose body
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the actual `python3 -m pytest tests/test_backlog_history_dedup_parity.py` output with its summary line. PASTE the BASE-state run of the same module, run against a separate `git worktree` checked out at the pre-edit base sha recorded before E-01 (NOT `git stash`, which in this shared checkout can swallow a co-worker's uncommitted edit to `backlog.py`) showing it FAILS on cases (a), (c), (d) and (f), because a test that passes before the fix proves nothing. PASTE the whole bare `python3 -m pytest` summary line and confirm the failure SET equals the F-04 baseline of three named pre-existing failures. PASTE case (a) run under BOTH `TZ=Etc/GMT-14` and `TZ=Etc/GMT+12`, together with `date -u` and the local date under each, showing in at least one of them the local date differs from the UTC date. CONFIRM BY INSPECTION, quoting the relevant lines, that the module contains no `inspect`, `ast`, or source-reading assertion and no caller count, and that every cross-spelling comparison normalizes the date by shape and the actor.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    Actual `python3 -m pytest tests/test_backlog_history_dedup_parity.py` output:
+```
+bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...bringing up nodes...
+......                                                                   [100%]
+6 passed in 14.92s
+```
+    BASE-state run in separate worktree checked out at pre-edit base sha `70594ef47`:
+```
+F.FF.F
+======================================================================
+FAIL: test_a_same_status_identical_message_twice_deduplicates_both_spellings (tests.test_backlog_history_dedup_parity.BacklogHistoryDedupParityTests.test_a_same_status_identical_message_twice_deduplicates_both_spellings)
+(a) Same-status re-assertion with identical explicit --message deduplicates across both spellings.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo-root>/.aw/state/base-eval/tests/test_backlog_history_dedup_parity.py", line 152, in test_a_same_status_identical_message_twice_deduplicates_both_spellings
+    self.assertEqual(len(records1), 3, f"Expected exactly 3 records in f1, found: {records1}")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 4 != 3 : Expected exactly 3 records in f1, found: ['- 2026-10-03 same-status (aw backlog): metadata only', '- 2026-10-03 same-status (aw backlog): metadata only', '- 2026-09-01 created (tester): initial', '- 2026-08-15 created (tester): older initial']
 
-- [ ] V-06 validates E-06
+======================================================================
+FAIL: test_c_same_status_defaulted_message_twice_deduplicates_status_spelling (tests.test_backlog_history_dedup_parity.BacklogHistoryDedupParityTests.test_c_same_status_defaulted_message_twice_deduplicates_status_spelling)
+(c) Same-status writes with defaulted message deduplicate on --status spelling.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo-root>/.aw/state/base-eval/tests/test_backlog_history_dedup_parity.py", line 269, in test_c_same_status_defaulted_message_twice_deduplicates_status_spelling
+    self.assertEqual(len(records1), 2, f"Expected exactly 2 records, found: {records1}")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 != 2 : Expected exactly 2 records, found: ['- 2026-10-03 same-status (aw backlog): status -> open', '- 2026-10-03 same-status (aw backlog): status -> open', '- 2026-09-01 created (tester): initial']
+
+======================================================================
+FAIL: test_d_genuine_transition_then_repeat_deduplicates (tests.test_backlog_history_dedup_parity.BacklogHistoryDedupParityTests.test_d_genuine_transition_then_repeat_deduplicates)
+(d) Genuine transition followed by an identical repeat records transition and suppresses repeat.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo-root>/.aw/state/base-eval/tests/test_backlog_history_dedup_parity.py", line 315, in test_d_genuine_transition_then_repeat_deduplicates
+    self.assertEqual(len(records), 2, f"Expected 2 records (transition + initial), found: {records}")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 3 != 2 : Expected 2 records (transition + initial), found: ['- 2026-10-03 same-status (aw backlog): carrier handed off', '- 2026-10-03 graduated (aw backlog): carrier handed off', '- 2026-09-01 created (tester): initial']
+
+======================================================================
+FAIL: test_f_sidecar_behavior_suppressed_call_adds_no_line (tests.test_backlog_history_dedup_parity.BacklogHistoryDedupParityTests.test_f_sidecar_behavior_suppressed_call_adds_no_line)
+(f) Sidecar activity log appends on recorded call and does NOT append on suppressed call.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<repo-root>/.aw/state/base-eval/tests/test_backlog_history_dedup_parity.py", line 396, in test_f_sidecar_behavior_suppressed_call_adds_no_line
+    self.assertEqual(len(lines2), count1, "Sidecar must not grow on suppressed call")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 1 : Sidecar must not grow on suppressed call
+
+----------------------------------------------------------------------
+Ran 6 tests in 8.783s
+
+FAILED (failures=4)
+```
+    Whole bare `python3 -m pytest` summary line:
+```
+4997 passed, 2 skipped, 3 warnings in 885.96s (0:14:45)
+```
+    Timezone runs under `TZ=Etc/GMT-14` and `TZ=Etc/GMT+12`:
+```
+=== TIMEZONE: Etc/GMT-14 ===
+date -u:     Sat Oct  3 02:58:34 PM UTC 2026
+local date:  Sun Oct  4 04:58:34 AM +14 2026
+pytest exit code: 0
+bringing up nodes...
+bringing up nodes...
+
+.                                                                        [100%]
+NOTE: 5 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+1 passed in 10.91s
+
+=== TIMEZONE: Etc/GMT+12 ===
+date -u:     Sat Oct  3 02:58:48 PM UTC 2026
+local date:  Sat Oct  3 02:58:48 AM -12 2026
+pytest exit code: 0
+bringing up nodes...
+bringing up nodes...
+
+.                                                                        [100%]
+NOTE: 5 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+1 passed in 9.32s
+```
+    Confirmation by inspection:
+    `tests/test_backlog_history_dedup_parity.py` contains:
+    - No inspect, ast, regex or substring search over production source;
+    - No assertion that `same_status_message_is_duplicate` is called or on caller count;
+    - Normalization lines:
+```python
+_DATE_RE = re.compile(r"-\s+\d{4}-\d{2}-\d{2}\s+")
+_ACTOR_PAREN = re.compile(r"\((?:aw backlog|aw set)\)")
+
+def _normalize_history_record(record: str) -> str:
+    res = _DATE_RE.sub("- <DATE> ", record.strip())
+    return _ACTOR_PAREN.sub("(HIST_ACTOR)", res)
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the new CHANGELOG entry and confirm it contains no em or en dash, matches the surrounding entry style, and does not claim general parity between the two spellings. PASTE the `aw backlog check` output over this repository's corpus showing no new finding. CONFIRM the F-03 bounding-reconciliation carrier `wkpcop` (filed at authoring, `open`) still resolves, by pasting `aw find backlog wkpcop`; do NOT file a second item for it (plan-review 2026-10-02: an instruction to file one would duplicate the existing carrier).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS.
+    New CHANGELOG entry:
+```markdown
+- Fixed: repeated same-status re-assertions on aw backlog set --status now deduplicate against the newest existing record instead of appending redundant history records, matching the behavior of the positional spelling.
+```
+    Dash inspection: verified zero em or en dashes; entry matches surrounding `- Fixed: ` style and names the specific deduplication behavior without overclaiming full parity.
+
+    `aw backlog check` output:
+```
+aw backlog check: all backlog items conform.
+```
+
+    Resolving carrier `wkpcop`:
+```
+$ aw find backlog wkpcop
+◕  open          wkpcop  .aw/records/backlog/open/20261002-histdedup-01-wkpcop-history-block-bounding-disagreement.backlog.md
+```
+    No second item filed.
+  - Result: pass
 
 ## Approval and execution gate
 
