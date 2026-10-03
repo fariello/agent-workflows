@@ -6,7 +6,7 @@
 - Scope: Remove the hand-maintained numbers rather than re-correcting them, and replace them with a DERIVED accessor plus a test that derives the expected partition from the spec's own action column. IN: one new public function `abort_partition()` in `agent_workflows/run_evidence.py` returning the measured tri-state partition as data; both prose sites reworded to point at it instead of restating a count; and a new `tests/test_run_finding_abort_semantics.py` carrying the SPEC-DERIVATION case the trim deleted (parse spec 4.2's table, derive each row's expected tri-state from its verbatim action text, compare field by field), the accessor-agreement case (`may_abort_run` / `abort_classes_for` / `ABORT_CLASSES` agree with each row and with spec 4.1's six-class table), and a mutation-sensitivity demonstration recorded as evidence. OUT: every row's DATA is unchanged (no `abort`, `abort_classes`, `action`, `message`, `binding` or `predicates` value is edited), no spec is amended, `validate_finding_table`'s `RC-COUNT` literal 12 stays exactly as it is, and the binding partition and the `IPD-EXEC-*` family are untouched.
 - Scope-Paths: agent_workflows/run_evidence.py, tests/test_run_finding_abort_semantics.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: superseded
 - Readiness: no-go
 - Work-Kind: chore
 - Priority: low
@@ -18,6 +18,7 @@
 - Id: a6i03f
 
 ## Workflow history
+- 2026-10-03 superseded (aw set): superseded by executed xjmjq4
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-701 OPEN (escalated as blocking OQ-04), PR-702..PR-705 FIXED. All thirteen of the plan's measurements reproduced, several character for character (F-05's zero mismatches, F-06's mutation output, F-04's four historical commits, F-07's class parse). The defect and the derive-not-pin remedy are both correct. BUT a SECOND pending plan xjmjq4, carrier of the duplicate item dorm45 (which is graduated, not open as F-10 claimed), rewrites the SAME two prose sites in the SAME file, and neither plan names the other. The two differ on a real axis: spec-file authority plus test-only enforcement here versus row-text authority plus a runtime validate_finding_table extension there, which this plan's own gate forbids touching. Raised as OQ-04 with Blocking: yes so IPD-Q501 refuses execution until a human chooses. Also fixed: two non-resolving spec citations (backticked heading, approved/ glob) that would each have cost an execution turn.
 
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `0jxknk`. Every number in Findings was MEASURED in this lane at HEAD `3f167c17` rather than transcribed from the item, and TWO of the item's own premises measured stale: the prose it reports as "already corrected" has rotted a third time (2/5/5 claimed, 2/4/6 actual), and the test it names as the precedent to follow no longer exists. The remedy was therefore inverted from the item's first suggestion (assert the numbers) to its second (derive them and stop restating them), on the measured ground that a pinned-number test would have gone red for `jdn790`, a plan whose change was CORRECT. GATE NOTE: item `0jxknk` carries no `- Blocks-Release:`, so this plan inherits none and invents none.
