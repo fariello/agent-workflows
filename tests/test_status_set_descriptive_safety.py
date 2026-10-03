@@ -800,11 +800,11 @@ class TestLengthAsymmetryAndNonRegressions(StatusSetDescriptiveSafetyTestBase):
 
         # 5. Prompt
         self.create_prompt(
-            "20261001-s1-01-pr0002-prompt.prompt.md", "pr0002", status="draft"
+            "20261001-s1-01-pr0002-prompt.prompt.md", "pr0002", status="pending"
         )
         rc5, _, _ = self.call_cli(
             "set",
-            "to-review",
+            "executed",
             "pr0002",
             "--message",
             "conforming prompt note",

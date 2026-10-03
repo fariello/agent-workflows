@@ -52,19 +52,10 @@ TYPE_STATUSES: dict[str, set[str]] = {
         "done",  # alias for executed
         "pending",  # alias for to-review
     },
-    "prompts": {
-        "draft",
-        "to-review",
-        "reviewed",
-        "approved",
-        "auto-approved",
-        "executed",
-        "superseded",
-        "not-executed",
-        "reusable",
-        "done",
-        "pending",
-    },
+    # prompts Order 01 (7z3ovv) E-01: DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]`, never
+    # re-listed, plus the retained `done` alias (normalize_target_status). A stale copy previously
+    # accepted six non-bucket statuses that write no valid bucket (bug um8ikz).
+    "prompts": set(_LD.LIFECYCLE_SUBDIRS["prompts"]) | {"done"},
     # Set placelib (d1lo52) E-05: DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["specs"]`, never re-listed.
     "specs": set(_LD.LIFECYCLE_SUBDIRS["specs"]),
     # bklgrad Order 01 (v58bvy) E-01: DERIVED from `backlog.STATUSES`, never re-listed. This copy is
@@ -238,6 +229,10 @@ def read_artifact_record(path: Path, repo_root: Path) -> ArtifactRecord | None:
         yaml_status = re.search(r"(?m)^status:\s*(\S+)\s*$", meta)
         if yaml_status:
             status = yaml_status.group(1)
+    if not status and rtype == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        status = _prompts.read_metadata_status(text)
 
     set_match = _SET_RE.search(meta)
     set_id = None
@@ -564,6 +559,7 @@ def normalize_target_status(raw_status: str, record_type: str) -> str:
     if record_type in ("plans", "prompts"):
         if norm == "done":
             return "executed"
+    if record_type == "plans":
         if norm == "pending":
             return "to-review"
     if record_type == "research":
@@ -1013,8 +1009,13 @@ def apply_status_change(
     field or message changes) write nothing. Same-status writes (both defaulted and explicit messages)
     are deduplicated against the newest record via `same_status_message_is_duplicate`."""
     norm_status = normalize_target_status(target_status, rec.record_type)
+    curr_rec_status = rec.status
+    if curr_rec_status is None and rec.record_type == "prompts":
+        from agent_workflows import prompts as _prompts
+
+        curr_rec_status = _prompts.read_metadata_status(rec.raw_text)
     old_status = (
-        normalize_target_status((rec.status or "draft"), rec.record_type)
+        normalize_target_status((curr_rec_status or "draft"), rec.record_type)
         .strip()
         .lower()
     )
@@ -1127,56 +1128,70 @@ def apply_status_change(
 
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    # Update or insert - Status: <norm_status> in frontmatter only
-    status_updated = False
-    new_lines = []
-    in_frontmatter = True
-    is_fenced_yaml = bool(lines and lines[0].strip() == "---")
+    if rec.record_type == "prompts":
+        from agent_workflows import prompts as _prompts
 
-    for line in lines:
-        if is_fenced_yaml:
-            if in_frontmatter and line.strip() == "---" and new_lines:
-                in_frontmatter = False
-            if (
-                in_frontmatter
-                and not status_updated
-                and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
-            ):
-                new_lines.append(f"status: {norm_status}")
-                status_updated = True
-            else:
-                new_lines.append(line)
+        if _prompts.has_metadata_comment(text):
+            updated_text = _prompts.update_metadata_status(text, norm_status)
+            new_lines = updated_text.splitlines()
         else:
-            if in_frontmatter and line.startswith("## "):
-                in_frontmatter = False
-            if in_frontmatter and not status_updated and _STATUS_RE.match(line):
-                new_lines.append(f"- Status: {norm_status}")
-                status_updated = True
-            else:
-                new_lines.append(line)
+            # Commentless prompt (OQ-02): adopt refusal-to-mint posture; status lives in directory only.
+            new_lines = list(lines)
+            sys.stdout.write(
+                f"aw set: note: prompt {rec.id6 or rec.path.name} has no metadata comment; "
+                f"status lives in directory only\n"
+            )
+    else:
+        # Update or insert - Status: <norm_status> in frontmatter only
+        status_updated = False
+        new_lines = []
+        in_frontmatter = True
+        is_fenced_yaml = bool(lines and lines[0].strip() == "---")
 
-    if not status_updated:
-        if is_fenced_yaml:
-            # insert status: before closing ---
-            res_lines = []
-            inserted = False
-            for line in new_lines:
-                if not inserted and line.strip() == "---" and res_lines:
-                    res_lines.append(f"status: {norm_status}")
-                    inserted = True
-                res_lines.append(line)
-            new_lines = res_lines
-        else:
-            inserted = False
-            res_lines = []
-            for i, line in enumerate(new_lines):
-                res_lines.append(line)
-                if not inserted and (line.startswith(("# ", "- Date:"))):
-                    res_lines.append(f"- Status: {norm_status}")
-                    inserted = True
-            if not inserted:
-                res_lines.insert(0, f"- Status: {norm_status}")
-            new_lines = res_lines
+        for line in lines:
+            if is_fenced_yaml:
+                if in_frontmatter and line.strip() == "---" and new_lines:
+                    in_frontmatter = False
+                if (
+                    in_frontmatter
+                    and not status_updated
+                    and re.match(r"^status:\s*\S+", line, re.IGNORECASE)
+                ):
+                    new_lines.append(f"status: {norm_status}")
+                    status_updated = True
+                else:
+                    new_lines.append(line)
+            else:
+                if in_frontmatter and line.startswith("## "):
+                    in_frontmatter = False
+                if in_frontmatter and not status_updated and _STATUS_RE.match(line):
+                    new_lines.append(f"- Status: {norm_status}")
+                    status_updated = True
+                else:
+                    new_lines.append(line)
+
+        if not status_updated:
+            if is_fenced_yaml:
+                # insert status: before closing ---
+                res_lines = []
+                inserted = False
+                for line in new_lines:
+                    if not inserted and line.strip() == "---" and res_lines:
+                        res_lines.append(f"status: {norm_status}")
+                        inserted = True
+                    res_lines.append(line)
+                new_lines = res_lines
+            else:
+                inserted = False
+                res_lines = []
+                for i, line in enumerate(new_lines):
+                    res_lines.append(line)
+                    if not inserted and (line.startswith(("# ", "- Date:"))):
+                        res_lines.append(f"- Status: {norm_status}")
+                        inserted = True
+                if not inserted:
+                    res_lines.insert(0, f"- Status: {norm_status}")
+                new_lines = res_lines
 
     # Gate fields: clear them on any transition OUT of the gate-carrying status. This is
     # record-type-agnostic in the SAME way the Blocks-Release write below is (bug 61qk4a): the guard
@@ -1569,10 +1584,11 @@ def apply_status_change(
 
         if not has_hist_section:
             insert_idx = len(new_lines)
-            for i, line in enumerate(new_lines):
-                if line.startswith("## "):
-                    insert_idx = i
-                    break
+            if rec.record_type != "prompts":
+                for i, line in enumerate(new_lines):
+                    if line.startswith("## "):
+                        insert_idx = i
+                        break
             new_lines.insert(insert_idx, "")
             new_lines.insert(insert_idx, hist_entry)
             new_lines.insert(insert_idx, "## Workflow history")

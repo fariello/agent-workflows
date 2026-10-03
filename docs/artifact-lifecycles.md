@@ -467,7 +467,7 @@ stateDiagram-v2
 ```
 
 Moving a prompt out of `untracked/` is always a deliberate human step. Scrub it first (run
-`aw sanitize --agent`). Change a tracked prompt's status with `aw set prompts <status> <selector>`.
+`aw sanitize --agent`). Change a tracked prompt's status with `aw prompts set <status> <selector>` (or `aw set prompts <status> <selector>`).
 
 ---
 
@@ -546,7 +546,7 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
 | Spec | `aw specs new ... --apply` | `aw spec set <status> <id6>` | `aw specs check` |
 | Backlog | `aw backlog new ... --apply` | `aw backlog set <status> <id6>` | `aw backlog check` |
 | Research | `aw research new ... --apply`, `aw adopt` | `aw research promote`, `aw archive` | `aw research index --check` |
-| Prompt | `aw prompts new ... --apply` | `aw set prompts <status> <sel>` | `aw check prompts` |
+| Prompt | `aw prompts new ... --apply` | `aw prompts set <status> <sel>` (or `aw set prompts <status> <sel>`) | `aw check prompts` |
 | Release | `aw releases new ... --apply` | `aw set releases <status> <id6>` | `aw check releases` |
 | Review | `/plan-review` | (none) | `aw check` |
 

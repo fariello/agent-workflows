@@ -6331,26 +6331,28 @@ def _build_parser() -> argparse.ArgumentParser:
     p_prompts = sub.add_parser(
         "prompts",
         parents=[common],
-        help="Owner verbs for the staged prompts tree. 'prompts new' mints a conforming staged prompt.",
+        help="Owner verbs for the staged prompts tree: 'new' mints a prompt, 'set' transitions status.",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
             "  aw prompts new --kind research --slug token-compression\n"
             "  aw prompts new --kind research --slug token-compression --apply\n"
             "  aw prompts new --kind research --slug token-compression --set tokenwork --apply\n"
+            "  aw prompts set executed <id6>\n"
+            '  aw prompts set superseded <id6> --message "superseded by new work"\n'
             "\n"
             "SAFETY & DEFAULTS\n"
             "  Dry-run by default: nothing is written without --apply.\n"
             "  A minted prompt is NEVER staged or committed; that stays a deliberate act.\n"
             "\n"
             "OUTPUT & EXITS\n"
-            "  Exit codes: 0 clean, 2 cannot-run/usage error.\n"
+            "  Exit codes: 0 clean, 1 domain refusal/error, 2 cannot-run/usage error.\n"
             "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a "
             "conforming staged prompt (derived filename + the single leading `aw-prompt` metadata comment) "
-            "into pending/, so a prompt is a tooled artifact instead of a hand-named file."
+            "into pending/, and 'set' transitions a staged prompt's status across lifecycle directories."
         ),
     )
     prompts_sub = p_prompts.add_subparsers(dest="prompts_command")
@@ -6424,12 +6426,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "set",
         parents=[common],
         help="Update status and metadata on a prompt record in .aw/records/prompts/.",
+        description=(
+            "Transition a prompt's status and move the file across lifecycle directories. "
+            "Syntax: 'aw prompts set <status> <selector...>'."
+        ),
     )
-    p_prompts_set.add_argument("args", nargs="*", help="[<status>] <selector>...")
+    p_prompts_set.add_argument("args", nargs="+", help="<status> <selector...>")
     p_prompts_set.add_argument(
-        "--rewrite-citations",
-        action="store_true",
-        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_prompts_set.add_argument(
+        "--message", default=None, help="Workflow history message."
+    )
+    p_prompts_set.add_argument(
+        "--by-human", action="store_true", help="Attest human approval."
     )
     p_prompts_set.add_argument(
         "--dry-run", action="store_true", help="Preview without writing."
@@ -6438,7 +6448,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
     p_prompts_set.add_argument(
-        "--message", default=None, help="Workflow history message."
+        "--rewrite-citations",
+        action="store_true",
+        help="Rewrite citing Scope-Paths in pending plans when relocating (default: off).",
     )
     _add_commit_flags(p_prompts_set)
 

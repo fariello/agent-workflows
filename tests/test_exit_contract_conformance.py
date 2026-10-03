@@ -78,8 +78,8 @@ def test_help_floor_gate() -> None:
     """Every declared leaf that exits 0 from --help must declare 0 in exit_contract.
 
     Documented divergence and skip condition (IPD 1mnit8 E-05):
-    149 of 162 declared leaves exit 0 from an in-process parse_args(["--help"]).
-    Exactly 13 leaves exit 2 from the in-process parse:
+    149 of 161 declared leaves exit 0 from an in-process parse_args(["--help"]).
+    Exactly 12 leaves exit 2 from the in-process parse:
       - 'agy exec'
       - 'agy integrate'
       - 'agy review'
@@ -89,13 +89,11 @@ def test_help_floor_gate() -> None:
       - 'oc integrate'
       - 'oc review'
       - 'oc runipd'
-      - 'prompts set'
       - 'pwatch'
       - 'run as'
       - 'run ipd'
     These leaves forward argv verbatim with add_help=False and argparse.REMAINDER to
-    subordinate runner parsers. In a real subprocess, 12 of the 13 actually exit 0
-    ('prompts set' is the exception, exiting 2 in subprocess too). Because of this
+    subordinate runner parsers. In a real subprocess, all 12 actually exit 0. Because of this
     architectural asymmetry, this gate SKIPS any leaf whose observed in-process code is
     non-zero, rather than asserting over all leaves.
 
@@ -119,7 +117,7 @@ def test_help_floor_gate() -> None:
             except SystemExit as exc:
                 observed_code = exc.code
 
-        # Skip leaves whose in-process parse does not exit 0 (the 13 divergent REMAINDER forwarders).
+        # Skip leaves whose in-process parse does not exit 0 (the 12 divergent REMAINDER forwarders).
         if observed_code != 0:
             continue
 
