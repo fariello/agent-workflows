@@ -2474,7 +2474,7 @@ _CLASSIFICATION_PRIORITY: Tuple[str, ...] = (
 )
 
 
-# ---- the six classes `--unverifiable-ok` may NEVER mask (spec 25kzda `:938`) ----------------------
+# ---- the six classes `--unverifiable-ok` may NEVER mask (spec 25kzda Section 5.6) ----------------------
 #
 # CARRIED AS DATA, NOT PROSE. Spec 5.6 closes the unverifiable rule with an EXHAUSTIVE list of what
 # the flag cannot mask. A prose-only guard ("other items still fail") does not cover a human gate
@@ -2484,7 +2484,7 @@ _CLASSIFICATION_PRIORITY: Tuple[str, ...] = (
 
 
 class NonMaskableClass(NamedTuple):
-    """One row of spec `25kzda` `:938`: a class `--unverifiable-ok` may never mask.
+    """One row of spec `25kzda` Section 5.6: a class `--unverifiable-ok` may never mask.
 
     Fields:
       * ``name``        - the class, in the spec's own words.
@@ -2569,8 +2569,8 @@ class AggregatedItem(NamedTuple):
       * ``benign_skip``        - True for a skip that spec 5.6 counts as benign (a non-runnable type,
                                 a terminal/standing status). A NON-benign skip is not verified and
                                 therefore blocks exit 0.
-      * ``dependency_not_met`` - True for spec `:938`'s dependency-not-met class.
-      * ``needs_input``        - True when a human gate stopped the item (spec `:938`).
+      * ``dependency_not_met`` - True for spec Section 5.6's dependency-not-met class.
+      * ``needs_input``        - True when a human gate stopped the item (spec Section 5.6).
       * ``contribution_hint``  - an explicit contribution for a class with no dedicated field
                                 (notably a plain failure). ``None`` means "derive it".
     """
@@ -2629,7 +2629,7 @@ REFUSAL_UNVERIFIABLE_OK_UNADMITTED = "unverifiable_ok_requires_admission"
 
 
 def non_maskable_classes() -> Tuple[str, ...]:
-    """Spec `25kzda` `:938`'s classes that `--unverifiable-ok` may never mask, in spec order."""
+    """Spec `25kzda` Section 5.6's classes that `--unverifiable-ok` may never mask, in spec order."""
     return tuple(row.name for row in NON_MASKABLE_CLASSES)
 
 
@@ -2726,7 +2726,7 @@ def aggregate_run_exit(
     contains zero ``raise`` statements and defines no exception class, and a raise would also defeat
     purity in practice, since a caller could not evaluate the aggregate in order to inspect it.
 
-    THE FLAG'S LIMITS (spec `:936`, `:938`). Neutrality is narrow. It never suppresses another
+    THE FLAG'S LIMITS (spec Section 5.6). Neutrality is narrow. It never suppresses another
     item's failure, and it never outranks a higher-priority exit: a human gate still yields exit 3
     and a run-wide abort class still yields exit 4. Those limits are carried as data in
     :data:`NON_MASKABLE_CLASSES` and :data:`_CLASSIFICATION_PRIORITY`.
@@ -2809,7 +2809,7 @@ def validate_non_maskable_table() -> EvidenceValidationResult:
     """Self-check :data:`NON_MASKABLE_CLASSES` (structure only; a test asserts the spec text).
 
     Enforced so a later edit cannot quietly weaken the list:
-      * exactly six classes, spec `:938` being exhaustive, each named once;
+      * exactly six classes, spec Section 5.6 being exhaustive, each named once;
       * every ``aggregate`` is a known classification that maps to an exit code;
       * no row's aggregate is :data:`AGGREGATE_ALL_CLEAR`, since a class that could yield exit 0
         would BE masked;
@@ -2821,7 +2821,7 @@ def validate_non_maskable_table() -> EvidenceValidationResult:
             EvidenceFinding(
                 "NM-COUNT",
                 "NON_MASKABLE_CLASSES",
-                f"spec 25kzda :938 enumerates 6 classes, table has {len(NON_MASKABLE_CLASSES)}",
+                f"spec 25kzda Section 5.6 enumerates 6 classes, table has {len(NON_MASKABLE_CLASSES)}",
                 "non-maskable class table size does not match the spec",
             )
         )

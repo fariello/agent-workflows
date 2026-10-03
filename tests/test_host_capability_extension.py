@@ -52,7 +52,7 @@ from agent_workflows.host_sandbox_profile import (
     probe_runner_safety_capabilities,
 )
 
-#: The spec's VERBATIM message (spec 25kzda `:534` and `:763`), transcribed here so the test
+#: The spec's VERBATIM message (spec 25kzda Section 4.2, RUN-HOST-CAPABILITY), transcribed here so the test
 #: compares the implementation against the SPEC rather than against itself.
 SPEC_MESSAGE = (
     "[RUN-HOST-CAPABILITY] Host <host> cannot enforce <capability> required by <item> "

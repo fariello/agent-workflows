@@ -1766,11 +1766,11 @@ def check_action_capabilities(
 RUN_HOST_CAPABILITY = "RUN-HOST-CAPABILITY"
 
 #: The outcome and reason a refused item records (spec 25kzda 5.2 fail-closed rule, and the
-#: report schema at spec `:842`/`:972`).
+#: report schema at spec Section 5.6).
 OUTCOME_FAILED = "failed"
 REASON_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
 
-#: The spec's VERBATIM message template (spec 25kzda `:534` and `:763`), including the
+#: The spec's VERBATIM message template (spec 25kzda Section 4.2, RUN-HOST-CAPABILITY), including the
 #: `<item>` and the recovery command. Composed here as a template rather than by hand at
 #: each call site so the text cannot drift from the spec one message at a time.
 RUN_HOST_CAPABILITY_MESSAGE = (
