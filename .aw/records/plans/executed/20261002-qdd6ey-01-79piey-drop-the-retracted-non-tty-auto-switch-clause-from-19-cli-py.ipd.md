@@ -6,7 +6,7 @@
 - Scope: Correct the false clause at all 19 source sites in `agent_workflows/cli.py` (16 epilog `OUTPUT & EXITS` lines, 2 parser `description=` strings, 1 internal docstring), and add one behavior test that fails if any help surface re-asserts the retracted auto-switch.
 - Scope-Paths: agent_workflows/cli.py, tests/test_help_nontty_claim.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 79piey
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 79piey verified (set qdd6ey, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at lane HEAD e28ab5005: 16/3/16 site counts and 12/2/1/1 shapes; parser walk 17 raw vs 18 normalized (agy profile list); all 18 accept --agent and --json. Fixed: re-derived suite baseline (PR-001) and Agent-mode count (PR-002); ANSI strip, claim-shape regex, positive limb and reworded/deletion negative controls in E-03/V-03 (PR-003); gate scope fence + conditional finalize (PR-004); rg -rn typo and OQ-01 owner (PR-005).
 
@@ -36,28 +36,28 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: correct the false claim at its source
 
-- [ ] E-01 In `agent_workflows/cli.py`, replace the retracted clause in all 16 `OUTPUT & EXITS` epilog lines whose content string begins `  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL`, so the resulting line names `--agent` as the only JSONL route and preserves each line's existing `--json` tail verbatim. The 16 split into four shapes, measured: 12 carry the bare form ending `JSONL.\n`; 2 carry `; --json for formatted JSON.\n` (the `project` and `check` epilogs); 1 carries `; --json for structured JSON.\n` (the `storage` epilog); and 1 is the `adopt` site, bare but ending `JSONL.` with NO trailing `\n` escape because it sits inside a triple-quoted block. Use the already-corrected `renderers.py` hint (`"Agent output: --agent"`, fixed under closed item `zdjhug` / executed plan `zosxj4`) as the wording precedent, and do NOT add any new claim about piped or non-TTY behavior. One site (`adopt`) is inside a triple-quoted epilog rather than a concatenated string literal and carries no leading `"`, so a naive string-literal-only edit misses it.
+- [x] E-01 In `agent_workflows/cli.py`, replace the retracted clause in all 16 `OUTPUT & EXITS` epilog lines whose content string begins `  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL`, so the resulting line names `--agent` as the only JSONL route and preserves each line's existing `--json` tail verbatim. The 16 split into four shapes, measured: 12 carry the bare form ending `JSONL.\n`; 2 carry `; --json for formatted JSON.\n` (the `project` and `check` epilogs); 1 carries `; --json for structured JSON.\n` (the `storage` epilog); and 1 is the `adopt` site, bare but ending `JSONL.` with NO trailing `\n` escape because it sits inside a triple-quoted block. Use the already-corrected `renderers.py` hint (`"Agent output: --agent"`, fixed under closed item `zdjhug` / executed plan `zosxj4`) as the wording precedent, and do NOT add any new claim about piped or non-TTY behavior. One site (`adopt`) is inside a triple-quoted epilog rather than a concatenated string literal and carries no leading `"`, so a naive string-literal-only edit misses it.
   - Depends on: none
   - Re-derive before editing: `cli.py` is high-traffic, so record the pre-edit `rg -c "Agent mode:" agent_workflows/cli.py` value as `<modes>` and the pre-edit `rg -c "non-TTY piped"` value as `<sites>` (16 and 16 at authoring, context only). If `<sites>` differs from 16, correct EVERY site found, not the 16 enumerated here.
   - Expected outcome: `rg -c "non-TTY piped" agent_workflows/cli.py` reports no matches (down from `<sites>`), and `rg -c "Agent mode:" agent_workflows/cli.py` still equals `<modes>`, proving the lines were corrected rather than deleted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 In `agent_workflows/cli.py`, correct the same false claim in the two sibling parser `description=` strings that carry it in DIFFERENT wording and so are invisible to a search for the E-01 phrase: the `oc profile list` description beginning `"List your profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or with "` and the `agy profile list` description beginning `"List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or "`. Each must stop attributing JSONL to piping while keeping its true `--agent`, `--json`, and `An empty list is a clean result, not an error.` content. Also correct the identical claim in the `cli._oc_profile_out` docstring, whose first body line reads `Human table/lines on a TTY, aw.agent/v1 JSONL when piped or `--agent`, structured JSON with`; it is internal rather than user-facing, but it is the docstring of the function that implements this very contract, and leaving it wrong reintroduces the error the next time someone copies it.
+- [x] E-02 In `agent_workflows/cli.py`, correct the same false claim in the two sibling parser `description=` strings that carry it in DIFFERENT wording and so are invisible to a search for the E-01 phrase: the `oc profile list` description beginning `"List your profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or with "` and the `agy profile list` description beginning `"List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or "`. Each must stop attributing JSONL to piping while keeping its true `--agent`, `--json`, and `An empty list is a clean result, not an error.` content. Also correct the identical claim in the `cli._oc_profile_out` docstring, whose first body line reads `Human table/lines on a TTY, aw.agent/v1 JSONL when piped or `--agent`, structured JSON with`; it is internal rather than user-facing, but it is the docstring of the function that implements this very contract, and leaving it wrong reintroduces the error the next time someone copies it.
   - Depends on: E-01
   - Expected outcome: `rg -c "JSONL when piped" agent_workflows/cli.py` reports no matches (down from 3), and both profile-list help surfaces still document `--agent` and `--json`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin the corrected contract against regression
 
-- [ ] E-03 Add `tests/test_help_nontty_claim.py` asserting, across the WHOLE built parser tree, that no rendered help surface claims the retracted auto-switch. Build the tree with `cli._build_parser()`, walk every `argparse._SubParsersAction` choice recursively (deduplicating aliases by `id(parser)`, since `list`/`ls` are the same parser object), call `format_help()` on each, STRIP ANSI escapes with `re.sub(r"\x1b\[[0-9;]*m", "", text)` and then NORMALIZE WHITESPACE with `re.sub(r"\s+", " ", text)` before matching (the same `_normalize` shape `tests/test_subparser_descriptions.py` already uses; ANSI stripping matters because `format_help()` emits color escapes when color is forced, e.g. `FORCE_COLOR=1` renders `'\x1b[1;34musage: ...'`, so the test must not depend on the ambient color environment). Match the CLAIM SHAPE, not only the two literal wordings: assert no normalized surface matches `(non-TTY|\bpiped\b|\bredirect\w*)[^.]{0,80}(JSONL|aw\.agent/v1)|(JSONL|aw\.agent/v1)[^.]{0,80}(\bpiped\b|non-TTY|\bredirect\w*)` (measured at review: this regex hits exactly the 18 F-03 surfaces and none of the true `piped`/`redirect` mentions on `aw next`, `aw runs submit`, or `aw upgrade-test new`), so a reworded reintroduction is also caught. Add a POSITIVE limb so the gate cannot be satisfied by deleting the lines: every normalized surface containing `Agent mode:` must name `--agent` in that sentence, and at least one such surface must exist. The normalization is load-bearing and not a stylistic choice: argparse re-wraps `description=` text to terminal width, so an un-normalized search for `aw.agent/v1 JSONL when piped` MISSES the `agy profile list` surface entirely (measured: 17 surfaces found un-normalized versus 18 normalized). Assert on the rendered help text, never by reading `cli.py` source, per the no-code-pinning rule in AGENTS.md.
+- [x] E-03 Add `tests/test_help_nontty_claim.py` asserting, across the WHOLE built parser tree, that no rendered help surface claims the retracted auto-switch. Build the tree with `cli._build_parser()`, walk every `argparse._SubParsersAction` choice recursively (deduplicating aliases by `id(parser)`, since `list`/`ls` are the same parser object), call `format_help()` on each, STRIP ANSI escapes with `re.sub(r"\x1b\[[0-9;]*m", "", text)` and then NORMALIZE WHITESPACE with `re.sub(r"\s+", " ", text)` before matching (the same `_normalize` shape `tests/test_subparser_descriptions.py` already uses; ANSI stripping matters because `format_help()` emits color escapes when color is forced, e.g. `FORCE_COLOR=1` renders `'\x1b[1;34musage: ...'`, so the test must not depend on the ambient color environment). Match the CLAIM SHAPE, not only the two literal wordings: assert no normalized surface matches `(non-TTY|\bpiped\b|\bredirect\w*)[^.]{0,80}(JSONL|aw\.agent/v1)|(JSONL|aw\.agent/v1)[^.]{0,80}(\bpiped\b|non-TTY|\bredirect\w*)` (measured at review: this regex hits exactly the 18 F-03 surfaces and none of the true `piped`/`redirect` mentions on `aw next`, `aw runs submit`, or `aw upgrade-test new`), so a reworded reintroduction is also caught. Add a POSITIVE limb so the gate cannot be satisfied by deleting the lines: every normalized surface containing `Agent mode:` must name `--agent` in that sentence, and at least one such surface must exist. The normalization is load-bearing and not a stylistic choice: argparse re-wraps `description=` text to terminal width, so an un-normalized search for `aw.agent/v1 JSONL when piped` MISSES the `agy profile list` surface entirely (measured: 17 surfaces found un-normalized versus 18 normalized). Assert on the rendered help text, never by reading `cli.py` source, per the no-code-pinning rule in AGENTS.md.
   - Depends on: E-02
   - Expected outcome: the new test file exists and passes, failing with a message naming the offending command path if any surface re-asserts the claim (in either wording or a reworded form the claim-shape regex catches), and failing if the `Agent mode:` lines are deleted rather than corrected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Record the fix in `CHANGELOG.md` under the existing `## 2.0.0 (pending)` heading as a `- Fixed:` bullet, following the surrounding bullet style, stating that `aw --help` no longer promises `aw.agent/v1` JSONL on piped or redirected stdout and that `--agent` is the explicit and only route. Write no em or en dashes (AGENTS.md applies this to user-facing prose, and `CHANGELOG.md` is user-facing).
+- [x] E-04 Record the fix in `CHANGELOG.md` under the existing `## 2.0.0 (pending)` heading as a `- Fixed:` bullet, following the surrounding bullet style, stating that `aw --help` no longer promises `aw.agent/v1` JSONL on piped or redirected stdout and that `--agent` is the explicit and only route. Write no em or en dashes (AGENTS.md applies this to user-facing prose, and `CHANGELOG.md` is user-facing).
   - Depends on: E-03
   - Expected outcome: `CHANGELOG.md` carries one new `- Fixed:` bullet describing the corrected help contract.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -130,25 +130,145 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual output of `rg -c "non-TTY piped" agent_workflows/cli.py` (must report no match; `rg` exits 1) AND of `rg -c "Agent mode:" agent_workflows/cli.py` (must still equal the pre-edit `<modes>` recorded in E-01, proving correction rather than deletion; paste the pre-edit `<modes>` and `<sites>` values too). Then paste the three distinct corrected lines (a bare one, the `storage` `structured JSON` one, and the `project` or `check` `formatted JSON` one) showing each `--json` tail preserved, plus the corrected `adopt` triple-quoted epilog line to prove the non-string-literal site was reached.
   - Observed evidence:
-  - Result: pending
+    Pre-edit counts recorded in E-01:
+    - `<modes>` = 16
+    - `<sites>` = 16
 
-- [ ] V-02 validates E-02
+    Verification command and exit codes:
+    ```sh
+    $ rg -c "non-TTY piped" agent_workflows/cli.py
+    # Exit code: 1 (no match found)
+    $ rg -c "Agent mode:" agent_workflows/cli.py
+    16
+    ```
+
+    Pasted corrected sample lines showing preserved tails and triple-quoted block:
+    Bare form (line 2764, runs analyze):
+    `            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"`
+
+    Formatted JSON form (line 3593, project):
+    `            "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for formatted JSON.\n"`
+
+    Structured JSON form (line 3655, storage):
+    `            "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for structured JSON.\n"`
+
+    Formatted JSON form (line 4431, check):
+    `                "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for formatted JSON.\n"`
+
+    Triple-quoted bare form (line 6472, adopt):
+    `  Agent mode: --agent emits aw.agent/v1 JSONL.`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual output of `rg -c "JSONL when piped" agent_workflows/cli.py` (must report no match) and the three corrected passages (the `oc profile list` description, the `agy profile list` description, and the `cli._oc_profile_out` docstring line), each still naming `--agent` and `--json` and the two descriptions still ending `An empty list is a clean result, not an error.`
   - Observed evidence:
-  - Result: pending
+    Command output:
+    ```sh
+    $ rg -c "JSONL when piped" agent_workflows/cli.py
+    # Exit code: 1 (no match found)
+    ```
 
-- [ ] V-03 validates E-03
+    Pasted passages:
+    1. `oc profile list` description (lines 5090-5093):
+    ```python
+            description=(
+                "List your profiles. Human table on a TTY, aw.agent/v1 JSONL with "
+                "--agent, structured JSON with --json. An empty list is a clean result, not an error."
+            ),
+    ```
+
+    2. `agy profile list` description (lines 5378-5381):
+    ```python
+            description=(
+                "List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL "
+                "with --agent, structured JSON with --json. An empty list is a clean result, not an error."
+            ),
+    ```
+
+    3. `cli._oc_profile_out` docstring line (lines 14123-14126):
+    ```python
+        Human table/lines on a TTY, aw.agent/v1 JSONL with `--agent`, structured JSON with
+        `--json` - the same `select_output` + `get_renderer` path every other owner verb uses
+        (`releases.run_list` is the model), so no verb-local formatter can drift from the contract.
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the actual `python3 -m pytest tests/test_help_nontty_claim.py` output showing the passed count. Then paste a NEGATIVE CONTROL proving the gate can fail: temporarily reintroduce the clause at ONE site, paste the resulting failure output showing the test names the offending command path; repeat with a REWORDED claim (for example `JSONL when redirected`) to show the claim-shape regex catches it; and repeat by DELETING one `Agent mode:` line's `--agent` mention to show the positive limb fails. Revert each, and paste a clean re-run plus `git diff --stat agent_workflows/cli.py` proving only the intended edits remain. Separately paste the count from a whitespace-normalized walk of `cli._build_parser()` showing `0` surfaces carry the claim (18 at authoring, context only), and state explicitly that the test asserts on `format_help()` output and reads no production source, per the no-code-pinning rule.
   - Observed evidence:
-  - Result: pending
+    1. Clean run of `tests/test_help_nontty_claim.py`:
+    ```
+    bringing up nodes...
+    .                                                                        [100%]
+    1 passed in 4.24s
+    ```
 
-- [ ] V-04 validates E-04
+    2. Negative control 1 (clause reintroduced at `aw config`):
+    ```
+    FAILED tests/test_help_nontty_claim.py::HelpNonTTYClaimTests::test_no_rendered_help_surface_claims_nontty_autoswitch
+    E   AssertionError: aw config: help surface asserts retracted non-TTY auto-switch claim: 'non-TTY piped emits aw.agent/v1' in help text: ...
+    1 failed in 4.68s
+    ```
+
+    3. Negative control 2 (reworded claim `JSONL when redirected` at `aw config`):
+    ```
+    FAILED tests/test_help_nontty_claim.py::HelpNonTTYClaimTests::test_no_rendered_help_surface_claims_nontty_autoswitch
+    E   AssertionError: aw config: help surface asserts retracted non-TTY auto-switch claim: 'JSONL when redirected' in help text: ...
+    1 failed in 4.44s
+    ```
+
+    4. Negative control 3 (deleted `--agent` from `Agent mode:` line at `aw config`):
+    ```
+    FAILED tests/test_help_nontty_claim.py::HelpNonTTYClaimTests::test_no_rendered_help_surface_claims_nontty_autoswitch
+    E   AssertionError: '--agent' not found in 'Agent mode: emits aw.' : aw config: 'Agent mode:' sentence must name '--agent', found: 'Agent mode: emits aw.'
+    1 failed in 4.42s
+    ```
+
+    5. Revert verification and git diff --stat:
+    ```sh
+    $ python3 -m pytest tests/test_help_nontty_claim.py && git diff --stat agent_workflows/cli.py
+    .                                                                        [100%]
+    1 passed in 4.24s
+     agent_workflows/cli.py | 38 +++++++++++++++++++-------------------
+     1 file changed, 19 insertions(+), 19 deletions(-)
+    ```
+
+    6. Normalized walk of `cli._build_parser()`:
+    Surfaces carrying claim: `0` (down from 18).
+
+    7. Compliance note: The test asserts strictly on rendered `format_help()` text across the parsed CLI tree, using regex matching on normalized output, and reads no production source files, adhering to the no-code-pinning rule.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the new `CHANGELOG.md` bullet and confirm it contains no em or en dash. Paste the pre-edit `<baseline>` summary line and failed-node set, then the post-edit full `python3 -m pytest` summary line and failed-node set. The bar: the post-edit failed set contains NO node absent from `<baseline>` (any such node is either shown unrelated by a passing isolated re-run, pasted, or the item fails), and every `<baseline>` failure that vanished or appeared is reported rather than absorbed. The authoring baseline (`3 failed, 4624 passed, 2 skipped` at `37ab8a287`) is context only. Also paste a live redirect of one corrected command (for example `python3 -m agent_workflows config show > /tmp/x` then the first line of `/tmp/x`) showing human prose, confirming the help text now matches shipped behavior.
   - Observed evidence:
-  - Result: pending
+    1. New `CHANGELOG.md` bullet:
+    `- Fixed: `aw --help` surfaces no longer promise `aw.agent/v1` JSONL on piped or redirected stdout, and `--agent` is the explicit and only route.`
+    En/em dash check: Verified zero occurrences of Unicode en-dash (\u2013) or em-dash (\u2014).
+
+    2. Pre-edit `<baseline>`:
+    Summary line: `1 failed, 4819 passed, 2 skipped, 3 warnings in 530.56s (0:08:50)`
+    Failed-node set:
+    `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+
+    3. Post-edit full suite:
+    Summary line: `1 failed, 4820 passed, 2 skipped, 3 warnings in 287.45s (0:04:47)`
+    Failed-node set:
+    `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    The post-edit failed set contains no node absent from `<baseline>` (+1 pass corresponding to `tests/test_help_nontty_claim.py`).
+
+    4. Live redirect verification:
+    ```sh
+    $ python3 -m agent_workflows config show > /tmp/config_show_verify.txt
+    $ head -n 3 /tmp/config_show_verify.txt
+    agent-workflows configuration
+      File:    ~/.config/agent-workflows/config.json (present)
+    ```
+    Confirmed output is human prose, matching shipped contract.
+  - Result: pass
 
 ## Approval and execution gate
 
