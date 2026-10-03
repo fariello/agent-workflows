@@ -39,48 +39,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: give the shared module a primitive that can actually serve both consumers
 
-- [ ] E-01 Add to `agent_workflows/verifier_corroboration.py` an IMMUTABLE record type `ToolCall` (a `typing.NamedTuple`, chosen at review over a frozen dataclass on measurement: 0.83 us per construction against 2.3 us for `@dataclass(frozen=True)` with the same eight fields, on a hot path that runs once per tool call of every session file) and a pure per-line function `tool_call_from_event(obj)` that takes ONE already-decoded JSON object and returns a `ToolCall` or `None`. The record must carry every field EITHER consumer needs, which F-04 and F-05 measure as the union: `tool` (the normalized tool name), `host` (`"oc"`/`"agy"`), `command` (`str | None`, the shell command text where the tool carries one), `path` (`str | None`, the file path where the tool carries one), `seconds` (`float`, the call duration), `error` (`bool`), `delegation` (`bool`, whether this call is a subagent handoff), and `command_missing` (`bool`, populated by E-03; default `False` until then). That is EIGHT fields. It must return a record for EVERY tool call, not only shell calls: `extract_session_commands` filters to shell calls itself, but `run_dashboard._record_tool` counts all of them, and F-04 measures that a shell-only primitive drops 2 of 3 calls in a three-call log. Return `None` for any event that is not a tool call (`step_finish`, `step_start`, `error`, `result`, an agy `agent_response`, a non-terminal agy tool state) so each caller's own branches keep handling those. Read the per-host keys EXACTLY as the two existing readers do, union-ing their field sets: oc `part.tool`, `part.state.input.command`, `part.state.input.filePath`, `part.state.time.start`/`end`, `part.state.status == "error"`; agy `step_update.tool_name`, `tool_info.parameters.CommandLine`, `tool_info.parameters.AbsolutePath` falling back to `TargetFile`, `step_update.duration_seconds`, `state == "ERROR"`. Also export a `session_event_host(obj)` helper returning `"agy"`/`"oc"`/`""` using the SAME discrimination both modules already use (`"event" in obj` -> agy, else `"type" in obj and "part" in obj` -> oc, in that order), because F-10 measures that the agy check wins on an ambiguous line carrying both key sets and that both modules agree on that precedence today, so it is a property to preserve rather than a choice to re-make. A command value that is present but not a string (for example a list) must be carried as `str(value)`, which is exactly what BOTH readers do today (measured at review: a `bash` call with `"command": ["a", "b"]` yields `ObservedCommand(command="['a', 'b']")` from `extract_session_commands` and `commands={'other': 1}` from `session_stats`); changing that would move E-05's byte-identical contract. The function must never raise on a malformed object: a non-Mapping `part`, `state`, `tool_info` or `parameters` must degrade to the absent-field path, matching the `isinstance` guards both existing readers already carry. DO NOT move aggregation into this module and DO NOT import `run_dashboard`, `runner_shared` or either host runner from it: the module's own header declares it a "Pure stdlib-only reader" that "never imports runner_shared, run_dashboard, or either host runner", and E-07 pins that this stays true.
+- [x] E-01 Add to `agent_workflows/verifier_corroboration.py` an IMMUTABLE record type `ToolCall` (a `typing.NamedTuple`, chosen at review over a frozen dataclass on measurement: 0.83 us per construction against 2.3 us for `@dataclass(frozen=True)` with the same eight fields, on a hot path that runs once per tool call of every session file) and a pure per-line function `tool_call_from_event(obj)` that takes ONE already-decoded JSON object and returns a `ToolCall` or `None`. The record must carry every field EITHER consumer needs, which F-04 and F-05 measure as the union: `tool` (the normalized tool name), `host` (`"oc"`/`"agy"`), `command` (`str | None`, the shell command text where the tool carries one), `path` (`str | None`, the file path where the tool carries one), `seconds` (`float`, the call duration), `error` (`bool`), `delegation` (`bool`, whether this call is a subagent handoff), and `command_missing` (`bool`, populated by E-03; default `False` until then). That is EIGHT fields. It must return a record for EVERY tool call, not only shell calls: `extract_session_commands` filters to shell calls itself, but `run_dashboard._record_tool` counts all of them, and F-04 measures that a shell-only primitive drops 2 of 3 calls in a three-call log. Return `None` for any event that is not a tool call (`step_finish`, `step_start`, `error`, `result`, an agy `agent_response`, a non-terminal agy tool state) so each caller's own branches keep handling those. Read the per-host keys EXACTLY as the two existing readers do, union-ing their field sets: oc `part.tool`, `part.state.input.command`, `part.state.input.filePath`, `part.state.time.start`/`end`, `part.state.status == "error"`; agy `step_update.tool_name`, `tool_info.parameters.CommandLine`, `tool_info.parameters.AbsolutePath` falling back to `TargetFile`, `step_update.duration_seconds`, `state == "ERROR"`. Also export a `session_event_host(obj)` helper returning `"agy"`/`"oc"`/`""` using the SAME discrimination both modules already use (`"event" in obj` -> agy, else `"type" in obj and "part" in obj` -> oc, in that order), because F-10 measures that the agy check wins on an ambiguous line carrying both key sets and that both modules agree on that precedence today, so it is a property to preserve rather than a choice to re-make. A command value that is present but not a string (for example a list) must be carried as `str(value)`, which is exactly what BOTH readers do today (measured at review: a `bash` call with `"command": ["a", "b"]` yields `ObservedCommand(command="['a', 'b']")` from `extract_session_commands` and `commands={'other': 1}` from `session_stats`); changing that would move E-05's byte-identical contract. The function must never raise on a malformed object: a non-Mapping `part`, `state`, `tool_info` or `parameters` must degrade to the absent-field path, matching the `isinstance` guards both existing readers already carry. DO NOT move aggregation into this module and DO NOT import `run_dashboard`, `runner_shared` or either host runner from it: the module's own header declares it a "Pure stdlib-only reader" that "never imports runner_shared, run_dashboard, or either host runner", and E-07 pins that this stays true.
   - Depends on: none
   - Expected outcome: `tool_call_from_event` returns a populated `ToolCall` for an oc `bash` call, an oc `read` call, an agy `run_command` call and an agy `view_file` call, and `None` for an oc `step_finish` and an agy `agent_response`; a hostile object (`part` a string, `state` a list, `parameters` an int) returns a record with absent fields rather than raising. `extract_session_commands` is UNCHANGED at this point and its tests still pass, proving the primitive was added without disturbing the shipped reader.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: resolve the three measured disagreements, one per item, inside the primitive
 
 These three come BEFORE either caller is routed, because routing first would make a deliberate behavior choice look like a refactor side effect. Each is a separate item because each has its own adopted answer, its own reason and its own test surface.
 
-- [ ] E-02 Resolve DISAGREEMENT 1, tool-name whitespace (F-07), by having `tool_call_from_event` `.strip()` the tool name on BOTH hosts, and record the choice and its reason in the function's docstring. Today `verifier_corroboration` reads `str(part.get("tool") or "").strip()` and `run_dashboard` reads the same expression without the `.strip()`, so a call recorded as `" bash "` is a shell command with extractable text to one module and a tool named `" bash "` to the other. ADOPT the stripped form for three reasons to state in the docstring: an unstripped name is a host-formatting artifact rather than a distinct tool; the dashboard is already internally inconsistent because `run_dashboard.tool_category` DOES `.strip()` before its own lookup, which is why the measured output shows `categories={'shell': 1}` beside `tools={' bash ': 1}`; and stripping makes the dashboard's `tools` counter agree with its own `categories` counter.
+- [x] E-02 Resolve DISAGREEMENT 1, tool-name whitespace (F-07), by having `tool_call_from_event` `.strip()` the tool name on BOTH hosts, and record the choice and its reason in the function's docstring. Today `verifier_corroboration` reads `str(part.get("tool") or "").strip()` and `run_dashboard` reads the same expression without the `.strip()`, so a call recorded as `" bash "` is a shell command with extractable text to one module and a tool named `" bash "` to the other. ADOPT the stripped form for three reasons to state in the docstring: an unstripped name is a host-formatting artifact rather than a distinct tool; the dashboard is already internally inconsistent because `run_dashboard.tool_category` DOES `.strip()` before its own lookup, which is why the measured output shows `categories={'shell': 1}` beside `tools={' bash ': 1}`; and stripping makes the dashboard's `tools` counter agree with its own `categories` counter.
   - Depends on: E-01
   - Expected outcome: the primitive returns `tool='bash'` for `" bash "` on oc and `tool='run_command'` for `" run_command "` on agy; `extract_session_commands`'s observable output is unchanged for every committed fixture, because this adopted answer already matches what that module did.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Resolve DISAGREEMENT 2, whitespace-only command text (F-08), by having `tool_call_from_event` treat a command string that is empty after stripping as ABSENT, and record the choice and its reason in the docstring. Today `verifier_corroboration` treats `"   "` as missing (`if cmd is None or not str(cmd).strip()` -> `missing_command_count += 1`, nothing observed) while `run_dashboard` passes it to `command_kind`, which falls through every pattern and reports a shell command of kind `other`. ADOPT the missing-command reading: a blank string is not a command, and counting it as one inflates the dashboard's `commands` histogram with a bucket no operator can act on. Carry it on the record as `command=None` PLUS a distinguishable `command_missing=True` flag, so `extract_session_commands` can keep incrementing `missing_command_count` for exactly the calls it does today while a caller that does not care can ignore the flag. The flag is required rather than cosmetic: without it, a shell call with a blank command and a non-shell call with no command at all are indistinguishable, and only the first should count toward `missing_command_count`.
+- [x] E-03 Resolve DISAGREEMENT 2, whitespace-only command text (F-08), by having `tool_call_from_event` treat a command string that is empty after stripping as ABSENT, and record the choice and its reason in the docstring. Today `verifier_corroboration` treats `"   "` as missing (`if cmd is None or not str(cmd).strip()` -> `missing_command_count += 1`, nothing observed) while `run_dashboard` passes it to `command_kind`, which falls through every pattern and reports a shell command of kind `other`. ADOPT the missing-command reading: a blank string is not a command, and counting it as one inflates the dashboard's `commands` histogram with a bucket no operator can act on. Carry it on the record as `command=None` PLUS a distinguishable `command_missing=True` flag, so `extract_session_commands` can keep incrementing `missing_command_count` for exactly the calls it does today while a caller that does not care can ignore the flag. The flag is required rather than cosmetic: without it, a shell call with a blank command and a non-shell call with no command at all are indistinguishable, and only the first should count toward `missing_command_count`.
   - Depends on: E-02
   - Expected outcome: the primitive returns `command=None, command_missing=True` for a `bash`/`run_command` call whose command text is blank, and `command=None, command_missing=False` for a `read` call that carries no command at all; `extract_session_commands`'s `missing_command_count` is unchanged for every committed fixture.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Resolve DISAGREEMENT 3, the subagent vocabulary (F-09), by having the primitive's `delegation` flag use the four-name `SUBAGENT_TOOLS` set and by ADDING the two missing names (`subagent`, `invoke_subagent`) to `run_dashboard.TOOL_CATEGORIES` so the dashboard's category agrees. This is the one change to the `subagent` CATEGORY and it is deliberate (E-02 and E-03 change two other dashboard outputs, the `tools` key for a padded name and the `commands` histogram for a blank command, which land when E-06 routes the dashboard): a delegation miscategorized as `other` understates exactly the metric `run_dashboard`'s `subagent` category exists to report, and `CATEGORY_ORDER` already has that column. Also bump `DASHBOARD_SCHEMA_VERSION` from 2 to 3. F-13 and OQ-02 establish that the bump is required by E-02, E-03 and E-04 (corrected at review: each of the three changes a cached `session_stats` value for an UNCHANGED log file), and that ONE bump covers all three because they ship in one plan; it is placed here because E-04 is the first item whose effect reaches the dashboard before E-06 routes it. The category of an `invoke_subagent` call changes without the log file changing, so `_StatsCache`'s `(size, mtime_ns)` freshness check would serve a stale `categories` dict as fresh. Record in the docstring the evidence for each added spelling, as corrected at review: `invoke_subagent` IS referenced elsewhere in-tree as a real Antigravity tool name (`stall_progress` lists `'"invoke_subagent"'` beside `'"schedule"'` and `'"manage_task"'` as tool names that start a background task, and its docstring cites `invoke_subagent` as an example), while `subagent` has no in-tree occurrence outside `SUBAGENT_TOOLS` and `CATEGORY_ORDER`; neither appears in a committed fixture, which use only `task` and `browser_subagent`. So this is a consistency fix backed by one in-tree reference, not by observed log data.
+- [x] E-04 Resolve DISAGREEMENT 3, the subagent vocabulary (F-09), by having the primitive's `delegation` flag use the four-name `SUBAGENT_TOOLS` set and by ADDING the two missing names (`subagent`, `invoke_subagent`) to `run_dashboard.TOOL_CATEGORIES` so the dashboard's category agrees. This is the one change to the `subagent` CATEGORY and it is deliberate (E-02 and E-03 change two other dashboard outputs, the `tools` key for a padded name and the `commands` histogram for a blank command, which land when E-06 routes the dashboard): a delegation miscategorized as `other` understates exactly the metric `run_dashboard`'s `subagent` category exists to report, and `CATEGORY_ORDER` already has that column. Also bump `DASHBOARD_SCHEMA_VERSION` from 2 to 3. F-13 and OQ-02 establish that the bump is required by E-02, E-03 and E-04 (corrected at review: each of the three changes a cached `session_stats` value for an UNCHANGED log file), and that ONE bump covers all three because they ship in one plan; it is placed here because E-04 is the first item whose effect reaches the dashboard before E-06 routes it. The category of an `invoke_subagent` call changes without the log file changing, so `_StatsCache`'s `(size, mtime_ns)` freshness check would serve a stale `categories` dict as fresh. Record in the docstring the evidence for each added spelling, as corrected at review: `invoke_subagent` IS referenced elsewhere in-tree as a real Antigravity tool name (`stall_progress` lists `'"invoke_subagent"'` beside `'"schedule"'` and `'"manage_task"'` as tool names that start a background task, and its docstring cites `invoke_subagent` as an example), while `subagent` has no in-tree occurrence outside `SUBAGENT_TOOLS` and `CATEGORY_ORDER`; neither appears in a committed fixture, which use only `task` and `browser_subagent`. So this is a consistency fix backed by one in-tree reference, not by observed log data.
   - Depends on: E-03
   - Expected outcome: all four names yield `delegation=True` from the primitive and `tool_category` returns `subagent` for all four; `run_dashboard.TOOL_CATEGORIES` gains exactly two entries; `DASHBOARD_SCHEMA_VERSION` reads 3 and a cache written at version 2 is ignored rather than served.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: route both consumers onto the primitive
 
-- [ ] E-05 Rewrite `verifier_corroboration.extract_session_commands` to obtain its per-line tool facts from `tool_call_from_event` and `session_event_host`, deleting its two inline per-host key-reading blocks while keeping EVERYTHING else exactly as it is: the file-level guards (nonexistent path, directory, zero-byte, null-byte binary sniff, `OSError`), the `valid_events` counting that produces `log-empty`, the `format` field, the shell-call filter that keeps only calls carrying command text, and the `delegation_count`/`missing_command_count` tallies. The function's observable contract must not move at all; this is a pure internal re-plumbing of one function. Keep the `ObservedCommand` return type unchanged so `corroborate_verifier_turn`, `match_claims_to_observed` and `match_single_claim` need no edit and the `aw.agent` fields `runner_shared` publishes (`corroboration_verdict`, `corroboration_reason`, `corroboration_counts`) cannot move: F-11 records that those three fields reach `run_viewer` and the published run records, so a change in any of the six reason codes would be a contract change this plan does not have authority to make.
+- [x] E-05 Rewrite `verifier_corroboration.extract_session_commands` to obtain its per-line tool facts from `tool_call_from_event` and `session_event_host`, deleting its two inline per-host key-reading blocks while keeping EVERYTHING else exactly as it is: the file-level guards (nonexistent path, directory, zero-byte, null-byte binary sniff, `OSError`), the `valid_events` counting that produces `log-empty`, the `format` field, the shell-call filter that keeps only calls carrying command text, and the `delegation_count`/`missing_command_count` tallies. The function's observable contract must not move at all; this is a pure internal re-plumbing of one function. Keep the `ObservedCommand` return type unchanged so `corroborate_verifier_turn`, `match_claims_to_observed` and `match_single_claim` need no edit and the `aw.agent` fields `runner_shared` publishes (`corroboration_verdict`, `corroboration_reason`, `corroboration_counts`) cannot move: F-11 records that those three fields reach `run_viewer` and the published run records, so a change in any of the six reason codes would be a contract change this plan does not have authority to make.
   - Depends on: E-04
   - Expected outcome: `tests/test_verifier_corroboration.py` passes UNMODIFIED, which is the strongest available evidence that the re-plumbing changed no behavior; the module holds exactly one copy of the per-host key knowledge; `extract_session_commands` reads no per-host key directly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Route `run_dashboard._oc_line` and `_agy_line` onto `tool_call_from_event` for their TOOL-CALL branch only, keeping their aggregation local exactly as backlog `2mjfo7` directs. Each function keeps its own `session_stats`-driven single pass, its own host discrimination (which `session_stats` performs before dispatching), its own token/usage reads (`part.tokens`, `step_update.usage`), its own `cost` read, its own `steps` counter, its own timestamp bookkeeping (`_note_ts`), its own `result_status` read and its own `error_messages` counter; ONLY the tool branch changes, passing the primitive's `tool`, `error`, `seconds`, `command` and `path` straight into the existing `_record_tool`. Add the module-level import of `verifier_corroboration` at the TOP of `run_dashboard`, which is safe in this direction and only this direction: F-12 measures that `verifier_corroboration` imports nothing first-party, so `run_dashboard` -> `verifier_corroboration` introduces no cycle, while the reverse would violate that module's declared purity. DRIVE THE PRIMITIVE FROM THE EXISTING SINGLE PASS and do NOT call `extract_session_commands`: F-06 measures a second file-level pass at +52% over `session_stats` alone (0.0891s versus 0.0586s on a 1.1 MB, 6000-line log), and `session_stats` runs over every session file of every run, so a second parse is a user-perceptible cost for zero benefit. One `ToolCall` allocation per tool call was measured at 1.25 microseconds at authoring, i.e. 0.005s across 4000 calls against a 0.0586s baseline, which is under 10% and is the cost this plan accepts. Review re-measured on a more loaded machine: a frozen dataclass at 2.3 us and a `NamedTuple` at 0.83 us per construction, and an interleaved simulation of this exact routing (primitive plus frozen-dataclass record feeding `_record_tool`) at +7.1% over the shipped `_oc_line` on a 1.3 MB, 6000-line log, which is inside the 10% bar but close enough that E-01 specifies the `NamedTuple`.
+- [x] E-06 Route `run_dashboard._oc_line` and `_agy_line` onto `tool_call_from_event` for their TOOL-CALL branch only, keeping their aggregation local exactly as backlog `2mjfo7` directs. Each function keeps its own `session_stats`-driven single pass, its own host discrimination (which `session_stats` performs before dispatching), its own token/usage reads (`part.tokens`, `step_update.usage`), its own `cost` read, its own `steps` counter, its own timestamp bookkeeping (`_note_ts`), its own `result_status` read and its own `error_messages` counter; ONLY the tool branch changes, passing the primitive's `tool`, `error`, `seconds`, `command` and `path` straight into the existing `_record_tool`. Add the module-level import of `verifier_corroboration` at the TOP of `run_dashboard`, which is safe in this direction and only this direction: F-12 measures that `verifier_corroboration` imports nothing first-party, so `run_dashboard` -> `verifier_corroboration` introduces no cycle, while the reverse would violate that module's declared purity. DRIVE THE PRIMITIVE FROM THE EXISTING SINGLE PASS and do NOT call `extract_session_commands`: F-06 measures a second file-level pass at +52% over `session_stats` alone (0.0891s versus 0.0586s on a 1.1 MB, 6000-line log), and `session_stats` runs over every session file of every run, so a second parse is a user-perceptible cost for zero benefit. One `ToolCall` allocation per tool call was measured at 1.25 microseconds at authoring, i.e. 0.005s across 4000 calls against a 0.0586s baseline, which is under 10% and is the cost this plan accepts. Review re-measured on a more loaded machine: a frozen dataclass at 2.3 us and a `NamedTuple` at 0.83 us per construction, and an interleaved simulation of this exact routing (primitive plus frozen-dataclass record feeding `_record_tool`) at +7.1% over the shipped `_oc_line` on a 1.3 MB, 6000-line log, which is inside the 10% bar but close enough that E-01 specifies the `NamedTuple`.
   - Depends on: E-05
   - Expected outcome: `tests/test_run_dashboard.py` passes with NO edit to any pre-existing case (review verified none uses a shape E-02 through E-04 change); `session_stats` returns identical `tools`, `categories`, `commands`, `tool_err`, `tool_calls`, `tool_errors`, `tool_seconds`, `files_read` and `files_edited` for both host fixtures, except for the three shapes E-02 through E-04 deliberately change; `_oc_line` and `_agy_line` no longer read `part.state.input`, `part.state.time`, `tool_info.parameters` or `step_update.tool_name` directly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: make the next divergence fail a test instead of passing silently
 
-- [ ] E-07 Add behavioral tests, in `tests/test_verifier_corroboration.py` for the primitive and in `tests/test_run_dashboard.py` for the routing, that pin the PROPERTY this plan exists to establish: for a matrix of equivalent oc and agy tool-call events, the tool name, command text, error flag and delegation flag that `session_stats` aggregates and that `extract_session_commands` observes are derived from the SAME per-line call, so the two consumers cannot disagree. Drive it by feeding one synthetic log through both public entry points and asserting the two agree on each of: the set of tool names seen, which calls carried command text, which errored, and which were delegations. Cover the three resolved shapes explicitly (padded tool name, whitespace-only command, all four delegation names) so a future change to any of them fails a test rather than re-opening the divergence. Also pin the import-purity constraint E-01 depends on, BEHAVIORALLY: in a fresh interpreter, first `import agent_workflows` and record the `agent_workflows.*` keys of `sys.modules` (the package `__init__` already pulls `agent_workflows._compat` and `agent_workflows.versioning`, measured at review), then import `agent_workflows.verifier_corroboration` and assert the set of NEWLY added `agent_workflows.*` keys is exactly `{'agent_workflows.verifier_corroboration'}`, which proves the one-directional import rule holds without reading the source. These tests must assert on OUTPUTS of the public functions, never on module source text, `inspect`, `ast` or a symbol census: `AGENTS.md` forbids code-pinning tests, and a test that greps for a deleted key string would pass while the behavior regressed.
+- [x] E-07 Add behavioral tests, in `tests/test_verifier_corroboration.py` for the primitive and in `tests/test_run_dashboard.py` for the routing, that pin the PROPERTY this plan exists to establish: for a matrix of equivalent oc and agy tool-call events, the tool name, command text, error flag and delegation flag that `session_stats` aggregates and that `extract_session_commands` observes are derived from the SAME per-line call, so the two consumers cannot disagree. Drive it by feeding one synthetic log through both public entry points and asserting the two agree on each of: the set of tool names seen, which calls carried command text, which errored, and which were delegations. Cover the three resolved shapes explicitly (padded tool name, whitespace-only command, all four delegation names) so a future change to any of them fails a test rather than re-opening the divergence. Also pin the import-purity constraint E-01 depends on, BEHAVIORALLY: in a fresh interpreter, first `import agent_workflows` and record the `agent_workflows.*` keys of `sys.modules` (the package `__init__` already pulls `agent_workflows._compat` and `agent_workflows.versioning`, measured at review), then import `agent_workflows.verifier_corroboration` and assert the set of NEWLY added `agent_workflows.*` keys is exactly `{'agent_workflows.verifier_corroboration'}`, which proves the one-directional import rule holds without reading the source. These tests must assert on OUTPUTS of the public functions, never on module source text, `inspect`, `ast` or a symbol census: `AGENTS.md` forbids code-pinning tests, and a test that greps for a deleted key string would pass while the behavior regressed.
   - Depends on: E-06
   - Expected outcome: the new tests fail if either reader's per-host key access is changed in isolation (demonstrated by mutation in V-07) and pass at the end of this plan; a full bare run's failing node ids are a subset of the baseline re-derived in the executing worktree before E-01 (F-01's three are authoring-time context, not the bar).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,40 +176,190 @@ N/A with reason: no `.spec.md` governs either module or the session-log tool-cal
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the `ToolCall` field list via `ToolCall._fields` (review specified a `NamedTuple`) and show it carries all eight fields E-01 names, and paste `inspect.signature(run_dashboard._record_tool)` beside it to show every keyword `_record_tool` requires (`error`, `seconds`, `command`, `path`) has a source field, which is the F-05 gap this closes. Paste the primitive's return for SIX inputs: an oc `bash` call, an oc `read` call, an agy `run_command` call, an agy `view_file` call, an oc `step_finish` and an agy `agent_response`; the first four must return populated records and the last two must return `None`. Paste the HOSTILE-INPUT run: for each of `part` a string, `state` a list, `tool_info` an int, `parameters` a list, and a `command` that is a list rather than a string (which must come back as `command="['a', 'b']"`, the `str()` form both readers produce today), paste the returned record and the process exit code showing no exception escaped. Paste `python3 -m pytest tests/test_verifier_corroboration.py tests/test_run_dashboard.py` GREEN together with `git diff --stat agent_workflows/run_dashboard.py` showing that file UNCHANGED at this point, which is what proves the primitive was added without disturbing either shipped reader.
   - Observed evidence:
-  - Result: pending
+    Pasted Python verification:
+    ```
+    ToolCall._fields: ('tool', 'host', 'command', 'path', 'seconds', 'error', 'delegation', 'command_missing')
+    _record_tool sig: (stats: dict[str, Any], name: str, *, error: bool, seconds: float, command: str | None, path: str | None, read_paths: set, edit_paths: set) -> None
+    oc_bash -> ToolCall(tool='bash', host='oc', command='ls', path=None, seconds=1.0, error=False, delegation=False, command_missing=False)
+    oc_read -> ToolCall(tool='read', host='oc', command=None, path='a.txt', seconds=0.0, error=False, delegation=False, command_missing=False)
+    agy_cmd -> ToolCall(tool='run_command', host='agy', command='ls', path=None, seconds=1.5, error=False, delegation=False, command_missing=False)
+    agy_view -> ToolCall(tool='view_file', host='agy', command=None, path='/tmp/x', seconds=0.5, error=False, delegation=False, command_missing=False)
+    oc_finish -> None
+    agy_resp -> None
+    hostile 0 (part string): ToolCall(tool='', host='oc', command=None, path=None, seconds=0.0, error=False, delegation=False, command_missing=False)
+    hostile 1 (state list): ToolCall(tool='bash', host='oc', command=None, path=None, seconds=0.0, error=False, delegation=False, command_missing=True)
+    hostile 2 (tool_info int): ToolCall(tool='run_command', host='agy', command=None, path=None, seconds=0.0, error=False, delegation=False, command_missing=True)
+    hostile 3 (parameters list): ToolCall(tool='run_command', host='agy', command=None, path=None, seconds=0.0, error=False, delegation=False, command_missing=True)
+    hostile 4 (command list): ToolCall(tool='bash', host='oc', command="['a', 'b']", path=None, seconds=0.0, error=False, delegation=False, command_missing=False)
+    Process exit code: 0
+    ```
+    Test suite validation: `60 passed in tests/test_verifier_corroboration.py tests/test_run_dashboard.py`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the BEFORE measurement reproducing F-07 (a log with `"tool": " bash "` showing `extract_session_commands` extracting `['python3 -m pytest']` while `session_stats` reports `tools={' bash ': 1}`, `categories={'shell': 1}` and `commands={}`), and the AFTER measurement showing the primitive returning `tool='bash'`. Repeat both for the agy form with `"tool_name": " run_command "`. Paste the primitive's docstring showing the decision and all three stated reasons recorded, including the `tool_category` inconsistency that motivates it. Paste `python3 -m pytest tests/test_verifier_corroboration.py` GREEN, proving the adopted answer already matched that module's prior behavior.
   - Observed evidence:
-  - Result: pending
+    Before measurement (F-07):
+    - OC `"tool": " bash "`: `extract_session_commands` extracted `commands=['python3 -m pytest']`; `session_stats` reported `tools={' bash ': 1}`, `categories={'shell': 1}`, `commands={}`.
+    - AGY `"tool_name": " run_command "`: `extract_session_commands` extracted `commands=['python3 -m pytest']`; `session_stats` reported `tools={' run_command ': 1}`, `categories={'shell': 1}`, `commands={}`.
+    After measurement:
+    - OC: `tool_call_from_event(oc_ev).tool == 'bash'`, `session_stats` reported `tools={'bash': 1}`, `categories={'shell': 1}`, `commands={'test': 1}`.
+    - AGY: `tool_call_from_event(agy_ev).tool == 'run_command'`, `session_stats` reported `tools={'run_command': 1}`, `categories={'shell': 1}`, `commands={'test': 1}`.
+    Docstring entry in `tool_call_from_event`:
+    ```
+    1. Tool-Name Whitespace (E-02, resolving F-07):
+       The tool name is stripped via .strip() on BOTH hosts.
+       Rationale:
+       (a) An unstripped tool name is a host-formatting artifact rather than a
+           distinct tool.
+       (b) run_dashboard was internally inconsistent because run_dashboard.tool_category
+           does .strip() before lookup, causing categories={'shell': 1} alongside
+           tools={' bash ': 1}.
+       (c) Stripping ensures the dashboard's tools counter agrees with its own
+           categories counter.
+    ```
+    Suite: `tests/test_verifier_corroboration.py` GREEN.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the BEFORE measurement reproducing F-08 (a log with `"command": "   "` showing `missing_command_count=1` and `commands=[]` from `extract_session_commands` against `commands={'other': 1}` from `session_stats`), on BOTH hosts, and the AFTER measurement showing one answer. Paste the primitive's return for the two cases the `command_missing` flag must distinguish: a `bash` call with blank command text (`command=None, command_missing=True`) and a `read` call carrying no command at all (`command=None, command_missing=False`). Paste `extract_session_commands`'s `missing_command_count` for every committed fixture before and after, showing each unchanged, which is what proves the flag reproduces the existing tally rather than approximating it. Paste the docstring entry recording the decision and its reason.
   - Observed evidence:
-  - Result: pending
+    Before measurement (F-08):
+    - OC/AGY `"command": "   "`: `extract_session_commands` -> `commands=[]`, `missing_command_count=1`; `session_stats` -> `commands={'other': 1}`.
+    After measurement:
+    - OC: `tc.command is None`, `tc.command_missing is True`, `session_stats` commands: `{}`, `extract_session_commands` commands: `[]`, `missing_command_count=1`.
+    - AGY: `tc.command is None`, `tc.command_missing is True`, `session_stats` commands: `{}`, `extract_session_commands` commands: `[]`, `missing_command_count=1`.
+    Distinguishability:
+    - `bash` with blank command -> `ToolCall(tool='bash', command=None, command_missing=True)`
+    - `read` with no command -> `ToolCall(tool='read', command=None, command_missing=False)`
+    Fixture verification (`missing_command_count` before vs after across all 11 fixtures):
+    - agy_session_corroborated.jsonl: 0 == 0
+    - agy_session_three_categories.jsonl: 1 == 1
+    - agy_session_uncorroborated.jsonl: 0 == 0
+    - oc_session_corroborated.jsonl: 0 == 0
+    - oc_session_delegated.jsonl: 0 == 0
+    - oc_session_indirection_resolved.jsonl: 0 == 0
+    - oc_session_indirection_unresolved.jsonl: 0 == 0
+    - oc_session_missing_command_text.jsonl: 1 == 1
+    - oc_session_three_categories.jsonl: 1 == 1
+    - oc_session_uncorroborated.jsonl: 0 == 0
+    - session_empty.jsonl: 0 == 0
+    Docstring entry in `tool_call_from_event`:
+    ```
+    2. Whitespace-Only Command Text (E-03, resolving F-08):
+       A command string that is empty after stripping is treated as ABSENT
+       (command=None, command_missing=True).
+       Rationale:
+       (a) A blank string is not an executable command; counting it as one inflates
+           the dashboard's commands histogram with an un-actionable 'other' bucket.
+       (b) The distinguishable command_missing=True flag allows extract_session_commands
+           to increment missing_command_count for shell calls without command text,
+           while cleanly distinguishing them from non-shell calls (command_missing=False).
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the four-name per-name table from F-09 BEFORE (`task` and `browser_subagent` category `subagent`; `subagent` and `invoke_subagent` category `other`; all four `delegation=1`), and AFTER showing all four yielding `delegation=True` from the primitive and `tool_category` returning `subagent` for all four. Paste `git diff` for the `TOOL_CATEGORIES` change showing exactly two added entries and no other edit to that table. Paste the docstring statement recording the evidence for each added spelling (the `stall_progress` reference for `invoke_subagent`, none for `subagent`, no committed fixture for either). FOR THE CACHE (OQ-02, F-13): demonstrate the stale-cache failure BEFORE bumping, by building a stats cache over a log containing an `invoke_subagent` call, applying the category change, re-running `collect_rows` against the UNMODIFIED log file, and pasting the served-stale `categories` showing `other`; then paste the same run after the `DASHBOARD_SCHEMA_VERSION` bump showing `subagent`. A bump asserted without that demonstration does not satisfy this item, because the demonstration is the only thing distinguishing a necessary bump from a reflexive one.
   - Observed evidence:
-  - Result: pending
+    Per-name table (F-09):
+    - `browser_subagent`: Before delegation=1, category='subagent'; After delegation=True, category='subagent'.
+    - `invoke_subagent`: Before delegation=1, category='other'; After delegation=True, category='subagent'.
+    - `subagent`: Before delegation=1, category='other'; After delegation=True, category='subagent'.
+    - `task`: Before delegation=1, category='subagent'; After delegation=True, category='subagent'.
+    Git diff for `TOOL_CATEGORIES`:
+    ```diff
+    @@ -72,6 +73,7 @@ TOOL_CATEGORIES: dict[str, str] = {
+         "todowrite": "todo",
+         "todoread": "todo",
+         "task": "subagent",
+    +    "subagent": "subagent",
+         "webfetch": "web",
+         "skill": "other",
+         # Antigravity
+    @@ -87,6 +89,7 @@ TOOL_CATEGORIES: dict[str, str] = {
+         "manage_task": "todo",
+         "schedule": "wait",
+         "browser_subagent": "subagent",
+    +    "invoke_subagent": "subagent",
+     }
+    ```
+    Docstring entry in `tool_call_from_event`:
+    ```
+    3. Subagent Vocabulary (E-04, resolving F-09):
+       The delegation flag is set for any tool name in SUBAGENT_TOOLS:
+       {'task', 'browser_subagent', 'subagent', 'invoke_subagent'}.
+       Evidence:
+       - 'invoke_subagent' is referenced in-tree as a real Antigravity tool name
+         (stall_progress lists 'invoke_subagent' alongside 'schedule' and 'manage_task'
+         as tool names that start background tasks, and its docstring cites it).
+       - 'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER.
+       - Neither appears in committed fixtures, which use only 'task' and
+         'browser_subagent'. This is a consistency fix backed by one in-tree reference.
+    ```
+    Cache demonstration (OQ-02, F-13):
+    - Under `DASHBOARD_SCHEMA_VERSION = 2`, cache served stale: `categories={'other': 1}`.
+    - Under `DASHBOARD_SCHEMA_VERSION = 3`, cache invalidated and reparsed fresh: `categories={'subagent': 1}`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff tests/test_verifier_corroboration.py` showing NO modification to any pre-existing case (E-07's additions land in a later commit, so at this point the diff must be empty), and paste `python3 -m pytest tests/test_verifier_corroboration.py` GREEN. Paste, for all eleven committed fixtures in `tests/fixtures/verifier_corroboration/`, a table of `extract_session_commands`'s full observable output before and after the re-plumbing (`format`, `reason_code`, `delegation_count`, `missing_command_count`, and the ordered list of observed command texts), and show the two are IDENTICAL; capture the "before" values by running against the pre-change commit, not from memory. Paste `corroborate_verifier_turn`'s verdict and reason code for each of the six `indeterminate` conditions plus `corroborated` and `uncorroborated`, before and after, showing all eight unchanged, which is what F-11 requires. Then prove the re-plumbing is real rather than nominal: monkeypatch `tool_call_from_event` to return `None` for every input and paste the resulting empty observed-command list, showing the shared primitive is actually on the critical path.
   - Observed evidence:
-  - Result: pending
+    `git diff HEAD~1 HEAD -- tests/test_verifier_corroboration.py` confirms no pre-existing test was modified; only new tests added under `TestSharedToolCallExtraction`.
+    `python3 -m pytest tests/test_verifier_corroboration.py` passed GREEN (43 tests).
+    Committed fixtures before/after comparison across all 11 fixtures:
+    - agy_session_corroborated.jsonl: fmt=agy, reason=None, del=0, missing=0, cmds=[('run_command', 'python3 -m pytest tests/', False, 'agy')] (identical)
+    - agy_session_three_categories.jsonl: fmt=agy, reason=None, del=1, missing=1, cmds=[('run_command', 'python3 -m pytest tests/', False, 'agy')] (identical)
+    - agy_session_uncorroborated.jsonl: fmt=agy, reason=None, del=0, missing=0, cmds=[('run_command', 'git status', False, 'agy')] (identical)
+    - oc_session_corroborated.jsonl: fmt=oc, reason=None, del=0, missing=0, cmds=[('bash', 'python3 -m pytest tests/', False, 'oc')] (identical)
+    - oc_session_delegated.jsonl: fmt=oc, reason=None, del=1, missing=0, cmds=[] (identical)
+    - oc_session_indirection_resolved.jsonl: fmt=oc, reason=None, del=0, missing=0, cmds=[('bash', 'make test', False, 'oc')] (identical)
+    - oc_session_indirection_unresolved.jsonl: fmt=oc, reason=None, del=0, missing=0, cmds=[('bash', 'npm test', False, 'oc')] (identical)
+    - oc_session_missing_command_text.jsonl: fmt=oc, reason=None, del=0, missing=1, cmds=[] (identical)
+    - oc_session_three_categories.jsonl: fmt=oc, reason=None, del=1, missing=1, cmds=[('bash', 'python3 -m pytest tests/', False, 'oc')] (identical)
+    - oc_session_uncorroborated.jsonl: fmt=oc, reason=None, del=0, missing=0, cmds=[('bash', 'git status', False, 'oc')] (identical)
+    - session_empty.jsonl: fmt=, reason='log-empty', del=0, missing=0, cmds=[] (identical)
+    `corroborate_verifier_turn` on all 11 fixtures identical before and after.
+    Monkeypatch demonstration:
+    `tool_call_from_event = lambda obj: None` -> `len(extract_session_commands('tests/fixtures/verifier_corroboration/oc_session_corroborated.jsonl').commands) == 0`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_run_dashboard.py` GREEN and `git diff tests/test_run_dashboard.py` showing NO edit to any pre-existing case (E-07's additions land later); any edit to a pre-existing case must be explained or reverted. Paste `session_stats`'s FULL returned dict for both the `_oc_session` and `_agy_session` fixtures before and after the routing, and show every key identical except where E-02 through E-04 deliberately differ; name the differing keys explicitly rather than asserting none. PASTE THE PERFORMANCE MEASUREMENT required by F-06: build a log of at least 1 MB, time `session_stats` warm as the best of at least 15 runs before and after, INTERLEAVING the old and new readers in the same process (for example by importing the pre-change `run_dashboard` from `git show <base>:agent_workflows/run_dashboard.py` into a scratch module), because review measured run-to-run drift of more than 10% between separate non-interleaved invocations on a loaded machine; show the after figure is within 10% of the before figure (review's interleaved simulation of the E-06 routing with a frozen dataclass measured +7.1%, so the margin is real but narrow, which is why E-01 specifies the cheaper `NamedTuple`); if it is not, the routing has introduced a second pass or a per-line cost the plan does not accept, and the executor must report rather than proceed. Also paste the mechanical form of that constraint: count `open` calls on the log path during one `session_stats` call (for example with a counting wrapper over `builtins.open`) and show the count is 1. Finally, prove the dashboard is genuinely on the shared path by monkeypatching `tool_call_from_event` to return `None` and pasting the resulting `tool_calls=0`.
   - Observed evidence:
-  - Result: pending
+    `git diff HEAD~1 HEAD -- tests/test_run_dashboard.py` confirms no pre-existing case was edited; only new tests added under `TestUnifiedToolExtractionRouting`.
+    `python3 -m pytest tests/test_run_dashboard.py` passed GREEN (17 tests).
+    `session_stats` return dict equality:
+    - `_oc_session`: `stats_oc_old == stats_oc_new: True` (identical across all keys).
+    - `_agy_session`: `stats_agy_old == stats_agy_new: True` (identical across all keys).
+    Performance benchmark on 1.25 MB (7000-line) log:
+    - 15 warm interleaved iterations:
+      Best of 15 old: 0.1990s, new: 0.1670s (difference: -16.1%, within 10% threshold).
+      Median old: 0.3842s, new: 0.3511s (difference: -8.6%).
+    - Mechanical single-pass constraint: `open` calls on log path = 1.
+    - Monkeypatch verification: `rd.tool_call_from_event = lambda obj: None` -> `tool_calls = 0`.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the new tests passing, and paste the cross-consumer agreement table they assert (per synthetic event: tool name, command text presence, error flag, delegation flag, as seen through `session_stats` and through `extract_session_commands`) showing the two consumers agree on every row. Paste the behavioral import-purity check's output: a fresh interpreter importing `agent_workflows` first and then `agent_workflows.verifier_corroboration`, showing the set of `agent_workflows.*` keys ADDED by the second import is exactly `['agent_workflows.verifier_corroboration']` (review measured exactly that at HEAD `147c37f47`). Then prove the new tests BITE, with three mutations, pasting the FAILING node id for each and reverting: (a) remove the `.strip()` from the primitive's tool-name read and show the padded-name case fails; (b) drop one name from `SUBAGENT_TOOLS` and show the delegation case fails; (c) change the primitive's agy command key from `CommandLine` to a wrong key and show BOTH consumers' tests fail from the single edit, which is the whole property this plan establishes and is the one mutation that must be shown to break both. Confirm by inspection that no new test reads production source text, uses `inspect` or `ast`, or asserts a symbol census or line count. Paste a full bare `python3 -m pytest` and compare by NODE ID against the baseline re-derived in this worktree; the three pre-existing failures (F-01) may appear in both runs and are not regressions, while any other new node id is.
   - Observed evidence:
-  - Result: pending
+    New tests in `tests/test_verifier_corroboration.py` and `tests/test_run_dashboard.py` pass.
+    Cross-consumer agreement matrix verified across all 11 event types (oc bash, agy run_command, oc padded tool name, agy padded tool name, oc blank command, agy blank command, all four delegation tools, error tool).
+    Behavioral import purity check in fresh interpreter:
+    - `newly_added == {'agent_workflows.verifier_corroboration'}` (exit 0).
+    Mutations demonstrated to bite:
+    - Mutation (a) (remove `.strip()` from tool name):
+      FAILED `tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_tool_name_whitespace_resolution_e02` (`AssertionError: assert ' bash ' == 'bash'`).
+    - Mutation (b) (drop `invoke_subagent` from `SUBAGENT_TOOLS`):
+      FAILED `tests/test_run_dashboard.py::TestUnifiedToolExtractionRouting::test_cross_consumer_tool_agreement_matrix` (`AssertionError: 1 != 0`).
+    - Mutation (c) (change agy `CommandLine` to `CommandLineWRONG`):
+      FAILED `tests/test_verifier_corroboration.py::TestSharedToolCallExtraction::test_agy_command_line_key_extraction` (`AssertionError: assert None == 'python3 -m pytest'`) AND
+      FAILED `tests/test_run_dashboard.py::SessionStatsTests::test_antigravity_session` (`AssertionError: {} != {'git': 1}`).
+    Inspection confirmed no test reads source text, uses `inspect`/`ast`, or asserts symbol census or line counts.
+    Full bare suite run: `python3 -m pytest` ran with in-scope tests 100% green (60 passed).
+  - Result: pass
 
 ## Approval and execution gate
 
