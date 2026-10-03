@@ -2761,7 +2761,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 analyzed, 1 one or more runs skipped, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
@@ -2844,7 +2844,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 answered, 2 cannot-run (disallowed query or refused slice).\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     _p_runs_query.add_argument(
@@ -2962,7 +2962,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 previewed or written, 1 refused, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     # destshadow zwv1sa E-02: default to argparse.SUPPRESS so absence on the leaf does not clobber
@@ -3049,7 +3049,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 submitted, 1 refused/unavailable, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     _p_runs_submit.add_argument(
@@ -3101,7 +3101,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 drift/dangling citations, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     research_sub = p_research.add_subparsers(dest="research_command")
@@ -3438,7 +3438,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 always when it can run (an empty audit trail is a valid answer),\n"
             "  2 cannot-run/usage error. There is no exit 1: reporting is not judging.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     reviews_sub = p_reviews.add_subparsers(dest="reviews_command")
@@ -3486,7 +3486,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 whenever the report could be produced (a not-supported verdict is\n"
             "  an ANSWER, not a failure), 2 cannot-run/usage error. There is no exit 1.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     host_sub = p_host.add_subparsers(dest="host_command")
@@ -3590,7 +3590,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean/matched, 1 mismatch, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
         ),
     )
     project_sub = p_project.add_subparsers(dest="project_command")
@@ -3652,7 +3652,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean/valid, 1 findings/uninitialized, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for structured JSON.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for structured JSON.\n"
         ),
     )
     storage_sub = p_storage.add_subparsers(dest="storage_command")
@@ -3801,7 +3801,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 success, 1 not found, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     config_sub = p_config.add_subparsers(dest="config_command")
@@ -4428,7 +4428,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 "\n"
                 "OUTPUT & EXITS\n"
                 "  Exit codes: 0 clean, 1 findings, 2 cannot-run/usage error.\n"
-                "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
+                "  Agent mode: --agent emits aw.agent/v1 JSONL; --json for formatted JSON.\n"
             )
 
     p_set = sub.add_parser(
@@ -5088,7 +5088,7 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="List every profile with its model, variant, agent, and which one is the default.",
         description=(
-            "List your profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or with "
+            "List your profiles. Human table on a TTY, aw.agent/v1 JSONL with "
             "--agent, structured JSON with --json. An empty list is a clean result, not an error."
         ),
     )
@@ -5376,7 +5376,7 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="List Antigravity profiles with model, validation posture, and default status.",
         description=(
-            "List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or "
+            "List your Antigravity profiles. Human table on a TTY, aw.agent/v1 JSONL "
             "with --agent, structured JSON with --json. An empty list is a clean result, not an error."
         ),
     )
@@ -5683,7 +5683,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 contract findings, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
     )
     backlog_sub = p_backlog.add_subparsers(dest="backlog_command")
@@ -6001,7 +6001,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 2 cannot-run/usage error (e.g. an unresolvable selector).\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the release records in .aw/records/releases/ (the ship-gate anchors that "
@@ -6097,7 +6097,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 1 contract violations, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the design specifications and RFC documents in .aw/records/specs/: "
@@ -6345,7 +6345,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 clean, 2 cannot-run/usage error.\n"
-            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+            "  Agent mode: --agent emits aw.agent/v1 JSONL.\n"
         ),
         description=(
             "Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a "
@@ -6469,7 +6469,7 @@ SAFETY & DEFAULTS
 
 OUTPUT & EXITS
   Exit codes: 0 adopted/previewed, 2 refused (leak gate, bulk input, path outside the inbox).
-  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.
+  Agent mode: --agent emits aw.agent/v1 JSONL.
 """,
     )
     p_adopt.add_argument(
@@ -14120,7 +14120,7 @@ def _oc_profile_store_display(path: Any) -> Optional[str]:
 def _oc_profile_out(args, result, data: Optional[Dict[str, Any]] = None) -> int:
     """Emit one profile-verb result through the SHARED output contract and return its exit code.
 
-    Human table/lines on a TTY, aw.agent/v1 JSONL when piped or `--agent`, structured JSON with
+    Human table/lines on a TTY, aw.agent/v1 JSONL with `--agent`, structured JSON with
     `--json` - the same `select_output` + `get_renderer` path every other owner verb uses
     (`releases.run_list` is the model), so no verb-local formatter can drift from the contract.
     """
