@@ -32,8 +32,11 @@ WHAT MAY NEVER HAPPEN HERE, and why each prohibition exists rather than just tha
   * This module MUST NOT import either runner, at module level or lazily inside a function. The
     import cycle is the lesser reason. The real one is that importing a DIVERGED symbol from one
     runner into shared code would silently give BOTH drivers that runner's behavior, which is a
-    behavior change wearing a de-duplication's clothes. `tests/test_runner_shared.py` asserts the
-    absence by AST, so the rule is enforced and not merely documented.
+    behavior change wearing a de-duplication's clothes. The AST guard that formerly asserted this
+    was deleted in `19313eed` and was not replaced; no test currently
+    enforces the rule, which is a convention this module is held to by review rather than by
+    mechanical checking. The invariant nonetheless still holds in fact (no import naming `runipd`
+    exists in this module and a fresh interpreter importing it leaves neither runner in `sys.modules`).
   * NO module-level mutable state. A registration seam ("each runner registers its own
     `write_report` at import time") was considered for the injected dependencies and DECLINED by the
     maintainer: process-global state makes behavior depend on import ORDER and leaks between tests.
@@ -11217,11 +11220,10 @@ def ask_operator_about_integration(
 #      of verification. So `reintegrate_lane` supplies a REAL validation runner, whose body runs the
 #      repository suite in the PRIMARY checkout, and refuses on a non-passing result.
 #   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `runner_shared`
-#      (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks
-#      THIS module and fails on any import naming `runipd`, at module level or lazily inside a function.
-#      Copying its body would fork its fail-closed reading of exit 124/127. So it is a PARAMETER,
-#      exactly as `run_checked` and `host_label` already are on `integrate_lane_branch` (see this
-#      module's docstring).
+#      (re-homed from `oc_runipd`), and importing a driver here is prohibited (see the module docstring's
+#      prohibition bullet; no live guard enforces it). Copying its body would fork its fail-closed
+#      reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked` and `host_label` already
+#      are on `integrate_lane_branch` (see this module's docstring).
 #
 # AND THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it.
 # `orchestrate_isolation.stale_base_check` compares the FIRST lane outcome's own `base_commit` to the
@@ -16830,9 +16832,8 @@ def resolve_verification_decision(
     unreachable, which is the whole defect this helper exists to close.
 
     IMPORTING `runner_profiles` HERE IS PERMITTED. This module's admission rules forbid importing
-    either RUNNER (enforced by AST in `tests/test_runner_shared.py::NoRunnerImportTests`, which
-    rejects any module name containing `runipd`); `runner_profiles` is a peer module that imports
-    only `agent_workflows.config`, so there is no cycle and no guard to trip.
+    either RUNNER (see the module docstring's prohibition bullet); `runner_profiles` is a peer
+    module that imports only `agent_workflows.config`, so there is no cycle.
 
     Raises :class:`DriverError` (which both runners' `main` already catches, printing the message
     and exiting 2) carrying the resolver's own diagnostic. NO per-driver translation wrapper is
@@ -17547,8 +17548,8 @@ def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
 # and pulls in `check_engine`/`attention`; paying that on every `import runner_shared` would tax every
 # runner start for a function most runs never call. Neither module reaches a runner (verified by
 # closure walk: `runner_shared` is absent from `ipd_lint`'s and `selectors`' transitive imports), so
-# this is a cost decision and NOT an evasion of the no-runner-import rule, which
-# `tests/test_runner_shared.py::NoRunnerImportTests` enforces at module AND lazy scope.
+# this is a cost decision and NOT an evasion of the no-runner-import rule (see the module docstring's
+# prohibition bullet).
 
 
 #: The ONLY member status that counts as done for RETIREMENT purposes (spec R-2).
@@ -24984,11 +24985,10 @@ REVALIDATION_REGRESSED: str = "regressed"
 REVALIDATION_NO_REGRESSION: str = "no-regression"
 REVALIDATION_UNKNOWN: str = "unknown"
 
-#: The truncation cap the failing-id lists are subject to, read from the DRIVER's extractor rather
-#: than re-declared. `oc_runipd.SUITE_FAILURE_LINE_LIMIT` is 40 and this module may not import a
-#: driver (`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks it and fails on any import
-#: naming `runipd`), so the value is duplicated as a CONSTANT and pinned equal by a test rather than
-#: imported. A drift between the two makes the cap check miss, which is why it is asserted.
+#: The truncation cap the failing-id lists are subject to. This mirrors `SUITE_FAILURE_LINE_LIMIT`
+#: defined in this same module (re-homed from `oc_runipd`); their equality is maintained by hand with
+#: no test asserting it, and the former rationale for duplicating it as a constant to avoid importing
+#: a driver is obsolete.
 SUITE_FAILURE_LIST_CAP: int = 40
 
 #: A failing line that could not be parsed into a node id. Deliberately a value that can never equal a
@@ -25621,12 +25621,11 @@ def make_integration_validation_runner(
 
     ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
     same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `runner_shared`
-    (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this
-    module and fails on ANY import naming `runipd`, at module level or lazily inside a function. Copying
-    its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The None
-    DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its previous
-    three-positional-argument call shape and gets the honest refusal described below rather than a silent
-    pass; it is NOT a way to opt out of revalidation.
+    (re-homed from `oc_runipd`), and importing a driver here is prohibited (see the module docstring's
+    prohibition bullet; no live guard enforces it). Copying its body would fork its fail-closed reading
+    of exit 124/127. Each host passes its own. The None DEFAULT means every EXISTING caller (including the
+    tests that patch this factory) keeps its previous three-positional-argument call shape and gets the
+    honest refusal described below rather than a silent pass; it is NOT a way to opt out of revalidation.
 
     ONE RUN PER DISTINCT MERGE RESULT (E-04), cached on `state` under :data:`REVALIDATION_CACHE_KEY` and
     keyed on the merged TREE ID. Two lanes that merge to the same tree are one measurement; a second
@@ -26482,9 +26481,9 @@ def attempt_log_path(
 # none. `pinned_child_env` and `pinned_module_argv` are defined in `oc_runipd` and are the ONLY
 # definitions in the package; agy reaches them by IMPORTING them from `oc_runipd`, which makes them
 # the SAME OBJECT in both hosts but does NOT make them reachable from HERE. This module may never
-# import a runner (see the prohibition at the top, enforced by
-# `tests/test_runner_shared.py::NoRunnerImportTests`), so the lift condition is closure over names
-# THIS module can resolve, and neither name is one. They are therefore INJECTED, which is the
+# import a runner (see the module docstring's prohibition bullet; no live guard enforces it), so the
+# lift condition is closure over names THIS module can resolve, and neither name is one. They are
+# therefore INJECTED, which is the
 # maintainer's ruled mechanism for this exact situation (`818uru` OQ-02) and is already how
 # `run_checked` -- the OTHER nested-`aw` launcher, sitting in this same module -- consumes this SAME
 # `pinned_child_env` dependency. Each host keeps a one-line wrapper at the original name and
