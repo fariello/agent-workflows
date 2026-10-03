@@ -6,7 +6,7 @@
 - Scope: Make a finalize whose execution modified NONE of its declared `Scope-Paths` SAY SO, loudly and permanently, WITHOUT refusing it. Two changes. FIRST, compute the empty-delta fact once in `finalize_precheck`'s scope audit as an additive `all_declared_unmodified` key, so one predicate serves every consumer. SECOND, render it into the attributed history message beside the two notes already folded there, so the fact reaches the executed plan AND the lifecycle commit rather than dying in a transient dict. The originally authored THIRD change (widening `runner_shared.handle_zero_work_retry` past its `partial`-only guard) was REMOVED at review because it is unreachable and could never fire (F-13); the run-level signal is deferred to `gmbdxe`. THIS DELIBERATELY DOES NOT REFUSE: the census (F-07) measures 6 real auto-acked all-unmodified finalizes and EVERY ONE of them legitimately landed work before its begin baseline, so a refusal would have failed 6 valid executions to catch 0 real losses. OQ-01 hands the refuse-or-warn direction to the maintainer with that measurement. EXCLUDES any change to the auto-ack itself (correct in the ordinary case, per `_reconcile_scope`'s own comment), to `out_of_scope_paths`, to orchestrator retirement (F-08 measures it bypasses this code entirely), and to the uncommitted-work half (F-06), whose carrier is `z8ex9f`.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finalize_empty_declared_scope.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: high
@@ -17,9 +17,9 @@
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: a8e2l8
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: a8e2l8 verified (set emptyscope, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (E-04 zero-work widening unreachable: receipt consumed after self-finalize and the conjunctive predicate refuses any turn that made the lifecycle commit; removed, runner_shared.py dropped from Scope-Paths, run-level signal deferred to gmbdxe, F-13 added), PR-002 (E-05 renumbered E-04, behaviours a-f with a volume-cap case replacing the unreachable f/g, mutation iii retargeted), PR-003 (V-01 adds the dirty-uncommitted shape; E-01 notes the widened-path edge), PR-004 (gate: removed stop-and-report scope wording, added finalize ownership). Mechanism claims F-01..F-08 re-verified at lane HEAD 601c3be29.
 
@@ -36,7 +36,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: compute the fact once, where the delta is already known
 
-- [ ] E-01 In `ipd_lifecycle.finalize_precheck`, add ONE additive key to the `evidence["scope_audit"]` dict: `all_declared_unmodified`, true when the plan declared a concrete fence AND every declared path is in `in_scope_unmodified`.
+- [x] E-01 In `ipd_lifecycle.finalize_precheck`, add ONE additive key to the `evidence["scope_audit"]` dict: `all_declared_unmodified`, true when the plan declared a concrete fence AND every declared path is in `in_scope_unmodified`.
 
   COMPUTE IT FROM THE SET ALREADY BUILT, NOT BY RE-WALKING GIT. The audit dict is assembled at the quoted line `"in_scope_unmodified": list(in_scope_unmodified),` and the list it reads is built immediately above by the `if scope_paths:` loop that appends a pattern when `not any(_scope_match(c, pat) for c in changed)`. So the predicate is exactly `bool(scope_paths) and len(in_scope_unmodified) == len(scope_paths)`, needing no new I/O.
 
@@ -47,11 +47,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IT IS ADDITIVE AND CHANGES NO VERDICT. Do not alter `in_scope_unmodified`, `out_of_scope_paths`, `widened_paths`, or any of the three `disregarded_*` keys, and do not touch the `msg` the precheck returns. V-01 pins the invariance rather than trusting it.
   - Depends on: none
   - Expected outcome: `finalize_precheck`'s `evidence["scope_audit"]` carries `all_declared_unmodified: True` for an execution that modified none of its declared paths, `False` when at least one was modified, and `False` for a grandfathered plan with no declared fence; every other audit key is byte-identical to before for the same inputs.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: put the fact into the permanent record
 
-- [ ] E-02 Add a renderer beside `ipd_lifecycle._disregarded_history_note` that renders the empty-declared-delta fact as a verbatim note, and fold it into the attributed history message at the SAME site the other two notes are folded in.
+- [x] E-02 Add a renderer beside `ipd_lifecycle._disregarded_history_note` that renders the empty-declared-delta fact as a verbatim note, and fold it into the attributed history message at the SAME site the other two notes are folded in.
 
   THE SITE IS THE EXISTING TWO-NOTE BLOCK, so find it by its quoted content: `recon_note = _reconciliation_history_note(` followed by `if recon_note:`, then `disregarded_note = _disregarded_history_note(` followed by `if disregarded_note:`. Append the new note THIRD so the two shipped notes keep their current relative order and position, which is what keeps `tests/test_ipd_lifecycle_cli.py`'s existing reconciliation assertions reading the same prefix they read today.
 
@@ -62,20 +62,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IT MUST BE SILENT WHENEVER THE FACT IS FALSE. Return the empty string unless E-01's key is true, so a finalize that modified at least one declared path, and a grandfathered one, both get no new note. The shipped `assertNotIn("Scope reconciliation", moved_clean)` invariant in `tests/test_ipd_lifecycle_cli.py::ReconciliationTests` is the trap this protects: a clean-delta finalize must remain free of every note.
   - Depends on: E-01
   - Expected outcome: a finalize whose execution modified none of its declared paths writes the fact, the declared-path count and up to 5 named paths into the executed plan's `## Workflow history` line and into the lifecycle commit message; a finalize that modified at least one declared path writes no new note; a grandfathered plan writes no new note; the two existing notes keep their wording and their relative order.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Record at the changed site WHY this warns rather than refuses, citing the census measurement and naming the open question it leaves to the maintainer.
+- [x] E-03 Record at the changed site WHY this warns rather than refuses, citing the census measurement and naming the open question it leaves to the maintainer.
 
   CITE THE NUMBER, NOT AN OPINION, because the number is the whole argument and a later reader will otherwise "tighten" this into the refusal the census falsifies. State that across the executed corpus, 6 finalizes were auto-acknowledged with every declared path unmodified, that each one legitimately landed its work (committed before the begin baseline, or declared paths later deleted by their own attributed commits), and that a bare refusal keyed on this predicate would therefore have refused 6 valid executions while catching 0 real losses. Name `20260824-8t5ghsgi-01-s2ufeo` as the worked example whose own recorded ack says `committed in b78501b before the begin baseline`.
 
   ALSO NAME WHAT THIS DOES NOT FIX, so the residue stays discoverable: the finalize still SUCCEEDS, the auto-ack is unchanged, and an execution that genuinely did nothing is still recorded `executed`. Point at OQ-01 and at backlog `gmbdxe`. Separately note that the sibling loss mechanism, work modified but never committed, is NOT this gate's and is carried by `z8ex9f`, so a reader does not conflate the two.
   - Depends on: E-02
   - Expected outcome: a comment at the changed site naming the 6-plan census measurement, the worked pre-baseline example, the unchanged verdict, OQ-01 and the two backlog carriers.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it mechanically, in both directions
 
-- [ ] E-04 Add a new test module `tests/test_finalize_empty_declared_scope.py` driving real temp git repos, asserting the record in BOTH directions plus the verdict's invariance.
+- [x] E-04 Add a new test module `tests/test_finalize_empty_declared_scope.py` driving real temp git repos, asserting the record in BOTH directions plus the verdict's invariance.
 
   COVER THESE SIX BEHAVIOURS (how they are split into test functions is the executor's choice), and the negative ones are what stop this plan being satisfied by a note that always fires: (a) RECORDED - an execution that modifies NEITHER declared path finalizes exit 0 AND the executed plan's text states the empty declared delta and the declared-path count; (b) LIFECYCLE COMMIT - the same statement appears in the lifecycle commit message (`git log -1 --format=%B`), since the plan file could be edited later while the commit cannot; (c) PARTIAL WORK IS SILENT - an execution that commits ONE of two declared paths gets NO new note while the existing reconciliation note is still present (this is the assertion that stops the note firing on ordinary work, the shape 245 executed plans are in per F-07); (d) GRANDFATHERED IS SILENT - a plan with no concrete `Scope-Paths` gets no new note, pinning E-01's guard; (e) VERDICT UNCHANGED - for (a), (c) and (d) the finalize exit code, `out_of_scope_paths` and `in_scope_unmodified` are what the shipped code produces (assert the concrete expected values for each shape, e.g. (a) exit 0, `out_of_scope_paths == []`, `in_scope_unmodified` equal to both declared paths); (f) VOLUME CAP - a plan declaring 7 or more paths, all unmodified, names at most 5 paths in the note and states the true total.
 
@@ -86,7 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ASSERT THE NOTE'S EXACT SENTENCE. Assert the presence of the empty-delta fact and the declared-path count; pinning full prose makes every later wording fix a test edit, which is the coupling this repository's guidance bans.
   - Depends on: E-02
   - Expected outcome: a new test module covering behaviours (a) through (f): the empty declared delta is recorded in both the plan and the lifecycle commit, partial work and a grandfathered plan are both silent, no finalize verdict moved, and the note's volume is capped at 5 named paths with the total stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -178,25 +178,223 @@ Spec `25kzda` 5.5 (the retry budget) is NOT affected: the zero-work retry path i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `finalize_precheck`'s full `evidence["scope_audit"]` dict for THREE shapes built in temp repos: (a) an execution touching neither declared path, showing `all_declared_unmodified: True`; (b) an execution committing ONE of two declared paths, showing `False`; (c) a plan with no concrete `Scope-Paths`, showing `False` AND `grandfathered: True`; (d) both declared paths edited in the working tree and NOT committed, showing `False` (F-06's shape counts as modified). Then paste, for all four, a key-by-key comparison of every OTHER audit key against the same dict produced by the shipped code, showing them IDENTICAL (the additive-and-no-verdict-change claim). A differing `in_scope_unmodified` or `out_of_scope_paths` fails this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full `evidence["scope_audit"]` for all four shapes measured in temp repos:
+    Shape (a) - execution touching neither declared path:
+    ```python
+    {
+      "grandfathered": False,
+      "in_scope": True,
+      "out_of_scope_paths": [],
+      "in_scope_unmodified": ["agent_workflows/demo.py", "tests/test_demo.py"],
+      "all_declared_unmodified": True,
+      "intervening_in_scope_commits": [],
+      "disregarded_unowned_paths": [],
+      "disregarded_foreign_owned_paths": [],
+      "disregarded_no_evidence_paths": [],
+      "committed_paths": [],
+      "working_tree_paths": [],
+      "widened_paths": []
+    }
+    ```
+    Shape (b) - execution committing ONE of two declared paths:
+    ```python
+    {
+      "grandfathered": False,
+      "in_scope": True,
+      "out_of_scope_paths": [],
+      "in_scope_unmodified": ["tests/test_demo.py"],
+      "all_declared_unmodified": False,
+      "intervening_in_scope_commits": ["agent_workflows/demo.py"],
+      "disregarded_unowned_paths": [],
+      "disregarded_foreign_owned_paths": [],
+      "disregarded_no_evidence_paths": [],
+      "committed_paths": ["agent_workflows/demo.py"],
+      "working_tree_paths": [],
+      "widened_paths": []
+    }
+    ```
+    Shape (c) - plan with no concrete Scope-Paths (grandfathered):
+    ```python
+    {
+      "grandfathered": True,
+      "in_scope": False,
+      "out_of_scope_paths": [],
+      "in_scope_unmodified": [],
+      "all_declared_unmodified": False,
+      "intervening_in_scope_commits": [],
+      "disregarded_unowned_paths": [],
+      "disregarded_foreign_owned_paths": [],
+      "disregarded_no_evidence_paths": [],
+      "committed_paths": [],
+      "working_tree_paths": [],
+      "widened_paths": []
+    }
+    ```
+    Shape (d) - both declared paths edited in working tree and NOT committed:
+    ```python
+    {
+      "grandfathered": False,
+      "in_scope": True,
+      "out_of_scope_paths": [],
+      "in_scope_unmodified": [],
+      "all_declared_unmodified": False,
+      "intervening_in_scope_commits": [],
+      "disregarded_unowned_paths": [],
+      "disregarded_foreign_owned_paths": [],
+      "disregarded_no_evidence_paths": [],
+      "committed_paths": [],
+      "working_tree_paths": ["agent_workflows/demo.py", "tests/test_demo.py"],
+      "widened_paths": []
+    }
+    ```
+    Key-by-key comparison against shipped code:
+    `diff -u tmp/probe_before.json tmp/probe_after.json` confirms that for every shape, every key other than the additive `all_declared_unmodified` is byte-identical:
+    `grandfathered`, `in_scope`, `out_of_scope_paths`, `in_scope_unmodified`, `intervening_in_scope_commits`, `disregarded_unowned_paths`, `disregarded_foreign_owned_paths`, `disregarded_no_evidence_paths`, `committed_paths`, `working_tree_paths`, and `widened_paths` remain unchanged. Precheck and finalize return exit 0 across all four shapes.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Paste the executed plan's `## Workflow history` line AND `git log -1 --format=%B` for: (a) the all-unmodified shape, showing the new note present with the declared-path COUNT; (b) the partial-work shape, showing the new note ABSENT while the existing reconciliation note is still present and unchanged in wording and position; (c) the grandfathered shape, showing the new note absent. Then paste a case with 7 or more declared paths all unmodified, showing at most 5 named and the true total stated. Assert the fact and the count, NOT the exact sentence.
   - Observed evidence:
-  - Result: pending
+    (a) All-unmodified shape:
+    History line:
+    `- 2026-10-03 executed (opencode/test): exec a [Scope reconciliation - in-scope-unmodified agent_workflows/demo.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_demo.py: declared-but-unmodified (auto-acknowledged by aw oc run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (2 declared path(s) unmodified; work may have landed before the begin baseline or not at all): agent_workflows/demo.py, tests/test_demo.py]`
+    git log -1 --format=%B:
+    ```
+    lifecycle(abc123): finalize abc123 -> executed
 
-- [ ] V-03 validates E-03
+    exec a [Scope reconciliation - in-scope-unmodified agent_workflows/demo.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_demo.py: declared-but-unmodified (auto-acknowledged by aw oc run)] [Scope delta - no declared Scope-Paths were modified since the frozen base (2 declared path(s) unmodified; work may have landed before the begin baseline or not at all): agent_workflows/demo.py, tests/test_demo.py]
+
+    Executed by opencode/test via aw ipd finalize.
+    ```
+    (b) Partial-work shape:
+    History line:
+    `- 2026-10-03 executed (opencode/test): exec b [Scope reconciliation - in-scope-unmodified tests/test_demo.py: declared-but-unmodified (auto-acknowledged by aw oc run)]`
+    git log -1 --format=%B:
+    ```
+    lifecycle(abc123): finalize abc123 -> executed
+
+    exec b [Scope reconciliation - in-scope-unmodified tests/test_demo.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
+
+    Executed by opencode/test via aw ipd finalize.
+    ```
+    (New note is absent; existing reconciliation note is present and unchanged.)
+
+    (c) Grandfathered shape:
+    History line:
+    `- 2026-10-03 executed (opencode/test): exec c`
+    git log -1 --format=%B:
+    ```
+    lifecycle(abc123): finalize abc123 -> executed
+
+    exec c
+
+    Executed by opencode/test via aw ipd finalize.
+    ```
+    (New note is absent.)
+
+    (d) Case with 8 declared paths all unmodified (`test_f_volume_cap`):
+    History line:
+    `- 2026-10-03 executed (opencode/test): exec vol [Scope reconciliation - in-scope-unmodified agent_workflows/file_01.py: not-needed; in-scope-unmodified agent_workflows/file_02.py: not-needed; in-scope-unmodified agent_workflows/file_03.py: not-needed; in-scope-unmodified agent_workflows/file_04.py: not-needed; in-scope-unmodified agent_workflows/file_05.py: not-needed; in-scope-unmodified agent_workflows/file_06.py: not-needed; in-scope-unmodified agent_workflows/file_07.py: not-needed; in-scope-unmodified agent_workflows/file_08.py: not-needed] [Scope delta - no declared Scope-Paths were modified since the frozen base (8 declared path(s) unmodified; work may have landed before the begin baseline or not at all): agent_workflows/file_01.py, agent_workflows/file_02.py, agent_workflows/file_03.py, agent_workflows/file_04.py, agent_workflows/file_05.py (... and 3 more; see in_scope_unmodified in the finalize evidence)]`
+    git log -1 --format=%B:
+    ```
+    lifecycle(vol123): finalize vol123 -> executed
+
+    exec vol [Scope reconciliation - in-scope-unmodified agent_workflows/file_01.py: not-needed; in-scope-unmodified agent_workflows/file_02.py: not-needed; in-scope-unmodified agent_workflows/file_03.py: not-needed; in-scope-unmodified agent_workflows/file_04.py: not-needed; in-scope-unmodified agent_workflows/file_05.py: not-needed; in-scope-unmodified agent_workflows/file_06.py: not-needed; in-scope-unmodified agent_workflows/file_07.py: not-needed; in-scope-unmodified agent_workflows/file_08.py: not-needed] [Scope delta - no declared Scope-Paths were modified since the frozen base (8 declared path(s) unmodified; work may have landed before the begin baseline or not at all): agent_workflows/file_01.py, agent_workflows/file_02.py, agent_workflows/file_03.py, agent_workflows/file_04.py, agent_workflows/file_05.py (... and 3 more; see in_scope_unmodified in the finalize evidence)]
+
+    Executed by opencode/test via aw ipd finalize.
+    ```
+    (Exactly 5 paths named: file_01.py through file_05.py; true total 8 stated; residual "3 more" stated.)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the comment as committed, and show it names: the 6-plan auto-acked census figure, the pre-baseline worked example `20260824-8t5ghsgi-01-s2ufeo`, the fact that the verdict is unchanged, OQ-01, and both carriers (`gmbdxe` for the direction, `z8ex9f` for the uncommitted-work mechanism). Also paste `git diff` for the file showing no logic change accompanied this comment.
   - Observed evidence:
-  - Result: pending
+    Comment in `agent_workflows/ipd_lifecycle.py` preceding `_empty_declared_scope_history_note`:
+    ```python
+    # --------------------------------------------------------------------------------------
+    # WARN AND RECORD ONLY, VERDICT UNCHANGED (IPD a8e2l8, backlog gmbdxe, OQ-01).
+    #
+    # WHY THIS WARNS RATHER THAN REFUSES:
+    # Across the executed corpus, 6 finalizes were auto-acknowledged with every declared path
+    # unmodified, and every one of them legitimately landed work (committed before the begin
+    # baseline, or declared paths later deleted by their own attributed commits). A bare refusal
+    # keyed on this predicate would therefore have refused 6 valid executions while catching 0
+    # real losses. Worked example: 20260824-8t5ghsgi-01-s2ufeo states in its own recorded ack:
+    # "committed in b78501b before the begin baseline".
+    #
+    # WHAT THIS DOES NOT FIX:
+    # The finalize still succeeds (the verdict is unchanged), the auto-ack is unchanged, and
+    # an execution that genuinely did nothing is still recorded executed. The refuse-or-warn
+    # direction awaits the maintainer; OQ-01 and backlog gmbdxe remain the residue's carriers.
+    # Separately, the sibling loss mechanism (work modified but never committed, which actually
+    # affected 9iiqmm) is NOT this gate's and is carried by z8ex9f, so a reader does not conflate
+    # the two.
+    # --------------------------------------------------------------------------------------
+    ```
+    The comment names the 6-plan census measurement, pre-baseline worked example `20260824-8t5ghsgi-01-s2ufeo`, the unchanged verdict, OQ-01, and both carriers `gmbdxe` and `z8ex9f`. `git diff agent_workflows/ipd_lifecycle.py` shows only additive changes: `all_declared_unmodified` key in `scope_audit`, `_empty_declared_scope_history_note`, and folding the note into `message` in `finalize`; no existing gates or logic were modified.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Paste the full output of `python3 -m pytest tests/test_finalize_empty_declared_scope.py -o addopts="" -v` showing every test passing, with a mapping from each test to the behaviour(s) (a) through (f) it pins (re-derive the mapping from the module as written; test names and counts are pointers, not the bar). Then paste the three MUTATION proofs required by validation step 5, each RED then GREEN, each identifying which test caught which mutation. Then paste the bare full-suite run and `git diff --stat tests/test_ipd_lifecycle_cli.py` showing it unchanged. A mutation that leaves every test green fails this item.
   - Observed evidence:
-  - Result: pending
+    Targeted test execution:
+    ```
+    tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_e_verdict_unchanged PASSED [ 16%]
+    tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_d_grandfathered_is_silent PASSED [ 33%]
+    tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_f_volume_cap PASSED [ 50%]
+    tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_a_recorded PASSED [ 66%]
+    tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_b_lifecycle_commit PASSED [ 83%]
+    tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_c_partial_work_is_silent PASSED [100%]
+    ============================== 6 passed in 5.25s ===============================
+    ```
+    Mapping to behaviours:
+    - test_a_recorded -> (a) RECORDED
+    - test_b_lifecycle_commit -> (b) LIFECYCLE COMMIT
+    - test_c_partial_work_is_silent -> (c) PARTIAL WORK IS SILENT
+    - test_d_grandfathered_is_silent -> (d) GRANDFATHERED IS SILENT
+    - test_e_verdict_unchanged -> (e) VERDICT UNCHANGED
+    - test_f_volume_cap -> (f) VOLUME CAP
+
+    Mutation proofs (all 3 verified RED then GREEN):
+    Mutation (i): remove `bool(scope_paths)` guard from `all_declared_unmodified` computation in `finalize_precheck`.
+    RED output:
+    `FAILED tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_d_grandfathered_is_silent - AssertionError: True is not false` (line 158).
+    GREEN output after restore:
+    `tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_d_grandfathered_is_silent PASSED [100%]`.
+
+    Mutation (ii): make E-02 renderer fire on ANY unmodified path (`bool(in_scope_unmodified)`) rather than `all_declared_unmodified`.
+    RED output:
+    `FAILED tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_c_partial_work_is_silent - AssertionError: 'no declared Scope-Paths were modified' unexpectedly found in plan history`.
+    GREEN output after restore:
+    `tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_c_partial_work_is_silent PASSED [100%]`.
+
+    Mutation (iii): raise volume cap from 5 to unbounded (`head = sorted_paths`).
+    RED output:
+    `FAILED tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_f_volume_cap - AssertionError: '3 more' not found in '[Scope delta - ...]'`.
+    GREEN output after restore:
+    `tests/test_finalize_empty_declared_scope.py::FinalizeEmptyDeclaredScopeTests::test_f_volume_cap PASSED [100%]`.
+
+    Targeted suite run:
+    `tests/test_finalize_disregarded_record.py .......` (7 passed)
+    `tests/test_ipd_lifecycle_cli.py .................................................................` (65 passed)
+    `tests/test_finalize_empty_declared_scope.py ......` (6 passed)
+    `tests/test_finalize_trailer_attribution.py ......` (6 passed)
+    Total: 84 passed in 88.52s.
+
+    Full bare test suite run:
+    Baseline: `3 failed, 4960 passed, 2 skipped, 3 warnings in 914.88s`
+    Post-change: `3 failed, 4966 passed, 2 skipped, 3 warnings in 645.47s`
+    The 3 pre-existing failures are unchanged:
+    - tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    - tests/test_oc_runipd.py::HostReviewAliasExpansionTests::test_alias_freezes_the_same_run_state_as_the_canonical_invocation
+    - tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit
+    Zero new failures; passed count increased by exactly 6.
+
+    Non-regression check:
+    `git diff --stat tests/test_ipd_lifecycle_cli.py` output is empty (0 lines changed, file unchanged).
+  - Result: pass
 
 ## Approval and execution gate
 
