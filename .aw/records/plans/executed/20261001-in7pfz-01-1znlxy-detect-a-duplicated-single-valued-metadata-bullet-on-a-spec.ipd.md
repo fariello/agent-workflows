@@ -6,7 +6,7 @@
 - Scope: add a duplicate-bullet finding to the SPEC validator only, mirroring the backlog detector but with the multi-valued allowlist the spec corpus requires; register its severity; test it. No change to any reader, to the backlog or plan detectors, or to any spec file's content.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/check_engine.py, tests/test_specs_metadata_duplicate_bullet.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 1znlxy
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 1znlxy verified (set in7pfz, attempt 1). [Scope reconciliation - out-of-scope tests/test_specs_releases_descriptive_safety.py: Update pre-fix demonstration test assertion now that duplicate Status bullet is detected]
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Review record: .aw/records/reviews/20261001-in7pfz-01-1znlxy-detect-a-duplicated-single-valued-metadata-bullet-on-a-spec.review.md
