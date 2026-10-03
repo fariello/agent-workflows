@@ -1628,12 +1628,15 @@ def run_set(args) -> int:
     if new_status == "blocked":
         gk = getattr(args, "gate_kind", None)
         gr = getattr(args, "gate_ref", None)
-        if not gk or not gr:
-            sys.stderr.write(
-                "aw backlog set: moving to blocked requires --gate-kind and --gate-ref\n"
-            )
-            return 2
-        item.gate_kind, item.gate_ref = gk, gr
+        gs = getattr(args, "gate_summary", None)
+        has_gate_flags = (gk is not None) or (gr is not None) or (gs is not None)
+        is_transition_in = prior_status != "blocked"
+        if is_transition_in or has_gate_flags:
+            gate_err = A.validate_gate_flags("aw backlog set", gk, gr, gs)
+            if gate_err:
+                sys.stderr.write(f"{gate_err}\n")
+                return 2
+            item.gate_kind, item.gate_ref = gk, gr
     else:
         item.gate_kind = item.gate_ref = None
 

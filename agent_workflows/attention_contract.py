@@ -693,6 +693,30 @@ def validate_gate_ref(kind: str, ref: str) -> bool:
     return False
 
 
+def validate_gate_flags(
+    verb: str,
+    kind: Optional[str],
+    ref: Optional[str],
+    summary: Optional[str] = None,
+) -> Optional[str]:
+    """Validate typed gate flags at the point of typing.
+
+    Enforces that both flags are provided together, kind is in GATE_KINDS,
+    ref is valid for that kind under validate_gate_ref, and summary (if supplied)
+    is safe descriptive text.
+    Returns an error message string if invalid, or None if valid.
+    """
+    if not kind or not ref:
+        return f"{verb}: requires --gate-kind and --gate-ref"
+    if kind not in GATE_KINDS:
+        return f"{verb}: --gate-kind must be one of {sorted(GATE_KINDS)}"
+    if not validate_gate_ref(kind, ref):
+        return f"{verb}: --gate-ref is invalid for kind {kind!r}: {ref!r}"
+    if summary is not None and not is_safe_descriptive(summary):
+        return f"{verb}: --gate-summary must be a bounded single control-char-free line"
+    return None
+
+
 # --------------------------------------------------------------------------------------
 # Workflow-history record grammar + last_history_at derivation (spec Section 8.2/8.5; OQ2)
 # --------------------------------------------------------------------------------------
