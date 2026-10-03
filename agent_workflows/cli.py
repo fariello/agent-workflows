@@ -15649,13 +15649,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
         subcmd = getattr(args, "upgrade_test_command", None)
         if not subcmd:
-            for sa in [
-                a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
-            ]:
-                if "upgrade-test" in sa.choices:
-                    sa.choices["upgrade-test"].print_help()
-                    break
-            return 2
+            return _show_family_help(
+                parser, "upgrade-test", "aw upgrade-test list", term, context
+            )
 
         if getattr(args, "install_args", None):
             args.install_args = [a for a in args.install_args if a != "--"]

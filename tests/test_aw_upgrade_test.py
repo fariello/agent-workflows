@@ -45,6 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from support import REPO_ROOT, git, init_repo, load_module  # noqa: E402
+from agent_workflows import agent_schema  # noqa: E402
 
 TOOL = REPO_ROOT / "tools" / "aw_upgrade_test.py"
 uat = load_module("aw_upgrade_test", TOOL)
@@ -2180,6 +2181,54 @@ class CliTests(TempCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("Rehearse", proc.stdout)
+
+    def test_bare_upgrade_test_emits_cannot_run_record_on_agent_and_help_on_human(
+        self,
+    ) -> None:
+        """The bare ``aw upgrade-test`` group must emit a schema-valid cannot-run record on --agent and help on human."""
+
+        cmd = uat.default_aw_cmd()
+
+        # Machine surface (E-04 / 7pnneh)
+        proc_agent = subprocess.run(
+            cmd + ["upgrade-test", "--agent"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(REPO_ROOT),
+        )
+        self.assertEqual(proc_agent.returncode, 2, proc_agent.stderr)
+        self.assertTrue(proc_agent.stdout, "stdout must be non-empty")
+        lines = proc_agent.stdout.splitlines()
+        self.assertEqual(
+            len(lines),
+            1,
+            f"no terminal record, and {len(lines)} stdout lines rather than 1:\n{proc_agent.stdout}",
+        )
+        try:
+            record = json.loads(lines[0])
+        except json.JSONDecodeError as exc:
+            self.fail(f"no terminal record: stdout line is not valid JSON: {exc}")
+        self.assertIn(record.get("kind"), ("result", "summary", "error"))
+        val_errors = agent_schema.validate_agent_record(record)
+        self.assertEqual(
+            val_errors, [], f"Agent record validation failed: {val_errors}"
+        )
+        self.assertEqual(record.get("exit"), proc_agent.returncode)
+        self.assertEqual(record.get("outcome"), "cannot-run")
+        self.assertIn("next", record)
+        self.assertTrue(record["next"])
+
+        # Human surface did not regress (E-04 / 7pnneh)
+        proc_human = subprocess.run(
+            cmd + ["upgrade-test"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(REPO_ROOT),
+        )
+        self.assertEqual(proc_human.returncode, 2, proc_human.stderr)
+        self.assertIn("Rehearse", proc_human.stdout)
 
 
 class NoRunRehearsalTests(TempCase):

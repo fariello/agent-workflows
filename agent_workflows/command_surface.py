@@ -2204,16 +2204,12 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     # upgrehearse Order 01 (8ud1is): top-level `aw upgrade-test` graduated from tools/aw_upgrade_test.py.
-    CommandDeclaration(
-        command="upgrade-test",
-        command_class="read",
-        human_recipe="status",
-        agent_record_kind="result",
-        mutation_gate="none",
-        empty_error_renderer="renderer_boundary",
-        legacy_flags=("--agent", "--json"),
-        exit_contract=(0, 1, 2),
-    ),
+    # NOTE on the BARE `aw upgrade-test` (7pnneh / lbbo9s): it is deliberately NOT declared.
+    # `COMMAND_INVENTORY` declares LEAVES, and `discover_parser_leaves` only reports parsers with no
+    # subparsers, so a family ROOT is never a leaf. The bare root is bare-invokable and emits a schema-valid
+    # `cannot-run` record through `_show_family_help` on the agent path, while its contract is carried by its
+    # six leaves (`list`, `new`, `sandboxes`, `probe`, `env`, `clean`) which are all declared below,
+    # mirroring how the bare `aw runs`, `aw ipd`, `aw specs`, and `aw backlog` are handled.
     CommandDeclaration(
         command="upgrade-test list",
         command_class="read",
