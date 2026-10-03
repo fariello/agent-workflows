@@ -1,5 +1,5 @@
 - Id: es7wdp
-- Status: graduated
+- Status: done
 - Graduated-To: scoperewrite
 - Set: scoperewrite
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Decide whether a record status transition should rewrite citing Scope-Paths entries, removing the cause of stale scope targets instead of grading the symptom
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 5h3qyy executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-scoperewrite-01-5h3qyy-decide-and-implement-whether-a-status-transition-rewrites-ci.ipd.md); evidence .aw/records/plans/executed/20261002-scoperewrite-01-5h3qyy-decide-and-implement-whether-a-status-transition-rewrites-ci.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 5h3qyy
 - 2026-09-30 created (aw backlog): Decide whether a record status transition should rewrite citing Scope-Paths entries, removing the cause of stale scope targets instead of grading the symptom
 
