@@ -6,7 +6,7 @@
 - Scope: IN: (1) make the positional spelling (`status_set.apply_status_change`, reached from `cli.py`'s `backlog set` fork when `args.status is None`) write `- Close-Evidence:` on a backlog record whose close the shared predicate legitimized via `SATISFIED`, through the SAME `backlog.set_close_evidence_line` helper the `--status` spelling already calls, so there is one writer and no second implementation; (2) NORMALIZE the citation to a repo-relative POSIX path before persisting it, at the one shared normalization point both spellings reach, so the stored value is portable across checkouts and cannot carry a machine path into a tracked file; (3) RECONCILE the writer's and the reader's notion of a value so a citation the setter accepts is one the predicate can read, which is a one-regex change plus a validator rule that refuses the unreadable shape at rest; (4) behavioral tests pinning all three, in the paired-spelling style the existing suite already uses; (5) a CHANGELOG line. OUT: changing WHAT counts as a resolvable citation (`check_engine.resolve_evidence_artifact` is untouched, including its `.aw/records/`-or-`/.agents/` containment test); changing the three legitimacy routes, their ORDER (`DE-GATED`, `HANDOFF`, `SATISFIED`), or their severities; any RETROACTIVE backfill of a citation onto an already-closed item, which `AGENTS.md` forbids as asserting a history that did not happen and which plan `1hrlp3` separately declines; adjudicating the 53 historical items `1hrlp3` audits (this plan changes the FORWARD path only); widening `check.blocking-item-closed-without-gate`'s scope, already deferred with reasoning by `1hrlp3`; the `HANDOFF` spec-carrier question owned by pending plan `5eygjt`; and the three stale prose sites owned by pending plan `jf3j4q`.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/check_engine.py, .aw/records/backlog/README.md, tests/test_backlog_positional_close_gate.py, tests/test_backlog_handoff_close.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: byzkr7
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: byzkr7 verified (set gh409m, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
