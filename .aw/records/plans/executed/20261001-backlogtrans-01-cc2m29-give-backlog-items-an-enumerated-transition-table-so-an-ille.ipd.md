@@ -6,7 +6,7 @@
 - Scope: Define the backlog transition vocabulary that does not exist yet, publish it as ONE table beside `SPEC_TRANSITIONS`, and consult it from BOTH setter spellings so an unenumerated move fails closed. The design is fenced by MEASUREMENT rather than by the doc diagram: the live corpus and the shipped test suite both require `done -> open` and `graduated -> open` to stay legal, so this plan enumerates a table that PERMITS corrective reopening and refuses only what nothing uses.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, tests/test_backlog_transition_gate.py, .aw/records/backlog/README.md, docs/artifact-lifecycles.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: medium
@@ -16,9 +16,9 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: cc2m29
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cc2m29 verified (set backlogtrans, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
