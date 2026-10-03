@@ -148,12 +148,21 @@ model rarely benefits can record `validate: false` while a cheaper one records `
 your having to remember a flag on every invocation.
 
 BOTH HOSTS HONOR THIS CHAIN. `aw oc run` and `aw agy run` resolve it the same way, so a stored
-per-model choice decides either one. The flags differ only in spelling: opencode accepts
-`--validate` / `--no-validate` (with `--verify` and `--audit` as aliases), and antigravity accepts
-`--validate` / `--no-validate` plus its long standing `--no-verify` (alias `--no-audit`), which
-means exactly `--no-validate`. Passing a contradictory pair such as `--no-verify --validate` is
-refused before the run starts rather than resolved by precedence, because either winner would be a
-verification decision you did not make.
+per-model choice decides either one. The two hosts accept different sets of spellings: opencode
+accepts `--validate` / `--no-validate` (with `--verify` and `--audit` as aliases), and antigravity
+accepts `--validate` / `--no-validate` plus its long standing `--no-verify` (alias `--no-audit`),
+which means exactly `--no-validate`. On Antigravity, passing a contradictory pair such as
+`--no-verify --validate` is refused before the run starts rather than resolved by precedence,
+because either winner would be a verification decision you did not make. On OpenCode, the same
+pair is resolved by argument order (last-wins).
+
+The `resume` subcommand is asymmetric between hosts. `aw oc run resume` accepts all six spellings,
+and an explicit flag passed there overrides the frozen decision for the rest of the run. `aw agy run resume`
+registers none of the six, so passing any verification flag exits 2 with `unrecognized arguments`.
+In practice, an Antigravity run's verification posture is fixed when the run is created and cannot
+be changed on resume. This lands hardest on Antigravity because it verifies by default: an operator
+resuming a long Antigravity run who wants to skip the verifier turn has no flag to do so and must
+start a new run instead.
 
 ### Setting the verification default on antigravity
 
@@ -406,6 +415,7 @@ directory, no partial state.
 | A duplicate name without `--replace` | Refused, and the existing profile survives untouched. |
 | A `verify_with` naming a profile that does not exist | Refused, because falling back to the executor's model would let you believe an independent model verified the work. |
 | `--verify-with` passed to `resume` | Exit 2. The verifier launch is frozen at creation; omit the flag to use it, or start a new run. |
+| A verification flag passed to `aw agy run resume` | Exit 2 (unrecognized arguments). The verification posture is frozen at creation; start a new run with the posture you want. |
 | A store written by a newer `aw` (a higher `schema_version`) | Refused with the version and the advice to upgrade, never treated as empty. |
 
 If the store is malformed, `aw setup` reports it and does NOT offer the interview, so a file you

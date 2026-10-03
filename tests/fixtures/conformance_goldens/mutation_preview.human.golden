@@ -5,4 +5,4 @@ Would change:
   rename  old.md (-> new.md)
 
 Next  aw rename plans x --slug new --apply (apply)
-Agent output: --agent (automatic when piped)
+Agent output: --agent

@@ -50,9 +50,11 @@ aw list-repos           # see each repo's installed version and currency
 aw next                 # on-demand board of what to work on next across records
 aw next -o depth        # order it so a prerequisite comes before what depends on it
 aw ipd board            # board of your plan/IPD readiness Status, grouped by lifecycle
-aw ipd set approved <id> # transition plan status (or aw set approved <id>)
+aw ipd set approved <id> # transition plan status and offer commit (or aw set approved <id>)
 aw check plans names    # check plan/IPD filenames match convention
 ```
+
+Status setters write changes and offer a commit when interactive; see `.aw/records/plans/README.md` for the shared confirmation and commit contract.
 
 Re-run `aw install <dir>` any time to UPDATE an installed repo to the current version; it is
 idempotent and no-clobber (your own edits are never overwritten), so it doubles as the updater.
@@ -69,6 +71,7 @@ One command installs it:
 ```bash
 aw completion install          # detects your shell from $SHELL
 aw completion install --shell zsh --dry-run   # preview the exact paths first
+aw completion status           # check if installed script is current or stale
 aw completion uninstall        # remove it again
 ```
 
@@ -85,6 +88,8 @@ below, and it only ever happens if you answer yes to a prompt):
 Start a new shell afterwards to pick it up. All three console aliases (`aw`, `agentwf`,
 `agent-workflows`) are completed. Installing is idempotent, and it refuses to overwrite an `aw`
 completion file it did not write; uninstall removes only its own files.
+
+**Stale completions after upgrade:** Upgrading `aw` does not automatically update an already installed completion script. When commands or flags change, the installed script becomes stale. If your completion is outdated, interactive `aw` commands report a warning on stderr once per release version. Run `aw completion status` to inspect whether your script is current, stale, or absent, and run `aw completion install` to refresh it. `aw` never rewrites your completion files automatically without your invocation. The notice throttle stamp is saved at `${XDG_CONFIG_HOME:-~/.config}/agent-workflows/completion-notice.json`.
 
 **If nothing completes after you install it, the install is probably fine and your shell never
 loaded its completion framework.** On many systems `bash-completion` is sourced only for login

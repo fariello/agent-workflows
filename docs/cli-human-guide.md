@@ -38,7 +38,7 @@ Evidence
   checked: 41
 
 Next  aw group plans x --set y (regroup)
-Agent output: --agent (automatic when piped)
+Agent output: --agent
 ```
 
 1. Title banner: `AW <command>  <target>` and, for timed operations, an elapsed time on the
@@ -111,7 +111,7 @@ in your own scripts for "the command could not run at all".
 | A repository health sweep | `aw doctor` |
 | The cross-tree board of what to work on | `aw next` (aliases `aw attention`, `aw att`, `aw todo`) |
 | That board ordered by dependency, prerequisites first | `aw next -o depth` |
-| Only the fields you care about (agent) | `aw find plans --agent --fields findings` |
+| Only the fields you care about (agent) | `aw check plans --agent --fields findings` |
 | Bounded output with a continuation hint | `aw find plans --agent --limit 20` |
 | Launch an IPD with a saved model alias | `aw run as gem <selector>` |
 

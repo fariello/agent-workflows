@@ -120,6 +120,7 @@ _RELEASE_EXEMPT_KIND_RE = re.compile(
 _RELEASE_EXEMPT_REF_RE = re.compile(
     r"^- Release-Exempt-Ref:[ \t]*(?P<value>.+?)[ \t]*$"
 )
+_CLOSE_EVIDENCE_RE = re.compile(r"^- Close-Evidence:[ \t]*(?P<value>.+?)[ \t]*$")
 _TOP_KEY_RE = re.compile(r"^- ([A-Za-z0-9_-]+):(?:\s*(.*))?$")
 _TEMPLATE_OWNED_KEYS = frozenset(
     (
@@ -308,6 +309,7 @@ class BacklogItem:
 
     __slots__ = (
         "blocks_release",
+        "close_evidence",
         "gate_kind",
         "gate_ref",
         "id",
@@ -332,6 +334,7 @@ class BacklogItem:
         self.blocks_release: Optional[str] = None
         self.release_exempt_kind: Optional[str] = None
         self.release_exempt_ref: Optional[str] = None
+        self.close_evidence: Optional[str] = None
 
 
 def parse_item(text: str) -> BacklogItem:
@@ -359,6 +362,7 @@ def parse_item(text: str) -> BacklogItem:
             ("blocks_release", _BLOCKS_RELEASE_RE),
             ("release_exempt_kind", _RELEASE_EXEMPT_KIND_RE),
             ("release_exempt_ref", _RELEASE_EXEMPT_REF_RE),
+            ("close_evidence", _CLOSE_EVIDENCE_RE),
         ):
             m = rx.match(line)
             if m and getattr(item, attr) is None:
@@ -390,12 +394,50 @@ def _dir_status(path: Path) -> Optional[str]:
     return parent if parent in STATUSES else None
 
 
+def drift_location(path: Path) -> str:
+    """The REPO-RELATIVE POSIX location to put in a Drift record for ``path``.
+
+    Delegates to ``specs.drift_location`` so truncation at records segments
+    (both canonical ``.aw/records/`` and legacy ``.agents/``) and fallback
+    behavior remain defined in one place.
+    """
+    from agent_workflows import specs
+
+    return specs.drift_location(path)
+
+
 def validate_item(path: Path, text: str) -> List[core.Drift]:
     """Validate one backlog item fail-closed. Returns Drift records (empty == conformant)."""
 
-    rel = path.name
+    rel = drift_location(path)
     drift: List[core.Drift] = []
     item = parse_item(text)
+
+    # Duplicate-bullet rule (IPD 7ohskw E-02): walk the leading bullet block using parse_item's
+    # boundary and canonicalize the legacy Kind spelling.
+    gate_summary: Optional[str] = None
+    key_counts: Dict[str, int] = {}
+    for line in text.split("\n"):
+        if line.startswith("## ") or (line.strip() and not line.startswith("- ")):
+            break
+        m = _TOP_KEY_RE.match(line)
+        if m:
+            k = m.group(1)
+            canon_k = "Work-Kind" if k == "Kind" else k
+            key_counts[canon_k] = key_counts.get(canon_k, 0) + 1
+        ms = A.GATE_SUMMARY_RE.match(line)
+        if ms and gate_summary is None:
+            gate_summary = ms.group("value")
+
+    for k, count in key_counts.items():
+        if count > 1:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.metadata-bullet-repeated",
+                    f"metadata bullet - {k}: appears {count} times",
+                )
+            )
 
     if not item.id or not core.is_valid_id6(item.id):
         drift.append(
@@ -451,7 +493,8 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
         )
 
     # Gate present-and-valid IFF blocked; absent otherwise.
-    has_gate = item.gate_kind is not None or item.gate_ref is not None
+    has_gate_fields = item.gate_kind is not None or item.gate_ref is not None
+    has_gate = has_gate_fields or gate_summary is not None
     if item.status == "blocked":
         if not item.gate_kind or not item.gate_ref:
             drift.append(
@@ -479,11 +522,29 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
                     )
                 )
     elif has_gate:
+        if has_gate_fields:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.gate-unexpected",
+                    "gate fields present on a non-blocked item",
+                )
+            )
+        if gate_summary is not None:
+            drift.append(
+                core.Drift(
+                    rel,
+                    "backlog.gate-summary-unexpected",
+                    "Gate-Summary present on a non-blocked item",
+                )
+            )
+
+    if gate_summary is not None and not A.is_safe_descriptive(gate_summary):
         drift.append(
             core.Drift(
                 rel,
-                "backlog.gate-unexpected",
-                "gate fields present on a non-blocked item",
+                "backlog.gate-descriptive-unsafe",
+                "Gate-Summary not a single bounded control-char-free line",
             )
         )
 
@@ -523,6 +584,18 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
                     f"item carries both a valid release exemption and - Blocks-Release: {item.blocks_release}",
                 )
             )
+
+    # gateatrest f7igdu E-02: validate close_evidence shape fail-closed
+    if item.close_evidence is not None and not A.is_safe_descriptive(
+        item.close_evidence
+    ):
+        drift.append(
+            core.Drift(
+                rel,
+                "backlog.close-evidence-unsafe",
+                "close evidence not a single bounded control-char-free line",
+            )
+        )
 
     return drift
 
@@ -956,6 +1029,25 @@ def set_release_exempt_ref_line(text: str, value: Optional[str]) -> str:
     return text
 
 
+_CLOSE_EVIDENCE_LINE_RE = re.compile(r"(?m)^- Close-Evidence:[ \t]*[^\n]*$\n?")
+
+
+def set_close_evidence_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Close-Evidence:` metadata line set to `value`, or removed when
+    `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
+    (falling back to after `- Id:`, or leaving unchanged)."""
+    text = _CLOSE_EVIDENCE_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Close-Evidence: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
 def validate_release_exempt_flags(
     verb: str, kind: Optional[str], ref: Optional[str]
 ) -> Optional[str]:
@@ -1144,7 +1236,7 @@ def run_new(args) -> int:
     )
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
     dest = (
-        _resolve_backlog_root(repo_root)
+        _resolve_backlog_root(repo_root)  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
         / _rp.target_subdir("backlog", status)
         / filename
     )
@@ -1370,6 +1462,19 @@ def run_set(args) -> int:
     else:
         gate_root = repo_root
 
+    lane_carrier_ref = getattr(args, "lane_carrier_ref", None)
+    lane_carrier_path = getattr(args, "lane_carrier_path", None)
+    if lane_carrier_ref is not None and lane_carrier_path is None:
+        sys.stderr.write(
+            "aw backlog set: --lane-carrier-ref requires --lane-carrier-path\n"
+        )
+        return 2
+    if lane_carrier_path is not None and lane_carrier_ref is None:
+        sys.stderr.write(
+            "aw backlog set: --lane-carrier-path requires --lane-carrier-ref\n"
+        )
+        return 2
+
     target = getattr(args, "path", None)
     new_status = getattr(args, "status", None)
     if not target or new_status not in STATUSES:
@@ -1492,8 +1597,14 @@ def run_set(args) -> int:
     rendered = _render_item(item, body, source_text=text)
     # append a transition history record (in addition to the created line _render_item emits,
     # preserve prior history by re-emitting it):
+    prior_status = parse_item(text).status
+    label = new_status if prior_status != new_status else "same-status"
     rendered = _reattach_history(
-        text, rendered, f"{new_status}", getattr(args, "message", "") or ""
+        text,
+        rendered,
+        f"{new_status}",
+        getattr(args, "message", "") or "",
+        label=label,
     )
 
     # awrelease Order 02 / rendrop 2yqt0a E-02: set/clear the Blocks-Release gate field when requested
@@ -1606,6 +1717,8 @@ def run_set(args) -> int:
         evidence=getattr(args, "evidence", None),
         item_text=rendered,
         prior_priority=parse_item(text).priority,
+        lane_carrier_ref=lane_carrier_ref,
+        lane_carrier_path=lane_carrier_path,
     )
     if not verdict.legitimate and verdict.severity == "error":
         sys.stderr.write(f"aw backlog set: refused: {verdict.reason}.\n")
@@ -1615,7 +1728,16 @@ def run_set(args) -> int:
     if verdict.severity == "warn":
         sys.stderr.write(f"aw backlog set: warning: {verdict.reason}.\n")
 
-    dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(
+    # gateatrest f7igdu E-03: write the cited evidence durably on an evidence-satisfied close.
+    # Keyed on verdict.path == "SATISFIED", never on args.evidence presence alone.
+    if verdict.legitimate and verdict.path == "SATISFIED":
+        accepted_evidence = (
+            getattr(args, "evidence", None) or parse_item(rendered).close_evidence
+        )
+        if accepted_evidence:
+            rendered = set_close_evidence_line(rendered, accepted_evidence)
+
+    dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
         "backlog", new_status
     )
     dest = dest_dir / src.name
@@ -1802,7 +1924,11 @@ def _prior_history_records(text: str) -> List[str]:
 
 
 def _reattach_history(
-    old_text: str, rendered: str, new_status: str, message: str
+    old_text: str,
+    rendered: str,
+    new_status: str,
+    message: str,
+    label: str = "set",
 ) -> str:
     """Prepend one transition record to the inline `## Workflow history`, PRESERVING prior records.
 
@@ -1824,13 +1950,18 @@ def _reattach_history(
     `created` line dated today). `old_text` is the file as it was on disk, so it is the only honest
     source. The re-minted `created` line is dropped for the same reason.
 
+    THE LABEL PARAMETER (plan `jbipfa`, backlog `awqzuh`) allows the caller to specify the transition
+    token (e.g. "graduated", "done", or "same-status"), aligning with `status_set.apply_status_change`
+    which names the transition rather than writing an uninformative "set". The default "set" preserves
+    the legacy record token for an unaware caller.
+
     THE SIDECAR IS STILL WRITTEN by the caller; it is a machine-local activity log, not the durable
     store, so it can never gate this write (see `record_history.append_advisory`).
     """
 
     today = datetime.date.today().isoformat()
     msg = message.strip() or f"status -> {new_status}"
-    new_record = f"- {today} set (aw backlog): {msg}"
+    new_record = f"- {today} {label} (aw backlog): {msg}"
     # rebuild: metadata block from `rendered` up to its history header, then the NEW record followed by
     # every prior record from the FILE AS IT WAS (newest-first, matching status_set's plan writer),
     # then the prose body.
@@ -1869,16 +2000,17 @@ def run_check(args) -> int:
         drift.extend(item_drift)
         pid = parse_item(text).id
         if pid and core.is_valid_id6(pid):
+            loc = drift_location(f)
             if pid in seen_ids:
                 drift.append(
                     core.Drift(
-                        f.name,
+                        loc,
                         "backlog.id-duplicate",
                         f"id {pid} also in {seen_ids[pid]}",
                     )
                 )
             else:
-                seen_ids[pid] = f.name
+                seen_ids[pid] = loc
 
     ctx = select_output(args)
     if ctx.is_agent or ctx.is_json:

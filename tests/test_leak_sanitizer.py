@@ -46,7 +46,7 @@ from agent_workflows import leak_sanitizer as ls
 from tests.support import REPO_ROOT
 
 # Heavy subprocess/scan suite; excluded from the fast default run (see pyproject addopts
-# `-m "not slow"`). Run with `make test-all`.
+# `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
 pytestmark = pytest.mark.slow
 
 

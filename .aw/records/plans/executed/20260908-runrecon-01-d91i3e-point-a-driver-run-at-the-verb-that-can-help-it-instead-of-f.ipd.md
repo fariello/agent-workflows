@@ -17,6 +17,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-10-01 note: F-15 axis (c) viewer-climb claim corrected by plan e6f0jx: the viewer path did not climb to the project root, both repair and show refused from subdirectories at HEAD; resolved by e6f0jx.
 - 2026-09-22 executed (aw oc run model=uri/its_direct/pt3-claude-opus-5-1m-us variant=high profile=opus): aw oc run self-finalize: d91i3e verified (set runrecon, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_run_noun_split.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 - 2026-09-08 reviewed (aw set): /plan-review round 1 complete: APPROVE WITH REVISIONS APPLIED; PR-601..PR-609 all FIXED in place; review record written; aw ipd lint --phase review-finalize conforms.

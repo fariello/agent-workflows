@@ -336,6 +336,8 @@ When you graduate an item, do the whole hand-off in one pass:
 
 The release gate is evaluated against the tree named by `--gate-dir` (defaulting to `--dir` when omitted). When `--gate-dir` is specified, carrier plans are scanned for and evidence paths are resolved in that tree, while the backlog item file itself moves within the tree specified by `--dir`.
 
+The runner's in-lane close evaluates the gate against the main checkout while moving the item in the lane. The paired `--lane-carrier-ref` and `--lane-carrier-path` flags exist for that caller so the gate tree can verify the lane-side carrier.
+
 Use `aw backlog note <item> -m "..."` to record a reason or finding without changing status.
 
 ---

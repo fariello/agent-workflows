@@ -373,12 +373,25 @@ def make_cite_matcher(handle_prefix: str):
     return _matcher
 
 
+def _file_exists_on_disk(repo_root: Path, filename: str) -> bool:
+    """True iff a file with basename ``filename`` exists anywhere under ``repo_root``,
+    skipping standard ignored directories (.git, tmp, .venv, etc.)."""
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    for p in repo_root.rglob(filename):
+        if not _core.is_ignored_path(p, repo_root, ignored_dirs):
+            return True
+    return False
+
+
 def dead_filename_citations(
     repo_root: Path,
-    record_type: str,
+    record_type: str = "any",
     *,
     exclude_root: Optional[Path] = None,
     scan_roots=_core.SCAN_ROOTS,
+    suffixes: Tuple[str, ...] = _core._TEXT_SUFFIXES,
+    verify_on_disk: Optional[bool] = None,
+    exclude_tests: bool = False,
 ) -> List[_core.Dangler]:
     """Return every bare artifact-FILENAME citation whose target no longer resolves (OQ-01 option B).
 
@@ -387,12 +400,35 @@ def dead_filename_citations(
     crisp per-file yes/no, low false-positive risk). setid citations are NOT checked (option C
     deferred). Files under ``exclude_root`` are skipped.
 
+    The ``suffixes`` parameter defaults to ``artifact_core._TEXT_SUFFIXES`` (``(".md", ".txt")``),
+    preserving byte-for-byte parity for existing per-type callers, while allowing callers to supply
+    alternative extensions such as ``(".py",)`` to inspect packaged source (E-02).
+
+    The sentinel ``record_type="any"`` (E-03) permits querying across all record types uniformly:
+    under ``"any"``, a token is a candidate if it parses under ANY record type's naming authority
+    (research, clustered, legacy timestamp, or dated slug). Specific per-type queries (e.g.
+    ``"plans"``, ``"specs"``, ``"research"``) retain their strict per-type filter unchanged.
+
+    The ``verify_on_disk`` parameter controls whether candidate citations not found in the
+    cross-type record existence set are verified against the filesystem (E-08, Option b).
+    Option (b) is chosen because it keeps the existing per-type existence set byte-identical and
+    unwidened for existing callers, while checking the filesystem for the small set of unresolved
+    candidates avoids false positives for valid files that live on disk outside ``selectors.record_dirs``
+    (such as ``tools/ipdrunner/20260823-pending-ipds-overnight-execution-runbook.md``).
+    When ``verify_on_disk`` is None, it defaults to True when ``record_type == "any"`` and False
+    otherwise.
+
+    When ``exclude_tests`` is True, test files matching ``test_*.py`` or ``*_test.py`` are skipped.
+
     Performance: the set of existing names+stems for the type is computed ONCE via the Order 02
     resolver's record dirs, then membership is a cheap lookup - never a per-token filesystem scan.
     """
 
     from agent_workflows import research_contract as _rc
     from agent_workflows import selectors as _sel
+
+    if verify_on_disk is None:
+        verify_on_disk = record_type == "any"
 
     # One pass: the set of every existing filename (and its stem) across ALL record types, so a
     # valid CROSS-TYPE citation (a name that exists in some other tree) is never flagged (D2).
@@ -415,11 +451,25 @@ def dead_filename_citations(
                 existing.add(p.name)
                 existing.add(p.name[:-3])  # stem form (citation may drop the .md)
 
-    facet = _rp_type_facet(record_type)
+    facet = _rp_type_facet(record_type) if record_type != "any" else None
 
     def _type_appropriate(tok: str) -> bool:
         """True iff ``tok`` is a citation-shaped name that BELONGS to ``record_type`` (so a
         cross-type name is never treated as a citation of this type - the spec-only-stem safeguard)."""
+
+        if record_type == "any":
+            parsed, _err = _rc.parse_name(tok)
+            if parsed is not None:
+                return True
+            m = _naming.parse_clustered(tok)
+            if m is not None:
+                return True
+            if bool(
+                _naming._LEGACY_TIMESTAMP_RE.match(tok)
+                or _naming._DATED_SLUG_FACET_RE.match(tok)
+            ):
+                return True
+            return False
 
         if record_type == "research":
             parsed, _err = _rc.parse_name(tok)
@@ -439,7 +489,11 @@ def dead_filename_citations(
         return False
 
     danglers: List[_core.Dangler] = []
-    for f in _core.iter_scan_files(repo_root, scan_roots):
+    for f in _core.iter_scan_files(repo_root, scan_roots, suffixes=suffixes):
+        if exclude_tests and (
+            f.name.startswith("test_") or f.name.endswith("_test.py")
+        ):
+            continue
         if exclude_root is not None:
             try:
                 f.relative_to(exclude_root)
@@ -456,8 +510,49 @@ def dead_filename_citations(
                     continue  # not a citation of THIS type (cross-type/prose) -> never dangling here
                 stem = tok[:-3] if tok.endswith(".md") else tok
                 if tok not in existing and stem not in existing:
+                    if verify_on_disk and _file_exists_on_disk(repo_root, tok):
+                        continue
                     danglers.append(_core.Dangler(f, i, tok, line.strip()[:120]))
     return danglers
+
+
+def check_source_citations(
+    repo_root: Path,
+    scan_roots: Tuple[str, ...] = ("agent_workflows", "tools"),
+) -> Tuple[List[_core.Dangler], int, int]:
+    """Scan packaged source (agent_workflows/ and tools/, non-test .py only) for dangling citations.
+
+    Returns (danglers, skipped_test_files_count, scanned_files_count).
+    """
+    skipped_tests = 0
+    scanned_files = 0
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    for root_rel in scan_roots:
+        p = repo_root / root_rel
+        if p.is_dir():
+            for f in sorted(p.rglob("*.py")):
+                if _core.is_ignored_path(f, repo_root, ignored_dirs):
+                    continue
+                if f.name.startswith("test_") or f.name.endswith("_test.py"):
+                    skipped_tests += 1
+                else:
+                    scanned_files += 1
+        elif p.is_file() and p.suffix == ".py":
+            if not _core.is_ignored_path(p, repo_root, ignored_dirs):
+                if p.name.startswith("test_") or p.name.endswith("_test.py"):
+                    skipped_tests += 1
+                else:
+                    scanned_files += 1
+
+    danglers = dead_filename_citations(
+        repo_root,
+        record_type="any",
+        scan_roots=scan_roots,
+        suffixes=(".py",),
+        verify_on_disk=True,
+        exclude_tests=True,
+    )
+    return danglers, skipped_tests, scanned_files
 
 
 def _rp_type_facet(record_type: str):

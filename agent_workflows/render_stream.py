@@ -776,7 +776,7 @@ def strip_system_protocol_prefix(text: str) -> str:
     return s.strip()
 
 
-def render_event(
+def render_event(  # type: ignore[return]  # checker-limitation: intentional fallthrough returns None for unrendered events (PR-006)
     raw_line: str,
     pal: Palette,
     tracker: StreamTracker | None = None,
@@ -980,7 +980,9 @@ def format_compact_tokens(n: float) -> str:
 _FRACTIONAL_BLOCKS = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"]
 
 
-def format_progress_bar(current: int, total: int, width: int = 10) -> str:
+def format_progress_bar(
+    current: int, total: int, width: int = 10, use_unicode: bool = True
+) -> str:
     """Format a block progress bar with blank spaces and fraction eighths (e.g. ' 0/80  [          ]   0.00%')."""
     if total <= 0:
         frac = 0.0
@@ -991,13 +993,24 @@ def format_progress_bar(current: int, total: int, width: int = 10) -> str:
         tot_str = str(total)
         cur_str = f"{current:>{len(tot_str)}}"
 
-    eighths = int(round(frac * width * 8))
-    full = eighths // 8
-    rem = eighths % 8
-    if rem > 0 and full < width:
-        bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+    if use_unicode:
+        eighths = int(round(frac * width * 8))
+        full = eighths // 8
+        rem = eighths % 8
+        if rem > 0 and full < width:
+            bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+        else:
+            bar = "█" * full + " " * (width - full)
     else:
-        bar = "█" * full + " " * (width - full)
+        if width <= 0:
+            bar = ""
+        else:
+            full = int(frac * width)
+            if frac > 0.0 and full == 0:
+                full = 1
+            if frac < 1.0 and full == width:
+                full = max(0, width - 1)
+            bar = "#" * full + " " * (width - full)
 
     pct = int(round(frac * 100))
     return f"{cur_str}/{tot_str}  [{bar}] {pct:>3}%"
@@ -1073,7 +1086,9 @@ def format_action_label(action: str | None) -> str:
     if not action:
         return "Review"
     key = action.strip().lower()
-    return ACTION_DISPLAY_MAP.get(key, action.strip()[:7].capitalize())
+    return ACTION_DISPLAY_MAP.get(
+        key, _T.truncate_visible(action.strip(), 7).capitalize()
+    )
 
 
 def format_activity_cell(
@@ -1122,7 +1137,9 @@ def format_artifact_kind_label(artifact_kind: str | None) -> str:
     if not artifact_kind:
         return "IPD"
     key = artifact_kind.strip().lower()
-    return ARTIFACT_DISPLAY_MAP.get(key, artifact_kind.strip()[:7].capitalize())
+    return ARTIFACT_DISPLAY_MAP.get(
+        key, _T.truncate_visible(artifact_kind.strip(), 7).capitalize()
+    )
 
 
 def statusline_action_for_item(item: dict[str, Any]) -> str:
@@ -1146,6 +1163,82 @@ def statusline_action_for_item(item: dict[str, Any]) -> str:
     return "execute"
 
 
+def _pad_to(s: str, width: int, align: str = "left", use_unicode: bool = True) -> str:
+    """Pad (or truncate if too long) a string to exact visible column width."""
+    vis = _T.visible_width(s)
+    if vis > width:
+        plain = _strip_ansi(s)
+        if len(plain) > width:
+            ellipsis_char = "…" if use_unicode else "."
+            return plain[: max(0, width - 1)] + ellipsis_char
+    pad = max(0, width - vis)
+    if align == "right":
+        return (" " * pad) + s
+    if align == "center":
+        left = pad // 2
+        right = pad - left
+        return (" " * left) + s + (" " * right)
+    return s + (" " * pad)
+
+
+def format_runner_name(runner: str) -> str:
+    """Format runner name according to conventions:
+    - 'agy' is always lowercase
+    - 'oc' is expanded to 'opencode' (lowercase)
+    """
+    r = runner.lower().strip()
+    if r in ("oc", "opencode"):
+        return "opencode"
+    if r in ("agy", "antigravity"):
+        return "agy"
+    return r
+
+
+def make_badge(
+    runner: str,
+    model: str,
+    variant: str | None = None,
+    divider_style: str = "chevron",
+    use_unicode: bool = True,
+    color: bool = True,
+) -> tuple[str, str]:
+    """Generate badge for statusbar top border with specified divider style.
+
+    Supported divider styles: 'chevron' (default), 'dot', 'slash', 'colon', 'bullet'.
+    Returns (colored_badge, plain_badge).
+    """
+    r_name = format_runner_name(runner)
+    if use_unicode:
+        div_map = {
+            "dot": " · ",
+            "slash": " / ",
+            "chevron": " › ",
+            "colon": ": ",
+            "bullet": " • ",
+        }
+    else:
+        div_map = {
+            "dot": " . ",
+            "slash": " / ",
+            "chevron": " > ",
+            "colon": ": ",
+            "bullet": " * ",
+        }
+    p_div = div_map.get(divider_style, div_map["chevron"])
+
+    c_runner = "\033[1;38;5;51m"
+    c_model = "\033[1;38;5;215m"
+    c_variant = "\033[1;38;5;183m"
+    c_bdr = "\033[38;5;67m"
+
+    v_str = f" ({variant})" if variant else ""
+    c_v_str = f" {c_variant}({variant}){c_bdr}" if variant else ""
+
+    plain = f" {r_name}{p_div}{model}{v_str} "
+    colored = f" {c_runner}{r_name}{c_bdr}{p_div}{c_model}{model}{c_bdr}{c_v_str} "
+    return (colored if color else plain), plain
+
+
 def format_statusline_lines(
     now_ts: float,
     run_start_ts: float,
@@ -1163,145 +1256,161 @@ def format_statusline_lines(
     artifact_kind: str | None = None,
     use_unicode: bool = True,
     activity: str | None = None,
+    runner: str = "agy",
+    model: str | None = None,
+    variant: str | None = None,
+    divider_style: str = "chevron",
 ) -> tuple[str, str, str, str]:
     """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
-    ╭─────────┬───────────────────────────┬───────────────────────────────┬─────────┬───────┬─────┬───────┬──────┬────────┬───────╮
-    │Time     │ From start  kill in 9m51s │ set: wtisoland    id6: 6knsrx │  Review │ Spend │ Tok │ Total │   In │    Out │ Cache │
-    │20:27:24 │ 27m48s last: 8s    stdout │ 27m48s ██████████ 100% [1/1]  │     IPD │ $6.16 │ ens │  4.7m │ 119k │ 110.7k │  4.5m │
-    ╰─────────┴───────────────────────────┴───────────────────────────────┴─────────┴───────┴─────┴───────┴──────┴────────┴───────╯
+    ╭─ opencode › uri/its_direct/pt3-claude-opus-5.5-1m-us (high) ──────────┬────────────┬───────┬─Tokens────────────────────╮
+    │Time:    02:00:40 │ Timeout:  00:14:22 │ set: verremand    id6: t18l64 │ ◎ Reviewng │ Spend │ Total     In    Out Cache │
+    │Elapsed: 00:08:42 │ Last:     00:00:37 │ 0/1 [                  ]  0%  │   Child    │ $1.82 │  2.3m 135.1k   3.8k  2.2m │
+    ╰──────────────────┴────────────────────┴───────────────────────────────┴────────────┴───────┴───────────────────────────╯
     """
     t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
 
-    # 1. Run Elapsed & Last Activity / Source (Col 2)
+    # Col 0: Time & Elapsed
     run_elapsed = max(0, int(now_ts - run_start_ts))
-    run_el_str = format_compact_duration(run_elapsed)
+    run_el_str = format_digital_duration(run_elapsed)
 
+    h0_plain = f"Time:    {t_str} "
+    v0_plain = f"Elapsed: {run_el_str} "
+    col0_w = max(18, _T.visible_width(h0_plain), _T.visible_width(v0_plain))
+    pad_h0 = max(0, col0_w - _T.visible_width(h0_plain))
+    pad_v0 = max(0, col0_w - _T.visible_width(v0_plain))
+    h0 = f"{h0_plain}{' ' * pad_h0}"
+    v0 = f"{v0_plain}{' ' * pad_v0}"
+
+    # Col 1: Timeout & Last Activity
     idle = max(0, int(now_ts - last_act_ts))
-    idle_str = f"{idle}s" if idle < 60 else format_compact_duration(idle)
-    val2_left = f" {run_el_str} last: {idle_str}"
+    idle_str = format_digital_duration(idle)
 
-    countdown = format_stall_countdown(stall_remaining, None)
-    hdr2_left = " From start"
-    val2_right = f"{progress_source} " if progress_source else ""
-    hdr2_right = f"{countdown} " if countdown else ""
-
-    col2_w = max(
-        27,
-        len(hdr2_left) + len(hdr2_right) + 1,
-        len(val2_left) + len(val2_right) + 1,
-    )
-
-    h2 = f"{hdr2_left}{hdr2_right:>{col2_w - len(hdr2_left)}s}"
-    v2 = f"{val2_left}{val2_right:>{col2_w - len(val2_left)}s}"
-
-    # 2. Item Elapsed & Progress Bar (Col 3)
-    item_elapsed = max(0, int(now_ts - item_start_ts))
-    item_el_str = format_compact_duration(item_elapsed)
-    bar = format_progress_bar(current_idx, total_items)
-    val3 = f" {item_el_str} {bar}"
-
-    if setid and id6:
-        hdr3_left = f" set: {setid}"
-        hdr3_right = f"id6: {id6} "
-        col3_w = max(31, len(hdr3_left) + len(hdr3_right) + 1, len(val3) + 2)
-        h3 = f"{hdr3_left}{hdr3_right:>{col3_w - len(hdr3_left)}s}"
-    elif setid:
-        col3_w = max(31, len(setid) + 8, len(val3) + 2)
-        h3 = f" set: {setid} ".ljust(col3_w)
-    elif id6:
-        col3_w = max(31, len(id6) + 8, len(val3) + 2)
-        h3 = f" id6: {id6} ".ljust(col3_w)
+    if stall_remaining is not None:
+        t_rem_str = format_digital_duration(stall_remaining)
     else:
-        col3_w = max(31, len(val3) + 2)
-        h3 = " -".ljust(col3_w)
-    v3 = f"{val3:<{col3_w}s}"
+        t_rem_str = "--:--:--"
 
-    # 3. Action / Artifact Kind (Col 4), plus the live ACTIVITY when the runner can signal one
-    # (lifeglyph `qdd5jq` E-03, spec Section 7.1).
-    #
-    # THE ACTIVITY REPLACES THE ACTION *LABEL* AND NOT THE ARTIFACT ROW, because the action is what
-    # the activity is a more specific statement OF: a `reviewing` activity on an `execute` action
-    # cannot happen, so showing both would spend a scarce column on a restatement. When no activity
-    # is signalled the cell is EMPTY and this whole column is byte-identical to before, which is what
-    # keeps the pinned box layout intact for every existing caller.
-    #
-    # WIDTHS ARE VISIBLE COLUMNS, NEVER `len()`, for the activity cell: `↩︎` is two code points and
-    # one column, and a styled cell carries ANSI bytes `len()` would count. `format_activity_cell`
-    # returns the measurement alongside the text so the two cannot disagree.
+    hdr1_plain = f" Timeout:  {t_rem_str} "
+    if progress_source and progress_source != "stdout":
+        src_tag = f"({progress_source}) "
+        val1_right_plain = f"Last:     {idle_str} {src_tag}"
+    else:
+        src_tag = ""
+        val1_right_plain = f"Last:     {idle_str} "
+
+    col1_w = max(
+        20,
+        _T.visible_width(hdr1_plain),
+        _T.visible_width(f" {val1_right_plain}"),
+    )
+    pad_h1 = max(0, col1_w - _T.visible_width(hdr1_plain))
+    pad_v1 = max(0, col1_w - _T.visible_width(f" {val1_right_plain}"))
+    h1 = f"{hdr1_plain}{' ' * pad_h1}"
+    v1 = f" {val1_right_plain}{' ' * pad_v1}"
+
+    # Col 2: Set & Progress Bar (without duplicate item elapsed)
+    hdr2_left = f" set: {setid}"
+    hdr2_right = f"id6: {id6} "
+    pct = int(round((current_idx / total_items) * 100)) if total_items > 0 else 0
+    pct_str = f"{pct}%"
+    prefix = f" {current_idx}/{total_items} ["
+    suffix = f"] {pct_str:>4s}  "
+
+    min_w = _T.visible_width(prefix) + _T.visible_width(suffix) + 10
+    if setid and id6:
+        col2_w = max(
+            31,
+            _T.visible_width(hdr2_left) + _T.visible_width(hdr2_right) + 1,
+            min_w,
+        )
+        h2 = f"{hdr2_left}{' ' * max(0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right))}{hdr2_right}"
+    elif setid:
+        col2_w = max(31, _T.visible_width(setid) + 8, min_w)
+        h2 = f" set: {setid} " + (
+            " " * max(0, col2_w - _T.visible_width(f" set: {setid} "))
+        )
+    elif id6:
+        col2_w = max(31, _T.visible_width(id6) + 8, min_w)
+        h2 = f" id6: {id6} " + (
+            " " * max(0, col2_w - _T.visible_width(f" id6: {id6} "))
+        )
+    else:
+        col2_w = max(31, min_w)
+        h2 = " -" + (" " * max(0, col2_w - _T.visible_width(" -")))
+
+    pct_clamped = max(0, min(100, pct))
+    bar_w = col2_w - _T.visible_width(prefix) - _T.visible_width(suffix)
+    filled_len = int(round((pct_clamped / 100.0) * bar_w))
+    empty_len = max(0, bar_w - filled_len)
+    if use_unicode:
+        bar_plain = ("█" * filled_len) + (" " * empty_len)
+    else:
+        bar_plain = ("=" * filled_len) + (" " * empty_len)
+    val2 = f"{prefix}{bar_plain}{suffix}"
+    pad_v2 = max(0, col2_w - _T.visible_width(val2))
+    v2 = f"{val2}{' ' * pad_v2}"
+
+    # Col 3: Action / Artifact Kind (plus live ACTIVITY when signalled)
     act_str = format_action_label(action)
     art_str = format_artifact_kind_label(artifact_kind)
     activity_cell, activity_w = format_activity_cell(activity, pal)
     if activity_cell:
-        col4_w = max(9, activity_w + 2, len(art_str) + 2)
-        h4 = (" " * max(0, col4_w - 1 - activity_w)) + activity_cell + " "
+        col3_w = max(8, activity_w + 2, _T.visible_width(art_str) + 2)
+        pad3 = max(0, col3_w - activity_w)
+        left3 = pad3 // 2
+        right3 = pad3 - left3
+        plain_activity = _strip_ansi(activity_cell)
+        h3 = (" " * left3) + plain_activity + (" " * right3)
     else:
-        col4_w = max(9, len(act_str) + 2, len(art_str) + 2)
-        h4 = f"{act_str:>{col4_w - 1}s} "
-    v4 = f"{art_str:>{col4_w - 1}s} "
+        col3_w = max(8, _T.visible_width(act_str) + 2, _T.visible_width(art_str) + 2)
+        h3 = _pad_to(act_str, col3_w, align="center", use_unicode=use_unicode)
+        left3, right3 = 0, 0
+    v3 = _pad_to(art_str, col3_w, align="center", use_unicode=use_unicode)
 
-    # 4. Spend (Col 5)
+    # Col 4: Spend
     cost = tracker.cost if tracker is not None else 0.0
     cost_str = f"${cost:.2f}"
-    col5_w = max(7, len(cost_str) + 2)
-    h5 = " Spend ".rjust(col5_w)
-    v5 = f"{cost_str:>{col5_w - 1}s} "
+    col4_w = max(7, _T.visible_width(cost_str) + 2)
+    h4 = _pad_to("Spend", col4_w, align="center", use_unicode=use_unicode)
+    v4 = _pad_to(cost_str + " ", col4_w, align="right", use_unicode=use_unicode)
 
-    # 5. Token Sub-columns (Cols 6-10)
-    # Col 6: Tok / ens
-    col6_w = 5
-    h6 = " Tok "
-    v6 = " ens "
-
-    # Col 7: Total
+    # Col 5: Unified Tokens (Total, In, Out, Cache)
     tot_tok = (
         (tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens)
         if tracker is not None
         else 0
     )
     tot_str = format_compact_tokens(tot_tok)
-    col7_w = max(7, len(tot_str) + 2)
-    h7 = " Total ".rjust(col7_w)
-    v7 = f"{tot_str:>{col7_w - 1}s} "
-
-    # Col 8: In
     in_tok = tracker.input_tokens if tracker is not None else 0
     in_str = format_compact_tokens(in_tok)
-    col8_w = max(6, len(in_str) + 2)
-    h8 = "   In ".rjust(col8_w)
-    v8 = f"{in_str:>{col8_w - 1}s} "
-
-    # Col 9: Out
     out_tok = tracker.output_tokens if tracker is not None else 0
     out_str = format_compact_tokens(out_tok)
-    col9_w = max(8, len(out_str) + 2)
-    h9 = "    Out ".rjust(col9_w)
-    v9 = f"{out_str:>{col9_w - 1}s} "
-
-    # Col 10: Cache
     cache_tok = tracker.cache_tokens if tracker is not None else 0
     cache_str = format_compact_tokens(cache_tok)
-    col10_w = max(7, len(cache_str) + 2)
-    h10 = " Cache ".rjust(col10_w)
-    v10 = f"{cache_str:>{col10_w - 1}s} "
 
-    # Col 1: Time
-    col1_w = 9
-    h1 = f"{'Time':<{col1_w}s}"
-    v1 = f"{t_str:<8s} "
+    w_tot = max(6, _T.visible_width(tot_str) + 1)
+    w_in = max(5, _T.visible_width(in_str) + 1)
+    w_out = max(7, _T.visible_width(out_str) + 1)
+    w_cache = max(7, _T.visible_width(cache_str) + 2)
 
-    col_widths = [
-        col1_w,
-        col2_w,
-        col3_w,
-        col4_w,
-        col5_w,
-        col6_w,
-        col7_w,
-        col8_w,
-        col9_w,
-        col10_w,
-    ]
+    h_tot = _pad_to("Total", w_tot, align="right", use_unicode=use_unicode)
+    h_in = _pad_to("In", w_in, align="right", use_unicode=use_unicode)
+    h_out = _pad_to("Out", w_out, align="right", use_unicode=use_unicode)
+    h_cache = _pad_to("Cache", w_cache, align="center", use_unicode=use_unicode)
+
+    v_tot = _pad_to(tot_str, w_tot, align="right", use_unicode=use_unicode)
+    v_in = _pad_to(in_str, w_in, align="right", use_unicode=use_unicode)
+    v_out = _pad_to(out_str, w_out, align="right", use_unicode=use_unicode)
+    v_cache = _pad_to(cache_str + " ", w_cache, align="right", use_unicode=use_unicode)
+
+    col5_w = w_tot + w_in + w_out + w_cache
+    h5 = f"{h_tot}{h_in}{h_out}{h_cache}"
+    v5 = f"{v_tot}{v_in}{v_out}{v_cache}"
+
+    col_widths = [col0_w, col1_w, col2_w, col3_w, col4_w, col5_w]
+    hdrs = [h0, h1, h2, h3, h4, h5]
+    vals = [v0, v1, v2, v3, v4, v5]
 
     if use_unicode:
         c_tl, c_tm, c_tr = "╭", "┬", "╮"
@@ -1312,17 +1421,60 @@ def format_statusline_lines(
         c_bl, c_bm, c_br = "+", "+", "+"
         c_v, c_h = "|", "-"
 
-    top_border = c_tl + c_tm.join(c_h * w for w in col_widths) + c_tr
-    bot_border = c_bl + c_bm.join(c_h * w for w in col_widths) + c_br
+    pad_d = max(0, col5_w - 7)
+    seg_tok_plain = f"{c_h}Tokens{c_h * pad_d}"
 
-    hdrs = [h1, h2, h3, h4, h5, h6, h7, h8, h9, h10]
-    vals = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10]
+    if model:
+        colored_badge, plain_badge = make_badge(
+            runner=runner,
+            model=model,
+            variant=variant,
+            divider_style=divider_style,
+            use_unicode=use_unicode,
+            color=True,
+        )
+        b_vis = _T.visible_width(plain_badge)
+        k = 1
+        span_w = col_widths[0]
+        while k < 5 and span_w < b_vis + 1:
+            span_w += 1 + col_widths[k]
+            k += 1
+        if b_vis > span_w - 1:
+            plain_badge = _T.truncate_visible(plain_badge, span_w - 1)
+            colored_badge = plain_badge
+            b_vis = _T.visible_width(plain_badge)
+        rem = max(0, span_w - 1 - b_vis)
 
-    l1_plain = c_v + c_v.join(hdrs) + c_v
-    l2_plain = c_v + c_v.join(vals) + c_v
+        first_seg_plain = f"{c_h}{plain_badge}{c_h * rem}"
+        mid_segs_plain = [c_h * col_widths[i] for i in range(k, 5)]
+
+        if mid_segs_plain:
+            top_border_plain = (
+                f"{c_tl}{first_seg_plain}{c_tm}"
+                + c_tm.join(mid_segs_plain)
+                + f"{c_tm}{seg_tok_plain}{c_tr}"
+            )
+        else:
+            top_border_plain = f"{c_tl}{first_seg_plain}{c_tm}{seg_tok_plain}{c_tr}"
+    else:
+        colored_badge, plain_badge = "", ""
+        k, rem = 1, 0
+        top_border_plain = (
+            c_tl
+            + c_tm.join(c_h * col_widths[i] for i in range(5))
+            + c_tm
+            + seg_tok_plain
+            + c_tr
+        )
+
+    bot_border_plain = c_bl + c_bm.join(c_h * w for w in col_widths) + c_br
+
+    div_plain = c_v
+    l1_plain = div_plain + div_plain.join(hdrs) + div_plain
+    l2_plain = div_plain + div_plain.join(vals) + div_plain
 
     if pal is None or not pal.enabled:
-        return top_border, l1_plain, l2_plain, bot_border
+        return top_border_plain, l1_plain, l2_plain, bot_border_plain
 
     # Colorized 256-color palette styling:
     b_blue = "\033[1;38;5;117m"  # soft bold sky light blue
@@ -1331,58 +1483,91 @@ def format_statusline_lines(
     b_target = "\033[1;38;5;229m"  # soft cream/yellow
     b_cost = "\033[1;38;5;114m"  # light green
     b_warn = "\033[1;38;5;208m"  # warm amber/orange for countdown
+    b_crit = "\033[1;31m"  # red for urgent timeout
+    c_variant_color = "\033[1;38;5;183m"  # soft lavender
+    c_data = "\033[38;5;153m"  # soft light slate for tokens
     dim_hdr = "\033[38;5;110m"  # soft muted slate blue for headers
-    dim_src = "\033[38;5;110m"
     bdr_color = "\033[38;5;67m"
     reset = _ANSI_RESET
 
-    top_color = f"{bdr_color}{top_border}{reset}"
-    bot_color = f"{bdr_color}{bot_border}{reset}"
+    seg_tok_color = f"{c_h}{dim_hdr}Tokens{bdr_color}{c_h * pad_d}"
 
-    c_h1 = f"{dim_hdr}{h1}"
-    if countdown:
-        pad_len = col2_w - len(hdr2_left) - len(hdr2_right)
-        c_h2 = f"{dim_hdr}{hdr2_left}{' ' * pad_len}{b_warn}{hdr2_right}"
+    if model:
+        first_seg_color = f"{c_h}{colored_badge}{bdr_color}{c_h * rem}"
+        mid_segs_color = [c_h * col_widths[i] for i in range(k, 5)]
+        if mid_segs_color:
+            top_border_color = (
+                f"{bdr_color}{c_tl}{first_seg_color}{bdr_color}{c_tm}"
+                + f"{bdr_color}{c_tm}".join(mid_segs_color)
+                + f"{bdr_color}{c_tm}{seg_tok_color}{bdr_color}{c_tr}{reset}"
+            )
+        else:
+            top_border_color = f"{bdr_color}{c_tl}{first_seg_color}{bdr_color}{c_tm}{seg_tok_color}{bdr_color}{c_tr}{reset}"
     else:
-        c_h2 = f"{dim_hdr}{h2}"
+        top_border_color = (
+            f"{bdr_color}{c_tl}"
+            + f"{bdr_color}{c_tm}".join(c_h * col_widths[i] for i in range(5))
+            + f"{bdr_color}{c_tm}{seg_tok_color}{bdr_color}{c_tr}{reset}"
+        )
 
-    c_h3 = f"{b_target}{h3}"
+    bot_border_color = (
+        f"{bdr_color}{c_bl}"
+        + f"{bdr_color}{c_bm}".join(c_h * w for w in col_widths)
+        + f"{bdr_color}{c_br}{reset}"
+    )
+
+    c_h0 = f"{dim_hdr}Time:    {b_clock}{t_str}{reset} {' ' * pad_h0}"
+    c_v0 = f"{dim_hdr}Elapsed: {b_blue}{run_el_str}{reset} {' ' * pad_v0}"
+
+    if stall_remaining is not None:
+        t_color = (
+            b_crit
+            if stall_remaining < 60
+            else (b_warn if stall_remaining < 300 else b_clock)
+        )
+        c_h1 = f" {dim_hdr}Timeout:  {t_color}{t_rem_str}{reset} {' ' * pad_h1}"
+    else:
+        c_h1 = f" {dim_hdr}Timeout:  {dim_hdr}--:--:--{reset} {' ' * pad_h1}"
+
+    if progress_source and progress_source != "stdout":
+        val1_right_colored = (
+            f"{dim_hdr}Last:     {b_blue}{idle_str} {c_variant_color}{src_tag}{reset}"
+        )
+    else:
+        val1_right_colored = f"{dim_hdr}Last:     {b_blue}{idle_str}{reset} "
+    c_v1 = f" {val1_right_colored}{' ' * pad_v1}"
+
+    c_h2 = f"{b_target}{h2}"
+    if use_unicode:
+        bar_colored = f"{b_bar}{'█' * filled_len}{reset}{' ' * empty_len}"
+    else:
+        bar_colored = f"{b_bar}{'=' * filled_len}{reset}{' ' * empty_len}"
+    c_v2 = f" {b_blue}{current_idx}/{total_items}{reset} [{bar_colored}] {b_target}{pct_str:>4s}{reset}  {' ' * pad_v2}"
+
+    if activity_cell:
+        c_h3 = (" " * left3) + activity_cell + (" " * right3)
+    else:
+        c_h3 = f"{dim_hdr}{h3}"
+    c_v3 = f"{b_target}{v3}"
+
     c_h4 = f"{dim_hdr}{h4}"
+    c_v4 = f"{b_cost}{v4}"
+
     c_h5 = f"{dim_hdr}{h5}"
-    c_h6 = f"{dim_hdr}{h6}"
-    c_h7 = f"{dim_hdr}{h7}"
-    c_h8 = f"{dim_hdr}{h8}"
-    c_h9 = f"{dim_hdr}{h9}"
-    c_h10 = f"{dim_hdr}{h10}"
+    c_v5 = f"{c_data}{v5}"
 
-    c_v1 = f"{b_clock}{v1}"
-    if progress_source:
-        pad_len = col2_w - len(val2_left) - len(val2_right)
-        c_v2 = f"{b_blue}{val2_left}{' ' * pad_len}{dim_src}{val2_right}"
-    else:
-        c_v2 = f"{b_blue}{v2}"
+    c_hdrs = [c_h0, c_h1, c_h2, c_h3, c_h4, c_h5]
+    c_vals = [c_v0, c_v1, c_v2, c_v3, c_v4, c_v5]
 
-    c_v3 = f"{b_bar}{v3}"
-    c_v4 = f"{b_target}{v4}"
-    c_v5 = f"{b_cost}{v5}"
-    c_v6 = f"{dim_hdr}{v6}"
-    c_v7 = f"{b_blue}{v7}"
-    c_v8 = f"{b_blue}{v8}"
-    c_v9 = f"{b_blue}{v9}"
-    c_v10 = f"{b_blue}{v10}"
-
-    c_hdrs = [c_h1, c_h2, c_h3, c_h4, c_h5, c_h6, c_h7, c_h8, c_h9, c_h10]
-    c_vals = [c_v1, c_v2, c_v3, c_v4, c_v5, c_v6, c_v7, c_v8, c_v9, c_v10]
-
-    div = f"{bdr_color}{c_v}{reset}"
+    div_color = f"{bdr_color}{c_v}{reset}"
     l1_color = (
-        f"{bdr_color}{c_v}{reset}" + div.join(c_hdrs) + f"{bdr_color}{c_v}{reset}"
+        f"{bdr_color}{c_v}{reset}" + div_color.join(c_hdrs) + f"{bdr_color}{c_v}{reset}"
     )
     l2_color = (
-        f"{bdr_color}{c_v}{reset}" + div.join(c_vals) + f"{bdr_color}{c_v}{reset}"
+        f"{bdr_color}{c_v}{reset}" + div_color.join(c_vals) + f"{bdr_color}{c_v}{reset}"
     )
 
-    return top_color, l1_color, l2_color, bot_color
+    return top_border_color, l1_color, l2_color, bot_border_color
 
 
 def format_statusline(
@@ -1402,6 +1587,10 @@ def format_statusline(
     artifact_kind: str | None = None,
     use_unicode: bool = True,
     activity: str | None = None,
+    runner: str = "agy",
+    model: str | None = None,
+    variant: str | None = None,
+    divider_style: str = "chevron",
 ) -> str:
     """Format the 4-line unified runner statusline box as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
@@ -1422,6 +1611,10 @@ def format_statusline(
         artifact_kind=artifact_kind,
         use_unicode=use_unicode,
         activity=activity,
+        runner=runner,
+        model=model,
+        variant=variant,
+        divider_style=divider_style,
     )
     return "\n".join(lines)
 
@@ -1444,8 +1637,14 @@ class Statusline:
         action: str | None = None,
         artifact_kind: str | None = None,
         activity: str | None = None,
+        use_unicode: bool | None = None,
+        runner: str = "agy",
+        model: str | None = None,
+        variant: str | None = None,
+        divider_style: str = "chevron",
     ) -> None:
         self.pal = pal
+        self.use_unicode = use_unicode if use_unicode is not None else pal.use_unicode
         self.stream = stream
         self.tracker = tracker
         self.interval = interval
@@ -1462,6 +1661,10 @@ class Statusline:
         # (anything exposing `remaining()`) so this display module keeps no dependency on a
         # driver module, and stays None-safe for callers that pass no watchdog.
         self.watchdog = watchdog
+        self.runner = runner
+        self.model = model
+        self.variant = variant
+        self.divider_style = divider_style
         # Which source last showed progress: "stdout" or "subagent". Names WHY the turn is
         # considered alive, so a quiet-stdout turn is not mistaken for a dead one.
         self.progress_source: str | None = None
@@ -1508,6 +1711,8 @@ class Statusline:
         action: str | None = None,
         artifact_kind: str | None = None,
         activity: str | None = None,
+        model: str | None = None,
+        variant: str | None = None,
     ) -> None:
         with self._lock:
             self.current_idx = current_idx
@@ -1523,6 +1728,10 @@ class Statusline:
                 self.artifact_kind = artifact_kind
             if activity is not None:
                 self.activity = activity
+            if model is not None:
+                self.model = model
+            if variant is not None:
+                self.variant = variant
 
     def _render_lines_unlocked(self) -> tuple[str, str, str, str]:
         now_wall = time.time()
@@ -1546,6 +1755,11 @@ class Statusline:
             action=self.action,
             artifact_kind=self.artifact_kind,
             activity=self.activity,
+            use_unicode=self.use_unicode,
+            runner=self.runner,
+            model=self.model,
+            variant=self.variant,
+            divider_style=self.divider_style,
         )
 
     def render_line(self) -> str:
@@ -1723,6 +1937,16 @@ class Heartbeat:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
+
+
+def format_digital_duration(seconds: float | None) -> str:
+    """Format duration seconds into HH:MM:SS stopwatch format (e.g. '00:08:42', '00:14:22', '01:04:12')."""
+    if seconds is None or seconds < 0:
+        return "00:00:00"
+    total_secs = int(round(seconds))
+    hrs, rem = divmod(total_secs, 3600)
+    mins, rem_s = divmod(rem, 60)
+    return f"{hrs:02d}:{mins:02d}:{rem_s:02d}"
 
 
 def format_compact_duration(seconds: float | None) -> str:
@@ -2304,8 +2528,11 @@ def queue_performed_no_work(queue: Sequence[Mapping[str, Any]]) -> bool:
     """
     if not queue:
         return False
+    in_queue_id6s = [
+        str(it["id6"]) for it in queue if isinstance(it, Mapping) and it.get("id6")
+    ]
     rows = run_selection_policy.summarize_dispositions(
-        queue, refusal_reader=refusal_of_item
+        queue, refusal_reader=refusal_of_item, in_queue_id6s=in_queue_id6s
     )
     if not rows:
         return False
@@ -2552,6 +2779,22 @@ def review_integration_was_refused(item: dict[str, Any]) -> bool:
     return item.get("review_integrated") is False
 
 
+def work_did_not_land(item: dict[str, Any] | Mapping[str, Any]) -> bool:
+    """Did this item's own record say its work failed to land? (entv1d E-02)
+
+    ONE EXPORTED QUESTION FOR BOTH STRANDED SHAPES. Composes :func:`integration_was_refused`
+    (the EXECUTE path, keyed on `integration_signal`) and :func:`review_integration_was_refused`
+    (the REVIEW path, keyed on `review_integrated`).
+
+    This is the one question the exit code and the headline must both ask so the two cannot drift:
+    an item whose work did not land in the project repository is stranded regardless of whether
+    its turn was an execute or a review action.
+    """
+    if isinstance(item, Mapping) and not isinstance(item, dict):
+        item = dict(item)
+    return bool(integration_was_refused(item) or review_integration_was_refused(item))
+
+
 def review_integration_refusal_detail(item: dict[str, Any]) -> str | None:
     """Why a review's integration was refused, path-redacted, or None.
 
@@ -2599,9 +2842,22 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
     return _redact_absolute_paths(detail)
 
 
-#: An absolute POSIX path embedded in recorded prose. Deliberately coarse: this runs over a driver's
-#: own message text, where over-redacting one token is harmless and under-redacting leaks a home path.
-_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)*[\w.\-+@]+")
+#: An absolute POSIX path embedded in recorded prose.
+#:
+#: Requires at least one interior '/' separator (`(?:[\w.\-+@]+/)+` rather than `*`) so single-segment
+#: root-relative tokens such as slash commands (`/spec-review`, `/plan-review`, `/exec-set`, `/whatnext`)
+#: are NOT matched or mangled into `<path>` (IPD 7sc8fk, F-05/F-06).
+#:
+#: DELIBERATE LOSSES (F-06b): Four single-segment system roots (`/home`, `/tmp`, `/root`, `/var`) stop being
+#: redacted to `<path>` under this pattern. This trade is intentional: a bare root names no user, machine,
+#: or repository and carries no leak hazard under AGENTS.md, while destroying an operator-facing slash command
+#: in a refusal remedy breaks actionable remedies. Multi-segment paths such as `/home/<user>/VC/proj` or
+#: `/Users/<user>/proj` are still caught.
+#:
+#: The leading `(?<![\w/])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
+#: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
+#: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
+_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)+[\w.\-+@]+")
 
 
 def _redact_absolute_paths(text: str) -> str:
@@ -2788,8 +3044,17 @@ def record_refusal(
 
     THE ONE WRITER, paired with :func:`refusal_of_item`. Both hosts call this rather than assigning
     the key themselves, so the reader and the writer cannot drift apart the way F-4 measured.
+
+    PATH REDACTION AT THE WRITER (IPD 7sc8fk): `reason` and `remedy` are redacted through
+    :func:`_redact_absolute_paths` before constructing the :class:`Refusal`. Precedent: the two sibling
+    readers (:func:`integration_refusal_detail` and :func:`review_integration_refusal_detail`) already
+    redact for this exact surface because the run summary is the most-copied output in the product.
+    Performing redaction here ensures all producer call sites and future refusal codes inherit leak
+    protection uniformly. `code` is deliberately not redacted because it is a machine token.
     """
-    refusal = Refusal(code=code, reason=reason, remedy=remedy)
+    redacted_reason = _redact_absolute_paths(reason)
+    redacted_remedy = _redact_absolute_paths(remedy)
+    refusal = Refusal(code=code, reason=redacted_reason, remedy=redacted_remedy)
     item[REFUSAL_KEY] = refusal.to_dict()
     return refusal
 
@@ -2914,6 +3179,8 @@ def render_run_summary_table(
     tot_item_out = 0
     tot_item_cache = 0
 
+    from agent_workflows.runner_shared import canonical_terminal_status
+
     status_counts: dict[str, int] = {}
     completed_count = 0
 
@@ -2962,9 +3229,10 @@ def render_run_summary_table(
         # exclude the same entries or the bar is wrong twice: a pre-executed Set member used to be
         # counted here (its status is not `queued`) AND in the total, so a run that had performed
         # nothing opened at `10/62` rather than `0/50`.
-        if status not in ("queued", "not-attempted") and item_is_dispatchable_work(
-            item
-        ):
+        if canonical_terminal_status(status) not in (
+            "queued",
+            "not-run",
+        ) and item_is_dispatchable_work(item):
             completed_count += 1
 
         # Calculate item duration, cost, tokens
@@ -3526,6 +3794,7 @@ def render_run_summary_table(
         if not isinstance(it, Mapping):
             continue
         st = it.get("status")
+        st_canon = canonical_terminal_status(st)
         id6 = it.get("id6")
         refusal = refusal_of_item(it)
         if refusal is not None and refusal.code == GATE_ANSWER_NEEDS_HUMAN_CODE:
@@ -3551,6 +3820,7 @@ def render_run_summary_table(
             diag_lines.append(f"    → remedy: {refusal.remedy}")
         elif st in ("fail-depend", "dependency-blocked"):
             reasons = it.get("unsatisfied_dependency_reasons") or {}
+            reasons_map = reasons if isinstance(reasons, dict) else {}
             deps = it.get("unsatisfied_dependencies") or []
             # Frozen-record repair (5o1jye E-03): render f"{d} ({reasons[d]})" only when a
             # reason was actually recorded, and bare d otherwise. Live post-E-01 cascade items
@@ -3559,29 +3829,40 @@ def render_run_summary_table(
             # and no map existed, preventing a double parenthetical such as "... (blocked)".
             dep_msg = (
                 ", ".join(
-                    f"{d} ({reasons[d]})" if d in reasons else str(d) for d in deps
+                    f"{d} ({run_selection_policy.strip_dependency_reason_prefix(d, reasons_map[d])})"
+                    if d in reasons_map
+                    else str(d)
+                    for d in deps
                 )
                 if deps
                 else "unmet dependencies"
             )
             diag_lines.append(f"  • {id6}: {st} ({dep_msg})")
-        elif st in (
-            "failed-safely",
-            "integration-blocked",
-            "merge-conflict",
-            "merge-needs-human",
-            "merge-refused",
+        elif (
+            st_canon in ("fail-gate", "fail-merge")
+            or st
+            in (
+                "failed-safely",
+                "integration-blocked",
+                "merge-conflict",
+                "merge-needs-human",
+                "merge-refused",
+            )
         ) and it.get("driver_error"):
             diag_lines.append(f"  • {id6}: {st} ({it['driver_error']})")
-        elif st in (
-            "integration-blocked",
-            "merge-conflict",
-            # `l2mzxn`: the renamed spellings, INCLUDING the deferrable pair. A deferred item also
-            # carries `integration_deferral`, and its reason is exactly what a reader needs to see.
-            "merge-needs-human",
-            "merge-refused",
-            "merge-retry",
-            "merge-unchecked",
+        elif (
+            st_canon == "fail-merge"
+            or st
+            in (
+                "integration-blocked",
+                "merge-conflict",
+                # `l2mzxn`: the renamed spellings, INCLUDING the deferrable pair. A deferred item also
+                # carries `integration_deferral`, and its reason is exactly what a reader needs to see.
+                "merge-needs-human",
+                "merge-refused",
+                "merge-retry",
+                "merge-unchecked",
+            )
         ) and it.get("integration_deferral"):
             # F-4's repair, legacy-record arm: these two statuses render their reason instead of
             # nothing even when no `Refusal` was recorded (a pre-r2i1b1 run directory).

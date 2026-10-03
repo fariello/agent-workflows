@@ -31,6 +31,7 @@ from agent_workflows import (
     host_sandbox_profile as hsp,
     oc_runipd,
     run_analytics_sources,
+    run_dashboard,
     run_viewer,
     runner_shared,
 )
@@ -46,6 +47,11 @@ SCRIPTED_HOST_LABELS = runner_shared.HostLabels(
     shell_tool="run_command",
     emits_launch_identity=False,
     full_auto_actor="aw scripted run --full-auto",
+    dependency_block_recovery=(
+        "resolve the named cause, then re-queue with "
+        "`aw scripted runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+        "a bare `resume` does NOT re-queue a dependency-blocked item"
+    ),
 )
 
 
@@ -347,11 +353,10 @@ class ThirdHostInitializationAndLimitTests(unittest.TestCase):
         precedence, the path fallback becomes load-bearing again and these assertions become the ones
         that catch it), while E-02's basename and digest assertions are the ones that detect relocation.
 
-        Uncovered third consumer (PR-904 / F-14):
-        We assert over two consumers (run_analytics_sources and run_viewer). A third consumer exists:
-        run_dashboard._run_host also reads state['driver']['id'] and prefix-matches (did.startswith('agy'),
-        did.startswith('oc')) rather than consulting a registry, which is fragile, and is deliberately
-        left uncovered here pending registry consolidation (carrier: gxsprh).
+        Third consumer covered (o55eli):
+        We assert over all three consumers (run_analytics_sources, run_viewer, and run_dashboard._run_host).
+        run_dashboard._run_host resolves driver.id through runner_shared.host_labels_for_driver_id rather
+        than fragile prefix matching, falling through to downstream signals on unregistered ids (plan o55eli).
         """
         host_runner_map = {
             runner_shared.OC_HOST_LABELS.id: (oc_runipd, "opencode"),
@@ -441,3 +446,166 @@ class ThirdHostInitializationAndLimitTests(unittest.TestCase):
                     run_analytics_sources.GENERATION_UNKNOWN,
                     f"HostLabels {labels.id!r} has unroutable generation in analytics (returned {gen_host!r})",
                 )
+
+
+class HostLabelsDriverIdResolverAndConsumerTests(unittest.TestCase):
+    """E-04: Outcome tests for host_labels_for_driver_id resolver and run-record consumers."""
+
+    def test_host_labels_for_driver_id_resolves_all_historical_viewer_spellings(
+        self,
+    ) -> None:
+        """(a) Every member of the two literal tuples run_viewer carries resolves to the expected descriptor."""
+        expected = [
+            ("oc_runipd", runner_shared.OC_HOST_LABELS),
+            ("opencode", runner_shared.OC_HOST_LABELS),
+            ("oc", runner_shared.OC_HOST_LABELS),
+            ("agy_runipd", runner_shared.AGY_HOST_LABELS),
+            ("antigravity", runner_shared.AGY_HOST_LABELS),
+            ("agy", runner_shared.AGY_HOST_LABELS),
+            ("runagy", runner_shared.AGY_HOST_LABELS),
+        ]
+        for driver_id, expected_labels in expected:
+            with self.subTest(driver_id=driver_id):
+                resolved = runner_shared.host_labels_for_driver_id(driver_id)
+                self.assertIs(resolved, expected_labels)
+
+        # Unregistered / invalid ids return None
+        for invalid_id in ("scripted", "octopus", "", "   ", None):
+            with self.subTest(invalid_id=invalid_id):
+                self.assertIsNone(runner_shared.host_labels_for_driver_id(invalid_id))
+
+        # Ambiguous argv_subcommands are NOT registered
+        for subcmd in ("run", "runipd"):
+            with self.subTest(subcmd=subcmd):
+                self.assertIsNone(runner_shared.host_labels_for_driver_id(subcmd))
+
+    def test_discovered_host_descriptors_driver_keys_are_collision_free(self) -> None:
+        """(b) No key in the union of .id and .argv_tokens maps to two different descriptors."""
+        discovered = [
+            v
+            for v in vars(runner_shared).values()
+            if isinstance(v, runner_shared.HostLabels)
+        ]
+        seen_keys: dict[str, runner_shared.HostLabels] = {}
+        for labels in discovered:
+            for key in [labels.id, *labels.argv_tokens]:
+                if key in seen_keys:
+                    self.assertIs(
+                        seen_keys[key],
+                        labels,
+                        f"Collision on key {key!r} between {seen_keys[key].id} and {labels.id}",
+                    )
+                seen_keys[key] = labels
+
+    def test_run_dashboard_run_host_resolves_registered_and_avoids_prefix_misrouting(
+        self,
+    ) -> None:
+        """(c) _run_host routes registered hosts and lets unregistered ids fall through."""
+        # Registered hosts return short host token derived from argv_tokens[0]
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "oc_runipd"}}, []),
+            "oc",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "agy_runipd"}}, []),
+            "agy",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "opencode"}}, []),
+            "oc",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "antigravity"}}, []),
+            "agy",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "runagy"}}, []),
+            "agy",
+        )
+
+        # Misrouting fix: prefix matches ("octopus", "agyx") must NOT route to oc/agy
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "octopus"}}, []),
+            "unknown",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "agyx"}}, []),
+            "unknown",
+        )
+
+        # Unchanged controls stay "unknown"
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "scripted"}}, []),
+            "unknown",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": "codex"}}, []),
+            "unknown",
+        )
+        self.assertEqual(
+            run_dashboard._run_host({"driver": {"id": ""}}, []),
+            "unknown",
+        )
+
+        # Fall-through reaches downstream cost_attribution signal when driver.id is unregistered
+        state = {
+            "driver": {"id": "octopus"},
+            "options": {"cost_attribution": {"host": "agy"}},
+        }
+        self.assertEqual(run_dashboard._run_host(state, []), "agy")
+
+    def test_runtime_registered_descriptor_is_picked_up_by_both_consumers(self) -> None:
+        """(d) A HostLabels descriptor registered at runtime is picked up by run_viewer and run_dashboard."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = root / "run-scripted"
+            run_dir.mkdir(parents=True)
+            (run_dir / "state.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": "run-scripted",
+                        "driver": {"id": "scripted"},
+                        "queue": [],
+                        "selectors": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            # Before registration:
+            # - run_viewer returns raw driver_id ("scripted")
+            # - _run_host returns "unknown"
+            summary_before = run_viewer.load_run_summary(run_dir, repo_root=root)
+            self.assertIsNotNone(summary_before)
+            assert summary_before is not None
+            self.assertEqual(summary_before.driver, "scripted")
+            self.assertEqual(
+                run_dashboard._run_host({"driver": {"id": "scripted"}}, []),
+                "unknown",
+            )
+
+            # Register at runtime
+            setattr(runner_shared, "SCRIPTED_HOST_LABELS", SCRIPTED_HOST_LABELS)
+            try:
+                # Both consumers pick it up with NO code edit:
+                # - run_viewer returns SCRIPTED_HOST_LABELS.product ("Scripted")
+                # - _run_host returns SCRIPTED_HOST_LABELS.argv_tokens[0] ("scripted")
+                summary_after = run_viewer.load_run_summary(run_dir, repo_root=root)
+                self.assertIsNotNone(summary_after)
+                assert summary_after is not None
+                self.assertEqual(summary_after.driver, "Scripted")
+                self.assertEqual(
+                    run_dashboard._run_host({"driver": {"id": "scripted"}}, []),
+                    "scripted",
+                )
+            finally:
+                # Teardown: remove attribute so it does not leak
+                delattr(runner_shared, "SCRIPTED_HOST_LABELS")
+
+            # Verify teardown cleanly restored state
+            discovered_after = [
+                v
+                for v in vars(runner_shared).values()
+                if isinstance(v, runner_shared.HostLabels)
+            ]
+            self.assertEqual(len(discovered_after), 2)

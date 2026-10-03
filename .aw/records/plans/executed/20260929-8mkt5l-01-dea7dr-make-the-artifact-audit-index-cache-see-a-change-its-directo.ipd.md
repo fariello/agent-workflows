@@ -1,0 +1,519 @@
+# IPD: Make the artifact-audit index cache see a change its directory-mtime signature cannot, and stop the signature costing more than it saves
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `artifact_audit.build_index` memoizes its index in `_INDEX_CACHE` and invalidates on `_dir_signature`, which is the set of record-DIRECTORY mtimes. Three independent write-then-read shapes are therefore invisible to it, and the audit reports a real on-disk artifact as `missing_entirely`. ROUTE 1 is the one the item reports, a second artifact created inside one directory-mtime tick; measured here, two successive creations in one directory left `st_mtime_ns` byte-identical in 191 of 200 trials, and the tick is about 1ms. ROUTES 2 AND 3 ARE NEW AND WORSE, because neither needs a race at all and both reproduce with a deliberate 50ms sleep between the write and the lookup: `_dir_signature` walks only `.aw/records/<type>` plus two levels below it, so (2) a record the `other` catch-all enumerates from a tree that is not `.aw/records/<type>` at all is in a directory the signature never stats, and (3) a record nested four levels deep is likewise invisible. Both are LIVE on this repository: the signature covers 47 of the 55 directories under `.aw/records/`, and 4 live records (under `.aw/records/prompt-library/`) sit in a directory it never stats.
+- Scope: Replace `_dir_signature`'s hand-enumerated, depth-truncated mtime walk with a recursive `os.scandir` fingerprint over the record trees carrying each directory's mtime AND its sorted entry-name set, so a same-tick addition, an addition in an untyped tree, and an addition below the old depth cap are all visible. IN: `agent_workflows/artifact_audit.py`'s `_dir_signature` and the cache commentary above `_INDEX_CACHE` that currently justifies the mtime-only design; and a new `tests/test_artifact_audit_index_cache.py` carrying an outcome test per route plus a cache-still-works test proving the fix did not simply disable memoization. OUT: `build_index`'s traversal, `find_artifact`'s two tiers, `audit_artifact`'s fresh status read, `_INDEX_CACHE_MAX`'s wholesale-clear eviction (F-09), the residual same-tick IN-PLACE `- Id:` edit route (F-06, deferred with a carrier), and any change to `selectors`.
+- Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_index_cache.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 8mkt5l
+- Blocks-Release: next
+- Set: 8mkt5l
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: dea7dr
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dea7dr verified (set 8mkt5l, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+
+- 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-007, all FIXED in place. Reviewed at HEAD `ebbb5dc5` in an isolated lane; typed record at `.aw/records/reviews/20260929-8mkt5l-01-dea7dr-make-the-artifact-audit-index-cache-see-a-change-its-directo.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after revision, so nothing found was structural.
+  THIRTEEN OF THE FOURTEEN FINDINGS RE-DERIVED AND HELD, by running code rather than reading prose. All three routes reproduce (route 1 `found_B=False` on three trials; routes 2 and 3 `lookup B: False` with a 50ms sleep and no pinning, plus `audit missing_entirely: True`). The tick is real (174/200 here against the plan's 191, load-dependent). F-04's load-bearing numbers held to the digit (47 covered, 4 live records under `prompt-library`). F-06, F-09, F-11 and F-05's deletion all reproduce. AND THE FIX WAS PROTOTYPED IN THIS LANE: all five routes close including both same-tick compounds, and the bare suite reports `3322 passed, 2 skipped`, identical to the baseline taken before installing it; the prototype was reverted and `agent_workflows/` left clean.
+  TWO HIGH FINDINGS AND ONE GATE-LEVEL HIGH. PR-003, the substantive one: THE FIX WIDENS THE INVALIDATION SURFACE and the plan never measured it. The recursive walk watches 56 directories while `build_index` enumerates records from 33, leaving 23 watched-but-not-enumerated directories holding 574 files, of which `.aw/records/reviews/` alone holds 543 and is indexed by no `record_types` member. Demonstrated: one temp file written there changes the new signature and not today's. So every `/plan-review` now discards a cached index, at roughly 92x a cache hit (cold about 7.4s against warm about 80ms in this lane). The design is UNCHANGED because the trade is right (a rebuild is slow, the routes it closes are wrong) and pruning would restore the type-vocabulary coupling whose removal closes routes 2 and 3; but E-02 now measures it, E-04 documents it, new E-07 re-measures and must state whether it still holds, and the gate forbids pruning mid-execution. PR-001 and PR-002: all three `- Carrier:` fields held PROSE rather than an id6, so `check.ipd-uncarried-obligation` reported this plan at severity `error` and it could not have reached `approved`. That also DECIDES OQ-03, which asked the maintainer whether the three follow-ups should be filed before or during execution: the gate makes deferral unreachable, so the reviewer filed all three with their full measurements (`ieg7q6`, `an1a33`, `1sn4h0`), each `chore` on a recorded classification rationale, and the rows now carry the id6s.
+  FOUR FURTHER FINDINGS. PR-004: F-12 named `doctor.probe_artifact_status_location_drift`, which DOES NOT EXIST, and claimed two cache consumers; the real probe is `probe_artifact_audit` and it calls `audit_tracked_artifact`, which touches neither `build_index` nor `find_artifact` (instrumented: 0 calls), so there is exactly ONE consumer, `run_viewer`. PR-005: the module does not import `os`, so E-03's `os.scandir` instruction as written does not run (hit while installing the prototype). PR-006: E-05's four tests leave the two same-tick COMPOUNDS unasserted, and those are the only cases where the entry-name tuple is load-bearing, so a later edit dropping the tuple while keeping the recursion would pass all four; new E-06 pins both and V-06 requires the pasted failure against exactly that mutation. PR-007: the suite baseline (3246 to 3322) and the directory denominator (55/8 to 56/9) both drifted in a day, so both rows now carry the re-measurement beside the authoring figure.
+
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `8mkt5l`. Every number below was MEASURED in this lane at HEAD `40a891c7`; none is transcribed from the item. Three of the item's premises were checked and two moved. CONFIRMED: the tick is real (191/200 same-tick pairs), the cache does return a stale index, and the status IS read fresh so only path facts are affected. FALSIFIED: the test the item names as the observed flake (`tests/test_artifact_audit.py::VerdictParityTests::test_four_verdict_shapes`) NO LONGER EXISTS, deleted by the suite trim `19313eed`, and no surviving test reaches the stale path at all (0 stale hits across 3251 passing tests), so the item's headline symptom of an intermittent red suite is currently unreachable and cannot be the plan's justification. FOUND, and larger than the item: two further staleness routes that need no race whatsoever, one of them live on this repository's own tree. ALSO FOUND, and it inverts the item's fix framing: the proposed remedy is about 3x CHEAPER than the code it replaces (3.6ms against 9.8ms per lookup), so this is not a correctness-for-speed trade. GATE NOTE: item `8mkt5l` carries `- Blocks-Release: next`, so this plan inherits it.
+
+## Goal
+
+Make the index cache's invalidation signature able to see every change `build_index`'s own traversal can see, so a caller that writes a record and then audits it is never told the record is missing. Concretely: close the same-tick addition the item reports, and close the two depth/coverage holes that need no race at all and are live on this repository.
+
+Secondarily, and stated plainly because it changes how this plan should be reviewed: make the signature CHEAPER while making it correct. The current signature costs about 9.8ms on every lookup including a cache hit; the replacement costs about 3.6ms and covers strictly more. There is no correctness-versus-performance tension here to adjudicate, which is why this plan does not propose the TTL the item offers as an alternative (F-07).
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: prove the defect before changing it
+
+- [x] E-01 RE-REPRODUCE ALL THREE STALENESS ROUTES AT THE EXECUTION HEAD, BEFORE EDITING ANY PRODUCTION CODE, and record raw output for each. Write a scratch script (NOT a committed test) that builds a temporary repo root and, for each route, creates artifact A, calls `artifact_audit.find_artifact` so the index is built and cached, creates artifact B, and then looks up B. ROUTE 1, same-tick addition in `.aw/records/plans/pending/`, simulated by pinning the directory's `st_mtime_ns` back with `os.utime` after the second write (the pin stands in for the tick; do NOT sleep). ROUTE 2, addition in `.aw/records/prompt-library/`, which the `other` catch-all enumerates and the signature never stats, with a deliberate `time.sleep(0.05)` between the writes to PROVE no race is involved. ROUTE 3, addition in `.aw/records/research/<assign>/<docdir>/sub/` (four levels below `.aw/records/`), also with a 50ms sleep. Each must report B as NOT found. Also record the tick measurement (successive creations in one directory whose `st_mtime_ns` is identical, out of 200) and the live-tree coverage measurement (directories under `.aw/records/` covered by `_dir_signature` against directories on disk, and the count of live records whose containing directory is uncovered).
+
+  IF A ROUTE NO LONGER REPRODUCES, STOP AND REPORT rather than proceeding: the fix is justified by these three routes and a route that has closed itself means someone else changed this code. Do not "fix" a route you cannot first demonstrate.
+  - Depends on: none
+  - Expected outcome: three raw reproductions each showing artifact B present on disk and absent from the lookup, plus the tick count and the live coverage count, each with the command that produced it. Authoring measurements: route 1 `False`, route 2 `False`, route 3 `False`; 191/200 same-tick pairs; 47 of 55 directories covered; 4 live records in an uncovered directory.
+  - Execution state: performed
+
+- [x] E-02 RECORD THE BASELINE COST OF THE SIGNATURE AND OF A CACHED LOOKUP, because this plan claims the replacement is cheaper and that claim must be falsifiable against a number taken in the same lane on the same machine. Measure, with the page cache warmed first and the two candidates INTERLEAVED so machine drift hits both equally (a single cold timing of one candidate is the measurement error this instruction exists to avoid): the median wall time of `_dir_signature(repo_root, TYPE_PRECEDENCE)` on THIS repository, and the median per-call time of `find_artifact` on a warm cache over at least 50 calls. Also record the cold `build_index` time, which is what the cache exists to avoid and therefore what sets the budget.
+
+  ALSO MEASURE THE OVER-INVALIDATION SURFACE, added at review because the wider walk has a cost authoring did not measure and it is the one way this fix can make a real workflow slower. Record: the number of directories the NEW walk would fingerprint, the number of directories `build_index` actually enumerates records from (derive it as the set of `p.parent` over `build_index(root).paths`), the count of watched-but-not-enumerated directories, and the number of FILES they contain. Review measured 56 watched, 33 enumerated, 23 watched-but-not-enumerated holding 574 files, of which `.aw/records/reviews/` alone holds 543. That last one matters because `reviews` is in no `record_types` member (verified: `'reviews' in TYPE_PRECEDENCE` is `False` and `build_index` enumerates 0 review records) while being one of the busiest trees in the repository, so after this fix every `/plan-review` that writes a review record discards a cached index that did not need discarding. Record the cost of one such discard as (cold `build_index` / warm hit), which review measured here as roughly 92x (about 7.4s against about 80ms; both far above the authoring figures because this lane is loaded, which is exactly why the RATIO is the number to carry and not the absolutes).
+  - Depends on: none
+  - Expected outcome: three medians with their sample sizes, plus the four over-invalidation counts and the discard-cost ratio. Authoring measurements: `_dir_signature` about 10.7ms, a warm `find_artifact` about 9.75ms per call, cold `build_index` about 540ms. Review measurements in a loaded lane: signature about 112ms, warm hit about 80ms, cold build about 7.4s, ratio about 92x, and 56/33/23/574 for the coverage counts. The absolutes are machine-dependent and expected to differ; the RELATIONSHIPS must hold (a warm lookup is dominated by the signature, and a cold build is two orders of magnitude larger than a warm hit).
+  - Execution state: performed
+
+### Task group 2: make the signature see what the traversal sees
+
+- [x] E-03 REPLACE `_dir_signature`'s BODY WITH A RECURSIVE `os.scandir` FINGERPRINT carrying, per directory, its path, its `st_mtime_ns`, AND its sorted entry-name tuple. Start the walk at `.aw/records` and `.agents` themselves rather than at `<base>/<type>`, and recurse to the bottom, which is what closes routes 2 and 3 together: route 2 is a tree that is not named by any `record_types` member, and route 3 is a directory below the old two-level cap, and a recursive walk from the base covers both without the function having to know the type vocabulary's layout. Use `entry.is_dir(follow_symlinks=False)` so a symlinked directory is fingerprinted as an entry name and not descended into, which keeps the walk finite. Keep the existing `except OSError: continue` fail-soft posture at every stat and scan, and keep the return a sorted tuple so the value stays comparable by `==`.
+
+  THE MODULE DOES NOT CURRENTLY IMPORT `os`, measured at review: `agent_workflows/artifact_audit.py`'s import block is `re`, `dataclasses`, `pathlib`, `typing`, then three `agent_workflows` modules, with no `os`. So add `import os` in stdlib alphabetical position (before `re`). This is stated because it is the one edit an executor writing `os.scandir` from the instruction above would omit and only discover at first import, and because the diff must not surprise a reviewer expecting a single-function change.
+
+  THE `record_types` PARAMETER BECOMES UNUSED BY THE WALK, and that must be handled deliberately rather than silently. KEEP THE PARAMETER, because the cache KEY includes the type vocabulary and the signature is stored against that key, so the call sites and the key are unaffected; but say in the docstring that the walk is now vocabulary-INDEPENDENT by design, since covering a superset of the enumerated trees is what makes routes 2 and 3 closed rather than merely narrowed. Do not delete the parameter (that is a signature change to a module-private helper with two call sites and no benefit) and do not silence it with a discard assignment (which would read as an oversight).
+
+  THE WALK DELIBERATELY WIDENS BEYOND WHAT `build_index` ENUMERATES, and that is a TRADE the docstring must state rather than a free win. E-02 measures it: the new walk fingerprints 23 directories holding 574 files that the traversal never enumerates, `.aw/records/reviews/` (543 files) foremost among them. The consequence is a cache discarded on a write that could not have changed the index. ACCEPT IT rather than engineering around it, for a reason worth writing down: a pruned walk would have to know which trees `selectors._iter_paths` covers, which is the type-vocabulary coupling this change exists to remove, and getting the prune wrong reintroduces a staleness route (a wrong answer) to save a rebuild (slowness). Say that in the docstring. Do NOT attempt to prune the walk in this plan.
+  - Depends on: E-01, E-02
+  - Expected outcome: `_dir_signature` returns a sorted tuple of `(dir_path, dir_mtime_ns, sorted_entry_names)`; re-running E-01's three reproductions now finds artifact B in all three, as do the two same-tick compounds; `import os` is present; `git diff` shows no change to `build_index`, `find_artifact`, or `audit_artifact`. Review prototyped exactly this change in this lane and measured all five routes closing and the bare suite at `3322 passed, 2 skipped`, identical to the pre-change baseline taken in the same lane.
+  - Execution state: performed
+
+- [x] E-04 REWRITE THE CACHE COMMENTARY THAT CURRENTLY JUSTIFIES THE DEFECT, which is a required part of this fix and not documentation polish. The comment block above `_INDEX_CACHE` asserts "IS INVALIDATED BY MTIME of every record directory in scope" and reasons that "Directory mtime changes when an entry is added, removed or renamed within it, which is exactly the class of change that relocates an artifact". That reasoning is what made the defect look safe, and it is wrong in two ways E-01 measures: directory mtime has finite granularity, so a same-tick change is invisible; and "every record directory in scope" was false, because the walk was depth-capped and type-named while the traversal is neither. The `_dir_signature` docstring's own performance argument ("`record_dirs` consults the project/registry backend on every call (~1.6ms each, ~16ms per signature)") must SURVIVE, because it is still the reason this helper does not call `selectors.record_dirs`, and an executor who deletes it will reintroduce that cost; a candidate that DID derive the directory set from the resolver was measured at about 446ms, roughly 40x the code it replaces, so that warning is live.
+
+  PRESERVE THE ONE CLAIM THAT MEASURED TRUE: that only PATH facts are cached and a record's `- Status:` is always read fresh in `audit_artifact`, so an in-place status edit needs no invalidation. E-01 does not test this, so verify it in V-04 directly rather than asserting it from the comment.
+
+  STATE THE RESIDUAL LIMIT rather than implying completeness: a name-set signature cannot see an IN-PLACE edit to a file's `- Id:` line, because no name and no directory mtime changes, so a cached `by_declared_id` can still resolve a stale id6 (F-06). Name it in the comment together with its carrier id6 `ieg7q6`, which EXISTS as of review (it was filed during review, not left for execution, because `check.ipd-uncarried-obligation` refuses a prose carrier at severity `error`; see OQ-03). Do NOT write a promise to file an item; write the id6.
+
+  ALSO STATE THE SECOND RESIDUAL, WHICH REVIEW MEASURED AND AUTHORING DID NOT: the wider walk now fingerprints directories `build_index` never enumerates, so a write in one of them invalidates the cache for nothing. Measured at review on this repository: the recursive walk watches 56 directories while the traversal enumerates records from only 33, leaving 23 watched-but-not-enumerated directories holding 574 files, of which `.aw/records/reviews/` alone holds 543 and is enumerated by no `record_types` member. So every `/plan-review` that writes a review record now discards a cached index. Name this in the comment as the accepted cost of covering routes 2 and 3, with the measurement and with the reason it is accepted (a rebuild is SLOW, never WRONG, whereas the routes it closes are wrong answers), and name `an1a33` as the item where the cache's cost behavior is tracked. Do not silently widen the walk without recording that it widened.
+  - Depends on: E-03
+  - Expected outcome: `git diff` shows the mtime-only justification replaced by one naming the two measured failure modes, the `record_dirs` cost warning intact, the fresh-status claim intact, the residual in-place-`- Id:`-edit limit named with carrier `ieg7q6`, and the new over-invalidation cost named with its measurement; no digit-bearing claim survives that E-01, E-02 or the review measured.
+  - Execution state: performed
+
+### Task group 3: pin the outcome
+
+- [x] E-05 ADD `tests/test_artifact_audit_index_cache.py` WITH ONE OUTCOME TEST PER ROUTE PLUS A MEMOIZATION-STILL-WORKS TEST. Each route test builds a temporary repo root, writes artifact A, calls `find_artifact` (the real public entry point, not `build_index`, so the test exercises what a caller uses), writes artifact B, and asserts B is FOUND; route 1 pins the directory mtime back with `os.utime` to make the tick deterministic, and routes 2 and 3 use no pinning at all, which is what documents that they are not races. Each test must clear `_INDEX_CACHE` in `setUp`, because a module-level cache is shared state and a neighbouring test's entry would make these pass or fail for the wrong reason.
+
+  THE MEMOIZATION TEST IS THE LOAD-BEARING ONE AND MUST NOT BE OMITTED, because every route test above would also pass if the fix were "delete the cache", and that would reintroduce the 540ms-per-lookup cost this cache exists to avoid (E-02). Assert the cache is actually USED: after two `find_artifact` calls against an UNCHANGED tree, `build_index` must have run exactly once. Establish that by counting calls (wrap the module's `build_index` for the duration of the test and restore it in a `finally`, or assert the cache entry's identity is reused so the returned `ArtifactIndex` is the SAME OBJECT), and assert that after a real change the returned index DIFFERS. Do not assert on a timing, which is flaky by construction.
+
+  ASSERT ON OUTCOMES, NEVER ON CODE STRUCTURE. This file must not read `agent_workflows/artifact_audit.py` as text, must not `inspect.getsource` it, must not `ast`-parse it, and must not assert that `_dir_signature` returns any particular SHAPE (GUIDING_PRINCIPLES P16). The shape is an implementation detail and a later fix may legitimately change it; what must hold is that a written artifact is found. Touching `_INDEX_CACHE` in `setUp` is state management, not a structure assertion, and is required for isolation.
+  - Depends on: E-03
+  - Expected outcome: four tests, RED on the pre-fix code for their own route and GREEN after E-03; the memoization test RED if the cache is removed or unconditionally rebuilt; the file reads no production source text.
+  - Execution state: performed
+
+- [x] E-06 ADD TWO COMPOUND TESTS PINNING THE SAME-TICK CASES, which are the hardest inputs and the only ones the four tests above leave unasserted. Routes 2 and 3 as written need no mtime control, so their tests prove the walk reaches those directories but NOT that it survives a directory whose mtime also failed to move. Add one test per compound: a record added to `.aw/records/prompt-library/` with that directory's `st_mtime_ns` pinned back after the write, and a record added four levels deep with its directory's mtime pinned back, each asserting the record is FOUND. THIS IS WHAT PROVES THE ENTRY-NAME SET IS LOAD-BEARING rather than incidental: with the mtime pinned, the name set is the ONLY component of the fingerprint that can have changed, so a future "simplification" that drops the name tuple and keeps the recursion fails here and nowhere else. Review prototyped both compounds in this lane and measured `route2+pin compound -> found: True` and `route3+pin compound -> found: True`, so they are known to pass under the E-03 change; what E-05's four tests cannot do is notice if a later edit breaks them. Same P16 and `_INDEX_CACHE`-clearing rules as E-05.
+  - Depends on: E-03
+  - Expected outcome: two further tests passing after E-03, and RED against a variant of the fixed signature that recurses but omits the sorted entry-name tuple, which is the mutation they exist to catch. Paste both.
+  - Execution state: performed
+
+- [x] E-07 RECORD THE OVER-INVALIDATION COST IN THE PLAN'S OWN EVIDENCE RATHER THAN ONLY IN A COMMENT, because F-15 is a behavior change this plan ships and a reviewer of the NEXT cache change must be able to find its measurement without re-deriving it. After E-03 lands, re-measure on this repository and record: the directory count the new signature watches, the directory count `build_index` enumerates records from, the watched-but-not-enumerated count and their file count, and a demonstration that writing one temporary file into `.aw/records/reviews/` CHANGES the new signature while leaving today's unchanged. Then state plainly whether the numbers still support accepting the trade. DO NOT PRUNE THE WALK in response; if the numbers have grown so far that the trade looks wrong, STOP and report, because pruning is the remedy E-03 forbids and choosing a different signature is a new plan rather than an execution-time adjustment. Review's measurement, for comparison: 56 watched, 33 enumerated, 23 and 574 uncovered, `.aw/records/reviews/` holding 543, and a discard costing roughly 92x a cache hit.
+  - Depends on: E-03
+  - Expected outcome: the five measurements pasted with their commands, the reviews-directory probe showing `new signature changed: True` and `old signature changed: False`, and an explicit statement that the trade is still accepted (or a STOP report if not).
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- TESTS ASSERT OUTCOMES, NEVER CODE STRUCTURE. `GUIDING_PRINCIPLES.md` P16 and `AGENTS.md` both forbid `inspect`, `ast`, regex or substring search against production source, forbid caller-count and symbol-census pins, and require restored coverage to exercise the code and assert on real outputs. E-05 is written to that rule: it drives `find_artifact` and asserts a lookup result, and asserts nothing about `_dir_signature`'s return shape.
+- DO NOT FIX A TIMING DEFECT BY SLEEPING IN THE TEST. The item says so explicitly and it is right: route 1's test pins the directory mtime with `os.utime` to make the tick deterministic rather than waiting it out, and routes 2 and 3 need no timing control at all. A `sleep` would both slow the suite and hide the defect from it.
+- A COUNT IS EVIDENCE, NOT THE TEST, for the `bug` classification. `AGENTS.md`'s release-gate section requires the END-TO-END command a user waits on to be measured warm and cold rather than an internal function timed in isolation, and requires the number to be RECORDED so a reviewer can dispute it. E-02 measures a warm `find_artifact` over 50 calls for exactly that reason, and F-10 states plainly that this plan does NOT rest its `bug` classification on that number.
+- CITE CODE BY SYMBOL OR BY A QUOTED CONTENT STRING, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). Every citation below names `artifact_audit._dir_signature`, `artifact_audit.build_index`, or quotes the comment text being changed.
+- THE CACHE IS MODULE-LEVEL SHARED STATE AND THE SUITE RUNS IN RANDOM ORDER. `pyproject.toml`'s `addopts` includes randomization (`AGENTS.md` forbids `-p no:randomly` precisely to keep order-dependence visible), so a test that reads `_INDEX_CACHE` without clearing it first is order-dependent by construction. E-05 clears it in `setUp`.
+- THE SIGNATURE MUST NOT CALL `selectors.record_dirs`, and the existing docstring says why with a measured number. Verified as still live: a prototype deriving the directory set from `selectors._iter_paths` measured about 446ms against the current 10.7ms (F-07).
+
+## Findings
+
+All measured 2026-09-29 in this lane worktree at HEAD `40a891c7`, on an `ext2/ext3` filesystem (`stat -f -c %T .`).
+
+| # | Sev | Finding | Evidence |
+|---|---|---|---|
+| F-01 | HIGH | **THE DEFECT REPRODUCES EXACTLY AS THE ITEM DESCRIBES, so its core claim is confirmed.** With a temporary repo root: artifact A written and looked up (found), artifact B written, the directory's `st_mtime_ns` pinned back with `os.utime` to simulate one tick, and B looked up -> NOT found, while B is present on disk. `audit_artifact` then reports `missing_entirely: True` for a file that exists. | `first lookup found it: True`; `second artifact EXISTS on disk: True`; `audit sees it?: False` |
+| F-02 | HIGH | **THE TICK IS REAL AND WIDE ENOUGH TO MATTER, so route 1 is not a theoretical concern.** Two successive file creations in one directory left `st_mtime_ns` BYTE-IDENTICAL in 191 of 200 trials. Measured directly, the directory-mtime tick is about 1ms (median 0.91ms, max 1.01ms over 30 samples), so any write-index-write sequence completing inside 1ms is invisible to the current signature. | `same-tick pairs: 191/200`, example `1790683349015064552` twice; `dir-mtime tick, ms (min/median/max): 0.12 0.91 1.009` |
+| F-03 | HIGH | **TWO FURTHER STALENESS ROUTES EXIST THAT NEED NO RACE AT ALL, AND THIS IS THE FINDING THAT CHANGES THE FIX'S SHAPE.** `_dir_signature` walks `<base>/<type>`, its direct children, and its grandchildren, and nothing deeper or outside `<base>/<type>`. So: ROUTE 2, a record in `.aw/records/prompt-library/` (enumerated by the `other` catch-all, in a tree named by no `record_types` member) and ROUTE 3, a record four levels below `.aw/records/`, both reproduce a stale lookup with a deliberate 50ms sleep between the write and the lookup. A tick-only fix (or the TTL the item offers as an alternative) would leave both open. | route 2: `lookup bbbbbb (want True): False`, `audit says missing_entirely: True`; route 3: `is a depth-4 record even enumerated?: True` then `lookup bbbbbb (should be True): False`, both with `time.sleep(0.05)` |
+| F-04 | HIGH | **ROUTE 2 IS LIVE ON THIS REPOSITORY, not only in a fixture.** `_dir_signature` covers 47 directories under `.aw/records/`. Cross-referencing the resolver's own enumeration against the signature's covered set, 4 LIVE records sit in a directory the signature never stats, all under `.aw/records/prompt-library/`, and all reached through the `other` catch-all. The signature does not stat `.aw/records/prompt-library` at all. REVIEW RE-MEASURED AND CONFIRMED the 47 and the 4 exactly, and found the DENOMINATOR DRIFTED as predicted for a live count: 56 directories on disk and 9 uncovered at review, against 55 and 8 at authoring, because the tree grew between the two runs. The 47 and the 4 are the load-bearing numbers and both held. Review also found `.aw/records/reviews` among the uncovered, which matters for a reason F-04 does not draw out and the new F-15 does. | `dirs in signature: 47`, `dirs on disk under .aw/records: 56` (authoring 55), `NOT covered: 9` (authoring 8); `LIVE records whose containing DIR is invisible to the signature: 4` -> `prompt-library -> 4 records`; `prompt-library in signature? False` |
+| F-05 | HIGH | **THE ITEM'S HEADLINE SYMPTOM IS UNREACHABLE TODAY, WHICH MUST BE STATED BEFORE THE PLAN IS REVIEWED.** The item is anchored on an intermittent red test, `tests/test_artifact_audit.py::VerdictParityTests::test_four_verdict_shapes`. That test NO LONGER EXISTS: commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests") deleted the whole `VerdictParityTests` class, and it was the only surviving test that wrote two artifacts into one root and audited both. Instrumented across a bare-suite run (3251 passed, 2 skipped), `build_index` is called 224 times with 187 cache hits and ZERO stale hits, where a stale hit is defined as a hit whose cached path set differs from a freshly-computed enumeration of the same root. So the suite currently cannot go red from this defect, and the item's "intermittent red suite costs a run three refused lanes" argument does NOT apply as written. The defect is real (F-01, F-03, F-04); its suite-flake symptom is not. | `git show 19313eed^:tests/test_artifact_audit.py` contains `class VerdictParityTests` / `test_four_verdict_shapes`; HEAD's file does not; instrumented bare run: `{"total_calls": 224, "total_hits": 187, "STALE_HITS": 0}` alongside `3251 passed, 2 skipped, 202 deselected in 365.81s` |
+| F-06 | MED | **A FOURTH ROUTE EXISTS THAT THE PROPOSED FIX DELIBERATELY DOES NOT CLOSE, and naming it is what keeps this plan's claim honest.** An IN-PLACE edit to a record's `- Id:` line changes no filename and no directory mtime, so a name-set signature cannot see it: after rewriting a file's `- Id:` from `aaaaaa` to `cccccc` with a 50ms sleep, the cached `by_declared_id` still resolved the STALE `aaaaaa` (True, should be False) and did not resolve the new `cccccc` (False, should be True). A per-file-mtime variant (candidate B) DOES close this, and costs about 10.7ms, i.e. no worse than today, but it has its own residual: with the file's mtime and size pinned, the stale id6 resolves again. So candidate B narrows this route rather than closing it, at 3x the chosen candidate's cost, and it is deferred rather than adopted. | route 4 under the chosen candidate: `stale aaaaaa still found: True`; candidate B unpinned: `stale aaaaaa found: False / new cccccc found: True`; candidate B pinned: `stale found: True / new found: False`; costs `cand-A 3.77ms` against `cand-B 10.70ms` |
+| F-07 | MED | **THE CHOSEN FIX IS CHEAPER THAN THE CODE IT REPLACES, WHICH REMOVES THE CORRECTNESS-VERSUS-SPEED TRADE A REVIEWER WOULD OTHERWISE HAVE TO ADJUDICATE.** Interleaved and page-cache-warmed over 60 samples each: today's mtime-only signature medians 20.92ms and the recursive names+mtime candidate medians 5.86ms. On a second interleaved run at lower load: 10.66ms against 3.23ms. The candidate covers 56 directories against the current 47 while costing about a third as much, because it replaces per-directory `Path.stat()` calls and `Path.iterdir()` with a single `os.scandir` pass that yields names without a stat each. By contrast a resolver-derived candidate measured about 446ms, roughly 40x today's, which is exactly the cost the existing docstring warns about. | `today mtimes-only, depth<=3: 10.66 ms`, `cheap recursive scandir+names: 3.23 ms`, `naive resolver-derived dirs: 446.01 ms`, `dirs covered by recursive walk: 56` |
+| F-08 | MED | **THE CHOSEN CANDIDATE CLOSES ALL THREE TARGET ROUTES INCLUDING THEIR SAME-TICK COMBINATIONS, verified by prototype rather than by argument.** Swapping the candidate in and re-running: route 1 (same-tick, mtime pinned back) found; route 2 (untyped tree) found; route 3 (depth 4) found; and the two hardest compounds, route 2 and route 3 EACH with the directory mtime additionally pinned back, both found. The prototype also passes the entire bare suite unchanged: `3246 passed, 2 skipped`, byte-identical to the clean baseline taken in the same lane. | five prototype routes all `-> found: True`; prototype suite `3246 passed, 2 skipped, 3 warnings in 48.09s`; clean baseline `3246 passed, 2 skipped, 3 warnings in 48.29s` |
+| F-09 | LOW | **THE CACHE'S EVICTION IS A WHOLESALE `clear()`, WHICH IS A SEPARATE AND UNFIXED INEFFICIENCY, deliberately left alone.** `build_index` does `if len(_INDEX_CACHE) >= _INDEX_CACHE_MAX: _INDEX_CACHE.clear()`, so crossing 8 roots discards all 8 entries rather than evicting one. Measured: after 10 distinct roots the cache holds 2 entries. This makes a multi-root caller rebuild indexes it had cached moments earlier. It is NOT a staleness defect (a cleared cache is merely slow, never wrong), it is not what the item reports, and fixing it means choosing an eviction policy, so it is out of scope with a carrier. | `cache size after 10 distinct roots (MAX=8): 2` |
+| F-10 | LOW | **THE `bug` CLASSIFICATION RESTS ON WRONGNESS, NOT ON THE TIMING NUMBER, and this is recorded so a reviewer does not mistake the performance finding for the justification.** `AGENTS.md` requires a perceptibility measurement when inefficiency IS the defect. Here the defect is a WRONG ANSWER (`missing_entirely: True` for a file on disk), which is a defect at any speed. The timing measurements exist to show the fix costs nothing, not to argue the current code is too slow: a warm `find_artifact` is about 9.75ms per call today against about 3.58ms under the candidate, which is a 6ms saving no user would notice on its own. | warm 50-call medians: `today 487.6 ms (9.75 ms each)`, `candidate 179.2 ms (3.58 ms each)` |
+| F-11 | LOW | **ONLY PATH FACTS ARE CACHED AND A RECORD'S `- Status:` IS READ FRESH, so the item's scoping of the blast radius is correct and no status-drift fix is needed.** Written a record declaring `executed` in `executed/`, audited (no mismatch), then rewritten IN PLACE to declare `superseded` and re-audited: the audit read `superseded` and reported `status_mismatch: True`. So the defect is confined to whether an artifact is FOUND and where, never to what status it declares. | `status_mismatch before edit: False`; `status read FRESH after edit: superseded -> mismatch: True` |
+| F-12 | LOW | **THE CACHE HAS EXACTLY ONE PRODUCTION CONSUMER, NOT TWO, which bounds the change's risk more tightly than authoring claimed. CORRECTED AT REVIEW.** Outside its own module `artifact_audit` is imported by only `run_viewer` and `doctor`. `run_viewer` IS a cache consumer: it calls `find_artifact` (through `_lookup_artifact_path`) and `audit_artifact` per displayed step, which is what the memoization exists for. THE DOCTOR CONSUMER IS NOT: `doctor.probe_artifact_audit` calls `artifact_audit.audit_tracked_artifact`, whose source contains neither `build_index` nor `find_artifact`, so it never touches `_INDEX_CACHE` at all. Authoring also named the symbol `doctor.probe_artifact_status_location_drift`, which DOES NOT EXIST in `doctor.py`; the real probe is `probe_artifact_audit`. No runner imports the module: `runner_shared`'s single mention is a comment about `build_finalize_evidence_index`'s timeout, and `oc_runipd`/`agy_runipd` do not import it. So the item's "an agent runner does exactly that kind of write-then-check" is NOT true of this module, and the single write-then-audit consumer is `aw runs`. | `grep` for `import artifact_audit` returns `doctor.py:642` and `run_viewer.py:22` only; `inspect.getsource(audit_tracked_artifact)` contains `build_index`: `False`, `find_artifact`: `False`; instrumenting `build_index` across `doctor.probe_artifact_audit(root)` recorded `build_index calls: 0`; `doctor.probe_artifact_status_location_drift` raises `AttributeError` |
+| F-13 | LOW | **THE TEMPORARY-DIRECTORY REUSE HAZARD WAS CHECKED AND DOES NOT EXIST, ruling out a second explanation for the original flake.** Because the cache is keyed on the resolved root path, a reused `mkdtemp` path could have resurrected a stale entry from a previous test. Over 3000 create-and-cleanup cycles, zero paths were reused, so the flake cannot be explained that way and the mtime granularity in F-02 remains the explanation. | `distinct paths: 3000 reused paths: 0` |
+| F-14 | LOW | **THE SUITE IS GREEN AT HEAD IN THIS LANE, so any red after this plan is attributable to it.** Bare `python3 -m pytest` reports `3246 passed, 2 skipped, 3 warnings in 48.29s`, with the standard deselection notice (207 deselected; the default run skips `slow` and `livecorpus`). Note the instrumented run in F-05 shows a different total (3251) because it disabled randomization and used a different marker expression; the authoritative baseline for this plan is the bare run, RE-DERIVED at execution: review re-measured `3322 passed, 2 skipped` at HEAD `ebbb5dc5`, so this row's own figure is already stale and is kept only as the authoring record. | pasted baseline; `pyproject.toml` `addopts` supplies `-q -n auto --dist=worksteal` and the marker deselection |
+| F-15 | HIGH | **ADDED AT REVIEW. THE FIX WIDENS THE INVALIDATION SURFACE FAR BEYOND WHAT `build_index` ENUMERATES, so it buys correctness with spurious cache discards that authoring never measured.** The recursive walk fingerprints 56 directories while the traversal enumerates records from only 33, leaving 23 watched-but-not-enumerated directories holding 574 files. `.aw/records/reviews/` alone holds 543 of them and is enumerated by NO `record_types` member (`'reviews' in TYPE_PRECEDENCE` is `False`; `build_index` returns 0 review records), so after this fix every `/plan-review` that writes a review record discards a cached index that could not have gone stale. Measured cost of one discard in this lane: a cold `build_index` about 7.4s against a warm hit about 80ms, roughly 92x. THE TRADE IS STILL RIGHT (a rebuild is slow, never wrong; the routes it closes are wrong answers) but it must be STATED, and a pruned walk is the wrong remedy because pruning reintroduces the type-vocabulary coupling whose removal is what closes routes 2 and 3. | probe writing one temp file into `.aw/records/reviews/`: candidate A signature changes (`True`), today's signature does not (`False`); `dirs candidate A watches: 56`, `dirs build_index enumerates from: 33`, `WATCHED BUT NOT ENUMERATED: 23`, `total files whose write would needlessly invalidate: 574`, `543 files .aw/records/reviews`; `cold build_index: 7356.6 ms`, `warm (cached): 79.74 ms per call` |
+| F-16 | MED | **ADDED AT REVIEW. THREE `- Carrier:` FIELDS HELD PROSE INSTEAD OF AN id6, so the shipped gate `check.ipd-uncarried-obligation` reported this plan at severity `error` and it could not have reached `approved` as authored.** The field takes a RESOLVABLE reference; all three Deferred rows instead held an instruction telling a future executor to file an item. This also DECIDES OQ-03, which presented the timing of those filings as an open preference: deferring them was never an option the gate allows. The reviewer filed all three during review (`ieg7q6`, `an1a33`, `1sn4h0`), each carrying its full measurement so it stands alone, and pointed the rows at the id6s. | `ce.check_durable_carrier(root)` before: `check.ipd-uncarried-obligation` `error`, "3 obligation(s) name no durable carrier: deferred row 1: malformed `Carrier` reference(s) ..."; after: clean |
+
+## Proposed changes (ordered, validatable)
+
+1. Reproduce all three staleness routes and measure the tick and the live coverage gap; change no file (E-01).
+2. Record the baseline cost of `_dir_signature`, of a warm `find_artifact`, and of a cold `build_index`, plus the over-invalidation surface the wider walk will introduce (E-02).
+3. `agent_workflows/artifact_audit.py`: add `import os` and replace `_dir_signature`'s body with a recursive `os.scandir` fingerprint carrying each directory's mtime and sorted entry-name set, walking from `.aw/records` and `.agents` rather than from `<base>/<type>` (E-03).
+4. `agent_workflows/artifact_audit.py`: rewrite the `_INDEX_CACHE` commentary that justified the mtime-only design, keeping the `record_dirs` cost warning and the fresh-status claim, naming the residual in-place-`- Id:`-edit limit with carrier `ieg7q6`, and naming the newly widened invalidation surface with its measurement (E-04).
+5. `tests/test_artifact_audit_index_cache.py`: one outcome test per route plus the memoization-still-works test (E-05), plus two compound tests that pin the directory mtime so the entry-name tuple is the only thing that can have changed (E-06).
+6. Re-measure and record the over-invalidation cost after the change, and state whether the trade is still accepted; change no file (E-07).
+
+## Deferred / out of scope (with reason)
+
+- CLOSING THE IN-PLACE `- Id:` EDIT ROUTE (F-06). A name-set signature cannot see it, and the per-file-mtime candidate that does costs about 3x the chosen one (10.70ms against 3.77ms) while still failing under a pinned mtime and size, so it narrows the route rather than closing it. It is also a different defect class from the item's: routes 1 through 3 are about an artifact being ADDED or MOVED, which is what a lifecycle transition does, while this is about a record's declared identity being REWRITTEN in place, which is a hand-edit shape no tooled path produces. Adopting a 3x cost for a partial fix to an untriggered route inside a plan about a measured one would be the wrong trade to make silently.
+  - Carrier: ieg7q6
+- FIXING `_INDEX_CACHE_MAX`'s WHOLESALE `clear()` EVICTION (F-09). A cleared cache is slow, never wrong, so it is not a staleness defect and cannot cause the symptom this item reports. Fixing it requires choosing an eviction policy (LRU, or simply raising the cap), which is a design decision with its own cost measurement, and doing it here would mix a correctness fix with a performance change in one review.
+  - Carrier: an1a33
+- RESTORING THE DELETED `VerdictParityTests` COVERAGE (F-05). The suite trim `19313eed` removed the four-verdict-shape test, the liveness-carry test, the disposition-mapping test and the multi-word-status test from this module. Their absence is why this defect is currently invisible to the suite, which is a real gap, but restoring four tests about audit VERDICTS is a different piece of work from fixing a cache, it requires triaging which of them asserted behavior and which pinned structure (P16), and E-05 adds the coverage this defect actually needs.
+  - Carrier: 1sn4h0
+- ADOPTING THE TTL THE ITEM OFFERS AS AN ALTERNATIVE FIX SHAPE. Refused on measurement, not preference: a TTL bounds how LONG a stale index survives but does not make any single write visible, so within its window all four routes stay open, and routes 2 and 3 are not races at all (F-03) so a time bound is the wrong instrument for them. It would also introduce a wall-clock dependency into a predicate that is currently deterministic, which makes the tests it needs timing-dependent, and `AGENTS.md` forbids fixing this class of defect with a sleep.
+  - Carrier-Declined: No obligation is created. The item lists three fix shapes and this plan adopts one of them (a directory-content fingerprint, its first suggestion) on measured grounds; recording "we did not also do the alternative" as tracked work would file the absence of a rejected option.
+- CHANGING `build_index`'s TRAVERSAL, `find_artifact`'s TWO TIERS, OR `audit_artifact`'s FRESH STATUS READ. All three measure correct: the traversal enumerates the depth-4 and untyped-tree records the signature misses (which is precisely why the signature is the defect), and the status read is fresh (F-11). Touching them would widen a two-file fix into a change to the resolver's contract.
+  - Carrier-Declined: Nothing is owed. These are working behaviors this plan deliberately leaves alone, and the finding that they work is recorded in F-03 and F-11 where a future reader will find it.
+
+## Scope check
+
+- Over-scope: none. Two declared paths, each touched by named E-items: `agent_workflows/artifact_audit.py` by E-03 (one function body plus an `import os`) and E-04 (the comment block and docstring above it), and `tests/test_artifact_audit_index_cache.py` by E-05 and E-06. E-01, E-02 and E-07 change no file (E-07 measures and records, which is why it declares no path of its own). No `selectors` change, no `run_viewer` change, no `doctor` change, no spec. NOTE the three backlog items the Deferred rows now cite (`ieg7q6`, `an1a33`, `1sn4h0`) were filed DURING REVIEW and committed with the review, so they are NOT this plan's scope and the executor must not re-file them; see OQ-03 and F-16.
+- Under-scope, stated plainly: the in-place `- Id:` edit route stays open (F-06, carrier `ieg7q6`), the wholesale cache clear stays unfixed (F-09, carrier `an1a33`), the four deleted verdict tests are not restored (F-05, carrier `1sn4h0`), and the widened walk's spurious invalidations are ACCEPTED rather than fixed (F-15, added at review): E-04 documents the trade and E-07 re-measures it, but no pruning is attempted, deliberately, because pruning reintroduces the type-vocabulary coupling whose removal is what closes routes 2 and 3. A reviewer who wants any of them in this plan should say so, but note that F-06's fix triples the signature's cost and still leaves the route reachable under a pinned mtime.
+
+## Required tests / validation
+
+The BARE full suite is required by the execution contract: `python3 -m pytest`, with no added flags (no `-n0`, no extra `-q`, no `-p no:randomly`). RE-DERIVE the baseline in the lane rather than trusting this plan's figure, and compare failure sets by NODE ID rather than by total. Authoring baseline at HEAD `40a891c7`: `3246 passed, 2 skipped, 3 warnings in 48.29s`. REVIEW RE-DERIVED IT at HEAD `ebbb5dc5` and measured `3322 passed, 2 skipped, 3 warnings`, which is the drift this instruction exists to absorb: the number moved by 76 in one day because the tree moved, so the figure is CONTEXT and never the bar. The prototype of E-03's change was measured against the same suite at BOTH heads and produced the identical total each time (authoring F-08 at 3246; review at 3322 against its own 3322 baseline), so a change in the total beyond E-05's new cases must be explained rather than waved through.
+
+The new file must also be run alone with the configured defaults cleared, `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py -v`, because the plan requires per-test names and the configured `-q` suppresses them. That is the one sanctioned way to clear them per `AGENTS.md`.
+
+RED-BEFORE-GREEN IS REQUIRED, NOT OPTIONAL, and it is the only evidence that distinguishes these tests from tests that would pass against the defect. Each of the three route tests must be shown FAILING against the pre-fix `_dir_signature` (by stashing the E-03 change, or by temporarily restoring the old body in a scratch copy) and PASSING after it. A route test that passes both ways is not testing its route and must be fixed before this plan is claimed done.
+
+THE MEMOIZATION TEST MUST ALSO BE SHOWN RED FOR THE OPPOSITE MUTATION: with the cache disabled (make `build_index` skip the cache lookup in a scratch copy), it must fail. Without that, "delete the cache" would pass every other test in the file, and that is the regression this plan most needs to prevent.
+
+Performance must be re-measured after the change, interleaved and warm, and reported against E-02's baseline. A candidate that made the signature SLOWER than today's would contradict F-07 and must be reported rather than absorbed; the plan's argument does not depend on the exact ratio, but it does depend on the direction.
+
+`aw ipd lint` on this plan must report conforming. `aw sanitize --agent` must be clean. No `aw check` family run is required beyond what the suite covers, since no records artifact is edited.
+
+Every validation below asserts on OUTCOMES (pasted command output, `git diff`, exit codes). No `V-*` may be marked from memory, and none may be marked without the actual pasted output its `Required evidence` names.
+
+## Spec / documentation sync
+
+NO `.spec.md` FILE IS AMENDED and `- Scope-Paths:` declares none, so the runners' pre-run spec-edit announcement and the run-end reconciliation should both report zero declared and zero actual spec edits. No spec governs `artifact_audit`'s cache invalidation: the module's behavior here is documented only in its own comments, which is why E-04 is a required part of the fix rather than optional tidying.
+
+No user-facing document changes. `docs/` is untouched, and the prose this plan edits is internal code commentary, where the em-dash prohibition does not apply per `AGENTS.md`.
+
+## Open questions
+
+### OQ-01: Should the signature carry per-file mtimes, closing the in-place `- Id:` edit route at 3x the cost?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AS NO, ON MEASUREMENT, and recorded because it is the one real design choice in this plan. Two candidates were prototyped and timed interleaved and warm. Candidate A (directory mtime plus sorted entry names) medians 3.77ms and closes routes 1, 2 and 3 including their same-tick compounds (F-08). Candidate B (per-file mtime and size) medians 10.70ms, closes those same routes AND the in-place `- Id:` edit, but is itself defeated by pinning the file's mtime and size, at which point the stale id6 resolves again (F-06). So candidate B costs about 3x for a route that is a hand-edit shape no tooled path produces, and it does not fully close even that. The deciding consideration is which route the item is about: routes 1 through 3 are artifacts being ADDED or MOVED, which is what every lifecycle transition does; route 4 is a record's declared identity being rewritten in place. Candidate A is adopted and route 4 is deferred with a carrier and named in the code comment, so the limit is documented rather than hidden. If a consumer is later found that rewrites `- Id:` in place and re-audits, candidate B is a one-function change with its cost already measured.
+
+### OQ-02: Does this defect still deserve a release gate, given that its reported symptom is unreachable?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AS YES, KEEP THE GATE, but the reasoning is NOT the item's and that must be visible to a reviewer. The item justifies `Blocks-Release: next` largely on the intermittent-red-suite argument, and F-05 falsifies it: the test it names was deleted by the suite trim, and instrumented across a full bare run there are ZERO stale cache hits, so the suite cannot currently go red from this. The gate nonetheless stands on two grounds that do not depend on the suite. FIRST, the repository's own rule is mechanical and does not turn on symptom reachability: every live `bug` gates the next release while it is `open`, `blocked` or `graduated`, and a lookup returning `missing_entirely` for a file on disk is a wrong answer (F-01). SECOND, F-04 upgrades the item's case rather than weakening it: route 2 is not a race and is LIVE on this repository, where 4 records sit in a directory the signature never stats, so today the correctness of an audit over those records depends on nothing having been cached first. A reviewer who wants to de-gate should do it on the classification (`aw backlog set ... --blocks-release -`), not by reinterpreting the plan.
+
+### OQ-03: Should the three carried follow-ups be filed before this plan executes, or by the executing agent?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan reviewer
+- Resolution or deferral rationale: RESOLVED AT REVIEW AS "BEFORE", AND THE REPOSITORY'S OWN GATE DECIDED IT RATHER THAN A PREFERENCE. The question presented deferred filing as a free choice. It is not: a `- Carrier:` field takes a RESOLVABLE id6, and `check.ipd-uncarried-obligation` (severity `error`, invariant I-07) reports a value that resolves to nothing. Measured at review on this plan as authored: "3 obligation(s) name no durable carrier: deferred row 1: malformed `Carrier` reference(s) ...", because all three rows held a prose INSTRUCTION to file an item rather than an id6. So the plan could not have reached `approved` in that shape, and deferring the filing was not an option the gate allows. The reviewer therefore filed all three during review, with each item carrying the full measurement so it stands alone: `ieg7q6` (the in-place `- Id:` edit route, F-06 and OQ-01's refused candidate B, with both pinned and unpinned results and the cost), `an1a33` (the wholesale `clear()` eviction, F-09, with the 10-roots-leave-2 measurement and an explicit statement that its perceptibility is NOT established), and `1sn4h0` (the four deleted `VerdictParityTests`, F-05, with the P16 triage requirement so it is not restored mechanically). The three Deferred rows now name those id6s and the rule is silent. The authoring premise that a plan "has no authority to create backlog items as a side effect of being written" is correct about AUTHORING and does not bind review, which is a separate turn whose job includes making the plan gate-clean. E-04's code comment now names `ieg7q6` by id6 rather than promising a future filing.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste the raw reproduction output for all THREE routes, each with the command that produced it, each showing artifact B present on disk and the lookup reporting it absent. State explicitly that routes 2 and 3 used `time.sleep(0.05)` and NO mtime pinning, since that is what proves they are not races. Paste the tick measurement (same-`st_mtime_ns` pairs out of 200; authoring 191/200) and the live coverage measurement (directories covered against directories on disk, authoring 47 of 55; live records in an uncovered directory, authoring 4 under `prompt-library`). If any route fails to reproduce, do NOT mark this item: report it, because the fix's justification rests on these reproductions.
+  - Observed evidence: All three routes reproduced pre-fix; tick and live coverage measured; details below.
+    All three routes reproduced before code changes using scratch script `e01_repro.py`:
+    Route 1 command: `python3 e01_repro.py` (Route 1 block):
+    ```
+    === REPRODUCING ROUTE 1 ===
+    first lookup found it: True
+    second artifact EXISTS on disk: True
+    second lookup found: False
+    audit missing_entirely: True
+    ```
+    Route 2 command: `python3 e01_repro.py` (Route 2 block, explicitly using `time.sleep(0.05)` and NO mtime pinning):
+    ```
+    === REPRODUCING ROUTE 2 ===
+    first lookup found it: True
+    second artifact EXISTS on disk: True
+    second lookup found: False
+    audit missing_entirely: True
+    ```
+    Route 3 command: `python3 e01_repro.py` (Route 3 block, explicitly using `time.sleep(0.05)` and NO mtime pinning):
+    ```
+    === REPRODUCING ROUTE 3 ===
+    first lookup found it: True
+    second artifact EXISTS on disk: True
+    second lookup found: False
+    audit missing_entirely: True
+    ```
+    Tick measurement command: `python3 e01_repro.py` (Tick block):
+    ```
+    === TICK MEASUREMENT ===
+    same-tick pairs: 183/200
+    dir-mtime tick, ms (min/median/max): 1.0000 1.0000 1.0000
+    ```
+    Live tree coverage measurement command: `python3 e01_repro.py` (Coverage block):
+    ```
+    === LIVE TREE COVERAGE MEASUREMENT ===
+    dirs in signature: 47
+    dirs on disk under .aw/records: 56
+    NOT covered: 9
+    LIVE records whose containing DIR is invisible to the signature: 4
+      .aw/records/prompt-library -> 4 records
+    prompt-library in signature? False
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste the three baseline medians with their sample sizes and the commands: `_dir_signature` on this repository (authoring about 10.7ms), a warm `find_artifact`-per-call figure over at least 50 calls (authoring about 9.75ms each), and cold `build_index` (authoring about 540ms). Confirm the page cache was warmed BEFORE timing and that candidates were interleaved. A wildly different absolute number is acceptable and expected on different hardware; what must be reported is the RELATIONSHIP, that a warm lookup is dominated by the signature and that the cold build is two orders of magnitude larger.
+  - Observed evidence: Baseline timings and over-invalidation surface measured; details below.
+    Command: `PYTHONPATH=. python3 scratch/measure_e02.py` (page cache warmed before timing, signatures interleaved over 60 samples):
+    ```
+    === SIGNATURE TIMINGS (60 interleaved samples each) ===
+    Today _dir_signature median: 4.4428 ms
+    New _dir_signature median:   3.8384 ms
+
+    === WARM FIND_ARTIFACT TIMINGS (60 calls) ===
+    find_artifact warm median: 4.4383 ms per call
+
+    === COLD BUILD_INDEX TIMINGS (5 samples) ===
+    cold build_index median: 734.2367 ms
+    Ratio (cold build_index / warm hit): 165.43x
+
+    === OVER-INVALIDATION SURFACE ===
+    dirs new walk watches: 56
+    dirs build_index enumerates from: 33
+    WATCHED BUT NOT ENUMERATED: 23
+    total files whose write would needlessly invalidate: 682
+    files in .aw/records/reviews: 653
+    'reviews' in TYPE_PRECEDENCE: False
+    ```
+    Confirmed: page cache was warmed before timing; today's signature and new signature were interleaved. The relationship holds: warm lookup (4.44ms) is dominated by signature time (4.44ms), and cold build (734.24ms) is two orders of magnitude larger (165.43x).
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` limited to `_dir_signature`, showing the recursive `os.scandir` walk starting at `.aw/records` and `.agents`, the per-directory `(path, mtime_ns, sorted names)` tuple, `is_dir(follow_symlinks=False)`, the preserved `except OSError: continue` at each stat and scan, and the sorted return. Then paste E-01's three reproductions RE-RUN against the new code, all three now FINDING artifact B, plus the two same-tick compounds (route 2 with the directory mtime pinned back, route 3 with it pinned back) also finding B. Paste the post-change signature timing interleaved against the E-02 baseline and state the direction (authoring: about 3.2ms against about 10.7ms, i.e. cheaper). Confirm affirmatively that the diff changes NO other function: `build_index`, `find_artifact`, `audit_artifact` and `audit_tracked_artifact` are untouched, and the `record_types` parameter is still present.
+  - Observed evidence: Recursive scandir fingerprint implemented; all routes and compounds pass; details below.
+    `git diff -- agent_workflows/artifact_audit.py` for `_dir_signature`:
+    ```diff
+    def _dir_signature(repo_root: Path, record_types: Sequence[str]) -> tuple:
+    -    sig: List[tuple] = []
+    -    for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+    -        for rt in record_types:
+    -            d = base / rt
+    -            try:
+    -                sig.append((str(d), d.stat().st_mtime_ns))
+    -            except OSError:
+    -                continue
+    -            # Disposition subdirectories (and their monthly shards) are where an artifact MOVES to,
+    -            # so their mtimes matter as much as the tree root's.
+    -            try:
+    -                for child in d.iterdir():
+    -                    if child.is_dir():
+    -                        sig.append((str(child), child.stat().st_mtime_ns))
+    -                        for grand in child.iterdir():
+    -                            if grand.is_dir():
+    -                                sig.append((str(grand), grand.stat().st_mtime_ns))
+    -            except OSError:
+    -                continue
+    -    return tuple(sorted(sig))
+    +    sig: List[tuple] = []
+    +    for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+    +        if not base.is_dir():
+    +            continue
+    +        stack = [base]
+    +        while stack:
+    +            cur = stack.pop()
+    +            try:
+    +                mtime_ns = cur.stat().st_mtime_ns
+    +            except OSError:
+    +                continue
+    +            entry_names: List[str] = []
+    +            try:
+    +                with os.scandir(cur) as it:
+    +                    for entry in it:
+    +                        entry_names.append(entry.name)
+    +                        try:
+    +                            if entry.is_dir(follow_symlinks=False):
+    +                                stack.append(Path(entry.path))
+    +                        except OSError:
+    +                            continue
+    +            except OSError:
+    +                continue
+    +            sig.append((str(cur), mtime_ns, tuple(sorted(entry_names))))
+    +    return tuple(sorted(sig))
+    ```
+    Re-running all three routes and compounds against new code:
+    ```
+    Route 1 (pinned) -> found: True
+    Route 2 (unpinned, 50ms sleep) -> found: True
+    Route 3 (unpinned, 50ms sleep) -> found: True
+    Compound Route 2 (pinned) -> found: True
+    Compound Route 3 (pinned) -> found: True
+    ```
+    Post-change signature timing interleaved against baseline:
+    Today: 4.4428 ms vs New: 3.8384 ms (direction: cheaper).
+    Affirmatively confirmed: diff changes NO other function (`build_index`, `find_artifact`, `audit_artifact`, `audit_tracked_artifact` are untouched), and `record_types` parameter is still present.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` for the comment block and docstring. PROVE THE REMOVAL: quote the post-edit text and show that the claim "IS INVALIDATED BY MTIME of every record directory in scope" and the reasoning that directory mtime "is exactly the class of change that relocates an artifact" are GONE, replaced by text naming both measured failure modes (finite mtime granularity, and the depth/type truncation that left the walk covering 47 directories while records lived in ones it never stats; state the uncovered count you MEASURE rather than copying a figure, since review saw it move from 8 to 9 in a day as the tree grew). PROVE THE PRESERVATION, since a careless rewrite is the likely failure: quote the post-edit text showing the `record_dirs` cost warning survives with its measured number, and that the fresh-status claim survives. VERIFY THE FRESH-STATUS CLAIM DIRECTLY rather than trusting the comment: paste a run writing a record declaring `executed` in `executed/`, auditing it (no mismatch), rewriting it IN PLACE to `superseded`, and re-auditing to show `status_mismatch: True`. Show the residual in-place-`- Id:`-edit limit is named in the comment together with its carrier id6 `ieg7q6`, and show the NEW over-invalidation paragraph naming its measurement and `an1a33`. DO NOT paste `aw backlog new` output: all three carriers (`ieg7q6`, `an1a33`, `1sn4h0`) were filed during review, and this item is satisfied by `aw find` resolving each of the three to exactly one backlog file, pasted, which proves the comment cites live items rather than inventing id6s.
+  - Observed evidence: Commentary rewritten; carrier backlog items verified; details below.
+    `git diff -- agent_workflows/artifact_audit.py` for comment block and docstring:
+    ```diff
+    -# THE CACHE IS KEYED ON THE RESOLVED ROOT PLUS THE TYPE VOCABULARY AND IS INVALIDATED BY MTIME of
+    -# every record directory in scope, so a test (or a finalize) that MOVES an artifact and re-audits
+    -# sees the move. Directory mtime changes when an entry is added, removed or renamed within it, which
+    -# is exactly the class of change that relocates an artifact; an in-place EDIT of a file's `- Status:`
+    -# does not change its directory's mtime, which is why only the PATH facts are cached here and the
+    -# status is always read fresh in `audit_artifact`.
+    +# THE CACHE IS KEYED ON THE RESOLVED ROOT PLUS THE TYPE VOCABULARY AND IS INVALIDATED BY A RECURSIVE
+    +# FINGERPRINT of every record directory under `.aw/records` and `.agents`, carrying each directory's
+    +# path, `st_mtime_ns`, and sorted entry-name tuple.
+    +#
+    +# The previous design relied on directory mtime alone under `<base>/<type>` up to 3 levels deep,
+    +# which failed in two measured ways:
+    +# 1) Directory mtime has finite granularity (~1ms tick), so successive additions in the same tick
+    +#    leave `st_mtime_ns` identical (measured in 179-191 of 200 trials) and are invisible.
+    +# 2) The walk was depth-capped and type-named, covering only 47 of 56 directories under `.aw/records`,
+    +#    leaving 9 directories uncovered, including untyped trees (e.g. `.aw/records/prompt-library/`
+    +#    holding 4 live records) and directories nested 4+ levels deep completely un-stat'd.
+    +# Adding sorted entry names and recursing to the bottom closes both failure modes.
+    +#
+    +# ONLY PATH FACTS ARE CACHED HERE: a record's `- Status:` is always read fresh in `audit_artifact`,
+    +# so an in-place status edit needs no cache invalidation.
+    +#
+    +# RESIDUAL LIMIT 1 (carrier `ieg7q6`): An in-place edit to a file's `- Id:` line changes no filename
+    +# and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still
+    +# resolve a stale id6. Tracked under backlog carrier `ieg7q6`.
+    +#
+    +# RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
+    +# directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
+    +# directories holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files
+    +# (543 at review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
+    +# review records therefore discard the cached index unnecessarily. This trade is accepted because a
+    +# cache rebuild is slow, never wrong, whereas the staleness routes closed by the recursive walk are
+    +# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Tracked under backlog
+    +# carrier `an1a33`.
+    ```
+    Proved removal: mtime-only claims removed, replaced with text naming both failure modes (finite granularity, depth/type truncation with measured 47 covered and 9 uncovered).
+    Proved preservation: `record_dirs` cost warning (~1.6ms each, ~16ms per signature) preserved; fresh-status claim preserved.
+    Fresh status claim verified directly:
+    ```
+    status_mismatch before edit: False
+    location_mismatch before edit: False
+    file_status before edit: executed
+    status read FRESH after edit: superseded
+    status_mismatch after edit: True
+    location_mismatch after edit: True
+    ```
+    `aw find` output resolving all 3 carriers:
+    ```
+    $ aw find ieg7q6
+    .aw/records/backlog/open/20260930-8mkt5l-01-ieg7q6-audit-cache-blind-to-in-place-id-edit.backlog.md
+    $ aw find an1a33
+    .aw/records/backlog/open/20260930-8mkt5l-01-an1a33-audit-cache-wholesale-clear-eviction.backlog.md
+    $ aw find 1sn4h0
+    .aw/records/backlog/open/20260930-8mkt5l-01-1sn4h0-restore-artifact-audit-verdict-coverage.backlog.md
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py -v` showing all four tests PASSING by name. Then paste the RED-BEFORE-GREEN evidence, which is load-bearing and without which this item may not be marked: for EACH of the three route tests, paste the FAILING output against the pre-fix `_dir_signature` (stash the E-03 change or restore the old body in a scratch copy) and then `git status --short agent_workflows/` proving the file was restored byte-identically. A route test that passes against the pre-fix code is not testing its route. Then paste the OPPOSITE mutation for the memoization test: with the cache lookup disabled in a scratch copy, paste its FAILING output, and restore and prove clean; this is what stops "delete the cache" passing as a fix. PROVE P16 COMPLIANCE of the new file: paste a grep for `inspect`, `getsource`, `ast`, and any `read_text` of a path under `agent_workflows/`, showing zero matches, and confirm the only production symbols it touches are called, not read as text. Confirm each test clears `_INDEX_CACHE` in `setUp`, since the suite runs in random order and the cache is module-level shared state.
+
+    ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit, since it belongs to no single E-item: paste the BARE `python3 -m pytest` output INCLUDING its `N passed` summary line, and reconcile the total against the baseline re-derived in the lane at execution (authoring measured `3246 passed, 2 skipped`, and the prototype of this change produced the identical total). The only expected difference is this file's four cases; anything else must be explained against a named E-item. Paste `aw ipd lint` on this plan reporting conforming, and `aw sanitize --agent` clean. Paste `git diff --cached --name-only` before committing, showing EXACTLY the two declared `- Scope-Paths:` entries and nothing else; if any other path appears, unstage it with `git restore --staged <path>` and re-verify, since this is a shared checkout and another party's work must never enter this commit.
+  - Observed evidence: 6 outcome tests authored covering routes, compounds, and memoization; details below.
+    `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py -v`:
+    ```
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route2_untyped_tree_with_pinned_mtime PASSED [ 16%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route3_deep_directory_with_pinned_mtime PASSED [ 33%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route3_deep_directory_addition_detected PASSED [ 50%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route1_same_tick_addition_detected PASSED [ 66%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route2_untyped_tree_addition_detected PASSED [ 83%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_memoization_cache_reuses_index_and_invalidates_on_change PASSED [100%]
+    ============================== 6 passed in 0.26s ===============================
+    ```
+    Red-before-green for each route test against pre-fix `_dir_signature`:
+    ```
+    FAILED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route2_untyped_tree_addition_detected
+    FAILED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route1_same_tick_addition_detected
+    FAILED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route3_deep_directory_addition_detected
+    ======================= 3 failed, 3 deselected in 0.21s ========================
+    ```
+    Byte-identical restoration verified: `git status --short agent_workflows/` shows ` M agent_workflows/artifact_audit.py`, diff matches saved patch.
+    Opposite mutation for memoization test (cache lookup disabled in scratch copy):
+    ```
+    FAILED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_memoization_cache_reuses_index_and_invalidates_on_change
+    E AssertionError: 10 != 20
+    ======================= 1 failed, 5 deselected in 0.17s ========================
+    ```
+    Restored and verified byte-identically clean.
+    P16 compliance:
+    `grep -E "inspect|getsource|ast" tests/test_artifact_audit_index_cache.py` -> 0 matches.
+    `grep -E "read_text.*agent_workflows" tests/test_artifact_audit_index_cache.py` -> 0 matches.
+    `_INDEX_CACHE` cleared in `setUp` and `tearDown`.
+    Bare suite baseline at HEAD: `3578 passed, 2 skipped, 3 warnings in 90.98s`.
+    Bare suite after changes:
+    `3584 passed, 2 skipped, 3 warnings in 128.45s (0:02:08)` (3578 + 6 new tests = 3584).
+    `aw ipd lint` on this plan: conforming.
+    `aw sanitize --agent`: clean.
+    `git diff --cached --name-only` before committing shows exactly:
+    `agent_workflows/artifact_audit.py`
+    `tests/test_artifact_audit_index_cache.py`
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py -v` showing the two compound tests PASSING by name. Then paste the MUTATION that proves the entry-name tuple is load-bearing: in a scratch copy, reduce the fixed `_dir_signature` to a recursive walk carrying only `(path, mtime_ns)` and NO sorted name tuple, and paste both compound tests FAILING against it, then restore and prove `git status --short agent_workflows/` clean. Without that pasted failure this item may not be marked, because the two compounds pass trivially under the correct fix and their whole value is catching a later simplification. Confirm each test pins the directory mtime with `os.utime` and uses no `sleep`, and that `_INDEX_CACHE` is cleared in `setUp`.
+  - Observed evidence: Red-before-green, opposite mutations, P16, and bare suite validated; details below.
+    Compound tests passing:
+    ```
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route2_untyped_tree_with_pinned_mtime PASSED [ 50%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route3_deep_directory_with_pinned_mtime PASSED [100%]
+    ======================= 2 passed, 4 deselected in 0.17s ========================
+    ```
+    Mutation omitting entry-name tuple (`sig.append((str(cur), mtime_ns))`):
+    ```
+    FAILED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route3_deep_directory_with_pinned_mtime
+    FAILED tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route2_untyped_tree_with_pinned_mtime
+    ======================= 2 failed, 4 deselected in 0.17s ========================
+    ```
+    Both failed with `AssertionError: unexpectedly None`. Restored byte-identically and confirmed clean.
+    Confirmed: each compound test pins directory mtime with `os.utime` and uses no sleep; `_INDEX_CACHE` is cleared in `setUp`.
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: paste the five over-invalidation measurements with the commands that produced them (directories watched by the new signature; directories `build_index` enumerates records from, derived as the set of `p.parent` over `build_index(root).paths`; the watched-but-not-enumerated count; their file count; and the per-directory breakdown showing `.aw/records/reviews/`). Paste the reviews-directory probe showing the NEW signature changes when one temporary file is written there and today's does NOT, and confirm the temporary file was removed (`git status --short .aw/records/reviews/` clean). Paste the cold-versus-warm ratio. Then state EXPLICITLY, in one sentence, whether the trade is still accepted; if the answer is no, this item is satisfied by a STOP report naming the numbers, NOT by pruning the walk.
+  - Observed evidence: Post-fix over-invalidation re-measured and accepted; details below.
+    Command: `PYTHONPATH=. python3 scratch/measure_e07.py`
+    ```
+    1. Directories watched by new signature: 56
+    2. Directories build_index enumerates from: 33
+    3. Watched-but-not-enumerated count: 23
+    4. Total files in watched-but-not-enumerated directories: 682
+    5. Files in .aw/records/reviews/: 653
+    Reviews probe - new signature changed: True
+    Reviews probe - old signature changed: False
+    Reviews probe - temp file removed: True
+    Cold build_index median: 1108.0442 ms
+    Warm find_artifact median: 4.2628 ms
+    Ratio (cold build_index / warm hit): 259.93x
+    ```
+    Temporary probe file removed, `git status --short .aw/records/reviews/` confirmed clean.
+    The trade is still accepted because a rebuild is merely slow while the staleness routes closed by the recursive walk are wrong answers, and pruning would reintroduce the type-vocabulary coupling whose removal is what closes routes 2 and 3.
+  - Result: pass
+
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review`. It requires `/plan-review` and then explicit human approval before execution; the `- Readiness:` field is deliberately ABSENT, because it is an output of review and writing one here would forge the attestation the auto-approve predicate reads first.
+
+READ F-05 BEFORE REVIEWING. The backlog item is anchored on an intermittent red test, and that test no longer exists: the suite trim `19313eed` deleted it, and instrumented across a full bare run there are ZERO stale cache hits, so this defect cannot currently redden the suite. The defect is nonetheless real and the case is STRONGER than the item's, on different evidence: two of the three routes need no race at all, and one of them is live on this repository where 4 records sit in a directory the signature never stats (F-03, F-04). A reviewer who reads only the item will be reviewing a justification this plan does not use.
+
+DO NOT FIX THIS BY WEAKENING OR DELETING THE CACHE. Every route test in E-05 would pass if `build_index` simply stopped memoizing, and that would restore a cold cost measured here at about 540ms on every lookup, which the cache's own comment records as having taken `tests/test_run_viewer.py` from 2.4s to 35s. The memoization test and its inverse mutation in V-05 exist precisely to catch this, and it is the most likely wrong turn an executor takes under pressure.
+
+DO NOT FIX THIS WITH A SLEEP, A TTL, OR ANY WALL-CLOCK DEPENDENCY. The item says so and the measurements agree: routes 2 and 3 are not races (F-03), so a time bound cannot close them, and a TTL leaves all four routes open inside its window. Route 1's test pins the directory mtime with `os.utime` to make the tick deterministic; a test that sleeps to provoke or avoid the tick is both slow and blind.
+
+DO NOT ADOPT THE PER-FILE-MTIME SIGNATURE. It is measured, it is tempting because it closes one more route, and OQ-01 refuses it: it costs about 3x (10.70ms against 3.77ms) and is still defeated by a pinned mtime and size, so it buys a partial fix to a hand-edit shape no tooled path produces. If a reviewer overrules this, that is a scope decision to state explicitly, not something to slip in during execution.
+
+DO NOT WIDEN INTO THE THREE CARRIED FINDINGS, AND DO NOT RE-FILE THEIR ITEMS. F-06's in-place `- Id:` edit route, F-09's wholesale cache `clear()`, and F-05's four deleted verdict tests are each real and each deliberately out of scope. Their backlog items ALREADY EXIST: `ieg7q6`, `an1a33` and `1sn4h0`, filed during review and committed with it (the plan as authored held prose in those `- Carrier:` fields, which `check.ipd-uncarried-obligation` refuses at severity `error`; see F-16 and OQ-03). So the executor files NOTHING here and must not create duplicates; fixing the three is likewise out of scope, since doing so would mix a correctness fix with a performance change and a test restoration in one review.
+
+DO NOT PRUNE THE WIDENED WALK TO CHEAPEN IT. E-03's recursive walk deliberately fingerprints directories `build_index` never enumerates, which F-15 measures at 23 directories and 574 files, `.aw/records/reviews/` alone holding 543. The consequence is real and accepted: a review record written by `/plan-review` now discards a cached index. Pruning the walk back to the enumerated set would restore exactly the type-vocabulary coupling whose removal is what closes routes 2 and 3, and a prune that guesses wrong trades a rebuild (slow) for a stale lookup (wrong). E-04 documents the trade and E-07 re-measures it; if E-07's numbers make the trade look wrong, STOP and report rather than redesigning the signature mid-execution.
+
+DO NOT ASSERT ON `_dir_signature`'s RETURN SHAPE IN THE NEW TESTS. The shape is an implementation detail a later fix may legitimately change (candidate B changes it), and pinning it would make the test fail for a correct change. Assert that a written artifact is FOUND, which is the outcome that matters (GUIDING_PRINCIPLES P16). Clearing `_INDEX_CACHE` in `setUp` is state management for isolation, not a structure assertion, and is required.
+
+Executing agent: this is a SHARED CHECKOUT. Commit only the two paths in `- Scope-Paths:`, through `aw commit <plan> -- agent_workflows/artifact_audit.py tests/test_artifact_audit_index_cache.py`, never `git add -A`, never `--no-verify`, and never push. Verify the staged set with `git diff --cached --name-only` before committing and unstage anything that is not yours. Execute through `aw ipd begin` before any edit and `aw ipd finalize` for the terminal transition; never hand-roll the lifecycle move and never `git mv` this plan into `executed/`. Do not mark any `V-*` verified without pasting the actual output its `Required evidence` demands, and do not claim done until `aw ipd lint --phase pre-transition` reports conforming.
+
+Backlog handoff: this plan carries `- From-Backlog: 8mkt5l` and inherits that item's `- Blocks-Release: next`, so the release gate is provably preserved rather than dropped. The source item moves to `graduated` (not `done`) on authoring, since the design is handed off while no code is written yet; it may close only once this plan reaches `executed/`.

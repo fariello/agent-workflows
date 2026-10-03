@@ -71,6 +71,7 @@ TRACKED-ONLY: see :func:`audit_tracked_artifact`.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -698,8 +699,9 @@ def run_status_is_nonterminal(status: str) -> bool:
     WHY THE DERIVATION CATCHES THEM FOR FREE: neither `reviewed` nor `queued` is in
     ``_TERMINAL_EXPECTED_DIR``, so both map to `pending` and are forward-eligible without being named.
 
-    `tests/test_artifact_audit.py` pins this against BOTH host drivers' `TERMINAL_STATES`, in the style
-    of `runner_shutdown.KNOWN_ITEM_STATUSES`, so a driver adding a status cannot drift silently.
+    `tests/test_artifact_audit.py:TestArtifactAuditEngine.test_terminal_states_tolerance_and_counterexample_trichotomy`
+    pins this against `runner_shared.TERMINAL_STATES` (shared by both host drivers), in the style of
+    `runner_shutdown.KNOWN_ITEM_STATUSES`, so a driver adding a status cannot drift silently.
     """
     return expected_dir_for_status(status) == "pending"
 
@@ -1028,45 +1030,78 @@ class ArtifactIndex:
 # sweeps the whole records tree to find what no type owns), so a per-step walk made
 # `tests/test_run_viewer.py` go from 2.4s to 35s. With this cache it is 2.5s.
 #
-# THE CACHE IS KEYED ON THE RESOLVED ROOT PLUS THE TYPE VOCABULARY AND IS INVALIDATED BY MTIME of
-# every record directory in scope, so a test (or a finalize) that MOVES an artifact and re-audits
-# sees the move. Directory mtime changes when an entry is added, removed or renamed within it, which
-# is exactly the class of change that relocates an artifact; an in-place EDIT of a file's `- Status:`
-# does not change its directory's mtime, which is why only the PATH facts are cached here and the
-# status is always read fresh in `audit_artifact`.
+# THE CACHE IS KEYED ON THE RESOLVED ROOT PLUS THE TYPE VOCABULARY AND IS INVALIDATED BY A RECURSIVE
+# FINGERPRINT of every record directory under `.aw/records` and `.agents`, carrying each directory's
+# path, `st_mtime_ns`, and sorted entry-name tuple.
+#
+# The previous design relied on directory mtime alone under `<base>/<type>` up to 3 levels deep,
+# which failed in two measured ways:
+# 1) Directory mtime has finite granularity (~1ms tick), so successive additions in the same tick
+#    leave `st_mtime_ns` identical (measured in 179-191 of 200 trials) and are invisible.
+# 2) The walk was depth-capped and type-named, covering only 47 of 56 directories under `.aw/records`,
+#    leaving 9 directories uncovered, including untyped trees (e.g. `.aw/records/prompt-library/`
+#    holding 4 live records) and directories nested 4+ levels deep completely un-stat'd.
+# Adding sorted entry names and recursing to the bottom closes both failure modes.
+#
+# ONLY PATH FACTS ARE CACHED HERE: a record's `- Status:` is always read fresh in `audit_artifact`,
+# so an in-place status edit needs no cache invalidation.
+#
+# RESIDUAL LIMIT 1 (carrier `ieg7q6`): An in-place edit to a file's `- Id:` line changes no filename
+# and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still
+# resolve a stale id6. Tracked under backlog carrier `ieg7q6`.
+#
+# RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
+# directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
+# directories holding 682 files (574 at review), of which `.aw/records/reviews/` alone holds 653 files
+# (543 at review) and is indexed by no `record_types` member. Operations like `/plan-review` that write
+# review records therefore discard the cached index unnecessarily. This trade is accepted because a
+# cache rebuild is slow, never wrong, whereas the staleness routes closed by the recursive walk are
+# wrong answers; pruning the walk would reintroduce type-vocabulary coupling. Tracked under backlog
+# carrier `an1a33`.
 _INDEX_CACHE: dict = {}
 _INDEX_CACHE_MAX = 8
 
 
 def _dir_signature(repo_root: Path, record_types: Sequence[str]) -> tuple:
-    """A cheap invalidation signature: the mtime of every record directory in scope.
+    """A cheap invalidation signature: the mtime and entry-name fingerprint of record directories.
 
-    Walks the LITERAL layout (``.aw/records/<type>`` plus legacy ``.agents/<type>``) rather than
-    calling ``selectors.record_dirs`` per type. That is deliberate and measured: ``record_dirs``
-    consults the project/registry backend on every call (~1.6ms each, ~16ms per signature across the
-    vocabulary), which would cost more than the traversal this cache exists to avoid. The signature
-    only has to CHANGE when an artifact moves, so covering the literal trees is sufficient; a
-    registry-redirected tree simply re-indexes on its own directory mtimes via the same scan below.
+    Walks the filesystem directly via a recursive ``os.scandir`` starting at ``.aw/records`` and
+    legacy ``.agents`` rather than calling ``selectors.record_dirs`` per type. That is deliberate
+    and measured: ``record_dirs`` consults the project/registry backend on every call (~1.6ms each,
+    ~16ms per signature across the vocabulary), which would cost more than the traversal this cache
+    exists to avoid.
+
+    The ``record_types`` parameter is kept for compatibility with the cache key and call sites,
+    but the walk is vocabulary-independent by design: starting from the base trees and recursing
+    to the bottom ensures untyped trees (such as ``prompt-library``) and deep hierarchies are covered.
+    This walk deliberately widens beyond what ``build_index`` enumerates (watching un-indexed trees
+    such as ``.aw/records/reviews/``); this trade is accepted because a spurious rebuild is slow but
+    never wrong, whereas a pruned walk would reintroduce type-vocabulary coupling and risk staleness.
     """
     sig: List[tuple] = []
     for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
-        for rt in record_types:
-            d = base / rt
+        if not base.is_dir():
+            continue
+        stack = [base]
+        while stack:
+            cur = stack.pop()
             try:
-                sig.append((str(d), d.stat().st_mtime_ns))
+                mtime_ns = cur.stat().st_mtime_ns
             except OSError:
                 continue
-            # Disposition subdirectories (and their monthly shards) are where an artifact MOVES to,
-            # so their mtimes matter as much as the tree root's.
+            entry_names: List[str] = []
             try:
-                for child in d.iterdir():
-                    if child.is_dir():
-                        sig.append((str(child), child.stat().st_mtime_ns))
-                        for grand in child.iterdir():
-                            if grand.is_dir():
-                                sig.append((str(grand), grand.stat().st_mtime_ns))
+                with os.scandir(cur) as it:
+                    for entry in it:
+                        entry_names.append(entry.name)
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                stack.append(Path(entry.path))
+                        except OSError:
+                            continue
             except OSError:
                 continue
+            sig.append((str(cur), mtime_ns, tuple(sorted(entry_names))))
     return tuple(sorted(sig))
 
 
@@ -1129,6 +1164,7 @@ def find_artifact(
     stem: str = "",
     *,
     record_types: Sequence[str] = TYPE_PRECEDENCE,
+    artifact_index: Optional[ArtifactIndex] = None,
 ) -> ArtifactLookup:
     """Locate the artifact declaring ``id6`` (or named by ``stem``), through ``selectors``.
 
@@ -1147,7 +1183,11 @@ def find_artifact(
     if not id6 and not stem:
         return ArtifactLookup()
 
-    index = build_index(repo_root, record_types=record_types)
+    index = (
+        artifact_index
+        if artifact_index is not None
+        else build_index(repo_root, record_types=record_types)
+    )
 
     # TIER ONE: exact declared `- Id:`. Hits are accumulated ACROSS types, so a cross-type id6
     # collision is reported rather than masked by the type ordering.
@@ -1193,71 +1233,6 @@ def read_declared_status(path: Path) -> Optional[str]:
     return m.group(1).strip() if m else None
 
 
-def _status_disagrees(recorded: str, declared: str) -> bool:
-    """Does a record's own ``declared`` status disagree with the ``recorded`` one?
-
-    The tolerance bands are:
-      * executed/complete: declared must be executed or complete
-      * reviewed: declared may be reviewed or approved
-      * any non-executed outcome (in-flight states like queued, running, interrupted, or
-        terminal failure states like fail-gate, fail-begin, fail-lane, fail-verify, fail-depend,
-        fail-merge, not-run, failed, cancelled, abandoned?, already-landed, and their legacy
-        aliases): declared may be any pre-terminal value (approved, to-review, draft, reviewed,
-        queued, running), because a plan whose execution was not completed legitimately still
-        carries its authoring status in pending/.
-      * otherwise the two must be equal.
-
-    The accepted pre-terminal values do NOT admit executed. If an interrupted, failed, or blocked
-    item's plan sits in executed/ reading - Status: executed, that remains a status mismatch
-    (and location mismatch) until forward finalization is evidenced.
-    """
-    from agent_workflows.runner_shared import canonical_terminal_status
-
-    rec = canonical_terminal_status(recorded)
-    dec = canonical_terminal_status(declared)
-    if rec in ("executed", "complete"):
-        return dec not in ("executed", "complete")
-    if rec == "retired":
-        return dec not in ("superseded", "not-executed")
-    if rec == "reviewed":
-        return dec not in ("reviewed", "approved")
-    if rec in (
-        "queued",
-        "queued?",
-        "running",
-        "interrupted",
-        "fail-gate",
-        "fail-begin",
-        "fail-lane",
-        "fail-verify",
-        "fail-depend",
-        "fail-merge",
-        "not-run",
-        "failed",
-        "cancelled",
-        "abandoned",
-        "abandoned?",
-        "already-landed",
-    ) or recorded in (
-        "queued",
-        "queued?",
-        "running",
-        "dependency-blocked",
-        "blocked",
-        "interrupted",
-        "abandoned?",
-    ):
-        return dec not in (
-            "approved",
-            "to-review",
-            "draft",
-            "reviewed",
-            "queued",
-            "running",
-        )
-    return dec != rec
-
-
 def audit_artifact(
     repo_root: Path,
     id6: str,
@@ -1272,6 +1247,7 @@ def audit_artifact(
     artifact_type: Optional[str] = None,
     action: Optional[str] = None,
     initial_status: Optional[str] = None,
+    artifact_index: Optional[ArtifactIndex] = None,
 ) -> ArtifactAudit:
     """THE audit predicate: is the artifact for ``id6`` where ``status`` says it should be?
 
@@ -1317,7 +1293,13 @@ def audit_artifact(
     if configured_file and (Path(repo_root) / configured_file).is_file():
         actual_file = Path(repo_root) / configured_file
     else:
-        lookup = find_artifact(repo_root, id6, stem, record_types=search_types)
+        lookup = find_artifact(
+            repo_root,
+            id6,
+            stem,
+            record_types=search_types,
+            artifact_index=artifact_index,
+        )
         actual_file = lookup.path
         collisions = list(lookup.collisions)
 

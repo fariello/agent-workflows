@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent_workflows import check_engine, cli
+from agent_workflows import agent_schema, check_engine, cli
 from tests import support
 
 
@@ -841,6 +841,7 @@ class TestApprovedWritesApprovalField(StatusSetTestBase):
         self.assertEqual(len(approval), 1, "exactly one Approval field expected")
         self.assertTrue(approval[0][len("- Approval:") :].strip(), "Approval non-empty")
         # It sits in the front matter (before the first H2), right after Id.
+        self.assertIn("\n## ", text)
         head = text.split("\n## ", 1)[0].splitlines()
         self.assertIn("- Approval:", "\n".join(head))
 
@@ -2046,6 +2047,231 @@ class SharedSetidCrossTypeResolutionTests(StatusSetTestBase):
         self.assertEqual(rc, 0)
         self.assertIn("- Status: to-review", plan1.read_text(encoding="utf-8"))
         self.assertIn("- Status: to-review", plan2.read_text(encoding="utf-8"))
+
+
+class MatchSelectorNarrowingGuardsTests(StatusSetTestBase):
+    """IPD `jw6cm3`: Pin the two independent type-narrowing sites in `status_set.match_selector`.
+
+    The fast-path filter guards `id6` and `setid` (which return early and never reach the resolver).
+    The resolver narrowing guards `status`, `stem`, and `substring` (which the fast path cannot see).
+    Neither site is redundant.
+    """
+
+    SETID = "shartop"
+    SHARED_SUBSTRING = "sharedneedle"
+
+    def _build_multi_type_corpus(self):
+        """Build a corpus spanning plans, backlog, and research sharing tokens across selector kinds."""
+        plan = self.create_plan(
+            f"20260929-{self.SETID}-01-sh0001-{self.SHARED_SUBSTRING}-plan.ipd.md",
+            "sh0001",
+            self.SETID,
+            status="open",
+        )
+        item = self.create_backlog(
+            f"20260929-{self.SETID}-01-sh0002-{self.SHARED_SUBSTRING}-item.backlog.md",
+            "sh0002",
+            self.SETID,
+            status="open",
+        )
+        report = self.create_research(
+            f"20260929-{self.SETID}-01-sh0003-report.research-report.md",
+            "sh0003",
+            self.SETID,
+            status="active",
+        )
+        return plan, item, report
+
+    def _research_in_corpus(self):
+        from agent_workflows import status_set
+
+        return [
+            r
+            for r in status_set.inventory_all_artifacts(
+                self.repo_root, scoped_type="research"
+            )
+            if r.record_type == "research"
+        ]
+
+    # ---------------------------------------------------------------------------------- E-02
+
+    def test_scoped_status_resolution_narrows_to_scoped_type(self):
+        """E-02: Scoped STATUS resolution narrows to the requested type.
+
+        Pins the resolver-narrowing site for the `status` selector kind.
+        Passes the full, unnarrowed inventory so `scoped_type` is the sole narrowing authority.
+        Asserts on returned record types, and confirms foreign-type members exist in the corpus.
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        self.assertTrue(
+            any(r.record_type == "backlog" for r in all_records),
+            "foreign-type backlog item missing from inventory fixture",
+        )
+        self.assertTrue(
+            any(r.record_type == "research" for r in self._research_in_corpus()),
+            "foreign-type research doc missing from inventory fixture",
+        )
+
+        unscoped = status_set.match_selector(
+            "open",
+            all_records,
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog", "plans"],
+            "unscoped status resolution must span both backlog and plans",
+        )
+
+        scoped = status_set.match_selector(
+            "open",
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            ["plans"],
+            f"scoped STATUS resolution failed to narrow to plans: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+
+    # ---------------------------------------------------------------------------------- E-03
+
+    def test_scoped_stem_resolution_refuses_foreign_type(self):
+        """E-03: Scoped STEM resolution refuses foreign-type artifact stem.
+
+        Pins the resolver-narrowing site for the exact filename `stem` selector kind.
+        Passes the full, unnarrowed inventory and keys assertion on type.
+        """
+        from agent_workflows import status_set
+
+        _, item, _ = self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        # Exact filename stem of the foreign backlog item (without .md)
+        foreign_stem = item.name[:-3] if item.name.endswith(".md") else item.name
+
+        unscoped = status_set.match_selector(
+            foreign_stem,
+            all_records,
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog"],
+            f"unscoped stem resolution must find the backlog item: {[(r.record_type, r.id6) for r in unscoped]}",
+        )
+
+        scoped = status_set.match_selector(
+            foreign_stem,
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            [],
+            f"scoped STEM resolution must return no records for foreign stem: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+
+    def test_scoped_substring_resolution_narrows_to_scoped_type(self):
+        """E-03: Scoped SUBSTRING resolution narrows to the requested type.
+
+        Pins the resolver-narrowing site for the filename `substring` selector kind.
+        Passes the full, unnarrowed inventory and keys assertion on type.
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        unscoped = status_set.match_selector(
+            self.SHARED_SUBSTRING,
+            all_records,
+            root,
+            scoped_type=None,
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in unscoped}),
+            ["backlog", "plans"],
+            f"unscoped substring resolution must span backlog and plans: {[(r.record_type, r.id6) for r in unscoped]}",
+        )
+
+        scoped = status_set.match_selector(
+            self.SHARED_SUBSTRING,
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped}),
+            ["plans"],
+            f"scoped SUBSTRING resolution failed to narrow to plans: {[(r.record_type, r.id6) for r in scoped]}",
+        )
+
+    # ---------------------------------------------------------------------------------- E-04
+
+    def test_scoped_foreign_type_id6_returns_no_match(self):
+        """E-04: Foreign-type ID6 returns empty under scoped resolution.
+
+        An id6 test alone cannot isolate the fast-path site because a foreign-type id6 fails
+        under BOTH killFAST and killRESOLVER (the fast path's early return stops the resolver
+        being consulted; removing either allows the foreign record through).
+
+        The companion setid test `test_scoped_setid_companion_isolates_fast_path` isolates
+        killFAST (it fails killFAST while surviving killRESOLVER).
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        # "sh0002" is a backlog item in the unnarrowed inventory
+        scoped_id6 = status_set.match_selector(
+            "sh0002",
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped_id6}),
+            [],
+            f"scoped ID6 resolution for foreign type must return empty: {[(r.record_type, r.id6) for r in scoped_id6]}",
+        )
+
+    def test_scoped_setid_companion_isolates_fast_path(self):
+        """E-04: Companion SETID assertion isolates the fast-path site.
+
+        Over the same unnarrowed inventory, a shared setid ("shartop") fails killFAST
+        and PASSES killRESOLVER, distinguishing the fast-path filter from the resolver branch.
+        """
+        from agent_workflows import status_set
+
+        self._build_multi_type_corpus()
+        root = self.repo_root
+        all_records = status_set.inventory_all_artifacts(root, scoped_type=None)
+
+        scoped_setid = status_set.match_selector(
+            self.SETID,
+            all_records,
+            root,
+            scoped_type="plans",
+        )
+        self.assertEqual(
+            sorted({r.record_type for r in scoped_setid}),
+            ["plans"],
+            f"scoped SETID resolution must return only plans: {[(r.record_type, r.id6) for r in scoped_setid]}",
+        )
 
 
 class FlaglessConfirmationRefusalTests(StatusSetTestBase):
@@ -3374,6 +3600,284 @@ class SetterRefusalRetryCommandTests(StatusSetTestBase):
         )
         self.assertTrue(done_file.is_file())
         self.assertIn("- Status: done", done_file.read_text(encoding="utf-8"))
+
+
+class TestDryRunMachineDisposition(StatusSetTestBase):
+    """E-03: Machine dry-run disposition tests asserting on observable payloads."""
+
+    def test_dry_run_noop_plan_emits_noop_and_unchanged_detail(self):
+        """A no-op dry run on a plan emits kind='noop', (unchanged) detail, and summary count 0."""
+        self.create_plan(
+            "20261001-noop01-01-np0001-plan.ipd.md",
+            "np0001",
+            "noop01",
+            status="reviewed",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "np0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout)
+        self.assertEqual(payload["summary"], "would update status on 0 artifact(s)")
+        self.assertEqual(len(payload["changes"]), 1)
+        change = payload["changes"][0]
+        self.assertEqual(change["kind"], "noop")
+        self.assertEqual(change["detail"], "status: reviewed (unchanged)")
+        self.assertFalse(change["applied"])
+
+        self.assertEqual(len(payload["data"]["items"]), 1)
+        item = payload["data"]["items"][0]
+        self.assertFalse(item["changed"])
+        self.assertTrue(item["dry_run"])
+
+    def test_dry_run_transition_plan_emits_update(self):
+        """A real transition dry run on a plan emits kind='update' and summary count 1."""
+        self.create_plan(
+            "20261001-upd01-01-up0001-plan.ipd.md",
+            "up0001",
+            "upd01",
+            status="draft",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "up0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout)
+        self.assertEqual(payload["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(len(payload["changes"]), 1)
+        change = payload["changes"][0]
+        self.assertEqual(change["kind"], "update")
+        self.assertEqual(change["detail"], "status: draft -> reviewed")
+        self.assertFalse(change["applied"])
+
+        self.assertEqual(len(payload["data"]["items"]), 1)
+        item = payload["data"]["items"][0]
+        self.assertTrue(item["changed"])
+        self.assertTrue(item["dry_run"])
+
+    def test_dry_run_mixed_selection_counts_and_dispositions(self):
+        """Mixed selection reports accurate would-update count and per-artifact kinds."""
+        self.create_plan(
+            "20261001-mix01-01-mx0001-plan.ipd.md",
+            "mx0001",
+            "mix01",
+            status="reviewed",
+        )
+        self.create_plan(
+            "20261001-mix01-02-mx0002-plan.ipd.md",
+            "mx0002",
+            "mix01",
+            status="reviewed",
+        )
+        self.create_plan(
+            "20261001-mix01-03-mx0003-plan.ipd.md",
+            "mx0003",
+            "mix01",
+            status="draft",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "mix01",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout)
+        self.assertEqual(payload["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(len(payload["changes"]), 3)
+
+        by_name = {Path(c["path"]).name: c for c in payload["changes"]}
+        item_by_name = {Path(it["path"]).name: it for it in payload["data"]["items"]}
+
+        for name, c in by_name.items():
+            self.assertFalse(c["applied"])
+            it = item_by_name[name]
+            self.assertTrue(it["dry_run"])
+            if "mx0003" in name:
+                self.assertEqual(c["kind"], "update")
+                self.assertEqual(c["detail"], "status: draft -> reviewed")
+                self.assertTrue(it["changed"])
+            else:
+                self.assertEqual(c["kind"], "noop")
+                self.assertEqual(c["detail"], "status: reviewed (unchanged)")
+                self.assertFalse(it["changed"])
+
+    def test_cross_path_agreement_property_mixed_selection(self):
+        """For the same fixture and selector, dry-run dispositions match apply path."""
+        self.create_plan(
+            "20261001-crossp-01-cp0001-plan.ipd.md",
+            "cp0001",
+            "crossp",
+            status="reviewed",
+        )
+        self.create_plan(
+            "20261001-crossp-02-cp0002-plan.ipd.md",
+            "cp0002",
+            "crossp",
+            status="draft",
+        )
+        res_dry = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "crossp",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_dry.returncode, 0)
+        dry_payload = json.loads(res_dry.stdout)
+
+        res_app = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "crossp",
+            "--json",
+            "--yes",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_app.returncode, 0)
+        app_payload = json.loads(res_app.stdout)
+
+        # Summary counts must agree
+        self.assertEqual(dry_payload["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(app_payload["summary"], "updated status on 1 artifact(s)")
+
+        dry_items = {it["path"]: it for it in dry_payload["data"]["items"]}
+        app_items = {it["path"]: it for it in app_payload["data"]["items"]}
+        self.assertEqual(set(dry_items.keys()), set(app_items.keys()))
+        for path, dry_it in dry_items.items():
+            app_it = app_items[path]
+            self.assertEqual(dry_it["changed"], app_it["changed"])
+
+        dry_changes = {c["path"]: c for c in dry_payload["changes"]}
+        app_artifact_changes = {
+            c["path"]: c
+            for c in app_payload["changes"]
+            if not c["path"].endswith(".json")
+            and not c["path"].endswith(".md")
+            or "crossp" in c["path"]
+        }
+        for path, dry_c in dry_changes.items():
+            app_c = app_artifact_changes[path]
+            self.assertEqual(dry_c["kind"], app_c["kind"])
+            self.assertEqual(dry_c["detail"], app_c["detail"])
+
+    def test_dry_run_backlog_item_typed_and_untyped_spellings(self):
+        """Cover backlog item across typed and untyped set spellings for noop and transition."""
+        self.create_backlog(
+            "20261001-bk0001-item.bkl.md",
+            "bk0001",
+            "bklset",
+            status="open",
+        )
+
+        # 1. Typed noop
+        res_t_noop = support.run_cli(
+            "backlog",
+            "set",
+            "open",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_t_noop.returncode, 0)
+        p_t_noop = json.loads(res_t_noop.stdout)
+        self.assertEqual(p_t_noop["summary"], "would update status on 0 artifact(s)")
+        self.assertEqual(p_t_noop["changes"][0]["kind"], "noop")
+        self.assertEqual(p_t_noop["changes"][0]["detail"], "status: open (unchanged)")
+        self.assertFalse(p_t_noop["changes"][0]["applied"])
+        self.assertFalse(p_t_noop["data"]["items"][0]["changed"])
+
+        # 2. Untyped noop
+        res_u_noop = support.run_cli(
+            "set",
+            "open",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_u_noop.returncode, 0)
+        p_u_noop = json.loads(res_u_noop.stdout)
+        self.assertEqual(p_u_noop["summary"], "would update status on 0 artifact(s)")
+        self.assertEqual(p_u_noop["changes"][0]["kind"], "noop")
+        self.assertEqual(p_u_noop["changes"][0]["detail"], "status: open (unchanged)")
+        self.assertFalse(p_u_noop["changes"][0]["applied"])
+        self.assertFalse(p_u_noop["data"]["items"][0]["changed"])
+
+        # 3. Typed transition (open -> parked)
+        res_t_upd = support.run_cli(
+            "backlog",
+            "set",
+            "parked",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_t_upd.returncode, 0)
+        p_t_upd = json.loads(res_t_upd.stdout)
+        self.assertEqual(p_t_upd["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(p_t_upd["changes"][0]["kind"], "update")
+        self.assertEqual(p_t_upd["changes"][0]["detail"], "status: open -> parked")
+        self.assertFalse(p_t_upd["changes"][0]["applied"])
+        self.assertTrue(p_t_upd["data"]["items"][0]["changed"])
+
+        # 4. Untyped transition (open -> parked)
+        res_u_upd = support.run_cli(
+            "set",
+            "parked",
+            "bk0001",
+            "--dry-run",
+            "--json",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res_u_upd.returncode, 0)
+        p_u_upd = json.loads(res_u_upd.stdout)
+        self.assertEqual(p_u_upd["summary"], "would update status on 1 artifact(s)")
+        self.assertEqual(p_u_upd["changes"][0]["kind"], "update")
+        self.assertEqual(p_u_upd["changes"][0]["detail"], "status: open -> parked")
+        self.assertFalse(p_u_upd["changes"][0]["applied"])
+        self.assertTrue(p_u_upd["data"]["items"][0]["changed"])
+
+    def test_dry_run_agent_schema_conformance(self):
+        """Dry-run payload with --agent conforms to aw.agent/v1 schema."""
+        self.create_plan(
+            "20261001-ag0001-01-ag0001-plan.ipd.md",
+            "ag0001",
+            "agset",
+            status="reviewed",
+        )
+        res = support.run_cli(
+            "ipd",
+            "set",
+            "reviewed",
+            "ag0001",
+            "--dry-run",
+            "--agent",
+            cwd=self.repo_root,
+        )
+        self.assertEqual(res.returncode, 0)
+        payload = json.loads(res.stdout.strip())
+        agent_schema.assert_valid_agent_record(payload)
 
 
 if __name__ == "__main__":

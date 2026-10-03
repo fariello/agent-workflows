@@ -24,7 +24,11 @@ location always agrees with the spec `- Status:` front-matter enum:
 - `superseded/`: Terminal state; superseded by a successor design specification.
 
 Location agrees with status. The status setters (`aw specs set <path> --status <enum>` and `aw set <status> <selector>`)
-automatically relocate the file to the matching directory upon status transition.
+automatically relocate the file to the matching directory upon status transition. Confirmation and commit
+semantics are shared across every `set` spelling; see `.aw/records/plans/README.md` for the full contract.
+Note that transitioning a `to-review` spec to `reviewed` requires an existing review record citing the spec
+as `- Subject-Id:` (an earlier validation gate that exits 1, unrelated to confirmation), so passing `--yes`
+will not bypass it.
 
 
 SETID LENGTH IS BOUNDED (catalog invariant I-17, spec `2lcqno` N8). A setid of 14 characters or

@@ -209,9 +209,12 @@ class CrossTreeSessionRefusalTests(unittest.TestCase):
             self.assertIn("Refused carrying operator session", fake_stderr.getvalue())
             # Refusal was recorded on item
             refusal = item.get("refusal") or {}
-            self.assertEqual("cross-tree-session-refused", refusal.get("code"))
-            self.assertIn(op_session, refusal.get("reason", ""))
-            self.assertIn(str(sweep_lane), refusal.get("reason", ""))
+            # IPD 7sc8fk (E-03): recorded refusal reasons are path-redacted at the writer so the
+            # raw absolute sweep-lane path must NOT appear in the copied run summary surface;
+            # the sweep lane is identified in redacted form, while the full absolute path remains
+            # preserved in gitignored durable state (events.jsonl below).
+            self.assertNotIn(str(sweep_lane), refusal.get("reason", ""))
+            self.assertIn("isolated sweep lane '<path>'", refusal.get("reason", ""))
 
             # Event appended to events.jsonl
             events_file = run_dir / "events.jsonl"

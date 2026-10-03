@@ -1,0 +1,344 @@
+# IPD: Guarantee the run-directory outcomes parent at the one site that genuinely lacks it, and record why the other sites need no change
+
+- Date: 2026-10-01
+- Kind: child
+- Concern: Backlog `3kr193` asks whether `<run_dir>/outcomes/` should be guaranteed by its writers, as `sibling` plan `z3ifg8` is about to make `sessions/` and `prompts/` guaranteed by theirs. The item's framing is that the answer is HARD because "the paths are constructed in at least three distinct places with different owners". MEASURED AT THIS HEAD, THAT FRAMING IS CORRECT ABOUT THE CENSUS AND WRONG ABOUT THE CONCLUSION, and the correction is the whole value of this plan. The census resolves into three classes, not three equal problems. CLASS A, PURE READERS THAT ALREADY TOLERATE ABSENCE AND MUST NOT MKDIR: `runner_shared.recorded_outcome_path` (a path-only helper that returns `None` on a malformed item), `runner_shared.read_recorded_outcome`, `runner_shared.format_verifier_evidence_section`, `runner_shared.perform_defect_reask` / `perform_gate_answer` (both of which only ever pass their `outcome_path` to a reader), `run_viewer`'s verification-outcome fallback, and `run_analytics_sources.read_outcomes` (which early-returns on `if not base.is_dir()`). REPRODUCED: on a bare run directory `recorded_outcome_path` returns `.../outcomes/01-abc123.json` with `outcomes/ exists after: False`, and `read_recorded_outcome` returns `None` leaving `outcomes/ exists after: False`. For every one of these, ABSENCE IS A MEANINGFUL ANSWER ("the step recorded nothing"), so a mkdir here would be a pure-accessor violation of exactly the kind `z3ifg8` F-06 rejected for `attempt_log_path`. CLASS B, DRIVER-SIDE WRITERS THAT ALREADY CREATE THEIR OWN PARENT: `lane_containment.collect_lane_submissions` writes the driver-side outcome through `_copy_file`, whose first statement is `destination.parent.mkdir(parents=True, exist_ok=True)`, and its sibling `_atomic_write_text` does the same. So the item's "three separate `run_dir / "outcomes" / ...` paths in `lane_containment`" are ALREADY GUARANTEED, and two of the three are not even driver writes (`prompt_outcome` is a STRING interpolated into prompt text, `lane_outcome` is a LANE-side path created by `prepare_lane_submission_dir`). VERIFIED END TO END: collecting into a run directory with `run_dir/outcomes exists before collect: False` yields `exists AFTER collect: True` with `collected: ['outcome']`. CLASS C, THE ONE REAL GAP, which the item did not isolate: a path the DRIVER NAMES IN PROMPT TEXT for the AGENT to write, on the NON-ISOLATED branch, where no lane-side mkdir runs. `lane_containment.prepare_lane_submission_dir` returns EARLY (`if paths.lane_submission_root is None or paths.lane_outcome is None: return`) precisely when `lane_root is None`, so a non-isolated turn gets NO directory created, while the prompt still tells the agent to write `<run_dir>/outcomes/<NN>-<id6>.json`. REPRODUCED: with `lane_root=None`, `prompt_outcome` is the absolute `.../run/outcomes/01-abc123.json`, `lane_submission_root` and `lane_outcome` are both `None`, and `run_dir/outcomes exists after prepare_lane_submission_dir: False`. The SAME shape holds for `runner_shared.build_verifier_prompt`, which computes `outcome` and `verify_outcome` under `run_dir / "outcomes"` and interpolates them as "Verification Outcome JSON to write", reaching the projection seam not at all (measured: `build_verifier_prompt -> prepare_lane_submission_dir: False | project_worker_paths: False`). SO THE ITEM'S OWN FRAMING RESOLVES: "an agent-written verdict has no single in-process writer" is true, and the correct owner is therefore the DRIVER AT PROMPT-BUILD TIME, which is the one moment the driver knows the path it is about to promise.
+- Scope: Close CLASS C and RECORD classes A and B, which is the decision backlog `3kr193` asks for. FOUR changes. (1) `lane_containment.prepare_lane_submission_dir` additionally creates the DRIVER-SIDE outcome parent on the non-isolated branch, so the directory named in a non-isolated prompt exists; it keeps its existing lane-side behavior unchanged for an isolated turn. (2) `runner_shared.build_verifier_prompt` creates the parent of the `verify_outcome` path it promises, which is the second agent-written path and the one the standalone audit verb depends on. (3) A docstring sentence on `runner_shared.recorded_outcome_path` recording that it is deliberately PURE and that absence is a meaningful answer, so a later reader does not "complete the symmetry" by adding a mkdir to a reader. (4) A test module pinning all three classes BY OUTCOME. EXPLICITLY DOES NOT: add a mkdir to any Class A reader; change `initialize_run_core`'s mkdir loop (see OQ-01, which this plan RESOLVES as "keep it"); alter any filename or path shape; remove `handle_audit_command`'s three-directory loop; or touch `sessions/` or `prompts/`, which are `z3ifg8`'s subject.
+- Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/runner_shared.py, tests/test_run_dir_outcomes_parent_is_guaranteed.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: 3kr193
+- Set: 3kr193
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
+- Id: 2kyw59
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 2kyw59 verified (set 3kr193, attempt 1).
+- 2026-10-01 approved (aw set): status set to approved
+- 2026-10-01 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-001..PR-005 all fixed, none deferred or open
+
+- 2026-10-01 /plan-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, none deferred or open. Reviewed at HEAD `72b8d317c`. `aw ipd lint --phase author` conformed before review and `--phase review-finalize` conforms after. THE PLAN'S CLASSIFICATION IS CORRECT AND IS ITS REAL CONTRIBUTION, AND ITS PRESCRIBED CODE HAD A DEFECT. I re-derived every load-bearing measurement independently: F-02, F-03, F-04, F-05, F-06, F-07 and F-08 all reproduce (readers pure with `outcomes/ exists after: False`; `collect_lane_submissions` into a bare run directory goes `False` -> `True` with `result: collected`; non-isolated `prepare_lane_submission_dir` creates nothing; `build_verifier_prompt` leaves `outcomes/` absent for both `audit` arms; `handle_audit_command` never writes the verdict; the initializer loop is the only skeleton creator and neither host's `resume` reaches it). PR-001 is a REAL DEFECT IN THE PRESCRIBED FIX, not a documentation gap: `prompt_outcome` is RELATIVE on the isolated branch (measured `.aw/state/lane-submissions/...`, `is_absolute: False`), so E-01's prescribed bare `Path(paths.prompt_outcome).parent.mkdir(...)` created SEVEN directories under a throwaway cwd, and `.aw/.gitignore:62` ignores `/state/` so `git status` could never show it while E-04(b) stayed green. E-01 now branches on `lane_root is None` and guards with `is_absolute()`; I applied that form, measured it correct (non-isolated parent created, isolated `run_dir/outcomes` still `False`, cwd untouched, `30 passed`), and reverted with `git diff --stat` empty. PR-005 adds the test case that makes PR-001 stick, since none of E-04's five cases could observe a cwd side effect, plus a third negative-control mutation against the superseded form. PR-002 measures the undisclosed cost of E-02's impurity: two existing callers pass fabricated run directories (`/tmp/run`, `/tmp/r`) and the statement really creates directories under them, with no test failing to say so. PR-003 records that NEITHER gap is reachable on a shipped path, which the backlog item says itself and the plan had dropped, so an approver prices robustness rather than a bug fix. PR-004 removes a stale suite total used as the acceptance bar (3506 at authoring, 3538 at review) and corrects the quoted `addopts`. Nothing was weakened: the three-class reading, the reader-purity refusal, E-03's docstring carrier and OQ-01's "keep the loop" all stand, and I added the missing cross-reference that sibling `z8ex9f` F-02 depends on `prepare_lane_submission_dir` NOT over-creating. Bare suite at review HEAD: `3538 passed, 2 skipped, 3 warnings in 72.24s`. No production file was left modified by this review.
+- 2026-10-01 to-review (opencode model=its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `3kr193`. Every measurement in Findings was taken in this lane worktree at HEAD `eb9ef3f62`, against throwaway `tempfile.mkdtemp()` directories, never against the tracked runs tree. THE ITEM'S CENSUS REPRODUCES BUT ITS DIFFICULTY FRAMING IS CORRECTED, which is the substantive contribution. The item says the mkdir owner "differs per site and needs its own analysis"; the analysis was done and the three sites are NOT three comparable problems. Its `lane_containment` sites are ALREADY GUARANTEED through `_copy_file`'s own `destination.parent.mkdir` (F-04), so no change is owed there. Its `runner_shared` site is a PURE READER that must NOT mkdir (F-02, F-03), on the identical reasoning `z3ifg8` F-06 used to keep `attempt_log_path` pure. What the item did NOT isolate is the real gap, and it is narrower and sharper than the item supposed: the NON-ISOLATED branch of `prepare_lane_submission_dir` returns early and so never creates the driver-side `outcomes/` the non-isolated prompt names (F-05), and `build_verifier_prompt` never reaches the projection seam at all (F-06). So the answer to the item's DECIDE is neither of its two offered options verbatim: it is "guarantee it at the two PROMPT-BUILD sites that promise an agent-written path, leave every reader pure, and KEEP `initialize_run_core`'s loop", which OQ-01 and OQ-02 record.
+
+## Goal
+
+Make `<run_dir>/outcomes/` exist whenever the driver has PROMISED an agent it may write there, so the guarantee follows the promise rather than following the run-initializer. After this plan a non-isolated turn and a verifier/audit turn each find the directory named in their prompt already present, every pure reader stays pure and keeps answering "absent" meaningfully, and the backlog item's open question is answered with evidence rather than left as a symmetry itch: `initialize_run_core`'s mkdir loop KEEPS its place, because it is the only thing standing between a hand-assembled run directory and a reader census that deliberately tolerates absence.
+
+WHAT THIS PLAN DOES NOT BUY, STATED PLAINLY BECAUSE NO CALLER IS BROKEN TODAY (PR-003). This is a ROBUSTNESS and OWNERSHIP change, not a bug fix, and the backlog item says so itself ("no known caller is currently broken. This is the symmetry question, not a live crash"). Both gaps it closes are UNREACHABLE on every shipped path at this head, and a reviewer and an executor should both know that before weighing the risk: `initialize_run_core` creates `outcomes/` for every queued run before any prompt is built, and `handle_audit_command` creates it for the audit verb before it calls `build_verifier_prompt`. Contrast `z3ifg8`, whose sibling defect was a LIVE `FileNotFoundError` reproducible end to end. The value here is that the guarantee stops depending on a caller having run earlier, which is what makes the two caller-side workarounds removable later and what stops the next hand-assembled run directory from tripping; the value is NOT a crash avoided today. Accordingly E-04(a) and E-04(d) pin a property that is currently redundant with the initializer, and that redundancy is the intended end state (OQ-01), not an oversight.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: guarantee the parent wherever the driver promises an agent-written outcome path
+
+- [x] E-01 In `agent_workflows/lane_containment.py`, make `prepare_lane_submission_dir` guarantee the DRIVER-SIDE outcome parent on the NON-ISOLATED branch, where it currently creates nothing. Restructure its early return so that the `lane_root is None` case still creates the parent of the driver-side outcome path, while the isolated case keeps creating exactly what it creates today. Extend the docstring to state that it guarantees the outcome parent on BOTH branches, naming which path each branch creates.
+
+  BRANCH ON `paths.lane_root is None`, NOT ON THE EXISTING TWO-FIELD GUARD, AND GUARD THE `mkdir` WITH `is_absolute()`. Write it as:
+
+  ```python
+  if paths.lane_root is None:
+      driver_outcome = Path(paths.prompt_outcome)
+      if driver_outcome.is_absolute():
+          driver_outcome.parent.mkdir(parents=True, exist_ok=True)
+      return
+  if paths.lane_submission_root is None or paths.lane_outcome is None:
+      return
+  paths.lane_outcome.parent.mkdir(parents=True, exist_ok=True)
+  ```
+
+  BOTH DETAILS ARE LOAD-BEARING AND THE REASON IS MEASURED, NOT STYLISTIC (PR-001). This plan originally prescribed a bare `Path(paths.prompt_outcome).parent.mkdir(parents=True, exist_ok=True)` on the existing guard. `prompt_outcome` IS RELATIVE ON THE ISOLATED BRANCH (`project_worker_paths` returns `f"{rel_root}/{outcomes_rel}"`, measured as `.aw/state/lane-submissions/r1/01-abc123/attempt-1/outcomes/01-abc123.json`), so a `mkdir` on its parent resolves against the PROCESS CWD and creates a bogus `.aw/state/lane-submissions/...` tree wherever the driver happens to be running. Measured: that one expression created 7 directories under a throwaway cwd. The existing two-field guard does not protect against this, because `lane_submission_root` and `lane_outcome` are non-`None` exactly when `prompt_outcome` is relative, so any future refactor that reorders those fields reaches the unsafe path. `is_absolute()` is therefore the invariant to assert on rather than a field's nullity, and `lane_root is None` is the branch predicate that actually names "non-isolated". `.aw/state/` is gitignored (`.aw/.gitignore:62`), so the pollution would NOT show up in `git status` and would be invisible to the plan's own validation.
+  THIS IS THE ONE GENUINE GAP IN THE WHOLE CENSUS AND IT IS WHY THE PLAN EXISTS. The function's current early return (`if paths.lane_submission_root is None or paths.lane_outcome is None: return`) fires EXACTLY on the non-isolated branch, because `project_worker_paths` sets both of those fields to `None` there (F-05). Meanwhile that same branch sets `prompt_outcome` to the absolute driver-side path and the prompt tells the agent to write it. So today the driver names a path, creates nothing, and relies on `initialize_run_core` having run earlier.
+  DO NOT "SIMPLIFY" BY MAKING THE ISOLATED BRANCH ALSO CREATE THE DRIVER-SIDE PARENT. The driver-side outcome for an isolated turn is created by `collect_lane_submissions` through `_copy_file` when the submission is actually collected (F-04), and creating it up front would make an EMPTY `outcomes/` directory indistinguishable from one whose collection failed, which spec `7ckptx` R2.5 exists to keep distinguishable. Sibling plan `z8ex9f` F-02 depends on exactly this shape (it measures that `prepare_lane_submission_dir` leaves an empty LANE-side tree and keys its retention probe on FILES rather than directory existence), so over-creating here would also undermine a pending sibling.
+  - Depends on: none
+  - Expected outcome: with `lane_root=None`, `project_worker_paths` followed by `prepare_lane_submission_dir` leaves `Path(paths.prompt_outcome).parent` EXISTING, where at this head the same sequence leaves `run_dir/outcomes exists after prepare_lane_submission_dir: False`. The ISOLATED branch is unchanged: it still creates `paths.lane_outcome.parent`, still does NOT create `run_dir/outcomes`, and creates NOTHING relative to the process cwd. `python3 -m pytest tests/test_defect_report.py tests/test_attempt_lane_facts.py` stays green (confirmed at review: `30 passed` with this exact form applied).
+  - Execution state: performed
+
+- [x] E-02 In `agent_workflows/runner_shared.py`, make `build_verifier_prompt` create the parent of the `verify_outcome` path it promises, immediately after the existing `outcome` / `verify_outcome` assignments and BEFORE the `if audit:` branch, so one statement covers both the in-run verifier prompt and the audit prompt. Add `verify_outcome.parent.mkdir(parents=True, exist_ok=True)`.
+
+  PLACED BEFORE THE `if audit:` BRANCH DELIBERATELY, because that branch RETURNS: `_build_audit_prompt` is called from inside it, so a statement added after it would cover the in-run verifier prompt and miss the audit prompt entirely, which is the one the standalone `aw oc audit` verb depends on.
+  WHY A PROMPT BUILDER LEGITIMATELY TOUCHES THE FILESYSTEM HERE, since that is the one arguable choice in this plan and a reviewer should weigh it: this function does not merely NAME the path, it PROMISES it, interpolating it as "Verification Outcome JSON to write" into text handed to an agent, and it is the LAST driver-side code that knows the path before the agent is asked to write it. That is the same ownership argument `z3ifg8` used to put its mkdir at the write site rather than in the pure helper; the difference is only that the "writer" here is a model in another process. The alternative placements are worse: the two Class A readers must stay pure (F-02, F-03), and `spawn_verifier`'s call site is per host, so fixing it there would need the same statement twice.
+  DO NOT also mkdir the `outcome` path's parent as a separate statement. It is the same directory (both are `run_dir / "outcomes"`), so one mkdir covers both, and a second would be dead code a later reader has to reason about.
+  THIS MAKES A PURE FUNCTION IMPURE FOR EVERY CALLER, INCLUDING TESTS THAT PASS A FABRICATED `run_dir`, and the cost is measured rather than hypothetical (PR-002). `build_verifier_prompt` today creates nothing, so existing callers pass any `run_dir` they like. Two do: `tools/ipdrunner/test_runagy.py::test_concurrent_work_statement_in_prompts` passes `Path("/tmp/run")` and `tests/test_defect_report.py::PromptDemandTests._prompt` passes `Path("/tmp/r")`. With this statement applied, running those tests CREATED `/tmp/run/outcomes` and `/tmp/r/outcomes` on the reviewer's machine (measured; both were absent beforehand). Neither test FAILS, so the suite will not catch it, but a prompt builder that materializes a directory under a path a caller only named is a real behavior change and it must be DISCLOSED here rather than discovered later. It is accepted because the driver call sites always pass a real run directory and because the alternative placements are worse (see below); it is NOT accepted silently. `tools/ipdrunner/` is OUTSIDE `testpaths = ["tests"]` (`pyproject.toml`) so a bare `python3 -m pytest` never collects it; do not expect the bare suite to exercise that call site at all.
+  - Depends on: none
+  - Expected outcome: `build_verifier_prompt` on a run directory with no `outcomes/` returns its prompt text AND leaves `<run_dir>/outcomes/` existing, for both `audit=False` and `audit=True` (confirmed at review with this exact statement applied: `audit=False ... outcomes exists after: True`, `audit=True ... outcomes exists after: True`, against `False`/`False` at this head). `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py` stays green.
+  - Execution state: performed
+
+### Task group 2: record the decision so the symmetry is not "completed" wrongly later
+
+- [x] E-03 In `agent_workflows/runner_shared.py`, extend `recorded_outcome_path`'s docstring with a short paragraph recording that it is DELIBERATELY a pure path helper which creates nothing, that ABSENCE of the file (and of the directory) is a meaningful answer rather than an error, and that the guarantee for agent-written outcome paths is therefore sited at the prompt-build sites named in E-01 and E-02. Cite backlog `3kr193` as where the decision was taken.
+
+  THIS IS THE DELIVERABLE THAT STOPS THE NEXT AGENT UNDOING THE PLAN, and it is the reason the item is worth closing rather than dropping. The backlog item frames the question as a SYMMETRY to be completed, and the single most likely wrong fix is for a later reader to see `sessions/` and `prompts/` guaranteed by their writers, find a `run_dir / "outcomes" / ...` construction in `runner_shared`, and add a mkdir there to match, breaking the "absent proves nothing was written" distinction that `recorded_outcome_path`'s own docstring already turns on ("that reader collapses absent and unparseable into one `None`, and those are OPPOSITE answers here"). A docstring is the right carrier because the next reader will be standing in this function.
+  DO NOT extend this to a survey comment listing every call site. A census pasted into a docstring rots; E-04(c) is what actually holds the property.
+  - Depends on: none
+  - Expected outcome: the docstring states the purity decision and names `3kr193`. No behavior change, so no test outcome changes; `python3 -m pytest tests/test_runner_shared.py` stays green.
+  - Execution state: performed
+
+- [x] E-04 Add `tests/test_run_dir_outcomes_parent_is_guaranteed.py` pinning all three classes BY OUTCOME against run directories that deliberately have NO subdirectories, driving the real functions in `tempfile` fixtures and asserting on real filesystem side effects. Cover, each as its own test: (a) NON-ISOLATED `project_worker_paths` + `prepare_lane_submission_dir` leaves the parent of `prompt_outcome` existing; (b) ISOLATED `prepare_lane_submission_dir` creates the LANE-side parent and does NOT create the driver-side `run_dir/outcomes`, which is the pin against the over-broad fix E-01 warns off; (c) `recorded_outcome_path` and `read_recorded_outcome` remain PURE, asserting `not (run_dir / "outcomes").exists()` afterwards and that the reader returns `None`; (d) `build_verifier_prompt` creates `outcomes/` for both `audit=False` and `audit=True`; (e) `collect_lane_submissions` into a BARE run directory still lands the outcome file, which pins the Class B guarantee that F-04 measured; and (f) ADDED AT REVIEW (PR-005) an ISOLATED `prepare_lane_submission_dir` called with the PROCESS CWD set to a throwaway empty directory creates NOTHING relative to that cwd, which is the ONLY guard against the F-12 hazard and is not covered by (b).
+
+  TEST (f) IS THE ONE THAT WOULD HAVE CAUGHT THE ORIGINAL E-01, so write it before trusting the rest. Enter the throwaway cwd with `contextlib.chdir` (Python 3.11+) or an `os.chdir` wrapped in `try/finally` so a failure cannot strand the suite in a temp directory, then assert the cwd tree is still EMPTY afterwards (for example `list(Path.cwd().iterdir()) == []`). Assert on the DIRECTORY LISTING rather than on the absence of one hardcoded name: the hazard is "creates a tree somewhere under cwd", and naming `.aw` specifically would pass if a refactor changed the lane layout. This test is the reason `is_absolute()` is in E-01 rather than only `lane_root is None`: both are needed, and (f) is what keeps either from being dropped later as redundant.
+  ASSERT ON BEHAVIOR AND FILESYSTEM STATE, NEVER ON SOURCE TEXT. Do NOT use `inspect`, `ast`, regex, or substring search over the production modules to check a `mkdir` is present, and do NOT count call sites: those are code-pinning tests, which this repository forbids (GUIDING_PRINCIPLES P16), and they would pass even if the mkdir were unreachable. Test (c) is the most important item here, because it is the only guard against the specific wrong fix E-03 exists to warn about; (f) is second, because it is the only guard against the measured F-12 hazard; and (b) is third, because it is the only guard against an E-01 that over-creates.
+  BUILD THE FIXTURES THE WAY THE AUTHORING MEASUREMENTS DID, since they are already proven to work: a `tempfile.mkdtemp()` root with `run/` and `lane/` subdirectories, an `item` of `{"position": 1, "id6": ..., "action": "exec", "attempt": 1}`, and a throwaway plan file. For (d), `build_verifier_prompt` needs a `state` carrying at least `run_id` and an `item` carrying `position`/`id6`/`setid`, plus `labels=`; copy the shape from the existing `tests/test_oc_runipd.py` call to `driver.build_verifier_prompt` rather than inventing one. For (e), the worker's outcome must be written into `paths.lane_outcome` before collecting, exactly as the F-04 transcript does. CONFIRMED AT REVIEW: `audit=True` needs NO `state["audit"]` key (it rendered a 6774-char prompt from `state = {"run_id": "run-test"}` alone), so (d) may use one minimal `state` for both arms.
+  EVERY FIXTURE MUST BE A `tempfile` PATH, never a literal like `/tmp/run`. F-13 measured that two EXISTING tests pass fabricated literals and that E-02 then creates real directories under them; this module must not add a third instance of that pattern.
+  - Depends on: E-01, E-02
+  - Expected outcome: the new module passes. Tests (a) and (d) demonstrably FAIL against the unpatched code (verify by reverting each change locally, observing the failure, restoring it, and confirming `git diff --stat` is empty), which is what proves they exercise the fix rather than passing vacuously. Tests (b), (c), (e) and (f) PASS both before and after, by design: they pin properties this plan preserves rather than properties it changes, and that asymmetry is expected and must be stated rather than "fixed". (f) additionally FAILS against the SUPERSEDED E-01 form (the bare `Path(paths.prompt_outcome).parent.mkdir(...)` on the old guard), which is the mutation that proves it load-bearing; demonstrating that is required by V-04.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE SIBLING PLAN SETS THE PATTERN AND ALSO SETS THE LIMIT. `z3ifg8` (pending, `- Status: approved`, Set `hblsqo`) makes `write_prompt`, `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` create their own parents, and its F-06 REFUSES to put the mkdir in `attempt_log_path` because that helper has record-only and read-only callers. This plan applies the SAME rule to `outcomes/` and reaches a different distribution of answers, because this directory's census is mostly readers. The two plans share no symbol and no file region: `z3ifg8` touches `write_prompt` and the two launch bodies, this one touches `prepare_lane_submission_dir`, `build_verifier_prompt` and `recorded_outcome_path`.
+- THE HOUSE PATTERN FOR A WRITER IS ALREADY "CREATE YOUR OWN PARENT", and `lane_containment` already follows it. Both `_copy_file` and `_atomic_write_text` open with `destination.parent.mkdir(parents=True, exist_ok=True)` / `path.parent.mkdir(parents=True, exist_ok=True)`. So Class B needs no change, and E-01's addition is consistent with the file it lands in.
+- ABSENCE IS A DESIGNED SIGNAL IN THIS SUBSYSTEM, which is what makes a blanket mkdir wrong. `recorded_outcome_path`'s docstring says it was split out from `read_recorded_outcome` because "absent PROVES nothing was written; unparseable proves nothing at all", and spec `7ckptx` R2.4/R2.5 require a turn that produced no submission to reconcile to "the honest empty-outcome fallback" and require an ABSENT submission to stay distinguishable from a failed one. `run_analytics_sources.read_outcomes` likewise early-returns on `if not base.is_dir()`.
+- TESTS MUST EXERCISE BEHAVIOR, NOT SOURCE STRUCTURE (GUIDING_PRINCIPLES P16, restated in `AGENTS.md`): no `inspect`/`ast`/regex over production source, no caller-count or symbol-census assertions. E-04 is written to that bar.
+- THE SUITE IS RUN BARE. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; do not add `-n0`, a second `-q`, or `-p no:randomly`.
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | THE ITEM'S CENSUS IS REAL BUT RESOLVES INTO THREE UNEQUAL CLASSES, not three comparable problems: pure readers that must not mkdir, driver writers that already mkdir, and prompt-build sites that promise a path to an agent and create nothing. That reclassification is what makes the item decidable. | Full census of `run_dir / "outcomes"` constructions across `agent_workflows/`: `runner_shared.recorded_outcome_path`, `runner_shared.format_verifier_evidence_section`, `runner_shared.build_verifier_prompt` (two paths), `runner_shared.read_recorded_outcome`, two call sites passing `outcome_path=` into `perform_defect_reask` / `perform_gate_answer`, `lane_containment.project_worker_paths` (two), `lane_containment.collect_lane_submissions` (one destination), `oc_runipd.handle_audit_command`, `run_viewer`, `run_analytics_sources.read_outcomes`. |
+| F-02 | CLASS A, THE READERS ARE PURE TODAY AND TOLERATE ABSENCE, so a mkdir in any of them would be the pure-accessor violation `z3ifg8` F-06 rejected. | Driven at HEAD `eb9ef3f62` in a `tempfile.mkdtemp()` directory: `recorded_outcome_path -> /tmp/.../run/outcomes/01-abc123.json` with `outcomes/ exists after: False`; `read_recorded_outcome -> None` with `outcomes/ exists after: False`. |
+| F-03 | THE TWO `outcome_path=` CONSUMERS ARE READERS, NOT WRITERS, which removes them from the item's "writing sites" framing. `perform_defect_reask` passes it to `read_defect_report_outcome` (which returns `None` on absence, invalid JSON, or an unreadable file, by design) and `perform_gate_answer` passes it to `read_gate_answer_outcome`. Neither writes. | `read_defect_report_outcome`'s body is `if not path.is_file(): return None` then a guarded `json.loads(path.read_text(...))`; an AST walk of `perform_gate_answer` shows its only `outcome_path` use is `read_gate_answer_outcome(outcome_path)`. |
+| F-04 | CLASS B, `lane_containment`'S DRIVER-SIDE WRITE IS ALREADY GUARANTEED, so the item's "three separate paths in `lane_containment`" are not three defects. `collect_lane_submissions` reaches the driver-side outcome only through `_copy_file`, whose FIRST statement is `destination.parent.mkdir(parents=True, exist_ok=True)`. Of the other two constructions, `prompt_outcome` is a STRING for prompt text and `lane_outcome` is a LANE-side path. | Collected into a bare run directory: `run_dir/outcomes exists before collect: False`, then `run_dir/outcomes exists AFTER collect: True`, `collected: ['outcome'] failed: []`, and the destination file re-read as `{"disposition": "executed"}`. |
+| F-05 | CLASS C, THE ONE REAL GAP: `prepare_lane_submission_dir` CREATES NOTHING ON THE NON-ISOLATED BRANCH, yet the prompt on that branch names an absolute driver-side outcome path for the agent to write. Its guard is `if paths.lane_submission_root is None or paths.lane_outcome is None: return`, and `project_worker_paths` sets BOTH of those to `None` exactly when `lane_root is None`. | With `lane_root=None`: `prompt_outcome the AGENT is told to write: /tmp/.../run/outcomes/01-abc123.json`, `lane_submission_root: None lane_outcome: None`, `run_dir/outcomes exists after prepare_lane_submission_dir: False`. |
+| F-06 | THE VERIFIER AND AUDIT PROMPTS ARE A SECOND INSTANCE OF CLASS C AND DO NOT REACH THE PROJECTION SEAM AT ALL, so E-01 alone would not cover them. `build_verifier_prompt` computes `outcome` and `verify_outcome` under `run_dir / "outcomes"` itself and interpolates the latter as a path to write. | AST check: `build_verifier_prompt -> prepare_lane_submission_dir: False | project_worker_paths: False` (contrast `build_prompt`, which calls `lane_containment.prepare_lane_submission_dir(paths)`). The prompt text contains `Verification Outcome JSON to write: `{verify_outcome}`` and `Before exiting, write valid JSON to `{verify_outcome}``. |
+| F-07 | THE AUDIT VERB NEVER WRITES THE VERDICT ITSELF, which confirms the item's "written by the AGENT inside a lane rather than by the driver" and locates the correct owner at prompt-build time. `handle_audit_command`'s only filesystem operations are two `atomic_write_json` calls to `state.json`, the three-directory mkdir loop, and READS of the verdict candidates. | AST enumeration of filesystem calls in `handle_audit_command`: `atomic_write_json(run_dir / 'state.json', state)` twice, `(run_dir / sub).mkdir(parents=True, exist_ok=True)`, `candidate.is_file()`, `json.loads(candidate.read_text(...))`. |
+| F-08 | `initialize_run_core` IS THE ONLY SKELETON CREATOR AND `resume` DOES NOT CALL IT, which is why its loop must be KEPT rather than retired once the writers are fixed. The loop is `for name in ("sessions", "outcomes", "prompts"): (run_dir / name).mkdir(parents=True, exist_ok=True)` right after `mint_run_dir`, and `mint_run_dir` itself creates only the run directory. | `mint_run_dir` returns "with the directory already created on disk" and creates no children. A standing comment in `runner_shared`'s policy-flag table states "`resume` does not call `initialize_run_core` (each host's `resume` branch loads state and applies policy flags directly, reaching no gate)". `oc_runipd.handle_audit_command` and `host_sandbox_profile`'s capability probe are the only other sites that create run-directory children, and the probe creates `sessions/` only. |
+| F-09 | THE SUITE IS GREEN NOW, so any post-change failure is attributable to this plan. THE NUMBER IS CONTEXT, NOT A BAR: RE-DERIVE a fresh baseline at execution and compare failure SETS BY NODE ID, never totals. Corrected at review (PR-004): the authoring figure was already stale two days later, which is exactly why a count must not be the acceptance criterion. | At authoring HEAD `eb9ef3f62`, bare `python3 -m pytest`: `3506 passed, 2 skipped`. RE-MEASURED at review HEAD `72b8d317c`: `3538 passed, 2 skipped, 3 warnings in 72.24s`, with `208 tests ... deselected`. |
+| F-10 | NO PENDING PLAN CONTENDS FOR THESE SYMBOLS. Seven pending plans mention one of `recorded_outcome_path` / `prepare_lane_submission_dir` / `initialize_run_core`, and none of them targets a symbol this plan edits. The nearest neighbour is `z8ex9f` (Set `nvymif`, `- Status: to-review`), which declares `agent_workflows/lane_containment.py` in `Scope-Paths` and concerns distinguishing a lane that submitted nothing; it touches the SUBMISSION-RETENTION surface, not `prepare_lane_submission_dir`'s mkdir. Both plans run in isolated lanes with a merge-and-revalidate gate, so file overlap is not a hazard. | `grep -ln` over `.aw/records/plans/pending/*.ipd.md` returns `b02ohu`, `nf71bz`, `kqb9ok`, `z3ifg8`, `yu47nf`, `o55eli`, `z8ex9f` out of 195 pending plans. `z8ex9f` front matter: `- Scope-Paths: agent_workflows/lane_containment.py, tests/test_lane_submission_retention_narrowing.py, .aw/records/specs/approved/20260901-7ckptx-...spec.md`. |
+| F-11 | THERE IS NO EXISTING TEST MODULE FOR LANE CONTAINMENT TO EXTEND, so E-04 adds a module rather than editing one. No file in `tests/` matches `lane_contain`, `lane_submission`, or `worker_lane`; the only test touching `collect_lane_submissions` is `tests/test_defect_report.py`, which wraps it for an unrelated purpose. | `ls tests/ | grep -i 'lane_contain\|lane_submission\|worker_lane'` returns nothing; `grep -rn 'collect_lane_submissions' tests/*.py` returns only `tests/test_defect_report.py` wrapping it. |
+| F-12 | ADDED AT REVIEW (PR-001). E-01'S ORIGINALLY PRESCRIBED EXPRESSION WAS UNSAFE, because `prompt_outcome` is RELATIVE on the isolated branch, so `Path(paths.prompt_outcome).parent.mkdir(parents=True, exist_ok=True)` resolves against the PROCESS CWD. The fix is to branch on `paths.lane_root is None` and to guard the `mkdir` with `is_absolute()`; E-01 now prescribes that form and E-04 pins it. The pollution would be INVISIBLE to `git status` because `.aw/state/` is gitignored. | `project_worker_paths(..., lane_root=lane)` returns `prompt_outcome='.aw/state/lane-submissions/r1/01-abc123/attempt-1/outcomes/01-abc123.json'` with `is_absolute: False`; running that one expression under a throwaway cwd created 7 directories (`.aw`, `.aw/state`, `.aw/state/lane-submissions`, ...). `.aw/.gitignore:62` ignores `/state/`. The corrected form was applied at review and measured: non-isolated parent created, isolated `run_dir/outcomes` still `False`, nothing created relative to cwd, `tests/test_defect_report.py tests/test_attempt_lane_facts.py` -> `30 passed`. |
+| F-13 | ADDED AT REVIEW (PR-002). E-02 MAKES `build_verifier_prompt` IMPURE FOR EVERY CALLER, and two existing callers pass a FABRICATED `run_dir`, so the statement materializes directories under paths a caller only NAMED. Neither test fails, so the suite cannot catch it; it is disclosed and accepted rather than hidden. | `tools/ipdrunner/test_runagy.py::test_concurrent_work_statement_in_prompts` passes `Path("/tmp/run")`; `tests/test_defect_report.py::PromptDemandTests._prompt` passes `Path("/tmp/r")`. With the statement applied, running them created `/tmp/run/outcomes` and `/tmp/r/outcomes` (both absent beforehand), and both suites still passed. `pyproject.toml` sets `testpaths = ["tests"]`, so a bare run never collects `tools/ipdrunner/`. |
+| F-14 | ADDED AT REVIEW (PR-003). NEITHER GAP IS REACHABLE ON A SHIPPED PATH AT THIS HEAD, so this is a robustness/ownership change and not a bug fix, which the backlog item itself says ("not a live crash"). Recorded so the approver prices the risk correctly and so the executor does not expect a reproducible failure. | `initialize_run_core` runs its three-directory loop immediately after `mint_run_dir` and before any prompt is built; `handle_audit_command` runs `for sub in ("outcomes", "prompts", "sessions")` at its own line 4579 and calls `build_verifier_prompt` at 4620, i.e. 41 lines LATER. `prepare_lane_submission_dir` is reached only from `runner_shared.build_prompt`, which both `execute_item_core` call sites invoke only within a run that already initialized. |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: `lane_containment.prepare_lane_submission_dir` creates the driver-side outcome parent on the non-isolated branch (F-05), branching on `lane_root is None` and guarding the `mkdir` with `is_absolute()` (F-12), and leaving the isolated branch's behavior exactly as it is (F-04).
+2. E-02: `runner_shared.build_verifier_prompt` creates the parent of the `verify_outcome` path it promises, before the returning `if audit:` branch so both prompts are covered (F-06, F-07), accepting and disclosing that this makes the builder impure for every caller (F-13).
+3. E-03: `runner_shared.recorded_outcome_path`'s docstring records that readers stay pure and why, citing `3kr193` (F-02, F-03).
+4. E-04: a new test module pins all three classes by outcome, including the three negative pins that the fix is not over-broad (b), that readers stay pure (c), and that nothing is created relative to the process cwd (f, F-12).
+
+## Deferred / out of scope (with reason)
+
+- `initialize_run_core`'S MKDIR LOOP IS KEPT, which RESOLVES rather than defers the second half of the backlog item's question. See OQ-01 for the reasoning and the evidence.
+  - Carrier-Declined: Nothing is owed, because this plan ANSWERS the question the item asked rather than passing it on. The item's own DECIDE offers "whether `initialize_run_core`'s mkdir loop still earns its place" as a follow-on; F-08 settles it with evidence (the loop is the only skeleton creator, and `resume` never reaches it), so filing a carrier would record a decided question as outstanding work.
+- `sessions/` AND `prompts/` ARE NOT TOUCHED. They are `z3ifg8`'s subject and it is already `approved`.
+  - Carrier-Declined: No future work is owed and a carrier would duplicate an existing approved plan. `z3ifg8` holds those two directories in its `Scope-Paths` and its E-01..E-03; this plan shares no symbol with it.
+- `handle_audit_command`'S THREE-DIRECTORY MKDIR LOOP IS LEFT IN PLACE, as is `host_sandbox_profile`'s `sessions` mkdir.
+  - Carrier-Declined: `z3ifg8` OQ-02 already owns the question of removing those two workarounds and already recommends "leave them"; both are idempotent `exist_ok=True` calls. Filing a second carrier here would duplicate a question that is already recorded against the plan that created it. After this plan, `handle_audit_command`'s `outcomes/` line becomes belt-and-braces for the audit path rather than its only guarantee, which strictly improves the position its OQ-02 reasons about.
+- NO FILENAME OR PATH-SHAPE CHANGE, and no change to which component names which path.
+  - Carrier-Declined: This row records a PROHIBITION on this plan rather than deferred work. The outcome-file stem is load-bearing for readers across `runner_shared`, `run_viewer`, `run_analytics_sources` and `lane_containment.item_slug`, so preserving it is a constraint to honor here, enforced by the negative fence and by V-04's requirement that the new module assert on real filesystem state.
+
+## Scope check
+
+- Over-scope: none. Every file in `Scope-Paths` is touched by a named E-item: `lane_containment.py` (E-01), `runner_shared.py` (E-02, E-03), and the new `tests/test_run_dir_outcomes_parent_is_guaranteed.py` (E-04). No documentation file is edited and no `.spec.md` is edited, because nothing user-facing and no contract changes.
+- Under-scope: the plan does NOT add a mkdir to any Class A reader (deliberate, F-02/F-03), does NOT change `initialize_run_core` (OQ-01 resolves it as "keep"), does NOT remove either caller-side workaround, and does NOT touch `sessions/` or `prompts/`.
+- Negative fence, stated because the tempting shortcut is to "complete the symmetry" everywhere: the executor MUST NOT add a mkdir to `recorded_outcome_path`, `read_recorded_outcome`, `format_verifier_evidence_section`, `run_viewer`'s fallback, or `run_analytics_sources.read_outcomes` (F-02, F-03; E-04(c) tests against it); MUST NOT make the ISOLATED branch of `prepare_lane_submission_dir` create the driver-side `outcomes/` (F-04; E-04(b) tests against it, and spec `7ckptx` R2.5 needs absent and failed to stay distinguishable); MUST NOT `mkdir` an UNGUARDED `Path(paths.prompt_outcome).parent`, because that path is RELATIVE on the isolated branch and the `mkdir` then lands under the process cwd (F-12; E-04(f) tests against it, and both the `lane_root is None` predicate and the `is_absolute()` guard are required); MUST NOT delete or weaken `initialize_run_core`'s mkdir loop (F-08); MUST NOT place E-02's statement after the `if audit:` branch, which returns (F-06); MUST NOT alter any outcome filename shape; and MUST NOT satisfy E-04 with tests that read production source text (P16).
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_run_dir_outcomes_parent_is_guaranteed.py` (new, E-04) passes.
+- `python3 -m pytest tests/test_defect_report.py tests/test_attempt_lane_facts.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_runner_shared.py` passes, with no edits to those modules.
+- `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; do NOT add `-n0`, a second `-q`, or `-p no:randomly`) reports ZERO FAILURES. Paste the actual `N passed` line. DO NOT compare against a number written in this plan (PR-004): re-derive a fresh baseline on the unmodified tree first, then compare FAILURE SETS BY NODE ID. The authoring F-09 figure of 3506 was already 3538 two days later at review, so a total is context and never the bar.
+- A NEGATIVE CONTROL, which is what distinguishes a real pin from a vacuous one: revert E-01's change locally, show E-04(a) FAILING; restore it; revert E-02's change, show E-04(d) FAILING; restore it. Then a THIRD mutation (added at review, PR-005): replace E-01's guarded form with the SUPERSEDED unguarded one (a bare `Path(paths.prompt_outcome).parent.mkdir(parents=True, exist_ok=True)` on the old two-field guard) and show E-04(f) FAILING; restore it. Paste all six outcomes. AFTER EACH REVERT, RESTORE THE FILE AND CONFIRM WITH `git diff --stat` THAT NOTHING REMAINS MODIFIED before moving on, since a forgotten revert would commit the defect back, and in the third case would commit a cwd-polluting defect that `git status` CANNOT show you (F-12). Tests (b), (c) and (e) are EXPECTED to pass in all states and must NOT be "fixed" to fail; they pin preserved properties, and E-04's expected outcome says so.
+- `aw sanitize --agent` reports no new findings (the new test module must use `tempfile` paths, never a machine-absolute path written into the file).
+
+## Spec / documentation sync
+
+- NO SPEC AMENDMENT IS REQUIRED, and this is a positive finding rather than an omission. Spec `7ckptx` (`worker-lane-containment`, approved) governs `lane_containment` and specifies WHERE a worker writes and that an ABSENT submission must stay distinguishable from a failed one (R2.4, R2.5); it does not specify WHICH component creates the outcome directory, and this plan changes neither the paths nor the absent/failed distinction. E-01 is additive directory creation on a branch the spec's R1.3 protects only for PROMPT TEXT, and the prompt text is untouched. Accordingly no `.spec.md` path appears in `Scope-Paths`, so both runners' spec-edit announcement will correctly report zero declared spec edits. `grep -n 'prepare_lane_submission_dir' .aw/records/specs/` returns no match, confirming the helper is not named in any spec.
+- NO USER-FACING DOCUMENTATION CHANGES, because nothing a user can observe changes: the same directories exist with the same names in the same place, created by a different statement. The operator runbook's listing of `sessions/`, `outcomes/`, `prompts/` as contents of the state directory stays accurate.
+- THE ONLY PROSE ADDED IS INTERNAL DOCSTRINGS (E-01's sentence on both branches, E-03's purity paragraph), which exist to stop a future reader "completing the symmetry" into a reader.
+
+## Open questions
+
+### OQ-01: Does `initialize_run_core`'s mkdir loop still earn its place once the outcome writers are fixed?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED, KEEP IT, and the evidence is F-08 rather than caution. Three facts decide it. FIRST, `resume` does not call `initialize_run_core` at all (a standing comment in `runner_shared`'s policy-flag table states so explicitly, which is why `--ack-spec-edits` refuses on resume), so a resumed run's directory skeleton exists only because the ORIGINAL run created it; removing the loop would make the skeleton depend on which verb ran first. SECOND, the loop also creates `sessions/` and `prompts/`, which belong to `z3ifg8`, so deleting it here would reach outside this plan's subject. THIRD, and decisively, this plan guarantees `outcomes/` only where the driver PROMISES an agent-written path; the Class A readers deliberately remain pure and absence-tolerant, so there is no second guarantee behind the loop for a hand-assembled run directory that never builds a prompt. The loop therefore stays as the skeleton creator for queued runs and as defence in depth for everything else. This answers the second half of the backlog item's DECIDE.
+
+### OQ-02: Should `outcomes/` be guaranteed by its READERS for symmetry with the sibling plan?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED, NO, and recording the answer is one of this plan's deliverables (E-03) because the wrong answer is the attractive one. The backlog item frames the work as completing a symmetry, and `outcomes/` differs from `sessions/` and `prompts/` in a way that breaks the analogy: its consumers are overwhelmingly READERS for which ABSENCE IS A MEANINGFUL ANSWER. `recorded_outcome_path` exists precisely to keep "absent" separable from "unparseable" (its own docstring calls them "OPPOSITE answers"), spec `7ckptx` R2.4/R2.5 require a no-submission turn to reconcile to the honest empty-outcome fallback and require an absent submission to stay distinguishable from a failed one, and `run_analytics_sources.read_outcomes` early-returns on `if not base.is_dir()`. A mkdir in any reader would manufacture the directory as a side effect of asking whether anything was written. So the guarantee is sited at the PROMISE (E-01, E-02) and the readers stay pure, pinned by E-04(c).
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste a transcript that, on a FRESH `tempfile.mkdtemp()` root whose `run/` directory has no subdirectories, calls `project_worker_paths(..., lane_root=None)` then `prepare_lane_submission_dir`, showing (a) the `prompt_outcome` value and (b) that its parent now EXISTS. Then paste the SAME sequence against the reverted code showing the parent ABSENT, which is the negative control proving the change is what fixed it. Separately paste the ISOLATED case showing `paths.lane_outcome.parent` exists AND `(run_dir / "outcomes").exists()` is still False, which is the pin that the fix is not over-broad. ALSO REQUIRED (PR-001): quote the shipped branch to show it keys on `paths.lane_root is None` and guards the `mkdir` with `is_absolute()`, and paste a transcript run from a throwaway cwd showing the ISOLATED call leaves that cwd EMPTY, since `prompt_outcome` is relative on that branch and an unguarded `mkdir` would create a `.aw/state/lane-submissions/...` tree there that `git status` cannot show (F-12). Finally paste the `N passed` line from `python3 -m pytest tests/test_defect_report.py tests/test_attempt_lane_facts.py`.
+  - Observed evidence: Verified non-isolated and isolated prepare_lane_submission_dir against fresh tempfile roots, cwd left empty, defect report / attempt lane facts tests pass (30 passed).
+    Non-isolated and isolated prepare_lane_submission_dir runs against fresh tempfile roots:
+    ```
+    === NON-ISOLATED CASE (PATCHED) ===
+    run_dir/outcomes exists before: False
+    prompt_outcome: /tmp/tmp25ywu29m/run/outcomes/01-abc123.json
+    prompt_outcome parent exists after: True
+    run_dir/outcomes exists after: True
+
+    === NON-ISOLATED CASE (REVERTED NEGATIVE CONTROL) ===
+    unpatched: prompt_outcome: /tmp/tmptgholtam/run/outcomes/01-abc123.json
+    unpatched: run_dir/outcomes exists before: False
+    unpatched: prompt_outcome parent exists after: False
+    unpatched: run_dir/outcomes exists after: False
+
+    === ISOLATED CASE ===
+    run_dir/outcomes exists before: False
+    paths.lane_outcome.parent exists before: False
+    paths.lane_outcome.parent exists after: True
+    run_dir/outcomes exists after: False
+
+    === CWD CHECK (ISOLATED) ===
+    cwd before: []
+    cwd after: []
+    ```
+    Shipped branch in `agent_workflows/lane_containment.py`:
+    ```python
+    if paths.lane_root is None:
+        driver_outcome = Path(paths.prompt_outcome)
+        if driver_outcome.is_absolute():
+            driver_outcome.parent.mkdir(parents=True, exist_ok=True)
+        return
+    if paths.lane_submission_root is None or paths.lane_outcome is None:
+        return
+    paths.lane_outcome.parent.mkdir(parents=True, exist_ok=True)
+    ```
+    `python3 -m pytest tests/test_defect_report.py tests/test_attempt_lane_facts.py`:
+    `30 passed in 5.83s`
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste a transcript showing `build_verifier_prompt` called on a run directory with NO `outcomes/` for BOTH `audit=False` and `audit=True`, in each case returning prompt text and leaving `<run_dir>/outcomes/` existing; then the same two calls against the reverted code showing the directory absent. Quote the resulting source region to show the mkdir sits with the `outcome` / `verify_outcome` assignments and BEFORE the `if audit:` branch (a diff showing the `if audit:` block itself unchanged is sufficient). ALSO REQUIRED (PR-002): state in one sentence that this makes the builder impure for every caller, and confirm F-13's disclosed consequence by naming the two existing callers that pass a fabricated `run_dir` (`tools/ipdrunner/test_runagy.py::test_concurrent_work_statement_in_prompts` with `Path("/tmp/run")` and `tests/test_defect_report.py::PromptDemandTests._prompt` with `Path("/tmp/r")`) and reporting whether running them created a directory under those paths on this machine. That is a DISCLOSURE, not a failure: the expected answer is yes, and recording it is what keeps the accepted cost honest. Paste the `N passed` line from `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`.
+  - Observed evidence: Verified build_verifier_prompt guarantees outcomes parent for audit=False and audit=True, unpatched leaves absent, impure builder creates /tmp/run and /tmp/r directories, oc_runipd/agy_runipd_cli tests pass (241 passed).
+    `build_verifier_prompt` on bare run directories (audit=False and audit=True):
+    ```
+    === CURRENT PATCHED build_verifier_prompt ===
+    run_dir_v/outcomes exists before audit=False: False
+    run_dir_v/outcomes exists after audit=False: True
+    prompt returned (len): 5173
+    run_dir_a/outcomes exists before audit=True: False
+    run_dir_a/outcomes exists after audit=True: True
+    audit prompt returned (len): 6970
+
+    === REVERTED / UNPATCHED ===
+    reverted: run_dir_v/outcomes exists before audit=False: False
+    reverted: outcomes exists after audit=False: False
+    reverted: outcomes exists after audit=True: False
+    ```
+    Source region in `agent_workflows/runner_shared.py`:
+    ```python
+    outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+    verify_outcome = (
+        run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
+    )
+    verify_outcome.parent.mkdir(parents=True, exist_ok=True)
+    if audit:
+        # DELIBERATELY BEFORE the role notice is even computed: an AUDIT's subject plan is already
+        # TERMINAL (`plan_audit_target` refuses anything not in `executed/`), so there is no pending
+        # transition for anyone to own and the statement would be describing a decision already made.
+        return _build_audit_prompt(
+    ```
+    This makes the builder impure for every caller, creating `<run_dir>/outcomes` whenever called.
+    F-13 disclosed consequence: the two existing callers that pass fabricated `run_dir` paths are `tools/ipdrunner/test_runagy.py::test_concurrent_work_statement_in_prompts` with `Path("/tmp/run")` and `tests/test_defect_report.py::PromptDemandTests._prompt` with `Path("/tmp/r")`. Running those tests created `/tmp/run/outcomes` and `/tmp/r/outcomes` on this machine as expected.
+    `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`:
+    `241 passed in 28.02s`
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: quote the added docstring paragraph on `recorded_outcome_path`, showing it states the purity decision, that absence is a meaningful answer, and that it cites `3kr193`. Demonstrate the behavior is UNCHANGED by pasting the E-04(c) purity result: `recorded_outcome_path` returns the path and `read_recorded_outcome` returns `None` on a bare run directory, with `(run_dir / "outcomes").exists()` False afterwards in both cases. Paste the `N passed` line from `python3 -m pytest tests/test_runner_shared.py`.
+  - Observed evidence: Verified recorded_outcome_path docstring extended with purity paragraph citing 3kr193, purity behavior demonstrated unchanged on bare run directory, test_runner_shared passes (127 passed).
+    Added docstring paragraph on `recorded_outcome_path` in `agent_workflows/runner_shared.py`:
+    ```python
+    def recorded_outcome_path(run_dir: Path, item: Mapping[str, Any]) -> Path | None:
+        """Where THIS item's outcome file would be, or None when the item cannot name one.
+
+        Split out from :func:`read_recorded_outcome` because the zero-work predicate needs a different
+        question: that reader collapses "absent" and "unparseable" into one `None`, and those are OPPOSITE
+        answers here (absent PROVES nothing was written; unparseable proves nothing at all).
+
+        DELIBERATELY a pure path helper that creates nothing on disk. Absence of the outcome file
+        (and of the `outcomes/` directory itself) is a meaningful answer rather than an error condition
+        to be fixed with a mkdir. The guarantee for agent-written outcome paths is sited at prompt-build
+        time where the promise is made (`prepare_lane_submission_dir` on the non-isolated branch, and
+        `build_verifier_prompt`), decided under backlog 3kr193.
+        """
+    ```
+    Purity behavior demonstrated:
+    ```
+    run_dir/outcomes exists before: False
+    recorded_outcome_path result: /tmp/tmpadsb7xy9/run/outcomes/01-abc123.json
+    run_dir/outcomes exists after recorded_outcome_path: False
+    read_recorded_outcome result: None
+    run_dir/outcomes exists after read_recorded_outcome: False
+    ```
+    `python3 -m pytest tests/test_runner_shared.py`:
+    `127 passed in 17.73s`
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the full `python3 -m pytest tests/test_run_dir_outcomes_parent_is_guaranteed.py` output including the `N passed` line and the test count, and confirm all SIX lettered cases (a) through (f) are present as distinct tests. Paste the BARE `python3 -m pytest` summary line showing ZERO FAILURES, alongside a freshly re-derived pre-change baseline taken on the unmodified tree, and compare failure sets BY NODE ID rather than comparing totals to any number written in this plan (PR-004). Confirm by quoting the new module that it contains NO `import inspect`, NO `import ast`, and no regex or substring search over `agent_workflows/` source, AND that every fixture path is a `tempfile` path with no hardcoded literal such as `/tmp/run` (F-13). State explicitly which of the six tests failed under each of the THREE mutations: (a) under the E-01 revert, (d) under the E-02 revert, and (f) under the superseded-unguarded-E-01 mutation (PR-005); and that (b), (c) and (e) passed in all states by design. Paste `aw sanitize --agent` showing no new findings.
+  - Observed evidence: Verified all 6 distinct lettered tests pass (6 passed), bare suite green (+6, 0 failures), 3 mutations tested with expected failures, aw sanitize clean.
+    Full `python3 -m pytest tests/test_run_dir_outcomes_parent_is_guaranteed.py` output:
+    ```
+    bringing up nodes...
+    ......                                                                   [100%]
+    6 passed in 6.85s
+    ```
+    All 6 distinct lettered tests present:
+    - test_a_non_isolated_prepare_lane_submission_dir_creates_driver_outcome_parent
+    - test_b_isolated_prepare_lane_submission_dir_preserves_driver_outcomes_absence
+    - test_c_readers_remain_pure_and_tolerate_absence
+    - test_d_build_verifier_prompt_guarantees_outcomes_parent
+    - test_e_collect_lane_submissions_into_bare_run_dir_lands_outcome
+    - test_f_isolated_prepare_lane_submission_dir_leaves_cwd_empty
+
+    Baseline on unmodified tree (re-derived in this turn):
+    `3969 passed, 2 skipped, 3 warnings in 173.73s (0:02:53)`
+    Post-change bare pytest run:
+    `3975 passed, 2 skipped, 3 warnings in 224.84s (0:03:44)`
+    Zero failures in both baseline and post-change suites. Difference is exactly +6 passed from the new test module.
+
+    No AST/inspect/regex/source text inspection used in `tests/test_run_dir_outcomes_parent_is_guaranteed.py`:
+    Contains no `import inspect`, no `import ast`, no regex search over source files, and all fixtures use `tempfile.TemporaryDirectory()`.
+
+    Three mutation results:
+    1. E-01 revert: test (a) failed (`FAILED ...::test_a_non_isolated_prepare_lane_submission_dir_creates_driver_outcome_parent`), 5 passed.
+    2. E-02 revert: test (d) failed (`FAILED ...::test_d_build_verifier_prompt_guarantees_outcomes_parent`), 5 passed.
+    3. Superseded-unguarded-E-01 mutation (PR-005): test (f) failed (`FAILED ...::test_f_isolated_prepare_lane_submission_dir_leaves_cwd_empty` - `AssertionError: Lists differ: [PosixPath('/tmp/.../empty_cwd/.aw')] != []`), test (a) also failed, 4 passed.
+    Tests (b), (c), and (e) passed in all states by design.
+
+    Leak sanitization:
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review`: it has not yet been through `/plan-review`, and `reviewed` is not approval. Explicit human sign-off (`- Status: approved`) is required before execution.
+
+This plan is a four-item change: one small guarded branch in `prepare_lane_submission_dir`, one `mkdir(parents=True, exist_ok=True)` statement in `build_verifier_prompt`, two docstring edits, and one new test module. It is cohesive because both production edits answer the SAME question for the SAME directory (who guarantees `<run_dir>/outcomes/`), and the two docstring edits are what make the answer survive contact with the next reader. Splitting it would separate the fix from the record of why the fix is narrow, which is exactly the pairing the backlog item asked for.
+
+WHAT THE HUMAN WOULD BE APPROVING, in one paragraph. The backlog item asked a question and offered two answers; this plan returns a third, better-evidenced one. The item supposed `outcomes/` was hard because three places build the path with different owners. Measured, those three resolve into pure READERS that must stay pure (absence is a designed signal, F-02/F-03), driver WRITERS that already create their own parent (`_copy_file`, F-04), and exactly ONE genuine gap the item did not isolate: the driver NAMES an outcome path in prompt text for an agent to write and creates nothing, on the non-isolated branch of `prepare_lane_submission_dir` (F-05) and in `build_verifier_prompt`, which never reaches that seam at all (F-06). So the fix is two statements sited at the PROMISE, not at the read; the readers are left pure and that decision is written into the docstring a future "symmetry completer" would be standing in (E-03); and the item's follow-on question about `initialize_run_core`'s loop is RESOLVED as "keep it", because `resume` never calls it and no second guarantee exists behind it (F-08, OQ-01). PRICE IT AS ROBUSTNESS, NOT AS A BUG FIX (F-14): neither gap is reachable on any shipped path today, because `initialize_run_core` and `handle_audit_command` each create `outcomes/` before a prompt is built, which the item itself says ("not a live crash"). The two things bought are that the guarantee stops depending on a caller having run first, and that the narrowness of the answer is recorded where the next reader will stand.
+
+WHAT A REVIEWER SHOULD SCRUTINIZE. FIRST, E-02's placement of a `mkdir` inside a PROMPT BUILDER. That is the one genuinely arguable choice here: a builder that touches the filesystem is unusual, and the defence is that it does not merely name the path but PROMISES it to an agent and is the last driver code that knows it. If you reject that, the alternative is a per-host statement at each `spawn_verifier` call site, which duplicates. The MEASURED cost of accepting it is F-13: two existing tests pass a fabricated `run_dir` and the statement then creates real directories under `/tmp/run` and `/tmp/r`, harmlessly but really, and no test fails to tell you. SECOND, E-01's derivation of the parent from the `prompt_outcome` STRING. Review FOUND A DEFECT here and fixed it (PR-001/F-12): that string is RELATIVE on the isolated branch, so the originally prescribed unguarded `mkdir` created a bogus seven-directory tree under the process cwd, invisibly, because `.aw/state/` is gitignored. E-01 now branches on `lane_root is None` and guards with `is_absolute()`, and E-04(f) pins it; a reviewer who would rather grow the signature to take `run_dir` and `item` (and drop the string derivation entirely) should say so, because that is the one alternative not taken. THIRD, whether E-04(b) is the right pin against over-creation: it asserts an isolated turn does NOT get a driver-side `outcomes/`, which rests on spec `7ckptx` R2.5 keeping absent and failed distinguishable, and which pending sibling `z8ex9f` F-02 also depends on. FOURTH, both open questions are RESOLVED rather than deferred, and a reviewer who disagrees with either should say so, because OQ-01 forecloses a future cleanup and OQ-02 forecloses the item's own framing.
+
+EXECUTION CONTRACT. Commit only the files named in `Scope-Paths`, through `aw commit <plan> -- <paths>`, never `git add -A` or `git commit -a`, and do not push. Verify the staged set with `git diff --cached --name-only` before committing and unstage anything that is not yours with `git restore --staged <path>`: this checkout may be shared with other agents, and another party's uncommitted work must never be swept in, reverted, or cleaned up. Run the suite BARE as `python3 -m pytest` and paste the ACTUAL summary line; do not claim a pass that was not run. Measure every exit code UNPIPED. Build every fixture under `tempfile` (never the tracked runs tree), which the authoring measurements already did. This plan touches no user-facing prose, so the em/en dash rule has no surface here beyond the internal docstrings.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). Exactly the three paths in `Scope-Paths` plus this plan. The `## Scope check` section's negative fence states the six prohibitions and they are the load-bearing ones. ADDITIONALLY: do NOT edit any existing test module, and do NOT edit `oc_runipd.py` or `agy_runipd.py` at all (their `build_verifier_prompt` wrappers merely delegate to the shared one, so E-02 reaches both hosts through `runner_shared`; if you find yourself editing a host file, stop and re-read F-06). An out-of-scope edit that turns out to be necessary is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason`, and a declared path you end up not modifying needs a `--scope-ack`; neither is a reason to stop.
+
+WHAT WOULD MAKE THIS PLAN WRONG TO EXECUTE, stated so the executor can stop rather than improvise: if E-04(a), E-04(d) or E-04(f) does NOT fail under its corresponding mutation, that test is vacuous and the plan must be revised rather than marked done; if E-04(b), (c) or (e) FAILS at any point, the fix has become over-broad and must be narrowed rather than the test weakened; if the ISOLATED branch is observed creating ANYTHING relative to the process cwd, stop and re-read F-12 rather than deleting test (f); and if any existing test begins failing, the cause must be diagnosed rather than the test edited, since two idempotent `mkdir(parents=True, exist_ok=True)` calls on directories that already exist for every queued run should not be observable to any current caller.
+
+POST-GATE LIFECYCLE MOVE. After every `V-*` is verified with pasted evidence and `aw ipd lint --phase pre-transition` reports conforming, the terminal transition is owed unconditionally but its OWNER is conditional: under `aw oc run` / `aw agy run` the RUNNER performs finalize and the executor must NOT also run it (`aw ipd begin`/`finalize` refuse an agent in a managed lane with `AW-LIFECYCLE-ROLE-001`); executed by hand, the executor runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply` itself. Never hand-roll the move with `git mv` to `executed/` and never hand-edit `- Status: executed`. Backlog item `3kr193` carries `- Work-Kind: chore` and NO `- Blocks-Release:` gate, so this plan correctly inherits no gate and none may be invented; the runner sets the item `graduated` on verification, and this plan must not set it `done` or modify its requirements.

@@ -297,6 +297,43 @@ class RunAnalyticsCliUxTests(unittest.TestCase):
         self.assertEqual(summary.get("cmd"), "runs query")
         self.assertEqual(summary.get("exit"), 0)
 
+    def test_emit_query_agent_bounded_preserves_next_under_fields_projection(
+        self,
+    ) -> None:
+        """`_emit_query_agent` retains `next` paging continuation under `--fields` projection."""
+        from agent_workflows import run_analytics_query as query_mod
+
+        result = query_mod.QueryResult(
+            view="metrics",
+            rows=({"a": 1}, {"a": 2}),
+            total=5,
+            emitted=2,
+            omitted=3,
+            next_command="aw runs query metrics --limit 5",
+        )
+        args = argparse.Namespace(
+            dir=str(self.repo),
+            agent=True,
+            json=False,
+            fields=["cmd"],
+        )
+
+        out_buf = io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(io.StringIO()):
+            rc = analytics_cli._emit_query_agent(result, args)
+
+        self.assertEqual(rc, 0)
+        lines = [line for line in out_buf.getvalue().splitlines() if line.strip()]
+        self.assertGreaterEqual(len(lines), 1)
+
+        summary = json.loads(lines[-1])
+        self.assertEqual(summary.get("schema"), "aw.agent/v1")
+        self.assertEqual(summary.get("kind"), "summary")
+        self.assertIn("next", summary)
+        self.assertEqual(summary["next"], "aw runs query metrics --limit 5")
+        self.assertIs(summary.get("complete"), False)
+        self.assertGreater(summary.get("omitted", 0), 0)
+
     def test_app_css_no_double_escaped_checkmark(self) -> None:
         """`app.css` uses single-escaped CSS character entity for button checkmarks."""
         from agent_workflows import run_analytics_spa as spa

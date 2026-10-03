@@ -962,8 +962,8 @@ def recheck_conditions(
 
     conditions = (c1, c2, c3)
 
-    # ---- Preconditions on the FIELD ITSELF. These are refusals, not conditions: they are reasons the
-    # re-check may not act at all, as distinct from reasons the plan is not ready.
+    # ---- Preconditions on the FIELD ITSELF and DISPOSITION. These are refusals, not conditions:
+    # they are reasons the re-check may not act at all, as distinct from reasons the plan is not ready.
     refusals: List[str] = []
     readiness = _schema.read_readiness(plan_text)
     present = bool(_READINESS_FIELD_PRESENT_RE.search(plan_text))
@@ -990,6 +990,25 @@ def recheck_conditions(
             "the plan's readiness is `{0}`, not `{1}`. This verb only ever re-evaluates a `{1}`; it "
             "has no path that lowers or re-asserts a readiness.".format(
                 readiness, RECHECK_SOURCE_READINESS
+            )
+        )
+
+    # Precondition on DISPOSITION: a terminal plan's record is history.
+    # Refusal beside the readiness-field refusals, not a fourth condition: disposition is a reason
+    # the re-check may not act at all. Derived from the path's first component under the resolved
+    # plans dir via `check_engine._plan_disposition` (lazy import avoids layering/cost overheads;
+    # handles sharded archive paths and companion records roots). Normalized via `plans.normalize_status`.
+    try:
+        from agent_workflows import check_engine as _ce
+        from agent_workflows import plans as _plans
+
+        disp = _ce._plan_disposition(Path(repo_root), path)
+    except Exception:
+        disp = None
+    if disp and _plans.normalize_status(disp) in _plans.TERMINAL:
+        refusals.append(
+            "the plan is in terminal disposition `{0}`; a terminal plan's record is history and may not be rewritten.".format(
+                disp
             )
         )
 

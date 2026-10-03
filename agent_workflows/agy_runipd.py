@@ -35,7 +35,7 @@ from typing import Any, Callable, Iterable, Optional
 # `agy_runipd.Heartbeat`. The explicit alias keeps a linter from stripping it as unused without
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
-from agent_workflows import runner_shutdown
+from agent_workflows import runner_shutdown, stall_progress
 
 # runnoop Order 02 (`m85gxh`): the pure PER-ARTIFACT DISPOSITION renderer, imported from its OWNING
 # module and NOT from `oc_runipd`. This module already imports 48 names from that driver and zero flow
@@ -352,6 +352,9 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     should_color as should_color,
+)
+from agent_workflows.term import (
+    should_unicode as should_unicode,
 )
 from agent_workflows.runner_shared import (
     state_root as state_root,
@@ -796,26 +799,7 @@ SUCCESS_STATES = runner_shared.SUCCESS_STATES
 EXECUTION_SUCCESS_STATES = runner_shared.EXECUTION_SUCCESS_STATES
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
-LANE_PROMPT_TIMEOUT: float = 10.0
-
-# revgate Order 03 (7nkcgp) E-08. The EXACT recovery command for a `dependency-blocked` item, stated
-# host-appropriately for this driver. Recovery is NOT automatic: re-queueing happens ONLY under the
-# `if retry_incomplete:` branch of `run_queue`, which is False for a plain `start` and comes from the
-# explicit `--retry-incomplete` flag on `resume`, so a bare `resume` leaves the item blocked.
-#
-# NARROWED BY depblock 01 (`akzy45`) E-01/E-02, symmetrically with `oc_runipd`. This note used to record
-# that with nothing satisfiable the loop blocked EVERY queued item and BROKE out of the run. THE
-# ALL-OR-NOTHING PART IS GONE: the drain arm now classifies each remaining item through the shared
-# `runner_shared.classify_drain_block` and writes this terminal label only on a PERMANENTLY blocked one;
-# an item whose every unmet prerequisite is still NON-TERMINAL is left `queued` and reported. The loop
-# still BREAKS, since nothing inside a run re-queues such a prerequisite. See `oc_runipd`'s counterpart
-# comment for the three write sites and their classifications; the predicate is shared, so this host
-# cannot drift from it.
-DEPENDENCY_BLOCK_RECOVERY_HINT = (
-    "resolve the named cause, then re-queue with "
-    "`aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; "
-    "a bare `resume` does NOT re-queue a dependency-blocked item"
-)
+LANE_PROMPT_TIMEOUT: float = 180.0
 
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
@@ -1285,9 +1269,15 @@ class StallWatchdog(runner_shared.StallWatchdog):
         process: subprocess.Popen,
         timeout: float | None = 900.0,
         check_interval: float = 1.0,
+        *,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(
-            process, timeout, check_interval, reaper=lambda p: terminate_process(p)
+            process,
+            timeout,
+            check_interval,
+            reaper=lambda p: terminate_process(p),
+            progress_checker=progress_checker,
         )
 
 
@@ -1333,9 +1323,11 @@ def git_common_dir(repo: Path) -> Path:
 # bodies were byte-identical, so a verbatim lift would have had this host's auto-approvals recorded as
 # performed by `aw oc run` in permanent plan history.
 FULL_AUTO_ACTOR = runner_shared.AGY_HOST_LABELS.full_auto_actor
-FULL_AUTO_APPROVAL_MESSAGE = (
-    "auto-approved by --full-auto: review readiness cleared (not human approval)"
-)
+# Plan 90z361 E-02: READ FROM RUNNER_SHARED rather than defined as an independent literal. The actor
+# above is host-VARYING and so is descriptor data; the approval message is host-INVARIANT and so is a
+# shared constant. Both are references for the same underlying reason: exactly one place each value
+# is written.
+FULL_AUTO_APPROVAL_MESSAGE = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
 
 
 def set_plan_approved(
@@ -1580,11 +1572,27 @@ def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
 
 
 def close_backlog_item(
-    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
+    repo: Path,
+    item_path: Path,
+    item_id6: str,
+    evidence: str,
+    message: str,
+    *,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
 ) -> tuple[int, str]:
     """Close an item through the gated setter. See `runner_shared.close_backlog_item`."""
     return runner_shared.close_backlog_item(
-        repo, item_path, item_id6, evidence, message, run_checked=run_checked
+        repo,
+        item_path,
+        item_id6,
+        evidence,
+        message,
+        gate_root=gate_root,
+        lane_carrier_ref=lane_carrier_ref,
+        lane_carrier_path=lane_carrier_path,
+        run_checked=run_checked,
     )
 
 
@@ -1625,6 +1633,7 @@ def process_backlog_close(
         run_checked=run_checked,
         close_backlog_item=close_backlog_item,
         commit_backlog_close=commit_backlog_close,
+        host_label=runner_shared.AGY_HOST_LABELS.command,
     )
 
 
@@ -1736,29 +1745,14 @@ def retry_deferred_integrations(
 def _integrate_stranded_lanes(
     run_dir: Path, state: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """integpath-04 (`rl67b0`) E-03/E-04: this host's wiring for the resume-time integration pass.
-
-    The MIRROR of the oc twin and equally thin: the DECISION (which items qualify, the refusals, the
-    real validation runner, the gate call, the honest state write, E-04's hold-back) is the shared
-    `runner_shared.integrate_stranded_lanes`. This binds only the host-specific four: THIS host's
-    `integrate_lane_branch` wrapper (so a recovered merge subject on MAIN reads
-    `integrate(aw agy run): ...`), this host's bound `run_suite_check` and `process_backlog_close`
-    (injected because `runner_shared` may not import either driver), and where the operator-facing
-    lines go.
-    """
-
-    repo = Path(state["repo"])
-    pal = Palette(should_color(sys.stdout))
-    return runner_shared.integrate_stranded_lanes(
-        repo=repo,
-        run_dir=run_dir,
-        state=state,
+    """integpath-04 (`rl67b0`) / baskrx (`9oj6t2`): thin wrapper over runner_shared."""
+    return runner_shared._integrate_stranded_lanes(
+        run_dir,
+        state,
         integrate=integrate_lane_branch,
         suite_check=run_suite_check,
         save_state=save_state,
-        append_jsonl=append_jsonl,
         process_backlog_close=process_backlog_close,
-        report=lambda message: print(pal(message, "cyan"), file=sys.stderr),
     )
 
 
@@ -2022,6 +2016,8 @@ def verification_flag_tristate(args: argparse.Namespace) -> Optional[bool]:
             "turn-2 verification and the other asks to run it. Pass exactly one; --no-verify is "
             "the same request as --no-validate"
         )
+    # zdgc6t E-05: close narrower agy hole on --validate --no-validate using shared predicate
+    runner_shared.refuse_contradictory_verification_flags(args)
     if bool(no_verify):
         return False
     return validate
@@ -2381,8 +2377,9 @@ def run_agy_turn(
     output_mode = options.get("output_mode", "clean")
     # streamfmt (mm6wuz) E-06: read from the FROZEN run options, the same path `output_mode` takes.
     verbosity = int(options.get("verbosity") or 0)
-    pal = Palette(should_color(sys.stdout))
+    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     popen_kwargs: dict[str, Any] = {
         "cwd": agent_dir,
@@ -2523,13 +2520,36 @@ def run_agy_turn(
             # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
             # entry signals nothing, which renders no activity cell rather than a guessed one.
             activity=activity_for_item(item),
+            runner="agy",
+            model=options.get("model"),
+            variant=options.get("variant"),
         )
-        watchdog = StallWatchdog(process, timeout=stall_timeout)
-        # stallfp kaga7s (display parity only): show the countdown from the clock that kills.
-        # agy needs NO progress observer: its stdout stream already carries
-        # `step_type == "subagent"` events (see render_agy_event), so every subagent step
-        # already touches the watchdog below.
+        # stallfp: Observe transcript and task log updates when background tasks are active.
+        # When background tasks run (e.g. pytest in background or schedule timers), the root
+        # agent goes idle and reactive wakeups emit steps directly to transcript.jsonl with
+        # stdout staying silent. The observer polls transcript.jsonl and task-*.log files
+        # so active background work keeps the watchdog alive.
+        observer = stall_progress.AgyTranscriptProgressObserver(
+            conversation_id=session_id,
+            session_log_path=log_path,
+        )
+        watchdog = StallWatchdog(
+            process, timeout=stall_timeout, progress_checker=observer.poll
+        )
+        # stallfp kaga7s (display parity): show the countdown from the clock that kills.
         statusline.watchdog = watchdog
+
+        def _task_progress() -> None:
+            watchdog.touch()
+            source = getattr(observer, "last_progress_source", "task") or "task"
+            statusline.touch(source)
+
+        poll_interval = (
+            min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
+        )
+        poller = stall_progress.ProgressPoller(
+            observer, touch_callbacks=(_task_progress,), interval=poll_interval
+        )
         # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. NOTE the detector: agy's
         # completion signal is `step_update` with `state == "DONE"`, NOT oc's `tool_use` +
         # `part.state.status == "completed"`. The two drivers share the SEMANTICS through one helper
@@ -2640,12 +2660,20 @@ def run_agy_turn(
             # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
             # `turn_bounds` (lanectn lhmrhx) joins it too: `__enter__` starts `MAX_TURN_TIMEOUT`'s
             # clock, so entering here means it measures from child start.
-            with statusline, watchdog, force_watch, escalation_watch, turn_bounds:
+            with (
+                statusline,
+                watchdog,
+                poller,
+                force_watch,
+                escalation_watch,
+                turn_bounds,
+            ):
                 for raw_line in process.stdout:
                     log.write(raw_line)
                     log.flush()
                     statusline.touch("stdout")
                     watchdog.touch()
+                    observer.note_stdout_line(raw_line)
                     # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
                     # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
                     turn_bounds.note_progress()
@@ -3096,7 +3124,11 @@ def run_queue(
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
         # of stalling the queue, while independent items keep running.
-        if cascade_dependency_blocked(state, run_dir):
+        if cascade_dependency_blocked(
+            state,
+            run_dir,
+            recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
+        ):
             save_state(run_dir, state)
             state = load_state(run_dir)
         # integpath-03 (`51vw4y`) E-03: RUNG 1, the exact counterpart of the `oc_runipd` site. Re-attempt
@@ -3239,7 +3271,9 @@ def run_queue(
                 # revgate Order 03 (7nkcgp) E-04: ADDITIVE companion keys; the flat
                 # `unsatisfied_dependencies` list[str] keeps its exact shape for existing consumers.
                 item["unsatisfied_dependency_reasons"] = why
-                item["dependency_block_recovery"] = DEPENDENCY_BLOCK_RECOVERY_HINT
+                item["dependency_block_recovery"] = (
+                    runner_shared.AGY_HOST_LABELS.dependency_block_recovery
+                )
                 append_jsonl(
                     run_dir / "events.jsonl",
                     {
@@ -3249,7 +3283,9 @@ def run_queue(
                         "dependencies": missing,
                         # Additive: the flat `dependencies` list above is unchanged.
                         "reasons": why,
-                        "recovery": DEPENDENCY_BLOCK_RECOVERY_HINT,
+                        "recovery": (
+                            runner_shared.AGY_HOST_LABELS.dependency_block_recovery
+                        ),
                         # depblock 01 (`akzy45`): the classification that justified the terminal label.
                         "block_class": verdict.verdict,
                         "block_detail": verdict.detail,
@@ -3282,6 +3318,7 @@ def run_queue(
                 actor=driver_actor(state),
                 terminal_states=TERMINAL_STATES,
                 success_states=EXECUTION_SUCCESS_STATES,
+                recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
             )
             save_state(run_dir, state)
             continue
@@ -3436,8 +3473,15 @@ def run_queue(
     # come from the pure `run_selection_policy` module (imported DIRECTLY by this host, never through
     # `oc_runipd`), and `refusal_of_item` is `orchprobe` `r2i1b1`'s ONE reader. See the longer note at
     # the oc call site for the measurement and for why only this exit path carries the block.
+    in_queue_id6s = [
+        str(it["id6"])
+        for it in state.get("queue", [])
+        if isinstance(it, dict) and it.get("id6")
+    ]
     for _disposition_line in render_queue_dispositions(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_disposition_line)
     # specvis st5klo E-03: the PRIMARY end-of-run site for this host, from the SAME shared
@@ -3455,7 +3499,9 @@ def run_queue(
     # `run_selection_policy` module, imported DIRECTLY by this host, and `refusal_of_item` is
     # `orchprobe` `r2i1b1`'s ONE reader, so a recorded refusal's own remedy is SOURCED, not copied.
     for _summary_line in render_disposition_summary(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_summary_line)
     hint = render_continuation_hint(state, run_dir)
@@ -3656,7 +3702,7 @@ AUTOMATIC STATUS ROUTING:
         "--no-verify",
         "--no-audit",
         dest="no_verify",
-        action="store_true",
+        action=runner_shared.RecordingStoreTrueAction,
         help="Skip turn-2 clean-session skeptical validation",
     )
     # hostdefault-02 (`ybkmzp`) E-02: the TRI-STATE surface, so this host can express "let the
@@ -3678,7 +3724,7 @@ AUTOMATIC STATUS ROUTING:
     start.add_argument(
         "--validate",
         dest="validate",
-        action=argparse.BooleanOptionalAction,
+        action=runner_shared.RecordingBooleanOptionalAction,
         default=None,
         help="Run (or skip) the turn-2 independent clean-session verification. Omit to use the "
         "runner-profile store's per-model choice, which on this host defaults to verifying. "
@@ -3846,29 +3892,11 @@ AUTOMATIC STATUS ROUTING:
 def handle_integrate_command(args: argparse.Namespace) -> int:
     """Execute the `integrate` verb: re-attempt integration for one verified lane, NO agent turn.
 
-    integpath-04 (`rl67b0`) E-02, the exact counterpart of `oc_runipd.handle_integrate_command`. THIN
-    by contract: the whole decision (lane resolution from durable state, every refusal, the real
-    validation runner, the gate call) is `runner_shared.reintegrate_lane`. This binds only what is
-    host-specific - THIS host's `integrate_lane_branch` wrapper, so a recovered merge subject reads
-    `integrate(aw agy run): ...` rather than the other driver's name, and this host's bound
-    `run_suite_check`, which the shared module may not import.
-
-    EXIT CONTRACT: 0 integrated, 1 refused (nothing merged, main untouched, lane preserved), 2 on a
-    driver error.
+    Thin wrapper over runner_shared.handle_integrate_command (baskrx `9oj6t2`).
     """
-
-    repo = Path(getattr(args, "repo", ".") or ".").resolve()
-    id6 = str(getattr(args, "id6", "") or "")
-    outcome = runner_shared.reintegrate_lane(
-        repo,
-        id6,
-        integrate=integrate_lane_branch,
-        suite_check=run_suite_check,
-        run_id=getattr(args, "run_id", None),
+    return runner_shared.handle_integrate_command(
+        args, integrate=integrate_lane_branch, suite_check=run_suite_check
     )
-    message = runner_shared.render_reintegration_result(outcome, id6=id6)
-    print(message, file=sys.stdout if outcome.integrated else sys.stderr)
-    return 0 if outcome.integrated else 1
 
 
 def handle_audit_command(args: argparse.Namespace) -> int:

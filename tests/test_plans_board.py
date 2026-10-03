@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 
 from agent_workflows import plans as plans_mod
 from agent_workflows.term import Term
+from tests import support
 
 
 def _write(
@@ -180,7 +181,7 @@ class SetOrderTests(unittest.TestCase):
             # Within the Sets section, Order-1 members render before the Order-2 member
             # (grouped + order-sorted). Scope the check to the Sets section, since the primary
             # status board above lists the same files by filename order.
-            sets = out[out.index("## Sets") :]
+            sets = support.final_section(out, "## Sets", next_marker="## ")
             self.assertLess(
                 sets.index("20260101-0001-01-b.md"), sets.index("20260101-0000-01-a.md")
             )

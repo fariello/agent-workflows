@@ -1,0 +1,470 @@
+# IPD: Declare runs next and runs status by their measured exit-code reachability
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: `runs next` and `runs status` UNDER-DECLARE their exit contracts in `command_surface.COMMAND_INVENTORY`: `runs next` declares `exit_contract=(0, 3)` while exits 2, 5 and 7 are measurably reachable, and `runs status` declares `(0, 1, 3, 5)` while 2 and 7 are measurably reachable. Neither leaf is MISCLASSIFIED (both already carry `command_class="read"`), which is why plan `ck0vya` fenced them out after correcting its own leaf `runs resume`; this plan is the carrier that item `ck0vya` OQ-02 named. THE UNDER-DECLARATION IS STRUCTURAL, NOT INCIDENTAL, AND THAT IS WHAT MAKES IT WORTH FIXING: all three of the missing codes originate in the SHARED helpers every `runs` reader funnels through, so they are reachable on these two leaves by exactly the same mechanism they are on `resume`. `run_cli._resolve_or_error` returns `EXIT_INVALID_INVOCATION` (2) for an absent or unresolvable target, and `run_cli._build_engine` returns 7 via `_emit_not_a_ledger` on `store.NotALedgerError`, 5 on `store.LedgerCorruption`, and 2 both on its catch-all read failure and on its empty-ledger arm. Each of `_run_next` and `_run_status` calls both helpers as its first two statements and forwards their `code` verbatim, so no fixture ingenuity is needed to reach any of the three. THE BACKLOG ITEM'S MATRIX IS CORRECT ABOUT WHAT IS MISSING AND INCOMPLETE ABOUT WHAT IS PRESENT, measured at HEAD `53ed717e` (F-03, F-04): its single-fixture-per-column matrix shows `next {clean: 3}` and `status {clean: 1}`, which reads as though exit 0 were unreachable on both and exit 3 unreachable on `status`. Re-measuring with TERMINAL-state fixtures the item did not build shows 0 reachable on both and 3 reachable on `status`, so this plan WIDENS both contracts and REMOVES NOTHING. That is the material difference from `ck0vya`, which had to remove an unreachable 3, and it is why this plan's risk profile is strictly lower.
+- Scope: IN: widen the `runs next` `exit_contract` from `(0, 3)` to `(0, 2, 3, 5, 7)` and the `runs status` contract from `(0, 1, 3, 5)` to `(0, 1, 2, 3, 5, 7)`, each with a comment recording BY SYMBOL where every declared code is produced and why nothing was removed, following the comment precedent the `runs resume` declaration already sets. Extend `tests/test_run_cli_declarations.py` with per-leaf reachability tests in the shape its existing `test_runs_resume_declared_exit_codes_are_reachable` establishes, including the terminal-state fixtures needed to reach 0 and 3, so the widened contracts are pinned against observed behavior rather than restated constants. OUT, each for a stated reason: any change to `_run_next`, `_run_status` or the shared helpers, because this plan makes the DECLARATION match the code and must never move the code to match a declaration; `command_class`, `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer` and `legacy_flags` on either declaration, all of which are already correct for a read; the six OTHER `runs` reader leaves, whose contracts this plan measures only as context (F-08); restoring the three conformance test files deleted by `19313eed`, which re-opens that commit's deliberate test-budget decision (F-05); reviving `tests/conformance_matrix.py` from its dead-surface status, which the backlog item explicitly directs against; and the latent unreachable-`EXIT_BLOCKED` defect on `runs resume`, which is backlog item `tzqvjn` and is untouched here.
+- Scope-Paths: agent_workflows/command_surface.py, tests/test_run_cli_declarations.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: 4bicgv
+- Set: runsexits
+- Order: 1
+- Highest E allocated: 04
+- Author: agent
+- Id: 69rdv6
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 69rdv6 verified (set runsexits, attempt 1).
+- 2026-10-01 approved (aw set): status set to approved
+
+- 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-501, PR-502, PR-503 all FIXED, zero deferred, zero open findings. Structural lint `conforming` at `--phase author` (with the two `IPD-Z602` density advisories the plan already answers in its Scope check) and at `--phase review-finalize`. THIS IS AN UNUSUALLY WELL MEASURED PLAN AND ITS DESIGN SURVIVES INTACT: review re-drove the whole reachability matrix independently at HEAD `cad63dc2` in fresh temp ledgers and reproduced it cell for cell, including the TERMINAL-state fixtures the backlog item never built (`next` declared `[0, 3]` measured `[0, 2, 3, 5, 7]` `MISSING=[2, 5, 7]` `OVER=[]`; `status` declared `[0, 1, 3, 5]` measured `[0, 1, 2, 3, 5, 7]` `MISSING=[2, 7]` `OVER=[]`; `resume` `MISSING=[] OVER=[]`). F-04's correction of the item is CONFIRMED and is the plan's sharpest contribution: a `terminal_status="complete"` second record gives both leaves exit 0, and `terminal_status="cancelled"` gives `status` exit 3 while `next` still exits 0, so computing the diff from the item's single-fixture matrix really would have DELETED three reachable codes. F-01, F-02 (every helper arm read and confirmed), F-03, F-05 (zero live importers of `conformance_matrix`; the CI job runs only `test_command_surface_declarations.py`), F-07 (`test_run_cli_corruption_exit.py` green at `8 passed`, parametrizing `next`/`status`/`resume` over exit 5 while `next`'s contract omits it), F-08 (nine leaves), F-09 (four existing tests) and F-10 (the spec's own "UNRECONCILED CONFLICT" paragraph names `run_cli`'s table as shipped) all hold. TWO NEW FINDINGS WERE ADDED FROM REVIEW MEASUREMENT RATHER THAN ARGUMENT: F-12 evaluates `required_scenarios` directly on before and after declarations for both leaves and proves the invariance E-01/E-02 asserted (`next` identical, `status` identical including `domain_failure`), and F-13 confirms exits 4 and 6 are unreachable on both handlers, which is what makes E-03's exact-set assertion satisfiable rather than aspirational. THE THREE FINDINGS ARE ALL ABOUT VALIDATION BARS AN EXECUTOR COULD NOT HAVE MET. PR-501: F-06's "fully green" is not a property of the tree. At review the bare suite is `1 failed, 3394 passed`, the failure being a MIDNIGHT-BOUNDARY FLAKE in `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` (it writes two records and compares their rendered dates; observed `- 2026-09-30` versus `+ 2026-10-01` at 00:12Z), in a file this plan does not touch and has not modified. E-04's "zero failures" bar is therefore wrong in the dangerous direction, since it invites waving a real regression through as the known flake; every suite bar is now a by-NAME failure-set comparison. PR-502: E-04 conflates two markers and assumes green. `-m slow` collects **202**, not 207; the other **5** are `-m livecorpus`, so an executor reconciling 202 against 207 hunts five phantom tests. And the slow set has THREE pre-existing failures (`3 failed, 199 passed in 388.72s`: installer deep-cleanup twice and `test_every_subparser_has_fuller_description`), all unrelated and all now named in the plan so a FOURTH is recognizable. PR-503: E-03's exit-5 fixture recipe omits schema-required fields; review hit the exact refusal building it from the prose (`RL-E020 kind 'step_attempt' requires field 'attempt'`, `RL-E030 attempt state must be one of ['blocked', 'failed', 'performed']`), so the item now points at the shipped `resume` test as the field-for-field authority. Findings and three Decisions rows in `.aw/records/reviews/20260930-runsexits-01-69rdv6-declare-runs-next-and-runs-status-by-their-measured-exit-cod.review.md`. No production file and no test modified.
+- 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `4bicgv`. Every measurement in Findings was taken against the working tree at HEAD `53ed717e`. The item's central claim (both leaves under-declare) is CONFIRMED and its list of missing codes is EXACTLY right. Two of its statements are corrected from measurement rather than trusted: its matrix omits the terminal-state fixtures, so it understates which codes are already legitimately declared (F-04), and its neighbour caveat about `fuuw94` is now LIVE, since that plan has executed and ships `tests/test_run_cli_corruption_exit.py`, which already proves exit 5 reachable on `next` and `status` while both contracts still omit it for `next` (F-07).
+- 2026-09-30 draft (agent): created.
+
+## Goal
+
+Make the normative exit contracts of `aw runs next` and `aw runs status` list every code those verbs can actually return, closing the carrier obligation `ck0vya` OQ-02 recorded. Both leaves are already classified correctly, so this is a pure widening: five codes are added across two declarations and none is removed. Leave behind per-leaf tests that drive the real CLI for every declared code, so the next reader can re-derive the contract instead of trusting it.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: widen the two declarations
+
+- [x] E-01 In `agent_workflows/command_surface.py`, change the `runs next` `CommandDeclaration`'s `exit_contract` from `(0, 3)` to `(0, 2, 3, 5, 7)`, and write the comment that keeps a future reader from narrowing it again. Change NOTHING else in that declaration: `command_class="read"` is already correct (the leaf is in `run_viewer.RUNS_VIEWER_LEAF_NAMES` and `run_cli`'s module docstring names `next` as a reader outright), and `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer` and `legacy_flags` are all correct for a read. Do NOT touch `_run_next`, the shared helpers, or the `runs status` declaration, which is E-02's separate concern so the two widenings can be reviewed and reverted independently. THE COMMENT MUST MAP EVERY DECLARED CODE TO ITS PRODUCER BY SYMBOL, because that mapping is the only thing that lets the next reader re-derive the tuple rather than trust it: 0 from `_run_next`'s terminal-run arm and from its runnable-steps arm; 2 from `_resolve_or_error`'s `_emit_no_target` and `_emit_ledger_not_found` arms and from `_build_engine`'s empty-ledger and catch-all read-failure arms (argparse's own usage error also exits 2); 3 (`EXIT_BLOCKED`) from `_run_next`'s final `return EXIT_OK if runnable_ids else EXIT_BLOCKED`, reached by a non-terminal run with no runnable steps; 5 from `_build_engine`'s `LedgerCorruption` arm and from `_run_next`'s own `except store.LedgerCorruption`; 7 from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`. THE COMMENT MUST ALSO STATE TWO NEGATIVES EXPLICITLY, each being a value a future author could otherwise "correct". (a) NOTHING IS REMOVED HERE, and in particular 3 IS GENUINELY REACHABLE on this leaf, unlike on `runs resume` where `ck0vya` removed it: `next`'s 3 comes from a plain `if/else` on `runnable_ids` and needs no `UnknownOutcomeError`, no `STATE_RUNNING`, and no ephemeral engine state, so the reasoning that made 3 unreachable on `resume` DOES NOT TRANSFER and must not be copied across. (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would oblige a `domain_failure` scenario in `tests/conformance_matrix.required_scenarios`, which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb does not produce. Record that `conformance_matrix` is a DEAD SURFACE at this HEAD with no live importer (F-05), so the obligation is currently latent rather than enforced, and that 1 is still omitted on correctness grounds rather than because nothing would catch it.
+  - Depends on: none
+  - Expected outcome: `get_declaration("runs next").exit_contract == (0, 2, 3, 5, 7)`, with every code demonstrated by a real invocation in V-01. `required_scenarios` for the leaf is UNCHANGED by this item, because it keys on `1 in exit_contract` and 1 is absent both before and after, so this widening cannot alter any leaf's required coverage even if the dead harness were revived.
+  - Execution state: performed
+
+- [x] E-02 In the same file, change the `runs status` `CommandDeclaration`'s `exit_contract` from `(0, 1, 3, 5)` to `(0, 1, 2, 3, 5, 7)`, with its own comment mapping each code to its producer by symbol. This is a two-code addition (2 and 7) where E-01 was a three-code addition, and the resulting contract is DIFFERENT from `next`'s because this leaf genuinely produces 1 where `next` does not: `_run_status`'s tail is `EXIT_OK` for `run_state.STATE_COMPLETE`, `EXIT_BLOCKED` for `run_state.STATE_CANCELLED`, and `EXIT_INCOMPLETE` otherwise, so every non-terminal run exits 1 and that is the verb's ordinary answer for work in progress rather than an error. The added 2 and 7 come from the SAME shared helpers E-01 cites, `_resolve_or_error` and `_build_engine`, which `_run_status` calls as its first two statements and whose `code` it forwards verbatim; 5 additionally has a per-handler producer in `_run_status`'s own `except store.LedgerCorruption` arm. THE COMMENT MUST RECORD ONE NON-OBVIOUS ASYMMETRY that a reader comparing the two sibling declarations will otherwise read as a copy-paste error: `status` KEEPS 1 while `next` omits it, and the two therefore have different `required_scenarios` under `tests/conformance_matrix.required_scenarios`, which obliges a `domain_failure` row for `status` and not for `next`. That is correct and must not be "tidied" into symmetry. Note also that this leaf's 1 means its contract was ALREADY obliging that scenario before this plan, so E-02 changes no coverage requirement either.
+  - Depends on: E-01
+  - Expected outcome: `get_declaration("runs status").exit_contract == (0, 1, 2, 3, 5, 7)`, with every code demonstrated in V-02. Both sibling declarations now list their measured codes, and the one difference between them (1 present on `status`, absent on `next`) is justified in a comment rather than left to be inferred.
+  - Execution state: performed
+
+### Task group 2: pin both contracts against observed behavior
+
+- [x] E-03 Extend `tests/test_run_cli_declarations.py` with two per-leaf reachability tests, `test_runs_next_declared_exit_codes_are_reachable` and `test_runs_status_declared_exit_codes_are_reachable`, following the shape its existing `test_runs_resume_declared_exit_codes_are_reachable` already establishes: build a fixture, drive `[sys.executable, "-m", "agent_workflows", "runs", <verb>, str(path)]` through `subprocess.run`, assert the observed `returncode`, then assert that code is in `get_declaration(f"runs {verb}").exit_contract`. ASSERT BOTH DIRECTIONS FOR EACH LEAF, because a test that only checks membership passes for an over-declared contract too: for every declared code, exercise a fixture that produces it; and assert the declared tuple equals the measured-reachable SET exactly, so a future author cannot add a code without a fixture proving it. Do NOT add a test asserting some code is UNREACHABLE on these leaves, which is what `test_runs_resume_exit_3_is_unreachable_and_undeclared` does for `resume`: this plan removes nothing, and no code in either widened tuple is unreachable. REUSE THE MODULE'S EXISTING `_create_valid_one_record_ledger` HELPER rather than re-deriving a valid record; it already encodes the schema requirements a naive `append` violates. THE TERMINAL-STATE FIXTURES ARE THE NEW WORK AND THE ITEM'S MATRIX DOES NOT CONTAIN THEM, so build them from this measured recipe (F-04). A one-record ledger reconstructs to state `pending`, which is NON-terminal with no runnable steps, giving `next` 3 and `status` 1 - which is why the backlog item's single clean fixture shows exactly those two and shows 0 on neither. To reach 0, append a SECOND record of `kind="terminal_transaction"` carrying `terminal_status="complete"`, `moved_to="executed"`, `actor="coordinator"`, plus the common envelope (`schema_version`, `run_id`, `parent`); measured, `next` then prints `Run run-0000abcd is terminal (complete); no runnable steps.` and exits 0, and `status` prints `State: complete` and exits 0. To reach 3 on `status`, use the same shape with `terminal_status="cancelled"` and `moved_to="not-executed"`; measured, `status` prints `State: cancelled` with a `Cancellation:` line and exits 3, while `next` exits 0 because a cancelled run is terminal and its terminal arm returns `EXIT_OK` regardless of the cancellation. THE REMAINING FIXTURES ARE THE THREE THE EXISTING `resume` TEST ALREADY BUILDS and they behave identically on both leaves, so copy their construction rather than inventing new ones: an absent path and a `touch()`ed empty file each give 2 (as does a bad flag such as `--this-flag-does-not-exist`); a file of `b'{"hello": "world"}\n'` gives 7; and a two-record ledger whose second record's `prev_hash` is overwritten with `"0" * 64` AFTER both appends gives 5. NOTE WHAT DOES NOT WORK, because the existing test's F-12 note records it and it applies unchanged here: a naive `append` of a record carrying a corrupt field is REFUSED by schema validation, so the exit-5 tamper must be performed post-hoc on the file bytes via `read_bytes` / `json.loads` / `json.dumps` / `write_bytes`. AND COPY THE SECOND RECORD FIELD FOR FIELD FROM THE EXISTING TEST RATHER THAN FROM THIS PROSE (review PR-503): the exit-5 fixture's `step_attempt` additionally requires `attempt` and a `state` drawn from `['blocked', 'failed', 'performed']`, which this item's summary does not name. Review hit exactly that refusal building the fixture from the description alone: `SchemaInvalidRecordError ... (RL-E020 kind 'step_attempt' requires field 'attempt', RL-E030 attempt state must be one of ['blocked', 'failed', 'performed'])`. The shipped `resume` test's record carries `attempt: 1`, `state: "performed"` and `input_digest`, and is the authority to copy. Mark nothing `slow`; these are a handful of fast subprocess invocations. Do NOT import `tests/conformance_matrix.py`, which has no live consumer and whose coupling would resurrect a dead surface (the backlog item directs against it explicitly, and `ck0vya` fenced it out for the same reason). Do NOT read production source with `inspect`, `ast`, regex or substring search, which `AGENTS.md` and GUIDING_PRINCIPLES P16 prohibit outright.
+  - Depends on: E-02
+  - Expected outcome: Two new tests that FAIL on the pre-E-01 tree, each at the membership assertion for a code its fixture reaches but the old tuple omits (`next` at 2, 5 and 7; `status` at 2 and 7), and pass after. Their exact-set assertion additionally fails if either widened tuple ever gains a code no fixture reaches. The file's four existing tests are unchanged and still pass.
+  - Execution state: performed
+
+- [x] E-04 Run the BARE suite, `python3 -m pytest`, and compare it against a baseline YOU RE-DERIVE on the pre-change tree rather than against any figure written in this plan. THE BAR IS THE PROPERTY, AND IT IS NOT 'ZERO FAILURES' (review PR-501): compare the before and after FAILURE SETS BY NAME, requiring the after-set to contain no entry absent from the before-set, plus a collected rise equal to the two tests E-03 adds and nothing else. Zero failures is the WRONG bar because the tree is not unconditionally green: review measured `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` failing as a MIDNIGHT-BOUNDARY FLAKE (it writes two records and compares their rendered dates, so it fails when the UTC date rolls over between them). An executor told 'zero failures' will either chase that unrelated failure or, far worse, wave a REAL regression through as 'the known flake'. Name the before-set, name the after-set, and account for every difference. A transcribed total is a LIVE population that drifts, and this plan's own lineage proves it - `ck0vya` was authored at `3075 passed` and its review measured `3246` days later, a drift of 171, and THIS plan measures `3387 passed, 2 skipped, 3 warnings in 60.50s` at HEAD `53ed717e`, a further drift of 141. What carries forward from F-06 is the SHAPE of the baseline and not its size: the tree is fully green, so any red is this plan's to explain. Bare is required, because `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` with a marker expression excluding both `slow` and `livecorpus`; adding `-n0` makes this suite several times slower, a second `-q` suppresses the `N passed` line this plan must paste, and `-p no:randomly` disables the order randomization that surfaces order-dependence. ALSO run, narrowed with `-o addopts=""` so per-file counts are visible, the new-and-extended file plus every file that reads a `CommandDeclaration` field or asserts on this command family: `tests/test_run_cli_declarations.py tests/test_command_surface_declarations.py tests/test_run_cli_corruption_exit.py tests/test_run_viewer.py tests/test_runs_repo_alias.py tests/test_host_capability_extension.py tests/test_workflow_artifacts_prune.py`. `tests/test_run_cli_corruption_exit.py` is the one that matters most and is NOT optional: it already parametrizes `next` and `status` over a corrupt-ledger fixture asserting exit 5, so it is the pre-existing proof that this plan's widening is overdue, and it must stay green (F-07). AND RUN THE SLOW SET, `python3 -m pytest -m slow -o addopts=""`, applying the same by-name failure-set comparison. TWO CORRECTIONS FROM REVIEW (PR-502), because the authored figure conflated two markers and the authored bar assumed green. FIRST, `-m slow` collects **202**, not the 207 the bare run deselects; the other **5** are `-m livecorpus`, so `-m slow` does not cover everything the bare run skipped and an executor reconciling 202 against 207 would hunt five tests that are not there. Run `-m livecorpus` too if you want the full deselected set, or state plainly that you ran only the slow half. SECOND, the slow set carries THREE PRE-EXISTING FAILURES (`test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory`, `test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`, `test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw`), measured `3 failed, 199 passed, 3402 deselected in 388.72s`. None touches this plan's scope paths. Expect them, compare by name, and do NOT report them as this plan's.
+  - Depends on: E-03
+  - Expected outcome: No NEW failure by NAME relative to the baseline RE-DERIVED at execution time (not "zero failures": see F-06 and F-11 for the one bare and three slow pre-existing failures), with the aggregate summary line pasted, per-file counts for the narrowed set, and an explicit statement of the `-m slow` result naming its failures and whether each was in the before-set. `tests/test_run_cli_corruption_exit.py` passes unchanged, confirming the widening contradicted nothing that already held.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- CODE IS CITED BY SYMBOL, NOT BY BARE OFFSET (spec `ipd-structure-and-linting` Section 10.2, advisory `IPD-C801`). Every citation in this plan names a symbol or quotes a content string; a line offset would expire before this plan executes.
+- THE FIELD IS `exit_contract`, NOT `exit_codes`. The backlog item's prose says "declares (0, 3)" without naming the field; `CommandDeclaration` calls it `exit_contract` and `exit_codes` appears nowhere in the tree. An executor grepping for the item's phrasing will find nothing.
+- AN EXIT CONTRACT MAY EXCEED `(0, 1, 2)` WHEN THE LEAF EMITS NO `aw.agent/v1` RECORD. `run_cli._emit_error`'s docstring records that this module's machine payloads are deliberately NOT such records and that `run_cli` imports `agent_schema` zero times. That is why `(0, 2, 3, 5, 7)` is admissible here while a leaf emitting agent records is correctly capped.
+- A DECLARATION CARRIES ITS OWN JUSTIFYING COMMENT WHEN THE VALUE IS NON-OBVIOUS, and `runs resume`'s is the in-tree precedent this plan follows: a 22-line comment above the declaration mapping each code to its producer and recording two negatives (why 3 was removed, why 1 is absent). `runs next` and `runs status` carry NO comment today, which is part of why their contracts were never re-derived.
+- `required_scenarios` IS DERIVED FROM THE CONTRACT, BUT ITS ONLY CONSUMER IS DEAD AT THIS HEAD. `tests/conformance_matrix.required_scenarios` computes required coverage from `command_class` plus `exit_contract`, keying `domain_failure` on `1 in decl.exit_contract`. No live test imports that module (F-05). This plan therefore fixes the declarations for correctness and adds its own guard, rather than relying on a harness that does not run.
+- A PER-COMMAND DECLARATION TEST IS THE ESTABLISHED SHAPE, and the whole-surface test cannot substitute: `tests/test_command_surface_declarations.py::test_zero_undeclared_parser_leaves` asserts only that no parser leaf is UNDECLARED and is invariant to every field's value. `tests/test_run_cli_declarations.py` is the per-leaf precedent, created by `ck0vya` for exactly this purpose and named by the backlog item as the shape to follow.
+- THE SUITE RUNS BARE: `python3 -m pytest` with no added flags, per `AGENTS.md`. Its `addopts` already supplies quiet, parallel, and fast-subset scoping.
+- A TEST MAY NEVER ASSERT OVER PRODUCTION SOURCE TEXT OR STRUCTURE (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16, which names `inspect.getsource` and `ast.parse` literally). Prove a property by exercising the code and asserting observable outcomes: exit codes, stdout, created files, unchanged bytes.
+- A LIVE COUNT IS NEVER AN ACCEPTANCE BAR. Suite totals and `aw check` error counts drift between authoring and execution (measured across this plan's own lineage: 171 tests, then a further 141), so state the required PROPERTY and re-derive the number at execution time.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | THE ITEM'S CENTRAL CLAIM IS CONFIRMED AND ITS LIST OF MISSING CODES IS EXACTLY RIGHT. `runs next` declares `exit_contract=(0, 3)`; `runs status` declares `(0, 1, 3, 5)`. Measured reachable codes are `{0, 2, 3, 5, 7}` for `next` and `{0, 1, 2, 3, 5, 7}` for `status`, so `next` omits 2, 5 and 7 and `status` omits 2 and 7, precisely as the item states. Both already carry `command_class="read"`, so neither is misclassified. | Both declarations read in full from `COMMAND_INVENTORY`; a probe printing `get_declaration("runs next")` and `get_declaration("runs status")` returning `class=read exit_contract=(0, 3)` and `class=read exit_contract=(0, 1, 3, 5)`; the reachability matrix in F-03 and F-04. |
+| F-02 | THE UNDER-DECLARATION IS STRUCTURAL, WHICH IS WHY THE FIX IS MECHANICAL RATHER THAN SPECULATIVE. All three missing codes originate in helpers SHARED by every `runs` reader, not in per-verb logic: `_resolve_or_error` returns 2 via `_emit_no_target` or `_emit_ledger_not_found`, and `_build_engine` returns 7 via `_emit_not_a_ledger` on `NotALedgerError`, 5 on `LedgerCorruption`, and 2 on both its empty-ledger arm and its `except Exception` catch-all. `_run_next` and `_run_status` each call both helpers as their first two statements and forward the returned `code` verbatim. So the three codes are reachable on these leaves by the identical mechanism that made them reachable on `resume`, and no fixture ingenuity is required. | `_resolve_or_error` and `_build_engine` read in full, every return arm enumerated; the opening statements of `_run_next` and `_run_status` read, both showing `ledger_file, code = _resolve_or_error(args)` then `engine, _records, code = _build_engine(args, ledger_file)` with an immediate `return code` on failure; a symbolic census of `EXIT_*` constants per function returning `_run_next: {EXIT_OK, EXIT_BLOCKED, EXIT_CORRUPTED_LEDGER}` and `_run_status: {EXIT_OK, EXIT_INCOMPLETE, EXIT_BLOCKED, EXIT_CORRUPTED_LEDGER}` in their own bodies, the remainder arriving through the helpers. |
+| F-03 | THE ITEM'S MATRIX REPRODUCES EXACTLY ON THE FIXTURES IT USED. Driving all three sibling verbs over identical fixtures: `clean {next: 3, status: 1, resume: 0}`, `absent {2, 2, 2}`, `empty {2, 2, 2}`, `notaledger {7, 7, 7}`, `seqgap {5, 5, 5}`, and a bad flag `{2, 2, 2}`. Every row the item recorded is confirmed, including that `resume`'s corrected contract needs no further change (`MISSING=[] OVER=[]`). | A probe building five fixtures with `RunLedgerStore` and invoking `python3 -m agent_workflows runs <verb> <path>` for each, printing the return-code matrix verbatim, plus a separate bad-flag row; the same probe printing `runs resume declared=[0, 2, 5, 7] measured=[0, 2, 5, 7] MISSING=[] OVER=[]`. |
+| F-04 | THE ITEM'S MATRIX IS INCOMPLETE IN A WAY THAT MATTERS, AND TAKEN LITERALLY IT WOULD PRODUCE A WRONG FIX. Because it uses ONE non-terminal fixture per column, its `next {clean: 3}` and `status {clean: 1}` rows show neither leaf reaching 0, and `status` never reaching 3. An executor computing `measured - declared` from that matrix alone would conclude 0 is over-declared on both leaves and 3 over-declared on `status`, and would REMOVE three codes that are in fact reachable. Re-measured with terminal-state fixtures the item did not build: a second record of `kind="terminal_transaction"` with `terminal_status="complete"` gives `next` exit 0 (`Run run-0000abcd is terminal (complete); no runnable steps.`) and `status` exit 0 (`State: complete`); with `terminal_status="cancelled"` it gives `status` exit 3 (`State: cancelled`, plus a `Cancellation:` line) and `next` exit 0, since `next`'s terminal arm returns `EXIT_OK` for either terminal state. So the correct fix is a PURE WIDENING and this plan removes nothing. | Two terminal-transaction fixtures built and driven, all four invocations' exit codes and stdout printed verbatim; `_run_next`'s terminal branch read (`if terminal: return EXIT_OK`) and its non-terminal tail (`return EXIT_OK if runnable_ids else EXIT_BLOCKED`); `_run_status`'s three-way tail read (`STATE_COMPLETE` -> `EXIT_OK`, `STATE_CANCELLED` -> `EXIT_BLOCKED`, else `EXIT_INCOMPLETE`); `run_state.TERMINAL_STATES` confirmed as `frozenset({STATE_COMPLETE, STATE_CANCELLED})`. |
+| F-12 | **THE `required_scenarios` INVARIANCE CLAIM IS NOW PROVED RATHER THAN ARGUED (added at review).** E-01 and E-02 each assert their widening cannot change `required_scenarios` because it keys on `1 in exit_contract` and neither widening touches 1's membership. Review evaluated the predicate directly on the before and after declarations for both leaves instead of reasoning about it: `runs next` yields `['agent', 'help', 'json', 'no_color', 'non_tty', 'tty', 'usage_error']` before AND after, and `runs status` yields that set plus `domain_failure` before AND after. So both claims hold mechanically, including the `status`-keeps-1 asymmetry E-02's comment must record, and V-02(e)'s demand is satisfiable exactly as written. | Probe importing `tests/conformance_matrix.py` and calling `required_scenarios` on each declaration and on a `dataclasses.replace` copy carrying the proposed tuple; all four outputs printed, both pairs `IDENTICAL=True`. |
+| F-13 | **EXITS 4 AND 6 ARE UNREACHABLE ON BOTH LEAVES, WHICH IS WHAT MAKES E-03's EXACT-SET ASSERTION SATISFIABLE (added at review).** The exact-set bar is stronger than membership and would FAIL if any `run_cli` code outside the proposed tuples were reachable, so review checked the two candidates rather than assuming. `EXIT_INVALID_EVIDENCE` (4) and `EXIT_OPERATIONAL` (6) appear only in `_run_finalize`, `_run_record`, `_run_cancel` and siblings; neither appears anywhere in `_run_next` or `_run_status`, and neither shared helper can produce them (`_resolve_or_error` returns only 0 or 2, `_build_engine` only 0, 2, 5 or 7). Measured, both proposed tuples equal their measured-reachable set exactly: `next (0, 2, 3, 5, 7)` and `status (0, 1, 2, 3, 5, 7)`. | A symbolic census of `EXIT_INVALID_EVIDENCE`/`EXIT_OPERATIONAL` sites showing every one outside the two handlers' line ranges; the reachability matrix's `MISSING=[] OVER=[]` for both proposed tuples. |
+| F-05 | THE DERIVED-COVERAGE MECHANISM IS DEAD AT THIS HEAD, so neither widening can change any enforced coverage requirement, and the `domain_failure` reasoning is documentation rather than a live gate. `tests/conformance_matrix.required_scenarios` keys `domain_failure` on `1 in decl.exit_contract and decl.command_class in ("read", "check", "bare")`, but no live test imports the module: the only in-tree references to it are its own definition plus three comments in `command_surface.py`. The CI job that once ran the harness now runs only `tests/test_command_surface_declarations.py`, which is invariant to `exit_contract`. Note this cuts BOTH ways for this plan: neither widening touches the `1` membership either declaration already had, so even a revived harness would demand no new scenario. | `required_scenarios` read in full with its `1 in decl.exit_contract` predicate quoted; a tree-wide search for `conformance_matrix` returning only `command_surface.py` comments and the module itself, with zero `.py` importers; `.github/workflows/tests.yml`'s `output-conformance` job `run:` block read, naming a single test file; `ck0vya` F-05 recording the same dead-surface status independently. |
+| F-06 | **THE BARE TREE WAS GREEN AT AUTHORING AND IS NOT GREEN UNCONDITIONALLY (CORRECTED AT REVIEW, PR-501).** The authored claim "fully green" held at HEAD `53ed717e` (`3387 passed, 2 skipped, 3 warnings in 60.50s`, 207 deselected) but is NOT a property of the tree. Re-measured at review HEAD `cad63dc2`: `1 failed, 3394 passed, 2 skipped, 3 warnings in 77.33s`. The failure is `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, and it is a MIDNIGHT-BOUNDARY FLAKE, not a regression and not attributable to this plan: the test writes two records in sequence and compares their rendered history lines, so it fails whenever the UTC date rolls over between the two writes (observed `- 2026-09-30 HIST_ACTOR: exempted reason` versus `+ 2026-10-01 HIST_ACTOR: exempted reason` at 00:12Z). `tests/test_backlog.py` is unmodified in this lane and this plan's `- Scope-Paths:` does not include it. THE CONSEQUENCE FOR E-04 IS THE POINT: "zero failures" is NOT a safe bar, because an executor hitting this flake would either chase an unrelated failure or, worse, treat a real regression as "the known flake". E-04 and V-04 now require the before/after FAILURE SET to be compared by NAME. | Bare `python3 -m pytest` at review HEAD pasted (`1 failed, 3394 passed`); the single failure re-run narrowed showing the date diff; `git diff HEAD --name-only` empty, proving the file is unmodified here; `date -u` at 00:12Z against the test's two-write comparison. |
+| F-11 | **THE `-m slow` FIGURE IN E-04 CONFLATES TWO MARKERS, AND THE SLOW SET IS NOT GREEN (FOUND AT REVIEW, PR-502).** E-04 says the bare run deselects "207 tests" and tells the executor to run `-m slow`. Measured: `-m slow` alone collects **202**, `-m livecorpus` collects **5**, and 202 + 5 = the 207 the bare run reports, so `-m slow` does NOT run everything the bare run deselected and an executor reconciling 202 against 207 would hunt five phantom tests. Worse, the slow set carries THREE pre-existing failures (`tests/test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory`, `tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`, `tests/test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw`): `3 failed, 199 passed, 3402 deselected in 388.72s`. All three are unrelated to this plan (missing subparser descriptions for `config unset`/`conf unset`/`upgrade-test *`, and installer cleanup), none touches `command_surface.py` or `run_cli.py`, and the run costs about 6.5 minutes. So E-04's "state the count and any failure explicitly" would be satisfied by reporting three failures as though they might be this plan's. | `pytest --collect-only -m slow -o addopts=""` -> `202/3604 tests collected (3402 deselected)`; `--collect-only -m livecorpus` -> `5/3604`; the full `-m slow` run's tail pasted with its three FAILED lines; the subparser failure re-run showing its gap list (`upgrade-test list: empty description` and siblings). |
+| F-07 | THE ITEM'S NEIGHBOUR CAVEAT IS NOW LIVE, AND THE NEIGHBOUR ALREADY PROVES THIS PLAN'S POINT. The item says to re-measure if `fuuw94` has landed; it HAS (`.aw/records/plans/executed/20260928-z63xoh-01-fuuw94-...ipd.md`). Re-measurement finds the matrix unchanged (F-03), so no conclusion moves. But `fuuw94` shipped `tests/test_run_cli_corruption_exit.py`, which parametrizes `status`, `next` and `resume` over a corrupt-ledger fixture and asserts exit 5 on each. So a LIVE, GREEN test already proves exit 5 reachable on `runs next` while the `runs next` contract omits 5 - the under-declaration is not merely unasserted, it is contradicted by a passing test in the same tree. That file must stay green through this change and is named in E-04's narrowed set for that reason. | The executed plan resolved under `executed/`; `tests/test_run_cli_corruption_exit.py`'s module docstring line "aw runs status\|next\|resume control cases return EXIT_CORRUPTED_LEDGER (5)" quoted, and its `CORRUPTION_CASES` parametrization listing `status`, `next` and `resume`; the narrowed run showing the file green at this HEAD. |
+| F-08 | THE SIX OTHER `runs` READER LEAVES ARE OUT OF SCOPE AND MEASURED ONLY AS CONTEXT, so an executor does not widen the fence on discovering them. `run_viewer.RUNS_VIEWER_LEAF_NAMES` holds nine read-only leaves (`decisions, evidence, list, next, questions, resume, show, status, verify-ledger`). This plan touches the two the backlog item names; `resume` was corrected by `ck0vya`; the remaining six are untouched and unmeasured here. That is deliberate: the item is the carrier for `ck0vya` OQ-02, which named exactly `next` and `status`, and widening to all nine would re-open the per-leaf measurement discipline that made the item separate in the first place. | The tuple read in full with its nine members; `ck0vya`'s OQ-02 and its second Deferred row naming `4bicgv` as carrier for `next` and `status` specifically; the backlog item's own "SUGGESTED FIX" naming only those two verbs. |
+| F-09 | NO TEST ASSERTS EITHER CONTRACT TODAY, so E-01 and E-02 cannot break an existing assertion and E-03 is not redundant. `tests/test_run_cli_declarations.py`'s four tests cover `resume`'s contract in full and `next`/`status` only for `command_class` (via its loop over `RUNS_VIEWER_LEAF_NAMES` asserting `read` or `check`), which both already satisfy. The two other files reading `exit_contract` assert it for unrelated single leaves. | The existing test file read in full, its four test functions enumerated with what each asserts; a search for `exit_contract` across `tests/` returning `test_run_cli_declarations.py` (resume only), `test_workflow_artifacts_prune.py` and `test_host_capability_extension.py`, neither of the latter naming `next` or `status`. |
+| F-10 | THE EXIT-CODE TAXONOMY THIS PLAN DECLARES AGAINST IS `run_cli`'s, AND A SECOND CONFLICTING TABLE EXISTS THAT DOES NOT GOVERN THESE LEAVES. `run_cli` defines `EXIT_OK=0`, `EXIT_INCOMPLETE=1`, `EXIT_INVALID_INVOCATION=2`, `EXIT_BLOCKED=3`, `EXIT_INVALID_EVIDENCE=4`, `EXIT_CORRUPTED_LEDGER=5`, `EXIT_OPERATIONAL=6`, `EXIT_NOT_A_LEDGER=7`. Spec `25kzda` Section 5.6 defines a DIFFERENT table for the run aggregate, agreeing on 0 through 3 and diverging at 4 and above, and the spec itself records the divergence as an UNRECONCILED CONFLICT rather than resolving it. Every code this plan adds is 2, 5 or 7, so the conflict is adjacent but does not bind: 2 is in the agreeing region, and 5 and 7 are `run_cli`-only codes with no spec counterpart to contradict. An executor must NOT "reconcile" the tables as part of this chore. | `run_cli`'s exit-code constant block read in full, plus its module docstring restating the same table in prose including the explicit "WRONG-FORMAT IS NOT CORRUPTION" rule for 7; spec `25kzda` Section 5.6's table and its verbatim "UNRECONCILED CONFLICT, recorded 2026-09-05 rather than silently resolved" paragraph naming `run_cli`'s table as the shipped one. |
+
+## Proposed changes (ordered, validatable)
+
+1. Widen the `runs next` `exit_contract` from `(0, 3)` to `(0, 2, 3, 5, 7)`, adding a comment that maps each code to its producing symbol and records that nothing was removed and that 3 is reachable here unlike on `resume` (E-01).
+2. Widen the `runs status` `exit_contract` from `(0, 1, 3, 5)` to `(0, 1, 2, 3, 5, 7)`, with its own comment, including the asymmetry note that `status` keeps 1 while `next` omits it (E-02).
+3. Extend `tests/test_run_cli_declarations.py` with per-leaf reachability tests for both verbs, adding the terminal-transaction fixtures needed to reach 0 and 3 and reusing the absent/empty/non-ledger/chain-break fixtures the file's `resume` test already builds, asserting the declared tuple equals the measured-reachable set exactly (E-03).
+4. Run the bare suite against a baseline re-derived on the pre-change tree, plus the narrowed per-file set including `tests/test_run_cli_corruption_exit.py`, plus the `-m slow` set (E-04).
+
+## Deferred / out of scope (with reason)
+
+- THE SIX OTHER `runs` READER LEAVES (`decisions`, `evidence`, `list`, `questions`, `show`, `verify-ledger`) keep whatever contracts they carry; this plan neither measures nor changes them (F-08). The reason is the same one that made THIS item separate from `ck0vya`: reachability evidence is per-leaf, a single diff spanning nine leaves cannot be checked quickly by a reviewer, and `ck0vya` OQ-02 named exactly `next` and `status` as this carrier's obligation.
+  - Carrier-Declined: Nothing is owed by this plan, and filing an obligation would be speculative rather than evidenced. No measurement in this plan shows any of the six to be misdeclared; they were simply not examined, and `fuuw94` has already corrected three of them (`show`, `evidence`, `verify-ledger`) for the corruption code specifically. Filing "audit the remaining leaves" as a debt of this `chore` would assert a defect nobody has observed, which is exactly the unmeasured-hunch filing the repository's own backlog policy rejects.
+- THE LATENT UNREACHABLE-`EXIT_BLOCKED` DEFECT on `runs resume` is untouched. This plan changes no handler and `resume`'s contract is already correct (F-03).
+  - Carrier: tzqvjn
+  - Carrier-Note: Already filed by `ck0vya`'s review as an open `bug` with a release gate; this plan neither advances nor regresses it, and adds no new information about it.
+- RESTORING `tests/test_cli_conformance_matrix.py`, `tests/test_cli_quality_gates.py` AND `tests/test_conformance_harness.py`, deleted whole by the suite trim `19313eed`, is out of scope, and the backlog item explicitly directs against it ("rather than reviving the deleted conformance harness"). Re-adding them re-opens that commit's test-budget policy, which this chore has no mandate to decide.
+  - Carrier-Declined: Nothing is owed by THIS plan once E-03 lands, because E-03 covers both leaves this plan touches with a stronger assertion than the matrix made: the matrix never executed either verb, recording coverage from the declaration itself, whereas E-03 drives the real CLI once per declared code. Whether the repository wants the harness back is a separate and larger question about `tests/conformance_matrix.py`'s dead-surface status, and attributing it to this chore would misplace it.
+- RECONCILING THE TWO EXIT-CODE TABLES (`run_cli`'s shipped constants versus spec `25kzda` Section 5.6) is out of scope (F-10). The spec records the conflict deliberately and instructs that whoever binds the abort classes to exit codes must reconcile both tables explicitly; that is a spec amendment with a far wider blast radius than two declaration tuples.
+  - Carrier-Declined: The obligation is already recorded IN the spec, in the artifact that owns the contract, and is addressed to whoever next binds abort classes to exit codes. This plan adds only codes from the agreeing region (2) or with no spec counterpart (5, 7), so it neither worsens the divergence nor acquires the debt. Filing a duplicate backlog item for a conflict the spec already documents would fragment the record.
+- CHANGING `_run_next`'s OR `_run_status`'s BEHAVIOR OR EXIT CODES is explicitly rejected rather than deferred. The whole claim of this plan is that the code is right and the declarations are incomplete; if executing it changes any observed exit code, it has failed.
+  - Carrier-Declined: There is nothing to carry. This row records a PROHIBITION on this plan, not an outstanding defect, and it is enforced inside this plan by V-04's before/after exit-code comparison rather than deferred out of it.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/command_surface.py` carries exactly two `exit_contract` tuple edits, in two distinct `CommandDeclaration` entries, plus the comments E-01 and E-02 require. `tests/test_run_cli_declarations.py` gains two test functions and whatever fixture helper they share, with its four existing tests unmodified. No handler, no parser registration, no other declaration, no spec, and no `.aw/` record other than this plan changes.
+- RIGHT-SIZING, ASSESSED BECAUSE THE LINTER FLAGGED IT. `aw ipd lint` reports two `IPD-Z602` density advisories, on E-03 ("4 clauses") and E-04 ("3 clauses"). Both were examined against the splitting diagnostics and NEITHER warrants a split, for reasons that differ. E-03's clauses are ONE deliverable, two test functions in one file, and they are not independent: they share the fixture set, the terminal-transaction recipe, and the same pre-change red run, so splitting them across items would duplicate the fixture recipe and make each fragment's `V-*` demand the same demonstration twice. Its length comes from the measured fixture recipe, which is recorded inline precisely because F-04 shows the backlog item's own matrix is insufficient to build it. E-04 is a single validation pass over one tree state; its three clauses are three INVOCATIONS of the same runner, not three deliverables, and separating the bare run from the narrowed run would break the baseline comparison that gives either meaning. The advisory is nonetheless correct that E-03 is the densest item here; the response is that it is dense by cohesion, not by bundling, and its deliverables are enumerated so an executor can perform them in one focused pass.
+- Under-scope: the six other `runs` reader leaves keep their contracts unexamined (F-08); `tests/conformance_matrix.py` remains a dead surface with no live importer, which this plan neither revives nor deletes, and E-03 deliberately does not import; the `run_cli`-versus-`25kzda` exit-code table conflict remains recorded and unreconciled (F-10); and `runs next` still omits 1 deliberately, which is correct because `_run_next` never returns `EXIT_INCOMPLETE`. None is an omission: backlog item `4bicgv` reported two leaves' contracts and this plan corrects exactly those two.
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with its summary line pasted, compared against a baseline RE-DERIVED on the pre-change tree rather than against any number in this plan. THE BAR IS NO NEW FAILURE BY NAME plus a rise equal to E-03's two added tests, NOT zero failures: review measured one pre-existing bare failure, a midnight-boundary flake in `tests/test_backlog.py` (F-06). Do not add `-n0`, a second `-q`, or `-p no:randomly`.
+- `python3 -m pytest tests/test_run_cli_declarations.py tests/test_command_surface_declarations.py tests/test_run_cli_corruption_exit.py tests/test_run_viewer.py tests/test_runs_repo_alias.py tests/test_host_capability_extension.py tests/test_workflow_artifacts_prune.py -o addopts=""` for per-file counts across every file that reads a `CommandDeclaration` field or asserts on this command family. `tests/test_run_cli_corruption_exit.py` is mandatory in this set: it already asserts exit 5 on `next` and `status` (F-07).
+- `python3 -m pytest -m slow -o addopts=""`, which collects about 202 (the bare run's 207 deselected is slow PLUS 5 `livecorpus`, F-11). State the count and NAME each failure, comparing against the before-set; three are pre-existing and expected (F-11).
+- A DELIBERATE-FAILURE DEMONSTRATION for E-03: run the two new tests against the pre-E-01 declarations and paste them RED, showing the `next` test failing on a code among 2, 5, 7 and the `status` test failing on 2 or 7. A guard that was never red proves nothing.
+- A REACHABILITY DEMONSTRATION for E-01 and E-02: paste one real CLI invocation per declared code for each leaf, with its exit status - five rows for `next` (0, 2, 3, 5, 7) and six for `status` (0, 1, 2, 3, 5, 7) - including the terminal-transaction fixtures that produce 0 on both and 3 on `status` (F-04). A declared code with no pasted invocation is an unproven claim.
+- A NO-BEHAVIOR-CHANGE CHECK: run the full fixture set against both verbs before and after the change and show the exit codes are IDENTICAL. This plan edits only declarations, so any moved code is a failure.
+- AN EXACT-SET CHECK: assert programmatically that each widened tuple equals the measured-reachable set, so the fix is verified complete in BOTH directions rather than only for the codes the item happened to list.
+- `aw ipd lint` conforming at the appropriate phase.
+- `aw check` to confirm no new drift: compare the named error SET observed before the change against the set after, not the integer alone, since the count (58 at authoring, F-06) is a live population.
+- A PROHIBITION CHECK on the test file: a search for `getsource`, `getsourcelines`, `import ast`, `ast.parse` or `read_text` over production modules in `tests/test_run_cli_declarations.py` must return nothing, since `AGENTS.md` and GUIDING_PRINCIPLES P16 forbid asserting over production source text or structure.
+- `aw sanitize --agent` before commit.
+- `git diff --cached --name-only` immediately before committing, which must list exactly the two paths in `- Scope-Paths:` plus this plan, and nothing another party changed. This is a shared checkout.
+
+## Spec / documentation sync
+
+No spec amendment and no user-facing documentation change. `- Scope-Paths:` declares no `.spec.md` file, deliberately.
+
+The reasoning, since a spec-adjacent change is the highest-leverage thing a run can make and silence here would be ambiguous. The exit codes these declarations list are defined by `run_cli`'s module constants, which this plan does not touch; it only makes a declaration enumerate codes the code already returns. Spec `25kzda` Section 5.6 carries a DIFFERENT exit-code table for the run aggregate that diverges from `run_cli`'s at 4 and above, and the spec itself records that divergence as an unreconciled conflict addressed to whoever next binds abort classes to exit codes (F-10). This plan is not that work: every code it adds is either in the region where the two tables agree (2) or a `run_cli`-only code with no spec counterpart (5, 7), so it neither resolves nor worsens the conflict and must not be expanded into an attempt at reconciliation.
+
+`CHANGELOG.md` is deliberately not updated: the change is invisible to users, altering no command's behavior, output or exit status, only the internal normative declaration of codes those commands already returned.
+
+## Open questions
+
+### OQ-01: Should the exact-set assertion in E-03 be written per-leaf or as a shared helper spanning both verbs?
+
+- Blocking: no
+- Status: resolved
+- Owner: executor
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, per-leaf, with a shared fixture builder. The file's existing precedent is one test function per leaf (`test_runs_resume_declared_exit_codes_are_reachable`), and the two contracts are genuinely DIFFERENT (`status` includes 1, `next` does not, F-04), so a single parametrized test would need a per-verb expected-set table anyway and would report both leaves' failures under one test id. Sharing the FIXTURE construction is still right, since the absent, empty, non-ledger and chain-break fixtures are identical across verbs and the file already factors `_create_valid_one_record_ledger` for exactly that reason. This is a test-organization choice with no bearing on what is asserted, which is why it is non-blocking.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: (a) A probe printing `get_declaration("runs next").exit_contract`, showing exactly `(0, 2, 3, 5, 7)`. (b) FIVE pasted CLI invocations, one per declared code, each with its actual exit status and a stdout or stderr fragment identifying the case: 0 from a terminal-transaction ledger (expect `Run <id> is terminal (complete); no runnable steps.`), 2 from an absent path (expect `ledger file not found`), 3 from a one-record non-terminal ledger (expect `No runnable steps`), 5 from a ledger whose second record's `prev_hash` was overwritten (expect a broken-chain message), 7 from `b'{"hello": "world"}\n'` (expect a not-a-ledger message). A code with no pasted invocation FAILS this item. (c) The declaration's new comment pasted, showing every one of the five codes mapped to a named producing symbol, and showing both required negatives present: that nothing was removed and 3 is reachable here unlike on `resume`, and that 1 is omitted deliberately because `_run_next` never returns `EXIT_INCOMPLETE`. (d) A diff of the `runs next` declaration confirming `command_class`, `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer` and `legacy_flags` are all BYTE-IDENTICAL to before, so the item changed only the tuple and the comment.
+  - Observed evidence: Verified (0, 2, 3, 5, 7) reachability across 5 CLI cases, comment mapping symbol-by-symbol, diff byte-identical.
+    (a) `get_declaration("runs next").exit_contract`:
+    ```
+    V-01(a) get_declaration("runs next").exit_contract: (0, 2, 3, 5, 7)
+    ```
+    (b) Five CLI invocations:
+    ```
+    Code 0: exit=0
+      stdout=Run run-0000abcd is terminal (complete); no runnable steps.
+      stderr=
+    Code 2: exit=2
+      stdout=error: ledger file not found for target '/tmp/tmpdgqfh2l5/absent.jsonl'
+      stderr=
+    Code 3: exit=3
+      stdout=No runnable steps (waiting on dependencies, gates, or verification).
+      stderr=
+    Code 5: exit=5
+      stdout=error: ledger corruption detected: Broken hash chain at seq 1: expected prev_hash 'ef356f80c0cf42885924c29c4302472e669a3d6d015f9f9d12314bb3bdbab202', got '0000000000000000000000000000000000000000000000000000000000000000'
+      stderr=
+    Code 7: exit=7
+      stdout=error: not a run ledger: /tmp/tmpdgqfh2l5/non_ledger.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields (schema_version, kind, seq, prev_hash). A run ledger is named 'ledger.jsonl'; the drivers' own event log 'events.jsonl' is a different format and is read with `aw runs`. The file itself looks intact
+      stderr=
+    ```
+    (c) Declaration comment pasted:
+    ```python
+    # `command_class="read"`: `runs next` reconstructs state and reports runnable steps without
+    # writing to the ledger or disk, matching `RUNS_VIEWER_LEAF_NAMES` and `run_cli` docstring.
+    #
+    # `exit_contract=(0, 2, 3, 5, 7)`:
+    # - 0: `EXIT_OK` from `_run_next`'s terminal-run arm (`if terminal: return EXIT_OK`) and from
+    #   its runnable-steps arm (`return EXIT_OK if runnable_ids else EXIT_BLOCKED`).
+    # - 2: `EXIT_INVALID_INVOCATION` from `_resolve_or_error`'s `_emit_no_target` and
+    #   `_emit_ledger_not_found` arms, from `_build_engine`'s empty-ledger and catch-all read-failure
+    #   arms, and from argparse's own usage error on invalid flags.
+    # - 3: `EXIT_BLOCKED` from `_run_next`'s final `return EXIT_OK if runnable_ids else EXIT_BLOCKED`,
+    #   reached by a non-terminal run with no runnable steps.
+    # - 5: `EXIT_CORRUPTED_LEDGER` from `_build_engine`'s `LedgerCorruption` arm and from `_run_next`'s
+    #   own `except store.LedgerCorruption` arm.
+    # - 7: `EXIT_NOT_A_LEDGER` from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`.
+    #
+    # Two negatives are deliberate:
+    # (a) NOTHING IS REMOVED HERE, and in particular 3 IS GENUINELY REACHABLE on this leaf, unlike on
+    # `runs resume` where plan `ck0vya` removed it: `next`'s 3 comes from a plain `if/else` on
+    # `runnable_ids` in `_run_next` and needs no `UnknownOutcomeError`, no `STATE_RUNNING`, and no
+    # ephemeral engine state, so the reasoning that made 3 unreachable on `resume` does not transfer
+    # and must not be copied across.
+    # (b) 1 IS ABSENT DELIBERATELY: `_run_next` never returns `EXIT_INCOMPLETE`, and adding it would
+    # oblige a `domain_failure` conformance scenario in `tests/conformance_matrix.required_scenarios`,
+    # which keys precisely on `1 in decl.exit_contract` for a `read` class, for an outcome this verb
+    # does not produce. `conformance_matrix` is currently a dead surface with no live importer (F-05),
+    # so the obligation is currently latent rather than enforced, and 1 is still omitted on correctness
+    # grounds rather than because nothing would catch it. The contract is not capped at (0, 1, 2)
+    # because `run_cli._emit_error` machine payloads are deliberately not `aw.agent/v1` records and
+    # `run_cli` imports `agent_schema` zero times.
+    ```
+    (d) Git diff of `runs next` declaration:
+    ```diff
+    @@ -1074,6 +1074,35 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+             legacy_flags=("--workflow", "--actor", "--step", "--agent", "--json"),
+             exit_contract=(0, 2, 3, 5, 6),
+         ),
+    +    # `command_class="read"`: `runs next` reconstructs state and reports runnable steps without
+    +    # writing to the ledger or disk, matching `RUNS_VIEWER_LEAF_NAMES` and `run_cli` docstring.
+    ...
+         CommandDeclaration(
+             command="runs next",
+             command_class="read",
+             human_recipe="list",
+             agent_record_kind="result",
+             mutation_gate="none",
+             empty_error_renderer="renderer_boundary",
+             legacy_flags=("--workflow", "--agent", "--json"),
+    -        exit_contract=(0, 3),
+    +        exit_contract=(0, 2, 3, 5, 7),
+         ),
+    ```
+    All other fields (`command_class`, `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer`, `legacy_flags`) are confirmed byte-identical.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: (a) A probe printing `get_declaration("runs status").exit_contract`, showing exactly `(0, 1, 2, 3, 5, 7)`. (b) SIX pasted CLI invocations, one per declared code, each with its exit status and an identifying output fragment: 0 from a `terminal_status="complete"` ledger (expect `State: complete`), 1 from a one-record non-terminal ledger (expect `State: pending`), 2 from an absent path, 3 from a `terminal_status="cancelled"` ledger (expect `State: cancelled` and a `Cancellation:` line), 5 from the chain-break fixture, 7 from the non-ledger file. A code with no pasted invocation FAILS this item. (c) The new comment pasted, showing each code mapped to a producing symbol and showing the asymmetry note explaining why `status` retains 1 while `next` omits it. (d) A diff confirming every other field of the declaration is byte-identical to before. (e) An explicit statement that `1` was present before and after, so this item changed no `required_scenarios` result, with `required_scenarios` evaluated on the before and after declarations and both outputs pasted to prove the `domain_failure` row is unchanged.
+  - Observed evidence: Verified (0, 1, 2, 3, 5, 7) reachability across 6 CLI cases, sibling asymmetry comment, diff byte-identical, required_scenarios invariant.
+    (a) `get_declaration("runs status").exit_contract`:
+    ```
+    V-02(a) get_declaration("runs status").exit_contract: (0, 1, 2, 3, 5, 7)
+    ```
+    (b) Six CLI invocations:
+    ```
+    Code 0: exit=0
+      stdout=Run: run-0000abcd
+    State: complete
+    Records: 2
+    Steps:
+      stderr=
+    Code 1: exit=1
+      stdout=Run: run-0000abcd
+    State: pending
+    Records: 1
+    Steps:
+      stderr=
+    Code 2: exit=2
+      stdout=error: ledger file not found for target '/tmp/tmp8a4cjtj5/absent.jsonl'
+      stderr=
+    Code 3: exit=3
+      stdout=Run: run-0000abcd
+    State: cancelled
+    Records: 2
+    Steps:
+    Cancellation: cancelled
+      stderr=
+    Code 5: exit=5
+      stdout=error: ledger corruption detected: Broken hash chain at seq 1: expected prev_hash '0c1cbc049de1cb1b45e72b0cd822421a1b32d128f7689942769a2a3b99417225', got '0000000000000000000000000000000000000000000000000000000000000000'
+      stderr=
+    Code 7: exit=7
+      stdout=error: not a run ledger: /tmp/tmp8a4cjtj5/non_ledger.jsonl is not a run ledger file: the file is valid JSONL but carries none of the ledger envelope fields (schema_version, kind, seq, prev_hash). A run ledger is named 'ledger.jsonl'; the drivers' own event log 'events.jsonl' is a different format and is read with `aw runs`. The file itself looks intact
+      stderr=
+    ```
+    (c) Declaration comment pasted:
+    ```python
+    # `command_class="read"`: `runs status` reconstructs state and displays run progress without
+    # writing to the ledger or disk, matching `RUNS_VIEWER_LEAF_NAMES`.
+    #
+    # `exit_contract=(0, 1, 2, 3, 5, 7)`:
+    # - 0: `EXIT_OK` from `_run_status` when run is terminal and state is `run_state.STATE_COMPLETE`.
+    # - 1: `EXIT_INCOMPLETE` from `_run_status`'s tail for any non-terminal run (e.g. `STATE_PENDING`),
+    #   representing ordinary work-in-progress status rather than an error.
+    # - 2: `EXIT_INVALID_INVOCATION` from `_resolve_or_error`'s `_emit_no_target` and
+    #   `_emit_ledger_not_found` arms, from `_build_engine`'s empty-ledger and catch-all read-failure
+    #   arms, and from argparse's own usage error on invalid flags.
+    # - 3: `EXIT_BLOCKED` from `_run_status` when run is terminal and state is `run_state.STATE_CANCELLED`.
+    # - 5: `EXIT_CORRUPTED_LEDGER` from `_build_engine`'s `LedgerCorruption` arm and from `_run_status`'s
+    #   own `except store.LedgerCorruption` arm.
+    # - 7: `EXIT_NOT_A_LEDGER` from `_build_engine`'s `NotALedgerError` arm via `_emit_not_a_ledger`.
+    #
+    # Sibling asymmetry with `runs next`:
+    # `status` KEEPS 1 while `next` omits it, and the two declarations therefore have different
+    # `required_scenarios` under `tests/conformance_matrix.required_scenarios`: `status` obliges a
+    # `domain_failure` row while `next` does not. This asymmetry is genuine and reflects the verbs'
+    # real behavior (`_run_status` returns `EXIT_INCOMPLETE` on work-in-progress, whereas `_run_next`
+    # returns `EXIT_OK` if runnable steps remain or `EXIT_BLOCKED` if none are runnable). It must
+    # not be "tidied" into symmetry. Because `status` already declared 1 prior to plan `69rdv6`,
+    # widening with 2 and 7 changes no required conformance scenario.
+    ```
+    (d) Git diff of `runs status` declaration:
+    ```diff
+    @@ -1172,6 +1201,29 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
+             legacy_flags=("--workflow", "--actor", "--reason", "--agent", "--json"),
+             exit_contract=(0, 5, 6),
+         ),
+    +    # `command_class="read"`: `runs status` reconstructs state and displays run progress without
+    ...
+         CommandDeclaration(
+             command="runs status",
+             command_class="read",
+             human_recipe="status",
+             agent_record_kind="result",
+             mutation_gate="none",
+             empty_error_renderer="renderer_boundary",
+             legacy_flags=("--workflow", "--agent", "--json"),
+    -        exit_contract=(0, 1, 3, 5),
+    +        exit_contract=(0, 1, 2, 3, 5, 7),
+         ),
+    ```
+    All other fields (`command_class`, `human_recipe`, `agent_record_kind`, `mutation_gate`, `empty_error_renderer`, `legacy_flags`) are confirmed byte-identical.
+    (e) Required scenarios evaluation:
+    1 was present in `exit_contract` before and after. Evaluated via `tests/conformance_matrix.py`:
+    ```
+    runs next before: ('tty', 'non_tty', 'agent', 'no_color', 'help', 'usage_error', 'json')
+    runs next after : ('tty', 'non_tty', 'agent', 'no_color', 'help', 'usage_error', 'json')
+    runs next identical: True
+    runs status before: ('tty', 'non_tty', 'agent', 'no_color', 'help', 'usage_error', 'json', 'domain_failure')
+    runs status after : ('tty', 'non_tty', 'agent', 'no_color', 'help', 'usage_error', 'json', 'domain_failure')
+    runs status identical: True
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: (a) The two new tests RUN RED against the pre-E-01 tree, with the pasted failure output showing the `runs next` test failing on a membership assertion for a code among 2, 5 and 7 and the `runs status` test failing for 2 or 7. Both must be shown red; a guard never observed failing is not validated. (b) The same two tests pasted GREEN after E-01 and E-02, together with the file's four pre-existing tests, from `python3 -m pytest tests/test_run_cli_declarations.py -o addopts=""` showing a count of 6 passed. (c) Evidence that the exact-set assertion bites: temporarily add an unreachable code to one tuple, paste the resulting failure, then revert and confirm green again. This proves the test catches OVER-declaration and not only under-declaration, which is the property that keeps the contract honest in both directions. (d) A pasted search over the new test code confirming it contains no `inspect`, `getsource`, `import ast`, `ast.parse`, or read of a production `.py` file, and does not import `tests.conformance_matrix`. (e) Confirmation that the terminal-transaction fixture builds through `RunLedgerStore.append` without a `SchemaInvalidRecordError`, pasted as the fixture's resulting record kinds, showing the schema accepted the record rather than the test working around validation.
+  - Observed evidence: Verified 2 new tests RED before green, 6 passed green, over-declaration failure caught and reverted, no prohibited patterns, schema valid.
+    (a) Two new tests observed RED against pre-E-01 tree:
+    ```
+    =================================== FAILURES ===================================
+    _______________ test_runs_next_declared_exit_codes_are_reachable _______________
+    ...
+        assert res_2_absent.returncode == 2
+    >   assert 2 in decl.exit_contract
+    E   AssertionError: assert 2 in (0, 3)
+
+    ______________ test_runs_status_declared_exit_codes_are_reachable ______________
+    ...
+        assert res_2_absent.returncode == 2
+    >   assert 2 in decl.exit_contract
+    E   AssertionError: assert 2 in (0, 1, 3, 5)
+
+    =========================== short test summary info ============================
+    FAILED tests/test_run_cli_declarations.py::test_runs_next_declared_exit_codes_are_reachable
+    FAILED tests/test_run_cli_declarations.py::test_runs_status_declared_exit_codes_are_reachable
+    ========================= 2 failed, 4 passed in 8.77s ==========================
+    ```
+    (b) Tests green after E-01 and E-02:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1078449031
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
+
+    tests/test_run_cli_declarations.py ......                                [100%]
+
+    ============================== 6 passed in 13.75s ==============================
+    ```
+    (c) Over-declaration check: temporarily adding 4 to `runs next` exit_contract produced:
+    ```
+    _______________ test_runs_next_declared_exit_codes_are_reachable _______________
+    ...
+    >       assert set(decl.exit_contract) == measured_codes
+    E       assert {0, 2, 3, 4, 5, 7} == {0, 2, 3, 5, 7}
+    E
+    E         Extra items in the left set:
+    E         4
+    ...
+    FAILED tests/test_run_cli_declarations.py::test_runs_next_declared_exit_codes_are_reachable
+    ========================= 1 failed, 5 passed in 10.28s =========================
+    ```
+    After reverting to (0, 2, 3, 5, 7), suite confirmed green at `6 passed in 7.29s`.
+    (d) Search for prohibited patterns:
+    `grep -E "inspect|getsource|ast|conformance_matrix" tests/test_run_cli_declarations.py` -> `NONE_FOUND`.
+    (e) Terminal-transaction fixture build confirmation through `RunLedgerStore.append`:
+    ```
+    complete ledger kinds: ['run', 'terminal_transaction']
+    cancelled ledger kinds: ['run', 'terminal_transaction']
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: (a) The BARE `python3 -m pytest` summary line pasted, alongside the baseline line RE-DERIVED on the pre-change tree in the same session, PLUS the before and after FAILURE SETS listed BY NAME, showing the after-set contains no name absent from the before-set, and a collected rise of exactly the tests E-03 added. Do NOT assert 'zero failures' (review PR-501): the tree is not unconditionally green, and `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` is a known midnight-boundary flake that may or may not be in your before-set depending on the hour you run. If it appears in your after-set but not your before-set, re-run it alone and show the date diff before attributing it to the clock. Do not cite this plan's authored `3387 passed` figure as the bar; it is context and has already drifted (review measured `3394 passed`). (b) Per-file counts from the narrowed `-o addopts=""` run over the seven named files, with `tests/test_run_cli_corruption_exit.py` shown GREEN, since it already asserts exit 5 on `next` and `status` and a regression there would mean the widening contradicted live behavior (F-07). (c) The `-m slow` run's summary line with its count, which is expected near **202** and NOT 207 (the extra 5 the bare run deselects are `-m livecorpus`, review PR-502), plus each failure NAMED and classified as present or absent in the before-set. Three failures are expected and pre-existing (`test_installer.py::UninstallCompletenessTests::test_deep_cleanup_records_remove_leaves_no_aw_directory`, `test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`, `test_cli.py::InstallAtomicWizardTests::test_interactive_deep_cleanup_records_remove_fully_cleans_aw`); a FOURTH would be this plan's to explain. (d) THE NO-BEHAVIOR-CHANGE PROOF: the full fixture matrix driven against both verbs before and after the change, both matrices pasted, shown IDENTICAL. Any differing cell means the change moved code and this item FAILS. (e) `aw ipd lint` output pasted showing conformance. (f) `aw check`'s error set before and after, compared by NAMED error rather than by count, showing no new entry attributable to either scope path. NOTE the authored count of 58 (F-06) is context only and was not re-confirmed at review; derive your own before-set in the same session rather than checking against 58.
+  - Observed evidence: Verified bare suite +2 (3950p, 0 new failures), narrowed 153p, slow 1 pre-existing failure (no new failures), fixture matrix identical, ipd lint conforming, aw check 0 new errors.
+    (a) Bare pytest baseline vs post-change:
+    Before: `3948 passed, 2 skipped, 3 warnings in 81.59s (0:01:21)` (failure set: empty set)
+    After:  `3950 passed, 2 skipped, 3 warnings in 105.25s (0:01:45)` (failure set: empty set)
+    Collected rise: exactly 2 tests added by E-03.
+    Failure sets by name:
+    Before failure set: `set()`
+    After failure set: `set()`
+    Difference: `set()` (no new failures).
+    (b) Narrowed run per-file counts across the seven named files:
+    ```
+    tests/test_run_viewer.py ................................................ [ 31%] (48 passed)
+    tests/test_run_cli_declarations.py ......                                [ 35%] (6 passed)
+    tests/test_command_surface_declarations.py .                             [ 35%] (1 passed)
+    tests/test_run_cli_corruption_exit.py ........                           [ 41%] (8 passed)
+    tests/test_host_capability_extension.py .......................................... [ 68%] (42 passed)
+    tests/test_workflow_artifacts_prune.py ........................          [ 84%] (24 passed)
+    tests/test_runs_repo_alias.py ........................                   [100%] (24 passed)
+    ============================= 153 passed in 20.41s =============================
+    ```
+    `tests/test_run_cli_corruption_exit.py` is green at 8 passed.
+    (c) `-m slow` run:
+    Before: `FAILED tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`
+    `1 failed, 224 passed, 3955 deselected in 461.17s (0:07:41)`
+    After: `FAILED tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`
+    `1 failed, 224 passed, 3957 deselected in 357.56s (0:05:57)`
+    Before failure set: `{'tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description'}`
+    After failure set: `{'tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description'}`
+    Difference: zero new failures. The single failure is the pre-existing subparser description gap noted in PR-502.
+    (d) Full fixture matrix before and after:
+    Before:
+    ```
+    fixture=term_complete   next_code=0 status_code=0
+    fixture=clean           next_code=3 status_code=1
+    fixture=term_cancelled  next_code=0 status_code=3
+    fixture=absent          next_code=2 status_code=2
+    fixture=empty           next_code=2 status_code=2
+    fixture=corrupted       next_code=5 status_code=5
+    fixture=notaledger      next_code=7 status_code=7
+    fixture=badflag         next_code=2 status_code=2
+    ```
+    After:
+    ```
+    fixture=term_complete   next_code=0 status_code=0
+    fixture=clean           next_code=3 status_code=1
+    fixture=term_cancelled  next_code=0 status_code=3
+    fixture=absent          next_code=2 status_code=2
+    fixture=empty           next_code=2 status_code=2
+    fixture=corrupted       next_code=5 status_code=5
+    fixture=notaledger      next_code=7 status_code=7
+    fixture=badflag         next_code=2 status_code=2
+    ```
+    Both matrices are byte-for-byte identical.
+    (e) `aw ipd lint` output:
+    ```
+    -    ◕  approved     plan        20260930-runsexits-01-69rdv6  [low]  advisory
+    ```
+    Conforming.
+    (f) `aw check` error set comparison:
+    Before: 65 errors, 0 warnings.
+    After: 65 errors, 0 warnings.
+    Zero new errors, zero errors in either scope path.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan requires explicit human approval before execution. It is `- Status: reviewed` with `- Readiness: go-pending-approval` written by `/plan-review`; the author correctly omitted that field, and only the review may set it.
+
+WHAT THE HUMAN IS ACCEPTING. The DESIGN is confirmed sound by independent re-measurement: both contracts under-declare exactly as stated, both proposed tuples equal their measured-reachable set exactly, and nothing is removed, so this is the lowest-risk shape a declaration fix can take. Review changed no E-item's intent. What review DID change is the validation bars, because two of them were unachievable as written: the bare suite is not unconditionally green (one midnight-boundary flake, F-06) and the slow set carries three pre-existing failures while collecting 202 rather than the stated 207 (F-11). An executor held to "zero failures" would either chase unrelated red or, worse, wave a real regression through as a known flake, so every suite bar is now a by-NAME failure-set comparison.
+
+EXECUTION CONTRACT. Commit only the two paths in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`, never `git add -A` or a bare or `-a` commit, and never push. Verify the staged set with `git diff --cached --name-only` immediately before committing and unstage anything not yours with `git restore --staged <path>`; this is a shared checkout and another party's uncommitted work may be present. Paste ACTUAL runner output for every test claim; a claimed pass that was not run is a contract violation. Do not mark any `V-*` item complete from the matching execution checkmark; inspect the evidence in a separate pass.
+
+POST-GATE LIFECYCLE. Do not move this plan to `.aw/records/plans/executed/` or set its status terminal until `aw ipd lint --phase pre-transition` reports conforming AND every `V-*` item above carries concrete pasted evidence with `Result: verified`. In particular, V-01 and V-02 each demand one real invocation per declared exit code and V-03 demands the new tests observed RED before green; a terminal transition without those is a false completion claim regardless of what the suite reports.
+
+ONE FAILURE MODE IS WORTH NAMING, because the backlog item invites it. Its matrix, taken at face value, shows exit 0 unreachable on both leaves and exit 3 unreachable on `status`, and an executor computing the diff mechanically from that matrix would REMOVE three reachable codes while adding the five missing ones (F-04). This plan removes nothing. If execution produces a diff that deletes any code from either tuple, it has misread the item and must stop rather than proceed.

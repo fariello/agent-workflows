@@ -113,9 +113,9 @@ eight flags twice is how two parsers diverge, and the shipped `--full-auto` had 
 It is admitted under a DIFFERENT rule from the 34, stated so the admission rule above is not read as
 having been bent: the 34 are PROVEN-IDENTICAL EXISTING bodies moved without edit, fingerprint-pinned
 by `tests/test_runner_shared.py`. This block is NEW code that never existed in either runner, so it
-has no pre-move fingerprint to match and is deliberately absent from that fixture. What replaces the
-fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every assertion from
-`RUN_POLICY_FLAGS` as DATA and therefore fails when the spec grows a flag the code lacks.
+has no pre-move fingerprint to match and is deliberately absent from that fixture. The former guard
+(`tests/test_run_flag_surface.py`, which drove assertions from `RUN_POLICY_FLAGS` as data) was deleted in
+`19313eed`, so the flag surface currently has no such data-driven test (coverage carrier: backlog `xvp5vx`).
 """
 
 from __future__ import annotations
@@ -212,6 +212,8 @@ from agent_workflows.render_stream import (
     # unchanged.
     format_run_order_announcement,
     format_spec_impact_announcement,
+    # strandexit (`entv1d`) E-02: predicate answering whether an item's work failed to land.
+    work_did_not_land,
 )
 
 # ---- module constants the moved bodies close over ------------------------------------------------
@@ -557,7 +559,11 @@ def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
 
 
 def _run_git(
-    repo: Path, args: list[str], *, timeout: float | None = None
+    repo: Path,
+    args: list[str],
+    *,
+    timeout: float | None = None,
+    input: str | None = None,
 ) -> tuple[int, str, str]:
     """Run a git command in ``repo``; return (returncode, stdout, stderr).
 
@@ -574,6 +580,7 @@ def _run_git(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=timeout,
+        input=input,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -1116,8 +1123,8 @@ def add_output_mode_flags(
     That distinction is the reason the original two copies were shaped this way and it is preserved.
 
     DELIBERATELY NOT IN `RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
-    declares and `tests/test_run_flag_surface.py` asserts against the spec file, so registering a
-    DISPLAY flag there would fail `test_no_owned_flag_is_absent_from_the_spec`.
+    declares; the data-driven test guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed`
+    and the surface is currently unguarded (carrier: backlog `xvp5vx`), but the closed contract stands.
 
     `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
     OMITTED flag on resume leaves the frozen value untouched rather than resetting it to 0 - the same
@@ -1942,11 +1949,8 @@ def classify_lane_integration(
                 if lane_plan_is_terminal(repo, lane) is True:
                     state = LANE_SUPERSEDED
                     why = (
-                        "the lane's own commits are NOT reachable from {0}, but its plan has reached a "
-                        "TERMINAL lifecycle directory, so the work was redone by a later attempt and "
-                        "landed another way; this lane is a superseded husk, not work at risk".format(
-                            target
-                        )
+                        "commits not in {0}; plan terminal; work landed by later attempt; "
+                        "prune superseded husk, not work at risk".format(target)
                     )
                 else:
                     state = LANE_STRANDED
@@ -4110,6 +4114,95 @@ class MergeWriteSet(list):
     tree: str | None = None
 
 
+class DanglingCommit(NamedTuple):
+    """A dangling commit candidate found by searching git objects (7eqw67)."""
+
+    sha: str
+    subject: str
+    commit_date: str
+
+    @property
+    def date(self) -> str:
+        return self.commit_date
+
+
+DanglingCommitCandidate = DanglingCommit
+
+
+def find_dangling_commits_by_subject(
+    repo: Path, needle: str
+) -> list[DanglingCommit] | None:
+    """lanedangling-01 (`7eqw67`) E-03: find dangling commits whose subject contains ``needle``.
+
+    Returns ranked candidate records (sha, subject, commit date), newest first, empty when nothing matches.
+
+    RETURNS ``None`` WHEN THE ANSWER IS UNKNOWN (fsck failed, corrupt object database, or ancient git),
+    and that is a distinct third value rather than an empty list. Reporting `[]` on failure would fabricate
+    'no matching commits', following the precedent established in `merge_write_set`. Returns an empty
+    list when git fsck succeeded and no dangling commits matched the needle.
+
+    THREE IMPLEMENTATION CONSTRAINTS:
+    1. USE `git fsck --connectivity-only`, NEVER flags that mutate the shared git directory or write
+       dangling objects to disk (such as writing one file per dangling object into git's lost objects
+       directory, which measured 1749 files in this checkout). `--connectivity-only` returns a
+       byte-identical dangling-commit set and is dramatically faster (measured at execution: 5.28s vs
+       55.17s, a 10.5x speedup over 635 commits; authoring measured 14x, 0.65s vs 9.49s; review
+       measured 27x, 3.03s vs 83.09s).
+    2. RESOLVE SUBJECTS IN ONE BATCH via `git log --no-walk --stdin --format=...`, not one `git log` per
+       sha. Measured at execution: 0.12s batched vs 9.10s naive across 635 commits, a 74x speedup
+       (authoring measured 1.04s vs 3.21s, 3x; review measured 0.14s vs 21.18s, 152x).
+    3. RETURN CANDIDATES AND NEVER A SINGLE 'THE LANE TIP'. Measured on real lane 8u6770: six candidate
+       commits matched the needle, mutually non-ancestral with diffs against main ranging from 1 to 71
+       paths, and one belonged to a different lane entirely (x75obw). Any single-tip heuristic would pick
+       wrong undetectably.
+    """
+    rc, out, _err = _run_git(repo, ["fsck", "--connectivity-only", "--no-progress"])
+    if rc != 0:
+        return None
+
+    shas: list[str] = []
+    for line in out.splitlines():
+        if "dangling commit " in line:
+            parts = line.split()
+            if parts:
+                shas.append(parts[-1].strip())
+
+    if not shas:
+        return []
+
+    log_rc, log_out, _log_err = _run_git(
+        repo,
+        ["log", "--no-walk", "--stdin", "--format=%H%x09%cI%x09%ct%x09%s"],
+        input="\n".join(shas) + "\n",
+    )
+    if log_rc != 0:
+        return None
+
+    candidates: list[tuple[int, DanglingCommit]] = []
+    for line in log_out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t", 3)
+        if len(parts) < 4:
+            continue
+        sha, iso_date, timestamp_str, subject = parts
+        if needle in subject:
+            try:
+                ts = int(timestamp_str)
+            except ValueError:
+                ts = 0
+            candidates.append(
+                (ts, DanglingCommit(sha=sha, subject=subject, commit_date=iso_date))
+            )
+
+    candidates.sort(key=lambda item: (item[0], item[1].sha), reverse=True)
+    return [c for _, c in candidates]
+
+
+find_dangling_commits = find_dangling_commits_by_subject
+
+
 def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
     """driverfin-03 (7kbtkw) E-01: report the MAIN tree's un-owned dirty paths that overlap an
     INCOMING CHANGE.
@@ -4135,26 +4228,17 @@ def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
     counterexample is measured and lives in :func:`merge_write_set`'s docstring (finding F-7). Read it
     before changing the input set, because the union reads as the more thorough choice and is not.
 
-    The porcelain short format is `XY<space>path` (renames use `orig -> dest`); we take the last
-    path token so both the origin and destination of a rename are considered dirty.
+    The porcelain format is decoded by :func:`lane_containment.parse_porcelain_paths` (the single
+    parser prescribed by spec `7ckptx` R6.1, which treats both the origin and destination of a
+    rename as dirty).
     """
     incoming = {p for p in changed_files if p.strip()}
     if not incoming:
         return []
+    from agent_workflows import lane_containment
+
     _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
-    dirty: set[str] = set()
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
-        entry = line[3:] if len(line) > 3 else line.strip()
-        # A rename/copy renders as `orig -> dest`; treat both endpoints as dirty.
-        if " -> " in entry:
-            orig, dest = entry.split(" -> ", 1)
-            dirty.add(orig.strip())
-            dirty.add(dest.strip())
-        else:
-            dirty.add(entry.strip())
+    dirty = lane_containment.parse_porcelain_paths(out)
     return sorted(incoming & dirty)
 
 
@@ -7500,6 +7584,29 @@ RETRYABLE_STALE_RECEIPT_SUMMARY: str = "is STALE: the plan content changed since
 #: key on one machine-readable token. Consumed through r2i1b1's `Refusal` record, NOT a second field.
 FINALIZE_REFUSAL_CODE: str = "finalize-refused"
 
+#: IPD 1fzist (rfhiu2): Stable refusal code recorded when resolve_plan_path fails before finalize.
+#: Sited beside FINALIZE_REFUSAL_CODE, NOT in VERIFY_ABSENCE_CODES: the verification-absence vocabulary
+#: is a closed 4-tuple guarding the post-execution verification pass, and expanding it for a lifecycle
+#: finalize refusal would conflate two distinct failure domains and break verification-absence consumers (F-6).
+FINALIZE_PLAN_UNRESOLVABLE_CODE: str = "finalize-plan-unresolvable"
+
+
+def finalize_unresolvable_text(plan_path: Path, exc: DriverError) -> tuple[str, str]:
+    """The human REASON and REMEDY for a plan whose re-resolution failed before finalize (1fzist).
+
+    Follows the three-property reason and concrete-remedy shape required by the Refusal contract.
+    """
+    reason = (
+        f"the runner could not re-resolve plan {plan_path.name} before finalize: {exc}. "
+        "Deliberately did not fall back to a known-stale path; no lifecycle finalize ran and nothing was merged"
+    )
+    remedy = (
+        f"locate the plan by its id6 with `aw find plans {plan_path.name}` (or by id6) and check it exists. "
+        "The lane worktree and its committed work are PRESERVED; do not re-run or discard the lane"
+    )
+    return reason, remedy
+
+
 #: The per-item key counting how many times THIS item has been re-dispatched by the send-back. Counted
 #: separately from `attempts`, because an item accrues attempts for reasons that have nothing to do
 #: with a refusal (an interrupt, a `--retry-incomplete` requeue), and spending correction budget on
@@ -7960,7 +8067,10 @@ def finalize_retry_remedy(
             "or remove the stale lock file if the recorded process is dead"
         )
 
-    command = getattr(labels, "command", None) or "aw oc"
+    # `labels.command` ALREADY CARRIES THE VERB (`aw oc run` / `aw agy run`), so suffixing `run`
+    # renders `aw oc run run resume <run-id>` (plan `z3si7r`). The fallback carries the verb for the
+    # same reason, matching `turn_retry_remedy`.
+    command = getattr(labels, "command", None) or "aw oc run"
     if retry:
         return (
             "no action needed yet: the run is handing this item back to the same agent in this run "
@@ -7970,7 +8080,7 @@ def finalize_retry_remedy(
     return (
         f"complete the plan's `E-*`/`V-*` bookkeeping (tick each performed item and paste the real "
         f"observed evidence), confirm with `aw ipd lint {id6} --phase pre-transition`, then finalize "
-        f"with `aw ipd finalize {id6}` or resume the run with `{command} run resume <run-id>`. Do NOT "
+        f"with `aw ipd finalize {id6}` or resume the run with `{command} resume <run-id>`. Do NOT "
         f"discard the lane: the work itself is preserved there and is what the bookkeeping describes"
     )
 
@@ -7995,9 +8105,10 @@ def finalize_retry_remedy(
 #     implement exactly these semantics, are tested, and are NOT reimplemented for fun.
 #   * They are UNREACHABLE from a driver run. Both take a `run_engine.RunEngine` first positional
 #     argument and immediately call `engine.reconstruct_state()`; `RunEngine` requires a
-#     `RunLedgerStore` over a hash-chained `ledger.jsonl`; and NO driver run writes one (neither
-#     driver imports `run_engine` at all). Spec `25kzda`'s own preamble concedes it: "the ledger is
-#     built but UNWIRED".
+#     `RunLedgerStore` over a hash-chained `ledger.jsonl`; and NO driver run writes one (no
+#     `ledger.jsonl` exists in the repository, and neither driver imports `run_engine`). Spec
+#     `25kzda` Section 6.2 still lists "the durable storage location for run ledgers" as an open
+#     repository-level choice.
 #   * The state VOCABULARIES are disjoint too: `plan_retry` raises `NoRetryableStateError` for any
 #     step not in `run_state.STATE_FAILED`/`STATE_BLOCKED`, and a driver queue item never holds
 #     either value (it holds `failed-safely`/`partial`/`interrupted` and friends).
@@ -8019,40 +8130,12 @@ def finalize_retry_remedy(
 #      called "the dangerous half" to drop, because a correction that inherits the failed attempt's
 #      green verification would be blessed by the very evidence that was wrong.
 
-#: The driver dispositions a turn failure may be retried from: spec `25kzda` 5.5's "host spawn
-#: failure" and "host nonzero exit that did not create an ambiguous side effect".
-#:
-#: AN ALLOWLIST, NEVER A DENYLIST, and the reason is a measured conflation rather than style.
-#: `failed-safely` is written BOTH for a genuine driver error AND, per the comment at
-#: `reconcile_disposition`'s deliberate-stop branch, for cases the classifier could not otherwise tell
-#: from a DELIBERATE OPERATOR STOP. Retrying an operator's stop would spend paid model turns fighting
-#: the operator. A denylist of never-retryable classes would retry every class nobody remembered to
-#: list, which is the opposite of spec 5.5's construction ("may spend budget ONLY on failures
-#: classified as retryable").
-#:
-#: WHY EACH MEMBER IS IN, AND WHY EVERY OTHER DISPOSITION IS OUT, is the table in
-#: :data:`TURN_RETRY_CLASSIFICATION` below; it is data rather than prose so a test can assert on it.
-#:
-#: WHY `partial` IS **NOT** HERE, decided during execution and recorded because the obvious reading of
-#: spec 5.5 would include it. `partial` means the turn RAN and fell short, which is a different fact
-#: from the host failing, and re-dispatching every such item is ALREADY OWNED by approved sibling plan
-#: `dy9ymn` ("Retry a turn that provably attempted nothing instead of blocking its Set with a terminal
-#: partial"), whose scope says in terms: "EXCLUDES retrying any item that produced ANY evidence of
-#: work". A blanket `partial` retry is therefore strictly broader than the predicate that plan exists
-#: to build, and it MEASURABLY breaks five shipped tests that pin `partial` as terminal
-#: (`tests/test_defect_report.py::RescoreAfterAReaskTests` x4, whose whole subject is an item that
-#: answered honestly that it is still partial, and `tests/test_oc_runipd.py::test_verifier_gate`,
-#: where a verifier DOWNGRADE writes `partial`). Retrying a turn whose VERIFIER rejected it would also
-#: spend correction budget on a class `1bfppy` is separately wiring. So this layer takes the
-#: unambiguous host-failure class only, and the narrow "attempted nothing" verdict stays `dy9ymn`'s.
-TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset({"failed-safely"})
-
 #: Every disposition a driver can persist, with its retryable verdict and the REASON. One row per
 #: value, so "is this retryable?" is answered from a table a reader can audit rather than from a
-#: conditional. `tests/test_retry_consumption.py` (trimmed in `19313eed`; coverage now asserted in
-#: `tests/test_silent_turn_observability.py` and `tests/test_runner_shared.py`) asserted this table covers both drivers'
-#: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES`, so a status added elsewhere without a
-#: verdict here FAILS A TEST instead of silently defaulting to retryable.
+#: conditional. `tests/test_retry_class_mapping.py` asserts this table covers both drivers'
+#: `TERMINAL_STATES` and `runner_shutdown.KNOWN_ITEM_STATUSES` (one-directionally: the vocabularies
+#: are covered by the table, which also classifies unlisted statuses), so a status added elsewhere
+#: without a verdict here FAILS A TEST instead of silently defaulting to retryable.
 TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
     # --- retryable: spec 5.5's host-failure classes -----------------------------------------------
     (
@@ -8063,10 +8146,27 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
         "STOP also lands here in some shapes, so `turn_failure_is_retryable` additionally requires "
         "that no `stopped` record is present",
     ),
+    # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
     (
         "failed",
-        True,
-        "spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure, retryable",
+        False,
+        # Option (b) deliberately recorded per IPD 4gx141 E-02:
+        # Reachability measurements: no queue-item producer writes bare "failed" (layout_migration.py
+        # matches assign tx_data["status"], not queue items); token enumeration for item["status"]
+        # finds no bare "failed"; reconcile_disposition returns no bare "failed". F-16 measurement:
+        # "failed" is in TERMINAL_STATES_CANONICAL and NOT in TERMINAL_STATUS_ALIASES, so it is a canonical
+        # token with no live producer (an aspirational row, not a legacy spelling). Setting False
+        # preserves exact shipped behavior, eliminates the self-contradicting reason string in
+        # turn_failure_is_retryable, and aligns with the allowlist.
+        "spec 5.5 'host spawn failure' / 'host nonzero exit': generic undiagnosed turn failure. "
+        "Not retryable: canonical token with no live queue-item producer (row was aspirational); "
+        "flipping to False preserves shipped behavior and eliminates reason contradiction (IPD 4gx141)",
+    ),
+    (
+        "already-landed",
+        False,
+        "not a failure: the item's lane work was found already on HEAD at dispatch (mergeskip gate "
+        "`8k0z40`); retrying would re-dispatch a paid turn for work that is already landed",
     ),
     # --- never retryable: spec 5.5's never-retry list, its state gates, and other owners ----------
     (
@@ -8198,6 +8298,39 @@ TURN_RETRY_CLASSIFICATION: tuple[tuple[str, bool, str], ...] = (
     ),
     ("queued", False, "not a finished turn; it has not run yet"),
     ("running", False, "not a finished turn; it is still in flight"),
+)
+
+#: The driver dispositions a turn failure may be retried from: spec `25kzda` 5.5's "host spawn
+#: failure" and "host nonzero exit that did not create an ambiguous side effect".
+#:
+#: DERIVED directly from :data:`TURN_RETRY_CLASSIFICATION` above (IPD 4gx141) so the two sources of
+#: truth cannot diverge. Change the table row rather than editing this set.
+#:
+#: AN ALLOWLIST, NEVER A DENYLIST, and the reason is a measured conflation rather than style.
+#: `failed-safely` is written BOTH for a genuine driver error AND, per the comment at
+#: `reconcile_disposition`'s deliberate-stop branch, for cases the classifier could not otherwise tell
+#: from a DELIBERATE OPERATOR STOP. Retrying an operator's stop would spend paid model turns fighting
+#: the operator. A denylist of never-retryable classes would retry every class nobody remembered to
+#: list, which is the opposite of spec 5.5's construction ("may spend budget ONLY on failures
+#: classified as retryable").
+#:
+#: WHY EACH MEMBER IS IN, AND WHY EVERY OTHER DISPOSITION IS OUT, is the table in
+#: :data:`TURN_RETRY_CLASSIFICATION` above; it is data rather than prose so a test can assert on it.
+#:
+#: WHY `partial` IS **NOT** HERE, decided during execution and recorded because the obvious reading of
+#: spec 5.5 would include it. `partial` means the turn RAN and fell short, which is a different fact
+#: from the host failing, and re-dispatching every such item is ALREADY OWNED by approved sibling plan
+#: `dy9ymn` ("Retry a turn that provably attempted nothing instead of blocking its Set with a terminal
+#: partial"), whose scope says in terms: "EXCLUDES retrying any item that produced ANY evidence of
+#: work". A blanket `partial` retry is therefore strictly broader than the predicate that plan exists
+#: to build, and it MEASURABLY breaks five shipped tests that pin `partial` as terminal
+#: (`tests/test_defect_report.py::RescoreAfterAReaskTests` x4, whose whole subject is an item that
+#: answered honestly that it is still partial, and `tests/test_oc_runipd.py::test_verifier_gate`,
+#: where a verifier DOWNGRADE writes `partial`). Retrying a turn whose VERIFIER rejected it would also
+#: spend correction budget on a class `1bfppy` is separately wiring. So this layer takes the
+#: unambiguous host-failure class only, and the narrow "attempted nothing" verdict stays `dy9ymn`'s.
+TURN_RETRYABLE_DISPOSITIONS: frozenset[str] = frozenset(
+    name for name, retryable, _ in TURN_RETRY_CLASSIFICATION if retryable
 )
 
 #: The per-item key counting turn corrections spent. SEPARATE from
@@ -8873,7 +9006,14 @@ def recorded_outcome_path(run_dir: Path, item: Mapping[str, Any]) -> Path | None
 
     Split out from :func:`read_recorded_outcome` because the zero-work predicate needs a different
     question: that reader collapses "absent" and "unparseable" into one `None`, and those are OPPOSITE
-    answers here (absent PROVES nothing was written; unparseable proves nothing at all)."""
+    answers here (absent PROVES nothing was written; unparseable proves nothing at all).
+
+    DELIBERATELY a pure path helper that creates nothing on disk. Absence of the outcome file
+    (and of the `outcomes/` directory itself) is a meaningful answer rather than an error condition
+    to be fixed with a mkdir. The guarantee for agent-written outcome paths is sited at prompt-build
+    time where the promise is made (`prepare_lane_submission_dir` on the non-isolated branch, and
+    `build_verifier_prompt`), decided under backlog 3kr193.
+    """
 
     position = item.get("position")
     id6 = item.get("id6")
@@ -9751,7 +9891,7 @@ def classify_integration_refusal(integ_kind: str) -> bool:
 def resolve_integration_retry_limit(cli_value: Any) -> int:
     """`--integration-retry-limit`'s effective value: CLI over the default of 10.
 
-    DELIBERATELY NOT CLAMPED TO SPEC 2.1's 0..10 RANGE, which bounds the CORRECTION budget
+    DELIBERATELY NOT CLAMPED TO SPEC 5.5's 0..10 RANGE, which bounds the CORRECTION budget
     specifically (`resolve_retry_budget` reaches that bound through
     `run_recovery.validate_retry_budget`). Conflating the two is the category error spec 2.1's new
     Rules bullet and backlog `5wdoze` both name explicitly. A NEGATIVE value is refused, because a
@@ -10423,7 +10563,6 @@ def reattempt_deferred_integrations(
     save_state: Callable[..., Any],
     append_jsonl: Callable[..., Any],
     handle_for: Callable[[Mapping[str, Any]], Any],
-    validation_runner_for: Callable[[Mapping[str, Any]], Any],
     integrate_review: Callable[..., tuple[bool, str, str]] | None = None,
     finish_integrated_review: Callable[..., None] | None = None,
     poll: bool = False,
@@ -10440,6 +10579,16 @@ def reattempt_deferred_integrations(
     through `orchestrate_isolation.execute_merge_and_revalidate_gate`. There is deliberately no
     shortcut that treats a clean `dirty_tree_overlap` as sufficient: that would prove only the absence
     of un-owned dirt, and say nothing about whether the suite still passes against today's main.
+    The injected ``integrate`` closure OWNS revalidation, and this ladder therefore takes no
+    validation-runner injection of its own; a caller wanting a different re-attempt runner must bind
+    it into ``integrate``. The alternative of injecting a ladder-level runner was rejected on measured
+    evidence (building the runner on a `dict(item)` copy writes `post_merge_revalidation` to the copy
+    leaving `REVALIDATION_CACHE_KEY` absent on the live item, causing a harness fault to be classified
+    as a measured `fail-merge` rather than `merge-unchecked`) and on structural grounds: the ladder
+    dispatches between ``integrate`` and ``integrate_review``, and the review adapter
+    `_integrate_review` calls `integrate_review_lane_branch(repo, handle, id6)` with no runner because
+    a review revalidates nothing, so a single ladder-level runner injection could not be meaningful for
+    one of the two paths it would serve.
 
     ``poll``/``ask`` are passed by the caller when NOTHING ELSE IS DISPATCHABLE (the loop's own
     `runnable is None`), which is rung 2's trigger. That condition covers both the last-item case and
@@ -10778,9 +10927,6 @@ def retry_deferred_integrations(
         save_state=save_state,
         append_jsonl=append_jsonl,
         handle_for=_handle_for,
-        validation_runner_for=lambda item: make_validation_runner(
-            state, run_dir, dict(item), suite_check=run_suite_check
-        ),
         poll=poll,
         interactive=is_interactive_run(
             argparse.Namespace(
@@ -10978,11 +11124,12 @@ def ask_operator_about_integration(
 #      would be a way to land an UNVALIDATED lane on main while pasting a green gate result as proof
 #      of verification. So `reintegrate_lane` supplies a REAL validation runner, whose body runs the
 #      repository suite in the PRIMARY checkout, and refuses on a non-passing result.
-#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `oc_runipd`, and
-#      `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks THIS module and fails on any
-#      import naming `runipd`, at module level or lazily inside a function. Copying its body would
-#      fork its fail-closed reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked`
-#      and `host_label` already are on `integrate_lane_branch` (see this module's docstring).
+#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `runner_shared`
+#      (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks
+#      THIS module and fails on any import naming `runipd`, at module level or lazily inside a function.
+#      Copying its body would fork its fail-closed reading of exit 124/127. So it is a PARAMETER,
+#      exactly as `run_checked` and `host_label` already are on `integrate_lane_branch` (see this
+#      module's docstring).
 #
 # AND THE INTEGRATION BASE IS THE LANE'S OWN DECLARED BASE, exactly as the in-run path passes it.
 # `orchestrate_isolation.stale_base_check` compares the FIRST lane outcome's own `base_commit` to the
@@ -11281,21 +11428,43 @@ def reintegrate_lane(
             )
         candidate = found[0]
 
+    lane_id = worktree_lease.lane_id_from_branch(candidate.branch) or candidate.lane_id
     lane = worktree_lease.inspect_lane(
         repo,
-        worktree_lease.lane_id_from_branch(candidate.branch) or candidate.lane_id,
+        lane_id,
         base_commit=candidate.base_commit or "HEAD",
     )
 
     if lane.state == worktree_lease.LANE_ABSENT:
+        dangling_candidates = find_dangling_commits_by_subject(repo, lane_id) or []
+        if dangling_candidates:
+            few = dangling_candidates[:3]
+            few_desc = "; ".join(f"{c.sha[:10]} ({c.subject!r})" for c in few)
+            cap_note = (
+                f" (showing newest {len(few)})"
+                if len(dangling_candidates) > len(few)
+                else ""
+            )
+            reason = (
+                "lane {0} no longer exists (no branch and no registered worktree). "
+                "Found {1} dangling candidate commit(s) matching {2}{3}: {4}. "
+                "Subject matches are candidates rather than proof of authorship or usability. "
+                "To test whether a candidate carries usable unmerged work, probe with: "
+                "git merge-tree --write-tree main <sha>. "
+                "Note that dangling objects are local to this checkout and git garbage collection may prune them."
+            ).format(
+                candidate.branch, len(dangling_candidates), lane_id, cap_note, few_desc
+            )
+        else:
+            reason = (
+                "lane {0} no longer exists (no branch and no registered worktree). "
+                "No dangling candidate commits matching {1} were found in git objects. "
+                "Dangling objects are local to this checkout and git garbage collection may prune them."
+            ).format(candidate.branch, lane_id)
         return ReintegrationOutcome(
             integrated=False,
             code=REINTEGRATE_LANE_ABSENT,
-            reason=(
-                "lane {0} no longer exists (no branch and no registered worktree), so there is "
-                "nothing to integrate; whatever the run recorded has been removed out of "
-                "band".format(candidate.branch)
-            ),
+            reason=reason,
             candidate=candidate,
         )
     # `owner_live` is Optional[bool]: None means UNKNOWN owner and must never be read as "not live".
@@ -11719,6 +11888,44 @@ def integrate_stranded_lanes(
     return records
 
 
+def _integrate_stranded_lanes(
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    *,
+    integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+    save_state: Callable[..., Any],
+    process_backlog_close: Callable[..., Any] | None = None,
+    suite_check: Callable[..., Any] | None = None,
+    append_jsonl: Callable[..., Any] = append_jsonl,
+) -> list[dict[str, Any]]:
+    """integpath-04 (`rl67b0`) / baskrx (`9oj6t2`): shared resume-time integration shell.
+
+    Lifts the common wiring from both host runners (`oc_runipd` and `agy_runipd`). The host-neutral
+    setup (resolving `repo` from `state` and constructing the palette) and operator-facing narration
+    sink live here.
+
+    Binds only what is host-specific from the caller: `integrate`, `save_state`, and
+    `process_backlog_close`. Note that `Palette(should_color(sys.stdout))` paired with printing to
+    `sys.stderr` is deliberate: `should_color` inspects the stream a human is reading while the
+    narration goes to the operational stream (stderr).
+    """
+    if suite_check is None:
+        suite_check = run_suite_check
+    repo = Path(state["repo"])
+    pal = Palette(should_color(sys.stdout))
+    return integrate_stranded_lanes(
+        repo=repo,
+        run_dir=run_dir,
+        state=state,
+        integrate=integrate,
+        suite_check=suite_check,
+        save_state=save_state,
+        append_jsonl=append_jsonl,
+        process_backlog_close=process_backlog_close,
+        report=lambda message: print(pal(message, "cyan"), file=sys.stderr),
+    )
+
+
 def render_reintegration_result(outcome: ReintegrationOutcome, *, id6: str) -> str:
     """The verb's operator-facing sentence for one attempt. ONE renderer, so both hosts agree."""
 
@@ -11790,6 +11997,38 @@ def add_integrate_parser(sub: Any, *, command: str = "aw oc run") -> Any:
         help="Disambiguate when the id6 has more than one recorded lane (e.g. an attempt-scoped one)",
     )
     return integrate
+
+
+def handle_integrate_command(
+    args: argparse.Namespace,
+    *,
+    integrate: Callable[[Path, Any, str, Any], tuple[bool, str, str]],
+    suite_check: Callable[..., Any] | None = None,
+) -> int:
+    """Execute the `integrate` verb: re-attempt integration for one verified lane, NO agent turn.
+
+    Lifts the common shell from both host runners (baskrx `9oj6t2`). Thin wrapper in each host binds
+    its host-specific `integrate_lane_branch` callable. The runner import rule forbids runner_shared
+    importing either driver, so the driver callable is injected.
+
+    EXIT CONTRACT: 0 integrated, 1 refused (nothing was merged, main untouched, the lane preserved).
+    Exit code 2 for a usage/driver error is produced by each host's main error handling.
+    STREAM ROUTING: success to stdout, refusal to stderr.
+    """
+    if suite_check is None:
+        suite_check = run_suite_check
+    repo = Path(getattr(args, "repo", ".") or ".").resolve()
+    id6 = str(getattr(args, "id6", "") or "")
+    outcome = reintegrate_lane(
+        repo,
+        id6,
+        integrate=integrate,
+        suite_check=suite_check,
+        run_id=getattr(args, "run_id", None),
+    )
+    message = render_reintegration_result(outcome, id6=id6)
+    print(message, file=sys.stdout if outcome.integrated else sys.stderr)
+    return 0 if outcome.integrated else 1
 
 
 AUDIT_VERB_HELP = (
@@ -12380,13 +12619,14 @@ def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
 
 
 def _read_from_backlog(text: str) -> str | None:
-    """The plan's `- From-Backlog:` id6, or None when the field is absent/empty.
+    """The plan's `- From-Backlog:` id6, or None when the field is absent/empty/malformed (okp2o4).
 
     THE FIELD NAME IS THE SCHEMA'S, NOT A LOCAL REGEX (zhr6mc E-01). `ipd_schema.META_FROM_BACKLOG`
     is the single authority the checkers already use, so the runner and `aw check` cannot come to
     disagree about what the field is called. The metadata block is read by `ipd_lint.parse`, the same
     structural fence-aware reader the lint and lifecycle surfaces use -- identical in form to how
-    `_read_item_dependencies` reads its own field, and for the identical reason.
+    `_read_item_dependencies` reads its own field, and for the identical reason. The value is classified
+    by `ipd_schema.classify_source_link`, so malformed inputs yield None rather than a junk token.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
@@ -12396,10 +12636,10 @@ def _read_from_backlog(text: str) -> str | None:
     except Exception:
         return None
     raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
-    if _schema.source_link_is_absent(raw):
-        return None
-    token = raw.split()[0].strip("\"'").strip()
-    return token if ID6_RE.fullmatch(token) else None
+    cls = _schema.classify_source_link(raw)
+    if cls.verdict == _schema.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
 
 
 class PlanRecord(NamedTuple):
@@ -12817,10 +13057,9 @@ def discover_specs(repo: Path) -> dict[str, SpecRecord]:
         return specs
 
     for path, text in records:
-        m = _ce._ITEM_ID_RE.search(text)
-        if not m:
+        id6 = _ce._read_item_id(text)
+        if not id6:
             continue  # no id6 -> unnameable, unattestable; see docstring.
-        id6 = m.group(1)
         if id6 in specs:
             continue  # first wins, matching `discover_plans`'s de-duplication by resolved path.
         status = (_sel.read_front_matter_status(text) or "").strip().lower()
@@ -13449,12 +13688,12 @@ def match_spec_selector(
 
     IT REPORTS, IT DOES NOT ENQUEUE, and the distinction is this function's honest limit. A run QUEUE
     ENTRY is plan-shaped - `build_dynamic_manifest` compiles `discover_plans` alone and
-    `initialize_run_core`'s queue loop reads `manifest["plans"][id6]` with a BARE SUBSCRIPT - so
-    returning a spec id6 into the expanded selection would raise `KeyError` there rather than run it.
-    Per-type DISPATCH is owned by spec `z7nbn1` (universal artifact dispatch) 4.1/4.3, which names
-    this exact plans-only queue as "the single structural blocker" and `ACTION_PLAN` as having no
-    consumer. So the caller's obligation is to REFUSE with a message naming the spec, which is what
-    :func:`describe_spec_selector_refusal` composes.
+    `lookup_manifest_artifact` gates manifest access - so returning a spec id6 into the expanded
+    selection would be refused rather than run it. Per-type DISPATCH is owned by spec `z7nbn1`
+    (universal artifact dispatch) 4.1/4.3, which names this exact plans-only queue as "the single
+    structural blocker" and `ACTION_PLAN` as having no consumer. So the caller's obligation is to
+    REFUSE with a message naming the spec, which is what :func:`describe_spec_selector_refusal`
+    composes.
 
     ``manifest_plans`` supplies the shadowed-plan evidence and may be omitted; None yields an empty
     tuple rather than raising, matching the fail-safe posture of the rest of selector expansion.
@@ -13552,7 +13791,7 @@ def expand_selectors(
         effective = tuple(
             resolve_run_types(types) if types is not None else RUN_TYPE_DEFAULT
         )
-        expanded: list[str] = []
+        expanded: list[str] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
         seen: set[str] = set()
         effective_repo = Path(repo) if repo is not None else Path(".")
 
@@ -13949,7 +14188,7 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
                         try:
                             from agent_workflows import check_engine as _ce
 
-                            if _ce._ITEM_ID_RE.search(p.read_text(encoding="utf-8")):
+                            if _ce._read_item_id(p.read_text(encoding="utf-8")):
                                 declared = True
                                 break
                         except Exception:
@@ -14465,8 +14704,9 @@ RESUME_NONE_DEFAULT = "none-default"
 #: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
 #: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
 #: refusal with no sanctioned override is how an operator learns to work around a gate instead of
-#: through it. Spec 2.1 declares it in the same commit, because `tests/test_run_flag_surface.py` reads
-#: the spec FILE in BOTH directions and a row here that 2.1 does not declare fails the suite.
+#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+#: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+#: that spec 2.1 declare every row here in the same change remains in force.
 #:
 #: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
 #: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
@@ -14618,13 +14858,12 @@ RUN_POLICY_FLAGS: tuple = (
         help=(
             "Expand the selection to the transitive declared dependency closure BEFORE the queue is "
             "frozen, so a prerequisite outside your selection is enqueued instead of merely being "
-            "state-checked. PLAN TARGETS ONLY: a spec or backlog dependency target REFUSES, because "
-            "the run manifest is built from the plans trees and has no queue entry for one (this is "
-            "narrower than spec 25kzda, which subjects any newly introduced type to the mixed-type "
-            "gate). A target already in a terminal disposition (executed, superseded, not-executed, "
-            "reusable) is SKIPPED, since its work is done; an unresolvable target refuses rather than "
-            "expanding partially. Changes selection only: every declared dependency is enforced "
-            "either way"
+            "state-checked. Non-plan targets (specs, backlog items) are handled three ways: enqueued "
+            "when enqueuing can satisfy the edge, skipped when already met, and refused with a "
+            "status-naming reason otherwise. A target already in a terminal disposition (executed, "
+            "superseded, not-executed, reusable) is SKIPPED, since its work is done; an unresolvable "
+            "target refuses rather than expanding partially. Changes selection only: every declared "
+            "dependency is enforced either way"
         ),
     ),
     RunPolicyFlag(
@@ -14664,8 +14903,9 @@ RUN_POLICY_FLAGS: tuple = (
     # THIS table, and not on each host's parser, on the maintainer's 2026-09-07 OQ-04 ruling: the
     # shared spec-governed table is what stops the two hosts diverging, which is the failure
     # `--full-auto` already demonstrated (default `False` on one host, `True` on the other). Spec
-    # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here, because
-    # `tests/test_run_flag_surface.py` reads that section as a FILE in BOTH directions.
+    # `25kzda` 2.1 was amended to DECLARE both in the same change that registers them here: the former
+    # guard (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
+    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
     RunPolicyFlag(
         flag="--integration-retry-limit",
         dest="integration_retry_limit",
@@ -14685,9 +14925,9 @@ RUN_POLICY_FLAGS: tuple = (
         resume_rule=RESUME_REFUSE,
     ),
     # orchprobe-03 (`m7gvuz`) E-05: the orchestrator coverage gate's UNATTENDED half. Spec `25kzda`
-    # 2.1 and the new 2.5b are amended in the same change that registers it, because
-    # `tests/test_run_flag_surface.py` reads that section as a FILE in BOTH directions and a row here
-    # the spec does not declare fails the suite.
+    # 2.1 and the new 2.5b are amended in the same change that registers it: the former data-driven
+    # test (`tests/test_run_flag_surface.py`) was deleted in `19313eed` (carrier: backlog `xvp5vx`),
+    # but the requirement that spec 2.1 declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, WHICH IS WHY IT IS THE TABLE'S FIRST `"str"` ROW. The risk it accepts
     # is that a parent plan's own items are reported complete having never been performed OR verified,
@@ -14711,10 +14951,9 @@ RUN_POLICY_FLAGS: tuple = (
         ),
     ),
     # runconcur-01 (`vddpml`) E-04: the integration-serialization ESCAPE HATCH. Spec `25kzda` 2.1 is
-    # amended in the SAME change that registers it, because `tests/test_run_flag_surface.py` reads that
-    # section as a FILE in BOTH directions and a row here the spec does not declare fails the suite
-    # (proven at review by construction: injecting one undeclared flag turned
-    # `test_the_spec_and_the_owned_table_agree_in_both_directions` RED).
+    # amended in the SAME change that registers it: the bidirectional test (`tests/test_run_flag_surface.py`)
+    # was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+    # that spec 2.1 declare every registered row in the same change remains in force.
     #
     # IT TAKES A JUSTIFICATION, the table's second `"str"` row, for the same reason
     # `--allow-uncovered-orchestrator-work` does: the risk it accepts is that two drivers publish to
@@ -14807,7 +15046,7 @@ RUN_POLICY_FLAGS_BY_FLAG: dict = {row.flag: row for row in RUN_POLICY_FLAGS}
 #: `{dest: RunPolicyFlag}`, for a caller reading an `argparse.Namespace` or a frozen options dict.
 RUN_POLICY_FLAGS_BY_DEST: dict = {row.dest: row for row in RUN_POLICY_FLAGS}
 
-#: Spec 2.1's default retry budget. NOT a second definition of the value: it is read FROM
+#: Spec 5.5's default retry budget. NOT a second definition of the value: it is read FROM
 #: `run_recovery.DEFAULT_RETRY_LIMIT` at call time (see `resolve_retry_budget`), and this name exists
 #: only so a reader of this section knows where the number lives.
 RETRY_BUDGET_OWNER = "run_recovery.DEFAULT_RETRY_LIMIT"
@@ -14968,9 +15207,9 @@ def resolve_retry_budget(
     repo: Any = None,
     warn: Any = None,
 ) -> int:
-    """Spec 2.1's retry-budget precedence, and the ONE place the range bound is reached.
+    """Spec 5.5's retry-budget precedence, and the ONE place the range bound is reached.
 
-    ALL THREE TIERS SHIP: per spec 2.1 and 5.5 the precedence is CLI over repository policy over the
+    ALL THREE TIERS SHIP: per spec 5.5 the precedence is CLI over repository policy over the
     default of 2. The middle tier is `config.policy_retry_budget`, reading spec 5.5's
     `run.retry_budget` from the committed `.aw/config/project.json`.
 
@@ -15163,6 +15402,127 @@ class ClosureRefusal(DriverError):
     """
 
 
+def action_can_satisfy_edge(
+    edge: Any,
+    target_type: str,
+    current_status: str,
+    *,
+    action: str | None = None,
+) -> tuple[bool, str]:
+    """Can a dispatchable action on this target move it to the status demanded by `edge`?
+
+    Returns ``(can_satisfy, reason)``; ``reason`` is empty string when ``can_satisfy`` is True.
+    When False, ``reason`` explains why the derived action cannot bridge the target's current
+    status and the demanded status.
+
+    Derived from :func:`run_selection_policy.runner_action` (the single status-to-action authority).
+    Consumed by both :func:`closure_target_admission` (E-02) and :func:`enforce_freeze_time_refusal`
+    (E-03) so the two cannot diverge.
+    """
+    from agent_workflows import run_selection_policy as _policy
+
+    norm_type = str(target_type or "").strip().lower()
+    norm_status = str(current_status or "").strip().lower()
+    if action is None:
+        action = _policy.runner_action(norm_type, norm_status)
+    norm_action = str(action or "").strip().lower()
+
+    if edge.kind == "exists":
+        # An exists: edge is satisfied by existing on disk. If the artifact exists, it was already
+        # satisfied (edge_satisfied returns True). An exists: edge that reaches here cannot be
+        # satisfied by enqueuing, because enqueuing cannot create an absent record.
+        return (
+            False,
+            f"enqueuing missing {norm_type} target {edge.id6} cannot create a record",
+        )
+
+    if edge.kind == "state":
+        demanded_status = str(edge.status or "").strip().lower()
+        if norm_status == demanded_status:
+            return True, ""
+
+        if norm_type == "backlog":
+            # Backlog: open -> action 'plan' graduates the item (transitions to 'graduated').
+            # No runner action transitions a backlog item to 'done', 'blocked', or 'parked'.
+            if norm_status == "open" and norm_action == "plan":
+                if demanded_status == "graduated":
+                    return True, ""
+                return False, (
+                    f"derived action 'plan' transitions backlog from 'open' to 'graduated', "
+                    f"not demanded status '{demanded_status}'"
+                )
+            return False, (
+                f"backlog target {edge.id6} is currently '{norm_status}' with action '{norm_action}', "
+                f"which cannot reach demanded status '{demanded_status}'"
+            )
+
+        if norm_type == "spec":
+            # Spec: to-review -> action 'review' reviews the spec (transitions to 'reviewed').
+            # Approval ('approved') requires explicit human attestation and cannot be reached by
+            # runner action. Action 'plan' on an approved spec authors IPDs and does not change spec status.
+            if norm_status == "to-review" and norm_action == "review":
+                if demanded_status == "reviewed":
+                    return True, ""
+                if demanded_status == "approved":
+                    return False, (
+                        f"approval requires human attestation and cannot be reached by runner action '{norm_action}'"
+                    )
+                return False, (
+                    f"derived action 'review' transitions spec from 'to-review' to 'reviewed', "
+                    f"not demanded status '{demanded_status}'"
+                )
+            if demanded_status == "approved":
+                return False, (
+                    f"approval requires human attestation and cannot be reached by runner action '{norm_action}'"
+                )
+            return False, (
+                f"spec target {edge.id6} is currently '{norm_status}' with action '{norm_action}', "
+                f"which cannot reach demanded status '{demanded_status}'"
+            )
+
+        if norm_type == "ipd":
+            if norm_status in ("draft", "to-review") and norm_action == "review":
+                if demanded_status == "reviewed":
+                    return True, ""
+                return False, (
+                    f"derived action 'review' transitions ipd from '{norm_status}' to 'reviewed', "
+                    f"not demanded status '{demanded_status}'"
+                )
+            if norm_status in (
+                "approved",
+                "auto-approved",
+                "reviewed",
+            ) and norm_action in (
+                "execute",
+                "orchestrate",
+            ):
+                if demanded_status == "executed":
+                    return True, ""
+                return False, (
+                    f"derived action '{norm_action}' transitions ipd from '{norm_status}' to 'executed', "
+                    f"not demanded status '{demanded_status}'"
+                )
+            return False, (
+                f"ipd target {edge.id6} is currently '{norm_status}' with action '{norm_action}', "
+                f"which cannot reach demanded status '{demanded_status}'"
+            )
+
+        return False, (
+            f"{norm_type} target {edge.id6} is currently '{norm_status}' with action '{norm_action}', "
+            f"which cannot reach demanded status '{demanded_status}'"
+        )
+
+    if edge.kind == "executed":
+        # Executed edge (always ipd target type)
+        if norm_action in ("execute", "orchestrate"):
+            return True, ""
+        return False, (
+            f"ipd target {edge.id6} is queued with action '{norm_action}' which cannot reach executed"
+        )
+
+    return False, f"unrecognized edge kind '{edge.kind}'"
+
+
 def closure_target_admission(
     repo: Path,
     edge: Any,
@@ -15174,8 +15534,8 @@ def closure_target_admission(
 
     ``verdict`` is one of:
 
-      * ``"add"``      - a plan target, present in the manifest, in a NON-terminal disposition.
-      * ``"skip"``     - a target adding cannot help (terminal disposition). ``reason`` says which.
+      * ``"add"``      - a target whose enqueuing can satisfy the edge.
+      * ``"skip"``     - a target adding cannot help (already satisfied or terminal disposition).
       * ``"refuse"``   - the closure cannot honestly enqueue it; the caller raises with ``reason``.
 
     PURE APART FROM READING THE REPOSITORY, and deliberately separate from the walk so the POLICY
@@ -15188,134 +15548,14 @@ def closure_target_admission(
     about what the run enforced - which is the very thing `refuse_unimplemented_run_flags` exists to
     prevent, and it would be perverse to replace that refusal with a quieter version of the same lie.
     """
-
-    from agent_workflows import ipd_schema as _schema
+    from agent_workflows import run_selection_policy as _policy
 
     tok = edge.canonical()
 
-    if edge.target_type != "ipd":
-        # E-03 / OQ-03: A NON-PLAN TARGET IS REFUSED AT THE SEAM, and this is a KNOWN, WRITTEN-DOWN
-        # GAP BETWEEN THE SPEC AND THE IMPLEMENTATION rather than a quiet narrowing.
-        #
-        # THE SPEC PRESUPPOSES OTHERWISE. Spec 25kzda :166 says "Any newly introduced type is subject
-        # to the same mixed-type gate", which only means something if a `spec` or `backlog` target can
-        # join the queue, and `ipd_schema.ITEM_DEP_TYPES` does admit `exists:spec:<id6>` and
-        # `state:backlog:<status>:<id6>` as legal grammar. So this refusal is NARROWER than the
-        # approved spec, and `--with-dependencies`'s own `--help` says so, because a narrowing visible
-        # only in a plan record leaves the shipped command lying.
-        #
-        # WHY REFUSING IS NEVERTHELESS RIGHT HERE, and why the two permissive options were not taken:
-        #
-        #   * THE QUEUE IS BUILT FROM MANIFEST DATA AND THE MANIFEST IS PLANS-ONLY. `discover_plans`
-        #     walks `.aw/records/plans` and `.agents/plans` and nothing else, so a non-plan target has
-        #     no entry to build a queue item from. Constructing one invents a SECOND queue-entry shape
-        #     that every downstream consumer (dispatch, ordering, reporting, resume) would have to
-        #     learn, and extending discovery makes a live mixed selection reachable for the first
-        #     time, which is a real behavioral change deserving its own review.
-        #   * ADMITTING ONE WITHOUT ALSO GUARDING THE QUEUE BUILDER IS UNSAFE. `initialize_run_core`'s
-        #     per-item first statement is an unguarded `manifest["plans"][id6]`, and it runs AFTER the
-        #     run directory is created, so a non-plan id6 that got that far would raise a bare
-        #     `KeyError` with durable state already written - a traceback instead of a message, and
-        #     the loss of the no-durable-state property the flag refusal was careful to have.
-        #   * REFUSING NEEDS NEITHER CHANGE, is loud, names the type, and precedes the run directory,
-        #     so the spec's wider intent stays available to a plan that can review the discovery
-        #     change on its own merits.
-        record_type = _schema.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(edge.target_type)
-        return "refuse", (
-            f"{tok}: --with-dependencies cannot enqueue a {edge.target_type} target. The run "
-            f"manifest is built from the plans trees only, so a {record_type or edge.target_type} "
-            f"record has no queue entry to build. This is NARROWER than spec 25kzda :166, which "
-            f"subjects any newly introduced type to the mixed-type gate; the gap is recorded in "
-            f"`closure_target_admission` and stated in --with-dependencies's own --help. Satisfy "
-            f"this edge outside the run, or re-run without --with-dependencies (the edge is still "
-            f"enforced either way)."
-        )
-
-    try:
-        path = resolve_plan_path(repo, "", edge.id6)
-    except DriverError as exc:
-        # OQ-02, DECIDED: AN UNRESOLVABLE TARGET REFUSES THE RUN rather than warning past it.
-        #
-        # THE REASONING IS THE FLAG'S OWN PURPOSE. An operator passes `--with-dependencies` to be
-        # CERTAIN the prerequisites are in the queue; a partially expanded closure delivers a
-        # selection that is neither the one they asked for nor the one they would have got without the
-        # flag, and they have no way to tell from the outside which. That is the same category of
-        # falsehood the unimplemented-flag refusal was written to avoid, so proceeding with a warning
-        # would trade a loud lie for a quiet one.
-        #
-        # WHAT IT COSTS, stated honestly: one dangling edge in one selected plan refuses an otherwise
-        # legitimate selection. Measured in this repository at execution, that cost is ZERO today -
-        # all 43 declared edges across the pending plans resolve to a real artifact and NONE dangles -
-        # so the strict choice forbids nothing anybody is doing, while the permissive choice would be
-        # paying for a case that does not occur.
-        #
-        # CONSISTENT WITH `f6idxs` (`depverb-01`), which refuses a dangling dependency target at WRITE
-        # time. Two surfaces, one rule: a dependency naming nothing is an error, not a warning. The
-        # obligation between the plans is consistency of RULE, not of sequence (no file overlap), so
-        # either may land first.
-        #
-        # WITHOUT the flag nothing changes: the edge is still checked by the dependency preflight and
-        # re-checked at dispatch, on its own merits. Only the EXPANSION refuses.
-        return "refuse", (
-            f"{tok}: --with-dependencies cannot resolve dependency target {edge.id6}, so the "
-            f"closure would be incomplete and the run would not be the one you asked for "
-            f"({exc}). Fix the dangling edge, or re-run without --with-dependencies (the edge is "
-            f"still enforced either way)."
-        )
-
-    # THE SKIP RULE, and it guards against a re-execution bug rather than untidiness.
-    # `discover_plans` recurses EVERY disposition directory, so the manifest carries terminal plans
-    # too: measured at execution, 694 discoverable plans of which 547 are `- Status: executed`, and 12
-    # of the 43 `executed:` edges declared across the pending plans point at a target that is ALREADY
-    # in a terminal directory. `action_for(kind, "executed")` returns `"skip"` (spec `z7nbn1` 1.2/5.6),
-    # so a closure that enqueued every declared target would hand the runner FINISHED PLANS that skip
-    # rather than work.
-    #
-    # WHAT PREVENTS DISPATCH IS INCIDENTAL AND MUST NOT BE LEANED ON: the queue builder
-    # assigns `status: "reviewed"` to any status outside
-    # `("to-review","draft","approved","auto-approved")`, and the dispatch loop only picks
-    # `status == "queued"` items. Neither was written as a terminal-target filter, and either could
-    # change for an unrelated reason, at which point a closure without this rule becomes a
-    # re-execution bug. So the closure filters for itself.
-    #
-    # SATISFACTION IS ASKED OF THE ONE SHIPPED AUTHORITY, `oc_runipd.edge_satisfied`, and is NOT
-    # re-derived here. That function is the single definition of "is this typed edge met?" (both hosts
-    # import it; the agy module re-exports the oc object rather than defining a second), and it is
-    # callable with no run in existence: `item` only supplies the action and `state` only the repo, so
-    # asking it at queue-build time is asking exactly the question the dispatch-time re-check will ask
-    # later. Writing a second rule here is how the two would come to disagree, and a closure that
-    # believed an edge unmet while dispatch believed it met would enqueue work dispatch then skips.
-    #
-    # THE ACTION IS `execute`, the STRICTER of the two the predicate distinguishes: a review turn
-    # accepts a merely `reviewed`/`approved` target (it needs the target's TEXT), while an execute turn
-    # demands terminal execution evidence (it consumes the target's WORK). The closure cannot know
-    # which action the dependent will take until the queue is built, so it asks the strict question;
-    # the consequence is conservative in the safe direction (an edge judged UNMET means the target is
-    # ADDED, never silently dropped).
-    #
-    # AN ALREADY-SATISFIED EDGE IS SKIPPED WITHOUT TOUCHING SATISFACTION SEMANTICS (spec :351). Every
-    # declared edge is still enforced by the preflight and by the dispatch-time re-check, whether or
-    # not its target was selected. The closure merely declines to ADD a node that adding cannot help.
-    #
-    # THE DISPOSITION CHECK IS KEPT AS A SECOND, INDEPENDENT REASON rather than being folded into the
-    # first, because the two answer different questions and neither implies the other. A `superseded`
-    # or `not-executed` plan does NOT satisfy an `executed:` edge (the predicate correctly says so),
-    # yet enqueuing it is still wrong: it is retired work, and running it is not how the edge gets met.
-    # `reusable` is skipped for its own reason - a standing plan is run on purpose by an operator who
-    # names it, and pulling one in as a side effect of another selection would execute recurring work
-    # nobody asked for in this run.
-    #
-    # THE PREDICATE IS INJECTED, NEVER IMPORTED, and that is an ARCHITECTURE RULE this module is held
-    # to rather than a style choice: `runner_shared` must import NEITHER runner, because doing so would
-    # drag one host's possibly-diverged behavior into code BOTH hosts run, and it would create an import
-    # cycle. Two shipped guards enforce it
-    # (`tests/test_runner_shared.py::NoRunnerImportTests::test_runner_shared_imports_neither_runner` and
-    # `tests/test_rununify_host_descriptor.py::TheSharedModuleStaysCleanTests`), and a `from
-    # agent_workflows import oc_runipd` here - even lazily, inside the function - FAILS both, measured.
-    # So `initialize_run_core` threads the host's own `edge_satisfied` down as
-    # `edge_satisfied_fn`, exactly as it already threads `expand_selectors_fn` and
-    # `enforce_dependency_preflight_fn`. With no predicate supplied the satisfaction half is SKIPPED
-    # (not faked), and the disposition half below still applies.
+    # SATISFACTION IS ASKED FIRST (spec 25kzda Section 2.1; plan yu47nf E-02).
+    # An already-satisfied edge is skipped without touching satisfaction semantics. Every declared
+    # edge is still enforced by the preflight and by the dispatch-time re-check, whether or not its
+    # target was selected. The closure merely declines to ADD a node that adding cannot help.
     try:
         already_met = bool(
             edge_satisfied_fn
@@ -15324,16 +15564,57 @@ def closure_target_admission(
             ]
         )
     except Exception:
-        # The predicate is the authority on satisfaction, NOT on whether the closure may proceed: if it
-        # cannot answer, the closure falls through to the disposition check and (for a non-terminal
-        # target) ADDS the plan. Failing toward inclusion is right here, because the cost of an extra
-        # queue item is an item the dispatch-time re-check will skip, while the cost of a wrong
-        # exclusion is a prerequisite the operator asked for and did not get.
         already_met = False
     if already_met:
         return "skip", (
             f"{tok}: already satisfied against current repository state "
             f"(oc_runipd.edge_satisfied), so enqueuing {edge.id6} cannot help"
+        )
+
+    if edge.target_type != "ipd":
+        # NON-PLAN TARGET ADMISSION (spec 25kzda Section 2.1, plan yu47nf E-02).
+        # A non-plan target is admitted when enqueuing it can satisfy the edge, skipped when already
+        # met (handled above), and refused when no dispatchable action can bridge the statuses.
+        if edge.kind == "exists":
+            # An exists: edge on an absent target cannot be satisfied by enqueuing: enqueuing
+            # cannot create an artifact.
+            return "refuse", (
+                f"{tok}: dependency target {edge.id6} does not exist in repository records, "
+                "and enqueuing cannot create an artifact"
+            )
+
+        try:
+            atype, item_info = lookup_manifest_artifact(manifest, repo, edge.id6)
+        except DriverError as exc:
+            return "refuse", (
+                f"{tok}: dependency target {edge.id6} does not exist in repository records "
+                f"({exc}), and enqueuing cannot create an artifact"
+            )
+
+        current_status = item_info.get("status") or (
+            "to-review" if atype == "spec" else "open"
+        )
+        action = _policy.runner_action(atype, current_status)
+        can_satisfy, bridge_reason = action_can_satisfy_edge(
+            edge, atype, current_status, action=action
+        )
+        if can_satisfy:
+            return "add", ""
+
+        return "refuse", (
+            f"{tok}: dependency target {edge.id6} has current status '{current_status}', which cannot reach "
+            f"demanded status '{edge.status}': {bridge_reason}. Satisfy this edge outside the run, or re-run "
+            "without --with-dependencies (the edge is still enforced either way)."
+        )
+
+    try:
+        path = resolve_plan_path(repo, "", edge.id6)
+    except DriverError as exc:
+        return "refuse", (
+            f"{tok}: --with-dependencies cannot resolve dependency target {edge.id6}, so the "
+            f"closure would be incomplete and the run would not be the one you asked for "
+            f"({exc}). Fix the dangling edge, or re-run without --with-dependencies (the edge is "
+            f"still enforced either way)."
         )
 
     bucket = plan_bucket(path)
@@ -15344,10 +15625,6 @@ def closure_target_admission(
         )
 
     if edge.id6 not in manifest.get("plans", {}):
-        # A PLAN THE MANIFEST DOES NOT CARRY, which is reachable with an EXPLICIT `--manifest` even
-        # though dynamic discovery always carries every plan. Refused rather than fabricated: the
-        # queue entry's `configured_file`, `set` and `order` come from the manifest, and inventing
-        # them would put an item in the queue whose Set membership and ordering nobody declared.
         return "refuse", (
             f"{tok}: dependency target {edge.id6} resolves to {path.name} but is absent from the "
             f"run manifest, so --with-dependencies has no queue entry to build for it. Add it to "
@@ -15980,7 +16257,7 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
             # integpath-03 (`51vw4y`) E-02: resolved to its EFFECTIVE integer here, exactly as
             # `retry_budget` is, so no later reader has to re-resolve a bare `None` (and re-resolve it
             # differently). Its own resolver, NOT `resolve_retry_budget`: the two count different
-            # quantities and this one is deliberately not clamped to spec 2.1's 0..10 range.
+            # quantities and this one is deliberately not clamped to spec 5.5's 0..10 range (the contrast spec 2.1's Rules bullet names).
             frozen[row.dest] = resolve_integration_retry_limit(_supplied(row.dest))
         elif row.dest == "on_integration_blocked":
             frozen[row.dest] = resolve_on_integration_blocked(_supplied(row.dest))
@@ -16216,6 +16493,200 @@ def _parse_host_config(
         return None, oc_models.CARD_UNPARSEABLE
 
 
+#: Closed set of source labels for launch_model_for_role (attmodel czut8j E-01).
+LAUNCH_MODEL_SOURCES = frozenset(("options", "cost_attribution", "unrecorded"))
+LAUNCH_MODEL_SOURCE_OPTIONS = "options"
+LAUNCH_MODEL_SOURCE_COST_ATTRIBUTION = "cost_attribution"
+LAUNCH_MODEL_SOURCE_UNRECORDED = "unrecorded"
+
+
+def launch_model_for_role(
+    options: Mapping[str, Any] | None,
+    *,
+    role: str = "execute",
+) -> tuple[str, str]:
+    """Answer which model this turn will run under, and who said so, from frozen options.
+
+    Accepts the role vocabulary the runners already distinguish: ``execute`` and ``verify``.
+    A review and a recovery turn are the execute launch and resolve to it (F-04).
+
+    The precedence matches what the argv actually does:
+    For role ``"verify"``:
+    Reads ``options["verify_model"]`` only when ``options.get("verify_launch_profile")`` is truthy,
+    which is the exact condition ``oc_runipd.run_opencode`` computes before selecting the
+    ``verify_*`` key triple; otherwise falls through to the executor keys. Then, and only when the
+    primary key is empty, falls back to ``options["verify_" + COST_ATTRIBUTION_KEY]["model"]``.
+
+    DIVERGENCE FROM ``run_analytics._verify_model_of`` (DELIBERATE, F-08):
+    The claim that this introduces no third opinion is false for the verify role on two measured points:
+    1. ORDER: ``_verify_model_of`` reads ``verify_cost_attribution`` FIRST and ``options["verify_model"]``
+       SECOND, returning ``provC/from-ca`` where this rule returns ``provB/from-options``.
+    2. GATE: ``_verify_model_of`` ignores ``verify_launch_profile`` entirely, so on a run carrying
+       ``verify_model`` without that profile it returns the verifier's model where this rule correctly
+       returns the executor's (``provB/from-options`` versus ``provA/exec``).
+    This rule is implemented anyway because it is the correct one: the gate is what
+    ``oc_runipd.run_opencode`` actually computes before selecting the key triple, so this rule matches
+    the argv while the consumer is reading a run-level field with no gate available to it. A recorded
+    model that disagrees with the launched one is the defect this plan exists to prevent. Reconciling
+    the consumer is Order 03's (``r5fk4k``) declared job.
+
+    DIVERGENCE ON AGY ``explicit_model`` (DELIBERATE):
+    On an options mapping with ``model: None``, ``explicit_model: agy/explicit`` and a
+    ``cost_attribution.model``, ``run_dashboard._run_model`` returns ``('agy/explicit', 'options')``
+    while ``run_analytics._model_of`` returns ``'ca/model'`` because analytics never reads
+    ``explicit_model``. Follow the dashboard (the agy argv is built from the frozen effective model
+    while ``explicit_model`` records the CLI one), reporting source ``"options"`` from the three-value
+    closed set.
+
+    Pure function: mapping in, pair out. Takes no Path, reads no file, and never raises on malformed
+    options (a non-mapping ``cost_attribution`` is treated as absent).
+    Returns ``(model, source)`` where source is one of ``"options"``, ``"cost_attribution"``, or
+    ``"unrecorded"``.
+    """
+    if not isinstance(options, Mapping):
+        return "", LAUNCH_MODEL_SOURCE_UNRECORDED
+
+    norm_role = (role or "execute").strip().lower()
+    if norm_role == "verify" and options.get("verify_launch_profile"):
+        v_model = options.get("verify_model")
+        if v_model:
+            return str(v_model), LAUNCH_MODEL_SOURCE_OPTIONS
+        v_ca = options.get("verify_" + COST_ATTRIBUTION_KEY)
+        if isinstance(v_ca, Mapping):
+            ca_model = v_ca.get("model")
+            if ca_model:
+                return str(ca_model), LAUNCH_MODEL_SOURCE_COST_ATTRIBUTION
+        return "", LAUNCH_MODEL_SOURCE_UNRECORDED
+
+    # Executor launch (role "execute", review, recovery, or verify with no verify_launch_profile)
+    model = options.get("model") or options.get("explicit_model")
+    if model:
+        return str(model), LAUNCH_MODEL_SOURCE_OPTIONS
+
+    ca = options.get(COST_ATTRIBUTION_KEY)
+    if isinstance(ca, Mapping):
+        ca_model = ca.get("model")
+        if ca_model:
+            return str(ca_model), LAUNCH_MODEL_SOURCE_COST_ATTRIBUTION
+
+    return "", LAUNCH_MODEL_SOURCE_UNRECORDED
+
+
+# =================================================================================================
+# VERIFICATION SPELLING RECORDING & CONTRADICTION REFUSAL (zdgc6t)
+# =================================================================================================
+
+#: Namespace key carrying the canonical spellings of verification flags typed by the operator.
+#: NAMED WITH A LEADING UNDERSCORE on purpose: this is a parse artifact, not a run option or
+#: policy setting. It must not leak into durable run state (`state.json`), which is built from
+#: named `getattr(args, ...)` reads and `freeze_run_policy_flags`'s explicit table, never from
+#: `vars(args)`. If future code ever bases state freezing on `vars(args)`, this key must be
+#: excluded.
+_RECORDED_VERIFICATION_FLAGS_KEY: str = "_recorded_verification_flags"
+
+VERIFICATION_ON_SPELLINGS: frozenset[str] = frozenset(
+    {"--validate", "--verify", "--audit"}
+)
+VERIFICATION_OFF_SPELLINGS: frozenset[str] = frozenset(
+    {"--no-validate", "--no-verify", "--no-audit"}
+)
+
+
+def _record_verification_spelling(
+    namespace: Any,
+    option_string: str | None,
+) -> None:
+    """Record a typed verification flag spelling lazily on `namespace`."""
+    if not option_string:
+        return
+    recorded = getattr(namespace, _RECORDED_VERIFICATION_FLAGS_KEY, None)
+    if recorded is None:
+        recorded = []
+        setattr(namespace, _RECORDED_VERIFICATION_FLAGS_KEY, recorded)
+    recorded.append(option_string)
+
+
+class RecordingBooleanOptionalAction(argparse.BooleanOptionalAction):
+    """A `BooleanOptionalAction` that records the canonical spelling typed by the operator.
+
+    Used on `oc` (`start` and `resume`) and `agy` (`start`) to record which verification spelling
+    the operator typed, while delegating to `super().__call__` to preserve the parsed `dest` value.
+    """
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        _record_verification_spelling(namespace, option_string)
+        super().__call__(parser, namespace, values, option_string=option_string)
+
+
+class RecordingStoreTrueAction(argparse.Action):
+    """An `argparse.Action` matching `store_true` that records typed verification spellings.
+
+    Subclasses public `argparse.Action` rather than private `argparse._StoreTrueAction` (F-13)
+    for cross-Python compatibility across the `>=3.9` range. Used on `agy start` for the separate
+    `--no-verify`/`--no-audit` registration.
+    """
+
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: str,
+        default: Any = False,
+        required: bool = False,
+        help: str | None = None,
+    ) -> None:
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            nargs=0,
+            const=True,
+            default=default,
+            required=required,
+            help=help,
+        )
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        _record_verification_spelling(namespace, option_string)
+        setattr(namespace, self.dest, True)
+
+
+def refuse_contradictory_verification_flags(args: Any) -> None:
+    """Refuse an invocation where the operator typed contradictory verification flags.
+
+    Raises :class:`RunFlagRefusal` when at least one ON spelling (`--validate`, `--verify`,
+    `--audit`) and at least one OFF spelling (`--no-validate`, `--no-verify`, `--no-audit`)
+    were typed in the same invocation. Repeating one polarity (e.g. `--validate --verify`)
+    is not a contradiction and returns silently. A namespace with no recorded flags
+    (e.g. hand-built partial namespace or no flags passed) also returns silently.
+    """
+    recorded: Sequence[str] | None = getattr(
+        args, _RECORDED_VERIFICATION_FLAGS_KEY, None
+    )
+    if not recorded:
+        return
+
+    has_on = any(s in VERIFICATION_ON_SPELLINGS for s in recorded)
+    has_off = any(s in VERIFICATION_OFF_SPELLINGS for s in recorded)
+    if has_on and has_off:
+        distinct_typed = list(dict.fromkeys(recorded))
+        typed_str = " and ".join(distinct_typed)
+        raise RunFlagRefusal(
+            f"{typed_str} contradict each other: one asks to run turn-2 verification "
+            "and the other asks to skip it. Pass flags of only one polarity."
+        )
+
+
 class VerificationDecision(NamedTuple):
     """WHETHER a verifier turn runs for this run, plus WHICH tier decided it.
 
@@ -16328,23 +16799,19 @@ def enforce_mixed_type_gate(
     single-type. The wiring is proven correct; a live mixed selection being gated is NOT proven, and
     must not be reported as if it were.
 
-    `--with-dependencies` SHIPPING DID NOT CHANGE THAT LIMIT, and the reason is worth stating because
-    the obvious reading is the wrong one (depclosure 01, `dhycim`). Spec 25kzda :166 makes the closure
-    the one route by which a NEW TYPE could enter a selection, so the flag looks like it should make
-    this gate live. It does not, for two reasons that compound:
+    `--with-dependencies` CAN NOW PRODUCE A LIVE MIXED SELECTION (plan `yu47nf`). Spec 25kzda Section 2.1
+    makes the closure a route by which a new type can enter a selection, subject to the mixed-type
+    gate. Under `yu47nf`:
 
-      * THE CLOSURE REFUSES A NON-PLAN TARGET. `closure_target_admission` returns `refuse` for a
-        `spec` or `backlog` edge, because the manifest is plans-only and has no queue entry to build
-        for one. So every id the closure can add is an IPD, and an expansion introduces no new type.
-      * EVEN IF IT ADMITTED ONE, THIS FUNCTION WOULD NOT SEE IT. The gate is handed
-        `selected_plan_paths`, not `queue_ids`, and that list is built by a loop that resolves
-        `manifest["plans"][id6]` inside `except (DriverError, KeyError): continue`. A manifest-absent
-        target is therefore DROPPED BEFORE `classify_paths` ever types it, so the very type the spec
-        wants gated would be invisible here. A future plan that admits non-plan targets must fix THAT
-        LOOP as well, or it will have built an expansion this gate silently cannot gate.
-
-    So after the closure shipped the position is unchanged and must be reported unchanged: the wiring
-    is proven correct; a live mixed selection being gated is NOT proven.
+      * THE CLOSURE ADMITS NON-PLAN TARGETS. `closure_target_admission` admits a `spec` or `backlog`
+        edge when enqueuing the target can satisfy it (or skips when already met), so the closure can
+        expand an IPD selection into a mixed selection.
+      * THE GATE RECEIVES ALL EXPANDED PATHS. In `initialize_run_core`, the gate is handed
+        `list(selection.all_paths)` from `resolve_selected_artifact_paths`, which includes resolved
+        specs and backlog paths alongside plans. Preserving `kqb9ok`'s queue-build seam validation,
+        any unresolvable IPD entry is refused ahead of durable state, while valid mixed expansions
+        are gated by `enforce_mixed_type_gate` (raising `[RUN-MIXED-TYPES]` unless `--allow-mixed`
+        is passed).
 
     Returns the `Verdict` so the caller can record spec 2.5 bullet 4's four facts in the run ledger.
     """
@@ -16701,8 +17168,8 @@ def format_slated_artifacts_table(
 
 
 #: The shipped lane prompt's timeout, reused so the two prompts in this package cannot disagree about
-#: how long a run may wait for a human. `_lane_reclaim_prompt` uses 10s in both runners.
-GATE_PROMPT_TIMEOUT: float = 10.0
+#: how long a run may wait for a human. `_lane_reclaim_prompt` uses 180s in both runners.
+GATE_PROMPT_TIMEOUT: float = 180.0
 
 
 def prompt_for_gate_phrase(
@@ -18976,6 +19443,7 @@ def enforce_freeze_time_refusal(
     repo: Path,
     full_auto: bool = False,
     host: str = "oc",
+    color: bool | None = None,
 ) -> None:
     """Freeze-time whole-run refusal gate (spec `z7nbn1` 1.3, 1.4, 1.7; plan `jdn790`).
 
@@ -18984,6 +19452,11 @@ def enforce_freeze_time_refusal(
     1. Undetermined action (spec 5.1, 1.7)
     2. Non-conformant artifact structure (spec 5.2, 1.3)
     3. Provably unsatisfiable dependency (spec 5.3, 1.4)
+
+    When color is enabled (defaulting to stderr capability), id6 references to
+    the queued artifact are styled in bold yellow (\\033[1;33m...\\033[0m) and target
+    dependency id6 references are styled in bold cyan (\\033[1;36m...\\033[0m). When
+    color is disabled, plain text is returned.
 
     Collects EVERY finding across all queued items and raises a single DriverError.
     """
@@ -18994,11 +19467,15 @@ def enforce_freeze_time_refusal(
     from agent_workflows import run_selection_policy as _policy
     from agent_workflows.selectors import read_front_matter_status as _read_status
 
+    enabled_color = should_color(sys.stderr) if color is None else bool(color)
+    pal = Palette(enabled_color)
+
     findings: list[str] = []
     queue_by_id = {str(entry.get("id6")): entry for entry in queue if entry.get("id6")}
 
     for entry in queue:
         id6 = str(entry.get("id6") or "")
+        styled_id6 = pal(id6, "bold", "yellow")
         atype = str(entry.get("artifact_type") or "")
         status = str(entry.get("initial_status") or entry.get("status") or "")
         action = str(entry.get("action") or "")
@@ -19024,16 +19501,16 @@ def enforce_freeze_time_refusal(
         # -------------------------------------------------------------------------
         if action == "undetermined":
             if atype == "ipd":
-                setter = f"aw ipd set <status> {id6}"
+                setter = f"aw ipd set <status> {styled_id6}"
             elif atype == "spec":
-                setter = f"aw specs set <status> {id6}"
+                setter = f"aw specs set <status> {styled_id6}"
             elif atype == "backlog":
-                setter = f"aw backlog set <status> {id6}"
+                setter = f"aw backlog set <status> {styled_id6}"
             else:
-                setter = f"aw set <status> {id6}"
+                setter = f"aw set <status> {styled_id6}"
             findings.append(
-                f"[RUN-UNDETERMINED-ACTION] {atype} {id6} ({rel_path}) has status {status}, "
-                f"for which no action is defined. Set a defined status with {setter}, then: aw {host} run {id6}"
+                f"[RUN-UNDETERMINED-ACTION] {atype} {styled_id6} ({rel_path}) has status {status}, "
+                f"for which no action is defined. Set a defined status with {setter}, then: aw {host} run {styled_id6}"
             )
 
         # -------------------------------------------------------------------------
@@ -19041,15 +19518,15 @@ def enforce_freeze_time_refusal(
         # -------------------------------------------------------------------------
         if abs_path is None or not abs_path.is_file():
             findings.append(
-                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {id6} ({rel_path}) in status {status} "
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} "
                 f"violates RUN-NOT-FOUND: artifact file '{rel_path}' does not exist on disk. "
-                f"Repair it, run aw check all {id6}, then: aw {host} run {id6}"
+                f"Repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
             )
         elif atype not in ("ipd", "spec", "backlog"):
             findings.append(
-                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {id6} ({rel_path}) in status {status} "
+                f"[RUN-STRUCTURE-PREFLIGHT] {atype} {styled_id6} ({rel_path}) in status {status} "
                 f"violates RUN-TYPE-UNKNOWN: unrecognized artifact type '{atype}'. "
-                f"Repair it, run aw check all {id6}, then: aw {host} run {id6}"
+                f"Repair it, run aw check all {styled_id6}, then: aw {host} run {styled_id6}"
             )
         elif atype == "ipd":
             if not _policy.is_in_terminal_directory(str(abs_path)):
@@ -19074,18 +19551,18 @@ def enforce_freeze_time_refusal(
                             if lint_res.diagnostics:
                                 for d in lint_res.diagnostics:
                                     findings.append(
-                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
-                                        f"violates {d.code}: {d.message}. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                                        f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
+                                        f"violates {d.code}: {d.message}. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                                     )
                             else:
                                 findings.append(
-                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
-                                    f"violates IPD-ERROR: structural checker error. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                                    f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
+                                    f"violates IPD-ERROR: structural checker error. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                                 )
                     except Exception as exc:
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {id6} ({rel_path}) in status {status} "
-                            f"violates IPD-READ-ERROR: {exc}. Repair it, run aw check plans {id6}, then: aw {host} run {id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] ipd {styled_id6} ({rel_path}) in status {status} "
+                            f"violates IPD-READ-ERROR: {exc}. Repair it, run aw check plans {styled_id6}, then: aw {host} run {styled_id6}"
                         )
         elif atype == "spec":
             try:
@@ -19101,13 +19578,13 @@ def enforce_freeze_time_refusal(
                 for d in drifts:
                     if getattr(d, "severity", "") != "info":
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] spec {id6} ({rel_path}) in status {status} "
-                            f"violates {d.rule}: {d.detail}. Repair it, run aw check specs {id6}, then: aw {host} run {id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} "
+                            f"violates {d.rule}: {d.detail}. Repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
                         )
             except Exception as exc:
                 findings.append(
-                    f"[RUN-STRUCTURE-PREFLIGHT] spec {id6} ({rel_path}) in status {status} "
-                    f"violates SPEC-READ-ERROR: {exc}. Repair it, run aw check specs {id6}, then: aw {host} run {id6}"
+                    f"[RUN-STRUCTURE-PREFLIGHT] spec {styled_id6} ({rel_path}) in status {status} "
+                    f"violates SPEC-READ-ERROR: {exc}. Repair it, run aw check specs {styled_id6}, then: aw {host} run {styled_id6}"
                 )
         elif atype == "backlog":
             try:
@@ -19123,13 +19600,13 @@ def enforce_freeze_time_refusal(
                 for d in drifts:
                     if getattr(d, "severity", "") != "info":
                         findings.append(
-                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {id6} ({rel_path}) in status {status} "
-                            f"violates {d.rule}: {d.detail}. Repair it, run aw check backlog {id6}, then: aw {host} run {id6}"
+                            f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} "
+                            f"violates {d.rule}: {d.detail}. Repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
                         )
             except Exception as exc:
                 findings.append(
-                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {id6} ({rel_path}) in status {status} "
-                    f"violates BACKLOG-READ-ERROR: {exc}. Repair it, run aw check backlog {id6}, then: aw {host} run {id6}"
+                    f"[RUN-STRUCTURE-PREFLIGHT] backlog {styled_id6} ({rel_path}) in status {status} "
+                    f"violates BACKLOG-READ-ERROR: {exc}. Repair it, run aw check backlog {styled_id6}, then: aw {host} run {styled_id6}"
                 )
 
         # -------------------------------------------------------------------------
@@ -19222,19 +19699,47 @@ def enforce_freeze_time_refusal(
                             or target_entry.get("status")
                             or ""
                         )
+                        t_q_status = target_entry.get("status")
+                        t_needs_input = target_entry.get(
+                            NEEDS_INPUT_KEY, False
+                        ) or target_entry.get("needs_input", False)
+                        if t_q_status != "queued" or t_needs_input:
+                            why = f"is frozen in status '{t_q_status}' awaiting approval and will not be dispatched"
+                        else:
+                            can_satisfy, bridge_reason = action_can_satisfy_edge(
+                                edge,
+                                str(
+                                    target_entry.get("artifact_type")
+                                    or getattr(edge, "target_type", "")
+                                ),
+                                target_status,
+                                action=target_entry.get("action") or "",
+                            )
+                            if can_satisfy:
+                                could_be_met = True
+                            else:
+                                why = bridge_reason
                     else:
                         target_status = "absent"
-                    why = (
-                        edge_reason
-                        or "is not satisfied and this run cannot change that"
-                    )
+                        why = (
+                            edge_reason
+                            or "is not satisfied and this run cannot change that"
+                        )
 
                 if not could_be_met:
                     edge_tok = getattr(edge, "canonical", lambda: str(dep))()
-                    recovery = f"Add it to the selection or run with --with-dependencies, then: aw {host} run {id6}"
+                    styled_target_id6 = (
+                        pal(target_id6, "bold", "cyan") if target_id6 else target_id6
+                    )
+                    styled_edge_tok = (
+                        edge_tok.replace(target_id6, styled_target_id6)
+                        if target_id6
+                        else edge_tok
+                    )
+                    recovery = f"Add it to the selection or run with --with-dependencies, then: aw {host} run {styled_id6}"
                     findings.append(
-                        f"[RUN-DEPENDENCY-UNSATISFIABLE] {id6} requires {edge_tok}; {target_id6} is {target_status} and {why} "
-                        f"[{atype} {id6} at {rel_path}, status: {status}]. {recovery}"
+                        f"[RUN-DEPENDENCY-UNSATISFIABLE] {styled_id6} requires {styled_edge_tok}; {styled_target_id6} is {target_status} and {why} "
+                        f"[{atype} {styled_id6} at {rel_path}, status: {status}]. {recovery}"
                     )
 
     if findings:
@@ -20121,6 +20626,7 @@ def dispatch_orchestrator_item(
     terminal_states: Container[str],
     success_states: Container[str],
     terminal_status: str = "fail-depend",
+    recovery_hint: str | None = None,
 ) -> OrchestratorDispatch:
     """PERFORM the retire/reconsider/terminate outcome for one `orchestrate` item. BOTH HOSTS.
 
@@ -20288,6 +20794,8 @@ def dispatch_orchestrator_item(
         f"executed:{child}": f"child {child} is {st or 'unfinished'}"
         for child, st in decision.unfinished
     }
+    if recovery_hint:
+        item["dependency_block_recovery"] = recovery_hint
     # The typed cause, additive, so a consumer need not parse prose to learn WHICH refusal happened.
     #
     # KEPT, NOT REPLACED, by the `Refusal` record below (runghostid `zyw4n3` E-03). These two fields
@@ -20358,8 +20866,7 @@ def dispatch_orchestrator_item(
 #   * A CYCLE among queued items. Structurally unsatisfiable, and already reported by the static
 #     evaluator through `preflight_dependency_findings`, so downgrading it here would contradict a
 #     finding the run already emitted.
-#   * A DANGLING or UNSATISFIABLE EXTERNAL edge (a target not in this run). `edge_satisfied`'s own
-#     reason text says it: "it is not in this run, so it cannot become satisfied here". There is no
+#   * A DANGLING or UNSATISFIABLE EXTERNAL edge (a target not in this run). There is no
 #     `--with-dependencies` closure inside a frozen run, so waiting cannot pay off.
 #   * ANY terminal-non-success prerequisite. The cascade normally labels these BEFORE the drain is
 #     reached, but this predicate must agree with it rather than assume it ran, or the two functions
@@ -20483,8 +20990,8 @@ def classify_drain_block(
             continue
         entry = by_id.get(str(getattr(edge, "id6", "")))
         if entry is None:
-            # EXTERNAL target: not in this run at all. `edge_satisfied` already says why, so reuse its
-            # recorded reason rather than inventing a second wording for one fact.
+            # EXTERNAL target: not in this run at all. Reuse `edge_satisfied`'s recorded refusal when
+            # available rather than inventing a second wording for one fact.
             permanent_causes.append(
                 reasons.get(tok)
                 or f"{tok}: target is not in this run, so it cannot become satisfied here"
@@ -20680,11 +21187,24 @@ def render_transient_dependency_waits(state: Mapping[str, Any]) -> list[str]:
         lines.append(f"- `{item.get('id6')}` (position {item.get('position')}):")
         deps = record.get("unsatisfied_dependencies") or []
         why = record.get("unsatisfied_dependency_reasons") or {}
+        from agent_workflows.run_selection_policy import (
+            strip_dependency_reason_prefix,
+        )
+
         for dep in deps:
-            lines.append(f"  - `{dep}`: {why.get(dep) or 'dependency not satisfied'}")
+            raw_reason = why.get(dep)
+            dep_reason = (
+                strip_dependency_reason_prefix(dep, raw_reason)
+                if raw_reason
+                else "dependency not satisfied"
+            )
+            lines.append(f"  - `{dep}`: {dep_reason}")
         detail = record.get("detail")
         if detail:
-            lines.append(f"  - Why this is not terminal: {detail}")
+            clean_detail = str(detail)
+            for dep in deps:
+                clean_detail = strip_dependency_reason_prefix(dep, clean_detail)
+            lines.append(f"  - Why this is not terminal: {clean_detail}")
         hint = record.get("recovery")
         if hint:
             lines.append(f"  - Recovery: {hint}")
@@ -22026,18 +22546,22 @@ INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
 # disposition rather than being silently treated as machine truth". This stops a rejection being
 # DISCARDED; it grants the verifier nothing new.
 
-#: The three verdicts `build_verifier_prompt` asks the model for, verbatim from the prompt's schema
-#: line (`"verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED"`). Named so the prompt and its consumer
-#: can be compared by a test instead of by eye.
+#: The three historically-advertised verdict tokens whose order `render_advertised_verdicts`
+#: pins first. The prompt schema line advertises these plus any additional recognized tokens
+#: derived from `_VERDICT_TABLE`; see `ADVERTISED_VERDICTS` and `render_advertised_verdicts` for
+#: the authority on what the prompt currently advertises.
 VERDICT_VERIFIED: str = "VERIFIED"
 VERDICT_CORRECTION_REQUIRED: str = "CORRECTION_REQUIRED"
 VERDICT_BLOCKED: str = "BLOCKED"
 
-#: `NOT CONFORMING`, the one LINTER-vocabulary token that is mapped. It appears nowhere in this
-#: repository except the gate that used to test for it, so nothing is known to emit it; it is mapped
-#: anyway because the cost of an entry is nil, because the pre-existing gate DID honor it (so mapping
-#: it preserves behavior rather than changing it), and because a rejection is the safe reading of a
-#: token containing the word "NOT".
+#: `NOT CONFORMING`, the one LINTER-vocabulary token that is mapped. Two tracked prompts
+#: (`tools/awphysical/agy-self-audit-prompt.md` and `tools/awphysical/agy-spec-audit-prompt.md`)
+#: instruct a model to report exactly this token; they drive `agy_run`'s prose-report path
+#: (`agy_run.build_turn2_prompt`, whose result is printed by `agy_run.main` and parsed by nothing),
+#: so no verdict from them reaches this table TODAY, and that is why the entry is kept as cheap
+#: insurance rather than as a live wiring. It is mapped because the cost of an entry is nil, because
+#: the pre-existing gate DID honor it (so mapping it preserves behavior rather than changing it),
+#: and because a rejection is the safe reading of a token containing the word "NOT".
 VERDICT_NOT_CONFORMING: str = "NOT CONFORMING"
 
 #: `CONFORMING` IS DELIBERATELY *NOT* A PASS, and this is OQ-02 resolved AGAINST the plan's suggested
@@ -22060,7 +22584,9 @@ VERDICT_NOT_CONFORMING: str = "NOT CONFORMING"
 #:
 #: IF A REAL VERIFIER IS EVER OBSERVED WRITING IT, the fix is a PROMPT/schema change (advertise the
 #: accepted tokens) plus an entry here, not a silent widening now on the strength of a plausible story
-#: about a model echoing `aw ipd lint`'s vocabulary. Nothing in the corpus has ever written it.
+#: about a model echoing the two audit prompts' vocabulary (`tools/awphysical/agy-self-audit-prompt.md`
+#: and `tools/awphysical/agy-spec-audit-prompt.md`). Nothing in the corpus has ever written it to
+#: an outcome file parsed by this runner.
 VERDICT_CONFORMING: str = "CONFORMING"
 
 #: What the runner records in `verify_disp` / `item["verification_status"]`. `verified` is the ONLY
@@ -22130,11 +22656,38 @@ _VERDICT_TABLE: dict[str, VerdictMapping] = {
 }
 
 
+#: Historically-advertised tokens, pinned first to ensure the rendered schema is an extension
+#: of the prior string rather than an arbitrary reordering.
+_HISTORICAL_ADVERTISED_ORDER: tuple[str, ...] = (
+    VERDICT_VERIFIED,
+    VERDICT_CORRECTION_REQUIRED,
+    VERDICT_BLOCKED,
+)
+
+#: The ADVERTISED verdict set, derived from recognized entries of `_VERDICT_TABLE`.
+#: Preserves the historical prefix order and appends any additional recognized tokens.
+ADVERTISED_VERDICTS: tuple[str, ...] = tuple(
+    token
+    for token in _HISTORICAL_ADVERTISED_ORDER
+    if token in _VERDICT_TABLE and _VERDICT_TABLE[token].recognized
+) + tuple(
+    token
+    for token, mapping in _VERDICT_TABLE.items()
+    if mapping.recognized and token not in _HISTORICAL_ADVERTISED_ORDER
+)
+
+
+def render_advertised_verdicts() -> str:
+    """Render the advertised verdict tokens in prompt schema shape (`A|B|C`)."""
+    return "|".join(ADVERTISED_VERDICTS)
+
+
 def map_verdict(raw: Any) -> VerdictMapping:
     """Map a raw verifier verdict onto what the runner records. FAIL-CLOSED for anything unknown.
 
     Consumed by BOTH hosts through `execute_item_core`; neither driver carries a verdict test of its
-    own, and `tests/test_runner_refork_guard.py` fails if one grows back.
+    own (formerly checked by `tests/test_runner_refork_guard.py`, deleted in `19313eed`; no live guard
+    currently enforces this).
 
     The `state` values are checked against `run_state`'s own tokens on every call rather than being
     trusted as literals, so a rename in that module surfaces here instead of leaving this file
@@ -22656,6 +23209,23 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
                 lines.append(f"    - `{cmd}`")
         else:
             lines.append("    - (none recorded)")
+        # runverdict-09 (`btak7a`) E-03: render corroboration verdict and reason directly adjacent to tests run.
+        corr_verdict = it.get("corroboration_verdict")
+        corr_reason = it.get("corroboration_reason")
+        if corr_verdict is None:
+            attempts = it.get("attempts")
+            if isinstance(attempts, list) and attempts:
+                last_att = attempts[-1]
+                if isinstance(last_att, dict):
+                    corr_verdict = last_att.get("corroboration_verdict")
+                    corr_reason = last_att.get("corroboration_reason")
+        if corr_verdict:
+            corr_str = (
+                f"{corr_verdict} (reason: {corr_reason})"
+                if corr_reason
+                else str(corr_verdict)
+            )
+            lines.append(f"  - Corroboration: {corr_str}")
         lines.append("  - Corrections made:")
         if corrs:
             for corr in corrs:
@@ -22666,12 +23236,341 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
 
 
 # ==================================================================================================
+# verremand (t18l64): REMAND VERIFICATION EVIDENCE REFUSALS AND VERIFICATION FAILURES
+# ==================================================================================================
+
+#: Separate counter key for verification retry attempts.
+VERIFICATION_RETRY_COUNT_KEY: str = "verification_retry_attempts"
+
+#: Idempotency keys spent for verification retries.
+VERIFICATION_RETRY_KEYS_KEY: str = "verification_retry_keys"
+
+#: Terminal status reached when verification retry budget is exhausted.
+VERIFICATION_RETRY_EXHAUSTED_STATUS: str = "fail-verify"
+
+#: Attempt-level key recording the structured verification refusal.
+VERIFICATION_REFUSED_KEY: str = "verification_refused"
+
+#: Refusal code recorded on verification sendback.
+VERIFICATION_RETRY_REFUSAL_CODE: str = "verification-sent-back"
+
+#: Refusal code recorded when verification retry budget is exhausted.
+VERIFICATION_RETRY_EXHAUSTED_CODE: str = "verification-retry-exhausted"
+
+#: Retryable verification refusal codes.
+VERIFICATION_RETRYABLE_REFUSAL_CODES: frozenset[str] = frozenset(
+    {
+        VERIFY_REFUSAL_CODE_UNEVIDENCED,
+        VERDICT_REFUSAL_CODE_UNREADABLE,
+        VERIFY_ABSENCE_NO_OUTCOME_FILE,
+    }
+)
+
+
+def verification_retry_attempts(item: Mapping[str, Any]) -> int:
+    """How many VERIFICATION corrections this item has already consumed. Never negative."""
+    raw = item.get(VERIFICATION_RETRY_COUNT_KEY)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 0
+    return max(0, raw)
+
+
+def verification_retry_idempotency_key(item: Mapping[str, Any], attempt_no: int) -> str:
+    """The key identifying ONE verification correction, so a repeated decision cannot double-spend."""
+    return f"{item.get('id6') or '?'}:verify-attempt-{int(attempt_no)}"
+
+
+def verification_retry_key_already_spent(item: Mapping[str, Any], key: str) -> bool:
+    """Has this exact verification correction already been recorded?"""
+    recorded = item.get(VERIFICATION_RETRY_KEYS_KEY)
+    return isinstance(recorded, list) and key in recorded
+
+
+def verification_failure_is_retryable(
+    item: Mapping[str, Any], refusal_code: str, verify_disp: str | None = None
+) -> tuple[bool, str]:
+    """Is this verification refusal in the retryable class? Returns (retryable, why)."""
+    stopped = item.get("stopped")
+    if isinstance(stopped, Mapping) and stopped.get("stopped_deliberately"):
+        return (
+            False,
+            "the turn ended in a DELIBERATE OPERATOR STOP, which is an intent and not a failure; "
+            "retrying it would spend paid model turns fighting the operator",
+        )
+    if item.get("finalize_refusal"):
+        return (
+            False,
+            "the turn's failure is a REFUSED FINALIZE, which the finalize send-back already "
+            "classifies and already spends correction budget on (see `finalize_retry_decision`)",
+        )
+    code = (refusal_code or "").strip()
+    disp = (verify_disp or "").strip() if verify_disp else None
+    if code in VERIFICATION_RETRYABLE_REFUSAL_CODES:
+        return (
+            True,
+            f"verification refusal code {code!r} is in spec 5.5's retryable validation-evidence class",
+        )
+    if code == VERDICT_REFUSAL_CODE_DECLINED:
+        if disp == VERIFY_DISP_UNVERIFIED:
+            return (
+                True,
+                f"verification refusal code {code!r} with verify_disp {disp!r} (CORRECTION_REQUIRED) "
+                "is in spec 5.5's retryable validation-evidence class",
+            )
+        if disp == VERIFY_DISP_BLOCKED:
+            return (
+                False,
+                f"verification refusal code {code!r} with verify_disp {disp!r} (BLOCKED/NOT CONFORMING) "
+                "is not retryable: the verifier could not complete (environment/tooling obstacle)",
+            )
+        return (
+            False,
+            f"verification refusal code {code!r} with verify_disp {disp!r} is not retryable",
+        )
+    return (
+        False,
+        f"verification refusal code {code!r} is not in the retryable allowlist",
+    )
+
+
+class VerificationRetryDecision(NamedTuple):
+    """What to do about ONE failed verification. DECIDES ONLY: no state write, no print, no dispatch."""
+
+    retry: bool
+    exhausted: bool
+    reason: str
+    attempts: int
+    budget: int
+    key: str
+
+
+def verification_retry_decision(
+    item: Mapping[str, Any],
+    state: Mapping[str, Any],
+    refusal_code: str,
+    verify_disp: str | None,
+    attempt_no: int,
+) -> VerificationRetryDecision:
+    """Decide RETRY / FAIL-ITEM / LEAVE-ALONE for one failed verification."""
+    used = verification_retry_attempts(item)
+    budget = frozen_retry_budget(state)
+    key = verification_retry_idempotency_key(item, attempt_no)
+    retryable, why = verification_failure_is_retryable(item, refusal_code, verify_disp)
+    if not retryable:
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=why,
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if verification_retry_key_already_spent(item, key):
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=False,
+            reason=(
+                f"verification correction {key} was ALREADY recorded for this item, so this decision spends "
+                f"nothing (idempotency, as `plan_retry` guarantees for a repeated key)"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    if used >= budget:
+        return VerificationRetryDecision(
+            retry=False,
+            exhausted=True,
+            reason=(
+                f"verification failed ({refusal_code}) in a retryable class and the run's correction "
+                f"budget is exhausted ({used} of {budget} correction attempt"
+                f"{'' if budget == 1 else 's'} spent), so the item is FAILED rather than re-dispatched"
+            ),
+            attempts=used,
+            budget=budget,
+            key=key,
+        )
+    return VerificationRetryDecision(
+        retry=True,
+        exhausted=False,
+        reason=(
+            f"verification failed ({refusal_code}) in a retryable class, so the item is being handed back "
+            f"for a bounded correction turn; correction attempt {used + 1} of {budget}"
+        ),
+        attempts=used,
+        budget=budget,
+        key=key,
+    )
+
+
+def build_verification_refusal_notice(item: Mapping[str, Any], recovery: bool) -> str:
+    """Render the pending verification refusal notice into the recovery prompt, or "" when none."""
+    if not recovery:
+        return ""
+    attempts = [a for a in (item.get("attempts") or []) if isinstance(a, Mapping)]
+    if not attempts:
+        return ""
+    refused = attempts[-1].get(VERIFICATION_REFUSED_KEY)
+    if not isinstance(refused, Mapping):
+        return ""
+    from agent_workflows.render_stream import _redact_absolute_paths
+
+    v_code = _redact_absolute_paths(str(refused.get("code") or ""))
+    v_reason = _redact_absolute_paths(str(refused.get("reason") or ""))
+    v_remedy = _redact_absolute_paths(str(refused.get("remedy") or ""))
+    att_num = refused.get("attempt") or (verification_retry_attempts(item) + 1)
+    budget = refused.get("budget") or 2
+
+    lines = [
+        "",
+        "",
+        f"## Verification failed on the prior attempt ({v_code})",
+        "",
+        f"This is verification correction attempt {att_num} of {budget}.",
+        "The previous attempt passed turn execution but independent verification was refused:",
+        "",
+        f"  - Refusal code: {v_code}",
+        f"  - Reason: {v_reason}",
+        f"  - Remedy: {v_remedy}",
+        "",
+        "The lane already holds your prior work, so you must FIX the cause rather than re-implementing "
+        "from scratch.",
+    ]
+    if v_code == VERIFY_REFUSAL_CODE_UNEVIDENCED:
+        lines.extend(
+            [
+                "",
+                "IMPORTANT: `tests_run` entries in the outcome file must be the COMMAND STRINGS that were run "
+                "(for example `python3 -m pytest tests/test_x.py`), not test nodeids or module paths.",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def handle_verification_refusal(
+    *,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: dict[str, Any],
+    attempt: MutableMapping[str, Any],
+    attempt_no: int,
+    disposition: str,
+    host_labels: "HostLabels | None",
+    save_state: Callable[[Path, Any], Any],
+    append_jsonl: Callable[..., Any],
+) -> str:
+    """PERFORM the outcome of one refused verification. Returns the item's disposition."""
+    refused_data = attempt.get(VERIFICATION_REFUSED_KEY) or {}
+    refusal_code = str(refused_data.get("code") or "")
+    verify_disp = refused_data.get("verify_disp")
+
+    decision = verification_retry_decision(
+        item, state, refusal_code, verify_disp, attempt_no
+    )
+    if not (decision.retry or decision.exhausted):
+        attempt["verification_retry_skipped"] = decision.reason
+        return disposition
+
+    pal = Palette(should_color(sys.stdout))
+    command = getattr(host_labels, "command", None) or "aw oc run"
+    if decision.retry:
+        item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts + 1
+        item.setdefault(VERIFICATION_RETRY_KEYS_KEY, []).append(decision.key)
+        attempt[VERIFICATION_REFUSED_KEY]["attempt"] = decision.attempts + 1
+        attempt[VERIFICATION_REFUSED_KEY]["budget"] = decision.budget
+        invalidate_turn_evidence(item, attempt_no, decision.reason)
+        item["status"] = "queued"
+        item["recovery_next"] = True
+        item["requeue_from_status"] = "fail-verify"
+        record_refusal(
+            item,
+            code=VERIFICATION_RETRY_REFUSAL_CODE,
+            reason=decision.reason,
+            remedy=(
+                "no action needed yet: the run is handing this item back for a bounded correction turn "
+                "in this same run to address verification issues. Its work is preserved on its lane and "
+                "nothing was forced"
+            ),
+        )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "verification-sent-back",
+                "id6": item["id6"],
+                "refusal_code": refusal_code,
+                "retry_attempts_used": decision.attempts + 1,
+                "retry_budget": decision.budget,
+                "idempotency_key": decision.key,
+            },
+        )
+        print(
+            pal(
+                f"  -> IPD {item['id6']} verification failed ({refusal_code}); handing it back for a bounded "
+                f"correction (attempt {decision.attempts + 1} of {decision.budget})",
+                "cyan",
+            ),
+            file=sys.stderr,
+        )
+        return "queued"
+    else:
+        item["status"] = "fail-verify"
+        item.pop("recovery_next", None)
+        item[VERIFICATION_RETRY_COUNT_KEY] = decision.attempts
+        attempt[VERIFICATION_REFUSED_KEY]["attempt"] = decision.attempts
+        attempt[VERIFICATION_REFUSED_KEY]["budget"] = decision.budget
+        # When budget is 0, no retry was ever permitted; preserve the underlying verifier refusal
+        # on the item (as E-05 (3) and test_verifier_gate require). When retries were spent and exhausted,
+        # record the retry-exhausted refusal.
+        if decision.budget > 0 and decision.attempts > 0:
+            record_refusal(
+                item,
+                code=VERIFICATION_RETRY_EXHAUSTED_CODE,
+                reason=decision.reason,
+                remedy=(
+                    f"read the failed attempts before re-running: verification correction budget was spent "
+                    f"without success ({decision.attempts} of {decision.budget} attempts spent). "
+                    f"Inspect them with `aw runs show <run-id>`, correct the plan or tests, then "
+                    f"re-run with `{command} {item['id6']}` (or `{command} resume <run-id> --retry-incomplete`). "
+                    f"Do NOT discard the lane: the partial work is preserved there"
+                ),
+            )
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "verification-retry-exhausted",
+                "id6": item["id6"],
+                "refusal_code": refusal_code,
+                "retry_attempts_used": decision.attempts,
+                "retry_budget": decision.budget,
+                "idempotency_key": decision.key,
+            },
+        )
+        print(
+            pal(
+                f"  ! IPD {item['id6']} verification FAILED: correction budget exhausted "
+                f"({decision.attempts} of {decision.budget} spent); the plan did NOT land",
+                "red",
+            ),
+            file=sys.stderr,
+        )
+        return "fail-verify"
+
+
+# ==================================================================================================
 # THE PRE-WORK SUITE BASELINE (integearn-05, `9lyg5h`)
 #
 # WHAT THIS IS FOR, AND THE ONE SENTENCE THAT MUST NOT BE "IMPROVED" AWAY:
 #
 #     THE BASELINE IS INFORMATION FOR AN HONEST AGENT, NOT A CHECK ON A DISHONEST ONE. NOTHING MAY
-#     REFUSE, DOWNGRADE, OR OTHERWISE CHANGE AN OUTCOME ON THE STRENGTH OF IT.
+#     REFUSE OR DOWNGRADE AN OUTCOME ON THE STRENGTH OF IT.
+#
+# A comparison that can ONLY make an outcome more permissive is permitted (and one exists). What is
+# forbidden is using the baseline to DISBELIEVE the agent, which is what all four numbered reasons below
+# are about; so a reader who has a baseline-relative comparison in hand asks which SIGN its effect has.
 #
 # THE MAINTAINER RULED THAT EXPLICITLY, 2026-09-08 (recorded on `daexj1` OQ-02 and reaffirmed
 # 2026-09-20): "You cannot build a pre-test that detects deception ... We're mitigating sloppiness,
@@ -22690,12 +23589,16 @@ def format_verifier_evidence_section(state: dict[str, Any], run_dir: Path) -> li
 #      believes the failure is unrelated answers `not-mine` in GOOD FAITH and is WRONG. Telling it
 #      what was already red lets it be RIGHT. That is the whole deliverable.
 #
-# SO THE BASELINE'S ONLY CONSUMER IS THE ADJUDICATION PROMPT, and its only effect is on what the
-# agent READS. `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
-# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not.
-# If you are here to add a comparison that changes an outcome, the four reasons above say why not,
-# and the plan's spec-sync section records that doing so would REQUIRE amending spec `25kzda`
-# because it would change the AUTHORITY under which a red suite may be cleared.
+# THE ADJUDICATION PROMPT IS THE ONLY CONSUMER THAT CAN AFFECT THE ADJUDICATION, and its only effect is
+# on what the agent READS. `revalidation_baseline_for` is a second consumer whose effect is one-way:
+# it only ever makes the post-merge gate MORE PERMISSIVE (see "THE RELATIVE REVALIDATION VERDICT" below,
+# which already draws this exact distinction: "The sign of the effect is the whole difference").
+# `tests/test_suite_baseline_direction.py::test_permissive_direction_is_reachable` and
+# `tests/test_suite_baseline_direction.py::test_forbidden_direction_is_absent` enforce this direction
+# property. Separately, `tests/test_suite_baseline.py::NothingRefusesOnTheBaseline` asserts a `not-mine`
+# verdict produces a byte-identical outcome whether the failing id appears in the baseline or not (a
+# dangling citation carried by `gia5i7`, deliberately left unmodified here). If you are here to add a
+# comparison that makes an outcome stricter or disbelieves the agent, the four reasons above say why not.
 #
 # WHY THE MEASUREMENT IS COMPARABLE TO THE POST-WORK ONE, documented here because the next reader
 # needs to know whether a difference between the two id sets is real or an artifact of WHERE each
@@ -24226,9 +25129,10 @@ def attributed_away_failure_ids(item: Mapping[str, Any]) -> tuple[str, ...]:
     vocabulary for the ids (inventing a second key is the `render_stream` F-4 producer/reader drift this
     module's comments cite twice).
 
-    IT IS READ-ONLY BECAUSE ONE CALL PATH MAKES THAT LOAD-BEARING. Both hosts' deferral re-attempt
-    lambdas pass `dict(item)` - a SHALLOW COPY - into `validation_runner_for`, so a READ of the answer
-    record works there while any WRITE would land on the copy and be lost.
+    IT IS A PURE READ-ONLY READER BY CONTRACT. It is consumed by `_relative_revalidation_verdict`
+    which computes a relative revalidation verdict and writes nothing through it; the legacy
+    shallow-copy call path (`dict(item)` passed to a discarded validation runner) was removed by
+    plan `vfcnyd`, so this reader is read-only by contract rather than to tolerate a shallow copy.
 
     IT GATES ON THE ANSWER TOKEN AND NOT ON THE PRESENCE OF THE SET, which is guard (c) of the three
     stated at :data:`GATE_ANSWER_RECORD_KEY`. `failing_tests` is populated for EVERY answer - it is what
@@ -24611,13 +25515,13 @@ def make_integration_validation_runner(
     readings are both right for their own question; the code says which question it is asking.
 
     ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
-    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `oc_runipd`, and
-    `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this module and fails on ANY import
-    naming `runipd`, at module level or lazily inside a function, so this module cannot reach it and
-    copying its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The
-    None DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its
-    previous three-positional-argument call shape and gets the honest refusal described below rather than
-    a silent pass; it is NOT a way to opt out of revalidation.
+    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `runner_shared`
+    (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this
+    module and fails on ANY import naming `runipd`, at module level or lazily inside a function. Copying
+    its body would fork its fail-closed reading of exit 124/127. Each host passes its own. The None
+    DEFAULT means every EXISTING caller (including the tests that patch this factory) keeps its previous
+    three-positional-argument call shape and gets the honest refusal described below rather than a silent
+    pass; it is NOT a way to opt out of revalidation.
 
     ONE RUN PER DISTINCT MERGE RESULT (E-04), cached on `state` under :data:`REVALIDATION_CACHE_KEY` and
     keyed on the merged TREE ID. Two lanes that merge to the same tree are one measurement; a second
@@ -25402,6 +26306,8 @@ def write_prompt(
     analytics do parse - see `attempt_log_path`). The consequence is bounded and stated: an antigravity
     run started after this change writes a verifier prompt under the oc name, and an operator reading
     an OLD run directory still sees the old name, because nothing renames history.
+
+    This function guarantees that `prompts/` exists rather than requiring the caller to have created it.
     """
     prefix = suffix or ("review" if item.get("action") == "review" else "exec")
     path = (
@@ -25409,6 +26315,7 @@ def write_prompt(
         / "prompts"
         / f"{item['position']:02d}-{item['id6']}-{prefix}-attempt-{attempt_no}.md"
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(prompt, encoding="utf-8")
     return path
 
@@ -25728,6 +26635,12 @@ class HostLabels(NamedTuple):
     #: `_compute_scope_reconciliation` (the finalize record's reason/ack strings),
     #: `_detect_driver_command` (its fallback return) and `driver_actor` (the actor prefix an
     #: `attention_contract` gate then validates).
+    #:
+    #: CONTRACT: This value INCLUDES the run verb (`aw oc run` / `aw agy run`). A caller
+    #: interpolating this field must therefore append a SUBCOMMAND (`resume`, `stop`, ...)
+    #: or a bare selector (e.g. `<id6>`), and NEVER a second verb. Appending a second verb
+    #: (e.g. `{command} run resume`) renders `aw oc run run resume`, which is parsed as an
+    #: ambiguous Set selector prefix rather than a command and exits 2 (plan `z3si7r`).
     command: str
 
     #: The operator-facing REVIEW command, e.g. `"aw oc review"`. A field of its own rather than a
@@ -25792,6 +26705,38 @@ class HostLabels(NamedTuple):
     #: constant can reappear.
     full_auto_actor: str
 
+    #: The operator-facing recovery command hint for a `dependency-blocked` item,
+    #: e.g. "resolve the named cause, then re-queue with `aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; a bare `resume` does NOT re-queue a dependency-blocked item".
+    #:
+    #: revgate Order 03 (7nkcgp) E-08. Stated as a field on HostLabels because recovery here is NOT
+    #: automatic and NOT free: re-queueing a `dependency-blocked` item happens ONLY under the
+    #: `if retry_incomplete:` branch of `run_queue`, and `retry_incomplete` is False for a plain `start`
+    #: and comes exclusively from the explicit `--retry-incomplete` flag on `resume`. A bare `resume`
+    #: therefore leaves the item blocked. A block whose exit is undocumented is a usability failure, so
+    #: the command is carried in the payload rather than left for the operator to discover.
+    #:
+    #: NARROWED BY depblock 01 (`akzy45`) E-01/E-02. The drain arm now CLASSIFIES each remaining item
+    #: through the shared `runner_shared.classify_drain_block` and writes this terminal label only on one
+    #: that is PERMANENTLY blocked (a terminal-non-success prerequisite, a cycle, a dangling or
+    #: unsatisfiable external edge, or any cause it cannot prove transient). An item whose every unmet
+    #: prerequisite is still NON-TERMINAL is left `queued` and reported through
+    #: `render_transient_dependency_waits` instead. The loop still BREAKS - nothing in a run re-queues
+    #: such a prerequisite, so waiting inside this invocation cannot pay off - but the item keeps the
+    #: cheaper recovery route below.
+    #:
+    #: THE THREE WRITE SITES FOR THIS STATUS, classified by E-01 so the next reader need not re-derive them:
+    #:   1. `cascade_dependency_blocked` - PERMANENT by construction. It fires only on a prerequisite that
+    #:      is `in TERMINAL_STATES and st not in required` (action-aware), which is exactly the
+    #:      can-never-be-ready case. Updated by `8eei5p` to accept `recovery_hint` via HostLabels.
+    #:   2. The drain-time `if runnable is None:` arm in `run_queue` (both hosts). This was the site
+    #:      that conflated the two facts, and it is the ONE site `akzy45` changed. Now reads the hint from HostLabels.
+    #:   3. `runner_shared.dispatch_orchestrator_item`'s `terminal_status` DEFAULT PARAMETER, reached by its
+    #:      TERMINATE outcome. ALREADY CORRECT and the worked example this fix generalizes: `pgq326` split
+    #:      that path three ways, where RECONSIDER writes NO status (leaving the item `queued`, which is
+    #:      precisely the transient handling) and TERMINATE writes the terminal status with specific
+    #:      reason and recovery hint (`8eei5p`).
+    dependency_block_recovery: str
+
 
 #: The OpenCode host's labels. Bound by `oc_runipd`'s wrappers.
 OC_HOST_LABELS = HostLabels(
@@ -25805,6 +26750,11 @@ OC_HOST_LABELS = HostLabels(
     shell_tool=None,
     emits_launch_identity=True,
     full_auto_actor="aw oc run --full-auto",
+    dependency_block_recovery=(
+        "resolve the named cause, then re-queue with "
+        "`aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+        "a bare `resume` does NOT re-queue a dependency-blocked item"
+    ),
 )
 
 #: The Antigravity host's labels. Bound by `agy_runipd`'s wrappers.
@@ -25819,7 +26769,51 @@ AGY_HOST_LABELS = HostLabels(
     shell_tool="run_command",
     emits_launch_identity=False,
     full_auto_actor="aw agy run --full-auto",
+    dependency_block_recovery=(
+        "resolve the named cause, then re-queue with "
+        "`aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+        "a bare `resume` does NOT re-queue a dependency-blocked item"
+    ),
 )
+
+
+def host_labels_for_driver_id(driver_id: str | None) -> HostLabels | None:
+    """Return the HostLabels descriptor a recorded driver.id denotes, or None.
+
+    Discovers every HostLabels instance in this module and maps labels.id plus
+    every entry of labels.argv_tokens to that descriptor.
+    """
+    if driver_id is None:
+        return None
+    normalized = str(driver_id).strip()
+    if not normalized:
+        return None
+
+    # Discover every HostLabels instance in this module
+    mapping: dict[str, HostLabels] = {}
+    for val in list(globals().values()):
+        if isinstance(val, HostLabels):
+            keys = [val.id, *val.argv_tokens]
+            for key in keys:
+                if key in mapping and mapping[key] != val:
+                    raise ValueError(
+                        f"Collision in HostLabels driver key {key!r}: "
+                        f"{mapping[key].id} vs {val.id}"
+                    )
+                mapping[key] = val
+
+    # "runagy" is the one viewer spelling .id + .argv_tokens does not cover
+    # (it lives in AGY_HOST_LABELS.argv_subcommands), preserved to keep the
+    # resolver a strict superset of the literals it replaces (F-03).
+    if "agy_runipd" in mapping:
+        mapping["runagy"] = mapping["agy_runipd"]
+
+    return mapping.get(normalized)
+
+
+# Assert at import time that the built key map is collision-free.
+host_labels_for_driver_id("oc")
+
 
 CARRIER_VERIFICATION_REFUSAL_CODE: str = "carrier-verification-unresolved"
 
@@ -26206,6 +27200,13 @@ EXIT_SUCCESS_TOKEN = "aw-item-met-its-action-success-bar"
 #: a failure under both normal and graceful-stop runs rather than silently excusing it.
 EXIT_MALFORMED_ENTRY_TOKEN = "aw-queue-entry-was-malformed"
 
+#: The token :func:`exit_code_statuses` projects an item onto when its action's success bar was met
+#: but its own record says its work did not land (entv1d E-03). Deliberately not a real status,
+#: deliberately not spellable as one, and deliberately neither :data:`EXIT_SUCCESS_TOKEN` nor `"queued"`,
+#: so `runner_stop.deliberate_stop_exit_code` judges it a failure under both normal and graceful-stop runs
+#: rather than silently excusing it.
+EXIT_STRANDED_TOKEN = "aw-item-work-was-stranded"
+
 #: The report-facing status token :func:`write_report` emits for a queue entry that was NOT a mapping
 #: (0kh97v E-02). Unlike :data:`EXIT_MALFORMED_ENTRY_TOKEN`, which lives in the exit-code vocabulary
 #: and is deliberately not spellable as a real status, this token is rendered in human-facing report
@@ -26252,7 +27253,10 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
     A malformed entry (anything that is not a mapping) projects onto
     :data:`EXIT_MALFORMED_ENTRY_TOKEN`. It cannot be passed through via `str(status)` (which would
     inject arbitrary unvetted text into the exit-code vocabulary) nor mapped to `"queued"` (which would
-    manufacture an exit 0 under a graceful stop). Every other non-success status is passed through
+    manufacture an exit 0 under a graceful stop). A stranded item (an item that met its action's
+    success bar but whose own record says its work did not land, whether execute- or review-shaped)
+    projects onto :data:`EXIT_STRANDED_TOKEN`, denying it the success token while preserving the
+    verbatim pass-through of already-failing items. Every other non-success status is passed through
     unchanged, so it still reads as a failure and a reader of a debugger frame still sees the real
     disposition.
     """
@@ -26264,9 +27268,19 @@ def exit_code_statuses(queue: Sequence[Mapping[str, Any]]) -> list[str]:
             continue
         status = item.get("status")
         if status == "queued":
+            # entv1d E-03, F-14: `queued` remains load-bearing and must precede the stranded check;
+            # deliberate_stop_exit_code keys its whole graceful-stop concession off this literal,
+            # and a queued item can carry a stale refusing signal from an earlier attempt.
             projected.append("queued")
         elif item_reached_success(item):
-            projected.append(EXIT_SUCCESS_TOKEN)
+            # entv1d E-03, PR-501, F-13: site the stranded test INSIDE the success arm, not before it.
+            # Only an item that would otherwise have been called a success loses it here. An item
+            # whose status is already a failure (integration-blocked, failed, fail-gate,
+            # substantially-complete) passes through to the else branch below, preserving its real
+            # disposition rather than being relabeled.
+            projected.append(
+                EXIT_STRANDED_TOKEN if work_did_not_land(item) else EXIT_SUCCESS_TOKEN
+            )
         else:
             projected.append(str(status))
     return projected
@@ -26281,7 +27295,7 @@ def aggregated_run_items(
     1. Malformed entry: AggregatedItem(item_id="<malformed>", contribution_hint=CONTRIBUTION_FAILURE, needs_input=False)
     2. status == "queued" under stopped=True: benign_skip=True, needs_input=False
     3. status == "queued" under stopped=False: falls through to general rule below
-    4. item_reached_success(entry) is True: verified=True
+    4. item_reached_success(entry) is True and not work_did_not_land(entry): verified=True
     5. Gate predicate (bool(entry.get(NEEDS_INPUT_KEY)) and not item_reached_success(entry)): needs_input=True
     6. Failure default: contribution_hint=CONTRIBUTION_FAILURE
     """
@@ -26316,8 +27330,8 @@ def aggregated_run_items(
             )
         # Clause 3: status == "queued" under stopped=False takes the general rule below
         # (falls through to clauses 4, 5, 6).
-        elif item_reached_success(entry):
-            # Clause 4: Met its action's success bar
+        elif item_reached_success(entry) and not work_did_not_land(entry):
+            # Clause 4: Met its action's success bar and work landed (entv1d)
             items.append(
                 run_evidence.AggregatedItem(
                     item_id=item_id,
@@ -26452,6 +27466,20 @@ def finalize_already_done(repo: Path, plan_path: Path, id6: str) -> bool:
     """
     try:
         from agent_workflows import ipd_lifecycle
+
+        # IPD 1fzist (F-4, F-10): require that the plan file exists on disk and is contained in
+        # the repository tree being finalized (`repo`). Without existence, a nonexistent
+        # executed/-shaped ghost path converts real refusals to exit 0 (F-4). Without containment,
+        # a substituted path that exists in main while repo is the lane converts real refusals to
+        # exit 0 in the runner's default geometry (F-10).
+        plan_path = Path(plan_path)
+        repo = Path(repo)
+        if not plan_path.is_file():
+            return False
+        try:
+            plan_path.resolve().relative_to(repo.resolve())
+        except ValueError:
+            return False
 
         return bool(ipd_lifecycle.plan_already_finalized(repo, plan_path, id6).already)
     except Exception:
@@ -26950,6 +27978,10 @@ def write_report(
         )
     ]
     if blocked:
+        from agent_workflows.run_selection_policy import (
+            strip_dependency_reason_prefix,
+        )
+
         lines.extend(["", "## Dependency blocks (why)", ""])
         for item in blocked:
             if not isinstance(item, Mapping):
@@ -26957,7 +27989,12 @@ def write_report(
             reasons = item.get("unsatisfied_dependency_reasons") or {}
             lines.append(f"- `{item['id6']}` (position {item['position']}):")
             for dep in item.get("unsatisfied_dependencies") or []:
-                detail = reasons.get(dep) or "dependency not satisfied"
+                raw_detail = reasons.get(dep)
+                detail = (
+                    strip_dependency_reason_prefix(dep, raw_detail)
+                    if raw_detail
+                    else "dependency not satisfied"
+                )
                 lines.append(f"  - `{dep}`: {detail}")
             hint = item.get("dependency_block_recovery")
             if hint:
@@ -27116,6 +28153,7 @@ def build_verifier_prompt(
     verify_outcome = (
         run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}-verification.json"
     )
+    verify_outcome.parent.mkdir(parents=True, exist_ok=True)
     if audit:
         # DELIBERATELY BEFORE the role notice is even computed: an AUDIT's subject plan is already
         # TERMINAL (`plan_audit_target` refuses anything not in `executed/`), so there is no pending
@@ -27181,7 +28219,7 @@ and documentation satisfy every requirement before this plan can be considered e
    {{
      "schema_version": 1,
      "id6": "{item["id6"]}",
-     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+     "verdict": "{render_advertised_verdicts()}",
      "summary": "...",
      "evidence": [],
      "tests_run": [],
@@ -27274,7 +28312,7 @@ report honestly, including when the honest answer is that you cannot tell.
    {{
      "schema_version": 1,
      "id6": "{item["id6"]}",
-     "verdict": "VERIFIED|CORRECTION_REQUIRED|BLOCKED",
+     "verdict": "{render_advertised_verdicts()}",
      "summary": "...",
      "evidence": [],
      "tests_run": [],
@@ -27377,6 +28415,7 @@ def build_verify_and_continue_notice(repo: Path, decision: RecoveryDisposition) 
             "   and their evidence, not your conclusion.",
         ]
     )
+    return "\n".join(lines)
 
 
 def build_turn_budget_notice(state: dict[str, Any]) -> str:
@@ -27540,9 +28579,11 @@ def build_prompt(
     # path a real run takes. `finalize_refused` works that way only because it is IN that allowlist,
     # and widening the allowlist is `lane_containment`'s scope rather than this plan's. Rendering the
     # packet as its own notice needs no allowlist entry and cannot be silently projected away.
-    correction_notice = build_correction_notice(
-        item, recovery
-    ) + build_stale_receipt_notice(item, recovery)
+    correction_notice = (
+        build_correction_notice(item, recovery)
+        + build_stale_receipt_notice(item, recovery)
+        + build_verification_refusal_notice(item, recovery)
+    )
     return f"""# {labels.product} IPD Driver Turn
 
 Mode: {mode}{lane_notice}{verify_notice}{correction_notice}{isolation_notice}
@@ -27866,6 +28907,7 @@ def initialize_run_core(
     set_sessions: dict[str, str] = {}
     queue: list[dict[str, Any]] = []
     full_auto = getattr(args, "full_auto", False)
+    unresolvable_ipds: list[tuple[str, str, str]] = []
     for position, id6 in enumerate(queue_ids, start=1):
         atype, item_info = lookup_manifest_artifact(manifest, repo, id6)
         if atype == "ipd":
@@ -27877,14 +28919,22 @@ def initialize_run_core(
             status = plan.get("status")
             p_path = None
             rec = None
+            resolve_err: Exception | None = None
             try:
                 p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
-                rec = parse_plan_file(p_path, repo)
-                if rec and not status:
-                    status = rec.status
-            except Exception:
-                if not status:
-                    status = "approved"
+            except Exception as exc:
+                resolve_err = exc
+
+            if p_path is not None:
+                try:
+                    rec = parse_plan_file(p_path, repo)
+                    if rec and not status:
+                        status = rec.status
+                except Exception:
+                    pass
+
+            if not status:
+                status = "approved"
 
             if status == "reviewed" and full_auto and p_path:
                 try:
@@ -27900,6 +28950,11 @@ def initialize_run_core(
             if norm_st == "draft":
                 complete = plan_authoring_complete(repo, str(plan.get("file", "")))
             action = action_for(kind, status or "approved", authoring_complete=complete)
+            if (
+                action in ("review", "execute", "orchestrate")
+                and resolve_err is not None
+            ):
+                unresolvable_ipds.append((id6, plan.get("file", ""), str(resolve_err)))
             queue.append(
                 {
                     "position": position,
@@ -27986,9 +29041,22 @@ def initialize_run_core(
         repo=repo,
         full_auto=full_auto,
         host=host,
+        color=getattr(args, "color", None),
     )
 
     enforce_orchestrator_shape_gate({"queue": queue}, repo=repo)
+
+    # kqb9ok E-02: refuse at the queue-build seam ahead of durable state any IPD
+    # queue entry whose configured file cannot be resolved by resolve_plan_path.
+    if unresolvable_ipds:
+        details = "; ".join(
+            f"IPD {item_id} (configured {item_cfg!r}): {item_err}"
+            for item_id, item_cfg, item_err in unresolvable_ipds
+        )
+        raise DriverError(
+            f"Cannot resolve plan path for queue entry: {details}. "
+            "No work started, and nothing durable was created"
+        )
 
     run_id, run_dir = mint_run_dir(repo, getattr(args, "run_id", None))
     for name in ("sessions", "outcomes", "prompts"):
@@ -28166,10 +29234,10 @@ def initialize_run_core(
     # own completion criterion requires its refusal be readable in `aw runs`, which reads durable run
     # state. A pre-directory refusal leaves that surface nothing to read at all.
     #
-    # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, deliberately: `test_run_flag_surface.py
-    # ::test_the_mixed_type_call_site_was_not_duplicated` counts occurrences of that gate's SYMBOL in
-    # this function's source to prove it has exactly one call site, so naming it in a comment would
-    # fail a correct test on a comment. Locate each by its own call above.
+    # THE THREE GATES ARE DESCRIBED HERE AND NOT SPELLED, historically: the former test
+    # (`tests/test_run_flag_surface.py::test_the_mixed_type_call_site_was_not_duplicated`, deleted in
+    # `19313eed`, carrier: backlog `xvp5vx`) counted occurrences of that gate's SYMBOL in this function's
+    # source to prove it had exactly one call site. Locate each by its own call above.
     #
     # WHAT "COSTS NOTHING" MEANS HERE: no agent turn, no lane worktree, no session. All three are
     # allocated downstream in `run_queue`/`execute_item`, so a refusal that raises from this line has
@@ -28350,6 +29418,22 @@ def assert_child_tool_identity(
 # ---- rununify: constants and shared models -------------------------------------------------------
 
 
+#: The canonical full-auto approval message written into a plan's permanent ## Workflow history
+#: when cleared via `aw oc run --full-auto` or `aw agy run --full-auto`.
+#:
+#: Plan gjni4c deleted a former `FULL_AUTO_APPROVAL_MESSAGE` from this module because it held a
+#: third, divergent value ("Auto-approved via --full-auto (review passed all gates)") that matched
+#: neither host runner. Reintroducing the shared constant here is safe because its value is
+#: byte-identical to what both hosts already hold ("auto-approved by --full-auto: review readiness
+#: cleared (not human approval)"), and that equality is strictly enforced by the by-value assertion
+#: in test_full_auto_approval_message_reintroduced_constant_value_pin (plan 90z361 E-04). We cite E-04,
+#: not E-03, because E-03 is the host-vs-host sweep that is blind to a drifting shared value (both
+#: hosts follow this shared constant in lockstep), whereas E-04 directly pins the value itself against drift.
+FULL_AUTO_APPROVAL_MESSAGE: str = (
+    "auto-approved by --full-auto: review readiness cleared (not human approval)"
+)
+
+
 def set_plan_approved(
     repo: Path,
     id6: str,
@@ -28480,6 +29564,7 @@ class StallWatchdog:
         check_interval: float = 1.0,
         *,
         reaper: Callable[[subprocess.Popen], None] | None = None,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         self.process = process
         self.timeout = float(timeout) if timeout and timeout > 0 else 0.0
@@ -28492,6 +29577,15 @@ class StallWatchdog:
         self._stalled = threading.Event()
         self._thread: threading.Thread | None = None
         self._reaper = reaper if reaper is not None else _default_stall_reaper
+        self._progress_checker = progress_checker
+
+    @property
+    def progress_checker(self) -> Callable[[], bool] | None:
+        return self._progress_checker
+
+    @progress_checker.setter
+    def progress_checker(self, checker: Callable[[], bool] | None) -> None:
+        self._progress_checker = checker
 
     def touch(self) -> None:
         self._last_activity = time.monotonic()
@@ -28524,6 +29618,13 @@ class StallWatchdog:
                 break
             idle = time.monotonic() - self._last_activity
             if idle >= self.timeout:
+                if self._progress_checker is not None:
+                    try:
+                        if self._progress_checker():
+                            self.touch()
+                            continue
+                    except Exception:
+                        pass
                 self._stalled.set()
                 self._reaper(self.process)
                 break
@@ -29701,15 +30802,16 @@ def rescore_is_an_improvement(before: str | None, after: str | None) -> bool:
         emits no event; and
       * a DOWNGRADE is REFUSED (`substantially-complete` -> `partial`, `executed` -> anything lower).
 
-    THREE STATUSES ARE NEVER REPLACEABLE IN EITHER DIRECTION, and the honest reason differs between
-    them. :data:`INTEGRATION_DEFERRED_STATUS` (`merge-retry`) is the one that MATTERS: it is NOT in
-    :data:`DEFECT_REASK_SKIPPED_STATUSES`, so a re-ask can fire on a deferred item and reach the
-    rescore, and relabelling a deferral destroys it (see the comment above
-    :func:`reconcile_disposition`'s deferral passthrough, `oc_runipd.py:6120-6132`, for why). By
-    contrast `runner_stop.STOPPED_DISPOSITION` (`interrupted`) and `runner_stop.FORCED_DISPOSITION`
-    (`unknown_outcome`) ARE both already in that skip set, so neither can be the `before` value at the
-    rescore point today; their entries here are DEFENCE IN DEPTH against a future widening of the skip
-    set, not a live path, and must not be described as the safety property that matters.
+    THREE STATUSES ARE NEVER REPLACEABLE IN EITHER DIRECTION, all as DEFENCE IN DEPTH against future
+    rescore reachability rather than live pre-rescore states today. While
+    :data:`INTEGRATION_DEFERRED_STATUS` (`merge-retry`) is NOT in
+    :data:`DEFECT_REASK_SKIPPED_STATUSES`, it cannot be the `before` value at the rescore point
+    either: `execute_item_core`'s only writer of that status runs later than the rescore, and
+    relabelling a deferral would destroy it (see the deferral passthrough inside
+    :func:`runner_shared.reconcile_disposition` for why). Similarly, `runner_stop.STOPPED_DISPOSITION`
+    (`interrupted`) and `runner_stop.FORCED_DISPOSITION` (`unknown_outcome`) ARE both already in that
+    skip set, so neither can be the `before` value at the rescore point today; their entries here are
+    defence in depth against a future widening of the skip set.
     """
 
     from agent_workflows import runner_stop
@@ -29949,7 +31051,9 @@ def reconcile_disposition(
       1. Deliberate operator stops (`runstop foi1b3`): if stopped deliberately, returns STOPPED_DISPOSITION.
       2. Plan review actions: reviewed/approved if exit 0 and status permits, fail-gate otherwise.
       3. Executed plans: outcome_precedence_disposition against disk bucket and outcome file.
-      4. Integration deferred status fallback.
+      4. Prior-turn deferral passthrough: preserves a prior turn's deferral re-scored on a later turn
+         after `--retry-incomplete` requeued the item; `execute_item_core`'s own two scoring points
+         cannot reach it.
       5. Exit code fallback: fail-verify if exit 0, fail-gate otherwise.
     """
     from agent_workflows import runner_stop
@@ -30063,10 +31167,12 @@ def reconcile_disposition(
     # runrecon-02 (`fduoj4`) E-02: the outcome read and the bucket/outcome precedence are now the two
     # SHARED helpers above, so the CRASH path (`reconcile_interrupted`) honors the same rules from the
     # same code rather than from a second copy. The behavior here is unchanged: the rungs the helper
-    # applies are the three this function applied inline, in the same order, and everything the helper
-    # declines to answer still falls through to the deferral passthrough and the exit-code fallback
-    # below, which stay HERE because they are this caller's and not the precedence's.
-    outcome: dict[str, Any] | None = read_recorded_outcome(run_dir, item)
+    # applies are the three this function applied inline, in the same order. If the helper declines to
+    # answer, the deferral passthrough preserves a prior turn's deferral re-scored on a later turn after
+    # `--retry-incomplete` requeued the item (a branch `execute_item_core`'s own two scoring points cannot
+    # reach), before falling through to the exit-code fallback below. Both stay HERE because they are this
+    # caller's and not the precedence's.
+    outcome: dict[str, Any] | None = read_recorded_outcome(run_dir, item)  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     try:
         current_plan = resolve_plan_path(
             repo, item.get("configured_file", ""), item["id6"]
@@ -30797,7 +31903,25 @@ def integrate_retired_lane(
             reason_codes=decision.reason_codes,
             detail=decision.inventory.as_dict(),
         )
-    process_backlog_close(run_dir, state, item)
+    # Skip when the close already succeeded: re-evaluating would answer `item is already done`
+    # (close=False) and OVERWRITE the success record with a refusal, reporting a correct close
+    # to the operator as "left open".
+    #
+    # reattclose-02 (`eg9jjm`) E-04: route through perform_coordinator_backlog_close so the move and
+    # commit happen in a coordinator-owned throwaway worktree and land on main via git merge --ff-only.
+    # Note on gate-tree movement (F-13): routing through the performer passes lane_repo=coord.path to
+    # process_backlog_close, so close_backlog_item evaluates the release-gate predicate in the
+    # coordinator worktree rather than in main. Because a coordinator worktree is a full checkout of
+    # main's HEAD and a retired plan sits in superseded/ in both trees, this is safe and evaluates
+    # identically. The one residual difference is fail-closed: an uncommitted-only carrier in main is
+    # invisible to a HEAD-pinned coordinator worktree, making the gate more likely to refuse.
+    if not (item.get("backlog_close") or {}).get("closed"):
+        perform_coordinator_backlog_close(
+            run_dir,
+            state,
+            item,
+            process_backlog_close=process_backlog_close,
+        )
     return RETIRED_STATUS
 
 
@@ -30851,6 +31975,7 @@ def execute_item_core(
     process_backlog_close: Callable[..., Any],
     driver_module: Any = None,
     tracker: StreamTracker | None = None,
+    observe_host_model: Any = None,
 ) -> None:
     """Unified execution loop for one plan item, driving all 16 safety gates identically on both hosts."""
     from agent_workflows import lane_containment, runner_stop, worktree_lease
@@ -30870,6 +31995,8 @@ def execute_item_core(
 
     driver_begin = getattr(driver_module, "driver_begin", globals().get("driver_begin"))
     driver_finalize = getattr(driver_module, "driver_finalize", None)
+    if observe_host_model is None and driver_module is not None:
+        observe_host_model = getattr(driver_module, "observe_host_model", None)
     assert_child_tool_identity = getattr(
         driver_module,
         "assert_child_tool_identity",
@@ -31014,11 +32141,15 @@ def execute_item_core(
                     for e in stale_refused
                 )
                 ended = utc_now()
+                r_opts = state.get("options", {}) or {}
+                r_model, r_source = launch_model_for_role(r_opts, role="execute")
                 attempt = {
                     "number": attempt_no,
                     "started_at": utc_now(),
                     "ended_at": ended,
                     "action": action,
+                    "model": r_model,
+                    "model_source": r_source,
                     "scope_target_refused": reason,
                     "disposition": "fail-gate",
                 }
@@ -31076,11 +32207,15 @@ def execute_item_core(
             )
             if not preflight.ok:
                 ended = utc_now()
+                r_opts = state.get("options", {}) or {}
+                r_model, r_source = launch_model_for_role(r_opts, role="execute")
                 attempt = {
                     "number": attempt_no,
                     "started_at": utc_now(),
                     "ended_at": ended,
                     "action": action,
+                    "model": r_model,
+                    "model_source": r_source,
                     "host_capability_unavailable": preflight.message,
                     "disposition": "fail-gate",
                 }
@@ -31222,7 +32357,8 @@ def execute_item_core(
         False if (options.get("new_session") or is_rotation) else (session_id is None)
     )
 
-    attempt: dict[str, Any] = {
+    exec_model, exec_model_source = launch_model_for_role(options, role="execute")
+    attempt: dict[str, Any] = {  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
         "number": attempt_no,
         "started_at": utc_now(),
         "starting_head": git_head(repo),
@@ -31234,6 +32370,8 @@ def execute_item_core(
         "log": str(attempt_log_path(run_dir, item, attempt_no)),
         "recovery": recovery,
         "action": action,
+        "model": exec_model,
+        "model_source": exec_model_source,
     }
     if is_review:
         attempt["review_handler"] = item.get("review_handler") or review_handler_for(
@@ -31592,6 +32730,7 @@ def execute_item_core(
 
     if work_dir and not is_review and not is_production:
         lane_root = Path(work_dir)
+        # Prompt-building fallback is advisory (context degradation vs. finalize lifecycle transition; 1fzist F-7).
         try:
             lane_plan_path = resolve_plan_path(
                 lane_root, item.get("configured_file", ""), item["id6"]
@@ -31993,6 +33132,27 @@ def execute_item_core(
         if att_toks:
             attempt["tokens"] = att_toks
 
+        # attmodel Order 02 (`ov2c9n`) E-03: record host model observation
+        # immediately after the turn ends, before subsequent turns launch.
+        if session_id and observe_host_model is not None:
+            try:
+                host_model_rec = observe_host_model(
+                    session_id,
+                    options=state.get("options", {}),
+                    repo_root=repo,
+                )
+            except Exception:
+                host_model_rec = None
+            if host_model_rec:
+                for k in (
+                    "host_model",
+                    "host_model_provider",
+                    "host_model_variant",
+                    "host_model_source",
+                ):
+                    if k in host_model_rec and host_model_rec[k] is not None:
+                        attempt[k] = host_model_rec[k]
+
         if work_dir and (
             not is_review or turn_runs_in_review_sweep_lane(state, work_dir)
         ):
@@ -32086,13 +33246,12 @@ def execute_item_core(
                 # PERFORMED, so the honest act is to record that fact and report it rather than launch a
                 # child against a path that may not exist.
                 #
-                # THE TWIN FALLBACK AT THE FINALIZE SITE IS DELIBERATELY LEFT ALONE. An identical
-                # `except DriverError: current_plan_for_finalize = plan_path` guards the FINALIZE
-                # re-resolution further down this same function (search `current_plan_for_finalize`). It is
-                # byte-identical in shape, and it is NOT fixed here: it feeds `aw ipd finalize` rather than
-                # a verifier launch, so it has a different consumer and a different failure model (the
-                # finalize path has its own receipt and scope-reconciliation gates). Identified, reported,
-                # and out of this plan's fence on purpose; fixing it is a follow-up, not a silent widening.
+                # THE TWIN FALLBACK AT THE FINALIZE SITE WAS FIXED IN 1fzist. An identical
+                # `except DriverError: current_plan_for_finalize = plan_path` guarded the FINALIZE
+                # re-resolution further down this same function (search `current_plan_for_finalize`). It was
+                # byte-identical in shape and was left for follow-up plan 1fzist: it feeds `aw ipd finalize`
+                # rather than a verifier launch, so it has a different consumer and failure model (refusing
+                # with fail-gate disposition rather than partial, and closing downstream false-success gates).
                 current_plan_path = None
                 try:
                     current_plan_path = resolve_plan_path(
@@ -32132,6 +33291,12 @@ def execute_item_core(
                         ),
                         flush=True,
                     )
+                    v_outcome_file = (
+                        run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+                    )
+                    v_outcome_file.unlink(missing_ok=True)
                     try:
                         v_rc, _v_session, _v_log, _v_argv = spawn_verifier(
                             v_prompt_file,
@@ -32140,6 +33305,16 @@ def execute_item_core(
                             tracker,
                             attempt_no,
                         )
+                        # attmodel czut8j E-03: record the verifier launch model on the attempt
+                        # when a verifier turn actually ran. Not simply options["verify_model"]
+                        # read at the consumer, because a resume can reach an attempt whose
+                        # run-level options were frozen by an earlier invocation; the attempt is the
+                        # record of what THIS turn did.
+                        v_model, v_model_source = launch_model_for_role(
+                            options, role="verify"
+                        )
+                        attempt["verify_model"] = v_model
+                        attempt["verify_model_source"] = v_model_source
                         if _v_log:
                             attempt["verify_log"] = str(_v_log)
                             v_cost, v_toks = extract_log_metrics(_v_log)
@@ -32147,11 +33322,6 @@ def execute_item_core(
                                 attempt["verify_cost"] = v_cost
                             if v_toks:
                                 attempt["verify_tokens"] = v_toks
-                        v_outcome_file = (
-                            run_dir
-                            / "outcomes"
-                            / f"{item['position']:02d}-{item['id6']}-verification.json"
-                        )
                         if v_outcome_file.is_file():
                             # runverdict (`1bfppy`) E-02: the verdict is mapped by the ONE shared
                             # fail-closed table (`map_verdict`), never by a substring test written here.
@@ -32198,6 +33368,19 @@ def execute_item_core(
 
                             # runverdict-05 (`bxx9af`) E-04: require real test evidence before verify_disp can be 'verified'
                             v_has_evidence = False
+                            # runverdict-09 (`btak7a`) E-01: pre-guard initialization for corroboration variables.
+                            # Placement is load-bearing: v_data is bound ONLY in the try's else: branch above and
+                            # is unbound when v_unreadable is True. The unreadable arm reaches 'indeterminate'
+                            # through this initialization, NOT through executing computation on unbound v_data.
+                            v_corr_verdict = "indeterminate"
+                            v_corr_reason = "outcome-unreadable"
+                            v_corr_counts = {
+                                "claimed": 0,
+                                "observed": 0,
+                                "matched": 0,
+                                "delegations": 0,
+                                "missing_command_text": 0,
+                            }
                             if not v_unreadable and isinstance(v_data, dict):
                                 v_has_evidence = has_verifier_test_evidence(v_data)
                                 attempt["tests_run"] = v_data.get("tests_run", [])
@@ -32208,7 +33391,49 @@ def execute_item_core(
                                 item["corrections_made"] = v_data.get(
                                     "corrections_made", []
                                 )
+                                # runverdict-09 (`btak7a`) E-01: call Order 08's turn-level verdict function-locally.
+                                # The computation must not break the turn under any circumstances: wrap it so any failure
+                                # yields indeterminate with reason 'computation-failed'. This guard is deliberate, but is
+                                # not a licence to place the call where v_data could be unbound (a masked NameError would
+                                # look like a valid indeterminate).
+                                try:
+                                    from agent_workflows.verifier_corroboration import (
+                                        corroborate_verifier_turn,
+                                    )
+
+                                    v_log_path = attempt.get("verify_log") or ""
+                                    v_claims = extract_verifier_test_commands(v_data)
+                                    v_corr = corroborate_verifier_turn(
+                                        v_log_path, v_claims
+                                    )
+                                    v_corr_verdict = v_corr.verdict
+                                    v_corr_reason = v_corr.reason_code
+                                    v_corr_counts = v_corr.counts
+                                except Exception:
+                                    v_corr_verdict = "indeterminate"
+                                    v_corr_reason = "computation-failed"
+                                    v_corr_counts = {
+                                        "claimed": (
+                                            len(v_data.get("tests_run", []))
+                                            if isinstance(v_data.get("tests_run"), list)
+                                            else 0
+                                        ),
+                                        "observed": 0,
+                                        "matched": 0,
+                                        "delegations": 0,
+                                        "missing_command_text": 0,
+                                    }
                             attempt["verify_has_evidence"] = v_has_evidence
+                            # runverdict-09 (`btak7a`) E-02: store the verdict, reason code, and counts
+                            # on both attempt and item beside existing evidence fields.
+                            # Deliberately omitted from lane_containment._PRIOR_ATTEMPT_SAFE_KEYS:
+                            # feeding previous verifier assessments to a retrying agent is an unrequested prompt-design change.
+                            attempt["corroboration_verdict"] = v_corr_verdict
+                            attempt["corroboration_reason"] = v_corr_reason
+                            attempt["corroboration_counts"] = v_corr_counts
+                            item["corroboration_verdict"] = v_corr_verdict
+                            item["corroboration_reason"] = v_corr_reason
+                            item["corroboration_counts"] = v_corr_counts
 
                             if (
                                 verify_disp == VERIFY_DISP_VERIFIED
@@ -32222,6 +33447,12 @@ def execute_item_core(
                                 record_refusal(
                                     item, code=v_code, reason=v_reason, remedy=v_remedy
                                 )
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
                                 print(
                                     pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                                     file=sys.stderr,
@@ -32242,6 +33473,12 @@ def execute_item_core(
                                 record_refusal(
                                     item, code=v_code, reason=v_reason, remedy=v_remedy
                                 )
+                                attempt[VERIFICATION_REFUSED_KEY] = {
+                                    "code": v_code,
+                                    "reason": v_reason,
+                                    "remedy": v_remedy,
+                                    "verify_disp": verify_disp,
+                                }
                                 print(
                                     pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                                     file=sys.stderr,
@@ -32289,16 +33526,23 @@ def execute_item_core(
                             v_reason, v_remedy = verify_absence_text(
                                 VERIFY_ABSENCE_NO_OUTCOME_FILE
                             )
+                            v_code = VERIFY_ABSENCE_NO_OUTCOME_FILE
                             record_refusal(
                                 item,
-                                code=VERIFY_ABSENCE_NO_OUTCOME_FILE,
+                                code=v_code,
                                 reason=v_reason,
                                 remedy=v_remedy,
                             )
-                            attempt["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
-                            item["verify_absence"] = VERIFY_ABSENCE_NO_OUTCOME_FILE
+                            attempt["verify_absence"] = v_code
+                            item["verify_absence"] = v_code
                             verify_disp = VERIFY_DISP_UNVERIFIED
                             disposition = "fail-verify"
+                            attempt[VERIFICATION_REFUSED_KEY] = {
+                                "code": v_code,
+                                "reason": v_reason,
+                                "remedy": v_remedy,
+                                "verify_disp": verify_disp,
+                            }
                             print(
                                 pal(f"  ! IPD {item['id6']} {v_reason}", "yellow"),
                                 file=sys.stderr,
@@ -32613,6 +33857,28 @@ def execute_item_core(
                         )
                     )
 
+        # verremand (t18l64) E-03: Remand retryable verification failures back to the agent in its lane
+        # under the frozen retry budget, called ONCE after the rescore and before silent-turn / integration gates.
+        if (
+            not is_review
+            and not is_production
+            and disposition == "fail-verify"
+            and attempt.get(VERIFICATION_REFUSED_KEY)
+        ):
+            disposition = handle_verification_refusal(
+                run_dir=run_dir,
+                state=state,
+                item=item,
+                attempt=attempt,
+                attempt_no=attempt_no,
+                disposition=disposition,
+                host_labels=host_labels,
+                save_state=save_state,
+                append_jsonl=append_jsonl,
+            )
+            attempt["disposition"] = disposition
+            item["status"] = disposition
+
         # r0iob3 E-02: consult turn_attempted_nothing on the completion path.
         # Option (b): reuse existing non-retryable disposition "fail-gate" at the shared in-core seam.
         outcome_written, lane = read_zero_work_evidence(repo, run_dir, item, attempt)
@@ -32687,10 +33953,18 @@ def execute_item_core(
             # the entire agent turn (minutes to hours) to finish a ~2-3 minute suite. A baseline not
             # finished by now is treated as MISSING, never waited for and never a failure.
             #
-            # A MISSING OR FAILED BASELINE IS NOT A FAILED ITEM. `collect()` never raises and reports
-            # ABSENT with a reason; the `contextlib.suppress` is a second belt for the same rule,
-            # because this plan's worst possible outcome is making the runner MORE FRAGILE in exchange
-            # for better information. The agent then answers exactly as it does today.
+            # A MISSING OR FAILED BASELINE IS NOT A FAILED ITEM.
+            # This block is DELIBERATELY kept blanket as contextlib.suppress(Exception):
+            # `SuiteBaselineRun.collect` docstring promises "NEVER raises", but its body contains
+            # ZERO try/except blocks and leaves its injected `self._extract(self._stdout, self._stderr)`
+            # outside all three internal suppress blocks. Because `self._extract` is bound from
+            # `getattr(driver_module, "extract_suite_failures", None)`, the single likeliest escape
+            # is a TypeError/AttributeError from a drifted host extractor signature. Narrowing to
+            # suppress(OSError) would miss this drift, while a narrow tuple like (OSError, TypeError,
+            # AttributeError) is essentially indistinguishable from blanket. Furthermore, failing the
+            # turn over a diagnostic aid would violate the stated rule below: the runner must not become
+            # more fragile in exchange for better information. The callee should be guarded directly
+            # rather than narrowing this call site.
             if suite_baseline_run is not None:
                 with contextlib.suppress(Exception):
                     suite_baseline = suite_baseline_run.collect(wait_seconds=0.0)
@@ -32760,7 +34034,7 @@ def execute_item_core(
                     gate_changed_files = list(
                         build_lane_outcome(repo, wt_handle, item["id6"]).changed_files
                     )
-                except Exception:
+                except DriverError:
                     # Showing the failing tests without the file list is worse than showing both and far
                     # better than refusing with no question asked at all.
                     pass
@@ -32836,8 +34110,8 @@ def execute_item_core(
                         else None
                     ),
                     # A `fixed` claim is verified by RE-RUNNING the real suite in the PRIMARY checkout,
-                    # exactly as the first run was (`run_suite_check`'s docstring: a lane-run suite is
-                    # permanently red for reasons unrelated to the plan).
+                    # exactly as the first run was (`run_suite_check`'s docstring: a green primary tree
+                    # is what integration endangers, so re-verification uses the primary checkout).
                     rerun_suite=lambda: run_suite_check(
                         repo, str(state.get("run_id") or "")
                     ),
@@ -32993,7 +34267,7 @@ def execute_item_core(
                             lane_status_paths.append(entry.strip().strip('"'))
             extra_allowed: list[str] = []
             if queue_entry_type(item) != "ipd":
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(DriverError, ValueError):
                     art_p = queue_artifact_path(wt_handle.path, item)
                     extra_allowed.append(
                         str(art_p.relative_to(wt_handle.path)).replace("\\", "/")
@@ -33209,7 +34483,7 @@ def execute_item_core(
         elif is_review and wt_handle is None:
             extra_allowed = []
             if queue_entry_type(item) != "ipd":
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(DriverError, ValueError):
                     art_p = queue_artifact_path(repo, item)
                     extra_allowed.append(
                         str(art_p.relative_to(repo)).replace("\\", "/")
@@ -33589,15 +34863,15 @@ def execute_item_core(
                 )
 
             # Discover all newly produced plans in target_tree
-            new_produced_paths: list[Path] = []
-            new_produced_plans: list[tuple[str, Path]] = []
+            new_produced_paths: list[Path] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
+            new_produced_plans: list[tuple[str, Path]] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
             for p, text in _ce._iter_plan_ipds(target_tree):
                 p_id = _pc._extract_plan_id(p, text)
                 if p_id not in baseline_plan_ids:
                     new_produced_paths.append(p)
                     new_produced_plans.append((p_id, p))
 
-            findings: list[tuple[str, str, str]] = []
+            findings: list[tuple[str, str, str]] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
             if exit_code != 0:
                 findings.append(
                     (
@@ -34080,376 +35354,509 @@ def execute_item_core(
                 and integration.earned
             ):
                 finalize_repo = Path(work_dir)
+                current_plan_for_finalize = None
                 try:
                     current_plan_for_finalize = resolve_plan_path(
                         finalize_repo, item.get("configured_file", ""), item["id6"]
                     )
-                except DriverError:
-                    current_plan_for_finalize = plan_path
-                actor = driver_actor(state, labels=host_labels)
-                fin_message = (
-                    f"{host_labels.command} self-finalize: {item['id6']} verified "
-                    f"(set {item['setid']}, attempt {attempt_no})."
-                )
-                record_item_spec_edits(
-                    finalize_repo,
-                    current_plan_for_finalize,
-                    item,
-                    reconcile=lambda r, p: compute_scope_reconciliation(
-                        r, p, labels=host_labels
-                    ),
-                )
-                sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
-                refreeze_stale_receipt_for_correction(
-                    repo,
-                    current_plan_for_finalize,
-                    item,
-                    attempt,
-                    actor=actor,
-                    run_dir=run_dir,
-                )
-                # finlockwait-01 (`y2vzit`) E-03: Lane arm finalize (first handle_finalize_refusal
-                # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
-                # (FINALIZE_LOCK_REATTEMPTS) keeping the LANE worktree `finalize_repo` argument.
-                # Re-attempts ONLY the driver_finalize subprocess; never re-runs the surrounding
-                # integration or merge step, and keeps the lane repo.
-                fin_rc, fin_msg = finalize_with_contention_retry(
-                    driver_finalize,
-                    finalize_repo,
-                    current_plan_for_finalize,
-                    item["id6"],
-                    actor,
-                    fin_message,
-                    attestation=get_run_attestation(run_dir),
-                    item=item,
-                    run_dir=run_dir,
-                    append_jsonl=append_jsonl,
-                )
-                if fin_rc == 0:
-                    perform_carrier_verification(
-                        target_repo=finalize_repo,
-                        b_id6=item["id6"],
-                        item=item,
-                        attempt=attempt,
-                        state=state,
-                        run_dir=run_dir,
-                        plan_path=current_plan_for_finalize,
-                        attempt_no=attempt_no,
-                        raw_launcher=raw_launcher,
-                        host_labels=host_labels,
-                        tracker=tracker,
-                        work_dir=work_dir,
-                        session_turn_counts=None,
-                    )
-                    process_backlog_close(
-                        run_dir,
-                        state,
+                except DriverError as exc:
+                    fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)
+                    record_refusal(
                         item,
-                        lane_handle=wt_handle,
-                        lane_repo=Path(work_dir),
+                        code=FINALIZE_PLAN_UNRESOLVABLE_CODE,
+                        reason=fin_reason,
+                        remedy=fin_remedy,
                     )
-                    # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
-                    # factory so the gate's revalidation step actually measures the merge result. Bound
-                    # from the local name this body already resolves (the same one the suite-signal and
-                    # `fixed`-recheck paths above use), so no new injection reaches the call sites.
-                    val_runner = make_integration_validation_runner(
-                        state, run_dir, item, suite_check=run_suite_check
+                    attempt["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    item["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    # IPD 1fzist: fail-gate disposition chosen from existing vocabulary because
+                    # its recorded non-retryable reason ("lifecycle gate or clean-base gate refused;
+                    # not a host failure to retry without human action") fits a plan path that
+                    # cannot be located, unlike partial which names another plan as future owner.
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {fin_reason}", "yellow"),
+                        file=sys.stderr,
                     )
+                    print(pal(f"    -> {fin_remedy}", "yellow"), file=sys.stderr)
+                    save_state(run_dir, state)
 
-                    # runconcur-01 (`vddpml`) E-03: THE FIRST-ATTEMPT PUBLISH, serialized behind the
-                    # repository integration lock. This is the site that produced the measured harm on
-                    # 2026-09-22: a peer driver advanced `main` between one run's completed validation
-                    # and its publish, twice. The gate and the real `git merge` both run INSIDE the
-                    # held lock, and main's tip is re-resolved there, so the tip the merge sees cannot
-                    # move under it.
-                    def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
-                        try:
-                            return integrate_lane_branch(
-                                repo, _handle, _item["id6"], val_runner
-                            )
-                        except TypeError:
-                            return integrate_lane_branch(
-                                repo,
-                                _handle,
-                                _item["id6"],
-                                val_runner,
-                                host_label=host_labels.command,
-                                run_checked=globals()["run_checked"],
-                                action_kind="execute",
-                            )
-
-                    integrated, integ_reason, integ_kind = (
-                        integrate_under_repository_lock(
-                            repo,
-                            item,
-                            wt_handle,
-                            state=state,
-                            holder_label=integration_lock_holder_label(state),
-                            integrate=_publish,
-                            progress=integration_lock_progress_reporter(),
-                            run_checked=globals()["run_checked"],
-                        )
+                if current_plan_for_finalize is not None:
+                    actor = driver_actor(state, labels=host_labels)
+                    fin_message = (
+                        f"{host_labels.command} self-finalize: {item['id6']} verified "
+                        f"(set {item['setid']}, attempt {attempt_no})."
                     )
-
-                    # mergeagent (`ounhsn`) E-03: send merge-back conflict to the agent to resolve in its lane
-                    sendback_records: list[dict[str, Any]] = list(
-                        attempt.get("merge_conflict_sendback") or []
+                    record_item_spec_edits(
+                        finalize_repo,
+                        current_plan_for_finalize,
+                        item,
+                        reconcile=lambda r, p: compute_scope_reconciliation(
+                            r, p, labels=host_labels
+                        ),
                     )
-                    conflict_budget = frozen_retry_budget(state)
-                    while (
-                        not integrated
-                        and wt_handle is not None
-                        and integ_kind == INTEGRATION_REFUSAL_CONFLICT
-                        and read_integration_cause(integ_reason)[0]
-                        == INTEGRATION_CAUSE_GIT_CONFLICT
-                        and int(item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0)
-                        < conflict_budget
-                    ):
-                        current_conflict_count = int(
-                            item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0
-                        )
-                        item[MERGE_CONFLICT_RETRY_COUNT_KEY] = (
-                            current_conflict_count + 1
-                        )
-                        save_state(run_dir, state)
-
-                        prep = prepare_lane_for_conflict_resolution(
-                            repo,
-                            wt_handle,
-                            run_checked=globals().get("run_checked"),
+                    sync_receipt_into_worktree(repo, finalize_repo, item["id6"])
+                    refreeze_stale_receipt_for_correction(
+                        repo,
+                        current_plan_for_finalize,
+                        item,
+                        attempt,
+                        actor=actor,
+                        run_dir=run_dir,
+                    )
+                    # finlockwait-01 (`y2vzit`) E-03: Lane arm finalize (first handle_finalize_refusal
+                    # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
+                    # (FINALIZE_LOCK_REATTEMPTS) keeping the LANE worktree `finalize_repo` argument.
+                    # Re-attempts ONLY the driver_finalize subprocess; never re-runs the surrounding
+                    # integration or merge step, and keeps the lane repo.
+                    fin_rc, fin_msg = finalize_with_contention_retry(
+                        driver_finalize,
+                        finalize_repo,
+                        current_plan_for_finalize,
+                        item["id6"],
+                        actor,
+                        fin_message,
+                        attestation=get_run_attestation(run_dir),
+                        item=item,
+                        run_dir=run_dir,
+                        append_jsonl=append_jsonl,
+                    )
+                    if fin_rc == 0:
+                        perform_carrier_verification(
+                            target_repo=finalize_repo,
+                            b_id6=item["id6"],
                             item=item,
+                            attempt=attempt,
+                            state=state,
+                            run_dir=run_dir,
+                            plan_path=current_plan_for_finalize,
+                            attempt_no=attempt_no,
+                            raw_launcher=raw_launcher,
+                            host_labels=host_labels,
+                            tracker=tracker,
+                            work_dir=work_dir,
+                            session_turn_counts=None,
                         )
-                        if not prep.ok:
-                            break
+                        process_backlog_close(
+                            run_dir,
+                            state,
+                            item,
+                            lane_handle=wt_handle,
+                            lane_repo=Path(work_dir),
+                        )
+                        # integearn-03 (`daexj1`) E-03: the host's OWN `run_suite_check` is handed to the
+                        # factory so the gate's revalidation step actually measures the merge result. Bound
+                        # from the local name this body already resolves (the same one the suite-signal and
+                        # `fixed`-recheck paths above use), so no new injection reaches the call sites.
+                        val_runner = make_integration_validation_runner(
+                            state, run_dir, item, suite_check=run_suite_check
+                        )
 
-                        if not prep.conflicted_paths:
-                            # Clean merge; skip agent ask and re-attempt publish directly
-                            integrated, integ_reason, integ_kind = (
-                                integrate_under_repository_lock(
+                        # runconcur-01 (`vddpml`) E-03: THE FIRST-ATTEMPT PUBLISH, serialized behind the
+                        # repository integration lock. This is the site that produced the measured harm on
+                        # 2026-09-22: a peer driver advanced `main` between one run's completed validation
+                        # and its publish, twice. The gate and the real `git merge` both run INSIDE the
+                        # held lock, and main's tip is re-resolved there, so the tip the merge sees cannot
+                        # move under it.
+                        def _publish(_item: Any, _handle: Any) -> tuple[bool, str, str]:
+                            try:
+                                return integrate_lane_branch(
+                                    repo, _handle, _item["id6"], val_runner
+                                )
+                            except TypeError:
+                                return integrate_lane_branch(
                                     repo,
-                                    item,
-                                    wt_handle,
-                                    state=state,
-                                    holder_label=integration_lock_holder_label(state),
-                                    integrate=_publish,
-                                    progress=integration_lock_progress_reporter(),
+                                    _handle,
+                                    _item["id6"],
+                                    val_runner,
+                                    host_label=host_labels.command,
                                     run_checked=globals()["run_checked"],
+                                    action_kind="execute",
                                 )
-                            )
-                            continue
 
-                        conflict_detail = build_conflict_resolver_detail(
-                            wt_handle.path,
-                            paths=prep.conflicted_paths,
-                            base_commit=wt_handle.base_commit,
-                        )
-                        append_jsonl(
-                            run_dir / "events.jsonl",
-                            {
-                                "at": utc_now(),
-                                "event": "merge-conflict-sent-back",
-                                "id6": item["id6"],
-                                "attempt": attempt_no,
-                                "conflicted": list(prep.conflicted_paths),
-                                "shape": conflict_detail.get("shape"),
-                                "retry_attempt": item[MERGE_CONFLICT_RETRY_COUNT_KEY],
-                                "retry_budget": conflict_budget,
-                            },
+                        integrated, integ_reason, integ_kind = (
+                            integrate_under_repository_lock(
+                                repo,
+                                item,
+                                wt_handle,
+                                state=state,
+                                holder_label=integration_lock_holder_label(state),
+                                integrate=_publish,
+                                progress=integration_lock_progress_reporter(),
+                                run_checked=globals()["run_checked"],
+                            )
                         )
 
-                        conflict_prompt_text = merge_conflict_question(
-                            conflict_detail,
-                            main_tip=prep.merge_head,
+                        # mergeagent (`ounhsn`) E-03: send merge-back conflict to the agent to resolve in its lane
+                        sendback_records: list[dict[str, Any]] = list(
+                            attempt.get("merge_conflict_sendback") or []
                         )
-                        conflict_session = attempt.get("session_id")
-                        interrupted = False
-                        try:
-                            if host_labels == OC_HOST_LABELS:
-                                resume_via_launcher(
-                                    raw_launcher,
-                                    (
-                                        state,
-                                        run_dir,
-                                        item,
-                                        plan_path,
-                                        write_prompt(
-                                            run_dir,
-                                            item,
-                                            conflict_prompt_text,
-                                            attempt_no,
-                                            suffix="merge-conflict",
-                                        ),
-                                        attempt_no,
-                                    ),
-                                    {
-                                        "log_suffix": "merge-conflict",
-                                        "label_suffix": "merge-conflict",
-                                        "tracker": tracker,
-                                        "work_dir": work_dir,
-                                        "resume_session": conflict_session,
-                                    },
-                                )
-                            else:
-                                resume_via_launcher(
-                                    raw_launcher,
-                                    (
-                                        state,
-                                        run_dir,
-                                        item,
-                                        write_prompt(
-                                            run_dir,
-                                            item,
-                                            conflict_prompt_text,
-                                            attempt_no,
-                                            suffix="merge-conflict",
-                                        ),
-                                        attempt_no,
-                                    ),
-                                    {
-                                        "session_id": conflict_session,
-                                        "use_continue": False,
-                                        "log_suffix": "merge-conflict",
-                                        "label_suffix": "merge-conflict",
-                                        "work_dir": work_dir,
-                                        "tracker": tracker,
-                                    },
-                                )
-                        except (KeyboardInterrupt, StallTimeout):
-                            interrupted = True
-
-                        if work_dir:
-                            with contextlib.suppress(Exception):
-                                lane_containment.collect_lane_submissions(
-                                    run_dir=run_dir,
-                                    item=item,
-                                    run_id=state["run_id"],
-                                    lane_root=Path(work_dir),
-                                    plan_path=plan_path,
-                                    attempt=attempt_no,
-                                )
-
-                        if interrupted:
-                            break
-
-                        resolved, consummated = check_conflict_resolution_consummated(
-                            wt_handle.path,
-                            prep.conflicted_paths,
-                            prep.merge_head,
-                        )
-                        sendback_entry = {
-                            "conflicted": list(prep.conflicted_paths),
-                            "shape": conflict_detail.get("shape"),
-                            "resolved": resolved,
-                            "consummated": consummated,
-                        }
-                        sendback_records.append(sendback_entry)
-                        attempt["merge_conflict_sendback"] = sendback_records
-                        save_state(run_dir, state)
-
-                        if consummated:
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "merge-conflict-resolved",
-                                    "id6": item["id6"],
-                                    "attempt": attempt_no,
-                                    "conflicted": list(prep.conflicted_paths),
-                                    "shape": conflict_detail.get("shape"),
-                                },
+                        conflict_budget = frozen_retry_budget(state)
+                        while (
+                            not integrated
+                            and wt_handle is not None
+                            and integ_kind == INTEGRATION_REFUSAL_CONFLICT
+                            and read_integration_cause(integ_reason)[0]
+                            == INTEGRATION_CAUSE_GIT_CONFLICT
+                            and int(item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0)
+                            < conflict_budget
+                        ):
+                            current_conflict_count = int(
+                                item.get(MERGE_CONFLICT_RETRY_COUNT_KEY, 0) or 0
                             )
-                            integrated, integ_reason, integ_kind = (
-                                integrate_under_repository_lock(
-                                    repo,
-                                    item,
-                                    wt_handle,
-                                    state=state,
-                                    holder_label=integration_lock_holder_label(state),
-                                    integrate=_publish,
-                                    progress=integration_lock_progress_reporter(),
-                                    run_checked=globals()["run_checked"],
-                                )
-                            )
-                        else:
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "merge-conflict-unresolved",
-                                    "id6": item["id6"],
-                                    "attempt": attempt_no,
-                                    "conflicted": list(prep.conflicted_paths),
-                                    "shape": conflict_detail.get("shape"),
-                                    "consummated": consummated,
-                                },
-                            )
-
-                    # Ensure lane is integrable by existing human path on terminal arm
-                    if not integrated and wt_handle is not None:
-                        if merge_in_progress(wt_handle.path):
-                            _run_git(wt_handle.path, ["merge", "--abort"])
-                            attempt["merge_conflict_lane_aborted"] = True
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "lane-merge-aborted",
-                                    "id6": item["id6"],
-                                    "attempt": attempt_no,
-                                    "detail": "in-progress lane merge aborted before terminal refusal",
-                                },
+                            item[MERGE_CONFLICT_RETRY_COUNT_KEY] = (
+                                current_conflict_count + 1
                             )
                             save_state(run_dir, state)
 
-                    if not integrated:
-                        _record_lane_ending_facts(
-                            attempt,
-                            work_dir,
-                            git_head_fn=git_head,
-                            git_status_fn=git_status,
-                        )
-                        with contextlib.suppress(Exception):
-                            item["integration_changed_files"] = list(
-                                build_lane_outcome(
-                                    repo, wt_handle, item["id6"]
-                                ).changed_files
+                            prep = prepare_lane_for_conflict_resolution(
+                                repo,
+                                wt_handle,
+                                run_checked=globals().get("run_checked"),
+                                item=item,
                             )
-                        decision = record_integration_refusal(
-                            run_dir=run_dir,
-                            state=state,
-                            item=item,
-                            attempt=attempt,
-                            integ_kind=integ_kind,
-                            integ_reason=integ_reason,
-                            branch=wt_handle.branch if wt_handle else None,
-                            save_state=save_state,
-                            append_jsonl=append_jsonl,
-                        )
-                        fail_status = decision.status
-                        render_record_integration_refusal(
-                            item,
-                            code=fail_status,
-                            reason=integ_reason,
-                            branch=wt_handle.branch if wt_handle else None,
-                        )
-                        lane_branch = wt_handle.branch if wt_handle else "(none)"
-                        print(
-                            pal(
-                                f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
-                                f"integrated to main ({fail_status}): {integ_reason}",
-                                "yellow",
-                            ),
-                            file=sys.stderr,
-                        )
-                        if decision.deferred:
+                            if not prep.ok:
+                                break
+
+                            if not prep.conflicted_paths:
+                                # Clean merge; skip agent ask and re-attempt publish directly
+                                integrated, integ_reason, integ_kind = (
+                                    integrate_under_repository_lock(
+                                        repo,
+                                        item,
+                                        wt_handle,
+                                        state=state,
+                                        holder_label=integration_lock_holder_label(
+                                            state
+                                        ),
+                                        integrate=_publish,
+                                        progress=integration_lock_progress_reporter(),
+                                        run_checked=globals()["run_checked"],
+                                    )
+                                )
+                                continue
+
+                            conflict_detail = build_conflict_resolver_detail(
+                                wt_handle.path,
+                                paths=prep.conflicted_paths,
+                                base_commit=wt_handle.base_commit,
+                            )
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "merge-conflict-sent-back",
+                                    "id6": item["id6"],
+                                    "attempt": attempt_no,
+                                    "conflicted": list(prep.conflicted_paths),
+                                    "shape": conflict_detail.get("shape"),
+                                    "retry_attempt": item[
+                                        MERGE_CONFLICT_RETRY_COUNT_KEY
+                                    ],
+                                    "retry_budget": conflict_budget,
+                                },
+                            )
+
+                            conflict_prompt_text = merge_conflict_question(
+                                conflict_detail,
+                                main_tip=prep.merge_head,
+                            )
+                            conflict_session = attempt.get("session_id")
+                            interrupted = False
+                            try:
+                                if host_labels == OC_HOST_LABELS:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            plan_path,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                conflict_prompt_text,
+                                                attempt_no,
+                                                suffix="merge-conflict",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "log_suffix": "merge-conflict",
+                                            "label_suffix": "merge-conflict",
+                                            "tracker": tracker,
+                                            "work_dir": work_dir,
+                                            "resume_session": conflict_session,
+                                        },
+                                    )
+                                else:
+                                    resume_via_launcher(
+                                        raw_launcher,
+                                        (
+                                            state,
+                                            run_dir,
+                                            item,
+                                            write_prompt(
+                                                run_dir,
+                                                item,
+                                                conflict_prompt_text,
+                                                attempt_no,
+                                                suffix="merge-conflict",
+                                            ),
+                                            attempt_no,
+                                        ),
+                                        {
+                                            "session_id": conflict_session,
+                                            "use_continue": False,
+                                            "log_suffix": "merge-conflict",
+                                            "label_suffix": "merge-conflict",
+                                            "work_dir": work_dir,
+                                            "tracker": tracker,
+                                        },
+                                    )
+                            except (KeyboardInterrupt, StallTimeout):
+                                interrupted = True
+
+                            if work_dir:
+                                with contextlib.suppress(OSError):
+                                    lane_containment.collect_lane_submissions(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        run_id=state["run_id"],
+                                        lane_root=Path(work_dir),
+                                        plan_path=plan_path,
+                                        attempt=attempt_no,
+                                    )
+
+                            if interrupted:
+                                break
+
+                            resolved, consummated = (
+                                check_conflict_resolution_consummated(
+                                    wt_handle.path,
+                                    prep.conflicted_paths,
+                                    prep.merge_head,
+                                )
+                            )
+                            sendback_entry = {
+                                "conflicted": list(prep.conflicted_paths),
+                                "shape": conflict_detail.get("shape"),
+                                "resolved": resolved,
+                                "consummated": consummated,
+                            }
+                            sendback_records.append(sendback_entry)
+                            attempt["merge_conflict_sendback"] = sendback_records
+                            save_state(run_dir, state)
+
+                            if consummated:
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "merge-conflict-resolved",
+                                        "id6": item["id6"],
+                                        "attempt": attempt_no,
+                                        "conflicted": list(prep.conflicted_paths),
+                                        "shape": conflict_detail.get("shape"),
+                                    },
+                                )
+                                integrated, integ_reason, integ_kind = (
+                                    integrate_under_repository_lock(
+                                        repo,
+                                        item,
+                                        wt_handle,
+                                        state=state,
+                                        holder_label=integration_lock_holder_label(
+                                            state
+                                        ),
+                                        integrate=_publish,
+                                        progress=integration_lock_progress_reporter(),
+                                        run_checked=globals()["run_checked"],
+                                    )
+                                )
+                            else:
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "merge-conflict-unresolved",
+                                        "id6": item["id6"],
+                                        "attempt": attempt_no,
+                                        "conflicted": list(prep.conflicted_paths),
+                                        "shape": conflict_detail.get("shape"),
+                                        "consummated": consummated,
+                                    },
+                                )
+
+                        # Ensure lane is integrable by existing human path on terminal arm
+                        if not integrated and wt_handle is not None:
+                            if merge_in_progress(wt_handle.path):
+                                _run_git(wt_handle.path, ["merge", "--abort"])
+                                attempt["merge_conflict_lane_aborted"] = True
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "lane-merge-aborted",
+                                        "id6": item["id6"],
+                                        "attempt": attempt_no,
+                                        "detail": "in-progress lane merge aborted before terminal refusal",
+                                    },
+                                )
+                                save_state(run_dir, state)
+
+                        if not integrated:
+                            _record_lane_ending_facts(
+                                attempt,
+                                work_dir,
+                                git_head_fn=git_head,
+                                git_status_fn=git_status,
+                            )
+                            # Defence in depth against future re-nesting: wt_handle is guaranteed
+                            # non-None here by the enclosing guard at lines 34315-34320 (self_finalize
+                            # and work_dir and wt_handle is not None and integration.earned) and is never
+                            # rebound between there and this block. This is not a live-path fix.
+                            if wt_handle is not None:
+                                with contextlib.suppress(DriverError):
+                                    item["integration_changed_files"] = list(
+                                        build_lane_outcome(
+                                            repo, wt_handle, item["id6"]
+                                        ).changed_files
+                                    )
+                            decision = record_integration_refusal(
+                                run_dir=run_dir,
+                                state=state,
+                                item=item,
+                                attempt=attempt,
+                                integ_kind=integ_kind,
+                                integ_reason=integ_reason,
+                                branch=wt_handle.branch if wt_handle else None,
+                                save_state=save_state,
+                                append_jsonl=append_jsonl,
+                            )
+                            fail_status = decision.status
+                            render_record_integration_refusal(
+                                item,
+                                code=fail_status,
+                                reason=integ_reason,
+                                branch=wt_handle.branch if wt_handle else None,
+                            )
+                            lane_branch = wt_handle.branch if wt_handle else "(none)"
                             print(
                                 pal(
-                                    f"    -> {decision.reason}",
-                                    "cyan",
+                                    f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
+                                    f"integrated to main ({fail_status}): {integ_reason}",
+                                    "yellow",
                                 ),
                                 file=sys.stderr,
                             )
-                        disposition = fail_status
+                            if decision.deferred:
+                                print(
+                                    pal(
+                                        f"    -> {decision.reason}",
+                                        "cyan",
+                                    ),
+                                    file=sys.stderr,
+                                )
+                            disposition = fail_status
+                        else:
+                            _record_lane_ending_facts(
+                                attempt,
+                                work_dir,
+                                git_head_fn=git_head,
+                                git_status_fn=git_status,
+                            )
+                            attempt["ending_head"] = git_head(repo)
+                            attempt["ending_status"] = git_status(repo)
+                            if (
+                                wt_handle is not None
+                                and lane_containment.lane_preserved_for_missing_input(
+                                    item
+                                )
+                            ):
+                                missing_input_reason = (
+                                    "a missing-input report was refused; the lane is preserved and "
+                                    "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                                )
+                                append_jsonl(
+                                    run_dir / "events.jsonl",
+                                    {
+                                        "at": utc_now(),
+                                        "event": "lane-preserved-for-missing-input",
+                                        "id6": item["id6"],
+                                        "branch": wt_handle.branch,
+                                        "worktree": str(wt_handle.path),
+                                        "reason": missing_input_reason,
+                                    },
+                                )
+                                lane_containment.record_preserved_lane_state(
+                                    item=item,
+                                    handle=wt_handle,
+                                    reason=missing_input_reason,
+                                    reason_codes=("missing-input-refused",),
+                                )
+                                print(
+                                    pal(
+                                        f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
+                                        f"refused (paused per spec R3.2); the lane was not torn down",
+                                        "yellow",
+                                    ),
+                                    file=sys.stderr,
+                                )
+                            elif wt_handle is not None:
+                                decision = lane_containment.teardown_lane_if_classified(
+                                    repo=repo,
+                                    handle=wt_handle,
+                                    run_dir=run_dir,
+                                    item=item,
+                                )
+                                if decision.torn_down:
+                                    wt_handle = None
+                                else:
+                                    lane_containment.record_lane_preserved(
+                                        run_dir=run_dir,
+                                        item=item,
+                                        handle=wt_handle,
+                                        reason=decision.reason,
+                                        reason_codes=decision.reason_codes,
+                                        detail=decision.inventory.as_dict(),
+                                    )
+                                    print(
+                                        pal(
+                                            f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
+                                            f"{decision.reason}",
+                                            "yellow",
+                                        ),
+                                        file=sys.stderr,
+                                    )
+                            disposition = "executed"
+                            attempt["disposition"] = "executed"
+                            attempt["finalized"] = True
+                            attempt["integrated"] = integ_reason
+                            item["status"] = "executed"
+                            try:
+                                item["last_plan_path"] = str(
+                                    resolve_plan_path(
+                                        repo,
+                                        item.get("configured_file", ""),
+                                        item["id6"],
+                                    )
+                                )
+                            except DriverError:
+                                pass
+                            save_state(run_dir, state)
+                            append_jsonl(
+                                run_dir / "events.jsonl",
+                                {
+                                    "at": utc_now(),
+                                    "event": "ipd-finalized",
+                                    "id6": item["id6"],
+                                    "setid": item["setid"],
+                                    "integration": integ_reason,
+                                },
+                            )
                     else:
                         _record_lane_ending_facts(
                             attempt,
@@ -34459,197 +35866,131 @@ def execute_item_core(
                         )
                         attempt["ending_head"] = git_head(repo)
                         attempt["ending_status"] = git_status(repo)
-                        if (
-                            wt_handle is not None
-                            and lane_containment.lane_preserved_for_missing_input(item)
-                        ):
-                            missing_input_reason = (
-                                "a missing-input report was refused; the lane is preserved and "
-                                "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
-                            )
-                            append_jsonl(
-                                run_dir / "events.jsonl",
-                                {
-                                    "at": utc_now(),
-                                    "event": "lane-preserved-for-missing-input",
-                                    "id6": item["id6"],
-                                    "branch": wt_handle.branch,
-                                    "worktree": str(wt_handle.path),
-                                    "reason": missing_input_reason,
-                                },
-                            )
-                            lane_containment.record_preserved_lane_state(
-                                item=item,
-                                handle=wt_handle,
-                                reason=missing_input_reason,
-                                reason_codes=("missing-input-refused",),
-                            )
-                            print(
-                                pal(
-                                    f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
-                                    f"refused (paused per spec R3.2); the lane was not torn down",
-                                    "yellow",
-                                ),
-                                file=sys.stderr,
-                            )
-                        elif wt_handle is not None:
-                            decision = lane_containment.teardown_lane_if_classified(
-                                repo=repo,
-                                handle=wt_handle,
-                                run_dir=run_dir,
-                                item=item,
-                            )
-                            if decision.torn_down:
-                                wt_handle = None
-                            else:
-                                lane_containment.record_lane_preserved(
-                                    run_dir=run_dir,
-                                    item=item,
-                                    handle=wt_handle,
-                                    reason=decision.reason,
-                                    reason_codes=decision.reason_codes,
-                                    detail=decision.inventory.as_dict(),
-                                )
-                                print(
-                                    pal(
-                                        f"  ! lane {wt_handle.branch} PRESERVED (not torn down): "
-                                        f"{decision.reason}",
-                                        "yellow",
-                                    ),
-                                    file=sys.stderr,
-                                )
-                        disposition = "executed"
-                        attempt["disposition"] = "executed"
-                        attempt["finalized"] = True
-                        attempt["integrated"] = integ_reason
-                        item["status"] = "executed"
-                        try:
-                            item["last_plan_path"] = str(
-                                resolve_plan_path(
-                                    repo, item.get("configured_file", ""), item["id6"]
-                                )
-                            )
-                        except DriverError:
-                            pass
-                        save_state(run_dir, state)
-                        append_jsonl(
-                            run_dir / "events.jsonl",
-                            {
-                                "at": utc_now(),
-                                "event": "ipd-finalized",
-                                "id6": item["id6"],
-                                "setid": item["setid"],
-                                "integration": integ_reason,
-                            },
+                        # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
+                        # happens next. Delegated so this arm and its twin below cannot drift.
+                        disposition = handle_finalize_refusal(
+                            run_dir=run_dir,
+                            state=state,
+                            item=item,
+                            attempt=attempt,
+                            fin_rc=fin_rc,
+                            fin_msg=fin_msg,
+                            disposition=disposition,
+                            host_labels=host_labels,
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
                         )
-                else:
-                    _record_lane_ending_facts(
-                        attempt,
-                        work_dir,
-                        git_head_fn=git_head,
-                        git_status_fn=git_status,
-                    )
-                    attempt["ending_head"] = git_head(repo)
-                    attempt["ending_status"] = git_status(repo)
-                    # finalback (`zzcrlo`): the refusal is CORRECT and unchanged; what changes is what
-                    # happens next. Delegated so this arm and its twin below cannot drift.
-                    disposition = handle_finalize_refusal(
-                        run_dir=run_dir,
-                        state=state,
-                        item=item,
-                        attempt=attempt,
-                        fin_rc=fin_rc,
-                        fin_msg=fin_msg,
-                        disposition=disposition,
-                        host_labels=host_labels,
-                        save_state=save_state,
-                        append_jsonl=append_jsonl,
-                    )
             elif self_finalize and not work_dir and integration.earned:
+                current_plan_for_finalize = None
                 try:
                     current_plan_for_finalize = resolve_plan_path(
                         repo, item.get("configured_file", ""), item["id6"]
                     )
-                except DriverError:
-                    current_plan_for_finalize = plan_path
-                actor = driver_actor(state, labels=host_labels)
-                fin_message = (
-                    f"{host_labels.command} self-finalize: {item['id6']} verified "
-                    f"(set {item['setid']}, attempt {attempt_no})."
-                )
-                record_item_spec_edits(
-                    repo,
-                    current_plan_for_finalize,
-                    item,
-                    reconcile=lambda r, p: compute_scope_reconciliation(
-                        r, p, labels=host_labels
-                    ),
-                )
-                refreeze_stale_receipt_for_correction(
-                    repo,
-                    current_plan_for_finalize,
-                    item,
-                    attempt,
-                    actor=actor,
-                    run_dir=run_dir,
-                )
-                # finlockwait-01 (`y2vzit`) E-03: Non-lane arm finalize (second handle_finalize_refusal
-                # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
-                # (FINALIZE_LOCK_REATTEMPTS) keeping `repo`.
-                fin_rc, fin_msg = finalize_with_contention_retry(
-                    driver_finalize,
-                    repo,
-                    current_plan_for_finalize,
-                    item["id6"],
-                    actor,
-                    fin_message,
-                    attestation=get_run_attestation(run_dir),
-                    item=item,
-                    run_dir=run_dir,
-                    append_jsonl=append_jsonl,
-                )
-                attempt["ending_head"] = git_head(repo)
-                attempt["ending_status"] = git_status(repo)
-                if fin_rc == 0:
-                    perform_carrier_verification(
-                        target_repo=repo,
-                        b_id6=item["id6"],
-                        item=item,
-                        attempt=attempt,
-                        state=state,
-                        run_dir=run_dir,
-                        plan_path=current_plan_for_finalize,
-                        attempt_no=attempt_no,
-                        raw_launcher=raw_launcher,
-                        host_labels=host_labels,
-                        tracker=tracker,
-                        work_dir=work_dir,
-                        session_turn_counts=state.setdefault("session_turn_counts", {}),
+                except DriverError as exc:
+                    fin_reason, fin_remedy = finalize_unresolvable_text(plan_path, exc)
+                    record_refusal(
+                        item,
+                        code=FINALIZE_PLAN_UNRESOLVABLE_CODE,
+                        reason=fin_reason,
+                        remedy=fin_remedy,
                     )
-                    attempt["disposition"] = "executed"
-                    attempt["finalized"] = True
-                    disposition = "executed"
-                    try:
-                        plan_path = resolve_plan_path(
-                            repo, item.get("configured_file", ""), item["id6"]
-                        )
-                    except DriverError:
-                        pass
-                else:
-                    # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
-                    # shared performer so the no-lane path cannot drift from the lane path.
-                    disposition = handle_finalize_refusal(
+                    attempt["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    item["finalize_refusal"] = FINALIZE_PLAN_UNRESOLVABLE_CODE
+                    # IPD 1fzist: fail-gate disposition chosen from existing vocabulary because
+                    # its recorded non-retryable reason ("lifecycle gate or clean-base gate refused;
+                    # not a host failure to retry without human action") fits a plan path that
+                    # cannot be located, unlike partial which names another plan as future owner.
+                    disposition = "fail-gate"
+                    attempt["disposition"] = "fail-gate"
+                    item["status"] = "fail-gate"
+                    print(
+                        pal(f"  ! IPD {item['id6']} {fin_reason}", "yellow"),
+                        file=sys.stderr,
+                    )
+                    print(pal(f"    -> {fin_remedy}", "yellow"), file=sys.stderr)
+                    save_state(run_dir, state)
+
+                if current_plan_for_finalize is not None:
+                    actor = driver_actor(state, labels=host_labels)
+                    fin_message = (
+                        f"{host_labels.command} self-finalize: {item['id6']} verified "
+                        f"(set {item['setid']}, attempt {attempt_no})."
+                    )
+                    record_item_spec_edits(
+                        repo,
+                        current_plan_for_finalize,
+                        item,
+                        reconcile=lambda r, p: compute_scope_reconciliation(
+                            r, p, labels=host_labels
+                        ),
+                    )
+                    refreeze_stale_receipt_for_correction(
+                        repo,
+                        current_plan_for_finalize,
+                        item,
+                        attempt,
+                        actor=actor,
                         run_dir=run_dir,
-                        state=state,
+                    )
+                    # finlockwait-01 (`y2vzit`) E-03: Non-lane arm finalize (second handle_finalize_refusal
+                    # call site). If driver_finalize meets writer-lock contention, re-attempt bounded times
+                    # (FINALIZE_LOCK_REATTEMPTS) keeping `repo`.
+                    fin_rc, fin_msg = finalize_with_contention_retry(
+                        driver_finalize,
+                        repo,
+                        current_plan_for_finalize,
+                        item["id6"],
+                        actor,
+                        fin_message,
+                        attestation=get_run_attestation(run_dir),
                         item=item,
-                        attempt=attempt,
-                        fin_rc=fin_rc,
-                        fin_msg=fin_msg,
-                        disposition=disposition,
-                        host_labels=host_labels,
-                        save_state=save_state,
+                        run_dir=run_dir,
                         append_jsonl=append_jsonl,
                     )
+                    attempt["ending_head"] = git_head(repo)
+                    attempt["ending_status"] = git_status(repo)
+                    if fin_rc == 0:
+                        perform_carrier_verification(
+                            target_repo=repo,
+                            b_id6=item["id6"],
+                            item=item,
+                            attempt=attempt,
+                            state=state,
+                            run_dir=run_dir,
+                            plan_path=current_plan_for_finalize,
+                            attempt_no=attempt_no,
+                            raw_launcher=raw_launcher,
+                            host_labels=host_labels,
+                            tracker=tracker,
+                            work_dir=work_dir,
+                            session_turn_counts=state.setdefault(
+                                "session_turn_counts", {}
+                            ),
+                        )
+                        attempt["disposition"] = "executed"
+                        attempt["finalized"] = True
+                        disposition = "executed"
+                        try:
+                            plan_path = resolve_plan_path(
+                                repo, item.get("configured_file", ""), item["id6"]
+                            )
+                        except DriverError:
+                            pass
+                    else:
+                        # finalback (`zzcrlo`): the TWIN of the lane-worktree arm above, delegated to the same
+                        # shared performer so the no-lane path cannot drift from the lane path.
+                        disposition = handle_finalize_refusal(
+                            run_dir=run_dir,
+                            state=state,
+                            item=item,
+                            attempt=attempt,
+                            fin_rc=fin_rc,
+                            fin_msg=fin_msg,
+                            disposition=disposition,
+                            host_labels=host_labels,
+                            save_state=save_state,
+                            append_jsonl=append_jsonl,
+                        )
             if disposition == "executed":
                 if not (item.get("backlog_close") or {}).get("closed"):
                     process_backlog_close(run_dir, state, item)
@@ -34932,51 +36273,57 @@ def close_backlog_item(
     evidence: str,
     message: str,
     *,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
     run_checked: Callable[..., str],
 ) -> tuple[int, str]:
     """Close a backlog item `done` through the LIFECYCLE-OWNED setter, never by editing the file.
 
-    ``repo`` is the tree the setter operates on: it is where the item file MOVES and, inseparably,
-    the ``repo_root`` the release-gate predicate evaluates against (see the warning below).
+    ``repo`` is the tree the setter operates on: it is where the item file MOVES.
+    When ``gate_root`` is passed (via `--gate-dir`), it is the tree the release-gate predicate
+    evaluates against (otherwise falling back to ``repo``).
 
-    THE `--status` SPELLING IS DELIBERATE AND LOAD-BEARING (zhr6mc D1). `aw backlog set <status>
-    <selector>` (positional) dispatches to `status_set.run_set_command`, which does NOT run the
-    shared release-gate close predicate and cannot even accept `--evidence`; `aw backlog set
-    <selector> --status done` dispatches to `backlog.run_set`, which DOES call
-    `check_engine.evaluate_blocking_close` and REFUSES an illegitimate blocking close. Verified live:
-    a `graduated` item carrying `Blocks-Release: next` closed with NO evidence via the positional
-    form (exit 0) and was REFUSED via this one. The runner must be gated, so it uses this form; do
-    not "simplify" it back to the positional spelling.
+    THE `--status` SPELLING IS RETAINED FOR RUNNER INTEGRATION (zhr6mc D1, superseded in fact by
+    47ttnv). Both spellings (`aw backlog set <selector> --status done` and `aw backlog set done
+    <selector>`) now run the shared release-gate close predicate and honor evidence. The `--status`
+    spelling is retained because it is what the pinned argv and `tests/test_runner_shared.py` already
+    express and because only it honors `--gate-dir`, which the following paragraph depends on for
+    the split-tree decision.
 
-    `--dir` IS NOT MERELY "WHERE THE FILE MOVES" (dirtygates-03 `9iq461` F-10/F-11). Because the
-    gated route runs `check_engine.evaluate_blocking_close`, this ONE argument also chooses the tree
-    that predicate scans for release-gate carriers (`check_engine.py`'s `done` branch calls
-    `find_from_backlog_artifacts(repo_root, item_id6)`) and the tree its `--evidence` citation is
-    resolved against (`resolve_evidence_artifact(repo_root, evidence)`). `backlog.run_set` derives
-    both from the same `resolve_verb_repo_root(args.dir)`, so THE TWO CANNOT BE SPLIT FROM HERE: one
-    `--dir` is one tree for the move AND the gate. That is why `process_backlog_close` performs the
-    MOVE in the lane but takes the ELIGIBILITY decision against main BEFORE calling this, and why the
-    evidence it cites is a path that resolves in the lane. Do not "simplify" this to a lane-only
-    evaluation: in the lane this run's own plan already sits in `executed/`, so a lane-side carrier
-    scan is MORE likely to find a satisfying carrier than main's, and the error direction is the
-    permissive one -- a release-gated item could close `done` that main's view would refuse.
+    `--dir` is where the item file moves, while `--gate-dir` chooses the tree the release gate
+    evaluates against. Because the gated route runs `check_engine.evaluate_blocking_close`, passing
+    `--gate-dir` roots carrier discovery (`find_from_backlog_artifacts(gate_root, item_id6)`) and
+    evidence resolution (`resolve_evidence_artifact(gate_root, evidence)`) in the gate tree (main),
+    while the move happens in ``repo`` (the lane). An isolated turn passes `--gate-dir` to evaluate
+    against main, along with `--lane-carrier-ref` and `--lane-carrier-path` to override the lane's
+    one finalized carrier. The cited evidence resolves in the gate tree (main).
+    Do not "simplify" this to a lane-only evaluation: in the lane this run's own plan already sits in
+    `executed/`, so a lane-side carrier scan is MORE likely to find a satisfying carrier than main's,
+    and the error direction is the permissive one -- a release-gated item could close `done` that
+    main's view would refuse.
     """
-    cmd = pinned_module_argv(
-        [
-            "backlog",
-            "set",
-            item_id6,
-            "--status",
-            "done",
-            "--evidence",
-            evidence,
-            "--message",
-            message,
-            "--dir",
-            str(repo),
-            "--no-commit",
-        ]
-    )
+    argv = [
+        "backlog",
+        "set",
+        item_id6,
+        "--status",
+        "done",
+        "--evidence",
+        evidence,
+        "--message",
+        message,
+        "--dir",
+        str(repo),
+    ]
+    if gate_root is not None:
+        argv.extend(["--gate-dir", str(gate_root)])
+    if lane_carrier_ref is not None:
+        argv.extend(["--lane-carrier-ref", lane_carrier_ref])
+    if lane_carrier_path is not None:
+        argv.extend(["--lane-carrier-path", lane_carrier_path])
+    argv.append("--no-commit")
+    cmd = pinned_module_argv(argv)
     # Launched through the SHARED `run_checked` rather than a fresh `subprocess.run`: it already
     # carries the af7i6p tooling pin AND the ttywedge (g40w37) `stdin=DEVNULL` terminal denial, so this
     # close cannot become the one nested-`aw` site that wedges on a prompt nobody can answer. Its
@@ -35123,8 +36470,14 @@ def process_backlog_close(
     close_backlog_item: Callable[..., tuple[int, str]],
     commit_backlog_close: Callable[..., Any],
     wrote_in: str | None = None,
+    host_label: str,
 ) -> None:
     """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
+
+    ``host_label`` has NO DEFAULT, on purpose (plan nf71bz, citing the established
+    `integrate_lane_branch(..., host_label=)` precedent and HostLabels conventions). A defaulted value
+    would misattribute in durable history which driver closed an item across two durable sinks:
+    the backlog-close commit message and the item's own tracked `## Workflow history` line.
 
     Records the verdict on the queue item either way, so E-06 can report every item left open WITH
     ITS REASON rather than merely noting that something did not happen.
@@ -35225,11 +36578,39 @@ def process_backlog_close(
         item["backlog_close"] = record
         return
     message = (
-        f"closed by aw oc run: IPD {item['id6']} executed "
+        f"closed by {host_label}: IPD {item['id6']} executed "
         f"({verdict.reason}); evidence {verdict.evidence}"
     )
+    lane_carrier_ref: str | None = None
+    lane_carrier_path: str | None = None
+    if isolated:
+        if lane_handle is not None:
+            lane_carrier_ref = getattr(lane_handle, "branch", None) or (
+                lane_handle.get("branch") if isinstance(lane_handle, dict) else None
+            )
+            if lane_carrier_ref is None and isinstance(lane_handle, str):
+                lane_carrier_ref = lane_handle
+        if not lane_carrier_ref and lane_repo is not None:
+            rc_b, out_b, _ = _run_git(Path(lane_repo), ["branch", "--show-current"])
+            if rc_b == 0 and out_b.strip():
+                lane_carrier_ref = out_b.strip()
+        if overrides:
+            lane_carrier_path = next(iter(overrides.keys()))
+
+    close_kw: dict[str, Any] = {}
+    if isolated and lane_carrier_ref and lane_carrier_path:
+        close_kw = {
+            "gate_root": repo,
+            "lane_carrier_ref": lane_carrier_ref,
+            "lane_carrier_path": lane_carrier_path,
+        }
     rc, out = close_backlog_item(
-        write_repo, item_path, item_id6, verdict.evidence or "", message
+        write_repo,
+        item_path,
+        item_id6,
+        verdict.evidence or "",
+        message,
+        **close_kw,
     )
     if rc != 0:
         # E-04 fail-closed: a refused setter leaves the item ALONE and the refusal is the reason.
@@ -35651,9 +37032,10 @@ SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
 
 
 #: The repository's own test command, run BARE. `pyproject.toml` `addopts` already supplies
-#: `-q -n auto --dist=worksteal -m 'not slow'`, so adding `-n0` (4-6x slower), a second `-q`
-#: (suppresses the summary line this check parses) or `-p no:randomly` is forbidden by the repo
-#: contract and would also change what the gate measures.
+#: `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (deselecting `slow` and
+#: `livecorpus`), so adding `-n0` (4-6x slower), a second `-q` (suppresses the summary line this
+#: check parses) or `-p no:randomly` is forbidden by the repo contract and would also change
+#: what the gate measures.
 SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
 
 
@@ -35782,13 +37164,14 @@ def run_suite_check(
 
     novalnomerge-01 (evgi9n) E-01/E-02.
 
-    WHY THE PRIMARY CHECKOUT AND NOT THE LANE (PR-001, found at review as a BLOCKER): a linked
-    worktree resolves `.aw/state` relative to cwd (backlog `dh0uno`), so a lane sees a DIFFERENT state
-    tree. MEASURED: `tests/test_run_viewer.py` gives `36 passed` in the primary checkout and
-    `15 failed, 20 passed` in a lane, every failure being the `run_viewer`/state-resolution family. A
-    lane-run suite is therefore permanently red for reasons unrelated to the executing plan, which
-    would leave the integration gate closed forever -- the same symptom this change removes, with a new
-    cause. Callers MUST pass the primary repo, never `work_dir`.
+    WHY THE PRIMARY CHECKOUT AND NOT THE LANE: a green PRIMARY tree is what integration endangers,
+    so the primary checkout is the venue whose greenness the gate is about (independent of lane
+    state). Historically, a linked worktree divergence was cited as the original blocker (backlog
+    `dh0uno`, where `.aw/state` resolved relative to cwd); `dh0uno` is `- Status: done` (fixed in
+    `6771e590`) and its acceptance claim was retracted. A linked worktree is no longer known-noisy,
+    and the primary-checkout contract survives on the independent integration-safety ground. The
+    contract is pinned by `WorktreeIsolationTests.test_integration_gate_suite_check_runs_in_primary_checkout`
+    in `tests/test_oc_runipd.py` (plan `cvs2b7`). Callers MUST pass the primary repo, never `work_dir`.
 
     HONEST LIMIT: this proves THE TREE is green, not that the lane's uncommitted state is. That is the
     right trade (a green primary tree is what integration endangers) but it is not lane validation.
@@ -35798,15 +37181,14 @@ def run_suite_check(
     into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
     machinery. Neither code is special-cased into a pass.
 
-    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the repair is in
-    `run_evidence.capture_command` rather than here. This function read
-    `tool_event["stdout_excerpt"]`, and `build_tool_event` NEVER WROTE THAT KEY: a `tool_event` is a
-    LEDGER record carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured
-    2026-09-20 by calling `capture_command` directly - `sorted(tool_event)` contained no
-    `stdout_excerpt` - so this read yielded `""`, `summary` was ALWAYS empty, and every refusal reason
-    said `no summary line parsed`. The existing tests could not see it because every one of them mocks
-    `capture_command` and fabricates the key production never produced. `capture_command` now returns
-    the text on the mapping it hands back, so this read means what it always claimed to.
+    THE OUTPUT READ HERE ONLY STARTED WORKING AT gatewire-01 (`h5pyqa`), and the contract was
+    formalized at toolevtext-01 (`emzbut`). Historically this function read an excerpt key off the
+    returned mapping, and `build_tool_event` never wrote that key: a `tool_event` is a ledger record
+    carrying `stdout_sha256`/`stdout_len` and deliberately not the text. Measured 2026-09-20 by calling
+    `capture_command` directly, that read yielded `""`, `summary` was ALWAYS empty, and every refusal
+    reason said `no summary line parsed`. `capture_command` returns a `CapturedToolEvent` carrying
+    `stdout` and `stderr` as typed out-of-band attributes, so this function reads those attributes
+    directly while the ledger record remains clean.
     """
     from agent_workflows import run_evidence
 
@@ -35822,8 +37204,8 @@ def run_suite_check(
             max_output_bytes=512_000,
         )
         exit_code = int(tool_event.get("exit_code", 127))
-        stdout = str(tool_event.get("stdout_excerpt") or "")
-        stderr = str(tool_event.get("stderr_excerpt") or "")
+        stdout = str(tool_event.stdout or "")
+        stderr = str(tool_event.stderr or "")
     except Exception as exc:  # noqa: BLE001  # pragma: no cover
         # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
         # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`
@@ -36200,9 +37582,8 @@ def edge_satisfied(
             effective = field
         if effective not in allowed:
             return False, (
-                f"{tok}: external target {edge.id6} is {effective!r} "
-                f"(directory {bucket!r}), needs one of {list(allowed)} "
-                "(it is not in this run, so it cannot become satisfied here)"
+                f"{tok}: target {edge.id6} is {effective!r} "
+                f"(directory {bucket!r}), needs one of {list(allowed)}"
             )
         return True, ""
 
@@ -36352,7 +37733,10 @@ def dependency_status_detailed(
 
 
 def cascade_dependency_blocked(
-    state: dict[str, Any], run_dir: Path | None = None
+    state: dict[str, Any],
+    run_dir: Path | None = None,
+    *,
+    recovery_hint: str | None = None,
 ) -> list[dict[str, Any]]:
     """Propagate `dependency-blocked` over reverse edges to a fixed point (spec 25kzda 5.4 rule 7).
 
@@ -36414,6 +37798,8 @@ def cascade_dependency_blocked(
             item["status"] = "fail-depend"
             item["unsatisfied_dependencies"] = dead
             item["unsatisfied_dependency_reasons"] = reasons
+            if recovery_hint:
+                item["dependency_block_recovery"] = recovery_hint
             blocked.append(item)
             progressed = True
             if run_dir is not None:
@@ -36561,6 +37947,11 @@ def evaluate_backlog_close(
     multi-carrier protection F-5/F-12 measured (21 of 108 carried items have more than one carrier,
     the tail running 9, 6, 5) is untouched: an item whose sibling has not run still does not close.
     Defaults to None, so every caller that does not pass it behaves exactly as before.
+
+    NOTE: this is the OUTER gate's override (deciding whether THIS run earned the close and filtering
+    IPD carriers). The INNER gate (`check_engine.evaluate_blocking_close`) has its own independent,
+    verified override (`lane_carrier_ref` / `lane_carrier_path`, verified against the git ref via
+    `git ls-tree` and never trusted), so the two are separate mechanisms.
     """
     from agent_workflows import check_engine as _ce
 
@@ -36908,8 +38299,8 @@ def dependency_target_id6(token: str) -> str | None:
 def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
     """Longest declared in-queue prerequisite chain ending at ``id6`` (0 = no in-queue prerequisite).
 
-    Only IPD-typed edges whose target is IN THE QUEUE contribute: an external target or a
-    `spec`/`backlog` leaf is not a queue node and cannot order the queue. Cycle-safe (a cycle is
+    Only declared edges whose target is IN THE QUEUE contribute whatever the target's type: an
+    external target is not a queue node and cannot order the queue. Cycle-safe (a cycle is
     already refused by preflight, but a hand-edited state.json must not hang the scheduler here).
     """
 
@@ -36922,7 +38313,7 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
         best = 0
         for dep in entry.get("dependencies", []):
             edge = parse_dependency_token(dep)
-            if edge is None or edge.target_type != "ipd" or edge.id6 not in by_id:
+            if edge is None or edge.id6 not in by_id:
                 continue
             best = max(best, 1 + _depth(edge.id6, seen | {node}))
         if entry.get("action") == "orchestrate":
@@ -37024,7 +38415,7 @@ def simulate_dispatch_order(
         deps: set[str] = set()
         for dep in item.get("dependencies", []) or []:
             edge = parse_dependency_token(str(dep))
-            if edge is not None and getattr(edge, "target_type", None) == "ipd":
+            if edge is not None:
                 target = dependency_target_id6(str(dep))
                 if target and target in by_id and target != id6:
                     deps.add(target)

@@ -80,6 +80,13 @@ exactly this bypass. Use the verbs:
 The setter validates the transition, enforces the attestation gate (below), writes the history record,
 and refuses byte-identically if the result would not conform. A text edit does none of that.
 
+Note for agent callers: in `--agent` or `--json` mode, status setters refuse at exit 2 with
+`confirmation required` unless `--yes` is passed. Passing `--yes` confirms the mutation but creates
+no git commit in machine mode (auto-commit is disabled for agent callers). Pass `--no-commit` when
+executing interactively if the workflow's own subsequent commit step will commit the spec and review
+record together. Note also the gate ordering: if the review record was not written first, the command
+refuses at exit 1 from the validation gate in both human and agent modes, which `--yes` cannot satisfy.
+
 ### (c) Do NOT run `aw ipd lint` against a spec
 
 `plan-review.md:113-133` runs `aw ipd lint --phase author` as a preflight GATE, and that linter is
@@ -272,6 +279,13 @@ For each reviewed spec confirm:
 (`attention_contract.TRANSITION_AUTHORITY["->reviewed"]`, enforced by one shared predicate consulted by
 the setter and by `aw check`). So WRITE THE RECORD FIRST, then set the status. If you set first, the
 setter refuses and names the missing record.
+
+Note for agent callers and gate ordering: write the review record before running the setter. If the
+record is missing, the transition fails an earlier validation gate and exits 1 (`status.invalid_transition`)
+in both human and agent modes; `--yes` cannot bypass a validation refusal. Once the review record exists,
+an `--agent` or `--json` caller must pass `--yes` to satisfy the exit-2 confirmation gate. In machine
+mode, `--yes` only confirms the write and creates no git commit; use `--no-commit` when running
+interactively so that Step 4's "Hardened-result commit" can commit the reviewed spec and review record together.
 
 WHAT THAT ATTESTATION DOES AND DOES NOT PROVE, stated plainly because overselling it is the failure
 mode: it proves a review OCCURRED and was RECORDED. It does not prove the reviewer noticed every flaw.

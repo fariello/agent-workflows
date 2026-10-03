@@ -27,7 +27,7 @@ import secrets
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from typing import Any, Callable, List, NamedTuple, Optional, Tuple
 
 # --------------------------------------------------------------------------------------
 # Identity: the stable, greppable ``<id6>``
@@ -102,12 +102,13 @@ def global_id6s(repo_root) -> set:
       is NOT fixed here; bounding the identity readers to the front-matter region is owned by IPD
       ``76w6mq`` (from backlog ``cqytxf``).
 
-    THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``status_set._ID_RE``, and it is OUTSIDE
-    ``76w6mq``'s declared scope (``selectors.py`` + ``check_engine.py``), so one unbounded reader
-    survives even after that plan lands. Recorded as backlog ``q1ov25`` rather than fixed here,
-    because ``cqytxf`` warns that several plans editing these readers is what recreated parser drift
-    before. ``tests/test_id6_global_mint.py`` pins the superset behavior so this cannot be mistaken
-    for an exact census.
+    THE SPECIFIC UNBOUNDED READER BEHIND THIS SET IS ``artifact_adopt.scan_body_identities`` /
+    ``_BULLET_ID_RE``, and it is deliberately left unbounded by plan ``xvon5j`` because minting
+    requires a conservative superset: refusing to mint an id6 that some document merely quotes costs
+    one draw out of 36**6, while narrowing the collision set risks minting a genuine duplicate.
+    The unbounded readers behind checking, status resolution, and dependency indexing were bounded
+    to the metadata region by ``76w6mq`` and ``xvon5j``. ``tests/test_id6_global_mint.py`` pins the
+    superset behavior so this cannot be mistaken for an exact census.
 
     So do NOT "optimize" this onto a checker's reader, do not describe it to a user as "the id6s in
     use", and never reuse it to decide that a collision EXISTS. Over-collect for minting; parse
@@ -669,13 +670,6 @@ class Drift(NamedTuple):
     severity: str = ""
 
 
-def render_agent_drift(drift: List[Drift]) -> str:
-    """Render drift as one tab-separated ``location\\trule\\tdetail`` record per line (the D-class
-    machine-readable convention). No prose."""
-
-    return "".join(f"{d.location}\t{d.rule}\t{d.detail}\n" for d in drift)
-
-
 def drift_exit_code(drift: List[Drift]) -> int:
     """The standard ``--check`` exit convention: 0 clean, 1 drift present. (2 = could-not-run is
     the caller's to return on an invocation/parse failure.)
@@ -687,3 +681,67 @@ def drift_exit_code(drift: List[Drift]) -> int:
     """
 
     return 1 if any(getattr(d, "severity", "") != "info" for d in drift) else 0
+
+
+def emit_index_check_result(
+    args: Any,
+    repo_root: Path,
+    drift: List[Drift],
+    clean_message: str,
+    *,
+    command: str = "index",
+    target: str = "",
+) -> int:
+    """Emit the typed CommandResult for an index --check invocation across agent, json, and human audiences."""
+    from agent_workflows import check_engine as _ce
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Diagnostic,
+        select_output,
+    )
+
+    ctx = select_output(args)
+    exit_code = drift_exit_code(drift)
+    status = "conforms" if exit_code == 0 else "findings"
+    diagnostics = [
+        Diagnostic(
+            location=d.location,
+            rule=d.rule,
+            detail=d.detail,
+            severity=(_ce.enrich_drift(d).severity or "error"),
+            fix=d.recovery or None,
+        )
+        for d in drift
+    ]
+    if not drift:
+        human_rendered = (
+            clean_message if clean_message.endswith("\n") else f"{clean_message}\n"
+        )
+    else:
+        human_rendered = "".join(f"{d.location}: {d.rule}: {d.detail}\n" for d in drift)
+
+    summary = (
+        clean_message.strip()
+        if exit_code == 0 and not drift
+        else f"{len(drift)} finding(s) detected across {target or 'index'}"
+    )
+
+    result = CommandResult(
+        command=command,
+        status=status,
+        exit_code=exit_code,
+        summary=summary,
+        diagnostics=diagnostics,
+        data={
+            "target": target,
+            # repo_root must be a str, never a Path, so the --json serializer does not raise TypeError (PR-003, F-11)
+            "repo_root": str(repo_root),
+            # Preserves legacy human lines byte-exact through data["human_rendered"] (PR-002, F-10)
+            "human_rendered": human_rendered,
+        },
+        verified=True,
+        complete=True,
+    )
+    # Rely on get_renderer(ctx).emit(result, ctx), which returns result.exit_code (identically drift_exit_code(drift))
+    return get_renderer(ctx).emit(result, ctx)

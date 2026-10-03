@@ -310,7 +310,8 @@ def check_drift(
     # check_content` forwards these findings WITHOUT enriching them. An un-enriched `Drift` carries
     # `severity=""`, and `drift_exit_code` fails the gate for anything that is not `info`, so merely
     # REGISTERING the rules left a missing manifest still exiting 1 on both surfaces. Enriching at the
-    # emitter is what makes the registry the single source of severity for every consumer.
+    # emitter is what makes the registry the single source of severity for every consumer (extended in
+    # sevreg qgpanb E-04 to cover `dangling-citation` as well).
     from agent_workflows import check_engine as _ce
 
     for path_const, exists, matches, label in (
@@ -367,7 +368,9 @@ def check_drift(
         exclude_root=plans_dir,
     ):
         drift.append(
-            _core.Drift(f"{d.file}:{d.line}", "dangling-citation", f"PLAN-{d.id6}")
+            _ce.enrich_drift(
+                _core.Drift(f"{d.file}:{d.line}", "dangling-citation", f"PLAN-{d.id6}")
+            )
         )
     return drift
 
@@ -399,20 +402,18 @@ def run_index(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", None) or DEFAULT_INDEX_LIMIT
     if getattr(args, "check", False):
         drift = check_drift(repo_root, plans_dir, limit=limit)
-        if getattr(args, "agent", False):
-            print(_core.render_agent_drift(drift), end="")
-            return _core.drift_exit_code(drift)
-        if not drift:
-            print("plans index --check: clean")
-            return 0
-        for d in drift:
-            print(f"{d.location}: {d.rule}: {d.detail}")
-        # idxuntrack 02 (yvvf98) E-02: defer to the SHARED severity convention instead of a hardcoded
-        # `return 1`, so this human-readable branch and the `--agent` branch above cannot disagree
-        # about one repository state. MEASURED: with the literal 1, an `info` finding (a manifest that
-        # has merely never been generated, the normal state of a fresh clone or fresh worktree) still
-        # failed the gate here while `--agent` correctly returned 0 on the same tree.
-        return _core.drift_exit_code(drift)
+        # tsvagent Order 01 (n9ua3b) E-02: route all audiences through the shared renderer
+        # via artifact_core.emit_index_check_result, preserving the legacy human lines byte-exact
+        # via data["human_rendered"]. Rely on the renderer's return value (result.exit_code),
+        # which identically preserves artifact_core.drift_exit_code(drift).
+        return _core.emit_index_check_result(
+            args,
+            repo_root,
+            drift,
+            "plans index --check: clean",
+            command="index",
+            target="plans",
+        )
     entries, drift = scan_plans(plans_dir)
     json_path = plans_dir / INDEX_JSON
     md_path = plans_dir / INDEX_MD

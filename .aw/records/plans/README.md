@@ -48,7 +48,18 @@ vocabulary (GO / GO - PENDING HUMAN APPROVAL / NO-GO). It is the machine signal 
 instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS UNKNOWN, NOT CLEAR:
 a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED. `Readiness` states what the
 REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
-`Readiness: go-pending-approval` is never by itself permission to execute.
+`Readiness: go-pending-approval` is never by itself permission to execute. The field is written by
+`/plan-review` and is absent exactly when no review has recorded a verdict, so a plan at `draft` or
+`to-review` has no field and that is correct. The field is not backfilled onto plans lacking one,
+decided in backlog `0z1b2s`. A hand-written value asserts a review that never ran, violating the
+`AGENTS.md` "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD" prohibition and repeating the 2026-09-06
+incident behind it. Because absence is already the fail-closed state, uniformity would buy nothing
+and cost the field its meaning; both `IPD-M107` and `aw ipd recheck-readiness` enforce this
+mechanically. Absence means no verdict was recorded rather than no review was attempted:
+`/plan-review`'s R6 orchestrator-exhaustion path deliberately leaves the field absent after a review
+has run and honestly declined to conclude (leaving the plan at `Status: to-review`). A plan in the
+`(to-review, absent)` state may therefore be one no reviewer has opened or one a review examined and
+could not conclude on, and a reader cannot tell which from the field alone.
 
 Each plan also keeps a `## Workflow history` section: one dated line per workflow that touched it
 (assess, plan-review, ...), so you can see the path a plan took. The section is NEWEST-FIRST: each
@@ -62,6 +73,8 @@ push) as they go, so `git log` shows the progression.
 To transition a plan's status and move it between disposition directories, use `aw ipd set` or `aw set`:
 - `aw ipd set <status> <id6|setid|fname>...` (e.g. `aw ipd set approved pl0001`, `aw ipd set to-review my-set`)
 - `aw set approved <id6|setid|fname>...` (untyped, transitions plans, specs, prompts, backlog, or entire sets)
+
+Status transitions share confirmation and commit semantics across all setter spellings: (1) a flagless call writes the status and relocates the file, then offers to commit exactly that path on a TTY, which is a no-op when non-interactive; (2) `--yes` on a human-mode call writes and commits without asking, while the same flag alongside `--agent` or `--json` confirms only and commits nothing; (3) `--no-commit` writes and commits nothing; (4) `--dry-run` previews and writes nothing; (5) an `--agent` or `--json` caller refuses at exit 2 with `confirmation required (--yes needed to execute mutation)` and changes nothing until passed `--yes` or `--dry-run`. An earlier validation gate can preempt all of the above, so a refused transition exits 1 naming the gate rather than exiting 2 for confirmation, and no `--yes` satisfies it.
 
 ## Durable carrier vocabulary for obligations
 

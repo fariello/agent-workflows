@@ -181,7 +181,7 @@ class HumanRenderer(BaseRenderer):
 
         # 7. Agent Output Hint
         if not result.data.get("suppress_agent_hint", False):
-            lines.append("Agent output: --agent (automatic when piped)")
+            lines.append("Agent output: --agent")
 
         return "\n".join(lines) + "\n"
 

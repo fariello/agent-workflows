@@ -14,8 +14,13 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as attention_mod
-from agent_workflows import check_engine, engine, leak_sanitizer, versioning
-from agent_workflows import project_context
+from agent_workflows import (
+    check_engine,
+    engine,
+    leak_sanitizer,
+    project_context,
+    versioning,
+)
 from agent_workflows import term as T
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
@@ -1064,6 +1069,33 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             file_path=loc,
         )
 
+    if "release-sentinel-absent" in rule:
+        title = "Release sentinel 'next' does not resolve (no planned release)"
+        cmd = "aw releases new --version <X.Y.Z> --summary ... --apply"
+        return Remediation(
+            title=title,
+            summary_fix=f"create planned release record via '{cmd}'.",
+            detailed_fix=(
+                f"create a new planned release record in {loc} with '{cmd}' "
+                "so that the 'next' sentinel resolves to an active release."
+            ),
+            command=cmd,
+            file_path=loc,
+        )
+
+    if "release-sentinel-ambiguous" in rule:
+        title = "Release sentinel 'next' is ambiguous (multiple planned releases)"
+        return Remediation(
+            title=title,
+            summary_fix="ensure exactly one release record carries '- Status: planned'.",
+            detailed_fix=(
+                f"{detail}. Inspect the competing records in {loc} and ensure "
+                "exactly one release record carries '- Status: planned'."
+            ),
+            command=None,
+            file_path=loc,
+        )
+
     if "blocks-release-dangling" in rule:
         title = "Dangling Blocks-Release reference (target release does not exist)"
         target_type = art_type or "specs"
@@ -1241,6 +1273,32 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
     # In addition, aw doctor summary groups on (title, summary_fix), so path- or
     # id6-interpolating recoveries will fragment summary counts (F-17).
     # The cli._run_check agent-surface overwrite remains open and is carried by 2cnvh1.
+    #
+    # docremfall x19law: terminal remediation fallback for sentinel vs real-path locations.
+    # 1. A sentinel location (<...>) represents a scan or probe condition, not a file, so no
+    #    frontmatter or schema remedy may be asserted for it.
+    # 2. Setting file_path=None follows the established convention of branch-owning non-file
+    #    rules (e.g. doctor.setup-needed, doctor.layout-split-brain, doctor.version-*) rather
+    #    than inventing one.
+    # 3. The recovery preference is a separate change owned by sibling plan iyilwm; the two
+    #    are orthogonal (F-03 measures iyilwm curing 1 of 7 sentinel sites and this curing 6),
+    #    and this fallback cleanly composes with iyilwm.
+    # 4. The closed sentinel tuple formerly guarding rglob in _categorize_drift was unreachable
+    #    by construction (all sentinels short-circuit on the first branch); its deletion
+    #    changed no behavior and the tuple must not be restored as a fix.
+    if loc.startswith("<") and loc.endswith(">"):
+        return Remediation(
+            title=title,
+            summary_fix=d.recovery
+            if d.recovery
+            else f"investigate the condition reported by '{rule}'.",
+            detailed_fix=d.recovery
+            if d.recovery
+            else f"investigate the condition reported by '{rule}'; it concerns {loc} rather than a specific file.",
+            command=None,
+            file_path=None,
+        )
+
     return Remediation(
         title=title,
         summary_fix=d.recovery
@@ -1351,16 +1409,7 @@ def _categorize_drift(d: core.Drift, repo_root: Path) -> Tuple[str, str, str, st
                 for cand in repo_root.rglob(fname)
                 if not core.is_ignored_path(cand, repo_root)
             ]
-            if fname
-            not in (
-                "<git>",
-                "<version>",
-                "<setup>",
-                "<layout>",
-                "<attention>",
-                "<artifacts>",
-                "<sanitizer>",
-            )
+            if not (fname.startswith("<") and fname.endswith(">"))
             else []
         )
         if found:

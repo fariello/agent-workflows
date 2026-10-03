@@ -1314,6 +1314,13 @@ KNOWN_FEATURE_CUTOVERS: Dict[str, str] = {
     # INTRODUCTION date, not the enforcement boundary; `sync_cutovers_on_install` stamps the per-repo
     # boundary from it.
     "walkthrough_id6": "2026-09-27",
+    # gateatrest `b24o3q` E-01: release-gate close backstop at-rest whole-tree arm. Registered
+    # for the reason the block comment gives: WITHOUT the entry `resolve_cutover_date` falls
+    # through to its tier-3 `None` in any repository that has not hand written the key, and
+    # `check_engine.check_release_gate_consistency`'s at-rest arm would skip every item.
+    # The value is the FEATURE INTRODUCTION date, not the enforcement boundary;
+    # `sync_cutovers_on_install` stamps the per-repo boundary from it.
+    "release_gate_at_rest": "2026-10-01",
 }
 
 
@@ -1761,7 +1768,7 @@ def release_gate_work_kinds(
 # --------------------------------------------------------------------------------------
 # retrytier Order 01 (y4adch) E-01/E-02: the ONE repository-policy retry budget.
 #
-# Spec 25kzda 2.1/5.5 declares a THREE-TIER precedence for the correction budget - CLI over
+# Spec 25kzda 5.5 declares a THREE-TIER precedence for the correction budget - CLI over
 # repository policy over the default of 2 - and this key is the MIDDLE tier's home. Spec 5.5 names
 # it `run.retry_budget`, so it is read as the `retry_budget` member of a `run` object rather than as
 # a bare top-level key: the spec is `approved` and names a nested path, so honoring it is not a

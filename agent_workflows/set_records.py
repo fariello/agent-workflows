@@ -379,7 +379,7 @@ def close_on_answer(repo_root: Path, backlog_path: Path) -> Path:
     body = _extract_body(text)
     rendered = _backlog._render_item(item, body, source_text=text)
     rendered = _backlog._reattach_history(
-        text, rendered, "done", "question answered; close-on-answer"
+        text, rendered, "done", "question answered; close-on-answer", label="done"
     )
 
     # rendrop 2yqt0a E-08 (review PR-004, F-11): refuse closing an item that carries a live release

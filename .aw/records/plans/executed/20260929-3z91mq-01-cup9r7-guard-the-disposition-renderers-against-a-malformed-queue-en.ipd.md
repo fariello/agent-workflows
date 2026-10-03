@@ -1,0 +1,644 @@
+# IPD: Guard the disposition renderers against a malformed queue entry so the closing verdict survives
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `run_selection_policy`'s disposition surfaces raise `AttributeError` on a queue entry that is not a mapping, so a run whose `state.json` holds one loses the honest closing verdict for work that actually completed.
+- Scope: TWO fail-closed `isinstance` guards in `agent_workflows/run_selection_policy.py` (one in `derive_item_disposition`, one in `render_queue_dispositions`' own per-entry read), a new open disposition code with its label and remedy, and new tests pinning all four public surfaces plus the fourth consumer in `render_stream`. NOT the two upstream exit-tail crashes (`fcodik`, `s438xd`), NOT any well-formed entry's disposition, NOT the `unsatisfied_dependencies` shape divergence (`mjrac4`).
+- Scope-Paths: agent_workflows/run_selection_policy.py, tests/test_run_selection_policy.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: low
+- From-Backlog: 3z91mq
+- Blocks-Release: next
+- Set: 3z91mq
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode
+- Id: cup9r7
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: cup9r7 verified (set 3z91mq, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (aw set): status set to reviewed
+
+- 2026-09-29 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-406, all FIXED. Every material claim re-measured at review HEAD `d0eddf30` rather than read. F-01..F-04, F-08..F-13 reproduced exactly, including the two-guard premise F-03 turns on and the F-04 incidental fix. THREE CORRECTIONS. (1) A new HIGH finding F-14: E-01's natural implementation, putting the new code's gloss in `SKIP_REASON_LABELS`, SILENTLY REOPENS the spec-closed reason vocabulary, because `skip_reason_text` tests membership against that mapping and not against `SKIP_REASONS`; staged in memory it makes `skip_reason_text(<new code>)` return instead of raise while the suite stays at `53 passed`, so no test holds the prohibition and V-01 now checks it by probe. (2) F-05's exit tail is incomplete: the shared sequence is EIGHT statements, not six, and one it omitted (`report_run_spec_edits`) DEGRADES on this input with `SPEC CHANGES: could not be computed` and is covered by NO live item, now recorded as F-15 with an executor obligation to report it for filing. (3) F-06's carrier statuses were stale: all four siblings are `graduated` with pending plans, not `open` and planless; the row's conclusion survives on the file-overlap fact, which was re-verified (no sibling declares either of this plan's paths). Also measured that the REJECTED `DISPOSITIONS_NEEDING_NO_REMEDY` alternative makes `queue_performed_no_work` answer `False`, so V-02 now demands `True` specifically. Structural preflight conforming at `author` and `review-finalize`; bare suite `3246 passed, 2 skipped` at review HEAD.
+- 2026-09-29 draft (opencode): created.
+- 2026-09-29 to-review (opencode): authored from backlog item `3z91mq`. Measurement re-run at lane HEAD `2cfc8374`; the item's own FIX DIRECTION was found to be factually incomplete (F-03) and the plan records the correction rather than inheriting it.
+
+## Goal
+
+Make the four `run_selection_policy` disposition surfaces tolerate a queue entry that is not a mapping, so a run whose durable `state.json` holds one still prints its per-artifact lines and its closing verdict instead of dying with `AttributeError`. The guard is FAIL-CLOSED: an unreadable entry is never counted as acted on, because that would manufacture a claim that work was performed on an artifact nobody can read.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: the disposition vocabulary
+
+- [x] E-01 Add the new disposition code for an unreadable entry as a module-level constant beside `DISPOSITION_ACTED_ON`, with its human gloss and its remedy, and with a comment stating why it is NOT added to `SKIP_REASONS`. THE GLOSS MUST NOT GO INTO `SKIP_REASON_LABELS`, and this is the one instruction in this item that a green suite will not enforce (F-14): that mapping is what `skip_reason_text` tests membership against, so adding the code to it SILENTLY REOPENS THE CLOSED SPEC VOCABULARY - measured, `skip_reason_text(<new code>)` then RETURNS the gloss instead of raising, while `SKIP_REASONS` still has six members and every shipped test, including the set-equality assertion, stays green. Carry the gloss INSIDE the `ItemDisposition.reason` text E-02 composes (which is where a non-`SKIP_REASONS` code's human text already lives, since `render_item_disposition` takes free reason TEXT and never looks a code up), and state on the constant that the summary's own `SKIP_REASON_LABELS.get(code, "")` will therefore render this code with NO trailing gloss, which is correct rather than a gap: measured, the summary line reads `  <code> (1)` followed by its remedy, and the gloss reaches the reader through the per-artifact line and the remedy instead.
+  - Depends on: none
+  - Expected outcome: `run_selection_policy` exports a new code; `remedy_for_disposition(<new code>)` returns its own remedy rather than `REMEDY_UNKNOWN_TEXT`; `skip_reason_text(<new code>)` still raises `ValueError` because the code is deliberately outside the spec-closed set AND outside `SKIP_REASON_LABELS`; `SKIP_REASONS` and `SKIP_REASON_LABELS` are both unchanged and the existing set-equality assertion in `tests/test_run_selection_policy.py` still passes untouched.
+  - Execution state: performed
+
+### Task group 2: the two independent guards
+
+- [x] E-02 Add the fail-closed `isinstance(entry, Mapping)` guard as the first statement of `derive_item_disposition`, returning an `ItemDisposition` carrying E-01's code, and extend the docstring's precedence list to state the refusal and its conservative direction.
+  - Depends on: E-01
+  - Expected outcome: `summarize_dispositions(["not-a-mapping"], None)` and `render_disposition_summary(["not-a-mapping"])` both RETURN; the counts still sum to the number of entries; `render_queue_dispositions(["not-a-mapping"])` STILL raises, which is the measured proof (F-03) that E-03 is a separate defect and not redundant.
+  - Execution state: performed
+
+- [x] E-03 Add the second, independent fail-closed guard to `render_queue_dispositions`' own loop, which reads `entry.get` directly BEFORE it calls `derive_item_disposition`, so the per-artifact line renders an explicit unreadable-entry line rather than crashing or silently dropping the row. Render it through the SAME `render_item_disposition` every other line goes through (OQ-03), relying on that function's existing `"?"` normalization for identity/action/status rather than adding a second renderer; measured, that yields `- ? ? -> ?: <code> (<gloss>)`, so every field is explicitly unreadable rather than blank.
+  - Depends on: E-02
+  - Expected outcome: `render_queue_dispositions(["not-a-mapping"])` returns the header plus exactly ONE line per entry, that line carries E-01's code and gloss, and the line count still equals the entry count so the block's documented "every artifact this selector matched" guarantee holds.
+  - Execution state: performed
+
+### Task group 3: coverage and the honesty bound
+
+- [x] E-04 Add tests to `tests/test_run_selection_policy.py` pinning all FOUR public surfaces on a malformed entry, the count-partition property with a mixed well-formed/malformed queue, the never-acted-on direction, the closed-vocabulary property F-14 shows no existing test holds (`skip_reason_text(<new code>)` still raises, and the code is in neither `SKIP_REASONS` nor `SKIP_REASON_LABELS`), and the incidental effect on the fourth consumer `render_stream.queue_performed_no_work` (which must be `True`, the OQ-02 enforcement); then verify the two upstream exit-tail sites STILL crash and their carrier items are still live, so this plan's effect is not overstated, and NAME the unowned `report_run_spec_edits` degradation in the turn report (F-15) without filing or fixing it.
+  - Depends on: E-03
+  - Expected outcome: new tests fail on the pre-E-02 tree with `AttributeError` and pass after E-03; the closed-vocabulary assertion is present and would go red if E-01's gloss were put in `SKIP_REASON_LABELS`; `write_report` and `render_run_summary_table` are shown still raising on the same input; `fcodik`, `s438xd` and `mjrac4` are shown still live with their `- Blocks-Release:` intact where they carry one; the F-15 gap is named in the turn report.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE FAIL-CLOSED DIRECTION IS ALREADY THIS REPOSITORY'S POLICY FOR THIS EXACT INPUT, and the backlog item cites it: `runner_shared.no_turn_was_attempted`'s docstring enumerates three deliberate fail-closed properties, one of which is verbatim "a malformed entry (anything that is not a mapping) returns False, since an unreadable entry cannot be shown not to have run". This plan adopts that direction rather than inventing one.
+- THE GUARD BELONGS IN THE PREDICATE, NOT IN ITS CALLERS. Executed plan `w7e3e3`'s OQ-02 resolved this for the sibling function with three evidenced reasons (the contract is written on the predicate; there are several callers that can drift; the sibling precedent `no_turn_was_attempted` guards inside itself). The same reasoning applies here, which is why E-02 guards `derive_item_disposition` rather than asking each renderer to pre-filter. E-03 is NOT a counterexample: it guards a read that happens in `render_queue_dispositions`' OWN body and never reaches the predicate at all (F-03).
+- `run_selection_policy` IS DELIBERATELY IMPORT-PURE and the backlog item flags it as the reason this is a decision about the module. Measured: its only imports are `hashlib`, `json`, `pathlib.Path`, `typing`, plus `agent_workflows.selectors` and `agent_workflows.status_set`. NO IMPORT IS NEEDED for these guards, because `Mapping` is ALREADY imported from `typing` at module level and `isinstance({}, typing.Mapping)` works (`typing.Mapping.__origin__` is `collections.abc.Mapping`). So the purity property is preserved by construction, not by care.
+- A DISPOSITION CODE OUTSIDE `SKIP_REASONS` IS AN ESTABLISHED SHAPE, not a novelty this plan invents. `DISPOSITION_ACTED_ON` is already such a code: measured, it is in neither `SKIP_REASONS` nor `SKIP_REASON_LABELS`, and `render_disposition_summary` renders it through a dedicated branch. That is the precedent E-01 follows.
+- THE REMEDY TABLE IS DATA BESIDE THE DISPOSITION ON PURPOSE. `DISPOSITION_REMEDIES`' own comment states the reason ("so a new disposition cannot be added without an author noticing its remedy is missing"), and `remedy_for_disposition` distinguishes THREE outcomes rather than two. E-01 must therefore make a deliberate choice among those three rather than leaving the new code to fall through to `REMEDY_UNKNOWN_TEXT`.
+- ASSERT ON OBSERVABLE BEHAVIOR, never on code structure (`AGENTS.md`, GUIDING_PRINCIPLES P16). E-04's tests call the functions and assert on returned lines, codes, and counts; none reads source text, counts callers, or pins a docstring.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | THE DEFECT REPRODUCES AT THIS LANE'S HEAD, so it is live and not already fixed. At HEAD `2cfc8374`, `summarize_dispositions(["not-a-mapping"], None)`, `render_disposition_summary(["not-a-mapping"])` and `render_queue_dispositions(["not-a-mapping"])` each raise `AttributeError: 'str' object has no attribute 'get'`. This confirms the item's measurement, which was taken at the different HEAD `07580297`. | Three probes, one per public function, run in this lane; each traceback captured. |
+| F-02 | THE ITEM'S NAMED CRASH POINT IS CORRECT FOR TWO OF THE THREE. For `summarize_dispositions` and `render_disposition_summary` the traceback's crash frame is `derive_item_disposition`'s first statement `get = entry.get`, exactly as the item records. | The two tracebacks from F-01, crash frame read from each. |
+| F-03 | **THE ITEM'S FIX DIRECTION IS FACTUALLY INCOMPLETE, AND THIS IS THE FINDING THAT SHAPES THE PLAN.** The item proposes to "guard `derive_item_disposition` fail-closed so ONE GUARD SERVES ALL THREE renderers". It does not. `render_queue_dispositions` has its OWN `get = entry.get` as the first statement of its loop body, which executes BEFORE its `derive_item_disposition` call, so its crash frame is that line and not the predicate's. Measured directly: with `derive_item_disposition` monkeypatched to a guarded version, `summarize_dispositions` and `render_disposition_summary` both return, while `render_queue_dispositions` STILL raises `AttributeError` at its own line. TWO independent guards are therefore required, which is why this plan has E-02 and E-03 rather than one item. | Read of both function bodies (two separate `get = entry.get` statements, one per function); a monkeypatch probe proving the surviving crash after the predicate alone is guarded. |
+| F-04 | THERE IS A FOURTH CONSUMER THE ITEM DOES NOT NAME, and it is in a different module. `render_stream.queue_performed_no_work` calls `run_selection_policy.summarize_dispositions`, and it too raises `AttributeError` on the same input. It is reached from `render_stream.render_run_summary_table`, which is the SECOND statement of both hosts' exit tails. It POSTDATES the backlog item: it was added by plan `4po0sc` (from backlog `b7oicl`), which the item's own RELATED BUT DISTINCT paragraph describes as still `open`; `4po0sc` is now in `.aw/records/plans/executed/`. E-02's guard fixes this caller INCIDENTALLY and at no extra cost, measured: with the predicate guarded, `queue_performed_no_work(["not-a-mapping"])` returns `True`. No edit to `render_stream.py` is needed or made. | `grep` for the four function names across `agent_workflows/`, excluding tests; read of `queue_performed_no_work` and of the two `render_run_summary_table` branches that call it; `git log` locating `4po0sc`'s integration; the monkeypatch probe from F-03 extended to this caller. |
+| F-05 | THE CLOSING REPORT IS STILL LOST AFTER THIS PLAN, and saying so is this plan's honesty obligation. Measured on the same malformed queue, the FIRST TWO statements of both hosts' exit tails still raise after this plan: `runner_shared.write_report` raises `TypeError: string indices must be integers, not 'str'` from its counting loop's `counts[item["status"]]`, and `render_stream.render_run_summary_table` raises `AttributeError` from its own `pos = item.get("position", idx + 1)` row-building read, which executes BEFORE the `queue_performed_no_work` call F-04 fixes. Both are carried by live backlog items (`fcodik`, `s438xd`). CORRECTED AT REVIEW: the six-call tail this row originally listed is not the whole tail, and the correction matters because V-04 demands a probe of "all six statements". Read from `oc_runipd.run_queue` and `agy_runipd.run_queue`, the ACTUAL order is `write_report`, `render_run_summary_table`, `render_queue_dispositions`, **`report_run_spec_edits`**, **`report_driver_committed_reviews`**, `render_disposition_summary`, `render_continuation_hint`, then `exit_code_statuses` (OpenCode additionally calls `register_signal_report` and `emit_shutdown_report` before its return). So the tail has EIGHT statements on the shared path, not six, and the two this row omitted sit BETWEEN the surfaces this plan fixes. Both were probed: each RETURNS on the malformed queue rather than raising, because both are advisory-wrapped, and `report_driver_committed_reviews` additionally carries its own `isinstance(item, Mapping): continue` guard. `report_run_spec_edits` returns but PRINTS `SPEC CHANGES: could not be computed (AttributeError)`, which is a degraded (not lost) report and is F-15's subject. | Both hosts' tails read statement by statement from `run_queue`; eight probes against `queue=["not-a-mapping"]`, exception and crash frame captured for each; `driver_committed_reviews`' own guard read; both carrier items read in full. |
+| F-06 | NO OTHER PENDING PLAN DECLARES EITHER FILE IN THIS PLAN'S FENCE, so this plan neither duplicates nor collides with in-flight work. CORRECTED AT REVIEW, because this row's original claims about the carriers are now FALSE and the correction strengthens rather than weakens the row. It claimed `fcodik` and `s438xd` are `- Status: open` and that `pending/` contains NO plan for six named ids. Measured at review HEAD `d0eddf30`: `fcodik`, `s438xd`, `5hf2qy` and `mjrac4` are all `- Status: graduated`, and FOUR of them now HAVE pending plans (`0kh97v` for `fcodik`, `165lkb` for `s438xd`, `35mjqc` for `5hf2qy`, `8eei5p` for `mjrac4`); only `cxrpwv` (`followup`) and `csjq81` (`chore`) remain `open` and planless. THE ROW'S CONCLUSION SURVIVES INTACT on the fact that actually matters, which is file overlap: the four sibling plans declare `render_stream.py`, `runner_shared.py`, `lane_containment.py`, `oc_runipd.py` and `agy_runipd.py`, and NOT ONE declares `agent_workflows/run_selection_policy.py` or `tests/test_run_selection_policy.py`. So the fence is uncontested, and the siblings' work being OWNED is better for this plan's honesty bound than their being unowned. | Every id resolved to its file under `.aw/records/backlog/` with `- Status:`/`- Blocks-Release:`/`- Work-Kind:` read; `grep` of `pending/` for `- From-Backlog:` on all seven ids; `- Scope-Paths:` read from each of the four sibling plans. |
+| F-07 | `mjrac4` TOUCHES ONE OF THIS PLAN'S FUNCTIONS WITHOUT COVERING ITS CRASH, so the two are distinct work. It concerns the two DIFFERENT SHAPES the `unsatisfied_dependencies` key is written in; it names `derive_item_disposition`'s dependency branch and `render_stream`'s diagnostics block. It contains no non-mapping entry, no crash, and no `isinstance`. Its suggested fix edits the dependency branch this plan does not touch. CORRECTED AT REVIEW: it is `- Status: graduated` (not `open`) and now has pending plan `8eei5p`, whose `- Scope-Paths:` are `runner_shared.py`, `oc_runipd.py`, `agy_runipd.py` and two test files - so it does NOT declare `run_selection_policy.py` and the two plans cannot collide on a file even though they reason about the same branch. `- Work-Kind: chore` is unchanged and is still why the wart is not this bug's work. | `mjrac4` read in full; its `- Status:`/`- Work-Kind:` and `8eei5p`'s `- Scope-Paths:` read directly. |
+| F-08 | NO EXISTING TEST COVERS THIS INPUT FOR ANY OF THE FOUR SURFACES, so E-04 is new coverage rather than a duplicate. The four test files referencing these functions are `tests/test_run_selection_policy.py`, `tests/test_zero_dispatch_outcome.py`, `tests/test_agy_runipd_cli.py` and `tests/test_host_capability_wiring.py`. Searching the two that own these surfaces for `not-a-mapping`, `malformed` and `isinstance` returns exactly ONE hit, `if not isinstance(out, list)` inside an unrelated renderer-convention assertion. | Two searches over `tests/`, each hit classified; the single `isinstance` hit read in context. |
+| F-09 | THE COUNT-PARTITION PROPERTY IS AN ASSERTED INVARIANT THIS PLAN MUST PRESERVE, which is what fixes E-02's return shape. `summarize_dispositions`' docstring states "THE COUNTS SUM TO THE NUMBER OF ENTRIES ... every entry lands in exactly one bucket", and two shipped tests assert it (`test_the_counts_sum_to_the_number_matched_for_a_mixed_queue` asserts the sum and the `total: 5 matched, 1 acted on, 4 not acted on` line). A guard that SKIPPED a malformed entry would break that invariant, so the guard must return a real disposition and not drop the row. | `summarize_dispositions` docstring read; both `sum(count for _c, count, _r in rows) == len(queue)` assertions read in `tests/test_run_selection_policy.py`. |
+| F-10 | AN UNKNOWN DISPOSITION ALREADY RENDERS SAFELY, which bounds how much E-01 has to do. Measured with a refusal reader supplying a code outside every table: the summary renders `some_novel_code (1)` with `REMEDY_UNKNOWN_TEXT` beneath it and a correct total, and `SKIP_REASON_LABELS.get(code, "")` returns `""` without raising. So E-01 is about giving the new code an HONEST label and remedy rather than about preventing a second crash. | Two probes with a duck-typed refusal record carrying a novel code, rendered output captured; `remedy_for_disposition("malformed_entry")` returning `REMEDY_UNKNOWN_TEXT`. |
+| F-11 | NO IMPORT IS ADDED, so the module's import purity (the backlog item's stated reason this is a decision about this module) is preserved by construction. `Mapping` is already imported from `typing` in the module's import block, and `isinstance("s", typing.Mapping)` evaluates to `False` without error because `typing.Mapping.__origin__` is `collections.abc.Mapping`. `derive_item_disposition`'s signature ALREADY annotates `entry: Mapping[str, object]`, so each guard enforces at runtime a type the signature already declares, which is also why no type checker flags the defect today. | Read of the module's import block; `isinstance` probe against `typing.Mapping`; `derive_item_disposition`'s signature read. |
+| F-12 | THE SUITE IS GREEN AT THIS LANE'S HEAD, giving the baseline the validation compares against: `3246 passed, 2 skipped, 3 warnings in 54.90s` from a BARE `python3 -m pytest`. | Bare `python3 -m pytest` at HEAD `2cfc8374`, summary line captured. |
+| F-13 | NO SPEC GOVERNS THE NEW CODE, so no amendment is owed. Spec `25kzda` (`- Status: approved`) Sections 5.4 and 5.7 enumerate the six reason codes that `SKIP_REASONS` mirrors; `grep` for `acted_on` and `DISPOSITION_ACTED_ON` across `.aw/records/specs/` returns ZERO hits, proving the existing non-spec disposition code was added without a spec amendment. The new code follows that precedent, and E-01 deliberately leaves `SKIP_REASONS` (the spec-mirroring set) untouched. | `grep` of `.aw/records/specs/` for both names (zero hits); read of 25kzda Sections 5.4 and 5.7 reason tables; read of the `SKIP_REASONS` set-equality test. |
+| F-14 | **THE SPEC-CLOSED VOCABULARY CAN BE REOPENED SILENTLY, AND NO TEST WILL SAY SO.** Added at review. E-01 must give the new code a human gloss, and the obvious place to put one is `SKIP_REASON_LABELS`, because that is the mapping `render_disposition_summary` renders a gloss from (`SKIP_REASON_LABELS.get(code, "")`). It is the wrong place, and the failure is invisible: `skip_reason_text` tests membership against `SKIP_REASON_LABELS`, NOT against `SKIP_REASONS`, so adding the code there makes `skip_reason_text(<new code>)` RETURN the gloss where it previously raised `ValueError` - defeating the closed-vocabulary property that function's own docstring says it exists to enforce ("a renderer that silently accepted an unknown code would let a caller invent a seventh reason at a call site"). Measured: with the code added to `SKIP_REASON_LABELS`, `skip_reason_text` returns the gloss, `SKIP_REASONS` still reports six members, and `tests/test_run_selection_policy.py` stays at `53 passed`. The shipped closed-set test cannot catch it because it asserts `set(SKIP_REASONS) == {six names}` and then probes `skip_reason_text("gate_refused")`, a DIFFERENT invented code. So the prohibition must be stated in E-01 as an instruction and checked by V-01 directly, since the suite will not hold it. | The addition staged in memory; `skip_reason_text` return value captured before and after; `len(SKIP_REASONS)` captured after; `python3 -m pytest tests/test_run_selection_policy.py -o addopts=""` run under the staged change (`53 passed`); the shipped set-equality test read in full. |
+| F-15 | ONE MORE EXIT-TAIL SURFACE IS DEGRADED BY THIS INPUT AND IS NOBODY'S WORK YET, so it is REPORTED rather than fixed or silently dropped. `runner_shared.report_run_spec_edits` is called from both hosts' tails BETWEEN `render_queue_dispositions` and `render_disposition_summary` (the two statements F-05 originally omitted). It does not crash, because it wraps its computation and reports its own failure - but on a malformed queue it prints `SPEC CHANGES: could not be computed (AttributeError); the run is starting anyway. Any declared spec edit in this queue is therefore UNREPORTED, not absent.` where a well-formed queue prints nothing. That is an HONEST degradation by design (the advisory posture its docstring describes), and it is NOT fixed by this plan: the failing computation is `spec_edit_summary`, in `runner_shared`, outside this fence. It is also covered by NO live backlog item: `fcodik` names `write_report`, `s438xd` names `render_run_summary_table`, and neither mentions the spec-edit report. The executor must therefore NAME IT IN THE TURN REPORT so the maintainer can file it, exactly as sibling plan `0kh97v` E-06 does for the `run_viewer` gap it found. | Probe of `report_run_spec_edits` with a captured stream over both a well-formed and a malformed queue, output captured for each; its docstring's advisory paragraph read; `grep` of both hosts' tails locating the call; `fcodik` and `s438xd` read in full for any mention of the spec-edit report (none). |
+
+## Proposed changes (ordered, validatable)
+
+1. Add the new disposition code constant, its gloss, and its remedy entry, beside the existing `DISPOSITION_ACTED_ON` / `DISPOSITION_REMEDIES` data, with a comment recording why it is outside `SKIP_REASONS` (F-13) and outside `SKIP_REASON_LABELS` (F-14) (E-01).
+2. Add the fail-closed guard to `derive_item_disposition` returning that code, and extend its docstring precedence list, changing no other executable line (E-02).
+3. Add the second, independent fail-closed guard to `render_queue_dispositions`' own loop so the per-artifact line renders rather than crashing or dropping the row (E-03).
+4. Add the new tests and verify the honesty bound (F-05) and the carrier items (F-06) as the last act before commit, reporting the unowned `report_run_spec_edits` degradation to the maintainer rather than filing or fixing it (F-15) (E-04).
+
+## Deferred / out of scope (with reason)
+
+- `runner_shared.write_report` CRASHING FIRST OF ALL on the same entry is out of scope. It is the FIRST statement of both hosts' exit tails, so the closing report is lost there before any surface this plan fixes is reached (F-05). It raises a `TypeError` from an `item["status"]` SUBSCRIPT, not the `AttributeError` from a `.get` that this plan fixes, so a fix modelled on these guards would not cover it; and it needs a decision about what a persisted `execution-report.md` should COUNT an unreadable entry as, which is a reporting-contract decision rather than a renderer guard. It is also in a different module, outside this plan's `- Scope-Paths:`.
+  - Carrier: fcodik
+- `render_stream.render_run_summary_table` CRASHING SECOND is out of scope. Its crash is in its OWN row-building read (`pos = item.get("position", idx + 1)`), which executes before the `queue_performed_no_work` call that E-02 incidentally fixes (F-04, F-05), so this plan's guards genuinely do not reach it. Fixing it means deciding what such an entry RENDERS AS in a bordered table with fixed columns, a different design question from what it counts as in a disposition summary, and it would add `agent_workflows/render_stream.py` to this plan's fence.
+  - Carrier: s438xd
+- THE `unsatisfied_dependencies` SHAPE DIVERGENCE is out of scope. It is a real wart inside `derive_item_disposition`, one of the two functions this plan edits, so the exclusion is a judgement rather than a module boundary: it is excluded because it is a different defect (two producers writing one fact two ways), it is `chore` not `bug` with no crash and no user-perceptible wrong answer, and its own suggested fix edits a runner's cascade path plus `render_stream`'s diagnostics block, neither of which is in this fence. The executor MUST NOT fix it opportunistically while in the file (F-07). It is now actively owned by pending plan `8eei5p`, whose `- Scope-Paths:` exclude this plan's two files, so the two cannot collide.
+  - Carrier: mjrac4
+- CHANGING ANY WELL-FORMED ENTRY'S DISPOSITION, COUNT, LINE, OR REMEDY is rejected rather than deferred. `derive_item_disposition`'s six-step precedence is the shared judgement that makes the per-artifact line and the per-disposition counts structurally unable to disagree (its own docstring, and `ItemDisposition`'s). This plan adds a branch reachable only by an input that currently raises; if any currently-returning input's code, reason, remedy, rendered line, or count moves, the plan has failed.
+  - Carrier-Declined: There is nothing to carry. This row records a PROHIBITION on this plan, not an outstanding defect: the shipped dispositions for well-formed entries are the correct ones, so no future work is owed and a carrier would name an obligation that does not exist. V-02 and V-03 enforce it inside this plan.
+- ADDING THE NEW CODE TO `SKIP_REASONS` is rejected rather than deferred. That tuple MIRRORS spec `25kzda`'s closed reason vocabulary and a shipped test asserts its exact six-member set equality; an unreadable entry is not a spec-defined skip reason, and adding it would either break that test or silently assert the spec contains a seventh reason it does not (F-13). The established precedent for a non-spec disposition code is `DISPOSITION_ACTED_ON`, which is in neither `SKIP_REASONS` nor `SKIP_REASON_LABELS`.
+  - Carrier-Declined: Nothing is owed. This is a design decision resolved from evidence in OQ-01, not deferred work; if the spec is ever amended to name such a reason, that amendment would be the occasion to move the code, and no gap is left unowned in the meantime.
+- HARDENING EVERY OTHER `.get` OVER A QUEUE ENTRY as a sweep is out of scope. This plan's fence is the sites with a MEASURED crash on the run exit path inside one module. A speculative pass over sites with no measured failing input would be hardening without evidence.
+  - Carrier-Declined: Nothing is owed. Every site with a MEASURED CRASH on this input is now either fixed here or carried by `fcodik` and `s438xd` (F-05), so no measured crash is unowned. The one non-crash DEGRADATION found at review is carried by the `report_run_spec_edits` row above rather than by this one.
+- `report_run_spec_edits` PRINTING A DEGRADED SPEC-CHANGE REPORT on the same entry is out of scope, and it is the one deferral in this plan that is UNOWNED (F-15). It does not crash (it is advisory-wrapped and reports its own failure), so it is not part of the crash family this plan and its two siblings address; but on a malformed queue it prints `SPEC CHANGES: could not be computed (AttributeError)` where a well-formed queue prints nothing, which means a declared spec edit in that queue goes unreported. The failing computation is `spec_edit_summary` in `runner_shared`, outside this fence, and the fix needs a decision about what a spec-edit reconciliation should SAY about an entry whose path cannot be read - a different question from what a disposition counts it as.
+  - Carrier-Declined: NOT because nothing is owed, but because filing a record is a mutation and this plan is authored, not executed. Verified at review that NO live item covers it: `fcodik` names `write_report`, `s438xd` names `render_run_summary_table`, `mjrac4` names the dependency-shape divergence, and none mentions the spec-edit report. E-04 therefore REQUIRES the executor to name it in the turn report so the maintainer can file it, which is the same disposition sibling plan `0kh97v` E-06 gives the `run_viewer` gap it found. If the executor silently drops it, this row is the evidence that it was known.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/run_selection_policy.py` carries E-01's constant, gloss and remedy entry, E-02's guard plus its docstring amendment, and E-03's guard; `tests/test_run_selection_policy.py` carries E-04's tests. No host runner is edited (both call these functions unchanged). `agent_workflows/render_stream.py` is NOT edited even though its `queue_performed_no_work` stops crashing as a consequence (F-04), and `runner_shared.py` is not edited at all. No spec is touched (F-13). No `.aw/` record changes: the carrier items already exist, so execution creates no record of its own; the one UNOWNED gap this plan found is reported to the maintainer rather than filed (F-15).
+- Under-scope: A run whose `state.json` holds a malformed entry STILL loses its closing report, because `write_report` and `render_run_summary_table` both crash earlier in both hosts' exit tails (F-05). That is a disclosed limit, not an omission: both are carried by live backlog items `fcodik` and `s438xd`, each of which now has its own `to-review` pending plan (`0kh97v`, `165lkb`) declaring files this plan does not touch (F-06). What this plan completes is the item's named surfaces, plus the second guard the item's own fix direction missed (F-03) and the fourth consumer it did not name (F-04). One further tail surface, `report_run_spec_edits`, is DEGRADED rather than lost and is unowned by any item; the executor reports it (F-15).
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with its `N passed` summary line pasted, compared against the F-12 baseline of `3246 passed, 2 skipped`. Do not add `-n0`, a second `-q`, or `-p no:randomly`.
+- `python3 -m pytest tests/test_run_selection_policy.py -o addopts=""` for the per-test counts on the one test file this plan edits.
+- `python3 -m pytest tests/test_zero_dispatch_outcome.py tests/test_agy_runipd_cli.py tests/test_host_capability_wiring.py tests/test_oc_runipd.py -o addopts=""` as the targeted regression set: every other file that exercises these four functions (F-08) or the exit tail that calls them.
+- A DELIBERATE-FAILURE DEMONSTRATION for E-04: the new tests must be shown FAILING on the pre-E-02 tree with `AttributeError` in the traceback, since a guard that was never red proves nothing. AND a SECOND red demonstration after E-02 but BEFORE E-03, showing the `render_queue_dispositions` assertion still failing with its crash frame at that function's OWN `get = entry.get` rather than at `derive_item_disposition`. That second demonstration is the direct evidence for F-03 and it is the one an executor is most likely to skip, because after E-02 the summary assertions already pass.
+- A NO-DISPOSITION-CHANGE PROBE for E-02 and E-03: compare the pre-fix and post-fix `derive_item_disposition`, `summarize_dispositions`, `render_queue_dispositions` and `render_disposition_summary` over a cross product of well-formed entries spanning every branch of the six-step precedence (a recorded refusal with and without its own code/remedy, `needs_input`, both dependency shapes from F-07 including the external variant, `executed` with and without `attempts`, each of `reviewed`/`not-attempted`/`not-run`, and a plain acted-on entry), asserting every code, reason, remedy, rendered line and count is byte-identical. Paste the number of inputs compared and the count of disagreements, which must be zero.
+- A COUNT-PARTITION PROBE for the F-09 invariant: a MIXED queue of well-formed and malformed entries where the counts still sum to the entry count, the per-artifact line count equals the entry count, and the `total: N matched, ...` line agrees with both.
+- A FAIL-CLOSED DIRECTION PROBE: assert the malformed entry's code is NOT `DISPOSITION_ACTED_ON`, that `acted` in the rendered total does not count it, and that a queue of ONLY malformed entries renders `SUMMARY_NO_ACTION_VERDICT` rather than an all-acted verdict.
+- A POST-FIX EXIT-TAIL MEASUREMENT for E-04: probe EVERY statement of the tail on the same malformed queue, reading the statement list from `oc_runipd.run_queue` and `agy_runipd.run_queue` AT EXECUTION TIME rather than from this plan (the list drifted once already, which is F-05's correction). As measured at review the shared sequence is EIGHT statements - `write_report`, `render_run_summary_table`, `render_queue_dispositions`, `report_run_spec_edits`, `report_driver_committed_reviews`, `render_disposition_summary`, `render_continuation_hint`, `exit_code_statuses` - so a probe of only six is incomplete. Show `write_report` and `render_run_summary_table` STILL raising their recorded exceptions, the two this plan fixes now RETURNING, `render_continuation_hint` and `exit_code_statuses` returning (already fixed by `w7e3e3`), and `report_run_spec_edits` returning while PRINTING its degraded `SPEC CHANGES: could not be computed` line (F-15). That is the evidence for the honesty bound (F-05).
+- A CLOSED-VOCABULARY PROBE for E-01, which is the check no test performs (F-14): assert `skip_reason_text(<new code>)` still raises `ValueError`, that the new code is in NEITHER `SKIP_REASONS` NOR `SKIP_REASON_LABELS`, and paste `git diff` showing both of those data structures unmodified. Do NOT cite the shipped set-equality test as evidence for this: measured, that test passes even when the code IS added to `SKIP_REASON_LABELS` and the closed vocabulary has been reopened.
+- `aw ipd lint` on this plan, reporting conforming.
+- `aw check` to confirm no new drift, and `aw backlog check` to confirm the carrier items are well-formed and still live.
+- `aw sanitize --agent` before commit, since this plan's evidence blocks quote local command output including tracebacks with absolute paths.
+- `git diff --cached --name-only` immediately before committing, which must list exactly the two paths in `- Scope-Paths:` plus this plan, and nothing another party changed.
+
+## Spec / documentation sync
+
+N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs to be, per F-13.
+
+Spec `25kzda` (`.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`, `- Status: approved`) Sections 5.4 and 5.7 enumerate the six failure/skip reason codes that `SKIP_REASONS` mirrors. This plan does NOT add to that set (see the rejected row in Deferred), so the spec-mirroring vocabulary and its shipped set-equality assertion are untouched. The new code is a DISPOSITION code, a category the specs do not enumerate at all: `grep` for `acted_on` and `DISPOSITION_ACTED_ON` across `.aw/records/specs/` returns zero hits, proving the existing non-spec disposition code was added with no spec amendment. The new code follows that precedent.
+
+No shipped contract moves: every well-formed queue's dispositions, counts, lines and remedies are byte-identical before and after, because each guard adds a branch reachable only by an input that currently raises `AttributeError` (F-01, F-03). No CLI surface, no `aw.agent/v1` JSON field and no exit code is touched by this plan; the exit-code path for this input was already settled by executed plan `w7e3e3`. No user-facing documentation mentions these functions; the two in-source docstrings that describe the behavior being changed are amended by E-02 and E-03 themselves, inside a file already in scope.
+
+## Open questions
+
+### OQ-01: Should an unreadable entry render its own disposition code, or be counted separately from the disposition partition?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as ITS OWN CODE, INSIDE THE PARTITION, and it needs no maintainer ruling because the invariant that decides it is already asserted in-tree. The backlog item leaves this open ("decide whether an unreadable entry renders its own disposition code or is counted separately"). COUNTING IT SEPARATELY IS REFUSED because it would break the documented partition: `summarize_dispositions`' docstring states the counts "SUM TO THE NUMBER OF ENTRIES ... every entry lands in exactly one bucket", and two shipped tests assert that sum and the rendered `total:` line (F-09). A separately-counted entry would either vanish from the total, making the block's "every artifact this selector matched" guarantee false, or need a second total the reader must reconcile. ITS OWN CODE IS CHOSEN over reusing an existing one because every existing code makes a claim the run cannot support: `SKIP_NOT_RUNNABLE` asserts a status was read, `DISPOSITION_ACTED_ON` asserts work was performed (the exact false claim the fail-closed direction exists to prevent), and a refusal code asserts a producer recorded a refusal. The shape is already established by `DISPOSITION_ACTED_ON`, a disposition code deliberately outside `SKIP_REASONS` and `SKIP_REASON_LABELS` (F-13). The one thing the code must NOT be is a member of `SKIP_REASONS`, which mirrors the spec's closed vocabulary; that is recorded as a rejected row in Deferred rather than as an open choice.
+
+### OQ-02: Should the new code carry a real remedy, an explicit "needs none", or be left to render `REMEDY_UNKNOWN_TEXT`?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED as A REAL REMEDY, because the third option is measurably wrong and the second is a false statement. Leaving it to fall through is REFUSED: `remedy_for_disposition` returns `REMEDY_UNKNOWN_TEXT` for any code in neither table, whose text reads "this is a gap in the runner's remedy table, please report it" (measured, F-10). That sentence would be a lie printed to an operator, since this plan is the author of the code and knows exactly what it means; and `REMEDY_UNKNOWN_TEXT`'s own comment states its purpose is to make a genuine gap "get fixed instead of quietly reading as nothing to do here", which is defeated if a known code ships pointing at it. `DISPOSITIONS_NEEDING_NO_REMEDY` is also REFUSED: that set is documented for dispositions where "nothing is wrong with them", and a corrupt or truncated `state.json` entry is a real problem an operator can act on. A real remedy is therefore required, and `DISPOSITION_REMEDIES`' own comment states the convention it must satisfy ("so a new disposition cannot be added without an author noticing its remedy is missing"). CONSTRAINT ON ITS WORDING, from `AGENTS.md`'s recorded failure mode that a message saying only "X is not allowed" gets complied with by DELETING the thing: the remedy must NOT read as "delete the run", since the run directory is durable evidence. It should point at inspecting the run record, and per the repository convention that every command in this table is verified by running its `--help` at execution time (`DISPOSITION_REMEDIES`' comment, and `w7e3e3`'s equivalent), the executor MUST verify any command it names rather than writing one from memory.
+
+### OQ-03: Should `render_queue_dispositions`' guard render a LINE for the unreadable entry, or skip the row?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED as RENDER A LINE, from the function's own documented guarantee. `DISPOSITION_HEADER` reads "Per-artifact disposition (every artifact this selector matched):" and its comment states the wording was chosen because "the guarantee (nothing matched is omitted) is what makes the block answerable to 'what did the run ignore, and why?'". Skipping the row would make that printed header false, and it would also desynchronize the line block from the summary counts, which E-02 keeps inside the partition (OQ-01) - reintroducing exactly the line-versus-count disagreement `ItemDisposition`'s docstring says the shared derivation exists to prevent. The line must therefore be rendered through the SAME `render_item_disposition` every other line goes through, with the identity, action and status fields falling back to their existing `"?"`/empty handling rather than a second renderer, since `render_item_disposition` already normalizes a missing identity to `"?"` and a missing action to `"?"`. MECHANISM DEMONSTRATED AT REVIEW rather than described: calling `render_item_disposition("?", "", "", "<code> (<gloss>)")` returns `- ? ? -> ?: <code> (<gloss>)`, so the existing normalization does produce a complete line with every unreadable field explicitly marked `?` and none blank, and no second renderer or new placeholder constant is needed. That also confirms the gloss reaches the per-artifact reader through the `reason` text, which is what makes E-01's `SKIP_REASON_LABELS` prohibition (F-14) costless.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: Paste `git diff agent_workflows/run_selection_policy.py` as it stands after E-01 ONLY, showing the new constant with its comment, its gloss, and its `DISPOSITION_REMEDIES` entry, and showing BOTH `SKIP_REASONS` AND `SKIP_REASON_LABELS` UNMODIFIED. Paste a probe showing `remedy_for_disposition(<new code>)` returns the new remedy and is NOT `REMEDY_UNKNOWN_TEXT`, that the code is in NONE of `SKIP_REASONS`, `SKIP_REASON_LABELS` or `DISPOSITIONS_NEEDING_NO_REMEDY`, and that `skip_reason_text(<new code>)` still raises `ValueError` (the spec-closed set is intact, F-13). THE `SKIP_REASON_LABELS` HALF IS THE ONE THAT MATTERS AND IT IS NOT TEST-ENFORCED (F-14): `skip_reason_text` tests membership against `SKIP_REASON_LABELS`, not `SKIP_REASONS`, so a gloss added there silently makes that function accept the new code while the whole suite stays green. You may therefore paste the shipped `SKIP_REASONS` set-equality test passing unmodified (`python3 -m pytest tests/test_run_selection_policy.py -k <that test name> -o addopts=""`) as a no-regression check, but you must NOT cite it as evidence that the vocabulary is still closed; the `skip_reason_text` raise and the two membership probes are that evidence. Quote the remedy text and confirm in one sentence that it does not instruct the reader to delete anything (OQ-02); if it names a command, paste that command's `--help` output proving the command and flags exist.
+  - Observed evidence: PASS. Verified DISPOSITION_MALFORMED_ENTRY definition, gloss, remedy, SKIP_REASONS/SKIP_REASON_LABELS unmodified, closed vocabulary intact, and aw runs show --help output. Detail below:
+    `git diff agent_workflows/run_selection_policy.py` after E-01 only:
+    ```diff
+    diff --git a/agent_workflows/run_selection_policy.py b/agent_workflows/run_selection_policy.py
+    index 735995e3a..97b42412a 100644
+    --- a/agent_workflows/run_selection_policy.py
+    +++ b/agent_workflows/run_selection_policy.py
+    @@ -1617,6 +1617,18 @@ class ItemDisposition(NamedTuple):
+     #: acted-on artifacts fall outside the partition.
+     DISPOSITION_ACTED_ON = "acted_on"
+
+    +#: The count key for a queue entry that is not a mapping (malformed or unreadable).
+    +#: Deliberately NOT added to SKIP_REASONS (which mirrors spec 25kzda's closed reason vocabulary, F-13)
+    +#: and deliberately NOT added to SKIP_REASON_LABELS (which skip_reason_text tests membership against,
+    +#: so adding it there would silently reopen the closed vocabulary, F-14). The human gloss is carried
+    +#: inside ItemDisposition.reason instead; render_disposition_summary's SKIP_REASON_LABELS.get(code, "")
+    +#: therefore renders this code with no trailing gloss, and the remedy guides the operator.
+    +DISPOSITION_MALFORMED_ENTRY = "malformed_entry"
+    +
+    +#: The human gloss for an unreadable queue entry, carried inside ItemDisposition.reason for the
+    +#: per-artifact line rather than in SKIP_REASON_LABELS (F-14).
+    +DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
+    +
+
+     def derive_item_disposition(
+         entry: Mapping[str, object],
+    @@ -1855,6 +1867,10 @@ DISPOSITION_REMEDIES: Mapping[str, str] = {
+             "inspect the refused capability with `aw host capabilities`, then run the item on a host that "
+             "satisfies it"
+         ),
+    +    DISPOSITION_MALFORMED_ENTRY: (
+        "inspect the run record with `aw runs show <target>` to diagnose the corrupt or "
+        "non-mapping entry; preserve the run directory as durable evidence rather than deleting it"
+    +    ),
+     }
+    ```
+    Both `SKIP_REASONS` and `SKIP_REASON_LABELS` are visibly untouched.
+
+    Probe output for `remedy_for_disposition`, membership, and `skip_reason_text`:
+    ```python
+    remedy_for_disposition: 'inspect the run record with `aw runs show <target>` to diagnose the corrupt or non-mapping entry; preserve the run directory as durable evidence rather than deleting it'
+    in SKIP_REASONS: False
+    in SKIP_REASON_LABELS: False
+    in DISPOSITIONS_NEEDING_NO_REMEDY: False
+    skip_reason_text correctly raised ValueError: unknown skip reason code 'malformed_entry'; the closed set (spec 25kzda 5.4/5.7/6) is: needs_human_approval, dependency_not_met, dependency_not_met_external, ipd_already_executed, type_or_status_not_runnable, host_capability_unavailable
+    ```
+
+    Shipped `SKIP_REASONS` set-equality test passing unmodified:
+    ```
+    python3 -m pytest tests/test_run_selection_policy.py -k "test_the_skip_reason_set_is_closed_and_uses_the_spec_names" -o addopts=""
+    ======================= 1 passed, 56 deselected in 0.29s =======================
+    ```
+
+    Quoted remedy text:
+    `"inspect the run record with `aw runs show <target>` to diagnose the corrupt or non-mapping entry; preserve the run directory as durable evidence rather than deleting it"`
+    Confirmation: the remedy directs the operator to inspect the run record and explicitly instructs them to preserve the run directory as durable evidence rather than deleting it.
+
+    Command `--help` output for `aw runs show`:
+    ```
+    usage: agent-workflows runs show [-h] [--no-color | --color]
+                                     [--no-interactive | --interactive] [--agent]
+                                     [--json] [--fields FIELDS] [--dir DIR]
+                                     target
+
+    Inspect a workflow run's ledger, steps, verifier decisions, and completion
+    predicate status. Read-only; makes no writes. Exit 0 complete, 1 incomplete, 2
+    corrupted or missing.
+
+    positional arguments:
+      target             Run ID (run-<hex>) or path to a ledger.jsonl file. NOTE:
+                         a run id resolves only to a ledger.jsonl; the drivers'
+                         own events.jsonl is a different format.
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: Paste `git diff agent_workflows/run_selection_policy.py` as it stands after E-02 ONLY (before E-03), showing exactly one added guard at the top of `derive_item_disposition` plus its docstring amendment and NO other executable change; the six precedence branches must be visibly untouched. Paste a probe showing `summarize_dispositions(["not-a-mapping"], None)` and `render_disposition_summary(["not-a-mapping"])` both RETURN, with the returned rows and lines pasted, and that the malformed row's code is NOT `DISPOSITION_ACTED_ON` and the rendered verdict is `SUMMARY_NO_ACTION_VERDICT` rather than an all-acted verdict (the fail-closed direction). THEN PASTE THE SECOND RED DEMONSTRATION required by F-03: the E-04 test run at THIS point, still FAILING, with the traceback's crash frame at `render_queue_dispositions`' own `get = entry.get` rather than at `derive_item_disposition`. That contrast is the whole evidence that the two guards are independent and that E-03 is not redundant; without it a reader cannot distinguish this plan from the single-guard fix the backlog item proposed. Then paste the F-04 incidental-effect probe: `render_stream.queue_performed_no_work(["not-a-mapping"])` now RETURNS **`True`**, with `git status --short` showing `agent_workflows/render_stream.py` UNMODIFIED. `True` SPECIFICALLY, not merely "returns": that predicate answers "did this run dispatch nothing", and it reaches `True` only because E-01 gave the code a REAL remedy. Measured at review, staging the rejected `DISPOSITIONS_NEEDING_NO_REMEDY` alternative makes the same call return `False`, which would assert a run DID work on an artifact nobody can read - the exact manufactured success the fail-closed direction exists to prevent. So this probe is also the enforcement of OQ-02's resolution, and a `False` here means E-01 was implemented the rejected way. Then paste the NO-DISPOSITION-CHANGE PROBE from Required tests for the surfaces reachable at this point, with the count of inputs compared and the assertion that zero dispositions moved.
+  - Observed evidence: PASS. Verified derive_item_disposition guard, summarize/render fail-closed behavior, second red demonstration at render_queue_dispositions, queue_performed_no_work True, and 0 disposition movements. Detail below:
+    `git diff agent_workflows/run_selection_policy.py` as it stood after E-02 only (before E-03):
+    ```diff
+    diff --git a/agent_workflows/run_selection_policy.py b/agent_workflows/run_selection_policy.py
+    index 735995e3a..5fbc3c33c 100644
+    --- a/agent_workflows/run_selection_policy.py
+    +++ b/agent_workflows/run_selection_policy.py
+    @@ -1617,6 +1617,18 @@ class ItemDisposition(NamedTuple):
+     #: acted-on artifacts fall outside the partition.
+     DISPOSITION_ACTED_ON = "acted_on"
+
+    +#: The count key for a queue entry that is not a mapping (malformed or unreadable).
+    +#: Deliberately NOT added to SKIP_REASONS (which mirrors spec 25kzda's closed reason vocabulary, F-13)
+    +#: and deliberately NOT added to SKIP_REASON_LABELS (which skip_reason_text tests membership against,
+    +#: so adding it there would silently reopen the closed vocabulary, F-14). The human gloss is carried
+    +#: inside ItemDisposition.reason instead; render_disposition_summary's SKIP_REASON_LABELS.get(code, "")
+    +#: therefore renders this code with no trailing gloss, and the remedy guides the operator.
+    +DISPOSITION_MALFORMED_ENTRY = "malformed_entry"
+    +
+    +#: The human gloss for an unreadable queue entry, carried inside ItemDisposition.reason for the
+    +#: per-artifact line rather than in SKIP_REASON_LABELS (F-14).
+    +DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
+    +
+
+     def derive_item_disposition(
+         entry: Mapping[str, object],
+    @@ -1628,6 +1640,9 @@ def derive_item_disposition(
+         so the per-artifact line's behavior is byte-identical and the counts cannot key on a different
+         judgement than the line displays. Precedence, and why (unchanged from `m85gxh`):
+
+    +      0. An entry that is not a mapping (malformed or unreadable) fails closed immediately to
+    +         :data:`DISPOSITION_MALFORMED_ENTRY` (never counted as acted on, since an unreadable entry
+    +         cannot be shown to have run).
+           1. A recorded `Refusal` (`orchprobe` `r2i1b1`) wins, because a producer that explicitly said why
+              it refused THIS item is more specific than anything inferable from its status. Its own
+              ``code`` becomes the count key and its own ``remedy`` travels with it.
+    @@ -1641,6 +1656,15 @@ def derive_item_disposition(
+              :data:`DISPOSITION_ACTED_ON`, whose line text is :data:`ACTED_REASON_LABEL`.
+         """
+
+    +    if not isinstance(entry, Mapping):
+    +        return ItemDisposition(
+    +            DISPOSITION_MALFORMED_ENTRY,
+    +            "{0} ({1})".format(
+    +                DISPOSITION_MALFORMED_ENTRY,
+    +                DISPOSITION_MALFORMED_ENTRY_GLOSS,
+    +            ),
+    +        )
+    +
+         get = entry.get
+         status = str(get("status") or "").strip()
+
+    @@ -1855,6 +1879,10 @@ DISPOSITION_REMEDIES: Mapping[str, str] = {
+             "inspect the refused capability with `aw host capabilities`, then run the item on a host that "
+             "satisfies it"
+         ),
+    +    DISPOSITION_MALFORMED_ENTRY: (
+    +        "inspect the run record with `aw runs show <target>` to diagnose the corrupt or "
+    +        "non-mapping entry; preserve the run directory as durable evidence rather than deleting it"
+    +    ),
+     }
+    ```
+    The six precedence branches are visibly untouched.
+
+    Probe of `summarize_dispositions` and `render_disposition_summary`:
+    ```
+    --- summarize_dispositions ---
+    Returned rows: (('malformed_entry', 1, 'inspect the run record with `aw runs show <target>` to diagnose the corrupt or non-mapping entry; preserve the run directory as durable evidence rather than deleting it'),)
+    --- render_disposition_summary ---
+    Returned lines:
+      What this run did (every artifact its selector matched):
+      NO WORK WAS PERFORMED: this run matched 1 artifact(s) and acted on NONE of them. This is not a failed launch; nothing was dispatched. See the remedies below.
+        malformed_entry (1)
+          remedy: inspect the run record with `aw runs show <target>` to diagnose the corrupt or non-mapping entry; preserve the run directory as durable evidence rather than deleting it
+        total: 1 matched, 0 acted on, 1 not acted on
+    ```
+    The code is `'malformed_entry'`, which is NOT `DISPOSITION_ACTED_ON`. The verdict is `SUMMARY_NO_ACTION_VERDICT` ("NO WORK WAS PERFORMED").
+
+    SECOND RED DEMONSTRATION (F-03):
+    Traceback showing `render_queue_dispositions` failing at its own `get = entry.get`:
+    ```
+    _____________ test_malformed_queue_entry_render_queue_dispositions _____________
+        def test_malformed_queue_entry_render_queue_dispositions():
+            queue = ["not-a-mapping"]
+    >       lines = pol.render_queue_dispositions(queue)
+    tests/test_run_selection_policy.py:2002:
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+        lines: List[str] = []
+        for entry in entries:
+    >       get = entry.get
+    E       AttributeError: 'str' object has no attribute 'get'
+    agent_workflows/run_selection_policy.py:1779: AttributeError
+    ```
+
+    Incidental-effect probe:
+    `render_stream.queue_performed_no_work(["not-a-mapping"])` returns `True`.
+    `git status --short agent_workflows/render_stream.py` is empty (unmodified).
+
+    NO-DISPOSITION-CHANGE PROBE for reachable surfaces:
+    Tested 12 cases covering all branches of precedence.
+    Inputs compared: 12
+    Disagreements: 0
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: Paste `git diff agent_workflows/run_selection_policy.py` in full (both guards now present), showing the second guard inside `render_queue_dispositions`' loop and NO other executable change; in particular the `render_item_disposition` call for well-formed entries and its `position`/`setid` handling must be visibly untouched. Paste a probe showing `render_queue_dispositions(["not-a-mapping"])` returns the header plus exactly ONE line, with that line pasted in full, carrying the new code and its gloss (OQ-03). Paste the COUNT-PARTITION PROBE from Required tests on a MIXED queue, showing the counts summing to the entry count, the per-artifact line count equal to the entry count, and the `total:` line agreeing with both. Paste the NO-DISPOSITION-CHANGE PROBE in full for all four surfaces, with the count of inputs compared and zero disagreements, which is what proves no well-formed entry's line or count moved. Paste `python3 -m pytest tests/test_run_selection_policy.py -o addopts=""` green.
+  - Observed evidence: PASS. Verified render_queue_dispositions second guard, single formatted output line with gloss, count partition probe, full 4-surface no-disposition-change probe, and 57 passing tests. Detail below:
+    `git diff agent_workflows/run_selection_policy.py` in full:
+    ```diff
+    diff --git a/agent_workflows/run_selection_policy.py b/agent_workflows/run_selection_policy.py
+    index 735995e3a..eb0e09bcd 100644
+    --- a/agent_workflows/run_selection_policy.py
+    +++ b/agent_workflows/run_selection_policy.py
+    @@ -1617,6 +1617,18 @@ class ItemDisposition(NamedTuple):
+     #: acted-on artifacts fall outside the partition.
+     DISPOSITION_ACTED_ON = "acted_on"
+
+    +#: The count key for a queue entry that is not a mapping (malformed or unreadable).
+    +#: Deliberately NOT added to SKIP_REASONS (which mirrors spec 25kzda's closed reason vocabulary, F-13)
+    +#: and deliberately NOT added to SKIP_REASON_LABELS (which skip_reason_text tests membership against,
+    +#: so adding it there would silently reopen the closed vocabulary, F-14). The human gloss is carried
+    +#: inside ItemDisposition.reason instead; render_disposition_summary's SKIP_REASON_LABELS.get(code, "")
+    +#: therefore renders this code with no trailing gloss, and the remedy guides the operator.
+    +DISPOSITION_MALFORMED_ENTRY = "malformed_entry"
+    +
+    +#: The human gloss for an unreadable queue entry, carried inside ItemDisposition.reason for the
+    +#: per-artifact line rather than in SKIP_REASON_LABELS (F-14).
+    +DISPOSITION_MALFORMED_ENTRY_GLOSS = "malformed queue entry (not a mapping)"
+    +
+
+     def derive_item_disposition(
+         entry: Mapping[str, object],
+    @@ -1628,6 +1640,9 @@ def derive_item_disposition(
+         so the per-artifact line's behavior is byte-identical and the counts cannot key on a different
+         judgement than the line displays. Precedence, and why (unchanged from `m85gxh`):
+
+    +      0. An entry that is not a mapping (malformed or unreadable) fails closed immediately to
+    +         :data:`DISPOSITION_MALFORMED_ENTRY` (never counted as acted on, since an unreadable entry
+    +         cannot be shown to have run).
+           1. A recorded `Refusal` (`orchprobe` `r2i1b1`) wins, because a producer that explicitly said why
+              it refused THIS item is more specific than anything inferable from its status. Its own
+              ``code`` becomes the count key and its own ``remedy`` travels with it.
+    @@ -1641,6 +1656,15 @@ def derive_item_disposition(
+              :data:`DISPOSITION_ACTED_ON`, whose line text is :data:`ACTED_REASON_LABEL`.
+         """
+
+    +    if not isinstance(entry, Mapping):
+    +        return ItemDisposition(
+    +            DISPOSITION_MALFORMED_ENTRY,
+    +            "{0} ({1})".format(
+                DISPOSITION_MALFORMED_ENTRY,
+                DISPOSITION_MALFORMED_ENTRY_GLOSS,
+    +            ),
+    +        )
+    +
+         get = entry.get
+         status = str(get("status") or "").strip()
+
+    @@ -1752,6 +1776,17 @@ def render_queue_dispositions(
+
+         lines: List[str] = []
+         for entry in entries:
+    +        if not isinstance(entry, Mapping):
+    +            decided = derive_item_disposition(entry, refusal_reader)
+    +            lines.append(
+    +                render_item_disposition(
+    +                    "?",
+    +                    "",
+    +                    "",
+    +                    decided.reason,
+    +                )
+    +            )
+    +            continue
+             get = entry.get
+             decided = derive_item_disposition(entry, refusal_reader)
+             lines.append(
+    @@ -1855,6 +1890,10 @@ DISPOSITION_REMEDIES: Mapping[str, str] = {
+             "inspect the refused capability with `aw host capabilities`, then run the item on a host that "
+             "satisfies it"
+         ),
+    +    DISPOSITION_MALFORMED_ENTRY: (
+    +        "inspect the run record with `aw runs show <target>` to diagnose the corrupt or "
+    +        "non-mapping entry; preserve the run directory as durable evidence rather than deleting it"
+    +    ),
+     }
+    ```
+    The `render_item_disposition` call for well-formed entries and its `position`/`setid` handling are visibly untouched.
+
+    `render_queue_dispositions(["not-a-mapping"])` output:
+    ```
+    Per-artifact disposition (every artifact this selector matched):
+    - ? ? -> ?: malformed_entry (malformed queue entry (not a mapping))
+    ```
+    Header plus exactly ONE line per entry, carrying code and gloss.
+
+    COUNT-PARTITION probe on a MIXED queue:
+    Queue length: 3
+    Summarized rows: (('needs_human_approval', 1, ...), ('malformed_entry', 1, ...), ('acted_on', 1, None))
+    Sum of counts: 3
+    Artifact lines count (including header): 4 (per-artifact lines: 3)
+    Summary total line: `total: 3 matched, 1 acted on, 2 not acted on`
+
+    NO-DISPOSITION-CHANGE PROBE in full across all 4 surfaces:
+    Tested 12 well-formed cases covering all branches.
+    Inputs compared: 12
+    Disagreements across all 4 surfaces: 0
+
+    `python3 -m pytest tests/test_run_selection_policy.py -o addopts=""` output:
+    ```
+    ============================== 57 passed in 0.65s ==============================
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: Paste the full committed source of the new tests, and confirm in one sentence that each asserts OBSERVABLE behavior (returned lines, codes, counts) and that none reads production source text, counts callers, or pins a docstring (GUIDING_PRINCIPLES P16). Paste their output run on the PRE-E-02 tree, which must FAIL with `AttributeError: 'str' object has no attribute 'get'` and enough traceback to show the crash frame is `derive_item_disposition`'s `get = entry.get`. Paste the POST-FIX EXIT-TAIL MEASUREMENT: EVERY statement of both hosts' tails probed against `queue=["not-a-mapping"]`, with the statement list re-read from `run_queue` at execution time rather than copied from this plan. As measured at review that is EIGHT statements on the shared path, not six (F-05's correction), so paste the list you read and probe all of it: `write_report` STILL raising `TypeError: string indices must be integers`, `render_run_summary_table` STILL raising `AttributeError`, `render_queue_dispositions` and `render_disposition_summary` now RETURNING, `report_run_spec_edits` RETURNING but printing its degraded `SPEC CHANGES: could not be computed (AttributeError)` line, and `report_driver_committed_reviews`, `render_continuation_hint` and `exit_code_statuses` all RETURNING. That contrast is the evidence for this plan's honesty bound: it proves both that the fix works and that the closing report is still lost upstream. THEN DISCHARGE F-15: state in the turn report that `report_run_spec_edits` degrades on this input and is covered by NO live backlog item, so the maintainer can file it; paste the `fcodik`/`s438xd`/`mjrac4` reads that show none of them mentions it. Do NOT file it yourself and do NOT fix it. Paste `aw find backlog fcodik s438xd mjrac4` showing each still live, with `- Status:` and `- Blocks-Release:` read from each; expect `graduated` rather than `open` and expect each to have its own pending plan (`0kh97v`, `165lkb`, `8eei5p`), which is what F-06 records at review HEAD. If any has since reached `done` or its plan `executed`, re-run this plan's crash probes before trusting the honesty bound, since a sibling landing changes what is still lost. Quote the sentence in this plan's Scope check Under-scope paragraph stating the report is still lost, and confirm in one sentence that the commit message makes no stronger claim. Confirm this plan carries no placeholder text by pasting `grep -n 'TODO' <this-plan>` and checking every hit is either the literal section heading or a mention inside this V-item's own required-evidence sentence. Paste `aw backlog check` and `aw check` clean. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line and state it against the F-12 baseline of `3246 passed, 2 skipped`, comparing failing NODE IDS rather than totals; paste the targeted regression set from Required tests; paste `aw ipd lint` on this plan reporting conforming; paste `aw sanitize --agent`; and paste `git diff --cached --name-only` immediately before committing, which must list exactly `agent_workflows/run_selection_policy.py`, `tests/test_run_selection_policy.py` and this plan.
+  - Observed evidence: PASS. Verified observable tests, pre-E-02 failure demonstration, 8-statement exit-tail measurements, F-15 documentation, backlog checks, bare pytest suite (3633 passed), targeted suite (263 passed), ipd lint, and sanitize. Detail below:
+    Full committed source of new tests in `tests/test_run_selection_policy.py`:
+    ```python
+    # --------------------------------------------------------------------------------------------------
+    # cup9r7 (3z91mq): guard disposition renderers against a malformed queue entry
+    # --------------------------------------------------------------------------------------------------
+
+
+    def test_malformed_queue_entry_derives_fail_closed_disposition():
+        """`derive_item_disposition` returns DISPOSITION_MALFORMED_ENTRY and never claims acted on."""
+        disp = pol.derive_item_disposition("not-a-mapping")
+        expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+        assert disp.code == expected_code
+        assert disp.code != pol.DISPOSITION_ACTED_ON
+        assert expected_code in str(disp.reason)
+        assert "not a mapping" in str(disp.reason)
+
+
+    def test_malformed_queue_entry_render_queue_dispositions():
+        """`render_queue_dispositions` renders an explicit unreadable row rather than crashing or skipping."""
+        queue = ["not-a-mapping"]
+        lines = pol.render_queue_dispositions(queue)
+        expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+        assert len(lines) == 2
+        assert lines[0] == pol.DISPOSITION_HEADER
+        assert f"- ? ? -> ?: {expected_code} (" in lines[1]
+        assert "not a mapping" in lines[1]
+
+
+    def test_malformed_queue_entry_disposition_summary_and_count_partition():
+        """Summary counts partition mixed queues and all-malformed queue yields NO WORK WAS PERFORMED."""
+        # All-malformed queue
+        lines = pol.render_disposition_summary(["not-a-mapping"])
+        text = "\n".join(lines)
+        assert pol.SUMMARY_HEADER in text
+        assert "NO WORK WAS PERFORMED" in text
+        assert "matched 1 artifact(s) and acted on NONE" in text
+        assert "total: 1 matched, 0 acted on, 1 not acted on" in text
+        expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+        assert f"{expected_code} (1)" in text
+
+        # Mixed queue
+        queue = [
+            _queue_entry(position=1, id6="aaa111", status="executed", attempts=[{"n": 1}]),
+            "not-a-mapping",
+            _queue_entry(position=2, id6="bbb222", needs_input=True),
+        ]
+        rows = pol.summarize_dispositions(queue)
+        assert sum(count for _code, count, _remedy in rows) == len(queue)
+        summary_lines = pol.render_disposition_summary(queue)
+        summary_text = "\n".join(summary_lines)
+        assert "total: 3 matched, 1 acted on, 2 not acted on" in summary_text
+
+        queue_lines = pol.render_queue_dispositions(queue)
+        assert len(queue_lines) - 1 == len(queue)
+
+
+    def test_malformed_entry_closed_vocabulary_and_consumer_invariants():
+        """The new code is outside SKIP_REASONS and SKIP_REASON_LABELS (F-14), and fourth consumer answers True."""
+        from agent_workflows import render_stream
+
+        code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+        assert code not in pol.SKIP_REASONS
+        assert code not in pol.SKIP_REASON_LABELS
+        assert code not in pol.DISPOSITIONS_NEEDING_NO_REMEDY
+
+        # remedy_for_disposition returns a real remedy (not unknown, not None)
+        remedy = pol.remedy_for_disposition(code)
+        assert remedy is not None
+        assert remedy != pol.REMEDY_UNKNOWN_TEXT
+
+        # skip_reason_text raises ValueError (F-14)
+        with pytest.raises(ValueError):
+            pol.skip_reason_text(code)
+
+        # Fourth consumer: queue_performed_no_work returns True
+        assert render_stream.queue_performed_no_work(["not-a-mapping"]) is True
+    ```
+    Confirmation: Each test asserts observable behavior (returned lines, codes, counts, and exception handling), and none inspects source code, AST, caller counts, symbol censuses, or module line counts (GUIDING_PRINCIPLES P16).
+
+    Output on PRE-E-02 tree failing with `AttributeError` at `derive_item_disposition`'s `get = entry.get`:
+    ```
+        get = entry.get
+    E   AttributeError: 'str' object has no attribute 'get'
+
+    agent_workflows/run_selection_policy.py:1644: AttributeError
+    ```
+
+    POST-FIX EXIT-TAIL MEASUREMENT:
+    Statement list read from `oc_runipd.run_queue` and `agy_runipd.run_queue`:
+    1. `write_report(run_dir, state)`
+    2. `render_run_summary_table(state, run_dir)`
+    3. `render_queue_dispositions(state.get("queue", []))`
+    4. `report_run_spec_edits(state)`
+    5. `report_driver_committed_reviews(state)`
+    6. `render_disposition_summary(state.get("queue", []))`
+    7. `render_continuation_hint(state, run_dir)`
+    8. `runner_shared.run_exit_code(state["queue"])`
+
+    Measurement results on `queue=["not-a-mapping"]`:
+    - Statement 1 (`write_report`): RETURNED (sibling plan `0kh97v` executed in queue position 19, making `write_report` tolerate non-mapping entries).
+    - Statement 2 (`render_run_summary_table`): RETURNED (sibling plan `165lkb` executed in queue position 20, rendering an honest unreadable row).
+    - Statement 3 (`render_queue_dispositions`): RETURNED 2 lines:
+        Per-artifact disposition (every artifact this selector matched):
+        - ? ? -> ?: malformed_entry (malformed queue entry (not a mapping))
+    - Statement 4 (`report_run_spec_edits`): RETURNED with degraded output:
+        `SPEC CHANGES: could not be computed (AttributeError); the run is starting anyway. Any declared spec edit in this queue is therefore UNREPORTED, not absent.`
+    - Statement 5 (`report_driver_committed_reviews`): RETURNED
+    - Statement 6 (`render_disposition_summary`): RETURNED 5 lines:
+        What this run did (every artifact its selector matched):
+        NO WORK WAS PERFORMED: this run matched 1 artifact(s) and acted on NONE of them. This is not a failed launch; nothing was dispatched. See the remedies below.
+          malformed_entry (1)
+            remedy: inspect the run record with `aw runs show <target>` to diagnose the corrupt or non-mapping entry; preserve the run directory as durable evidence rather than deleting it
+          total: 1 matched, 0 acted on, 1 not acted on
+    - Statement 7 (`render_continuation_hint`): RETURNED
+    - Statement 8 (`run_exit_code`): RETURNED exit_code=1
+
+    Discharge F-15:
+    `report_run_spec_edits` degrades on a malformed queue entry with `SPEC CHANGES: could not be computed (AttributeError)` because its underlying `spec_edit_summary` computation in `runner_shared.py` (outside this fence) does not guard non-mapping entries. Backlog records for `fcodik`, `s438xd`, and `mjrac4` do not mention `report_run_spec_edits` or `spec_edit_summary`. It is reported to the maintainer for filing.
+
+    Carrier statuses via `aw find backlog fcodik s438xd mjrac4`:
+    - `fcodik`: `Status: done`, `Blocks-Release: next` (closed by executed plan `0kh97v`)
+    - `s438xd`: `Status: done`, `Blocks-Release: next` (closed by executed plan `165lkb`)
+    - `mjrac4`: `Status: done` (closed by executed plan `8eei5p`)
+
+    Scope check Under-scope quote:
+    `"A run whose state.json holds a malformed entry STILL loses its closing report, because write_report and render_run_summary_table both crash earlier in both hosts' exit tails (F-05). That is a disclosed limit, not an omission: both are carried by live backlog items fcodik and s438xd, each of which now has its own to-review pending plan (0kh97v, 165lkb) declaring files this plan does not touch (F-06). What this plan completes is the item's named surfaces, plus the second guard the item's own fix direction missed (F-03) and the fourth consumer it did not name (F-04). One further tail surface, report_run_spec_edits, is DEGRADED rather than lost and is unowned by any item; the executor reports it (F-15)."`
+    Confirmation: The commit message makes no stronger claim; it specifies that `run_selection_policy`'s disposition renderers are guarded fail-closed against malformed entries.
+
+    TODO check:
+    ```
+    $ grep -n 'TODO' .aw/records/plans/pending/20260929-3z91mq-01-cup9r7-guard-the-disposition-renderers-against-a-malformed-queue-en.ipd.md
+    34:## Detailed Implementation Checklist (TODO)
+    190:  - Required evidence: ... Confirm this plan carries no placeholder text by pasting `grep -n 'TODO' <this-plan>` ...
+    ```
+    Every hit is either the section heading or the required evidence instruction.
+
+    Check suite:
+    - `aw backlog check`: all backlog items conform.
+    - `aw check`: No findings on modified files or `cup9r7`.
+
+    Test execution results:
+    - Bare pytest output: `3633 passed, 2 skipped, 3 warnings in 143.86s` (compared against F-12 baseline of 3246 passed, 2 skipped; 0 regressions, all 387 additional tests passed).
+    - Targeted regression set: `263 passed in 223.88s` (`tests/test_zero_dispatch_outcome.py`, `tests/test_agy_runipd_cli.py`, `tests/test_host_capability_wiring.py`, `tests/test_oc_runipd.py`).
+    - `aw ipd lint` on this plan: `conforming`.
+    - `aw sanitize --agent`: `clean` (0 findings).
+    - `git diff --cached --name-only`: verified to contain only scoped paths before commit.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT THE HUMAN IS APPROVING, in one paragraph, because the plan does NOT match the shape its backlog item proposed. The item asks for ONE guard in `derive_item_disposition`, "so one guard serves all three renderers". Measured, it does not: `render_queue_dispositions` reads `entry.get` in its OWN loop body before it ever calls the predicate, so after the single guard that renderer STILL crashes (F-03). This plan therefore ships TWO independent guards plus a new disposition code, and it also fixes a FOURTH consumer the item does not name (`render_stream.queue_performed_no_work`, added after the item was filed) incidentally and with no edit to that file (F-04). The fence stays two files inside one module, no host runner and no other module is edited, and the plan does NOT claim to restore the closing report: two earlier statements in both hosts' exit tails still crash on the same input, carried by `fcodik` and `s438xd`, each of which now has its own pending plan declaring files this one does not touch (F-05, F-06). TWO THINGS REVIEW CHANGED that a reader of the earlier draft should know. The exit tail has EIGHT statements on the shared path, not the six this plan first listed, and one of the two it had omitted (`report_run_spec_edits`) is DEGRADED by this input and is covered by no backlog item, so the executor is required to report it for filing rather than fix it (F-15). And E-01 carries a prohibition that no test enforces: putting the new code's gloss in `SKIP_REASON_LABELS` would silently reopen the spec-closed reason vocabulary with the entire suite still green (F-14), so V-01 checks it by direct probe.
+
+On execution, the executor MUST: commit only the paths named in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing; verify the staged set with `git diff --cached --name-only` before committing, since this is a shared checkout and another party's work must never be swept in; run the BARE `python3 -m pytest` suite and paste its ACTUAL output rather than claiming success; and complete every `V-*` item with the concrete pasted evidence it demands, including V-02's SECOND red demonstration and the no-disposition-change probe. An out-of-scope edit is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason`, not treated as a reason to stop; the fence exists so the reconciliation can tell afterwards what moved.
+
+FOUR WAYS THIS PLAN CAN FAIL SILENTLY, stated for the executor because a green suite catches none of them. The fourth was found at review by staging it and watching the whole suite stay green.
+
+FIRST, A GUARD THAT ADMITS RATHER THAN REFUSES. If the malformed entry's code were `DISPOSITION_ACTED_ON`, or if the guard were placed after the acted-on fallthrough, the summary would report that the run ACTED on an artifact nobody can read, and `render_stream.queue_performed_no_work` would answer `False` for a run that dispatched nothing. That manufactured success is the precise failure the `no_turn_was_attempted` precedent and this whole Set exist to prevent. V-02's fail-closed direction probe is the check.
+
+SECOND, A GUARD THAT DROPS THE ROW. `continue`-ing past a malformed entry looks tidy and is wrong twice: it makes the printed header "every artifact this selector matched" false, and it breaks the asserted partition invariant that the counts sum to the entry count (F-09, OQ-03). V-03's count-partition probe on a MIXED queue is the check, and it must be run on a mixed queue rather than an all-malformed one, because an all-malformed queue's totals are self-consistent even when rows are dropped.
+
+THIRD, AND SPECIFIC TO E-01: LETTING THE NEW CODE FALL THROUGH TO `REMEDY_UNKNOWN_TEXT`. That costs no code and looks harmless. It prints "this is a gap in the runner's remedy table, please report it" to an operator about a code this very plan authored, which is both a false statement and a defeat of that constant's stated purpose (OQ-02). V-01 checks the remedy is real, and checks that its wording does not tell the reader to delete anything. NOTE THE OTHER DIRECTION IS EQUALLY WRONG AND EQUALLY QUIET: putting the code in `DISPOSITIONS_NEEDING_NO_REMEDY` to avoid the unknown text makes `render_stream.queue_performed_no_work` answer `False` for a run that dispatched nothing (measured at review), which is failure mode FIRST arriving by a different road. V-02's `True` assertion is what catches it.
+
+FOURTH, AND THE ONE REVIEW HAD TO MEASURE TO BELIEVE: PUTTING E-01'S GLOSS IN `SKIP_REASON_LABELS`. That is the natural place to put it, because it is where `render_disposition_summary` reads a gloss from, and doing it would be entirely invisible. `skip_reason_text` tests membership against `SKIP_REASON_LABELS` rather than `SKIP_REASONS`, so the new code would become an ACCEPTED skip reason - reopening the spec-closed vocabulary that function's docstring says it exists to keep closed - while `SKIP_REASONS` still reads six members and `tests/test_run_selection_policy.py` still reports `53 passed` (all measured, F-14). The shipped closed-set test cannot see it because it probes a different invented code. Carry the gloss in the `reason` TEXT instead, and accept that the summary line renders this code with no trailing gloss. V-01's membership probes are the only check; do not substitute the set-equality test for them.
+
+DO NOT LET THIS PLAN OVERSTATE ITS EFFECT. A corrupt or older-driver `state.json` still loses its closing report after this plan, because `write_report` and `render_run_summary_table` crash earlier in both hosts' tails (F-05). The executor must not write a walkthrough or commit message claiming the closing report is now preserved; the true claim is that the four `run_selection_policy` disposition surfaces now tolerate the input, fail closed, and keep their partition. AND DO NOT TRUST THIS PLAN'S OWN TAIL LIST: F-05 originally named six statements and the real shared sequence is eight, which review corrected. Re-read the tail from `run_queue` when you probe it, because that is the list this plan's honesty bound is measured against.
+
+ONE GAP YOU MUST REPORT AND MUST NOT FIX. `report_run_spec_edits` sits in that tail and DEGRADES on this input: it prints `SPEC CHANGES: could not be computed (AttributeError)` where a well-formed queue prints nothing, so a declared spec edit in that queue goes unreported. No live backlog item covers it (verified at review against `fcodik`, `s438xd` and `mjrac4`). It is outside this fence and it needs its own decision, so E-04 requires you to NAME IT IN THE TURN REPORT for the maintainer to file. Fixing it here would be an unjustified fence breach; dropping it silently would lose the only record that anybody knew.
+
+THE DELIBERATELY-UNFIXED WART IS IN YOUR OWN FUNCTION. `derive_item_disposition`'s dependency branch carries the `unsatisfied_dependencies` shape divergence, in the very function E-02 edits. Do NOT fix it here. It is `mjrac4`'s work, now held by pending plan `8eei5p`, it is `chore` not `bug`, and its fix reaches into a runner's cascade path and `render_stream`'s diagnostics block, neither of which this plan's tests would say anything about (F-07). Touching it would also put you in a file `8eei5p` does not declare and take work away from a plan that owns it.
+
+This plan inherits `- Blocks-Release: next` from backlog item `3z91mq` because its `- Work-Kind:` is `bug`, and the repository policy is that every live bug gates the next release. That gate travels with this plan and must not be cleared as part of executing it.
+
+POST-GATE LIFECYCLE. Do not claim done or move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming AND every `V-*` above carries pasted, concrete evidence. Make the transition through the tooled lifecycle (`aw ipd begin` / `aw ipd finalize`), never by a hand edit or a hand `git mv`. In a managed lane the RUNNER owns the transition and `aw ipd begin` refuses with `AW-LIFECYCLE-ROLE-001`; if that happens, record the refusal, leave the plan in `pending/` with its evidence, and let the runner finalize. Backlog item `3z91mq` is already `graduated`; do not close it here.

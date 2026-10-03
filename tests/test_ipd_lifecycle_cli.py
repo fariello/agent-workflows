@@ -12,7 +12,10 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -1585,6 +1588,181 @@ class RollbackFailureSemanticsTests(unittest.TestCase):
         self.assertEqual(res_reinv.exit_code, LC.EXIT_CANNOT_RUN)
         self.assertIn("unknown-outcome", res_reinv.message)
 
+    def test_finalize_precheck_agrees_with_finalize_on_unknown_outcome_journal(self):
+        """Precheck and finalize both refuse with EXIT_CANNOT_RUN on unknown-outcome journal (bn58ha/hlv737)."""
+        self._begin_and_work()
+        with mock.patch.object(
+            LC,
+            "_rollback_precommit",
+            return_value=(False, "simulated rollback failure"),
+        ):
+            res_fault = LC.finalize(
+                self.root,
+                self.plan,
+                "opencode/test",
+                "m",
+                apply=True,
+                fault_injection="after_move",
+            )
+        self.assertEqual(res_fault.exit_code, LC.EXIT_CANNOT_RUN)
+
+        j = LC.read_finalize_journal(self.root, "abc123")
+        assert j is not None
+        self.assertEqual(j["phase"], LC.PHASE_UNKNOWN_OUTCOME)
+
+        # Call finalize_precheck and finalize(..., apply=False) on the SAME state
+        pre_rc, pre_msg, pre_ev, pre_findings = LC.finalize_precheck(
+            self.root, self.plan
+        )
+        res_fin = LC.finalize(
+            self.root, self.plan, "opencode/test", "preview", apply=False
+        )
+
+        self.assertNotEqual(res_fin.exit_code, 0)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertNotEqual(
+            pre_rc,
+            0,
+            f"precheck returned exit {pre_rc} while finalize returned {res_fin.exit_code}: {pre_msg}",
+        )
+        self.assertEqual(pre_rc, res_fin.exit_code)
+        self.assertEqual(pre_rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(pre_msg, res_fin.message)
+        self.assertEqual(pre_findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+
+    def test_finalize_precheck_non_refusing_journal_phases_control(self):
+        """Precheck does not refuse on pre-commit phases, complete phase, or absent journal (bn58ha/hlv737)."""
+        self._begin_and_work()
+
+        # 1. No journal at all (ordinary path)
+        LC._clear_finalize_journal(self.root, "abc123")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(rc, LC.EXIT_OK, f"precheck refused with no journal: {msg}")
+        self.assertEqual(findings, ())
+
+        # 2. Iterate the pre-commit phases from the shipped constant
+        for phase in sorted(LC._PRE_COMMIT_PHASES):
+            LC._write_finalize_journal(self.root, {"plan_id": "abc123", "phase": phase})
+            j = LC.read_finalize_journal(self.root, "abc123")
+            assert j is not None
+            self.assertEqual(j["phase"], phase)
+            rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+            self.assertEqual(
+                rc,
+                LC.EXIT_OK,
+                f"precheck unexpectedly refused on pre-commit phase {phase}: {msg}",
+            )
+            self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # 3. PHASE_COMPLETE (stale complete journal)
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "abc123", "phase": LC.PHASE_COMPLETE}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(
+            rc,
+            LC.EXIT_OK,
+            f"precheck unexpectedly refused on phase {LC.PHASE_COMPLETE}: {msg}",
+        )
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+    def test_finalize_precheck_precedence_over_receipt_refusals(self):
+        """Precheck journal gate preempts receipt refusals when wedged, and preserves them when journal-free (bn58ha/hlv737)."""
+        # Case A: Never-issued receipt
+        # Fresh plan fixture without calling LC.begin
+        raw_plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="def456",
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+            ),
+            "20260824-demo-02-def456-other.ipd.md",
+        )
+        _commit_all(self.root, "add unbegun plan")
+        self.assertIsNone(LC.read_receipt(self.root, "def456"))
+
+        # A1: Without journal -> receipt-never-issued refusal
+        LC._clear_finalize_journal(self.root, "def456")
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, raw_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_NEVER_ISSUED, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # A2: With unknown-outcome journal -> journal refusal preempts and matches finalize
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "def456", "phase": LC.PHASE_UNKNOWN_OUTCOME}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, raw_plan)
+        res_fin = LC.finalize(
+            self.root, raw_plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+        self.assertEqual(msg, res_fin.message)
+
+        # Case B: Already-finalized plan
+        # Must reach this state through a REAL CLEAN finalize (exercising plan_already_finalized)
+        self._begin_and_work()
+        res_clean = LC.finalize(
+            self.root, self.plan, "opencode/test", "clean", apply=True
+        )
+        self.assertEqual(res_clean.exit_code, LC.EXIT_OK)
+        executed_plan = self._executed_path()
+        self.assertTrue(executed_plan.is_file())
+        self.assertFalse(LC.receipt_path_for(self.root, "abc123").exists())
+
+        # B1: Without journal -> receipt-consumed-already-finalized refusal
+        LC._clear_finalize_journal(self.root, "abc123")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "abc123"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, executed_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_ALREADY_FINALIZED, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
+        # B2: With unknown-outcome journal -> journal refusal preempts and matches finalize
+        LC._write_finalize_journal(
+            self.root, {"plan_id": "abc123", "phase": LC.PHASE_UNKNOWN_OUTCOME}
+        )
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, executed_plan)
+        res_fin = LC.finalize(
+            self.root, executed_plan, "opencode/test", "preview", apply=False
+        )
+        self.assertEqual(rc, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(res_fin.exit_code, LC.EXIT_CANNOT_RUN)
+        self.assertEqual(findings, (LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME,))
+        self.assertEqual(msg, res_fin.message)
+
+        # Case C: Stale receipt
+        # Begin plan, then rewrite frozen region so digest mismatches
+        stale_plan = _write_plan(
+            self.root,
+            _completed_plan_text(
+                plan_id="ghi789",
+                scope_paths="agent_workflows/demo.py, tests/test_demo.py",
+            ),
+            "20260824-demo-03-ghi789-stale.ipd.md",
+        )
+        _commit_all(self.root, "add plan for stale receipt test")
+        LC.begin(self.root, stale_plan, "opencode/test", timestamp="t")
+        self.assertTrue(LC.receipt_path_for(self.root, "ghi789").exists())
+
+        # Modify frozen region (e.g. modify Goal or Scope)
+        stale_text = stale_plan.read_text(encoding="utf-8").replace(
+            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
+            "- Scope-Paths: agent_workflows/demo.py",
+        )
+        stale_plan.write_text(stale_text, encoding="utf-8")
+
+        # C1: Without journal -> receipt-stale refusal
+        LC._clear_finalize_journal(self.root, "ghi789")
+        self.assertIsNone(LC.read_finalize_journal(self.root, "ghi789"))
+        rc, msg, _ev, findings = LC.finalize_precheck(self.root, stale_plan)
+        self.assertEqual(rc, LC.EXIT_FINDINGS)
+        self.assertIn(LC.FINDING_RECEIPT_STALE, findings)
+        self.assertNotIn(LC.FINDING_FINALIZE_JOURNAL_UNKNOWN_OUTCOME, findings)
+
     def test_rollback_restores_recorded_index_entry_not_head(self):
         """Rollback restores the recorded index entry byte-for-byte instead of resetting to HEAD."""
         plan_rel = str(self.plan.relative_to(self.root))
@@ -2487,6 +2665,598 @@ class ScaffoldStopsWritingTheShapeItsOwnSetterRefuses(unittest.TestCase):
             rc2 = A.run_scaffold(args2)
         self.assertEqual(rc2, 0, buf2.getvalue())
         self.assertNotIn("normalized", buf2.getvalue())
+
+
+class AnAbandonedCoordinatorCommitStaysReachableUnderARetainedRef(unittest.TestCase):
+    """E-03: pin reachability, retained-ref recovery reporting and preservation across the three failure arms."""
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self.plan = _write_plan(
+            self.root, _completed_plan_text(), "20260824-demo-01-abc123-demo.ipd.md"
+        )
+        _commit_all(self.root, "init")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _head(self) -> str:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+    def _begin_and_work(self):
+        LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
+        (self.root / "agent_workflows" / "demo.py").write_text("x\n", encoding="utf-8")
+        (self.root / "tests" / "test_demo.py").write_text("x\n", encoding="utf-8")
+        _commit_all(self.root, "in-scope work")
+
+    def test_01_refused_peer_edit_retains_commit_and_reports_route(self):
+        """Case (1): peer edit causes REFUSED landing; coordinator commit is retained and reported."""
+        self._begin_and_work()
+        head_before = self._head()
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        captured_sha: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        # Preservation checks that must not regress
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertFalse(exec_path.exists(), "plan must not reach executed path")
+        self.assertEqual(
+            self.plan.read_text(encoding="utf-8"),
+            peer_bytes,
+            "peer bytes must be byte-identical afterwards",
+        )
+        self.assertEqual(
+            self._head(), head_before, "git rev-parse HEAD must be unmoved"
+        )
+
+        # Reachability checks
+        from agent_workflows import commit_lock
+
+        sha = captured_sha["commit"]
+        ref_name = commit_lock.abandoned_ref_name(sha)
+
+        verify_res = subprocess.run(
+            ["git", "rev-parse", "--verify", ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            verify_res.returncode,
+            0,
+            f"retained ref {ref_name} must exist for abandoned commit {sha}: {verify_res.stderr.strip()}",
+        )
+
+        anc_res = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", sha, ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            anc_res.returncode, 0, f"commit {sha} must be reachable from {ref_name}"
+        )
+
+        fsck_res = subprocess.run(
+            ["git", "fsck"], cwd=self.root, capture_output=True, text=True
+        )
+        self.assertNotIn(f"dangling commit {sha}", fsck_res.stdout)
+
+        subprocess.run(["git", "gc", "--prune=now"], cwd=self.root, check=True)
+        cat_res = subprocess.run(
+            ["git", "cat-file", "-e", sha],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            cat_res.returncode, 0, f"commit {sha} must survive gc --prune=now"
+        )
+
+        # Message and evidence checks
+        self.assertIn(ref_name, res.message)
+        self.assertIn(f"git show {ref_name}", res.message)
+        self.assertIn(f"git cherry-pick {ref_name}", res.message)
+        self.assertIn("refusal is CORRECT", res.message)
+        self.assertIn("must not be forced", res.message)
+        self.assertIn("belong to another party", res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertEqual(res.evidence.get("retained_ref"), ref_name)
+
+    def test_02_raced_peer_commit_retains_commit_and_reports_route(self):
+        """Case (2): peer commit causes RACED landing; coordinator commit is retained and reported."""
+        self._begin_and_work()
+        captured_sha: dict[str, str] = {}
+        peer_commit_sha: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            (self.root / "peer_work.txt").write_text("peer advance\n", encoding="utf-8")
+            subprocess.run(["git", "add", "peer_work.txt"], cwd=self.root, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "peer advance"], cwd=self.root, check=True
+            )
+            peer_commit_sha["head"] = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        # Preservation checks that must not regress
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        exec_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        self.assertFalse(exec_path.exists(), "plan must not reach executed path")
+        self.assertEqual(
+            self._head(), peer_commit_sha["head"], "HEAD must be the peer's commit"
+        )
+        self.assertNotEqual(
+            self._head(),
+            captured_sha["commit"],
+            "HEAD must NOT be the lifecycle commit",
+        )
+
+        # Reachability checks
+        from agent_workflows import commit_lock
+
+        sha = captured_sha["commit"]
+        ref_name = commit_lock.abandoned_ref_name(sha)
+
+        verify_res = subprocess.run(
+            ["git", "rev-parse", "--verify", ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            verify_res.returncode,
+            0,
+            f"retained ref {ref_name} must exist for abandoned commit {sha}: {verify_res.stderr.strip()}",
+        )
+
+        subprocess.run(["git", "gc", "--prune=now"], cwd=self.root, check=True)
+        cat_res = subprocess.run(
+            ["git", "cat-file", "-e", sha],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            cat_res.returncode, 0, f"commit {sha} must survive gc --prune=now"
+        )
+
+        # Message and evidence checks
+        self.assertIn(ref_name, res.message)
+        self.assertIn(f"git cherry-pick {ref_name}", res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertEqual(res.evidence.get("retained_ref"), ref_name)
+
+    def test_03_refused_untracked_squatter_retains_commit_and_preserves_unknown_outcome_journal(
+        self,
+    ):
+        """Case (3): squatter causes REFUSED landing with unknown-outcome; commit retained and reported."""
+        self._begin_and_work()
+        captured_sha: dict[str, str] = {}
+        dest_path = (
+            self.root / ".aw" / "records" / "plans" / "executed" / self.plan.name
+        )
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_text("SQUATTER BYTES\n", encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            res = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
+
+        # Preservation checks that must not regress
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        self.assertTrue(self.plan.is_file(), "plan must remain at its pending path")
+        self.assertEqual(
+            dest_path.read_text(encoding="utf-8"),
+            "SQUATTER BYTES\n",
+            "squatter bytes intact",
+        )
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(
+            journal, "journal must be retained on squatter rollback error"
+        )
+        self.assertEqual(journal.get("phase"), LC.PHASE_UNKNOWN_OUTCOME)
+
+        # Reachability checks
+        from agent_workflows import commit_lock
+
+        sha = captured_sha["commit"]
+        ref_name = commit_lock.abandoned_ref_name(sha)
+
+        verify_res = subprocess.run(
+            ["git", "rev-parse", "--verify", ref_name],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            verify_res.returncode,
+            0,
+            f"retained ref {ref_name} must exist for abandoned commit {sha}: {verify_res.stderr.strip()}",
+        )
+
+        subprocess.run(["git", "gc", "--prune=now"], cwd=self.root, check=True)
+        cat_res = subprocess.run(
+            ["git", "cat-file", "-e", sha],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            cat_res.returncode, 0, f"commit {sha} must survive gc --prune=now"
+        )
+
+        # Message and evidence checks
+        self.assertIn(ref_name, res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertEqual(res.evidence.get("retained_ref"), ref_name)
+
+    def test_04_refused_landing_when_retention_fails_reports_honest_absence_and_fsck_route(
+        self,
+    ):
+        """Case (4): when retention fails soft, message honestly reports absence and fsck route."""
+        self._begin_and_work()
+        peer_bytes = self.plan.read_text(encoding="utf-8") + "\nPEER EDIT IN FLIGHT\n"
+        captured_sha: dict[str, str] = {}
+        real_land = LC.land_worktree_commit
+
+        def spy_land(repo_root, landed, *, expected_base=None):
+            captured_sha["commit"] = landed
+            self.plan.write_text(peer_bytes, encoding="utf-8")
+            return real_land(repo_root, landed, expected_base=expected_base)
+
+        from agent_workflows import commit_lock
+
+        real_git = commit_lock._git
+
+        def failing_update_ref_git(repo_root, args):
+            # Simulate failure when writing the abandoned ref
+            if (
+                args
+                and args[0] == "update-ref"
+                and any("refs/aw/abandoned/" in str(a) for a in args)
+            ):
+                return 1, "", "simulated update-ref failure"
+            return real_git(repo_root, args)
+
+        with mock.patch.object(LC, "land_worktree_commit", spy_land):
+            with mock.patch("agent_workflows.commit_lock._git", failing_update_ref_git):
+                res = LC.finalize(
+                    self.root, self.plan, "opencode/test", "m", apply=True
+                )
+
+        sha = captured_sha["commit"]
+        self.assertNotEqual(res.exit_code, LC.EXIT_OK)
+        # Message must honestly report that the commit was NOT retained and name fsck as recovery route
+        self.assertIn(
+            f"Coordinator commit {sha[:12]} was NOT retained under a ref; git fsck is the only recovery route.",
+            res.message,
+        )
+        self.assertNotIn("retained at refs/aw/abandoned/", res.message)
+        self.assertIsNotNone(res.evidence)
+        self.assertEqual(res.evidence.get("abandoned_commit"), sha)
+        self.assertIsNone(res.evidence.get("retained_ref"))
+        self.assertEqual(res.evidence.get("recovery_route"), "fsck-only")
+
+
+class MachineOutputPurityAndFailLoudDetailTests(unittest.TestCase):
+    """IPD wgp0g3: stdout purity on success path and fail-loud drift detail surfacing."""
+
+    def setUp(self) -> None:
+        support.declare_execution_role(self)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _run_cli(self, args: list[str]) -> subprocess.CompletedProcess[str]:
+        env = dict(os.environ)
+        env.pop("AW_EXECUTION_ROLE", None)
+        env["PYTHONPATH"] = (
+            f"{support.REPO_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(
+                os.pathsep
+            )
+        )
+        return subprocess.run(
+            [sys.executable, "-m", "agent_workflows", *args],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    def _setup_plan(
+        self,
+        filename: str = "20260824-demo-01-abc123-demo.ipd.md",
+        plan_id: str = "abc123",
+    ) -> Path:
+        text = _completed_plan_text(plan_id=plan_id)
+        plan_path = _write_plan(self.root, text, filename)
+        _commit_all(self.root, "init plan")
+        return plan_path
+
+    def _do_inscope_work(self) -> None:
+        (self.root / "agent_workflows" / "demo.py").write_text(
+            "print(1)\n", encoding="utf-8"
+        )
+        (self.root / "tests" / "test_demo.py").write_text(
+            "def test(): pass\n", encoding="utf-8"
+        )
+        _commit_all(self.root, "in-scope work")
+
+    def test_machine_stdout_is_pure_on_success_path(self) -> None:
+        """(a) Machine stdout is pure on success path under --json and --agent."""
+        # 1. Test --json
+        self._setup_plan()
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_json = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(
+            res_json.returncode,
+            0,
+            f"finalize --json failed (rc={res_json.returncode}):\nstdout: {res_json.stdout}\nstderr: {res_json.stderr}",
+        )
+        data_json = json.loads(res_json.stdout)
+        self.assertEqual(data_json.get("schema"), "aw.agent/v1")
+        self.assertEqual(data_json.get("status"), "clean")
+
+        # 2. Test --agent in a clean repo
+        self._tmp.cleanup()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        self._setup_plan()
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_agent = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--agent",
+            ]
+        )
+        self.assertEqual(
+            res_agent.returncode,
+            0,
+            f"finalize --agent failed (rc={res_agent.returncode}):\nstdout: {res_agent.stdout}\nstderr: {res_agent.stderr}",
+        )
+        agent_lines = [ln for ln in res_agent.stdout.splitlines() if ln.strip()]
+        self.assertTrue(len(agent_lines) > 0, "agent stdout was empty")
+        parsed_records = []
+        for ln in agent_lines:
+            parsed_records.append(json.loads(ln))
+        self.assertTrue(
+            any(r.get("schema") == "aw.agent/v1" for r in parsed_records),
+            "payload record missing from --agent stdout",
+        )
+
+    def test_refusal_path_and_begin_do_not_regress(self) -> None:
+        """(b) The refusal path and aw ipd begin do not regress under --json and --agent."""
+        self._setup_plan()
+        # begin --json
+        res_b_json = self._run_cli(
+            ["ipd", "begin", "abc123", "--actor", "opencode/test", "--json"]
+        )
+        self.assertEqual(res_b_json.returncode, 0, res_b_json.stderr)
+        data_b_json = json.loads(res_b_json.stdout)
+        self.assertEqual(data_b_json.get("schema"), "aw.agent/v1")
+
+        # begin with unknown plan -> refusal under --json
+        res_b_bad = self._run_cli(
+            ["ipd", "begin", "nosuchplan", "--actor", "opencode/test", "--json"]
+        )
+        self.assertEqual(res_b_bad.returncode, LC.EXIT_CANNOT_RUN)
+        data_b_bad = json.loads(res_b_bad.stdout)
+        self.assertEqual(data_b_bad.get("schema"), "aw.agent/v1")
+
+        # finalize refusal path (e.g. without begin receipt) under --json
+        res_fin_refuse_json = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "m",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(res_fin_refuse_json.returncode, LC.EXIT_FINDINGS)
+        data_fin_refuse = json.loads(res_fin_refuse_json.stdout)
+        self.assertEqual(data_fin_refuse.get("schema"), "aw.agent/v1")
+
+        # finalize refusal path under --agent
+        res_fin_refuse_agent = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "m",
+                "--apply",
+                "--agent",
+            ]
+        )
+        self.assertEqual(res_fin_refuse_agent.returncode, LC.EXIT_FINDINGS)
+        agent_lines = [
+            ln for ln in res_fin_refuse_agent.stdout.splitlines() if ln.strip()
+        ]
+        self.assertTrue(len(agent_lines) > 0)
+        parsed_refuse = [json.loads(ln) for ln in agent_lines]
+        self.assertTrue(any(r.get("schema") == "aw.agent/v1" for r in parsed_refuse))
+
+    def test_fail_loud_arm_refuses_on_genuine_non_convergence(self) -> None:
+        """(c) Genuine non-convergence (name-metadata-mismatch) refuses as COMMITTED-INCOMPLETE."""
+        self._setup_plan(
+            filename="20260824-demo-01-zzzz99-demo.ipd.md", plan_id="abc123"
+        )
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_f = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(res_f.returncode, LC.EXIT_FINDINGS)
+        journal = LC.read_finalize_journal(self.root, "abc123")
+        self.assertIsNotNone(journal)
+        self.assertEqual(journal.get("phase"), LC.PHASE_COMMITTED_INCOMPLETE)
+        lifecycle_commit = journal.get("lifecycle_commit")
+        self.assertIsNotNone(lifecycle_commit)
+
+        # Lifecycle commit is NOT rolled back
+        proc = subprocess.run(
+            ["git", "cat-file", "-e", lifecycle_commit],
+            cwd=self.root,
+            capture_output=True,
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"lifecycle commit {lifecycle_commit} was rolled back or pruned",
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(head, lifecycle_commit)
+
+    def test_fail_loud_detail_reaches_payload(self) -> None:
+        """(d) Drift detail (name-metadata-mismatch) reaches the JSON payload summary/diagnostics."""
+        self._setup_plan(
+            filename="20260824-demo-01-zzzz99-demo.ipd.md", plan_id="abc123"
+        )
+        res_b = self._run_cli(["ipd", "begin", "abc123", "--actor", "opencode/test"])
+        self.assertEqual(res_b.returncode, 0, res_b.stderr)
+        self._do_inscope_work()
+
+        res_f = self._run_cli(
+            [
+                "ipd",
+                "finalize",
+                "abc123",
+                "--actor",
+                "opencode/test",
+                "-m",
+                "done",
+                "--apply",
+                "--json",
+            ]
+        )
+        self.assertEqual(res_f.returncode, LC.EXIT_FINDINGS)
+
+        # Recover payload
+        stdout = res_f.stdout.strip()
+        idx = stdout.find("{")
+        self.assertNotEqual(idx, -1, f"no JSON object found in stdout: {stdout}")
+        data = json.loads(stdout[idx:])
+
+        summary = data.get("summary", "")
+        diag_details = [d.get("detail", "") for d in data.get("diagnostics", [])]
+
+        # The literal rule name 'name-metadata-mismatch' must reach summary or diagnostic detail
+        has_rule = "name-metadata-mismatch" in summary or any(
+            "name-metadata-mismatch" in dt for dt in diag_details
+        )
+        self.assertTrue(
+            has_rule,
+            f"'name-metadata-mismatch' missing from summary and diagnostic details: summary={summary!r}, diag_details={diag_details!r}",
+        )
+
+        # Original sentence must still be present as prefix/substring (additive)
+        orig_sentence = (
+            "owned plans index refresh did not converge (aw index plans --check nonzero); "
+            "finalize fails closed rather than committing a stale index."
+        )
+        self.assertIn(orig_sentence, summary)
 
 
 if __name__ == "__main__":

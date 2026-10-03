@@ -1,0 +1,337 @@
+# IPD: Name the OTHER file in aw backlog check's id-duplicate finding
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `aw backlog check` reports every `backlog.id-duplicate` with the SAME string as both the finding's location and the claimed other copy, so the message cannot lead an operator to the second file.
+- Scope: Make `agent_workflows.backlog`'s drift locations repo-relative POSIX paths (reusing the existing `specs.drift_location` precedent) so the duplicate-id message names two distinct files, and pin the behavior with tests that drive the checker.
+- Scope-Paths: agent_workflows/backlog.py, tests/test_backlog.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 8hcy97
+- Blocks-Release: next
+- Set: bklgdupemsg
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: 8rsxy1
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8rsxy1 verified (set bklgdupemsg, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (aw set): status set to reviewed
+
+- 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-A01 (MEDIUM, fixed), PR-A02 (LOW, fixed), PR-A03 (LOW, fixed), PR-A04 (LOW, fixed), PR-A05 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-bklgdupemsg-01-8rsxy1-name-the-other-file-in-aw-backlog-check-s-id-duplicate-findi.review.md`. I reproduced every measurement in this plan rather than taking it on trust, including re-prototyping the fix and reverting it: the defect (location and `also in` byte-identical), the fixed output, `doctor._categorize_drift` guessing `.../done` for a duplicate living in `.../graduated`, the weak existing test's different-basename fixture, and the empty blast radius all hold exactly as written. The fix and its reuse of `specs.drift_location` are right and review changed nothing about them. FOUR corrections to what is claimed and what must be verified. FIRST, E-03 changes a THIRD surface the plan names nowhere: `check_engine.check_content` calls `validate_item` with an ABSOLUTE path, so every `backlog.*` finding in `aw check backlog` also moves from a basename to a repo-relative path (measured before/after on a fixture); an improvement, but an unrecorded user-visible output change. SECOND, `validate_item` emits TWELVE rule ids across 12 `Drift(rel, ...)` sites, not the ten F-03 claims (the three `gate-*` rules were collapsed into one entry). THIRD, the suite baselines are stale: bare `3246` -> `3291` and targeted `269` -> `272` between authoring and review, both green, so three sites instructing a comparison against those totals would read normal growth as a regression. FOURTH, backlog item `8hcy97` is ALREADY `graduated` (`- Graduated-To: bklgdupemsg`), so the gate's instruction that the runner transitions it on verification described a state change that cannot happen. Two new findings added from review measurement (F-09 the third surface, F-10 the cross-layout duplicate case working, which E-04 now pins because `_iter_items` spans both roots and the legacy segment is where F-02's rejected mechanism would have raised).
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `8hcy97`. The defect was REPRODUCED on a fixture and the fix was PROTOTYPED and then REVERTED before authoring, so the findings below are measurements rather than predictions. Prototype evidence: bare `python3 -m pytest` reported `3246 passed, 2 skipped, 3 warnings in 50.54s` with the fix applied, and `git checkout -- agent_workflows/backlog.py` restored the defect (re-measured). Two findings changed the shape of the plan away from the backlog item's proposed one-line fix: F-02 (the item's suggested `f.relative_to(repo_root)` reintroduces a cwd/absolute-path hazard the repo already solved once, in `specs.drift_location`) and F-03 (the same basename defect afflicts ALL TEN `validate_item` rules, not only the duplicate rule, and fixing only the duplicate rule would leave two sibling findings on a same-basename pair still indistinguishable).
+
+## Goal
+
+Make a `backlog.id-duplicate` finding actionable: the location and the named other copy must be two DIFFERENT repo-relative paths, so an operator can open both files without searching the tree. The underlying duplication is not this plan's subject (see "Deferred / out of scope").
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: give the backlog checker a repo-relative drift location
+
+- [x] E-01 Give `agent_workflows.backlog` a `drift_location` entry point that returns the REPO-RELATIVE POSIX location for a backlog item path, by REUSING `agent_workflows.specs.drift_location` rather than writing a second truncation rule. Do not copy its body; call it, so the two trees cannot drift apart and the fallback behavior stays defined in one place.
+  - Depends on: none
+  - Expected outcome: `backlog.drift_location(Path("<abs>/.aw/records/backlog/done/x.backlog.md"))` returns `.aw/records/backlog/done/x.backlog.md`, and the legacy layout returns `.agents/backlog/open/x.backlog.md`. Measured on the prototype: both, plus an out-of-tree absolute path reducing to its bare filename and an already-relative path returned unchanged.
+  - Execution state: performed
+
+- [x] E-02 In `backlog.run_check`'s duplicate-id branch, make BOTH the `Drift` location and the remembered `seen_ids[pid]` value the `drift_location` result instead of `f.name`, so the finding names two distinct paths. The `seen_ids` half is the load-bearing one: fixing only the `Drift` location leaves the message's own `also in ...` clause a basename and the defect only half repaired.
+  - Depends on: E-01
+  - Expected outcome: on a two-status same-basename fixture the human line reads `.aw/records/backlog/graduated/<name>: backlog.id-duplicate: id dupdup also in .aw/records/backlog/done/<name>`, with the two paths DIFFERENT. Measured on the prototype exactly as written.
+  - Execution state: performed
+
+- [x] E-03 Make `validate_item`'s `rel` the same `drift_location` result instead of `path.name`, so a same-basename pair's OTHER findings are attributable too. Justified by F-03 (all TWELVE of that function's rule ids carry the identical basename defect, across 12 `Drift(rel, ...)` sites) and by F-04 (a basename location makes `doctor._categorize_drift` fall into its `repo_root.rglob(fname)` guess branch and pick the WRONG directory, measured). Keep `validate_item` PURE, per its own docstring: `drift_location` reads no disk and is cwd-independent by construction, so this does not weaken that contract. KNOW THAT THIS CHANGES A THIRD SURFACE the rest of this plan does not name: `check_engine.check_content` calls `validate_item` with an ABSOLUTE path, so every `backlog.*` finding in `aw check backlog` moves from a basename to a repo-relative path too (F-09). That is an improvement and needs no extra code, but it is a user-visible output change and V-03 must capture it.
+  - Depends on: E-01
+  - Expected outcome: on the same fixture the two `backlog.priority-invalid` findings carry `.../done/...` and `.../graduated/...` respectively instead of two identical basenames. Measured on the prototype. ALSO: a driven `check_engine.check_content(root, "backlog")` on a fixture with one invalid `Priority` reports the repo-relative location where it previously reported the bare filename (F-09), while `aw check backlog` on the REAL tree stays byte-identical because its live findings come from other producers.
+  - Execution state: performed
+
+### Task group 2: pin it
+
+- [x] E-04 Extend `tests/test_backlog.py::test_check_fails_closed_on_duplicate_id`'s coverage with a test that builds the REAL defect shape (one id6 in two DIFFERENT status directories under the SAME basename, which is what the backlog item measured in production) and asserts the emitted finding names two DIFFERENT paths. Assert on the observable checker output, never on source structure: drive `backlog.run_check` and read its stdout, and assert `location != other-path`, so the assertion fails on the pre-fix code for the RIGHT reason rather than incidentally. The existing test is insufficient as a guard because its two fixture files have DIFFERENT basenames (`...-01-dupdup-a.md` / `...-02-dupdup-b.md`), so it passes both before and after the fix. MIND THE FIXTURE SHAPE, measured at review: `validate_item` fires on a thin fixture, so an item body must carry `- Id:`, `- Status:` MATCHING ITS DIRECTORY, `- Set:`, `- Priority:`, `- Work-Kind:` and a non-empty `- Summary:`, or the run emits six unrelated `backlog.*` findings per file and the duplicate line is buried rather than absent (measured: a first fixture attempt produced 12 findings and no `id-duplicate` at all). ADD A SECOND CASE for the CROSS-LAYOUT duplicate (the same id6 and basename under `.agents/backlog/open/` and `.aw/records/backlog/open/`), since `_iter_items` spans both roots and the legacy segment is exactly where F-02's rejected `relative_to` mechanism would have raised; F-10 measures it working, and a test is what keeps it working.
+  - Depends on: E-02, E-03
+  - Expected outcome: the new test FAILS on unpatched `agent_workflows/backlog.py` and PASSES after E-02/E-03, and the execution record pastes both runs; the cross-layout case likewise. Also state that the pre-existing `test_check_fails_closed_on_duplicate_id` still passes unchanged (measured at review: `tests/test_backlog.py` is `37 passed` both before and after the prototype), since E-04 adds coverage rather than rewriting it.
+  - Execution state: performed
+
+Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE REPO HAS ALREADY SOLVED THIS EXACT PROBLEM ONCE, and the solution is the reusable part. `specs.drift_location` exists, and its docstring records that `specs.validate_spec` had the mirror-image defect (it emitted `str(path)` verbatim, leaking a machine-local absolute path into `aw attention --check`). It cites IPD `rkn8ya` E-02 and spec `attention-registry-and-cross-tree-status` Section 8.5 as the authority. That section is quoted below under F-02 and is what makes "repo-relative" the required answer rather than a matter of taste.
+- `specs.drift_location` deliberately truncates at a known records SEGMENT (`_RECORDS_SEGMENTS = (".aw/records/", ".agents/")`) instead of relativizing against a root, and its docstring states why in terms this plan must not undo: `validate_spec` is documented pure and Section 8.5 forbids cwd-sensitive output, so "neither a filesystem climb for the project marker nor a `Path.cwd()` relativization is admissible: the first reads the disk, the second makes the same bytes depend on where the command ran from."
+- The sibling cross-tree scanner ALREADY gets this right, which is the in-repo proof that repo-relative is the house style for this finding class. `attention.scan` emits `attention.duplicate-id` with a full `rel` on both sides. Measured on the fixture: `.aw/records/backlog/graduated/...: attention.duplicate-id: id dupdup also on .aw/records/backlog/done/...`. So `aw attention --check` can already name both copies of the very pair `aw backlog check` cannot, which bounds the operator harm (F-05) without excusing it.
+- Detail strings on this surface are escaped for the single-line agent record via `attention_contract.escape_detail` (used by `attention._backlog_record` and the `attention.duplicate-id` producer). `backlog.run_check`'s duplicate detail does NOT currently call it. A repo-relative POSIX path contains no tab, newline, or control character, so this plan does not NEED it and deliberately does not add it (see "Deferred / out of scope"), but an executor should not be surprised by the asymmetry.
+- `aw backlog check` has two output branches that must stay in agreement: a human branch writing `f"{d.location}: {rule}: {d.detail}\n"` and an agent/JSON branch mapping each `Drift` into a `Diagnostic(location=d.location, ...)`. Both read `d.location`, so ONE fix reaches both; V-02 checks the agent branch explicitly rather than assuming that.
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | The defect is REAL and reproducible, and is LATENT in this tree right now. `aw backlog check` currently reports `all backlog items conform`, so the 20 violations the backlog item measured have since been resolved by another party. The defect therefore cannot be observed on the live tree and MUST be driven from a fixture. | Ran `aw backlog check` at this lane's HEAD: `aw backlog check: all backlog items conform.` On a two-status same-basename fixture: `20260101-s-01-dupdup-same-name.backlog.md: backlog.id-duplicate: id dupdup also in 20260101-s-01-dupdup-same-name.backlog.md` (location and claimed duplicate byte-identical). |
+| F-02 | THE BACKLOG ITEM'S PROPOSED FIX IS THE WRONG MECHANISM, AND THE RIGHT ONE ALREADY EXISTS. The item says to use `f.relative_to(repo_root)`. That reintroduces the hazard `specs.drift_location` was written to close: `relative_to` RAISES `ValueError` on any path not under `repo_root` (reachable via the legacy `.agents/backlog` root, a symlinked tree, or a `--dir` pointing elsewhere), and an unguarded `str(path)` fallback is precisely the absolute-path leak that spec Section 8.5 forbids. Reusing `specs.drift_location` gets a defined, leak-free fallback for free. | Spec `attention-registry-and-cross-tree-status` Section 8.5 requires "repo-relative POSIX paths" and forbids "absolute paths" on the output surface. `specs.drift_location`'s docstring records the identical defect being fixed on the specs tree under IPD `rkn8ya` E-02. Verified `specs.drift_location` handles all four cases, including the out-of-tree absolute path reducing to a bare filename. |
+| F-03 | THE DEFECT IS NOT CONFINED TO THE DUPLICATE RULE, so a one-line fix is under-scoped. `validate_item` sets `rel = path.name` once and passes it to EVERY rule it emits: TWELVE distinct rule ids across 12 `core.Drift(rel, ...)` construction sites (`backlog.id-invalid`, `status-invalid`, `status-dir-mismatch`, `priority-invalid`, `kind-invalid`, `set-missing`, `summary-missing`, `summary-unsafe`, `gate-missing`, `gate-kind-invalid`, `gate-ref-invalid`, `gate-unexpected`). On a same-basename pair every one of them is equally unattributable. | Counted at review: 12 `rel,` construction sites in `validate_item` and 12 distinct `backlog.*` rule ids enumerated from its body, correcting the authoring-time count of "ten" (which collapsed the three `gate-*` rules into one entry). Unpatched fixture with a second defect added: TWO lines reading `20260101-s-01-dupdup-same-name.backlog.md: backlog.priority-invalid: priority not in ['high', 'low', 'medium']: 'nope'`, character-identical, one per file, with nothing distinguishing them. After the prototype: `.aw/records/backlog/done/...` and `.aw/records/backlog/graduated/...`. |
+| F-04 | THE BASENAME LOCATION ALSO MISLEADS `aw doctor`, which is a second user-visible wrong answer rather than a cosmetic one. Because `backlog`'s location has no directory component, `doctor._categorize_drift` falls into its `repo_root.rglob(fname)` branch and takes `found[0]`, GUESSING a directory. On a same-basename pair it guesses wrong. | Drove `doctor._categorize_drift` with both shapes on a fixture whose duplicate lives in `graduated/`. Basename-shaped Drift yielded directory `.aw/records/backlog/done` (WRONG file). Repo-relative Drift yielded `.aw/records/backlog/graduated` (correct). `doctor.collect_doctor_report` already relativizes an ABSOLUTE location, so it is only the basename case it cannot recover. |
+| F-05 | THE OPERATOR HARM IS REAL BUT BOUNDED, and the plan should say so rather than overstate it. `aw attention --check` already reports the same pair with both full paths, so a determined operator has another route. This does not excuse the defect (an operator reading `aw backlog check` has no reason to know that), and the backlog item's stated impact stands: the message reads like a bug in the checker. | `attention.scan` on the same fixture: `attention.duplicate-id: id dupdup also on .aw/records/backlog/done/...`, both sides full `rel`. |
+| F-06 | NO EXISTING TEST GUARDS THE MESSAGE, and the one that looks like it does cannot. `tests/test_backlog.py::test_check_fails_closed_on_duplicate_id` writes its two fixture files into ONE directory with DIFFERENT basenames, then asserts only `assertIn("id-duplicate", out)`. So it passes identically before and after the fix and would not have caught the defect. | Read the test: filenames `20260101-s-01-dupdup-a.md` and `20260101-s-02-dupdup-b.md`, both in `.agents/backlog/open`. Its sole message assertion is the rule-id substring. |
+| F-07 | THE BLAST RADIUS IS EMPTY, measured rather than assumed, which is what makes E-03's wider scope safe. No test asserts on a backlog drift `location`'s basename shape, and the full suite passes with the prototype applied. | Prototype applied at authoring: the targeted set -> `269 passed in 8.57s`; bare `python3 -m pytest` -> `3246 passed, 2 skipped`. RE-MEASURED AT REVIEW on a later HEAD of the same branch: the same targeted set -> `272 passed in 39.45s`, bare -> `3291 passed, 2 skipped, 3 warnings in 82.90s`, both green with the prototype applied. The FINDING (empty blast radius) holds; the COUNTS do not, and must be re-derived at execution (see F-08). Read all four `validate_item` consumers rather than grepping: `set_records.promote_*` raises `ValueError` interpolating only `d.rule`/`d.detail`; `runner_shared`'s run-structure preflight builds a `[RUN-STRUCTURE-PREFLIGHT]` finding from `d.rule`/`d.detail` and its own separately-computed `rel_path`; `check_engine.check_content` passes the Drift through unchanged (see F-09); none parses the location as a basename. |
+| F-08 | THE SUITE AND TARGETED COUNTS IN THIS PLAN ARE STALE, AND THE COMPARISON MUST BE NODE IDS RATHER THAN TOTALS. Authoring measured `3246 passed, 2 skipped` bare and `269 passed` on the targeted set; review re-measured `3291 passed, 2 skipped` and `272 passed` on a later HEAD of the same branch, all green. The count is a LIVE POPULATION that every merged lane moves, so a comparison against a number written here would read normal growth as a regression. | Bare `python3 -m pytest` at review with the prototype applied: `3291 passed, 2 skipped, 3 warnings in 82.90s`. Targeted set at review: `272 passed in 39.45s`. `tests/test_backlog.py` alone: `37 passed`. Authoring figures quoted from this plan's own F-07 and workflow-history line. |
+| F-09 | `aw check backlog` IS A THIRD CHANGED SURFACE AND THE PLAN NAMES ONLY TWO. `check_engine.check_content` calls `_backlog.validate_item(p, ...)` with an ABSOLUTE `p`, so every `backlog.*` finding on that surface currently renders a BASENAME too, and E-03 fixes it there as well. This is an improvement, not a risk, but it is a user-visible output change on a command the plan does not mention, so V-03 must capture it rather than leaving a reviewer to discover that `aw check` output moved. | Drove `check_engine.check_content(root, "backlog")` on a fixture with an invalid `Priority`: BEFORE `location= 20260101-s-01-dupdup-bad.backlog.md`, AFTER `location= .aw/records/backlog/open/20260101-s-01-dupdup-bad.backlog.md`, same rule `backlog.priority-invalid`. Separately confirmed `aw check backlog` on the REAL tree is byte-identical before and after (its three live findings are `check.name-nonconformant` and `check.collisions-not-checked`, produced elsewhere and already repo-relative), so the change is invisible until a `validate_item` rule actually fires. |
+| F-10 | THE CROSS-LAYOUT DUPLICATE CASE WORKS AND IS WORTH PINNING, because `_iter_items` iterates BOTH roots (`BACKLOG_ROOTS = (".agents/backlog", ".aw/records/backlog")`) and the legacy root is exactly where F-02's `relative_to` hazard would have bitten. Measured on the prototype, a same-basename id6 duplicated across the two LAYOUTS reports both sides correctly, so the reused `specs.drift_location` handles the legacy segment in practice and not only in the unit probe. | Two-root fixture, prototype applied: `.aw/records/backlog/open/20260101-s-01-dupdup-same-name.backlog.md: backlog.id-duplicate: id dupdup also in .agents/backlog/open/20260101-s-01-dupdup-same-name.backlog.md`. Also probed `specs.drift_location` against four adversarial roots (a `/tmp/pytest-of-u/test_x0/.agents/...` path, a `.agents-scratch` directory component, a `my.agents` directory component, and a doubled records segment): each truncates at the intended segment with no false early cut. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add `backlog.drift_location`, delegating to `specs.drift_location` (E-01). One function, no new truncation rule, import kept local to the function body to match the module's prevailing style for cross-module helpers.
+2. Fix the duplicate-id branch in `run_check`, BOTH the `Drift` location and the `seen_ids` value (E-02). This is the backlog item's actual subject.
+3. Fix `validate_item`'s `rel` (E-03), which repairs the other nine rules and stops `aw doctor` guessing the wrong directory.
+4. Add a test that reproduces the production shape and asserts two DIFFERENT paths (E-04).
+
+## Deferred / out of scope (with reason)
+
+- THE UNDERLYING DUPLICATION ITSELF. The backlog item's own scope note is explicit that this item is ONLY the reporting defect, which survives fixing the data. This plan changes no backlog record's content and repairs no duplicate pair.
+  - Carrier-Declined: Nothing is owed, on two independent grounds. FIRST the work is already owned elsewhere: the item's scope note names `fwq5nu` and `5bmq5f` as the existing carriers for the duplication itself, so filing another would duplicate a filed item. SECOND there is currently nothing to repair in this tree: `aw backlog check` reports `all backlog items conform` at this lane's HEAD (F-01), so the 20 pairs the item measured have since been resolved by another party and a carrier here would name repair work with an empty subject. Note also that on a SHARED CHECKOUT those records are not this plan's to edit.
+- `escape_detail` ON THE DUPLICATE DETAIL. The sibling `attention.duplicate-id` producer escapes its detail and `backlog.run_check` does not.
+  - Carrier-Declined: No obligation survives this plan, because on this plan's own evidence the change would be a provable no-op. `escape_detail` replaces only tab, newline, and control characters (`attention_contract.escape_detail`), and the value this plan puts into the detail is a repo-relative POSIX path, which contains none of them. So there is no input for which the shipped behavior differs, and a carrier would schedule work whose validation could not distinguish pass from fail. The ASYMMETRY between the two producers is recorded here deliberately so a future reader is not surprised by it; if a detail ever carries operator-supplied text, that is that change's own obligation.
+- THE OTHER TREES' CHECKERS. Only the backlog tree is in scope.
+  - Carrier-Declined: Nothing is owed. The specs tree, the only other tree measured to have had this defect, is ALREADY FIXED (`specs.drift_location`, IPD `rkn8ya` E-02), which is precisely why this plan can reuse it rather than write a new rule. No measurement taken here says any further tree is affected, so a carrier would assert a defect this plan has not demonstrated and would schedule a speculative sweep. If a future measurement finds one, the measurement is its own item.
+- REPAIRING THE WEAK EXISTING TEST'S FIXTURE. E-04 ADDS coverage rather than rewriting `test_check_fails_closed_on_duplicate_id`.
+  - Carrier-Declined: Nothing is owed because nothing is left in a defective state. That test's same-directory different-basename pair is a legitimate case that still passes and is still worth checking; F-06's point is that it is INSUFFICIENT as a guard for THIS defect, which E-04 remedies by adding the missing case rather than by deleting the existing one. After E-04 the duplicate-id rule has coverage for both shapes, so no successor inherits a gap.
+
+## Scope check
+
+- Over-scope: none. `Scope-Paths` names exactly the two files the four E-items touch. E-03 goes beyond the backlog item's literal one-line proposal and that widening is justified by F-03 and F-04 (measured, not speculative) and bounded by F-07 (empty blast radius).
+- Under-scope: the duplicate DATA is left alone deliberately (see "Deferred"), so `aw backlog check` will still report duplicates after this plan; it will simply name both files. An executor must not "finish the job" by editing or deleting another party's backlog records: on a shared checkout those are not ours to touch.
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_backlog.py` plus the new test, run BARE (the repo's `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; do not add `-n0`, a second `-q`, or `-p no:randomly`).
+- Bare `python3 -m pytest` for the full suite, with the actual summary line pasted, compared against a baseline RE-MEASURED at execution HEAD rather than against any count in this plan: the bare total drifted from `3246` at authoring to `3291` at review and the targeted set from `269` to `272` (F-08). Compare FAILING NODE IDS.
+- A DRIVEN before/after transcript of `backlog.run_check` on the same-basename fixture, since the whole deliverable is a string a human reads.
+- `aw backlog check` on the real tree, to confirm no regression. Re-verified at review: `aw backlog check: all backlog items conform.` ALSO `aw check backlog` before and after, which F-09 measures as a third changed surface the plan otherwise does not name.
+- `aw sanitize --agent`, because this plan changes what paths a command PRINTS and the sanitizer is the deterministic authority on whether an output surface leaks a machine-local path.
+
+## Spec / documentation sync
+
+N/A, with reason. No spec is amended and none needs to be: spec `attention-registry-and-cross-tree-status` Section 8.5 ALREADY requires repo-relative POSIX paths and forbids absolute ones, so this plan brings `agent_workflows/backlog.py` into line with an existing approved contract rather than changing a contract. Consequently no `.spec.md` file appears in `Scope-Paths`. `.aw/records/backlog/README.md` documents no location format, so it needs no edit.
+
+## Open questions
+
+### OQ-01: Should `validate_item`'s other nine rules be fixed in this plan, or only the duplicate-id rule the backlog item names?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, in favor of fixing all of them (E-03). Three measurements decide it. (1) F-03: the nine siblings share the identical `rel = path.name` and are equally unattributable on a same-basename pair, so the narrow fix leaves the same operator with the same problem one rule over. (2) F-04: a basename location makes `aw doctor` GUESS a directory and guess wrong, so the narrow fix leaves a second surface wrong. (3) F-07: the wider fix's blast radius is empty (full suite green on the prototype, re-verified at review on a later HEAD; all four consumers READ rather than grepped, and none parses the location as a basename), so the usual reason to prefer a narrow change does not apply. Review adds a fourth consideration that strengthens the same answer: E-03 also repairs `aw check backlog`, whose `validate_item` findings render a basename today for the identical reason (F-09), so the wider fix corrects three surfaces rather than two. The scope stays inside the item's own subject, which is the checker's reporting rather than the data.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste a transcript CALLING `backlog.drift_location` on four inputs and showing the returned string for each: (a) an absolute path under `.aw/records/backlog/done/`, (b) an absolute path under the legacy `.agents/backlog/open/`, (c) an absolute path under NO records segment, (d) an already-relative path. Expected: (a) and (b) repo-relative POSIX with the directory retained, (c) the bare filename (leak-free fallback, information deliberately lost), (d) unchanged. Additionally paste evidence that the implementation REUSES `specs.drift_location` rather than reimplementing it (for example the source line of the delegating call, or a transcript showing `backlog.drift_location` and `specs.drift_location` returning identical strings for all four inputs). Do NOT satisfy this item with an `inspect`/regex assertion in a TEST: structure-pinning tests are forbidden, so the reuse evidence belongs in this record, while the shipped test asserts behavior. ALSO paste the ADVERSARIAL-SEGMENT probe, because the reused helper truncates at a BARE `.agents/` prefix and a reviewer should see that was checked rather than assumed: a path whose temp root itself contains `.agents/` (`/tmp/pytest-of-u/test_x0/.agents/backlog/open/x.backlog.md`), one with a `.agents-scratch` directory component, one with a `my.agents` component, and one with a DOUBLED records segment. Each must truncate at the intended segment with no false early cut (all four verified at review).
+  - Observed evidence: Verified four inputs, implementation delegation, and adversarial segment probe.
+    Transcript calling backlog.drift_location and specs.drift_location:
+    === V-01 Primary Inputs Probe ===
+    (a) canonical records:
+      Input:            /repo/root/.aw/records/backlog/done/20260101-s-01-item01-done.backlog.md
+      backlog result:   .aw/records/backlog/done/20260101-s-01-item01-done.backlog.md
+      specs result:     .aw/records/backlog/done/20260101-s-01-item01-done.backlog.md
+      Identical reuse:  True
+    (b) legacy .agents:
+      Input:            /repo/root/.agents/backlog/open/20260101-s-01-item02-legacy.backlog.md
+      backlog result:   .agents/backlog/open/20260101-s-01-item02-legacy.backlog.md
+      specs result:     .agents/backlog/open/20260101-s-01-item02-legacy.backlog.md
+      Identical reuse:  True
+    (c) out-of-tree absolute:
+      Input:            /some/out-of-tree/scratch/20260101-s-01-item03-out.backlog.md
+      backlog result:   20260101-s-01-item03-out.backlog.md
+      specs result:     20260101-s-01-item03-out.backlog.md
+      Identical reuse:  True
+    (d) already-relative:
+      Input:            .aw/records/backlog/open/20260101-s-01-item04-rel.backlog.md
+      backlog result:   .aw/records/backlog/open/20260101-s-01-item04-rel.backlog.md
+      specs result:     .aw/records/backlog/open/20260101-s-01-item04-rel.backlog.md
+      Identical reuse:  True
+
+    === V-01 Adversarial Segment Probe ===
+    Temp root containing .agents/ path:
+      Input:          /tmp/pytest-of-u/test_x0/.agents/backlog/open/x.backlog.md
+      backlog result: .agents/backlog/open/x.backlog.md
+      specs result:   .agents/backlog/open/x.backlog.md
+    .agents-scratch directory component:
+      Input:          /repo/root/.agents-scratch/backlog/open/x.backlog.md
+      backlog result: x.backlog.md
+      specs result:   x.backlog.md
+    my.agents directory component:
+      Input:          /repo/root/my.agents/backlog/open/x.backlog.md
+      backlog result: .agents/backlog/open/x.backlog.md
+      specs result:   .agents/backlog/open/x.backlog.md
+    Doubled records segment:
+      Input:          /repo/root/.aw/records/sub/.aw/records/backlog/done/x.backlog.md
+      backlog result: .aw/records/sub/.aw/records/backlog/done/x.backlog.md
+      specs result:   .aw/records/sub/.aw/records/backlog/done/x.backlog.md
+
+    Delegation implementation source in agent_workflows/backlog.py:
+    def drift_location(path: Path) -> str:
+        from agent_workflows import specs
+        return specs.drift_location(path)
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste the BEFORE and AFTER human-branch output of `backlog.run_check` on a fixture holding ONE id6 in two different status directories under the SAME basename. BEFORE must show the location and the `also in` clause byte-identical; AFTER must show two DIFFERENT repo-relative paths. State explicitly that the two AFTER paths differ. ALSO paste the AGENT branch (`--agent`) record for the same fixture, showing the `diagnostics[].location` is the repo-relative path, since that is a second consumer surface and a fix reaching only the human branch would be half a fix. ALSO paste the CROSS-LAYOUT case (F-10): the same id6 and basename under `.agents/backlog/open/` and `.aw/records/backlog/open/`, showing both sides named correctly, since `_iter_items` spans both roots and that is the path on which the rejected `relative_to` mechanism would have raised.
+  - Observed evidence: Verified before/after human-branch outputs, agent branch, and cross-layout duplicate.
+    BEFORE run_check human branch (byte-identical location and other):
+    20260101-s-01-dupdup-same.backlog.md: backlog.id-duplicate: id dupdup also in 20260101-s-01-dupdup-same.backlog.md
+    aw backlog check: 1 violation(s).
+
+    AFTER run_check human branch:
+    .aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md: backlog.id-duplicate: id dupdup also in .aw/records/backlog/done/20260101-s-01-dupdup-same.backlog.md
+    aw backlog check: 1 violation(s).
+
+    The two AFTER paths explicitly differ:
+    Location: .aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md
+    Other:    .aw/records/backlog/done/20260101-s-01-dupdup-same.backlog.md
+
+    AFTER run_check agent branch (--agent):
+    {"schema":"aw.agent/v1","kind":"result","cmd":"backlog check","outcome":"findings","exit":1,"verified":true,"complete":true,"checked":2,"findings":1,"evidence":["backlog"],"diagnostics":[{"location":".aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md","rule":"backlog.id-duplicate"}],"next":null}
+    diagnostics[0].location is the repo-relative path '.aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md'.
+
+    AFTER run_check cross-layout human branch:
+    .aw/records/backlog/open/20260101-s-01-dupdup-same.backlog.md: backlog.id-duplicate: id dupdup also in .agents/backlog/open/20260101-s-01-dupdup-same.backlog.md
+    aw backlog check: 1 violation(s).
+    Both legacy (.agents/backlog/open/...) and canonical (.aw/records/backlog/open/...) are correctly attributed and distinct.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the AFTER output for a fixture where the same-basename pair ALSO carries a second, non-duplicate defect (an invalid `Priority` is the cheapest), showing the two `backlog.priority-invalid` lines now carry DIFFERENT locations where they were previously character-identical (paste the BEFORE too). SEPARATELY, paste a driven `doctor._categorize_drift` (or an equivalent `aw doctor` transcript) proving the directory attributed to the finding is now the file's REAL directory and not the `rglob` guess: per F-04 the basename shape resolved to `.../done` for a duplicate that actually lives in `.../graduated`. SEPARATELY AGAIN, capture the THIRD surface F-09 names, which the rest of this plan does not mention: a driven `check_engine.check_content(<fixture>, "backlog")` showing a `backlog.*` finding's location moving from the bare filename to the repo-relative path, PLUS `aw check backlog` on the REAL tree shown byte-identical before and after (its live findings come from other producers, so the change is invisible there). Reporting the plan's two named surfaces and calling it complete leaves a user-visible output change unrecorded. Finally, confirm `validate_item` still reads nothing but the passed text (its documented purity contract), and say how you confirmed it.
+  - Observed evidence: Verified multi-defect fixture, doctor categorization, check_engine output, and purity.
+    BEFORE run_check with invalid Priority (character-identical priority-invalid lines):
+    20260101-s-01-dupdup-same.backlog.md: backlog.priority-invalid: priority not in ['high', 'low', 'medium']: 'invalidprio'
+    20260101-s-01-dupdup-same.backlog.md: backlog.priority-invalid: priority not in ['high', 'low', 'medium']: 'invalidprio'
+    20260101-s-01-dupdup-same.backlog.md: backlog.id-duplicate: id dupdup also in 20260101-s-01-dupdup-same.backlog.md
+    aw backlog check: 3 violation(s).
+
+    AFTER run_check with invalid Priority:
+    .aw/records/backlog/done/20260101-s-01-dupdup-same.backlog.md: backlog.priority-invalid: priority not in ['high', 'low', 'medium']: 'invalidprio'
+    .aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md: backlog.priority-invalid: priority not in ['high', 'low', 'medium']: 'invalidprio'
+    .aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md: backlog.id-duplicate: id dupdup also in .aw/records/backlog/done/20260101-s-01-dupdup-same.backlog.md
+    aw backlog check: 3 violation(s).
+    The two priority-invalid lines carry distinct locations (.aw/records/backlog/done/... vs .aw/records/backlog/graduated/...).
+
+    BEFORE doctor._categorize_drift on graduated item (f2):
+    f2 drift location: 20260101-s-01-dupdup-same.backlog.md
+    categorized directory: .aw/records/backlog/done (WRONG: guessed done via rglob found[0])
+
+    AFTER doctor._categorize_drift on graduated item (f2):
+    f2 drift location: .aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md
+    f1 attributed dir: .aw/records/backlog/done
+    f2 attributed dir: .aw/records/backlog/graduated (CORRECT: file's real directory)
+
+    BEFORE check_engine.check_content(<fixture>, "backlog"):
+    location: 20260101-s-01-dupdup-same.backlog.md | rule: backlog.priority-invalid
+
+    AFTER check_engine.check_content(<fixture>, "backlog"):
+    location: .aw/records/backlog/graduated/20260101-s-01-dupdup-same.backlog.md | rule: backlog.priority-invalid
+
+    Real tree aw check backlog (byte-identical findings before and after):
+    Findings:
+      Issue: Filename does not match artifact naming grammar
+      - .aw/records/backlog/graduated
+        1. 20260928-9uowl6-01-9uowl6-allow-options-anywhere-among-positional-arguments-.backlog.md
+      Issue: Filename does not match artifact naming grammar
+      - .aw/records/backlog/graduated
+        1. 20260929-bjcz05-01-bjcz05-backlog-sidecar-event-written-before-gate-and-dry-.backlog.md
+      Issue: cross-tree collisions NOT checked by a per-type run
+      - <collisions>
+        1. <collisions>
+    Evidence: checked 338, errors 3, warnings 0
+
+    Confirmation of validate_item purity contract:
+    Confirmed by inspecting validate_item(path: Path, text: str): rel is computed via drift_location(path), which delegates to specs.drift_location(path). That function operates purely on string path representations (path.as_posix(), finding records segments, Path(path).name, is_absolute()). No disk I/O, os.stat, os.getcwd(), or filesystem climbing is performed. The remaining checks parse solely the passed `text` string and path component names (_dir_status).
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the new test(s) FAILING against unpatched `agent_workflows/backlog.py` and PASSING after the fix, with the actual pytest output for both runs (a test that cannot fail before the fix is not a guard; F-06 shows the pre-existing test is exactly that). Name each test, and cover BOTH the two-status same-basename case and the cross-layout case of E-04. Then paste the BARE `python3 -m pytest` summary line for the whole suite BESIDE A FRESH PRE-CHANGE BASELINE CAPTURED AT EXECUTION HEAD, and compare FAILING NODE IDS rather than totals: do NOT compare against any number written in this plan, because the bare total has already drifted from `3246` at authoring to `3291` at review and the targeted set from `269` to `272` (F-08), so a stale total would read normal growth as a regression. If any test fails, prove the failing node-id set is unrelated to this change rather than asserting it. Also paste `aw backlog check` on the real tree (re-verified at review: `aw backlog check: all backlog items conform.`) and `aw sanitize --agent`.
+  - Observed evidence: Verified failing test run pre-fix, passing test run post-fix, full suite baseline comparison, real tree backlog check, and leak sanitizer.
+    New tests added in tests/test_backlog.py:
+    1. test_check_duplicate_id_names_distinct_repo_relative_paths (two-status same-basename case)
+    2. test_check_duplicate_id_cross_layout_names_distinct_paths (cross-layout case)
+
+    Pre-existing test test_check_fails_closed_on_duplicate_id remains in place and passes unchanged.
+
+    FAILING output against unpatched agent_workflows/backlog.py:
+    $ python3 -m pytest -o addopts="" tests/test_backlog.py -k "test_check_duplicate_id" -v
+    collecting ... collected 46 items / 44 deselected / 2 selected
+    tests/test_backlog.py::BacklogVerbTests::test_check_duplicate_id_cross_layout_names_distinct_paths FAILED [ 50%]
+    tests/test_backlog.py::BacklogVerbTests::test_check_duplicate_id_names_distinct_repo_relative_paths FAILED [100%]
+    =================================== FAILURES ===================================
+    __ BacklogVerbTests.test_check_duplicate_id_cross_layout_names_distinct_paths __
+    ...
+    >       self.assertNotEqual(loc, other)
+    E       AssertionError: '20260101-s-01-dupdup-same-name.backlog.md' == '20260101-s-01-dupdup-same-name.backlog.md'
+    _ BacklogVerbTests.test_check_duplicate_id_names_distinct_repo_relative_paths __
+    ...
+    >       self.assertNotEqual(loc, other)
+    E       AssertionError: '20260101-s-01-dupdup-same-name.backlog.md' == '20260101-s-01-dupdup-same-name.backlog.md'
+    ======================= 2 failed, 44 deselected in 0.22s =======================
+
+    PASSING output after fix:
+    $ python3 -m pytest -o addopts="" tests/test_backlog.py -k "test_check_duplicate_id" -v
+    collecting ... collected 46 items / 44 deselected / 2 selected
+    tests/test_backlog.py::BacklogVerbTests::test_check_duplicate_id_names_distinct_repo_relative_paths PASSED [ 50%]
+    tests/test_backlog.py::BacklogVerbTests::test_check_duplicate_id_cross_layout_names_distinct_paths PASSED [100%]
+    ======================= 2 passed, 44 deselected in 0.17s =======================
+
+    $ python3 -m pytest tests/test_backlog.py
+    46 passed in 2.34s
+
+    Full test suite bare summary comparison:
+    Fresh pre-change baseline at execution HEAD:
+    3505 passed, 2 skipped, 3 warnings in 141.76s (0:02:21)
+    Post-change run:
+    3507 passed, 2 skipped, 3 warnings in 67.55s (0:01:07)
+    Failing node IDs comparison: 0 failing tests in both runs; failing node-id set is identical (empty). The count delta is exactly +2 for the two new tests added in tests/test_backlog.py.
+
+    Real tree aw backlog check:
+    $ python3 -m agent_workflows.cli backlog check
+    aw backlog check: all backlog items conform.
+
+    Sanitizer check:
+    $ python3 -m agent_workflows.cli sanitize --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT A HUMAN IS APPROVING. A reporting fix in one production file plus its test module, so a
+`backlog.id-duplicate` finding names TWO different repo-relative paths instead of printing the same
+basename twice. The mechanism is a delegation to the existing `specs.drift_location`, so no new truncation
+rule is written and no backlog record's content changes. I reproduced every one of this plan's measurements
+rather than taking them on trust: the defect (location and `also in` byte-identical), the fix's output, the
+`aw doctor` misattribution, the weak existing test, and the empty blast radius. REVIEW CHANGED NOTHING ABOUT
+THE FIX and corrected four things about what is claimed and what must be checked. There is a THIRD changed
+surface the plan did not name (`aw check backlog`, which renders `validate_item` locations as basenames for
+the identical reason, so E-03 repairs it too; an improvement, but an unrecorded output change). The rule
+count is TWELVE, not ten. The suite baselines are stale (`3246` -> `3291` bare, `269` -> `272` targeted), so
+three sites comparing totals would have read normal growth as a regression. And backlog item `8hcy97` is
+ALREADY `graduated`, so the gate's instruction that the runner will transition it described a state change
+that cannot happen.
+
+Execution requires explicit human approval recorded via the tooled path
+(`aw ipd set approved <plan> --by-human ...`).
+
+EXECUTION CONTRACT for whoever runs this. Commit ONLY the two files in `Scope-Paths`, via `aw commit <plan> -- agent_workflows/backlog.py tests/test_backlog.py`; never `git add -A`, never `-a`, never push. Paste ACTUAL runner output for every V-item; do not claim a test run you did not perform. Run the suite BARE. This is a SHARED CHECKOUT: uncommitted changes and untracked files you did not create are not yours, and in particular do not repair, move, or delete any backlog record while working on this plan, even though the duplicates that motivated it are visible in the tree. Verify the staged set with `git diff --cached --name-only` before committing, and re-verify after any failed raw commit. An edit outside the declared paths is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason`, not treated as a reason to stop. DO stop and report for one genuinely unsafe condition: if `specs.drift_location` is absent or has a changed signature at execution HEAD, E-01's whole mechanism is gone, and improvising a local truncation rule would re-create the duplicated-policy hazard F-02 exists to avoid.
+
+THREE WAYS THIS PLAN CAN FAIL SILENTLY, all measured at review. FIRST, A FIXTURE TOO THIN TO REACH THE RULE. `validate_item` runs before the duplicate check, so an item body missing `- Work-Kind:`, a directory-matching `- Status:`, or a non-empty `- Summary:` emits six unrelated findings per file and NO `id-duplicate` line at all; a first fixture attempt at review produced 12 findings and zero duplicates. A test written that way fails for the wrong reason, or worse, asserts on a substring that happens to appear. SECOND, COMPARING SUITE TOTALS. The bare total moved 45 between this plan's authoring and its review, so any comparison against a number written here reports a regression that did not happen; compare failing NODE IDS against a freshly captured baseline. THIRD, VERIFYING TWO SURFACES AND CALLING IT DONE. E-03 changes THREE (`aw backlog check`, `aw doctor`, and `aw check backlog`), and the third is named nowhere but F-09 and V-03.
+
+POST-GATE LIFECYCLE. Do not hand-edit the terminal state, and do NOT hand-roll a `git mv` into `.aw/records/plans/executed/`: that bypasses the scope reconciliation this plan's fence depends on. Run `aw ipd lint --phase pre-transition` and confirm it reports conforming with every `V-*` verified against pasted evidence. The transition itself is obligatory but its OWNER is conditional (`AW-LIFECYCLE-ROLE-001`): under a managed runner (`aw oc run` / `aw agy run`) the RUNNER owns finalize and the executor must not call it, while for a hand-run execution the executor calls `aw ipd finalize`.
+
+BACKLOG ITEM `8hcy97` IS ALREADY `graduated` AND NEEDS NO TRANSITION, which corrects this gate's earlier instruction. Verified at review: the item sits at `.aw/records/backlog/graduated/20260922-bklgdupemsg-01-8hcy97-...backlog.md` carrying `- Status: graduated`, `- Graduated-To: bklgdupemsg` and `- Blocks-Release: next`. So there is nothing for the runner to transition on verification, and an executor acting on the earlier wording would have looked for a state change that cannot happen. Do not set it `done`: its `- Blocks-Release: next` gate is inherited by THIS plan, and the close-legitimacy rule requires the gate to be provably carried by an EXECUTED plan before the item may close, which is a step after this plan executes rather than part of it. Do not edit its requirements.

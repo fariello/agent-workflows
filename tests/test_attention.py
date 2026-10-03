@@ -15,12 +15,14 @@ import re
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from agent_workflows import agent_schema
+from agent_workflows import backlog as backlog_mod
 from agent_workflows.artifact_core import Drift as core_Drift
 
 # This repository's own root, for the few cases that legitimately measure the REAL corpus (the E-08
@@ -3065,7 +3067,9 @@ class NoProjectAgentEnvelopeTests(unittest.TestCase):
         self.assertNotIn("/home/", out_j)
 
         rc_h, out_h, err_h, _ = self._run_from_nowhere()
-        self.assertEqual(rc_h, 3)
+        # Human exit 3 was retired to 2 by backlog c6vs7y (IPD rwvzqm); full matrix owned by
+        # tests/test_no_project_exit_is_cannot_run.py.
+        self.assertEqual(rc_h, 2)
         self.assertEqual(out_h, "")
         self.assertIn("no AW project found", err_h)
 
@@ -3177,6 +3181,229 @@ class SelectorNoMatchIsReportedTests(unittest.TestCase):
             self.assertEqual(rc_bare, 0)
             self.assertEqual(err_bare, "")
 
+    def test_surface_agent_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], agent=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(err, "")
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_surface_json_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], json=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(err, "")
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_surface_check_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], check=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+            self.assertNotIn("aw attention --check: the view is valid.", err)
+            self.assertNotIn("aw attention --check: the view is valid.", out)
+            # Refusal is separate from drift: no drift or contract violations appended
+            self.assertNotIn("drift", err.lower())
+
+    def test_surface_check_agent_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(
+                root, selectors=["zzzzzz"], check=True, agent=True
+            )
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(err, "")
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertIs(payload["verified"], False)
+            self.assertIs(payload["complete"], False)
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+            self.assertNotIn("the view is valid.", out)
+            self.assertNotIn("diagnostics", payload)
+
+    def test_surface_id_list_mode_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], id6_only=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+
+    def test_surface_paths_list_mode_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], paths=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+
+    def test_surface_filenames_list_mode_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["zzzzzz"], filenames=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            self.assertEqual(out, "")
+            self.assertIn("zzzzzz", err)
+
+    def test_surface_mixed_matched_and_unmatched(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["abc123", "zzzzzz"], agent=True)
+            self.assertEqual(rc, att.EXIT_UNRESOLVED_SELECTOR)
+            payload = json.loads(out)
+            agent_schema.assert_valid_agent_record(payload)
+            self.assertEqual(payload["outcome"], "cannot-run")
+            self.assertEqual(payload["matched_selectors"], ["abc123"])
+            self.assertEqual(payload["unresolved_selectors"], ["zzzzzz"])
+
+    def test_downstream_filter_emptied_match_exits_clean(self):
+        # F-09 control: matched token filtered to empty by --status exits 0 with clean empty message
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["abc123"], status=["done"])
+            self.assertEqual(rc, 0)
+            self.assertIn("0 artifacts shown", out)
+            self.assertEqual(err, "")
+
+
+class SelectorVocabularyExemptionTests(unittest.TestCase):
+    """Pin the derived vocabulary exemption over all six derivation sources, type aliases,
+    drift-free exit 0, refusable predicate, and case-insensitivity (IPD o6ksmw E-03)."""
+
+    def test_vocabulary_derives_from_all_six_sources(self):
+        # Snapshot the contract sources before deriving vocabulary so that an in-memory patch bites
+        tracked_trees = tuple(A.TRACKED_TREES)
+        attention_classes = tuple(A.ATTENTION_CLASSES)
+        class_maps = {t: dict(m) for t, m in A.CLASS_MAPS.items()}
+        priorities = tuple(backlog_mod.PRIORITIES)
+        run_status_aliases = dict(att._RUN_STATUS_ALIASES)
+        try:
+            from agent_workflows import run_viewer
+
+            abandoned_token = str(run_viewer.ABANDONED).lower().rstrip("?")
+        except Exception as exc:
+            self.fail(f"run_viewer.ABANDONED required for vocabulary derivation: {exc}")
+
+        vocab = att.selector_vocabulary()
+
+        # (1) A.TRACKED_TREES (coverage assertion: fully redundant with TYPE_ALIASES)
+        for tree in tracked_trees:
+            self.assertIn(
+                str(tree).lower(),
+                vocab,
+                f"TRACKED_TREES token {tree} missing from vocabulary",
+            )
+
+        # (2) A.ATTENTION_CLASSES (bite test: ready is unique to it)
+        for cls in attention_classes:
+            self.assertIn(
+                str(cls).lower(),
+                vocab,
+                f"ATTENTION_CLASSES token {cls} missing from vocabulary",
+            )
+
+        # (3) A.CLASS_MAPS native statuses across all trees (bite test: 22 tokens unique)
+        for _tree, class_map in class_maps.items():
+            for st in class_map.keys():
+                self.assertIn(
+                    str(st).lower(),
+                    vocab,
+                    f"CLASS_MAPS token {st} missing from vocabulary",
+                )
+
+        # (4) backlog.PRIORITIES (bite test: 3 tokens unique)
+        for p in priorities:
+            self.assertIn(
+                str(p).lower(),
+                vocab,
+                f"PRIORITIES token {p} missing from vocabulary",
+            )
+
+        # (5) att._RUN_STATUS_ALIASES keys and values (bite test: 18 tokens unique)
+        for k, v in run_status_aliases.items():
+            self.assertIn(
+                str(k).lower(),
+                vocab,
+                f"_RUN_STATUS_ALIASES key {k} missing from vocabulary",
+            )
+            self.assertIn(
+                str(v).lower(),
+                vocab,
+                f"_RUN_STATUS_ALIASES value {v} missing from vocabulary",
+            )
+
+        # (6) run_viewer.ABANDONED (bite test: 1 token unique)
+        self.assertIn(
+            abandoned_token,
+            vocab,
+            f"run_viewer.ABANDONED token {abandoned_token} missing from vocabulary",
+        )
+
+    def test_vocabulary_includes_type_aliases(self):
+        # Type aliases, including type names accepted by CLI but not scanned (e.g. roadmaps, walkthroughs)
+        type_aliases = dict(att.TYPE_ALIASES)
+        vocab = att.selector_vocabulary()
+        for k, v in type_aliases.items():
+            self.assertIn(
+                str(k).lower(),
+                vocab,
+                f"TYPE_ALIASES key {k} missing from vocabulary",
+            )
+            self.assertIn(
+                str(v).lower(),
+                vocab,
+                f"TYPE_ALIASES value {v} missing from vocabulary",
+            )
+
+    def test_unmatched_vocabulary_token_exits_clean_in_drift_free_repo(self):
+        # A vocabulary token matching nothing in a drift-free repo exits 0
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            # Human surface
+            rc, out, err = _attsel_run(root, selectors=["reusable"])
+            self.assertEqual(rc, 0)
+            self.assertIn("0 artifacts shown", out)
+            self.assertEqual(err, "")
+
+            # Machine surface
+            rc_m, out_m, err_m = _attsel_run(root, selectors=["reusable"], agent=True)
+            self.assertEqual(rc_m, 0)
+            payload = json.loads(out_m)
+            self.assertEqual(payload["outcome"], "clean")
+            self.assertNotIn("unresolved_selectors", payload)
+
+    def test_selector_match_facts_refusable(self):
+        vocab = att.selector_vocabulary()
+        smf = att.SelectorMatchFacts(
+            matched=(),
+            unmatched=("reusable", "zzzzzz"),
+            invalid=(),
+            vocabulary=tuple(vocab),
+        )
+        self.assertNotIn("reusable", smf.refusable)
+        self.assertIn("zzzzzz", smf.refusable)
+
+    def test_case_insensitivity_via_call_path(self):
+        # Case-insensitivity: set holds lowercase only, but uppercase selector is exempt when driven
+        vocab = att.selector_vocabulary()
+        self.assertNotIn("REUSABLE", vocab)
+        with tempfile.TemporaryDirectory() as td:
+            root = _attsel_repo(Path(td))
+            rc, out, err = _attsel_run(root, selectors=["REUSABLE"])
+            self.assertEqual(rc, 0)
+            self.assertEqual(err, "")
+
 
 class AttentionMatchingArtifactsCountTests(unittest.TestCase):
     """The board ends with how many artifacts matched, and how many are hidden without --all."""
@@ -3269,3 +3496,233 @@ class PlansIdWindowTests(unittest.TestCase):
                 self.assertEqual(
                     att._plans_id(self._text_with_id_at(offset, "je74a0")), "je74a0"
                 )
+
+
+class InboxWaitingCountTests(unittest.TestCase):
+    """awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): the waiting-`.aw/inbox/`-drops count.
+
+    Every case is built in a TEMPORARY repo. No test here may read the real `.aw/inbox/`: it is
+    gitignored, per-checkout, absent in some worktrees, and empties as drops are adopted, so a test
+    pinned to it passes on one machine and fails on another.
+    """
+
+    def _inbox(self, root: Path) -> Path:
+        d = root / ".aw" / "inbox"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def test_missing_directory_counts_zero_and_creates_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self.assertEqual(att.inbox_waiting(root), 0)
+            # The probe must not create `.aw/` or `.aw/inbox/` by looking for them (write-on-read).
+            self.assertFalse((root / ".aw").exists())
+            self.assertEqual(sorted(p.name for p in root.iterdir()), [])
+
+    def test_counts_plain_hidden_nonmd_and_nested_entries(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            box = self._inbox(root)
+            (box / "a.md").write_text("x", encoding="utf-8")
+            (box / "b.md").write_text("x", encoding="utf-8")
+            self.assertEqual(att.inbox_waiting(root), 2)
+            # A hidden file counts: a genuine hidden drop must not be missed.
+            (box / ".hidden-report.md").write_text("x", encoding="utf-8")
+            self.assertEqual(att.inbox_waiting(root), 3)
+            (box / "notes.txt").write_text("x", encoding="utf-8")  # non-.md counts
+            self.assertEqual(att.inbox_waiting(root), 4)
+            nested = box / "extracted"  # OQ-02: ONE entry, not walked
+            nested.mkdir()
+            for i in range(5):
+                (nested / f"f{i}.md").write_text("x", encoding="utf-8")
+            self.assertEqual(att.inbox_waiting(root), 5)
+
+    def test_bookkeeping_only_inbox_counts_zero(self):
+        """F-11: the tree's own `README.md`/`.gitkeep` are scaffolding, not waiting work. Counting
+        them would make the nudge permanent on a fully drained inbox on every machine."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            box = self._inbox(root)
+            (box / "README.md").write_text("what this lane is", encoding="utf-8")
+            (box / ".gitkeep").write_text("", encoding="utf-8")
+            self.assertEqual(att.inbox_waiting(root), 0)
+            (box / "drop.md").write_text("x", encoding="utf-8")
+            self.assertEqual(att.inbox_waiting(root), 1)
+
+    def test_counts_without_opening_any_file(self):
+        """THE CENTRAL SAFETY PROOF. A correct count does NOT establish that nothing was read: an
+        implementation parsing every drop would also count correctly. So make opening RAISE and
+        require the count to succeed anyway. Parsing a drop would let that drop's CONTENT assert an
+        identity (`selectors._ID_RE` is position-unanchored and harvests a body-QUOTED `- Id:`)."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            box = self._inbox(root)
+            (box / "a.md").write_text("- Id: abc123\n", encoding="utf-8")
+            (box / "b.txt").write_text("x", encoding="utf-8")
+            (box / ".c.md").write_text("x", encoding="utf-8")
+
+            def _boom(*a, **kw):
+                raise AssertionError("the inbox counter must never OPEN a file")
+
+            with ExitStack() as stack:
+                stack.enter_context(mock.patch("builtins.open", _boom))
+                for attr in ("open", "read_text", "read_bytes"):
+                    stack.enter_context(mock.patch.object(Path, attr, _boom))
+                self.assertEqual(att.inbox_waiting(root), 3)
+
+    def test_counter_never_resolves_a_nested_inbox_by_name(self):
+        """F-8: `.aw/records/comms/shared/inbox/` is a TRACKED, unrelated comms lane. The counter
+        resolves ONE anchored path and must never search for directories called `inbox`."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            comms = root / ".aw" / "records" / "comms" / "shared" / "inbox"
+            comms.mkdir(parents=True)
+            for i in range(4):
+                (comms / f"msg{i}.md").write_text("x", encoding="utf-8")
+            self.assertEqual(att.inbox_waiting(root), 0)
+
+
+class InboxFooterNudgeTests(unittest.TestCase):
+    """awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): the footer line, driven through the HUMAN path deliberately."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = _mk_repo(Path(self._tmp.name))
+        (self.root / ".aw" / "records").mkdir(parents=True, exist_ok=True)
+        # Isolate global config exactly as tests/test_attention_notices.py does, so `setup_needed`
+        # reflects the fixture rather than ambient machine state (test-order independence).
+        from agent_workflows import config as _config
+
+        self._orig_is_configured = _config.is_configured
+        _config.is_configured = lambda: False
+
+    def tearDown(self) -> None:
+        from agent_workflows import config as _config
+
+        _config.is_configured = self._orig_is_configured
+        self._tmp.cleanup()
+
+    def _inbox(self) -> Path:
+        d = self.root / ".aw" / "inbox"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _human(self, extra=None) -> str:
+        """Drive the HUMAN board. `--no-color` keeps the text stable across environments."""
+        from agent_workflows import cli
+
+        out = io.StringIO()
+        argv = ["attention", "--dir", str(self.root), "--no-color"] + (extra or [])
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            try:
+                cli.main(argv)
+            except SystemExit:
+                pass
+        return out.getvalue()
+
+    def _agent(self) -> str:
+        from agent_workflows import cli
+
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            try:
+                cli.main(["attention", "--dir", str(self.root), "--agent"])
+            except SystemExit:
+                pass
+        return out.getvalue()
+
+    def test_no_line_when_inbox_absent_or_drained(self):
+        self.assertNotIn(".aw/inbox/", self._human())
+        box = self._inbox()
+        self.assertNotIn(".aw/inbox/", self._human())  # present but empty
+        (box / "README.md").write_text("x", encoding="utf-8")
+        (box / ".gitkeep").write_text("", encoding="utf-8")
+        self.assertNotIn(".aw/inbox/", self._human())  # drained, bookkeeping only
+
+    def test_line_shows_count_and_singularizes(self):
+        box = self._inbox()
+        (box / "one.md").write_text("x", encoding="utf-8")
+        self.assertIn("1 file waiting in `.aw/inbox/`", self._human())
+        (box / "two.md").write_text("x", encoding="utf-8")
+        board = self._human()
+        self.assertIn("2 files waiting in `.aw/inbox/`", board)
+        self.assertIn("aw adopt", board)  # OQ-03: the verb exists, so name the remedy
+
+    def test_line_composes_with_the_setup_notice_rather_than_replacing_it(self):
+        """The nudge composes with the setup notice under an independent if, so both render
+        when a repo both needs setup and has waiting drops."""
+        from agent_workflows import engine
+
+        engine.write_setup_marker(self.root)
+        (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
+        board = self._human()
+        self.assertIn("TODO: Run `/aw setup-repo`", board)
+        self.assertIn("1 file waiting in `.aw/inbox/`", board)
+
+    def test_no_item_is_created_and_the_class_tally_is_unchanged(self):
+        before_items, before_drift = att.scan(self.root)
+        before = sorted((it.path, it.attention_class) for it in before_items)
+        (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
+        after_items, after_drift = att.scan(self.root)
+        after = sorted((it.path, it.attention_class) for it in after_items)
+        self.assertEqual(before, after)
+        self.assertEqual(before_drift, after_drift)
+
+    def test_exit_codes_are_unchanged_by_a_waiting_drop(self):
+        """E-03: a gitignored box-local file must never fail `--check`; the exit code stays owned by
+        the drift set alone."""
+        plain = argparse.Namespace(
+            dir=str(self.root), check=False, agent=False, format=None, all=False
+        )
+        checked = argparse.Namespace(
+            dir=str(self.root), check=True, agent=False, format=None, all=False
+        )
+        with redirect_stdout(io.StringIO()):
+            empty_plain, empty_check = att.run(plain), att.run(checked)
+        (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
+        with redirect_stdout(io.StringIO()):
+            full_plain, full_check = att.run(plain), att.run(checked)
+        self.assertEqual((empty_plain, empty_check), (0, 0))
+        self.assertEqual((full_plain, full_check), (empty_plain, empty_check))
+
+    def test_check_and_json_and_agent_stay_silent(self):
+        """The line is a HUMAN-board advisory: `--check` is a validity gate, `--format json` is a
+        versioned consumer contract (OQ-01 keeps the count out of it), and `--agent` is JSONL."""
+        (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
+        self.assertNotIn("waiting in `.aw/inbox/`", self._human(["--check"]))
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            att.run(
+                argparse.Namespace(
+                    dir=str(self.root),
+                    check=False,
+                    agent=False,
+                    format="json",
+                    all=False,
+                )
+            )
+        payload = out.getvalue()
+        self.assertNotIn("inbox", payload)
+        obj = json.loads(payload)
+        self.assertEqual(
+            list(obj.keys()),
+            [
+                "schema_version",
+                "mapping_version",
+                "valid",
+                "items",
+                "violations",
+                "stranded_lanes",
+            ],
+        )
+        self.assertEqual(obj["schema_version"], 4)
+        self.assertNotIn("inbox", self._agent())
+
+    def test_rendering_the_board_creates_nothing(self):
+        (self._inbox() / "drop.md").write_text("x", encoding="utf-8")
+        before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        self._human()
+        after = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        self.assertEqual(set(before), set(after))
+        for p, b in before.items():
+            self.assertEqual(after[p], b, f"{p} changed")

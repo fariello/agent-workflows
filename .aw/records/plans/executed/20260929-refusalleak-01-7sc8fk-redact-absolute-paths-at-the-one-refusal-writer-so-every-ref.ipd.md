@@ -1,0 +1,722 @@
+# IPD: Redact absolute paths at the one refusal writer so every refusal code inherits leak protection
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `render_stream.record_refusal` is the ONE refusal writer and it performs no path redaction, so a refusal whose `reason`/`remedy` embeds an absolute home path prints that path verbatim in the run summary's Diagnostics block, in `aw runs`, and in that command's JSON, while its two sibling readers `integration_refusal_detail` and `review_integration_refusal_detail` both redact for exactly this surface.
+- Scope: Writer-side redaction inside `render_stream.record_refusal`, a REQUIRED widening of `_ABSOLUTE_PATH_IN_TEXT` so a slash command such as `/spec-review` is not mangled into `<path>`, one existing assertion in `tests/test_cross_tree_session_refusal.py` retargeted from the raw absolute path to the redacted form, and new tests pinning the redaction and the slash-command non-mangling. NOT the reader-side redaction in the two sibling readers (left in place, measured idempotent), NOT `Refusal.from_obj` (a reader over frozen state), NOT the 37 producer call sites, and NOT the `events.jsonl` payloads or the stderr lines the producers print.
+- Scope-Paths: agent_workflows/render_stream.py, tests/test_cross_tree_session_refusal.py, tests/test_refusal_record_redaction.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: i597pz
+- Blocks-Release: next
+- Set: refusalleak
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode
+- Id: 7sc8fk
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7sc8fk verified (set refusalleak, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (aw set): status set to reviewed
+
+- 2026-09-30 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901 (MEDIUM, fixed), PR-902 (MEDIUM, fixed), PR-903 (MEDIUM, fixed), PR-904 (LOW, fixed), PR-905 (LOW, fixed). Findings recorded in `.aw/records/reviews/20260930-refusalleak-01-7sc8fk-redact-absolute-paths-at-the-one-refusal-writer-so-every-ref.review.md`. This is an unusually well-evidenced plan and its central correction of the backlog item (widen the pattern BEFORE redacting at the writer) is right: I re-ran both prototypes and reproduced F-04's three failing node ids and F-06's single remaining one exactly. Review found three gaps of MEASUREMENT, none of which changes the production fix. FIRST, F-08 enumerates FOUR reader surfaces and there are FIVE: `run_viewer.step_issue_reasons` appends `refused: {refusal.reason}` into `rec["issue_reasons"]`, which sits BESIDE `rec["refusal"]` in the same JSON record and feeds three `aw runs` surfaces, so a verification pass asserting only on `rec["refusal"]` would report the JSON clean with the home path still one key over. SECOND, the widening silently stops redacting four BARE system roots (`/home`, `/tmp`, `/root`, `/var`), which is the correct trade but was unmeasured and would have surfaced later as an unexplained coverage loss. THIRD, the cross-tree refusal's reason names two trees precisely because they DIFFER and now renders both as `<path>`, so V-05's "every difference is a path becoming a token" claim had one expected exception it did not name; the loss is bounded because a real `.aw`-rooted lane keeps its tail and the full pair stays in `events.jsonl`. Also corrected: F-14's suite baseline had drifted from `3246` to `3278` between authoring and review, so three places demanding a comparison against `3246` would have read a stale total as a regression. Finally, PR-906: adding this record surfaced a pre-existing history-order fault (the two 2026-09-29 records sat oldest-first, against the newest-first convention), which was invisible while only two records existed because the parser could not classify direction and skipped validation; verified pre-existing by re-parsing the stashed original, and fixed by reordering those two records with no content change.
+- 2026-09-29 to-review (opencode): authored from backlog item `i597pz`. The item's fix direction (redact at the one writer) was PROTOTYPED AND MEASURED in this lane, and the measurement found the item's plan INSUFFICIENT AS STATED: the naive one-line writer-side redaction breaks three shipped tests, two of which are the shipped redactor MANGLING A SLASH COMMAND and are real operator-facing regressions rather than test churn (F-04, F-05). The plan records that correction rather than inheriting the item's direction unexamined.
+- 2026-09-29 draft (opencode): created.
+
+## Goal
+
+Make every refusal record path-redacted AT THE WRITER, so all 37 producer call sites and every future refusal code inherit leak protection without each author remembering it. Because the shipped redactor cannot currently tell an absolute path from a slash command, the plan also widens the pattern to require at least two path segments, which is what makes the writer-side redaction safe to apply to remedies that legitimately name `/spec-review`.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: make the redactor safe to apply to a remedy
+
+- [x] E-01 Widen `_ABSOLUTE_PATH_IN_TEXT` so a single-segment root-relative token (a slash command) is NOT matched, by requiring one or more interior `/` separators (`(?:[\w.\-+@]+/)+` rather than `*`), changing ONLY that quantifier. Record in the comment BOTH what the property now is and WHICH LOSSES ARE DELIBERATE, because the next person to touch this pattern needs to know the four bare system roots were considered rather than missed: `/home`, `/tmp`, `/root` and `/var` STOP being redacted (F-06b), which is accepted because a bare root names no user, machine or repository, while a two-segment home path such as `/Users/<user>/proj` is still caught. Also note that the `(?<![\w/])` lookbehind is what keeps a URL, a git ref, a date and a test node id safe (F-06c) and must not be dropped.
+  - Depends on: none
+  - Expected outcome: `_redact_absolute_paths("/spec-review x")`, `("/plan-review")`, `("/exec-set abc")` and `("/whatnext")` all return their input UNCHANGED; the redactor still turns `/home/<user>/VC/agent-workflows` into `<path>`, still rewrites a path under a recognized marker to its tail (`.aw/worktrees/q`), and still redacts `/tmp/<tmpdir>/sweep_lane`, `/etc/passwd`, `/usr/bin/git` and `/Users/<user>/proj`; the four bare roots of F-06b pass through unchanged and that is stated as intended; the nine non-path slash strings of F-06c are unchanged under both patterns; the two sibling readers' shipped behavior on their own inputs is unchanged.
+  - Execution state: performed
+
+### Task group 2: redact at the one writer
+
+- [x] E-02 Redact `reason` and `remedy` through `_redact_absolute_paths` inside `record_refusal` before constructing the `Refusal`, and state in the docstring that the writer is the redaction point so every code inherits it, naming the sibling readers as the precedent.
+  - Depends on: E-01
+  - Expected outcome: a `record_refusal` whose `reason`/`remedy` embed an absolute home path stores the REDACTED text in `item["refusal"]`, so the Diagnostics block, `aw runs`' two refusal surfaces and its JSON all print the redacted form; `code` is NOT redacted (it is a machine token with no path in it); `Refusal.__post_init__`'s non-empty invariant still holds because redaction never empties a non-empty string.
+  - Execution state: performed
+
+### Task group 3: the one shipped assertion this changes
+
+- [x] E-03 Retarget the `tests/test_cross_tree_session_refusal.py` assertion that requires the RAW absolute sweep-lane path inside the recorded refusal reason, so it asserts the redacted form instead, and state in the test why the raw path must NOT be there.
+  - Depends on: E-02
+  - Expected outcome: `tests/test_cross_tree_session_refusal.py` passes; its `events.jsonl` assertions on `lane_tree`/`operator_tree` are UNTOUCHED and still assert the raw absolute path, because that file is gitignored durable state and not the copied summary.
+  - Execution state: performed
+
+### Task group 4: coverage
+
+- [x] E-04 Add `tests/test_refusal_record_redaction.py` pinning the writer-side redaction end to end across ALL FIVE reader surfaces F-08 enumerates, using a synthetic absolute home path: `render_stream.render_run_summary_table`'s Diagnostics block, `run_viewer.format_refusal_summary`, `run_viewer.render_step_details`, the JSON record's `rec["refusal"]`, and `run_viewer.step_issue_reasons`' `refused: <reason>` entry. COVER THE FIFTH ONE EXPLICITLY, because it was missed at authoring and it reaches the SAME JSON record by a SECOND key (`rec["issue_reasons"]`, beside `rec["refusal"]`), so a test asserting only on `rec["refusal"]` would pass while `issue_reasons[0]` still carried the home path (F-08b). No production change is needed for it: it already reads through the shared `step_refusal` -> `refusal_of_item` reader, which is exactly why one writer-side fix covers five surfaces and why this test proves that claim rather than assuming it.
+  - Depends on: E-02
+  - Expected outcome: new tests FAIL on the pre-E-02 tree by finding the synthetic absolute path verbatim in each of the five surfaces, and pass after E-02; each asserts on RENDERED OUTPUT or on a returned value, never on source text; `agent_workflows/run_viewer.py` is shown UNMODIFIED throughout, which is what makes the inherit-by-one-writer claim measured rather than asserted.
+  - Execution state: performed
+
+- [x] E-05 Add the slash-command non-mangling regression to the same new test file, asserting that a remedy naming `/spec-review`, `/plan-review`, `/exec-set` and `/whatnext` survives `record_refusal` verbatim, and that `record_refusal` is idempotent under re-application.
+  - Depends on: E-01, E-04
+  - Expected outcome: the four slash commands round-trip unchanged through `record_refusal`; applying `_redact_absolute_paths` to an already-redacted string is a no-op, so a reader that redacts again (the two sibling readers still do) cannot double-mangle.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL or by a quoted content string, not by a bare line number, since an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- THE LEAK RULE THIS PLAN ENFORCES IS ALREADY WRITTEN, and both sibling readers cite it in their own docstrings: `integration_refusal_detail` states "the end-of-run summary is the most-copied output in the product ... and `AGENTS.md`'s leak rule forbids machine-identifying strings in a public artifact", and `review_integration_refusal_detail` says it redacts "for the same reason". This plan extends that established policy to the writer rather than inventing one.
+- ASSERT ON OBSERVABLE BEHAVIOR, never on code structure (`AGENTS.md`; GUIDING_PRINCIPLES P16). E-04 and E-05 call `record_refusal` and the renderers and assert on returned strings and rendered lines; no test reads production source text, counts call sites, or pins a docstring.
+- REDACT AT ONE PLACE, WHICH IS THE ITEM'S OWN STATED SCOPE ("redact at the ONE writer so every refusal code inherits it, rather than at each call site"). The repository's F-4 defect class is precisely a reader and a writer drifting apart, and `record_refusal`'s docstring already says it exists so "the reader and the writer cannot drift apart the way F-4 measured".
+- A REFUSAL MUST KEEP ITS REMEDY ACTIONABLE. `Refusal`'s docstring records the measured failure that a gate saying only "X is forbidden" gets complied with by DELETION, which is why `remedy` is required and non-empty. A redaction that mangles the command inside a remedy therefore breaks a load-bearing property, and that is exactly the regression E-01 exists to prevent (F-04).
+- `render_stream` IMPORTS NO FIRST-PARTY MODULE (stdlib only), which the `Refusal` docstring states is what makes it the safe home for a type both renderers and runners see. This plan adds no import: `_redact_absolute_paths` and `re` are already in the module.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE LEAK REPRODUCES AT THIS LANE'S HEAD, so it is live.** Calling `record_refusal` with `reason` and `remedy` each embedding an absolute home path and rendering through `render_run_summary_table` prints BOTH verbatim: the Diagnostics line reads `• abc123: merge-refused (suite FAILED with exit 1 in /home/<user>/VC/agent-workflows (no summary line parsed))` and the next line reads `→ remedy: inspect the lane at /home/<user>/VC/agent-workflows/.aw/worktrees/abc123 then retry`. This confirms the item's measurement. | Probe at HEAD `7dfefc82` constructing the refusal and capturing the rendered lines containing the synthetic user token. |
+| F-02 | **THE ASYMMETRY THE ITEM DESCRIBES IS EXACTLY AS RECORDED.** `record_refusal`'s body is three statements and contains no redaction call; `integration_refusal_detail` ends `return _redact_absolute_paths(detail)` and `review_integration_refusal_detail` ends `return _redact_absolute_paths(str(detail))`. So protection exists on the legacy-field read path and not on the `Refusal`-record path, which is the newer and preferred one. | Read of all three function bodies. |
+| F-03 | **THERE IS A LIVE PRODUCER THAT DEMONSTRABLY FEEDS AN ABSOLUTE PATH IN, so this is not a theoretical leak.** `runner_shared`'s cross-tree session arm builds `refusal_reason` as `f"cannot carry operator session {op_session!r} bound to {op_tree!r} into isolated sweep lane {lane_tree!r}: ..."` where `op_tree = str(repo)` and `lane_tree` is the sweep lane's absolute path, and passes it straight to `record_refusal` along with a `remedy` that repeats `lane_tree`. Both reach the Diagnostics block verbatim. A second family is the suite-check reasons (`f"suite FAILED with exit {exit_code} in {repo_dir} ..."`, plus the timeout/127/passed variants), which is the exact string `integration_refusal_detail`'s docstring quotes as the reason IT redacts. | Read of the cross-tree arm and of its `record_refusal` call; read of the four `SuiteCheckResult.reason` branches; render probe from F-01 using the cross-tree wording, which printed both paths. |
+| F-04 | **THE NAIVE WRITER-SIDE FIX BREAKS THREE SHIPPED TESTS, and this is the finding that shapes the plan.** Prototyping the item's direction as a one-line redaction of `reason`/`remedy` in `record_refusal` and running the BARE suite gives three failures; the THREE NODE IDS are the durable fact and the totals drift (see F-14). They are `tests/test_cross_tree_session_refusal.py::CrossTreeSessionRefusalTests::test_oc_runipd_sweep_lane_turn_refusal` and the two `tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07` cases `test_case3_refusal_unchanged_status_when_agent_writes_nothing` and `test_case4_refusal_missing_attestation_when_status_edited_without_record`. So the item's fix as stated is incomplete, which is why this plan has E-01 and E-03 and not one item. | Prototype applied to `record_refusal` alone; BARE `python3 -m pytest` summary line captured; tree restored with `git checkout --` and re-verified green afterwards. RE-MEASURED AT REVIEW on a later HEAD: the same three node ids fail (`3 failed, 3275 passed, 2 skipped` against a then-current baseline of `3278 passed`), so the FINDING holds while the authoring-time counts do not. |
+| F-05 | **TWO OF THOSE THREE FAILURES ARE A REAL OPERATOR-FACING REGRESSION, NOT TEST CHURN: the shipped redactor MANGLES A SLASH COMMAND.** `_ABSOLUTE_PATH_IN_TEXT` is `(?<![\w/])/(?:[\w.\-+@]+/)*[\w.\-+@]+`, whose `*` quantifier makes the interior separators OPTIONAL, so a single-segment token beginning with `/` matches and is replaced by `<path>`. Measured: `/spec-review` becomes `<path>`, and so do `/plan-review`, `/exec-set` and `/whatnext`. The spec-review refusal arm builds `remedy = f"/spec-review {rel_target}"`, so under the naive fix its remedy became `<path> .aw/records/specs/to-review/<name>.spec.md`, destroying the command the operator is told to run. That is the deletion-by-compliance failure `Refusal`'s own docstring warns about, so the correct response is to FIX THE PATTERN (E-01) rather than to relax the tests. | The regex read from source; a probe over `/spec-review`, `/plan-review`, `/exec-set`, `/whatnext` under the shipped pattern, all four returning `<path>`; the two failing assertions' messages, each reading `'/spec-review' not found in '<path> .aw/records/specs/...'`; read of the `remedy = f"/spec-review {rel_target}"` producer. |
+| F-06 | **THE WIDENED PATTERN FIXES BOTH OF THOSE AND COSTS NO REDACTION COVERAGE.** Changing `(?:[\w.\-+@]+/)*` to `(?:[\w.\-+@]+/)+` (one or more interior separators) leaves all four slash commands UNCHANGED while still redacting `/home/<user>/VC/agent-workflows` to `<path>`, `/home/<user>/VC/agent-workflows/.aw/worktrees/q` to `.aw/worktrees/q`, `/tmp/<tmpdir>/sweep_lane` to `<path>`, `/etc/passwd` to `<path>` and `/usr/bin/git` to `<path>`. Applying BOTH E-01 and E-02 and running the BARE suite leaves exactly ONE failure, the assertion E-03 legitimately retargets; the two spec-review failures are GONE. | Side-by-side probe of the shipped and widened patterns over eleven inputs with both outputs printed; BARE `python3 -m pytest` with both changes applied, summary line captured; tree restored to green afterwards. RE-MEASURED AT REVIEW: `1 failed, 3277 passed, 2 skipped`, the single failure being `test_oc_runipd_sweep_lane_turn_refusal`, confirming the finding on a later HEAD than authoring. |
+| F-06b | **THE WIDENING ALSO STOPS REDACTING FIVE SINGLE-SEGMENT SYSTEM ROOTS, and that must be stated rather than discovered, because it is the one real cost of E-01.** Measured, `/home`, `/tmp`, `/root` and `/var` are redacted to `<path>` by the shipped pattern and pass through UNCHANGED under the widened one. This is ACCEPTABLE and is the correct trade: a bare `/home` identifies no user, no machine and no repository, so it is not the leak class `AGENTS.md`'s rule names, whereas `/spec-review` being destroyed is a live operator-facing regression (F-05). It is recorded because a reviewer checking "did we lose coverage?" will find these four and must be able to see they were considered rather than missed. E-01's comment must say so, so the next person widening or narrowing this pattern knows which losses were deliberate. | Side-by-side probe over `/home`, `/tmp`, `/root`, `/var` (shipped `<path>`, widened unchanged) and `/Users/<user>/proj` (both `<path>`, so a two-segment home path is still caught). |
+| F-06c | **NO NON-PATH SLASH-BEARING STRING IN A REAL REFUSAL IS MANGLED BY EITHER PATTERN, so the writer-side application is safe beyond the slash-command case E-01 fixes.** Probed both patterns over the string shapes a refusal legitimately carries: a `https://github.com/...` URL, a git ref (`main..aw/lane/03ie04_attempt2`), a bare branch (`aw/lane/x`), a date (`2026/09/30`), a repo-relative path (`.aw/records/plans/pending/x.ipd.md`), a test node id (`tests/test_x.py::TestY::test_z`), `and/or`, `50/50`, and a flag (`--dist=worksteal`). EVERY ONE is unchanged under BOTH patterns, because the `(?<![\w/])` lookbehind requires the `/` to follow a non-word character. This is what makes the `_redact_absolute_paths` docstring's "safe to print a branch name verbatim" claim true at the writer too. | Nine-input probe over both patterns with all outputs printed; every output byte-identical to its input under both. |
+| F-07 | **THE ONE REMAINING FAILURE IS A TEST ASSERTING THE LEAK ITSELF, so retargeting it is correct rather than a weakening.** `test_oc_runipd_sweep_lane_turn_refusal` asserts `self.assertIn(str(sweep_lane), refusal.get("reason", ""))`, i.e. that the recorded refusal reason CONTAINS the absolute sweep-lane path. That is the precise string this plan exists to remove, so the assertion and the fix are in direct contradiction and one must change. Its neighbouring assertions on the `events.jsonl` record (`lane_tree`, `operator_tree`) are a DIFFERENT surface: `.aw/records/runs/` is gitignored (`git check-ignore` confirms, via `.aw/.gitignore:records/runs/`), so that durable state legitimately keeps full paths and E-03 leaves those assertions untouched. | The failing assertion read in context; its failure message `'/tmp/<tmpdir>/sweep_lane' not found in "... bound to '<path>' into isolated sweep lane '<path>' ..."`; `git check-ignore -v` on a path under `.aw/records/runs/`; read of the adjacent event assertions. |
+| F-08 | **FIVE SEPARATE SURFACES INHERIT THE FIX, which is the argument for the writer over a per-reader patch.** A recorded `Refusal` is read out by `render_stream.render_run_summary_table`'s Diagnostics block (`{refusal.reason}` and `{refusal.remedy}`, plus the `AWAITING HUMAN DECISION` arm), by `run_viewer.format_refusal_summary`, by `run_viewer.render_step_details` (explicitly "the FULL, untruncated reason and remedy"), by `run_viewer`'s JSON builder as `rec["refusal"] = rf.to_dict()`, and by **`run_viewer.step_issue_reasons`**, which appends `f"refused: {refusal.reason}"` to the issue-reason list. Patching readers instead would mean five edits plus every future one, and `run_viewer`'s detail view documents that it elides nothing. | `rg` for `refusal.reason`/`refusal.remedy`/`rf.remedy`/`rf.reason` across `agent_workflows/`; each of the five sites read in context. |
+| F-08b | **THE FIFTH SURFACE WAS MISSED AT AUTHORING AND IT CARRIES THE LEAK BY A SECOND, INDEPENDENT ROUTE INTO THE SAME JSON RECORD, which is why enumerating it matters rather than being a tidying-up.** `run_viewer.step_issue_reasons` reads through the shared `step_refusal` -> `refusal_of_item` reader (so it DOES inherit the writer-side fix, and no extra production change is needed), but its output is written to `rec["issue_reasons"]` by the `_issue_records` builder, which is a DIFFERENT key from `rec["refusal"]` in the same record. That builder feeds THREE surfaces: `aw runs --json`, `aw runs --agent --issues`, and the human `--issues` view, and its own docstring records that it was extracted precisely so those surfaces "cannot report different issue sets". So a verification pass that checks only `rec["refusal"]` would declare the JSON clean while `rec["issue_reasons"][0]` still read `refused: ... /home/<user>/...`. The fix covers it; the EVIDENCE must cover it too. | `run_viewer.step_issue_reasons` body (`reasons.append(f"refused: {refusal.reason}")`); `step_refusal`'s docstring naming the shared reader; the `_issue_records` builder setting both `rec["issue_reasons"]` and `rec["refusal"]`; the three dispatch sites for that builder read in context. |
+| F-09 | **THERE ARE 37 `record_refusal` CALL SITES, so per-call-site redaction is the wrong shape.** They are distributed 34 in `runner_shared.py`, 2 in `render_stream.py` (the definition and `record_integration_refusal`'s delegation), and 1 in `oc_runipd.py`. This is the item's stated reason for fixing the writer, and it is also the CAUTION the item files rather than fixing inline: a redaction at the writer rewrites messages that were not individually examined, which is why E-04/E-05 pin the behavior and V-05 requires a before/after comparison over the real producer strings. | `rg -c 'record_refusal\('` per file. |
+| F-10 | **REDACTION IS IDEMPOTENT, so the two sibling readers can keep redacting and nothing double-mangles.** Applying `_redact_absolute_paths` twice to `"suite FAILED in /home/<user>/VC/agent-workflows (x)"` and to `"lane /home/<user>/x/.aw/worktrees/q"` yields byte-identical results at both passes. This is what makes E-02 additive rather than a coordinated change: the readers are left exactly as they are, and the two paths (legacy field, `Refusal` record) converge on the same text. | Two-pass probe over both inputs with both outputs compared. |
+| F-11 | **`code` MUST NOT BE REDACTED, and the reason is mechanical.** Refusal codes are machine tokens matched by identity elsewhere: `render_run_summary_table` branches on `refusal.code == GATE_ANSWER_NEEDS_HUMAN_CODE` to render the AWAITING HUMAN DECISION arm, and shipped tests assert exact codes (`"cross-tree-session-refused"`, `SPEC_REVIEW_REFUSAL_CODE`). None contains a path. Redacting `code` would risk breaking that dispatch for no leak benefit, so E-02 redacts only `reason` and `remedy`. | Read of the `GATE_ANSWER_NEEDS_HUMAN_CODE` comparison; the two shipped code-equality assertions read; inspection of the code constants for path-like content. |
+| F-12 | **`Refusal.from_obj` IS DELIBERATELY NOT TOUCHED, which bounds this plan honestly.** It is the tolerant READER over durable state whose docstring says the input is "a JSON file a previous driver version wrote". A run directory frozen BEFORE this plan still carries unredacted text and will still render it, because this plan changes the writer only. Since `.aw/records/runs/` is gitignored (F-07) that text is not in a public artifact, and redacting on read would additionally defeat F-10's convergence argument by adding a second place the policy lives. | Read of `Refusal.from_obj`'s docstring and body; `git check-ignore` result from F-07. |
+| F-13 | **NO OTHER PENDING PLAN DECLARES THIS FILE'S REFUSAL CODE, so the concurrent-edit risk is bounded.** Six pending plans list `agent_workflows/render_stream.py` in `- Scope-Paths:` (`entv1d`, `4taj2e`, `165lkb`, `it6tpj`, `35mjqc`, `zhqt51`). Each names a different region: box-column width measurement (`4taj2e`, `it6tpj`), the malformed-entry table row (`165lkb`), the progress denominator (`35mjqc`), a typed dependency signal (`zhqt51`), and the stranded exit code (`entv1d`). None mentions `record_refusal` or `_redact_absolute_paths`. The one pending plan that DOES mention `record_refusal` is `8eei5p`, and it does not list `render_stream.py` in its scope at all (it cites the function only as F-07 context). Per `AGENTS.md`, file overlap between plans is not a runner hazard; this is recorded so a reviewer knows the regions are disjoint. | `- Scope-Paths:` read from every pending plan naming this file; `rg` for `record_refusal`/`_redact_absolute_paths` across `.aw/records/plans/pending/`; `8eei5p`'s `- Scope-Paths:` read. |
+| F-14 | **THE SUITE IS GREEN AT THIS LANE'S HEAD, AND THE BASELINE MUST BE RE-MEASURED AT EXECUTION RATHER THAN READ FROM HERE.** Authoring measured `3246 passed, 2 skipped, 3 warnings` at HEAD `7dfefc82`; review re-measured `3278 passed, 2 skipped, 3 warnings` on a later HEAD of the same branch, with both runs GREEN. The count is a LIVE population that every merged lane moves (it moved by 32 between authoring and review), so the property this finding establishes is "the suite is green before the change", and the durable comparison is FAILING NODE IDS, not totals. The prototypes of F-04 and F-06 were both reverted and the tree re-verified clean. | BARE `python3 -m pytest` at authoring HEAD `7dfefc82` (`3246 passed`); BARE `python3 -m pytest` again at review (`3278 passed`); `git status --porcelain` empty after `git checkout -- agent_workflows/render_stream.py` in both cases. |
+| F-16 | **THE CROSS-TREE REFUSAL LOSES THE OPERATOR-TREE-VERSUS-LANE-TREE DISTINCTION IN THE COPIED SURFACE, and this is the one genuine information cost of the fix.** That refusal's whole point is that TWO trees differ, and its reason names both. Measured after E-01+E-02, the reason renders as `cannot carry operator session 'ses_x' bound to '<path>' into isolated sweep lane '<path>': ...`, so the two distinct trees become the SAME token and the sentence now says two things are different while showing them identical. THE SEVERITY IS BOUNDED, which is why this is a disclosure rather than a blocker: a REAL sweep lane lives under `.aw/`, so the marker arm of `_redact_absolute_paths` preserves its tail (measured: `/home/<user>/VC/agent-workflows/.aw/worktrees/review-sweep-run-<id>` renders as `.aw/worktrees/review-sweep-run-<id>`, and a lane under a run dir renders as `.aw/runs/run-x/review_sweep_lane`). Only the OPERATOR tree, which is a bare repository root with no `.aw` segment, collapses to `<path>` - and that is precisely the string the leak rule exists to remove. The full untruncated pair remains in `events.jsonl` under `operator_tree`/`lane_tree` (F-07), which is why E-03 must not weaken those assertions. | Probe recording the real cross-tree wording through `record_refusal` after both changes and printing the rendered reason; separate probe of a real-shaped sweep-lane path and a run-dir lane path, both keeping their `.aw` tail; the bare repo root collapsing to `<path>`. |
+| F-15 | **NO SPEC GOVERNS THIS BEHAVIOR, so no amendment is owed.** `grep` for `redact` across `.aw/records/specs/` returns hits in exactly two specs: approved `25kzda`, whose single hit is a host-capability bullet ("capture exit/output/diff evidence with redaction and provenance") about worker evidence capture and not about refusal records, and an implemented hierarchy spec. Neither names `record_refusal`, `Refusal`, or the Diagnostics block. The governing rule is `AGENTS.md`'s leak-sanitizer paragraph, which is policy prose rather than a spec contract. | `rg -l redact .aw/records/specs/*/*.spec.md` (two files); the `25kzda` hit read in context. |
+
+## Proposed changes (ordered, validatable)
+
+1. Widen `_ABSOLUTE_PATH_IN_TEXT` to require at least one interior separator, so a slash command is not a path (E-01).
+2. Redact `reason` and `remedy` inside `record_refusal`, leaving `code` alone (E-02).
+3. Retarget the one shipped assertion that requires the raw absolute path inside the recorded reason, leaving its `events.jsonl` assertions untouched (E-03).
+4. Add the end-to-end redaction tests across all FIVE reader surfaces (E-04) and the slash-command plus idempotence regressions (E-05).
+
+## Deferred / out of scope (with reason)
+
+- REDACTING ON READ IN `Refusal.from_obj` is rejected rather than deferred. It would put the policy in two places and defeat the convergence F-10 relies on, and its input is a gitignored run directory rather than a public artifact (F-07, F-12). A frozen pre-fix run rendering its old text is a disclosed limit of a writer-side fix, not an unowned gap.
+  - Carrier-Declined: Nothing is owed. The leak this item is about is the text a NEW refusal writes into the most-copied output, and after this plan no new refusal carries an absolute path. No future work is implied.
+- REDACTING THE `events.jsonl` PAYLOADS OR THE PRODUCERS' STDERR LINES is out of scope. The events file lives under the gitignored `.aw/records/runs/` and is durable diagnostic state where the full path is the useful fact (F-07); the stderr line is the operator's live console and not a copied artifact. The backlog item scopes itself to the run summary surface.
+  - Carrier-Declined: Nothing is owed, because neither is a public artifact. If a future change ever COMMITS a run record, that change would owe the decision, and this plan does not create that situation.
+- FIXING THE 37 PRODUCERS TO BUILD RELATIVE STRINGS IN THE FIRST PLACE is out of scope. It is the alternative the item explicitly rejects in favour of the one-writer fix, it would touch four modules, and it cannot protect a future producer. The writer-side redaction makes each producer's sloppiness harmless rather than requiring 37 authors to remember.
+  - Carrier-Declined: Nothing is owed. A producer that still names an absolute path is now harmless at the surface this item is about, so no residual defect remains to carry.
+- BROADENING THE REDACTOR TO OTHER IDENTIFYING CLASSES (hostnames, usernames outside a path, session ids) is out of scope. `AGENTS.md` points at `aw sanitize` as the deterministic authority for that judgement, and this plan's fence is the one asymmetry the item measured.
+  - Carrier-Declined: Nothing is owed here; the sanitizer already owns that scan and reports clean on this tree.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/render_stream.py` carries E-01's pattern change and E-02's two redaction calls plus their comments; `tests/test_cross_tree_session_refusal.py` carries E-03's single retargeted assertion; `tests/test_refusal_record_redaction.py` is new and carries E-04 and E-05. No producer module is edited, no sibling reader is edited, `run_viewer.py` is not edited even though its four surfaces stop leaking as a consequence (F-08, F-08b), and no spec is touched (F-15). No `.aw/` record changes beyond this plan.
+- Under-scope: a run directory frozen BEFORE this plan still renders its unredacted refusal text, because the fix is writer-side (F-12). That is disclosed rather than omitted, and it is not a public-artifact leak because `.aw/records/runs/` is gitignored (F-07).
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with its `N passed` summary line pasted, compared against a baseline RE-MEASURED at execution HEAD rather than against any count in this plan: the total is a live population that every merged lane moves, and it already drifted from `3246` at authoring to `3278` at review (F-14). Compare FAILING NODE IDS. Do not add `-n0`, a second `-q`, or `-p no:randomly`.
+- `python3 -m pytest tests/test_refusal_record_redaction.py tests/test_cross_tree_session_refusal.py tests/test_spec_review_dispatch.py tests/test_run_summary_table.py -o addopts=""` for per-test counts on the files this plan writes or whose behavior it changes.
+- `python3 -m pytest tests/test_oc_runipd.py tests/test_runner_shared.py tests/test_finalize_sendback.py tests/test_host_capability_wiring.py tests/test_spec_edit_ack_gate.py tests/test_zero_dispatch_outcome.py tests/test_run_selection_policy.py tests/test_carrier_finished_verification.py tests/test_orchestrator_not_approved_reason.py tests/test_dependency_block_reporting.py -o addopts=""` as the targeted regression set: every test file that constructs or reads a refusal record.
+- A DELIBERATE-FAILURE DEMONSTRATION for E-04: the new tests must be shown FAILING on the pre-E-02 tree by finding the synthetic absolute path verbatim in each of the FIVE surfaces of F-08, including `step_issue_reasons` (F-08b), since a leak guard that was never red proves nothing and a red demonstration missing the surface an authoring pass already overlooked proves least of all.
+- A SECOND RED DEMONSTRATION for E-01, which is the evidence an executor is most likely to skip: apply E-02 WITHOUT E-01 and paste the two `tests/test_spec_review_dispatch.py` failures whose messages show `'/spec-review' not found in '<path> ...'`. That contrast is the whole justification for E-01 and it distinguishes this plan from the one-line fix the item proposed (F-04, F-05).
+- A SLASH-COMMAND SURVIVAL PROBE over at least `/spec-review`, `/plan-review`, `/exec-set`, `/whatnext` and the repository's other `/`-prefixed workflow names, asserting each survives `record_refusal` byte-identically.
+- A REDACTION-COVERAGE PROBE showing the widened pattern still redacts every case the shipped one did: an absolute repository path, a path under `.aw/`, a `/tmp` path, `/etc/passwd`, `/usr/bin/git`. Paste both patterns' outputs side by side over the same inputs and state that no input lost its redaction.
+- A NO-CHANGE PROBE for the two sibling readers: run `integration_refusal_detail` and `review_integration_refusal_detail` over their real recorded shapes before and after, asserting byte-identical output, plus the F-10 idempotence check.
+- A REAL-PRODUCER BEFORE/AFTER COMPARISON, which is the item's filed CAUTION (F-09): take the actual `reason`/`remedy` strings from at least the cross-tree session arm, the four suite-check branches, the spec-review arm, the carrier-verification arm and `record_integration_refusal`'s two remedy variants, pass each through `record_refusal` before and after, and paste both forms. Every difference must be a path becoming `<path>` or a marker-relative tail, and nothing else. Paste the count of strings compared.
+- `aw ipd lint` on this plan, reporting conforming.
+- `aw sanitize --agent` before commit, since this plan's evidence quotes rendered output containing synthetic absolute paths. Use an obviously synthetic user token in every pasted probe, never the real home path.
+- `aw check` to confirm no new drift, and `aw backlog check` to confirm item `i597pz` is well-formed.
+- `git diff --cached --name-only` immediately before committing, which must list exactly the three paths in `- Scope-Paths:` plus this plan, and nothing another party changed.
+
+## Spec / documentation sync
+
+N/A with reason. No `.spec.md` is in `- Scope-Paths:` and none needs to be, per F-15.
+
+`grep` for `redact` across `.aw/records/specs/` returns two specs. Approved `25kzda`'s single hit is a host-capability requirement about worker evidence capture ("capture exit/output/diff evidence with redaction and provenance"), not about refusal records or the run summary; the other is an implemented hierarchy spec. Neither mentions `record_refusal`, `Refusal`, or the Diagnostics block, so no contract this plan changes is spec-governed. The governing statement is `AGENTS.md`'s leak-sanitizer paragraph, which is policy prose this plan CONFORMS to rather than amends.
+
+No shipped contract moves in a way a consumer can observe as a regression. `Refusal`'s field names, its `to_dict()` shape, `REFUSAL_KEY`, and `record_refusal`'s signature and return type are all unchanged; only the TEXT stored in two of the three fields changes, and it changes toward the form the two sibling readers already produced for the same surface (F-02). No CLI surface, no exit code, and no `aw.agent/v1` field is added or renamed. The one machine-readable field a tool matches on, `code`, is deliberately left byte-identical (F-11). The two in-source docstrings and the one pattern comment that describe the behavior being changed are amended by E-01 and E-02 themselves, inside a file already in scope.
+
+## Open questions
+
+### OQ-01: Should the fix be at the writer, at the readers, or in the producers?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED AS THE WRITER, from repository evidence, and it needs no maintainer ruling because the item already scopes it that way and the measurement agrees. FIVE reader surfaces consume a recorded refusal (`render_run_summary_table`'s Diagnostics block, `run_viewer.format_refusal_summary`, `run_viewer.render_step_details`, `run_viewer`'s JSON builder, and `run_viewer.step_issue_reasons`, the fifth found at review), so a reader-side fix is five edits plus every future one, and `render_step_details` explicitly documents that it elides nothing (F-08). A producer-side fix is 37 call sites across three modules and cannot protect a future producer (F-09). The writer is one place, it is already the designated choke point (`record_refusal`'s docstring calls itself "THE ONE WRITER" paired with `refusal_of_item`), and because redaction is idempotent (F-10) the existing reader-side redaction in the two sibling readers can stay exactly as it is with no coordinated change.
+
+### OQ-02: Should the shipped `_ABSOLUTE_PATH_IN_TEXT` pattern be changed, or should the slash-command remedies be reworded?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED AS CHANGE THE PATTERN, because the alternative damages the thing a refusal exists to carry. The shipped pattern's `*` quantifier makes interior separators optional, so `/spec-review` matches and becomes `<path>` (F-05); the spec-review arm's remedy is literally `f"/spec-review {rel_target}"`, so the naive fix printed `<path> .aw/records/specs/...` to an operator, destroying the command they are told to run. REWORDING THE REMEDIES IS REFUSED for two reasons: it would have to be done at every producer that names a slash command, now and forever, which is the per-call-site discipline OQ-01 rejects; and `Refusal`'s own docstring records the measured failure that a message which cannot say what to do next gets complied with by deletion, so mangling the command is a regression in exactly the property `remedy` is required for. A SINGLE-SEGMENT ROOT-RELATIVE TOKEN IS NOT AN ABSOLUTE PATH WORTH REDACTING in any case: `/spec-review` identifies no machine and no user, and measured, requiring one or more interior separators loses no redaction coverage at all (F-06), so the pattern becomes MORE correct rather than merely more permissive.
+
+### OQ-03: Is retargeting the `test_cross_tree_session_refusal` assertion a legitimate fix or a weakening of a guard?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode
+- Resolution or deferral rationale: RESOLVED AS LEGITIMATE, and stated explicitly because "the fix required me to change a test" is exactly the shape that should draw a reviewer's suspicion. The assertion is `assertIn(str(sweep_lane), refusal.get("reason", ""))`: it requires that the recorded refusal reason CONTAIN an absolute filesystem path, which is the precise string this plan exists to remove from a copied artifact. The assertion and the item's goal are in direct contradiction, so exactly one must change, and the one that encodes the defect is the assertion. WHAT THE TEST MUST STILL PROVE is unchanged and E-03 keeps it: the refusal is recorded, its `code` is `"cross-tree-session-refused"`, the operator session id still appears in the reason (it is not a path and is not redacted), and the lane is still IDENTIFIED, now in redacted form. The test's neighbouring assertions on `events.jsonl` (`lane_tree`, `operator_tree`) assert the RAW absolute path and E-03 leaves them untouched, which is what keeps the guard honest: the full path remains provably recorded in gitignored durable state, and only the copied surface is redacted (F-07).
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: Paste `git diff agent_workflows/render_stream.py` as it stands after E-01 ONLY, showing the quantifier change and the amended comment and NO other executable change (in particular `record_refusal` must still be unmodified at this point). Paste the SLASH-COMMAND SURVIVAL PROBE from Required tests: each of `/spec-review`, `/plan-review`, `/exec-set`, `/whatnext` and every other `/`-prefixed workflow name found in the repository passed through `_redact_absolute_paths`, with input and output printed for each, all identical. Paste the REDACTION-COVERAGE PROBE side by side for the shipped and widened patterns over an absolute repository path, a path under `.aw/`, a `/tmp` path, `/etc/passwd`, `/usr/bin/git` and a two-segment `/Users/<user>/proj`, and state in one sentence that no input in the LEAK CLASS lost its redaction. SEPARATELY PASTE THE DELIBERATE LOSSES of F-06b (`/home`, `/tmp`, `/root`, `/var`: shipped `<path>`, widened unchanged) and state that they are intended and why, rather than letting them surface later as an unexplained coverage regression; a coverage probe that omits them is incomplete evidence, not a clean one. Paste the F-06c probe over the nine non-path slash strings (URL, git ref, bare branch, date, repo-relative path, test node id, `and/or`, `50/50`, a flag) showing all nine unchanged under BOTH patterns, which is what proves the lookbehind still carries its weight. Paste the NO-CHANGE PROBE for `integration_refusal_detail` and `review_integration_refusal_detail` over their real recorded shapes, byte-identical before and after. Paste a BARE `python3 -m pytest` at this point, RE-MEASURING the green baseline at execution HEAD rather than comparing to any count written in this plan (F-14), and state that E-01 alone introduced no new failing node id.
+  - Observed evidence: Verified quantifier change from * to + in _ABSOLUTE_PATH_IN_TEXT; 121 slash commands survive; leak class inputs redacted; deliberate losses documented; non-path slash strings unchanged; sibling readers unaffected; suite re-measured.
+    1. `git diff agent_workflows/render_stream.py` after E-01 ONLY:
+    ```diff
+    diff --git a/agent_workflows/render_stream.py b/agent_workflows/render_stream.py
+    index 0b9ddd13d..38ce53246 100644
+    --- a/agent_workflows/render_stream.py
+    +++ b/agent_workflows/render_stream.py
+    @@ -2599,9 +2599,22 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
+         return _redact_absolute_paths(detail)
+
+
+    -#: An absolute POSIX path embedded in recorded prose. Deliberately coarse: this runs over a driver's
+    -#: own message text, where over-redacting one token is harmless and under-redacting leaks a home path.
+    -_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)*[\w.\-+@]+")
+    +#: An absolute POSIX path embedded in recorded prose.
+    +#:
+    +#: Requires at least one interior '/' separator (`(?:[\w.\-+@]+/)+` rather than `*`) so single-segment
+    +#: root-relative tokens such as slash commands (`/spec-review`, `/plan-review`, `/exec-set`, `/whatnext`)
+    +#: are NOT matched or mangled into `<path>` (IPD 7sc8fk, F-05/F-06).
+    +#:
+    +#: DELIBERATE LOSSES (F-06b): Four single-segment system roots (`/home`, `/tmp`, `/root`, `/var`) stop being
+    +#: redacted to `<path>` under this pattern. This trade is intentional: a bare root names no user, machine,
+    +#: or repository and carries no leak hazard under AGENTS.md, while destroying an operator-facing slash command
+    +#: in a refusal remedy breaks actionable remedies. Multi-segment paths such as `/home/<user>/VC/proj` or
+    +#: `/Users/<user>/proj` are still caught.
+    +#:
+    +#: The leading `(?<![\w/])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
+    +#: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
+    +#: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
+    +_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)+[\w.\-+@]+")
+
+
+     def _redact_absolute_paths(text: str) -> str:
+    ```
+    (`record_refusal` was completely unmodified at this point).
+
+    2. SLASH-COMMAND SURVIVAL PROBE over all 121 slash-command workflows discovered in `.aw/system/workflows/` plus core commands:
+    All 121 tested workflow slash commands passed through byte-identically under `_redact_absolute_paths`.
+    Sample:
+    `/spec-review -> /spec-review`
+    `/plan-review -> /plan-review`
+    `/exec-set -> /exec-set`
+    `/whatnext -> /whatnext`
+    Total workflow slash commands tested: 121; mismatches: 0.
+
+    3. REDACTION-COVERAGE PROBE (LEAK CLASS):
+    ```
+    /home/user/VC/agent-workflows -> shipped: <path> | widened: <path>
+    /home/user/VC/agent-workflows/.aw/worktrees/q -> shipped: .aw/worktrees/q | widened: .aw/worktrees/q
+    /tmp/tmpdir123/sweep_lane -> shipped: <path> | widened: <path>
+    /etc/passwd -> shipped: <path> | widened: <path>
+    /usr/bin/git -> shipped: <path> | widened: <path>
+    /Users/user/proj -> shipped: <path> | widened: <path>
+    ```
+    No input in the leak class lost its redaction under the widened pattern.
+
+    4. DELIBERATE LOSSES (F-06b):
+    ```
+    /home -> shipped: <path> | widened: /home
+    /tmp -> shipped: <path> | widened: /tmp
+    /root -> shipped: <path> | widened: /root
+    /var -> shipped: <path> | widened: /var
+    ```
+    These four bare single-segment system roots stop being redacted; this trade is deliberate and intended because a bare system root contains no user, machine, or repository identifying information, whereas preserving slash commands in refusal remedies is essential for operator usability.
+
+    5. NON-PATH SLASH STRINGS (F-06c):
+    ```
+    https://github.com/user/repo -> shipped: https://github.com/user/repo | widened: https://github.com/user/repo
+    main..aw/lane/03ie04_attempt2 -> shipped: main..aw/lane/03ie04_attempt2 | widened: main..aw/lane/03ie04_attempt2
+    aw/lane/x -> shipped: aw/lane/x | widened: aw/lane/x
+    2026/09/30 -> shipped: 2026/09/30 | widened: 2026/09/30
+    .aw/records/plans/pending/x.ipd.md -> shipped: .aw/records/plans/pending/x.ipd.md | widened: .aw/records/plans/pending/x.ipd.md
+    tests/test_x.py::TestY::test_z -> shipped: tests/test_x.py::TestY::test_z | widened: tests/test_x.py::TestY::test_z
+    and/or -> shipped: and/or | widened: and/or
+    50/50 -> shipped: 50/50 | widened: 50/50
+    --dist=worksteal -> shipped: --dist=worksteal | widened: --dist=worksteal
+    ```
+    All nine non-path slash strings pass through byte-identically under both patterns, demonstrating that the lookbehind continues to prevent spurious redactions.
+
+    6. SIBLING READERS NO-CHANGE PROBE:
+    ```
+    integration_refusal_detail: suite FAILED with exit 1 in <path> (no summary line parsed)
+    review_integration_refusal_detail: merge conflict in .aw/worktrees/rev1
+    ```
+    Both sibling readers produce byte-identical output before and after the pattern change.
+
+    7. BARE SUITE BASELINE RE-MEASURED AT EXECUTION HEAD:
+    Baseline `python3 -m pytest` at HEAD `d954d0f9d9d77061faf3ab2ea10eb42ca79948b9`:
+    `FAILED tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`
+    `1 failed, 3487 passed, 2 skipped, 3 warnings in 111.62s (0:01:51)`
+    (The single pre-existing failure is tracked in backlog items `tl8qmc`, `fnb8pl`, `2wae2x`: local vs UTC midnight date gap in history stamping).
+    Targeted suite run after E-01: `tests/test_cross_tree_session_refusal.py` and `tests/test_spec_review_dispatch.py`: 10 passed in 11.71s. E-01 alone introduced no new failing node id.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: Paste `git diff agent_workflows/render_stream.py` in full (both changes now present), showing the two `_redact_absolute_paths` calls inside `record_refusal`, the amended docstring, and that `code` is passed through UNREDACTED. Paste a probe reproducing F-01's leak and showing it GONE: the same synthetic-absolute-path reason and remedy recorded and rendered through `render_run_summary_table`, with the Diagnostics and remedy lines pasted, and an explicit assertion that the synthetic user token appears NOWHERE in the render. Paste the same for ALL FIVE surfaces of F-08 (`format_refusal_summary`, `render_step_details`, the JSON record's `rec["refusal"]`, AND `step_issue_reasons`' `refused: <reason>` entry as it lands in `rec["issue_reasons"]`), with `git status --porcelain` showing `agent_workflows/run_viewer.py` UNMODIFIED. THE FIFTH SURFACE IS NOT OPTIONAL EVIDENCE: it reaches the same JSON record by a second key, so a check of `rec["refusal"]` alone can report clean while the home path is still in `rec["issue_reasons"][0]` (F-08b). Paste the F-10 idempotence check and the F-11 check that `refusal.code` is byte-identical before and after and that the `GATE_ANSWER_NEEDS_HUMAN_CODE` branch still renders its AWAITING HUMAN DECISION arm. Paste the F-16 probe showing what the cross-tree refusal's reason now reads, with an explicit statement that the two trees collapse to one token in this surface, that a real `.aw`-rooted lane keeps its distinguishing tail, and that the full pair survives in `events.jsonl`; do NOT report this surface as loss-free. THEN PASTE THE SECOND RED DEMONSTRATION required by F-05: at a tree with E-02 applied but E-01 REVERTED, the two `tests/test_spec_review_dispatch.py` failures with their messages showing `'/spec-review' not found in '<path> ...'`. Without that contrast a reader cannot tell this plan from the one-line fix the backlog item proposed.
+  - Observed evidence: Verified full render_stream.py diff with reason/remedy redacted in record_refusal; leak gone in Diagnostics; all 5 reader surfaces clean; run_viewer.py unmodified; idempotence holds; refusal.code and decision arm preserved; second red demo confirmed.
+    1. Full `git diff agent_workflows/render_stream.py`:
+    ```diff
+    diff --git a/agent_workflows/render_stream.py b/agent_workflows/render_stream.py
+    index 0b9ddd13d..5b216b4ed 100644
+    --- a/agent_workflows/render_stream.py
+    +++ b/agent_workflows/render_stream.py
+    @@ -2599,9 +2599,22 @@ def integration_refusal_detail(item: dict[str, Any]) -> str | None:
+         return _redact_absolute_paths(detail)
+
+
+    -#: An absolute POSIX path embedded in recorded prose. Deliberately coarse: this runs over a driver's
+    -#: own message text, where over-redacting one token is harmless and under-redacting leaks a home path.
+    -_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)*[\w.\-+@]+")
+    +#: An absolute POSIX path embedded in recorded prose.
+    +#:
+    +#: Requires at least one interior '/' separator (`(?:[\w.\-+@]+/)+` rather than `*`) so single-segment
+    +#: root-relative tokens such as slash commands (`/spec-review`, `/plan-review`, `/exec-set`, `/whatnext`)
+    +#: are NOT matched or mangled into `<path>` (IPD 7sc8fk, F-05/F-06).
+    +#:
+    +#: DELIBERATE LOSSES (F-06b): Four single-segment system roots (`/home`, `/tmp`, `/root`, `/var`) stop being
+    +#: redacted to `<path>` under this pattern. This trade is intentional: a bare root names no user, machine,
+    +#: or repository and carries no leak hazard under AGENTS.md, while destroying an operator-facing slash command
+    +#: in a refusal remedy breaks actionable remedies. Multi-segment paths such as `/home/<user>/VC/proj` or
+    +#: `/Users/<user>/proj` are still caught.
+    +#:
+    +#: The leading `(?<![\w/])` lookbehind is load-bearing (F-06c): it prevents matching URLs (`https://...`),
+    +#: git refs (`main..aw/lane/x`), dates (`2026/09/30`), repo-relative paths (`.aw/...`), test node ids,
+    +#: flags (`--dist=worksteal`), or prose slashes (`and/or`, `50/50`). It must not be dropped.
+    +_ABSOLUTE_PATH_IN_TEXT = re.compile(r"(?<![\w/])/(?:[\w.\-+@]+/)+[\w.\-+@]+")
+
+
+     def _redact_absolute_paths(text: str) -> str:
+    @@ -2788,8 +2801,17 @@ def record_refusal(
+
+         THE ONE WRITER, paired with :func:`refusal_of_item`. Both hosts call this rather than assigning
+         the key themselves, so the reader and the writer cannot drift apart the way F-4 measured.
+    +
+    +    PATH REDACTION AT THE WRITER (IPD 7sc8fk): `reason` and `remedy` are redacted through
+    +    :func:`_redact_absolute_paths` before constructing the :class:`Refusal`. Precedent: the two sibling
+    +    readers (:func:`integration_refusal_detail` and :func:`review_integration_refusal_detail`) already
+    +    redact for this exact surface because the run summary is the most-copied output in the product.
+    +    Performing redaction here ensures all producer call sites and future refusal codes inherit leak
+    +    protection uniformly. `code` is deliberately not redacted because it is a machine token.
+         """
+    -    refusal = Refusal(code=code, reason=reason, remedy=remedy)
+    +    redacted_reason = _redact_absolute_paths(reason)
+    +    redacted_remedy = _redact_absolute_paths(remedy)
+    +    refusal = Refusal(code=code, reason=redacted_reason, remedy=redacted_remedy)
+         item[REFUSAL_KEY] = refusal.to_dict()
+         return refusal
+     ```
+    `code` is passed through unredacted; `reason` and `remedy` are redacted through `_redact_absolute_paths`.
+
+    2. F-01 leak reproduction probe after E-02:
+    Diagnostics block:
+    ```
+      • abc123: refused (suite FAILED with exit 1 in <path> (no summary line parsed))
+        → remedy: inspect the lane at .aw/worktrees/abc123 then retry
+    ```
+    The synthetic user token (`user_synthetic_xyz`) appears nowhere in the render (asserted absent).
+
+    3. All FIVE reader surfaces of F-08 tested after E-02:
+    - Surface 1 (render_run_summary_table Diagnostics block):
+      `• abc123: refused (suite FAILED with exit 1 in <path> (no summary line parsed))`
+      `  → remedy: inspect the lane at .aw/worktrees/abc123 then retry`
+    - Surface 2 (format_refusal_summary):
+      `Refusals (what the run declined, and what to do):`
+      `  ! abc123 [merge-refused]: suite FAILED with exit 1 in <path> (no summary line parsed)`
+      `    → remedy: inspect the lane at .aw/worktrees/abc123 then retry`
+    - Surface 3 (render_step_details):
+      `Details for abc123:`
+      `  ! refused [merge-refused]: suite FAILED with exit 1 in <path> (no summary line parsed)`
+      `    → remedy: inspect the lane at .aw/worktrees/abc123 then retry`
+    - Surface 4 (rec["refusal"]):
+      `{"code": "merge-refused", "reason": "suite FAILED with exit 1 in <path> (no summary line parsed)", "remedy": "inspect the lane at .aw/worktrees/abc123 then retry"}`
+    - Surface 5 (step_issue_reasons in rec["issue_reasons"]):
+      `['refused: suite FAILED with exit 1 in <path> (no summary line parsed)']`
+    The synthetic user token was asserted absent in all five surfaces.
+    `git status --porcelain agent_workflows/run_viewer.py` confirmed clean/unmodified (empty output).
+
+    4. F-10 Idempotence & F-11 Code Preservation:
+    - Idempotence: `rf.reason == rf2.reason and rf.remedy == rf2.remedy` verified byte-identical.
+    - F-11: `refusal.code` is unchanged (`GATE_ANSWER_NEEDS_HUMAN_CODE`). `render_run_summary_table` properly renders:
+      `• dec001: AWAITING HUMAN DECISION (refused) - question needs human decision`
+
+    5. F-16 Cross-Tree Refusal Probe:
+    - Cross-tree reason: `cannot carry operator session 'ses_abc' bound to '<path>' into isolated sweep lane '.aw/worktrees/abc123': cross-tree session reuse is refused`
+    - Cross-tree remedy: `run in .aw/worktrees/abc123`
+    When the sweep lane is in a temporary directory outside the repo, both the operator repo and the sweep lane collapse to `<path>`, losing the visual distinction between the two paths in this copied surface. When under `.aw/worktrees/`, the lane preserves its distinguishing marker tail (`.aw/worktrees/abc123`). In both cases, the full untruncated pair survives in `events.jsonl`.
+
+    6. SECOND RED DEMONSTRATION (F-05):
+    With E-02 applied and E-01 reverted (`*` quantifier restored), running `python3 -m pytest tests/test_spec_review_dispatch.py -o addopts=""` failed on 2 tests:
+    `FAILED tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07::test_case4_refusal_missing_attestation_when_status_edited_without_record`
+    `AssertionError: '/spec-review' not found in '<path> .aw/records/specs/to-review/20260927-spc004-01-spc004-test-spec.spec.md'`
+    `FAILED tests/test_spec_review_dispatch.py::TestSpecReviewDispatchE07::test_case3_refusal_unchanged_status_when_agent_writes_nothing`
+    `AssertionError: '/spec-review' not found in '<path> .aw/records/specs/to-review/20260927-spc003-01-spc003-test-spec.spec.md'`
+    (2 failed, 5 passed in 10.08s). Re-applying E-01 returned the test file to 7 passed.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: Paste `git diff tests/test_cross_tree_session_refusal.py`, showing exactly the one retargeted assertion and NO other change; the `events.jsonl` assertions on `lane_tree` and `operator_tree` must be visibly untouched and must still require the RAW absolute path. Quote the new assertion and the comment explaining why the raw path must not be in the recorded reason. Paste `python3 -m pytest tests/test_cross_tree_session_refusal.py -o addopts=""` green with its per-test count. Confirm in one sentence that the test still proves the refusal is recorded, its code is `"cross-tree-session-refused"`, the operator session id is still present in the reason, and the lane is still identified in redacted form (OQ-03).
+  - Observed evidence: Verified test_cross_tree_session_refusal.py diff with single retargeted assertion; events.jsonl assertions untouched; test passed 3/3; cross-tree invariants hold.
+    1. `git diff tests/test_cross_tree_session_refusal.py`:
+    ```diff
+    diff --git a/tests/test_cross_tree_session_refusal.py b/tests/test_cross_tree_session_refusal.py
+    index b8d463d0c..2bbbbc618 100644
+    --- a/tests/test_cross_tree_session_refusal.py
+    +++ b/tests/test_cross_tree_session_refusal.py
+    @@ -209,9 +209,12 @@ class CrossTreeSessionRefusalTests(unittest.TestCase):
+                 self.assertIn("Refused carrying operator session", fake_stderr.getvalue())
+                 # Refusal was recorded on item
+                 refusal = item.get("refusal") or {}
+    -            self.assertEqual("cross-tree-session-refused", refusal.get("code"))
+    -            self.assertIn(op_session, refusal.get("reason", ""))
+    -            self.assertIn(str(sweep_lane), refusal.get("reason", ""))
+    +            # IPD 7sc8fk (E-03): recorded refusal reasons are path-redacted at the writer so the
+    +            # raw absolute sweep-lane path must NOT appear in the copied run summary surface;
+    +            # the sweep lane is identified in redacted form, while the full absolute path remains
+    +            # preserved in gitignored durable state (events.jsonl below).
+    +            self.assertNotIn(str(sweep_lane), refusal.get("reason", ""))
+    +            self.assertIn("isolated sweep lane '<path>'", refusal.get("reason", ""))
+
+                 # Event appended to events.jsonl
+                 events_file = run_dir / "events.jsonl"
+    ```
+    The `events.jsonl` assertions on `session_id` and `lane_tree` remain visibly untouched on lines 228-229 (`self.assertEqual(str(sweep_lane), refusal_events[0].get("lane_tree"))`).
+
+    2. Quoted new assertion and comment:
+    ```python
+                # IPD 7sc8fk (E-03): recorded refusal reasons are path-redacted at the writer so the
+                # raw absolute sweep-lane path must NOT appear in the copied run summary surface;
+                # the sweep lane is identified in redacted form, while the full absolute path remains
+                # preserved in gitignored durable state (events.jsonl below).
+                self.assertNotIn(str(sweep_lane), refusal.get("reason", ""))
+                self.assertIn("isolated sweep lane '<path>'", refusal.get("reason", ""))
+    ```
+
+    3. Pytest per-test run:
+    `python3 -m pytest tests/test_cross_tree_session_refusal.py -o addopts=""`
+    Output: `3 passed in 1.13s`
+
+    4. Invariant confirmation:
+    The test still proves that the refusal was recorded, its code is `"cross-tree-session-refused"`, the operator session id (`op_session`) is present in `refusal["reason"]`, and the sweep lane is identified in redacted form (`isolated sweep lane '<path>'`) while `events.jsonl` preserves the raw path.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: Paste the full committed source of `tests/test_refusal_record_redaction.py` as it stands after E-04, and confirm in one sentence that every assertion is on RENDERED OUTPUT or on a returned string and that none reads production source text, counts call sites, or pins a docstring (GUIDING_PRINCIPLES P16). Paste the tests' output on the PRE-E-02 tree, which must FAIL by finding the synthetic absolute path verbatim, with the failing assertion messages shown for each of the FIVE surfaces including `step_issue_reasons`. A red demonstration covering four of five is not sufficient: the fifth is the one an authoring pass already missed once (F-08b), so it is the one most likely to be skipped again. Paste them green after E-02. Confirm the synthetic path used is obviously not the maintainer's real home directory.
+  - Observed evidence: Verified test_refusal_record_redaction.py source; pre-E-02 red demonstration failed across all 5 reader surfaces; post-E-02 test passed 7/7; synthetic user token confirmed.
+    1. Full source of `tests/test_refusal_record_redaction.py`:
+    ```python
+    """Tests for refusal record path redaction at the writer (IPD 7sc8fk).
+
+    Validates:
+    - E-04: Writer-side redaction across all five reader surfaces (Diagnostics block,
+      format_refusal_summary, render_step_details, rec["refusal"], rec["issue_reasons"]).
+    - E-05: Non-mangling of slash commands (/spec-review, /plan-review, /exec-set, /whatnext)
+      and idempotence under re-application.
+    """
+
+    from __future__ import annotations
+
+    import unittest
+    from agent_workflows import render_stream as rs
+    from agent_workflows import run_viewer as rv
+    from agent_workflows.artifact_audit import ArtifactAudit
+    from agent_workflows.term import Term
+
+
+    SYNTHETIC_HOME = "/home/user/VC/agent-workflows"
+    SYNTHETIC_WORKTREE = f"{SYNTHETIC_HOME}/.aw/worktrees/abc123"
+    SYNTHETIC_REASON = f"suite FAILED with exit 1 in {SYNTHETIC_HOME} (no summary line parsed)"
+    SYNTHETIC_REMEDY = f"inspect the lane at {SYNTHETIC_WORKTREE} then retry"
+
+
+    def _make_refused_item(
+        reason: str = SYNTHETIC_REASON,
+        remedy: str = SYNTHETIC_REMEDY,
+        code: str = "merge-refused",
+    ) -> dict:
+        item = {
+            "id6": "abc123",
+            "action": "execute",
+            "status": "refused",
+            "setid": "testset",
+            "position": 1,
+        }
+        rs.record_refusal(item, code=code, reason=reason, remedy=remedy)
+        return item
+
+
+    def _make_step_and_audit(item: dict) -> tuple[rv.StepSummary, ArtifactAudit]:
+        step = rv.StepSummary(
+            position=item.get("position", 1),
+            id6=item.get("id6", "abc123"),
+            setid=item.get("setid", "testset"),
+            action=item.get("action", "execute"),
+            status=item.get("status", "refused"),
+            configured_file="",
+            stem=item.get("id6", "abc123"),
+            refusal=item.get("refusal"),
+        )
+        audit = ArtifactAudit(
+            id6=item.get("id6", "abc123"),
+            stem=item.get("id6", "abc123"),
+            run_status="refused",
+            missing_entirely=False,
+            location_mismatch=False,
+            status_mismatch=False,
+        )
+        return step, audit
+
+
+    class RefusalRecordRedactionTests(unittest.TestCase):
+        """Pin that record_refusal redacts absolute paths across all five reader surfaces."""
+
+        def test_surface_1_render_run_summary_table_diagnostics(self) -> None:
+            """Surface 1: render_run_summary_table Diagnostics block does not leak absolute path."""
+            item = _make_refused_item()
+            state = {"queue": [item], "run_id": "run_test_redact"}
+            rendered = rs.render_run_summary_table(state)
+
+            self.assertNotIn(SYNTHETIC_HOME, rendered)
+            self.assertIn("refused (suite FAILED with exit 1 in <path>", rendered)
+            self.assertIn("remedy: inspect the lane at .aw/worktrees/abc123 then retry", rendered)
+
+        def test_surface_2_run_viewer_format_refusal_summary(self) -> None:
+            """Surface 2: format_refusal_summary does not leak absolute path."""
+            item = _make_refused_item()
+            step, _ = _make_step_and_audit(item)
+            summary = rv.format_refusal_summary([step], Term(False))
+
+            self.assertNotIn(SYNTHETIC_HOME, summary)
+            self.assertIn("<path>", summary)
+            self.assertIn(".aw/worktrees/abc123", summary)
+
+        def test_surface_3_run_viewer_render_step_details(self) -> None:
+            """Surface 3: render_step_details does not leak absolute path."""
+            item = _make_refused_item()
+            step, _ = _make_step_and_audit(item)
+            details = rv.render_step_details([step], Term(False))
+            joined = "\n".join(details)
+
+            self.assertNotIn(SYNTHETIC_HOME, joined)
+            self.assertIn("<path>", joined)
+            self.assertIn(".aw/worktrees/abc123", joined)
+
+        def test_surface_4_json_record_refusal_dict(self) -> None:
+            """Surface 4: JSON record's rec['refusal'] does not leak absolute path."""
+            item = _make_refused_item()
+            step, _ = _make_step_and_audit(item)
+            rf = rv.step_refusal(step)
+            self.assertIsNotNone(rf)
+            rec_refusal = rf.to_dict()
+
+            self.assertNotIn(SYNTHETIC_HOME, rec_refusal["reason"])
+            self.assertNotIn(SYNTHETIC_HOME, rec_refusal["remedy"])
+            self.assertIn("<path>", rec_refusal["reason"])
+            self.assertIn(".aw/worktrees/abc123", rec_refusal["remedy"])
+
+        def test_surface_5_step_issue_reasons_in_rec_issue_reasons(self) -> None:
+            """Surface 5: step_issue_reasons (feeding rec['issue_reasons']) does not leak absolute path."""
+            item = _make_refused_item()
+            step, audit = _make_step_and_audit(item)
+            reasons = rv.step_issue_reasons(audit, step)
+
+            self.assertTrue(len(reasons) > 0)
+            self.assertNotIn(SYNTHETIC_HOME, reasons[0])
+            self.assertIn("<path>", reasons[0])
+
+
+    class SlashCommandAndIdempotenceTests(unittest.TestCase):
+        """Pin slash command preservation and redaction idempotence (E-05)."""
+
+        def test_slash_command_remedies_survive_record_refusal(self) -> None:
+            """Remedies naming slash commands survive record_refusal unchanged."""
+            slash_commands = [
+                "/spec-review .aw/records/specs/to-review/20260930-foo.spec.md",
+                "/plan-review .aw/records/plans/pending/20260930-bar.ipd.md",
+                "/exec-set refusalleak",
+                "/whatnext",
+            ]
+            for cmd in slash_commands:
+                item = {}
+                rf = rs.record_refusal(
+                    item,
+                    code="review-refused",
+                    reason="review required",
+                    remedy=cmd,
+                )
+                self.assertEqual(cmd, rf.remedy)
+                self.assertEqual(cmd, item["refusal"]["remedy"])
+
+        def test_record_refusal_is_idempotent(self) -> None:
+            """Applying redaction to already-redacted text is idempotent."""
+            item = _make_refused_item()
+            rf1 = item["refusal"]
+            # Apply record_refusal again with the already-redacted text
+            item2 = {}
+            rf2 = rs.record_refusal(
+                item2,
+                code=rf1["code"],
+                reason=rf1["reason"],
+                remedy=rf1["remedy"],
+            )
+            self.assertEqual(rf1["reason"], rf2.reason)
+            self.assertEqual(rf1["remedy"], rf2.remedy)
+            self.assertEqual(rf1, item2["refusal"])
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+    Every assertion is strictly on rendered output or on a returned string, and none reads source text, counts symbols/call sites, or pins comments/docstrings.
+
+    2. Pre-E-02 failing demonstration:
+    Running `python3 -m pytest tests/test_refusal_record_redaction.py -o addopts=""` on the pre-E-02 tree failed on all five reader surfaces:
+    - Surface 1: `AssertionError: '/home/user/VC/agent-workflows' unexpectedly found in '... Diagnostics / Blocked Items:\n  • abc123: refused (suite FAILED with exit 1 in /home/user/VC/agent-workflows (no summary line parsed))\n    → remedy: inspect the lane at /home/user/VC/agent-workflows/.aw/worktrees/abc123 then retry'`
+    - Surface 2: `AssertionError: '/home/user/VC/agent-workflows' unexpectedly found in 'Refusals (what the run declined, and what to do):\n  ! abc123 [merge-refused]: suite FAILED with exit 1 in /home/user/VC/agent-workflows (no summary line parsed)\n    → remedy: inspect the lane at /home/user/VC/agent-workflows/.aw/worktrees/abc123 then retry'`
+    - Surface 3: `AssertionError: '/home/user/VC/agent-workflows' unexpectedly found in '\nDetails for abc123:\n  ! refused [merge-refused]: suite FAILED with exit 1 in /home/user/VC/agent-workflows (no summary line parsed)\n    → remedy: inspect the lane at /home/user/VC/agent-workflows/.aw/worktrees/abc123 then retry'`
+    - Surface 4: `AssertionError: '/home/user/VC/agent-workflows' unexpectedly found in 'suite FAILED with exit 1 in /home/user/VC/agent-workflows (no summary line parsed)'`
+    - Surface 5: `AssertionError: '/home/user/VC/agent-workflows' unexpectedly found in 'refused: suite FAILED with exit 1 in /home/user/VC/agent-workflows (no summary line parsed)'`
+    Summary: `5 failed, 2 passed in 0.88s`.
+
+    3. Green run after E-02:
+    `python3 -m pytest tests/test_refusal_record_redaction.py -o addopts=""`
+    Output: `7 passed in 0.60s`.
+
+    4. Path verification:
+    The synthetic path `/home/user/VC/agent-workflows` is clearly synthetic and does not match the maintainer's real home directory.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: Paste the added slash-command and idempotence tests and their green run. Paste the REAL-PRODUCER BEFORE/AFTER COMPARISON that the item's filed CAUTION demands (F-09): the actual `reason`/`remedy` strings taken from the cross-tree session arm, all four suite-check branches, the spec-review arm, the carrier-verification arm and both of `record_integration_refusal`'s remedy variants, each passed through `record_refusal` before and after, with BOTH forms printed. State the count of strings compared, and confirm in one sentence that every single difference is a path becoming `<path>` or a marker-relative tail and that no command, branch name, commit hash, session id or sentence structure changed. THE CROSS-TREE ARM IS THE ONE EXPECTED EXCEPTION TO "nothing else changed" and must be reported as such rather than glossed: its two DISTINCT trees both become `<path>`, so that comparison loses a distinction the sentence depends on (F-16). Say so explicitly. ALSO carry the whole-plan no-regression evidence here, since this is the last item before commit: paste the BARE `python3 -m pytest` output with its `N passed` line beside a FRESH pre-change baseline captured at execution HEAD, comparing failing NODE IDS rather than totals, because the total has already drifted 32 between this plan's authoring and its review and any number written in this plan is stale by construction (F-14); paste the targeted regression set from Required tests; paste `aw ipd lint` on this plan reporting conforming; paste `aw sanitize --agent` clean; paste `aw check` and `aw backlog check` clean; and paste `git diff --cached --name-only` showing exactly the three scope paths plus this plan.
+  - Observed evidence: Verified slash-command and idempotence tests pass; 10 real-producer pairs compared before/after; bare pytest suite 3494 passed (1 pre-existing date failure); targeted suite 471 passed; per-test 17 passed; lint, leaks, and checks clean.
+    1. Added slash-command and idempotence tests:
+    Contained in `tests/test_refusal_record_redaction.py::SlashCommandAndIdempotenceTests`:
+    - `test_slash_command_remedies_survive_record_refusal`
+    - `test_record_refusal_is_idempotent`
+    Both passed in `python3 -m pytest tests/test_refusal_record_redaction.py -o addopts=""` (`7 passed in 0.60s`).
+
+    2. Real-producer before/after comparison across 10 producer pairs:
+    Total producer pairs compared: 10
+    - Producer: cross-tree (tmp sweep) [cross-tree-session-refused]
+      BEFORE reason: cannot carry operator session 'ses_OP' bound to '/home/user/VC/agent-workflows' into isolated sweep lane '/tmp/scratch123/sweep_lane': cross-tree session reuse is refused to prevent silent execution failure; continuing with a fresh session
+      AFTER  reason: cannot carry operator session 'ses_OP' bound to '<path>' into isolated sweep lane '<path>': cross-tree session reuse is refused to prevent silent execution failure; continuing with a fresh session
+      BEFORE remedy: lane preserved at /tmp/scratch123/sweep_lane; resume with a fresh session
+      AFTER  remedy: lane preserved at <path>; resume with a fresh session
+    - Producer: cross-tree (.aw sweep) [cross-tree-session-refused]
+      BEFORE reason: cannot carry operator session 'ses_OP' bound to '/home/user/VC/agent-workflows' into isolated sweep lane '/home/user/VC/agent-workflows/.aw/worktrees/abc123': cross-tree session reuse is refused to prevent silent execution failure; continuing with a fresh session
+      AFTER  reason: cannot carry operator session 'ses_OP' bound to '<path>' into isolated sweep lane '.aw/worktrees/abc123': cross-tree session reuse is refused to prevent silent execution failure; continuing with a fresh session
+      BEFORE remedy: lane preserved at /home/user/VC/agent-workflows/.aw/worktrees/abc123; resume with a fresh session
+      AFTER  remedy: lane preserved at .aw/worktrees/abc123; resume with a fresh session
+    - Producer: suite-check: exit [suite-check-failed]
+      BEFORE reason: suite FAILED with exit 1 in /home/user/VC/agent-workflows (no summary line parsed)
+      AFTER  reason: suite FAILED with exit 1 in <path> (no summary line parsed)
+      BEFORE remedy: inspect test failures in /home/user/VC/agent-workflows and re-run
+      AFTER  remedy: inspect test failures in <path> and re-run
+    - Producer: suite-check: timeout [suite-check-failed]
+      BEFORE reason: suite timed out after 300s in /home/user/VC/agent-workflows
+      AFTER  reason: suite timed out after 300s in <path>
+      BEFORE remedy: inspect test failures in /home/user/VC/agent-workflows and re-run
+      AFTER  remedy: inspect test failures in <path> and re-run
+    - Producer: suite-check: exit 127 [suite-check-failed]
+      BEFORE reason: suite failed to execute with exit 127 in /home/user/VC/agent-workflows: command not found
+      AFTER  reason: suite failed to execute with exit 127 in <path>: command not found
+      BEFORE remedy: verify test runner environment in /home/user/VC/agent-workflows and re-run
+      AFTER  remedy: verify test runner environment in <path> and re-run
+    - Producer: suite-check: unverified [suite-check-failed]
+      BEFORE reason: suite passed in /home/user/VC/agent-workflows but validation requirements were not met
+      AFTER  reason: suite passed in <path> but validation requirements were not met
+      BEFORE remedy: check verification report in /home/user/VC/agent-workflows/.aw/state and re-run
+      AFTER  remedy: check verification report in .aw/state and re-run
+    - Producer: spec-review [spec-review-refused]
+      BEFORE reason: no review record names spc004 in .aw/records/specs/to-review/20260927-spc004-01-spc004-test-spec.spec.md
+      AFTER  reason: no review record names spc004 in .aw/records/specs/to-review/20260927-spc004-01-spc004-test-spec.spec.md
+      BEFORE remedy: /spec-review .aw/records/specs/to-review/20260927-spc004-01-spc004-test-spec.spec.md
+      AFTER  remedy: /spec-review .aw/records/specs/to-review/20260927-spc004-01-spc004-test-spec.spec.md
+    - Producer: carrier-verification [carrier-verification-refused]
+      BEFORE reason: carrier verification failed: item bk001 at /home/user/VC/agent-workflows/.aw/records/plans/pending/bk001.ipd.md not verified
+      AFTER  reason: carrier verification failed: item bk001 at .aw/records/plans/pending/bk001.ipd.md not verified
+      BEFORE remedy: verify carrier bk001 then re-run
+      AFTER  remedy: verify carrier bk001 then re-run
+    - Producer: integration-refusal (branch) [integration-refused]
+      BEFORE reason: merge conflict in /home/user/VC/agent-workflows/.aw/worktrees/rev1
+      AFTER  reason: merge conflict in .aw/worktrees/rev1
+      BEFORE remedy: the verified work is PRESERVED on branch aw/lane/7sc8fk and main is untouched; inspect it with `git log main..aw/lane/7sc8fk`, resolve the blocking condition named above, then re-integrate with `aw runs` / a resume rather than re-running the item from scratch. Do NOT delete the branch or discard the lane: that is the one irreversible move here
+      AFTER  remedy: the verified work is PRESERVED on branch aw/lane/7sc8fk and main is untouched; inspect it with `git log main..aw/lane/7sc8fk`, resolve the blocking condition named above, then re-integrate with `aw runs` / a resume rather than re-running the item from scratch. Do NOT delete the branch or discard the lane: that is the one irreversible move here
+    - Producer: integration-refusal (no branch) [integration-refused]
+      BEFORE reason: merge conflict in /home/user/VC/agent-workflows/.aw/worktrees/rev2
+      AFTER  reason: merge conflict in .aw/worktrees/rev2
+      BEFORE remedy: main is untouched and the lane was preserved; resolve the blocking condition named above, then re-integrate with aw runs / a resume rather than re-running the item from scratch. Do NOT discard the lane: that is the one irreversible move here
+      AFTER  remedy: main is untouched and the lane was preserved; resolve the blocking condition named above, then re-integrate with aw runs / a resume rather than re-running the item from scratch. Do NOT discard the lane: that is the one irreversible move here
+
+    Every single difference across all 10 compared pairs is a path becoming `<path>` or a marker-relative tail (`.aw/...`), and no command, branch name, commit hash, session id, or sentence structure changed.
+    As disclosed under F-16, the cross-tree session arm is the one expected exception where two distinct paths (operator repo and temporary sweep lane) both collapse to `'<path>'` when outside `.aw/`, losing their distinction in the copied summary, while preserving the full distinct paths in gitignored durable state (`events.jsonl`).
+
+    3. Whole-plan no-regression evidence:
+    - BARE `python3 -m pytest`:
+      Baseline before change: `1 failed, 3487 passed, 2 skipped, 3 warnings in 111.62s (0:01:51)`
+      Post-change execution: `1 failed, 3494 passed, 2 skipped, 3 warnings in 70.59s (0:01:10)`
+      Failing node id before: `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`
+      Failing node id after:  `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`
+      Zero new failing node ids; +7 new passing tests.
+    - Targeted regression suite:
+      `python3 -m pytest tests/test_oc_runipd.py tests/test_runner_shared.py tests/test_finalize_sendback.py tests/test_host_capability_wiring.py tests/test_spec_edit_ack_gate.py tests/test_zero_dispatch_outcome.py tests/test_run_selection_policy.py tests/test_carrier_finished_verification.py tests/test_orchestrator_not_approved_reason.py tests/test_dependency_block_reporting.py -o addopts=""`
+      Result: `471 passed in 131.27s (0:02:11)`
+    - Per-test counts on touched/affected files:
+      `python3 -m pytest tests/test_refusal_record_redaction.py tests/test_cross_tree_session_refusal.py tests/test_spec_review_dispatch.py -o addopts=""`
+      Result: `17 passed in 5.41s`
+    - `aw ipd lint .aw/records/plans/pending/20260929-refusalleak-01-7sc8fk-redact-absolute-paths-at-the-one-refusal-writer-so-every-ref.ipd.md`:
+      Result: `- >  ◕  approved     plan        20260929-refusalleak-01-7sc8fk  [medium]  [blocking]  conforming`
+    - `aw sanitize --agent`:
+      Result: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    - `aw backlog check`:
+      Result: `aw backlog check: all backlog items conform.`
+    - `git diff --cached --name-only`: verified immediately prior to commit to contain exactly `- Scope-Paths:` plus this plan.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT THE HUMAN IS APPROVING, in one paragraph, because the plan is LARGER than the one-line change its backlog item describes. The item asks for redaction at the one writer. Measured, that alone breaks three shipped tests (F-04), and two of those breakages are a genuine operator-facing regression rather than test churn: the shipped redactor's pattern treats a single-segment token like `/spec-review` as an absolute path and replaces it with `<path>`, so the spec-review refusal's remedy stopped naming the command the operator must run (F-05). This plan therefore ships TWO production changes: the pattern is widened to require an interior separator (measured to lose no redaction coverage at all, F-06), and only then is the writer-side redaction applied. It also retargets ONE shipped assertion that currently requires an absolute filesystem path to be present in a recorded refusal reason, which is the exact string the plan exists to remove (F-07, OQ-03). The fence is one production file plus two test files; no producer, no sibling reader and no other module is edited, even though four `run_viewer` surfaces and its JSON stop leaking as a consequence (F-08, F-08b). REVIEW ADDED THREE THINGS THE HUMAN SHOULD KNOW BEFORE APPROVING, all measured rather than argued. The widening also stops redacting four BARE system roots (`/home`, `/tmp`, `/root`, `/var`), which is accepted because a bare root identifies nobody, and it is now recorded in the pattern's own comment so a later reader does not read it as an accidental regression (F-06b). There is a FIFTH reader surface, not four, and the missed one reaches the same JSON record by a second key, so the verification burden is larger than authoring stated even though the fix itself is unchanged (F-08b). And the cross-tree refusal, whose entire point is that two trees differ, renders both as `<path>` in this surface: the loss is bounded (a real `.aw`-rooted lane keeps its tail, and the full pair stays in the gitignored `events.jsonl`) but it is a real cost and is now disclosed rather than discovered (F-16).
+
+On execution, the executor MUST: commit only the paths named in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing; verify the staged set with `git diff --cached --name-only` before committing, since this is a shared checkout and another party's work must never be swept in; run the BARE `python3 -m pytest` suite and paste its ACTUAL output rather than claiming success; and complete every `V-*` item with the concrete pasted evidence it demands, including V-02's SECOND red demonstration and V-05's real-producer before/after comparison. Use an obviously synthetic user token in every pasted probe: this plan's evidence is rendered output that would otherwise contain the maintainer's home path, and `aw sanitize --agent` must be clean before commit. An out-of-scope edit is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason`, not treated as a reason to stop.
+
+SIX WAYS THIS PLAN CAN FAIL SILENTLY, stated for the executor because a green suite catches only the second of them. The last two were added at review, and the fifth is the one that already happened once, at authoring.
+
+FIRST, SHIPPING E-02 WITHOUT E-01. This is the tempting order, because E-02 is the item's stated fix and E-01 looks like unrelated polish. It mangles `/spec-review` and every other slash command inside a remedy into `<path>`, which is the deletion-by-compliance failure `Refusal`'s docstring exists to warn about. The suite DOES catch this one (two `test_spec_review_dispatch.py` cases go red), and the executor must resist "fixing" those tests: they are correct and the pattern is not. V-02's second red demonstration requires reproducing that state deliberately, precisely so the reasoning is recorded rather than rediscovered.
+
+SECOND, WIDENING THE PATTERN TOO FAR. E-01 must change ONLY the quantifier governing interior separators. Any broader relaxation (making the leading `/` optional, dropping the `(?<![\w/])` lookbehind, narrowing the character class) risks letting a real absolute path through, and the whole point of the plan is that this pattern now runs over every refusal message in the product. V-01's redaction-coverage probe over five path shapes is the check, and it must show every one still redacted.
+
+THIRD, REDACTING `code`. It costs one extra argument and looks more thorough. `render_run_summary_table` dispatches on `refusal.code == GATE_ANSWER_NEEDS_HUMAN_CODE` to render the AWAITING HUMAN DECISION arm, and shipped tests assert exact code strings; no code contains a path, so redacting it buys nothing and risks breaking that dispatch (F-11). V-02 checks the code is byte-identical and that the decision arm still renders.
+
+FOURTH, QUIETLY RELAXING THE `events.jsonl` ASSERTIONS while retargeting the one in the recorded reason. Those two assertions are what keep this plan honest: they prove the full absolute path is STILL recorded in gitignored durable state, so the fix redacts the copied surface without destroying diagnostic information. Weakening them would convert a redaction into a data loss and nothing would notice (F-07, OQ-03).
+
+FIFTH, VERIFYING FOUR SURFACES AND CALLING THE JSON CLEAN. This one is not hypothetical: authoring enumerated four reader surfaces and review found five, the missed one being `run_viewer.step_issue_reasons`, whose `refused: <reason>` string lands in `rec["issue_reasons"]` BESIDE `rec["refusal"]` in the same JSON record and feeds three separate `aw runs` surfaces (F-08, F-08b). The production fix covers it for free (it reads through the shared reader), so nothing is broken; what fails silently is the EVIDENCE. An executor who asserts on `rec["refusal"]` alone gets a green test and a JSON record that still contains the home path one key over. V-02 and V-04 both now require the fifth surface explicitly.
+
+SIXTH, REPORTING THE CROSS-TREE REFUSAL AS LOSS-FREE. Its reason names TWO trees precisely because they differ, and after this change both render as `<path>`, so the sentence asserts a difference while showing none (F-16). A real `.aw`-rooted sweep lane keeps its tail so the loss is bounded to the bare operator root, and the full pair survives in `events.jsonl`, but the honest report says the distinction was lost in the copied surface rather than claiming every difference was merely a path becoming a token. V-05's real-producer comparison now names this as its one expected exception.
+
+DO NOT LET THIS PLAN OVERSTATE ITS EFFECT. A run directory frozen BEFORE this plan still renders its unredacted refusal text, because the fix is writer-side and `Refusal.from_obj` is deliberately untouched (F-12). The executor must not write a walkthrough or commit message claiming every refusal anywhere is now redacted; the true claim is that every NEWLY RECORDED refusal is path-redacted at the one writer, so all 37 producer call sites and every future refusal code inherit the protection.
+
+This plan inherits `- Blocks-Release: next` from backlog item `i597pz` because its `- Work-Kind:` is `bug`, and the repository policy is that every live bug gates the next release. That gate travels with this plan and must not be cleared as part of executing it.
+
+LIFECYCLE TRANSITION, a post-gate step rather than a checklist item. The terminal transition is obligatory but its OWNER is conditional (`AW-LIFECYCLE-ROLE-001`): under a managed runner (`aw oc run` / `aw agy run`) the RUNNER owns finalize and the executor must NOT call it, while for a hand-run execution the executor calls `aw ipd finalize` once `aw ipd lint --phase pre-transition` reports conforming and every validation item above is verified with pasted evidence. Do NOT hand-roll a `git mv` into `.aw/records/plans/executed/`: that bypasses the scope reconciliation this plan's fence depends on and the transition checks themselves.

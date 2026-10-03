@@ -1,38 +1,31 @@
 #!/usr/bin/env python3
-"""The MOVE HARNESS for `runner_shared` (rununify Order 02, `818uru`).
+"""Behavioral test suite for shared runner machinery in `runner_shared`.
 
-WHAT THIS FILE PROVES, and why the claim needs a mechanical proof at all. Plan `818uru` moves 32 of
-34 symbols that were defined TWICE, once per host runner, with AST-identical bodies, into one shared
-module. Its central claim is that this is a PURE MOVE: no body changed, so no behavior changed. That
-claim cannot be discharged by reading 34 diffs, and it cannot be discharged by the driver suites
-either - the suites were fully green for months while `DriverError` was two DISTINCT classes needing
-a hand-written translation wrapper. So the proof is mechanical and lives here.
+WHAT THIS FILE TESTS:
+This suite validates behavioral contracts, cross-host parity, and shared invariants
+for the shared runner machinery extracted across `agent_workflows`.
 
-THE THREE INDEPENDENT ASSERTIONS, none of which implies another:
+HISTORICAL HARNESS CONTEXT AND RETIRED FIXTURE:
+Originally authored as the move harness for `runner_shared` (rununify Order 02, `818uru`),
+earlier versions enforced an AST fingerprint equality harness against
+`tests/fixtures/runner_shared_premove_fingerprints.json`. That reading harness was deleted
+in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), leaving the
+fixture as a retained historical capture that no test reads. In accordance with maintainer
+ruling and GUIDING_PRINCIPLES P16, code-pinning AST freeze comparisons are not run.
 
-  1. FINGERPRINT EQUALITY. `tests/fixtures/runner_shared_premove_fingerprints.json` is a RETAINED
-     HISTORICAL CAPTURE that no test reads, rather than a live pin (the test harness was deleted in
-     `19313eed`). Formerly held the PRE-MOVE `ast.dump(ast.parse(ast.unparse(node)))` of all 34
-     symbols from BOTH runners, captured at HEAD `1ecc5891`.
-  2. OBJECT IDENTITY. Both runners must resolve each moved name to the SAME object. Fingerprint
-     equality alone would pass while a runner kept its own copy that merely looks the same, which is
-     precisely the state this plan exists to end.
-  3. NO RE-DEFINITION. Neither runner may still contain a top-level `def`/`class` of a moved symbol.
-     Identity alone would pass while a stale duplicate sat in the file shadowed by a later import,
-     which is a trap rather than a fix.
+STATUS OF THE ORIGINAL THREE STRUCTURAL ASSERTIONS:
 
-THE FINGERPRINT RULE SPLITS, and the exemption is ENUMERATED rather than implicit, because quietly
-exempting the riskiest symbols is how a harness becomes decorative:
-
-  * 27 symbols have NO outside dependency and are held to STRICT fingerprint equality.
-  * 4 symbols gained ONE keyword-only parameter by design (`INJECTED`, below), so their post-move
-    fingerprint CANNOT equal the pre-move capture - a body that gained a parameter is not
-    byte-identical, and claiming otherwise about exactly the five highest-risk symbols would be a
-    false claim. They are held to fingerprint equality MODULO the injection (proven by re-deriving
-    the pre-move signature from the post-move one and THEN comparing bodies) plus a behavior test
-    through each runner's wrapper.
-  * 2 symbols did not move at all (`UNMOVABLE`, below) and this file pins WHY, so a later reader who
-    counts 32 and expects 34 finds the reason instead of "finishing the job" and reintroducing a bug.
+  1. FINGERPRINT EQUALITY: RETIRED. The pre-move fingerprint comparison harness was deleted in
+     `19313eed`. The fixture `tests/fixtures/runner_shared_premove_fingerprints.json` is a retained
+     historical capture that no test reads.
+  2. OBJECT IDENTITY: LIVE. Both host runners (`oc_runipd` and `agy_runipd`) must resolve shared
+     symbols and constants to the SAME object. This property is actively enforced across the suite
+     (e.g., in `CrossHostSuccessBarEqualityTests` and `DriverErrorUnificationTests` via object identity
+     `assertIs` checks).
+  3. NO RE-DEFINITION: NARROWED. Originally intended across all moved symbols, general AST-level
+     duplicate detection is no longer run; re-definition protection survives narrowly for specific
+     constants and flags (`test_no_divergent_codefined_constants_in_runner_shared` and
+     `test_add_output_mode_flags_not_reforked_in_hosts`).
 """
 
 from __future__ import annotations
@@ -46,12 +39,16 @@ import io
 import json
 import pathlib
 import re
+import sys
 import tempfile
 import unittest
 from typing import Any
 from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from support import REPO_ROOT, load_module  # noqa: E402
 
 BOTH = ("oc_runipd", "agy_runipd")
 _MODULES = {
@@ -60,7 +57,7 @@ _MODULES = {
     "runner_shared": runner_shared,
 }
 
-# The 4 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
+# The 7 symbols that take an injected dependency, mapped to the keyword-only parameter each gained.
 # THE MAINTAINER RULED THE THIN RUNNER-LOCAL WRAPPER over uniform parameter injection, for two
 # measured reasons: uniform injection would have rewritten ~86 call sites in the two
 # highest-contention files in the repo, and it would have broken assertion (1) above on exactly these
@@ -108,255 +105,17 @@ LANE_INTEGRATION_MOVED = (
 # widening into undeclared host files without reporting first. Measured: the append made all nine tests
 # in that class pass, at the cost of 36 added lines in each undeclared host module.
 #
-# THE PROPERTY E-05 ACTUALLY REQUIRES IS SINGLE-DEFINITION, NOT ATTRIBUTE IDENTITY. These symbols are
-# reached from INSIDE `integrate_lane_branch`, which is itself shared, so a host cannot use a different
-# implementation without first defining one - and that is exactly what
-# `test_neither_runner_carries_its_own_copy_of_the_ladder` (extended below) and
-# `test_the_cause_and_shape_machinery_has_EXACTLY_ONE_definition` forbid. Attribute identity would be a
-# stronger claim about a weaker property: it proves each host can NAME the symbol, which no caller needs.
-INTEGRATION_CAUSE_SHARED = (
-    "tag_integration_cause",
-    "read_integration_cause",
-    "integration_cause_for_gate_status",
-    "terminal_refusal_verdict",
-    "classify_conflict_hunk_shape",
-    "classify_conflict_shape_from_stages",
-    "peer_commit_for_conflict",
-    "build_conflict_resolver_detail",
-    "format_conflict_resolver_facts",
-    "conflict_resolver_remedy",
-)
-
-# Which of the three keep a runner-local WRAPPER (because they need a host-specific value) and which
-# is bound by plain re-export. `dirty_tree_overlap` needs nothing from its host, so it is the SAME
-# OBJECT in both runners; the other two are not, and asserting identity for them would be wrong.
-LANE_INTEGRATION_WRAPPED = ("build_lane_outcome", "integrate_lane_branch")
-
 # The host label each runner MUST bind into `integrate_lane_branch`. This value lands in a merge
 # commit subject on MAIN, so it records WHICH driver integrated a lane; the shared function gives it
 # no default precisely so a mis-binding cannot be silent.
 HOST_LABELS = {"oc_runipd": "aw oc run", "agy_runipd": "aw agy run"}
 
-# Symbols that MOVED into `runner_shared` while CALLING `run_checked`, mapped to how many calls each
-# body makes. Two independent tests read this ONE table: the call-site census subtracts the total
-# (those calls relocated, they were not rewritten), and the injection test asserts this is exactly
-# the set of shared functions that call `run_checked` at all. Driving both from one place is what
-# stops the two from disagreeing after the next extraction.
-RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
-    "git_head": 1,
-    "git_status": 1,
-    "git_common_dir": 1,
-    # integpath-02 (`6sb3yu`): `git rev-parse`, `git diff --name-only`, `git diff`.
-    "build_lane_outcome": 3,
-    # hostdedup Order 01 (`li44r9`): `set_plan_approved` was BYTE-IDENTICAL in both runners and moved
-    # here whole. Its body makes TWO `run_checked` calls -- the pinned `python -m agent_workflows` form
-    # and the console-script `aw` fallback -- so each runner's census legitimately drops by two.
-    #
-    # THIS IS A RELOCATION AND NOT A REWRITE, which is the distinction this whole table exists to
-    # record: no surviving call site in either runner was edited, and each host's remaining wrapper
-    # passes `run_checked` as a NAME (`run_checked_fn=run_checked`), which is an INJECTION rather than a
-    # call and therefore adds nothing back to the count. The shared body spells the calls
-    # `run_checked_fn(...)` because this module may not import a runner; that is the same mechanism
-    # `driver_begin` next door already uses.
-    "set_plan_approved": 2,
-    # runnerlayer Order 02 (`1f7xno`), backlog `cnwy8g`: the backlog-close and earned-paths trio, the
-    # LAST group of `run_checked` callers `oc_runipd` still owned. ONE call each, counted by walking the
-    # three bodies rather than estimated: `collect_earned_paths` diffs the attempt's head range,
-    # `close_backlog_item` invokes the pinned nested `aw backlog set --status done`, and
-    # `commit_backlog_close` reaches the tooled commit path once.
-    #
-    # THE SUBTRACTION IS ASYMMETRIC HERE, WHICH IS WHY THE COUNT IS STATED PER HOST BELOW RATHER THAN
-    # IN THIS TABLE. Every other row subtracts from BOTH runners because both DEFINED the moved
-    # function. These three were defined only in `oc_runipd`; `agy_runipd` IMPORTED them, so agy's
-    # pre-move `run_checked` census never counted them (measured: 0 at the pre-move HEAD) and
-    # subtracting from agy would drive its expectation negative. See
-    # `REHOMED_BACKLOG_CLOSE_CALL_SITES` and its use in the census test.
-    #
-    # WHY THEY HAD TO BE INJECTED AT ALL rather than lifted plainly: the shared `run_checked` takes a
-    # host-specific `env_builder`, so a shared body cannot resolve one. Measured when the lift was first
-    # attempted without the injection: `TypeError: run_checked() missing 1 required keyword-only
-    # argument: 'env_builder'` on ten tests in `tests/test_runner_backlog_close.py`.
-    "collect_earned_paths": 1,
-    "close_backlog_item": 1,
-    "commit_backlog_close": 1,
-}
-
-#: The three rows above, subtracted from `oc_runipd` ONLY. They were oc-owned and agy-imported, so agy
-#: never had these call sites to lose; a symmetric subtraction would make agy's expected census
-#: negative, which is how this was caught (`0 != -5`).
-REHOMED_BACKLOG_CLOSE_CALL_SITES: dict[tuple[str, str], int] = {
-    ("oc_runipd", "run_checked"): 3,
-}
-
-# Shared `run_checked` callers that were BORN HERE rather than relocated from a runner, mapped the
-# same way. THE DISTINCTION IS LOAD-BEARING AND IS WHY THIS IS A SECOND TABLE, not a fifth entry
-# above: the census test SUBTRACTS the relocated total from each runner's pre-move count, because
-# those calls left the runners. A natively-shared function never had a call site in either runner, so
-# subtracting it would under-count the census by one per host and mask a genuinely rewritten call.
-# The injection test, in contrast, must see BOTH tables, since every shared caller of `run_checked`
-# has to take it as a keyword-only parameter regardless of how it got here.
-#
-# dirtygates-03 (`9iq461`): `collect_lane_earned_paths` makes ONE call (`git diff --name-only` over
-# the lane branch's `base..branch` range). It is defined in this module from the start precisely so
-# BOTH hosts reach it here instead of one importing it from the other (backlog `cnwy8g`).
-# runconcur-01 (`vddpml`): `_resolved_main_tip` makes ONE call (`git rev-parse HEAD`), and it exists so
-# that `main`'s tip is read INSIDE the repository integration lock rather than before acquiring it (a tip
-# read while waiting is exactly the stale read that plan exists to stop). Natively shared: it was never a
-# call site in either runner, and both hosts reach it through the one shared serializer.
-#
-# IT TAKES `run_checked` AS AN INJECTED PARAMETER rather than reaching `_run_git` directly, for the
-# reason this table's own message states: rewriting a `run_checked` caller onto `_run_git` would be a
-# BEHAVIOR CHANGE. It falls back to `_run_git` only when no runner injected one (the out-of-band verb
-# path, which has no host `run_checked` to pass), and the tip is a RECORD rather than a gate either way.
-NATIVE_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
-    "collect_lane_earned_paths": 1,
-    "_resolved_main_tip": 1,
-}
-
-#: Every shared function that calls `run_checked`, however it arrived. The injection test reads this.
-ALL_SHARED_RUN_CHECKED_CALLERS: dict[str, int] = {
-    **RELOCATED_RUN_CHECKED_CALLERS,
-    **NATIVE_SHARED_RUN_CHECKED_CALLERS,
-}
-
-# The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`.
-UNMOVABLE = ("disable_lane_prompt",)
-
-# `print_status` was never AST-identical across the runners: the two bodies differed ONLY by the
-# literal host name. It is therefore compared against the OC pre-move capture with the host token
-# normalized, and its rendered output is proven byte-identical for BOTH hosts separately.
-HOST_NAMING_ONLY = ("print_status",)
-
-# Symbols that GAINED A DOCSTRING since the pre-move capture, and nothing else. ENUMERATED, in the
-# same spirit as `INJECTED` above, because an unenumerated exemption is how this harness would become
-# decorative (depreview 03ie04 E-05).
-#
-# WHY THE EXEMPTION IS LEGITIMATE HERE. This file's claim is that a moved body still BEHAVES as it
-# did. A docstring is an unobservable string constant, so it cannot change behavior, but it DOES
-# change `ast.dump`. Holding a moved symbol to byte-identical AST forever would mean a moved symbol
-# can never be DOCUMENTED, which penalizes precisely the improvement the repository wants: measured,
-# `plan_bucket` had NO docstring at all, and the absence of its stated contract is what let
-# `oc_runipd.edge_satisfied` ask it a question it structurally cannot answer (readiness), producing
-# the defect 03ie04 fixes.
-#
-# THE EXEMPTION IS NARROW AND PROVEN BY SUBTRACTION, not asserted: `_without_docstring` removes ONLY
-# the leading string expression and the remaining tokens must match the pre-move capture EXACTLY, so
-# any edit to an executable statement in one of these bodies still FAILS. Every symbol NOT listed
-# here is still held to STRICT equality including its docstring. Keep this list SHORT, and add a name
-# only together with the reason the new documentation was needed.
-DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
-
-# Symbols that ALREADY HAD a docstring in the pre-move capture and whose docstring TEXT was later
-# REVISED, with no executable change. ENUMERATED separately from `DOCUMENTED_SINCE_MOVE`, and the
-# separation is LOAD-BEARING rather than stylistic.
-#
-# WHY IT CANNOT BE THE SAME LIST, measured rather than reasoned about (IPD `2iye0e` E-04). The
-# `DOCUMENTED_SINCE_MOVE` route subtracts the docstring from the CURRENT body ONLY and then demands
-# equality with the capture VERBATIM, which is exactly right for a symbol that GAINED a docstring,
-# because the capture has none to subtract (`plan_bucket`'s captured body provably starts with no
-# docstring `Expr`). `describe_lane`'s captured body DOES start with one, so subtracting only from the
-# current side compares a body WITHOUT a docstring against a capture WITH one, which can never match.
-# Adding this name to `DOCUMENTED_SINCE_MOVE` was tried first and FAILED precisely there
-# (`test_every_clean_symbol_is_a_STRICT_fingerprint_match`), so this list subtracts the docstring from
-# BOTH SIDES.
-#
-# WHY THE EXEMPTION IS LEGITIMATE HERE. `describe_lane`'s docstring named plan `2c122z` as the live
-# OWNER of `aw doctor --lanes` and `aw recover`. That plan was RETIRED UNLANDED 2026-09-02, so the
-# sentence sent a reader to a plan that will never run; the verbs themselves still do not exist, so
-# only the ownership claim was wrong. Correcting a false citation is a documentation improvement, and
-# the alternative is the one this harness explicitly rejects elsewhere: re-baselining the recorded
-# pre-move capture, which would destroy the falsifiability the fixture exists for.
-#
-# THE EXEMPTION IS NARROW AND PROVEN BY SUBTRACTION, not asserted. Every remaining token on both
-# sides must match EXACTLY, so an edit to any executable statement still FAILS, which
-# `test_a_redocumented_symbol_is_still_held_to_its_executable_body` proves by mutation. Keep this list
-# SHORT, and add a name only together with the reason the documentation had to change.
-REDOCUMENTED_SINCE_MOVE = ("describe_lane",)
-
-# Symbols whose implementations have been SUPERSEDED by design in subsequent approved IPDs, and whose
-# post-move bodies deliberately no longer match the pre-move capture. ENUMERATED, in the same spirit
-# as `INJECTED` and `DOCUMENTED_SINCE_MOVE`.
-#
-# WHY THE EXEMPTION IS LEGITIMATE HERE. `state_root` moved in rununify Order 02 (`818uru`) with the
-# hardcoded repo-backed literal `.aw/records/runs`. IPD `xbwq8n` (`runanalytics` Order 01) identified
-# this hardcoded literal as a defect because the runs root is relocatable via `records_backend`
-# (repository, companion, home). E-01 replaced the hardcoded literal with dynamic resolution through
-# `project_context.resolve_project_context`.
-#
-# Holding `state_root` to byte-identical AST of the pre-move literal would freeze the defect in place.
-# The superseded symbol is tested rigorously in its own dedicated test suite (`CanonicalRunsRootTests`)
-# covering relocated backends, pure side-effect-free guarantees, and AST checks.
-#
-# `_run_git` GAINED AN OPTIONAL `timeout` (IPD `zexed1` E-02), and the exemption is recorded here rather
-# than absorbed. WHY IT IS LEGITIMATE: the pre-move body passes NO timeout, so a `git` that wedges hangs
-# its caller forever. That was harmless while every caller was a driver running unattended, and is not
-# harmless now that `artifact_audit.build_finalize_evidence_index` reads history for `aw runs`, an
-# INTERACTIVE read-only view. THE DEFAULT IS `None`, which is byte-for-byte today's behavior, so no
-# existing caller changed; holding the symbol to its pre-move AST would instead mean the shared git
-# helper can never grow a timeout, i.e. it would freeze the defect exactly as it would have for
-# `state_root`. The added capability has its OWN dedicated coverage in
-# `tests/test_artifact_audit.py::EvidenceIndexTests` (`test_it_passes_an_explicit_timeout` asserts the
-# value actually reaches the subprocess, `test_a_timeout_is_unknown_not_a_pass` asserts a timeout
-# classifies as unprovable rather than as a pass).
-#
-# `should_color` BECAME A DELEGATION to `term.should_color` (IPD `z8ddk0` E-02), and the exemption is
-# recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body was one of THREE
-# independent implementations of the color capability decision that DISAGREED with each other,
-# measured by execution 2026-09-19. This one ignored `TERM` entirely, so `TERM=dumb aw oc run` emitted
-# color while `TERM=dumb aw attention` did not, and it read both variables by TRUTHINESS, so
-# `FORCE_COLOR=0` - the value that plainly means "do not force" - FORCED COLOR ON, even into a pipe.
-# Spec `uonrjg` R9.3a.2 requires the depth resolver above this decision have EXACTLY ONE definition,
-# which is unsatisfiable while the decision beneath it has three.
-#
-# So holding this symbol to its pre-move AST would freeze TWO defects in place and block the spec
-# requirement, exactly as it would have for `state_root`. THE `def` DELIBERATELY REMAINS, as a single
-# delegating statement, because three shipped guards assert `runner_shared` DEFINES this symbol
-# (`test_runner_refork_guard.py`'s `Owned("should_color", "runner_shared", BOTH)` row,
-# `test_rununify_run_queue.py`'s `RESOLVES_IN_RUNNER_SHARED`, and `test_exactly_one_definition_package_wide`
-# below); an import fails all three. A delegation cannot fingerprint as the body it replaces, which is
-# why no shape of this change can satisfy the STRICT match and why the exemption is the only honest
-# route. The unified decision has its OWN dedicated coverage in `tests/test_term.py`
-# (`ShouldColorGridTests` pins all 16 `NO_COLOR` x `FORCE_COLOR` cells against both a TTY and a pipe
-# plus the four `TERM` values; `OneOriginatingDefinitionTests` forbids a fourth implementation), and
-# the delegation itself is pinned by `SharedColorDecisionTests` in this file.
-# `describe_unresolved_plan_selector` GAINED THE ID-LESS-SPEC EXPLANATION (graduate-02 `iuxtjy` E-02),
-# and the exemption is recorded here rather than absorbed. WHY IT IS LEGITIMATE: the pre-move body ends
-# every non-plan branch with the bare sentence "'<sel>' is a <type>, not an IPD plan.", which is exactly
-# right for eight of the nine types and MISLEADING for a spec that declares no `- Id:`. Measured at
-# execution time, 19 of 36 spec records carry no `- Id:`, so this is the MAJORITY case, and the two
-# surfaces disagree about it by design: the shared `selectors` layer RESOLVES such a file by stem (so
-# `aw find` shows it) while `runner_shared.discover_specs` deliberately SKIPS it (without an id6 it
-# cannot be named by a selector, cannot carry a review record, and cannot be attested). An operator
-# therefore sees a file one tool finds and the runner declines, told only "not a plan", which reads as a
-# bug in a deliberate skip. The added branch states the asymmetry and names the conversion verb
-# (`aw rename specs <path> --to-id6`); it mints NOTHING, because a durable records write belongs to the
-# `aw specs` verbs that own the tree and never to a dispatch path.
-#
-# Holding this symbol to its pre-move AST would mean the runner can never explain a refusal it is
-# uniquely placed to explain, which is the same freeze-the-defect trap recorded above for `state_root`
-# and `should_color`. Every OTHER branch of the function is byte-unchanged, and the new one has its own
-# dedicated coverage in `tests/test_graduation_dispatch.py::RefusalContentTests`
-# (`test_a_spec_with_no_Id_refuses_with_an_explanation_and_the_conversion_verb` asserts the message and
-# the verb; `test_a_spec_that_HAS_an_Id_reached_by_stem_does_not_get_the_id_less_note` is the
-# load-bearing negative proving the branch keys on the ACTUAL absence of `- Id:` rather than on the
-# selector spelling, so it cannot assert something false about a conformant spec).
-#
-# planpathtype-01 (`mxzogk`): `resolve_plan_path` previously failed open in three measured ways:
-# (1) its `configured` branch returned any existing file (such as a plans README or a spec); (2) its
-# `id6` branch matched via substring precedence, resolving a spec id6 to a plan that merely mentioned it;
-# and (3) its glob fallback searched `repo` root, walking lane worktrees and suite baselines while
-# matching mention-only slugs. The fix restricts the `id6` branch to an exact declaration
-# (`allow=frozenset({selectors.MATCH_ID6})`), type-checks the `configured` branch against discover_plans
-# membership rules and `detect_artifact_type == "plans"`, and limits the glob fallback to the plans trees
-# and claiming hits (`CLAIMING_OWNERSHIPS`). Replacement behavioral coverage lives in
-# `tests/test_resolve_plan_path_typed.py`.
-SUPERSEDED_SINCE_MOVE = (
-    "state_root",
-    "_run_git",
-    "should_color",
-    "describe_unresolved_plan_selector",
-    "resolve_plan_path",
-)
+# Replacement behavioral coverage for symbols whose post-move implementations were updated:
+# - `state_root`: tested in `CanonicalRunsRootTests` in this file.
+# - `should_color`: dedicated coverage in `tests/test_term.py` (`ShouldColorGridTests`)
+#   and pinned by `SharedColorDecisionTests` in this file.
+# - `resolve_plan_path`: Replacement behavioral coverage lives in
+#   `tests/test_resolve_plan_path_typed.py` (`ResolvePlanPathTypedTests`).
 
 
 class WrapperTests(unittest.TestCase):
@@ -815,6 +574,67 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
                 # Disjoint dirt is still ignored, and no incoming files is never blocked.
                 self.assertEqual(overlap(repo, ["unrelated.txt"]), [])
                 self.assertEqual(overlap(repo, []), [])
+
+    def test_dirty_tree_overlap_delegates_to_single_porcelain_parser(self):
+        """specfin7ck-01 (e9ekuj) E-03: prove dirty_tree_overlap delegates to lane_containment's parser.
+
+        F-1/F-3: Existing tests assert only the overlap result, passing whether the porcelain format
+        is decoded by the shared parser or forked inline. This test spies on
+        `lane_containment.parse_porcelain_entries` to prove that the single parser prescribed by
+        spec 7ckptx R6.1 is actually invoked, covering both a plain dirty file and a rename.
+        """
+        import tempfile
+        from agent_workflows import lane_containment
+
+        original_parser = lane_containment.parse_porcelain_entries
+        calls: list[str] = []
+
+        def spy_parser(porcelain: str):
+            calls.append(porcelain)
+            return original_parser(porcelain)
+
+        try:
+            lane_containment.parse_porcelain_entries = spy_parser
+            for runner in BOTH:
+                with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                    repo = self._repo(pathlib.Path(tmp))
+                    (repo / "a.txt").write_text("a\n", encoding="utf-8")
+                    self._git(repo, "add", "a.txt")
+                    self._git(repo, "commit", "-qm", "add a")
+
+                    # Case 1: plain dirty tracked file
+                    (repo / "a.txt").write_text("modified\n", encoding="utf-8")
+                    calls.clear()
+                    overlap = _MODULES[runner].dirty_tree_overlap
+                    res = overlap(repo, ["a.txt"])
+                    self.assertEqual(res, ["a.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "dirty_tree_overlap must delegate to the shared porcelain parser",
+                    )
+
+                    # Case 2: rename case
+                    self._git(repo, "checkout", "-f", "main")
+                    self._git(repo, "mv", "a.txt", "b.txt")
+                    calls.clear()
+                    res_orig = overlap(repo, ["a.txt"])
+                    self.assertEqual(res_orig, ["a.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "rename origin check must delegate to the shared porcelain parser",
+                    )
+                    calls.clear()
+                    res_dest = overlap(repo, ["b.txt"])
+                    self.assertEqual(res_dest, ["b.txt"])
+                    self.assertGreaterEqual(
+                        len(calls),
+                        1,
+                        "rename dest check must delegate to the shared porcelain parser",
+                    )
+        finally:
+            lane_containment.parse_porcelain_entries = original_parser
 
     _SPEC = ".aw/records/specs/approved/x.spec.md"
     _SPEC_BASE = "# Spec\n\nBody.\n\n## Workflow history\n\n- 2026-09-26 note (aw specs): older\n"
@@ -2584,28 +2404,189 @@ class VerificationDestAsymmetryPerHostTests(unittest.TestCase):
                     f"oc start must accept {flag} as an alias of validate=True",
                 )
 
-    def test_contradictory_pair_handling_refused_on_agy_and_order_dependent_on_oc(self):
-        """Pin operator consequence 2: contradictory pair refused on agy, order-dependent on oc."""
+    def test_contradictory_pair_handling_refused_on_both_hosts(self):
+        """Pin operator consequence 2: contradictory verification flags refused on both hosts (zdgc6t)."""
+        # agy start: --no-verify --validate retains shipped wording (E-05 ordering)
         agy_parser = agy_runipd.build_parser()
         args = agy_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
         with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
             agy_runipd.verification_flag_tristate(args)
         self.assertIn("contradict each other", str(ctx.exception))
+        self.assertTrue(
+            str(ctx.exception).startswith(
+                "--no-verify (or --no-audit) and --validate contradict each other:"
+            )
+        )
 
+        # agy start: hand-built partial namespace retains shipped refusal
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            agy_runipd.verification_flag_tristate(
+                argparse.Namespace(no_verify=True, validate=True)
+            )
+        self.assertIn("contradict each other", str(ctx.exception))
+
+        # agy start: both orders of --validate --no-validate refuse (F-06, E-05)
+        for flags in (["--validate", "--no-validate"], ["--no-validate", "--validate"]):
+            with self.subTest(agy_flags=flags):
+                args = agy_parser.parse_args(["start", "demo", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    agy_runipd.verification_flag_tristate(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
+
+        # oc start: both orders refuse and name the typed spellings
         oc_parser = oc_runipd.build_parser()
-        oc_args1 = oc_parser.parse_args(["start", "demo", "--no-verify", "--validate"])
-        self.assertIs(
-            oc_args1.validate,
-            True,
-            "oc start --no-verify --validate must resolve validate=True (last flag wins)",
-        )
+        for flags in (["--no-verify", "--validate"], ["--validate", "--no-verify"]):
+            with self.subTest(oc_start_flags=flags):
+                args = oc_parser.parse_args(["start", "demo", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_contradictory_verification_flags(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
 
-        oc_args2 = oc_parser.parse_args(["start", "demo", "--validate", "--no-verify"])
-        self.assertIs(
-            oc_args2.validate,
-            False,
-            "oc start --validate --no-verify must resolve validate=False (last flag wins)",
+        # oc resume: both orders refuse and name the typed spellings
+        for flags in (["--no-verify", "--validate"], ["--validate", "--no-verify"]):
+            with self.subTest(oc_resume_flags=flags):
+                args = oc_parser.parse_args(["resume", "run-123", *flags])
+                with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+                    runner_shared.refuse_contradictory_verification_flags(args)
+                self.assertIn("contradict each other", str(ctx.exception))
+                self.assertIn(flags[0], str(ctx.exception))
+                self.assertIn(flags[1], str(ctx.exception))
+
+        # oc start: abbreviated pair (--no-aud --vali) canonicalizes and refuses (F-03)
+        args_abbrev = oc_parser.parse_args(["start", "demo", "--no-aud", "--vali"])
+        with self.assertRaises(runner_shared.RunFlagRefusal) as ctx:
+            runner_shared.refuse_contradictory_verification_flags(args_abbrev)
+        self.assertIn("contradict each other", str(ctx.exception))
+        self.assertIn("--no-audit", str(ctx.exception))
+        self.assertIn("--validate", str(ctx.exception))
+
+        # Same-polarity repeats, single flag, and bare invocation are NOT refused
+        # oc start:
+        args_rep1 = oc_parser.parse_args(["start", "demo", "--validate", "--verify"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep1)
+        self.assertIs(args_rep1.validate, True)
+
+        args_rep2 = oc_parser.parse_args(["start", "demo", "--verify", "--audit"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep2)
+        self.assertIs(args_rep2.validate, True)
+
+        args_rep3 = oc_parser.parse_args(["start", "demo", "--no-verify", "--no-audit"])
+        runner_shared.refuse_contradictory_verification_flags(args_rep3)
+        self.assertIs(args_rep3.validate, False)
+
+        args_single = oc_parser.parse_args(["start", "demo", "--validate"])
+        runner_shared.refuse_contradictory_verification_flags(args_single)
+        self.assertIs(args_single.validate, True)
+
+        args_bare = oc_parser.parse_args(["start", "demo"])
+        runner_shared.refuse_contradictory_verification_flags(args_bare)
+        self.assertIsNone(args_bare.validate)
+
+        # agy start same-polarity repeats in both orders:
+        for flags in (
+            ["--no-verify", "--no-validate"],
+            ["--no-validate", "--no-verify"],
+        ):
+            with self.subTest(agy_same_polarity=flags):
+                args_agree = agy_parser.parse_args(["start", "demo", *flags])
+                self.assertIs(agy_runipd.verification_flag_tristate(args_agree), False)
+
+    def test_subcommands_other_than_start_and_resume_declare_no_verification_flags(
+        self,
+    ):
+        """Assert no subcommand other than start/resume on oc and start on agy has verification flags."""
+        parsers = {
+            "oc": oc_runipd.build_parser(),
+            "agy": agy_runipd.build_parser(),
+        }
+        subcommands_with_none = {
+            "oc": ("status", "report", "stop", "integrate", "audit"),
+            "agy": ("resume", "status", "report", "stop", "integrate", "audit"),
+        }
+        for host, sub_names in subcommands_with_none.items():
+            subs = self._get_subparsers(parsers[host])
+            for sub_name in sub_names:
+                sub = subs[sub_name]
+                for action in sub._actions:
+                    for opt in getattr(action, "option_strings", []):
+                        self.assertNotIn(
+                            opt,
+                            self.VERIFICATION_SPELLINGS,
+                            f"{host} {sub_name} must not declare verification flag {opt}",
+                        )
+
+    def test_end_to_end_contradictory_refusal_leaves_no_run_dir_and_byte_identical_resume_state(
+        self,
+    ):
+        """Pin operator consequence: refused start creates no run dir, refused resume preserves state.json."""
+        import tempfile
+        import os
+        import io
+        import contextlib
+        from unittest import mock
+
+        probe = VerificationPolarityTests(
+            "test_verification_polarity_matrix_and_agreement"
         )
+        with tempfile.TemporaryDirectory() as home:
+            with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": home}, clear=False):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = probe.make_repo(pathlib.Path(td), id6="e2e001")
+                    stderr_start = io.StringIO()
+                    with contextlib.redirect_stderr(stderr_start):
+                        rc_start = oc_runipd.main(
+                            [
+                                "start",
+                                "e2e001",
+                                "--repo",
+                                str(repo),
+                                "--no-verify",
+                                "--validate",
+                            ]
+                        )
+                    self.assertEqual(rc_start, 2, "refused oc start must exit 2")
+                    self.assertIn("contradict each other", stderr_start.getvalue())
+                    runs_dir = repo / ".aw" / "records" / "runs"
+                    self.assertEqual(
+                        list(runs_dir.glob("run-*")) if runs_dir.exists() else [],
+                        [],
+                        "refused oc start must create no run directory",
+                    )
+
+                    oc_parser = oc_runipd.build_parser()
+                    valid_args = oc_parser.parse_args(
+                        ["start", "e2e001", "--repo", str(repo)]
+                    )
+                    valid_args.prepare_only = True
+                    run_dir = oc_runipd.initialize_run(valid_args)
+                    state_path = run_dir / "state.json"
+                    self.assertTrue(state_path.exists())
+                    state_bytes_before = state_path.read_bytes()
+
+                    stderr_resume = io.StringIO()
+                    with contextlib.redirect_stderr(stderr_resume):
+                        rc_resume = oc_runipd.main(
+                            [
+                                "resume",
+                                str(run_dir),
+                                "--no-verify",
+                                "--validate",
+                                "--full-auto",
+                            ]
+                        )
+                    self.assertEqual(rc_resume, 2, "refused oc resume must exit 2")
+                    self.assertIn("contradict each other", stderr_resume.getvalue())
+
+                    state_bytes_after = state_path.read_bytes()
+                    self.assertEqual(
+                        state_bytes_before,
+                        state_bytes_after,
+                        "refused resume must leave state.json byte-identical, including options.full_auto",
+                    )
 
     def test_resume_subcommand_verification_flag_handling_per_host(self):
         """Pin operator consequence 3: agy resume rejects all verification flags (exit 2), oc resume accepts them."""
@@ -4892,12 +4873,10 @@ class PathSelectorKindTests(unittest.TestCase):
 class SharedColorDecisionTests(unittest.TestCase):
     """`should_color` is a sanctioned DELEGATION to `term.should_color` (IPD `z8ddk0` E-02).
 
-    WHY THESE ASSERTIONS AND NOT A FINGERPRINT. This symbol is enumerated in
-    `SUPERSEDED_SINCE_MOVE` above, which exempts it from the byte-identical pre-move capture
-    (a delegation cannot fingerprint as the body it replaces). That exemption removes the
-    only coverage the harness gave it, so this class is the replacement: it pins the SHAPE
-    (one delegating statement, so the `def` is a binding and not a second body) and the
-    BEHAVIOR CHANGE that motivated the supersession.
+    WHY THESE ASSERTIONS AND NOT A FINGERPRINT. A delegation cannot fingerprint as the
+    body it replaces, so behavioral assertions are what cover it. This class is that
+    coverage: it pins the SHAPE (one delegating statement, so the `def` is a binding and
+    not a second body) and the BEHAVIOR CHANGE that motivated the supersession.
     """
 
     class _TTYStream:
@@ -5118,6 +5097,85 @@ class LegacySpecEditsStateTests(unittest.TestCase):
             self.assertIn("leg002", rendered_refused)
 
 
+def _parse_module_tree(mod_or_path: Any) -> ast.Module:
+    """Parse an AST module tree from a module object or file path."""
+    if isinstance(mod_or_path, (str, pathlib.Path)):
+        return ast.parse(pathlib.Path(mod_or_path).read_text(encoding="utf-8"))
+    if hasattr(mod_or_path, "__file__") and mod_or_path.__file__:
+        return ast.parse(pathlib.Path(mod_or_path.__file__).read_text(encoding="utf-8"))
+    raise ValueError(f"Cannot parse AST from {mod_or_path!r}")
+
+
+def _top_level_defs(tree: ast.Module) -> dict[str, ast.stmt]:
+    """Extract top-level FunctionDef, AsyncFunctionDef, and ClassDef statements."""
+    defs: dict[str, ast.stmt] = {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            defs[node.name] = node
+    return defs
+
+
+def find_dead_codefined_symbols(
+    shared_mod: Any,
+    oc_mod: Any,
+    agy_mod: Any,
+    *,
+    is_pure_delegation_fn: Any = None,
+) -> tuple[list[str], dict[str, dict[str, bool]]]:
+    """Sweep three modules for dead def-or-class symbols in shared that neither host reaches.
+
+    A symbol fails if ALL THREE conditions hold:
+      1. neither_resolves: neither host's attribute resolves (getattr identity) to the shared object
+      2. neither_delegates: neither host's definition is a sanctioned delegation
+      3. has_shared: a definition exists in the shared module
+
+    Returns:
+      (co_defined_symbols, failures_dict)
+    """
+    if is_pure_delegation_fn is None:
+        scanner = load_module(
+            "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+        )
+        is_pure_delegation_fn = scanner.is_pure_delegation
+
+    shared_tree = _parse_module_tree(shared_mod)
+    oc_tree = _parse_module_tree(oc_mod)
+    agy_tree = _parse_module_tree(agy_mod)
+
+    shared_defs = _top_level_defs(shared_tree)
+    oc_defs = _top_level_defs(oc_tree)
+    agy_defs = _top_level_defs(agy_tree)
+
+    common_names = sorted(
+        set(shared_defs.keys()) & set(oc_defs.keys()) & set(agy_defs.keys())
+    )
+    failures: dict[str, dict[str, bool]] = {}
+
+    for name in common_names:
+        shared_obj = getattr(shared_mod, name, None)
+        oc_obj = getattr(oc_mod, name, None)
+        agy_obj = getattr(agy_mod, name, None)
+
+        oc_resolves = oc_obj is shared_obj
+        agy_resolves = agy_obj is shared_obj
+        neither_resolves = not oc_resolves and not agy_resolves
+
+        oc_delegates = is_pure_delegation_fn(oc_defs[name])
+        agy_delegates = is_pure_delegation_fn(agy_defs[name])
+        neither_delegates = not oc_delegates and not agy_delegates
+
+        has_shared = name in shared_defs and shared_obj is not None
+
+        if neither_resolves and neither_delegates and has_shared:
+            failures[name] = {
+                "neither_resolves": neither_resolves,
+                "neither_delegates": neither_delegates,
+                "has_shared": has_shared,
+            }
+
+    return common_names, failures
+
+
 class FullAutoDurableHistoryPinTests(unittest.TestCase):
     """Pin the durable-history auto-approval contract and prevent divergent shared constants.
 
@@ -5127,41 +5185,33 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
     """
 
     def test_no_divergent_codefined_constants_in_runner_shared(self) -> None:
-        """Mechanically ensure no co-defined constant in runner_shared has a value matching neither host.
+        """Mechanically ensure no co-defined constant in runner_shared has a divergent value.
 
-        gjni4c E-01: Collects every UPPER_CASE module-level assignment co-defined in
-        runner_shared, oc_runipd, AND agy_runipd via AST. For each, compares resolved values
-        via getattr. Fails if the shared value equals neither host's value, printing all three values.
+        Enumerates common UPPER-case module attributes across runner_shared, oc_runipd, and agy_runipd
+        via vars(). For each common name, asserts the identity-or-equality partition: either the host binding
+        is the identical shared object (a re-export, nothing to diverge) or its value equals the shared value
+        (a genuine co-definition that must agree). Reads no source. If a co-defined constant is deliberately
+        intended to differ per host, it must be excluded by name, and none exists today.
         """
-        modules = (runner_shared, oc_runipd, agy_runipd)
-        per_module_names: list[set[str]] = []
-        for mod in modules:
-            mod_path = pathlib.Path(mod.__file__)
-            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
-            names: set[str] = set()
-            for node in tree.body:
-                if isinstance(node, ast.Assign):
-                    for target in node.targets:
-                        if isinstance(target, ast.Name) and target.id.isupper():
-                            names.add(target.id)
-                        elif isinstance(target, (ast.Tuple, ast.List)):
-                            for elt in target.elts:
-                                if isinstance(elt, ast.Name) and elt.id.isupper():
-                                    names.add(elt.id)
-                elif isinstance(node, ast.AnnAssign):
-                    if isinstance(node.target, ast.Name) and node.target.id.isupper():
-                        names.add(node.target.id)
-            per_module_names.append(names)
+        rs_upper = {
+            k: getattr(runner_shared, k) for k in vars(runner_shared) if k.isupper()
+        }
+        oc_upper = {k: getattr(oc_runipd, k) for k in vars(oc_runipd) if k.isupper()}
+        agy_upper = {k: getattr(agy_runipd, k) for k in vars(agy_runipd) if k.isupper()}
 
-        co_defined = sorted(
-            per_module_names[0] & per_module_names[1] & per_module_names[2]
+        common_names = sorted(
+            set(rs_upper.keys()) & set(oc_upper.keys()) & set(agy_upper.keys())
         )
         failures: list[str] = []
-        for name in co_defined:
+
+        for name in common_names:
             v_shared = getattr(runner_shared, name)
             v_oc = getattr(oc_runipd, name)
             v_agy = getattr(agy_runipd, name)
-            if v_shared != v_oc and v_shared != v_agy:
+
+            oc_matches = (v_oc is v_shared) or (v_oc == v_shared)
+            agy_matches = (v_agy is v_shared) or (v_agy == v_shared)
+            if not (oc_matches and agy_matches):
                 failures.append(
                     f"Constant {name} in runner_shared has value {v_shared!r}, "
                     f"which matches neither oc_runipd ({v_oc!r}) "
@@ -5170,9 +5220,168 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
 
         if failures:
             self.fail(
-                "Found co-defined module-level constant(s) in runner_shared whose value matches neither host:\n"
+                "Found divergent co-defined module-level constant(s) in runner_shared:\n"
                 + "\n".join(failures)
             )
+
+    def test_codefined_constants_host_vs_host_equality(self) -> None:
+        """Mechanically ensure co-defined constants across runner hosts do not disagree (90z361 E-03).
+
+        Enumerates common UPPER_CASE module attributes across oc_runipd and agy_runipd via vars()
+        (and NOT with ast.parse or any production source inspection, honoring GUIDING_PRINCIPLES P16).
+
+        This closes the gap in test_no_divergent_codefined_constants_in_runner_shared: that sweep
+        compares the shared value against each host and fails only when it matches neither host,
+        so it is structurally blind to the case where the two hosts disagree with each other.
+
+        The authored expectation is captured in EXPECTED_HOST_VARYING: constants that legitimately
+        vary per host (such as the runner actor provenance) are asserted to remain unequal, ensuring
+        the exemption cannot silently become vacuous. All other co-defined UPPER_CASE attributes
+        are automatically swept for value equality.
+
+        Bounds and characteristics:
+        1. Enumeration with vars() reaches common UPPER_CASE names across both hosts. Most of these
+           are the identical shared object in both hosts (is identity True, re-exports for which
+           divergence is impossible); the sweep's real subjects are those that are not identical objects.
+           Per P16, we assert on value outcomes and do not pin census counts.
+        2. Non-UPPER_CASE co-defined symbols (such as _close_process_streams) are not reached by
+           isupper(); both hosts bind the identical runner_shutdown._close_process_streams object (is True).
+        3. This test reads no production .py source text or ASTs by any mechanism, exercising only
+           module attribute values via getattr().
+        """
+        EXPECTED_HOST_VARYING = {"DEPENDENCY_BLOCK_RECOVERY_HINT", "FULL_AUTO_ACTOR"}
+
+        common_names = sorted(
+            k for k in vars(oc_runipd) if k.isupper() and k in vars(agy_runipd)
+        )
+        failures: list[str] = []
+
+        for name in common_names:
+            v_oc = getattr(oc_runipd, name)
+            v_agy = getattr(agy_runipd, name)
+
+            if name in EXPECTED_HOST_VARYING:
+                if v_oc == v_agy:
+                    failures.append(
+                        f"Expected host-varying constant {name} unexpectedly equal across hosts: {v_oc!r}"
+                    )
+            else:
+                if v_oc != v_agy:
+                    failures.append(f"{name}: oc={v_oc!r} agy={v_agy!r}")
+
+        if failures:
+            self.fail(
+                "Found divergent co-defined module-level constant(s) between oc_runipd and agy_runipd:\n"
+                + "\n".join(failures)
+            )
+
+    def test_full_auto_approval_message_reintroduced_constant_value_pin(self) -> None:
+        """Pin the shared runner_shared.FULL_AUTO_APPROVAL_MESSAGE literal value (90z361 E-04).
+
+        Anti-regression guard for the defect gjni4c resolved: legacy FULL_AUTO_APPROVAL_MESSAGE
+        was deleted from runner_shared because it held a third, divergent value matching neither host
+        ('Auto-approved via --full-auto (review passed all gates)'). Reintroducing the name is safe
+        only while its value matches what both hosts expect.
+
+        Asserts that runner_shared.FULL_AUTO_APPROVAL_MESSAGE matches the expected literal string
+        spelled in the test, and is neither the deleted legacy phrase nor any string containing
+        'passed all gates'.
+        """
+        expected_msg = "auto-approved by --full-auto: review readiness cleared (not human approval)"
+        msg = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
+        self.assertEqual(
+            msg,
+            expected_msg,
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE does not match expected literal",
+        )
+        self.assertNotEqual(
+            msg,
+            "Auto-approved via --full-auto (review passed all gates)",
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE must not revert to deleted gjni4c legacy value",
+        )
+        self.assertNotIn(
+            "passed all gates",
+            msg,
+            "runner_shared.FULL_AUTO_APPROVAL_MESSAGE must not contain 'passed all gates'",
+        )
+
+    def test_no_dead_codefined_def_or_class_symbols_in_runner_shared(self) -> None:
+        """Mechanically ensure no dead def-or-class body exists in runner_shared.
+
+        Twin to test_no_divergent_codefined_constants_in_runner_shared (plan gjni4c E-01),
+        added by plan vbhat9 (Set deadshared) E-02.
+        Collects top-level FunctionDef/AsyncFunctionDef/ClassDef co-defined in runner_shared,
+        oc_runipd, and agy_runipd, and fails if any symbol has:
+          1. Neither host's attribute resolves (getattr identity) to the runner_shared object
+          2. Neither host's definition is a sanctioned delegation under is_pure_delegation
+          3. A runner_shared definition exists
+        """
+        scanner = load_module(
+            "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+        )
+        common_names, failures = find_dead_codefined_symbols(
+            runner_shared,
+            oc_runipd,
+            agy_runipd,
+            is_pure_delegation_fn=scanner.is_pure_delegation,
+        )
+        self.assertGreater(
+            len(common_names),
+            0,
+            "Sweep collected an empty population; expected non-trivial three-way co-defined symbols.",
+        )
+        if failures:
+            lines = [
+                f"  {name}: neither_resolves={details['neither_resolves']}, "
+                f"neither_delegates={details['neither_delegates']}, "
+                f"has_shared={details['has_shared']}"
+                for name, details in failures.items()
+            ]
+            self.fail(
+                "Found dead co-defined def-or-class symbol(s) in runner_shared:\n"
+                + "\n".join(lines)
+            )
+
+    def test_dead_codefined_symbols_guard_is_discriminating_negative_test(self) -> None:
+        """Prove the def-or-class sweep in E-02 fails on the exact historical defect (plan vbhat9 E-03).
+
+        Builds three synthetic module sources under tmp_path: a shared module defining f,
+        and two host modules each defining their own real-bodied f that does not resolve
+        to the shared one. Drives find_dead_codefined_symbols over the synthetic modules and
+        asserts the sweep reports f.
+        """
+        with tempfile.TemporaryDirectory(prefix="test_dead_codefined_") as tmp_dir:
+            tmp_path = pathlib.Path(tmp_dir)
+            shared_file = tmp_path / "synthetic_shared.py"
+            oc_file = tmp_path / "synthetic_oc.py"
+            agy_file = tmp_path / "synthetic_agy.py"
+
+            shared_file.write_text("def f():\n    return 'shared'\n", encoding="utf-8")
+            oc_file.write_text(
+                "def f():\n    return 'oc_real_body'\n", encoding="utf-8"
+            )
+            agy_file.write_text(
+                "def f():\n    return 'agy_real_body'\n", encoding="utf-8"
+            )
+
+            mod_shared = load_module("synthetic_shared", shared_file)
+            mod_oc = load_module("synthetic_oc", oc_file)
+            mod_agy = load_module("synthetic_agy", agy_file)
+
+            scanner = load_module(
+                "runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py"
+            )
+            common_names, failures = find_dead_codefined_symbols(
+                mod_shared,
+                mod_oc,
+                mod_agy,
+                is_pure_delegation_fn=scanner.is_pure_delegation,
+            )
+            self.assertIn("f", common_names)
+            self.assertIn("f", failures)
+            self.assertTrue(failures["f"]["neither_resolves"])
+            self.assertTrue(failures["f"]["neither_delegates"])
+            self.assertTrue(failures["f"]["has_shared"])
 
     def test_set_plan_approved_durable_history_pin(self) -> None:
         """Pin the exact argv, no-defaults, and host defaults for set_plan_approved (gjni4c E-03, E-04, E-05).
@@ -5215,19 +5424,6 @@ class FullAutoDurableHistoryPinTests(unittest.TestCase):
             )
             self.assertNotEqual(param.default, "aw-driver/full-auto")
             self.assertNotIn("passed all gates", param.default)
-
-        init_src = inspect.getsource(runner_shared.initialize_run_core)
-        self.assertIn(
-            "set_plan_approved_fn(repo, id6)",
-            init_src,
-            "initialize_run_core must invoke set_plan_approved_fn with exactly two arguments",
-        )
-        exec_src = inspect.getsource(runner_shared.execute_item_core)
-        self.assertIn(
-            'set_plan_approved(repo, item["id6"])',
-            exec_src,
-            "execute_item_core must invoke set_plan_approved with exactly two arguments",
-        )
 
         # E-03: Assert exact argv by value for both hosts
         for host, host_actor in [
@@ -5379,82 +5575,557 @@ class OutputModeFlagsGuardTests(unittest.TestCase):
             )
 
     def test_add_output_mode_flags_not_reforked_in_hosts(self) -> None:
-        """E-03: Refuse a re-fork or re-inlining of _add_output_mode_flags in either host runner.
+        """Assert both hosts' output-mode flag surfaces and exclusions match runner_shared.
 
-        By AST over agent_workflows/oc_runipd.py and agent_workflows/agy_runipd.py, assert
-        each host's _add_output_mode_flags contains exactly one statement after stripping
-        the leading docstring, which must be a call to runner_shared.add_output_mode_flags.
-        Assert that runner_shared defines add_output_mode_flags, and neither host body calls
-        add_mutually_exclusive_group or add_argument directly.
-
-        Coverage bound (PR-807 / F-18):
-        This AST test reads source on disk and detects a re-inline written down in source.
-        It cannot detect a runtime rebinding (a monkeypatch or late assignment to
-        oc_runipd._add_output_mode_flags), which is an accepted bound because re-forks arrive
-        as source edits in review while runtime rebinding is a test-harness technique.
+        Builds the reference surface from runner_shared.add_output_mode_flags, builds both
+        hosts' start and resume subparsers, and asserts that the output-mode option strings
+        and the mutually exclusive group partition match the reference on all four subparsers.
+        Also asserts observable refusal with exit code 2 and the standard argparse mutually-exclusive
+        error message when --raw and --quiet are combined.
         """
-        self.assertTrue(
-            hasattr(runner_shared, "add_output_mode_flags"),
-            "runner_shared must define add_output_mode_flags",
+        import argparse
+        import io
+        from contextlib import redirect_stderr
+
+        ref_parser = argparse.ArgumentParser(prog="ref")
+        runner_shared.add_output_mode_flags(ref_parser, verbose_help="reference help")
+        ref_opts = {
+            opt
+            for action in ref_parser._actions
+            for opt in action.option_strings
+            if opt not in ("-h", "--help")
+        }
+        ref_exclusive = sorted(
+            opt
+            for action in ref_parser._mutually_exclusive_groups[0]._group_actions
+            for opt in action.option_strings
         )
 
-        for mod in (oc_runipd, agy_runipd):
-            mod_path = pathlib.Path(mod.__file__)
-            tree = ast.parse(mod_path.read_text(encoding="utf-8"))
-            funcs = [
-                n
-                for n in tree.body
-                if isinstance(n, ast.FunctionDef) and n.name == "_add_output_mode_flags"
-            ]
-            self.assertEqual(
-                len(funcs),
-                1,
-                f"Expected exactly 1 _add_output_mode_flags FunctionDef in {mod_path.name}, got {len(funcs)}",
+        for host, host_prog in ((oc_runipd, "runipd"), (agy_runipd, "runagy")):
+            parser = host.build_parser()
+            sub = next(
+                a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
             )
-            fdef = funcs[0]
-            body = fdef.body
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                body = body[1:]
-
-            unparsed_body = "\n".join(ast.unparse(stmt) for stmt in body)
-
-            self.assertEqual(
-                len(body),
-                1,
-                f"{mod_path.name}: _add_output_mode_flags body must be exactly one statement (delegation), "
-                f"got {len(body)} statements:\n{unparsed_body}",
-            )
-            stmt = body[0]
-            self.assertIsInstance(
-                stmt,
-                ast.Expr,
-                f"{mod_path.name}: expected Expr statement in body, got {type(stmt)}:\n{unparsed_body}",
-            )
-            self.assertIsInstance(
-                stmt.value,
-                ast.Call,
-                f"{mod_path.name}: expected Call in body, got {type(stmt.value)}:\n{unparsed_body}",
-            )
-            call_func = ast.unparse(stmt.value.func)
-            self.assertEqual(
-                call_func,
-                "runner_shared.add_output_mode_flags",
-                f"{mod_path.name}: expected call to runner_shared.add_output_mode_flags, got {call_func}:\n{unparsed_body}",
-            )
-
-            # Assert neither host body calls add_mutually_exclusive_group or add_argument directly
-            for node in ast.walk(fdef):
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                    self.assertNotIn(
-                        node.func.attr,
-                        ("add_mutually_exclusive_group", "add_argument"),
-                        f"{mod_path.name} directly calls {node.func.attr} instead of delegating:\n{unparsed_body}",
+            for cmd in ("start", "resume"):
+                sub_parser = sub.choices[cmd]
+                sub_opts = {
+                    opt
+                    for action in sub_parser._actions
+                    for opt in action.option_strings
+                    if opt in ref_opts
+                }
+                self.assertEqual(
+                    sub_opts,
+                    ref_opts,
+                    f"{host_prog} {cmd} output-mode option strings do not match shared reference",
+                )
+                matching_groups = [
+                    sorted(
+                        opt
+                        for action in g._group_actions
+                        for opt in action.option_strings
                     )
+                    for g in sub_parser._mutually_exclusive_groups
+                    if any(
+                        opt in ref_exclusive
+                        for action in g._group_actions
+                        for opt in action.option_strings
+                    )
+                ]
+                self.assertEqual(
+                    len(matching_groups),
+                    1,
+                    f"{host_prog} {cmd} expected exactly one mutually exclusive group for output mode flags",
+                )
+                self.assertEqual(
+                    matching_groups[0],
+                    ref_exclusive,
+                    f"{host_prog} {cmd} mutually exclusive group options do not match shared reference",
+                )
+
+                stderr_buf = io.StringIO()
+                with self.assertRaises(SystemExit) as cm:
+                    with redirect_stderr(stderr_buf):
+                        parser.parse_args([cmd, "sample", "--raw", "--quiet"])
+                self.assertEqual(
+                    cm.exception.code,
+                    2,
+                    f"{host_prog} {cmd} --raw --quiet must exit with code 2",
+                )
+                err_text = stderr_buf.getvalue()
+                expected_err = f"{host_prog} {cmd}: error: argument --quiet: not allowed with argument --raw"
+                self.assertIn(
+                    expected_err,
+                    err_text,
+                    f"{host_prog} {cmd} --raw --quiet stderr missing expected refusal message",
+                )
+
+
+class DanglingCommitSearchTests(unittest.TestCase):
+    """Test suite for find_dangling_commits_by_subject (7eqw67 E-02)."""
+
+    def _get_helper(self):
+        helper = getattr(runner_shared, "find_dangling_commits_by_subject", None)
+        if helper is None:
+            raise AttributeError(
+                "agent_workflows.runner_shared has no attribute 'find_dangling_commits_by_subject'"
+            )
+        return helper
+
+    def _make_repo(self, root: pathlib.Path) -> pathlib.Path:
+        """A throwaway repo with initial commit on main and no reflogs."""
+        import subprocess
+
+        repo = root / "repo"
+        repo.mkdir()
+
+        def run(*a: str, **kw: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                list(a), cwd=repo, check=True, capture_output=True, text=True, **kw
+            )
+
+        run("git", "init", "-q", "-b", "main")
+        run("git", "config", "user.email", "test@example.invalid")
+        run("git", "config", "user.name", "Test")
+        run("git", "config", "commit.gpgsign", "false")
+        run("git", "config", "core.logAllRefUpdates", "false")
+        (repo / "init.txt").write_text("initial\n", encoding="utf-8")
+        run("git", "add", "init.txt")
+        run("git", "commit", "-qm", "initial commit")
+        return repo
+
+    def _create_dangling_commit(
+        self,
+        repo: pathlib.Path,
+        subject: str,
+        *,
+        filename: str = "file.txt",
+        content: str = "content\n",
+        env: dict[str, str] | None = None,
+    ) -> str:
+        """Create a commit on a throwaway branch, delete branch and expire reflogs so commit is dangling."""
+        import os
+        import subprocess
+
+        def run(*a: str, **kw: object) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                list(a), cwd=repo, check=True, capture_output=True, text=True, **kw
+            )
+
+        run("git", "checkout", "-qb", "temp-branch")
+        target = repo / filename
+        target.write_text(content, encoding="utf-8")
+        run("git", "add", filename)
+        run_env = None
+        if env:
+            run_env = dict(os.environ)
+            run_env.update(env)
+        subprocess.run(
+            ["git", "commit", "-qm", subject],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=run_env,
+        )
+        sha = run("git", "rev-parse", "HEAD").stdout.strip()
+        run("git", "checkout", "-q", "main")
+        run("git", "branch", "-D", "temp-branch")
+        run("git", "reflog", "expire", "--expire=now", "--all")
+        return sha
+
+    def _count_lost_found(self, repo: pathlib.Path) -> int:
+        import subprocess
+
+        common_dir = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        lf_path = (repo / common_dir / "lost-found").resolve()
+        if not lf_path.exists():
+            return 0
+        return sum(1 for p in lf_path.rglob("*") if p.is_file())
+
+    def test_01_deleted_branch_commit_found_by_needle(self):
+        """(1) A commit on a deleted branch is found by subject needle with sha, subject and date."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            sha = self._create_dangling_commit(
+                repo, "lane 111aaa: feature work", filename="f1.txt", content="111"
+            )
+            results = helper(repo, "111aaa")
+            self.assertIsNotNone(results)
+            self.assertEqual(len(results), 1)
+            candidate = results[0]
+            self.assertEqual(candidate.sha, sha)
+            self.assertEqual(candidate.subject, "lane 111aaa: feature work")
+            self.assertTrue(bool(candidate.commit_date))
+
+    def test_02_reachable_commit_not_returned(self):
+        """(2) A reachable commit matching subject is not returned because it is not dangling."""
+        import subprocess
+
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            (repo / "reachable.txt").write_text("reachable\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "reachable.txt"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "lane 222bbb: reachable work"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            results = helper(repo, "222bbb")
+            self.assertIsNotNone(results)
+            self.assertEqual(results, [])
+
+    def test_03_no_match_returns_empty_list(self):
+        """(3) A needle matching nothing returns an empty result, distinguishable from an error."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            self._create_dangling_commit(
+                repo, "lane 333ccc: something", filename="f3.txt"
+            )
+            results = helper(repo, "nonexistent_needle_xyz")
+            self.assertEqual(results, [])
+
+    def test_04_helper_writes_nothing_lost_found_unchanged(self):
+        """(4) The helper writes nothing - lost-found file count is unchanged across call."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            self._create_dangling_commit(repo, "lane 444ddd: work", filename="f4.txt")
+            count_before = self._count_lost_found(repo)
+            results = helper(repo, "444ddd")
+            self.assertIsNotNone(results)
+            count_after = self._count_lost_found(repo)
+            self.assertEqual(count_before, count_after)
+
+    def test_05_deterministic_order_newest_first(self):
+        """(5) Ordering is deterministic and newest first for commits with distinct dates."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            sha1 = self._create_dangling_commit(
+                repo,
+                "lane order555: first",
+                filename="f1.txt",
+                content="1",
+                env={
+                    "GIT_AUTHOR_DATE": "2026-09-01T12:00:00Z",
+                    "GIT_COMMITTER_DATE": "2026-09-01T12:00:00Z",
+                },
+            )
+            sha2 = self._create_dangling_commit(
+                repo,
+                "lane order555: second",
+                filename="f2.txt",
+                content="2",
+                env={
+                    "GIT_AUTHOR_DATE": "2026-09-02T12:00:00Z",
+                    "GIT_COMMITTER_DATE": "2026-09-02T12:00:00Z",
+                },
+            )
+            sha3 = self._create_dangling_commit(
+                repo,
+                "lane order555: third",
+                filename="f3.txt",
+                content="3",
+                env={
+                    "GIT_AUTHOR_DATE": "2026-09-03T12:00:00Z",
+                    "GIT_COMMITTER_DATE": "2026-09-03T12:00:00Z",
+                },
+            )
+            results = helper(repo, "order555")
+            self.assertIsNotNone(results)
+            result_shas = [c.sha for c in results]
+            self.assertEqual(result_shas, [sha3, sha2, sha1])
+
+    def test_06_over_match_returns_all_candidates(self):
+        """(6) Two dangling commits, one real and one mentioning needle, both returned."""
+        helper = self._get_helper()
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._make_repo(pathlib.Path(tmp))
+            sha1 = self._create_dangling_commit(
+                repo,
+                "lifecycle(aaa111): finalize aaa111 -> executed",
+                filename="f1.txt",
+                content="1",
+            )
+            sha2 = self._create_dangling_commit(
+                repo,
+                "WIP on aw/lane/bbb222: re-derive front matter for lane aaa111",
+                filename="f2.txt",
+                content="2",
+            )
+            results = helper(repo, "aaa111")
+            self.assertIsNotNone(results)
+            self.assertEqual(len(results), 2)
+            shas = {c.sha for c in results}
+            self.assertEqual(shas, {sha1, sha2})
+            subjects = {c.subject for c in results}
+            self.assertIn("lifecycle(aaa111): finalize aaa111 -> executed", subjects)
+            self.assertIn(
+                "WIP on aw/lane/bbb222: re-derive front matter for lane aaa111",
+                subjects,
+            )
+
+    def test_07_real_corpus_arm_conditional(self):
+        """(7) Conditional real-corpus search: if 0abc01d9 resolves and is unreachable, 8u6770 search finds it."""
+        import subprocess
+
+        repo_path = pathlib.Path.cwd()
+        rc_cat = subprocess.run(
+            ["git", "cat-file", "-e", "0abc01d9"],
+            cwd=repo_path,
+            capture_output=True,
+            check=False,
+        ).returncode
+        if rc_cat != 0:
+            self.skipTest("0abc01d9 does not resolve in this checkout")
+        rc_anc = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", "0abc01d9", "main"],
+            cwd=repo_path,
+            capture_output=True,
+            check=False,
+        ).returncode
+        if rc_anc == 0:
+            self.skipTest("0abc01d9 is reachable from main in this checkout")
+
+        helper = self._get_helper()
+        results = helper(repo_path, "8u6770")
+        self.assertIsNotNone(results)
+        matching_shas = [c.sha for c in results if c.sha.startswith("0abc01d9")]
+        self.assertTrue(
+            bool(matching_shas),
+            f"Expected candidate starting with 0abc01d9 in results: {results}",
+        )
+
+
+class HostCommandRemedyGuardTests(unittest.TestCase):
+    """Guard against doubled verbs and malformed subcommands in host remedies.
+
+    Pins the whole class of doubled-verb bugs (e.g. `run run`, `resume resume`)
+    by ensuring that every host-command-carrying remedy produces only commands
+    whose token immediately following the host prefix is either absent, a flag,
+    a placeholder, a member of the host parser live subcommand choices, or the
+    distinctive id6 passed to the remedy.
+    """
+
+    DISTINCTIVE_ID6 = "x9y8z7"
+
+    @staticmethod
+    def _get_live_subcommands(host_id: str) -> set[str]:
+        mod = oc_runipd if host_id in ("oc", "fallback") else agy_runipd
+        parser = mod.build_parser()
+        choices: set[str] = set()
+        for action in parser._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                choices.update(action.choices.keys())
+        return choices
+
+    def _classify_next_token(
+        self,
+        cmd_str: str,
+        command_prefix: str,
+        legal_subcommands: set[str],
+        distinctive_id6: str,
+    ) -> str:
+        """Classify the token following command_prefix in cmd_str into one of five closed classes."""
+        self.assertTrue(
+            cmd_str.startswith(command_prefix),
+            f"Command {cmd_str!r} does not start with prefix {command_prefix!r}",
+        )
+        remainder = cmd_str[len(command_prefix) :].strip()
+        tokens = remainder.split()
+        if not tokens:
+            return "ABSENT"
+        next_token = tokens[0]
+        if next_token.startswith("-"):
+            return f"FLAG:{next_token}"
+        if next_token.startswith("<"):
+            return f"PLACEHOLDER:{next_token}"
+        if next_token in legal_subcommands:
+            return f"SUBCOMMAND:{next_token}"
+        if next_token == distinctive_id6:
+            return f"ID6:{next_token}"
+        return f"ILLEGAL:{next_token}"
+
+    def _assert_valid_command(
+        self,
+        cmd_str: str,
+        command_prefix: str,
+        legal_subcommands: set[str],
+        distinctive_id6: str,
+    ) -> None:
+        """Assert that cmd_str has no doubled verb, no adjacent duplicate tokens, and a legal next token."""
+        # Direct regression pin for F-01
+        self.assertNotIn(
+            "run run",
+            cmd_str,
+            f"'run run' found in remedy command: {cmd_str!r}",
+        )
+
+        # Generalized adjacent duplicate token check (pins resume resume, start start, etc.)
+        tokens = cmd_str.split()
+        for i in range(len(tokens) - 1):
+            self.assertNotEqual(
+                tokens[i],
+                tokens[i + 1],
+                f"Adjacent duplicate token {tokens[i]!r} in remedy command: {cmd_str!r}",
+            )
+
+        # Classify next token after host command prefix
+        classification = self._classify_next_token(
+            cmd_str,
+            command_prefix,
+            legal_subcommands,
+            distinctive_id6,
+        )
+        self.assertFalse(
+            classification.startswith("ILLEGAL:"),
+            f"Illegal token following command prefix {command_prefix!r} in {cmd_str!r}: {classification}",
+        )
+
+    def test_host_command_carrying_remedies_render_valid_commands(self):
+        """Every host-command-carrying remedy renders valid commands for both hosts and fallback."""
+        cases = [
+            ("oc", runner_shared.OC_HOST_LABELS, runner_shared.OC_HOST_LABELS.command),
+            (
+                "agy",
+                runner_shared.AGY_HOST_LABELS,
+                runner_shared.AGY_HOST_LABELS.command,
+            ),
+            ("fallback", None, "aw oc run"),
+        ]
+
+        for host_id, labels, prefix in cases:
+            legal_subcommands = self._get_live_subcommands(host_id)
+
+            remedies: list[tuple[str, str]] = [
+                (
+                    "finalize_retry_remedy(retry=True)",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, True
+                    ),
+                ),
+                (
+                    "finalize_retry_remedy",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+                (
+                    "finalize_retry_remedy(lock_contention=True)",
+                    runner_shared.finalize_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False, lock_contention=True
+                    ),
+                ),
+                (
+                    "turn_retry_remedy(retry=True)",
+                    runner_shared.turn_retry_remedy(labels, self.DISTINCTIVE_ID6, True),
+                ),
+                (
+                    "turn_retry_remedy",
+                    runner_shared.turn_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+                (
+                    "zero_work_retry_remedy(retry=True)",
+                    runner_shared.zero_work_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, True
+                    ),
+                ),
+                (
+                    "zero_work_retry_remedy",
+                    runner_shared.zero_work_retry_remedy(
+                        labels, self.DISTINCTIVE_ID6, False
+                    ),
+                ),
+            ]
+            if labels is not None:
+                remedies.extend(
+                    [
+                        (
+                            "probe_refusal_remedy",
+                            runner_shared.probe_refusal_remedy(
+                                labels, self.DISTINCTIVE_ID6
+                            ),
+                        ),
+                        (
+                            "probe_unavailable_remedy",
+                            runner_shared.probe_unavailable_remedy(labels),
+                        ),
+                    ]
+                )
+
+            for remedy_name, text in remedies:
+                with self.subTest(host=host_id, remedy=remedy_name):
+                    cmds = [
+                        c
+                        for c in re.findall(r"`([^`]+)`", text)
+                        if c.startswith(prefix)
+                    ]
+                    for cmd in cmds:
+                        self._assert_valid_command(
+                            cmd,
+                            prefix,
+                            legal_subcommands,
+                            self.DISTINCTIVE_ID6,
+                        )
+
+    def test_negative_controls_class_doubling_and_invalid_tokens(self):
+        """Negative controls: guard must catch adjacent duplicates and non-subcommand tokens."""
+        legal_subcommands = self._get_live_subcommands("oc")
+        prefix = "aw oc run"
+
+        # Control 1: F-01 regression string
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} run resume <run-id>",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 2: resume resume
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} resume resume <run-id>",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 3: start start
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} start start",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
+
+        # Control 4: run abc123 (verifying id6 allowance does not accept non-matching token)
+        with self.assertRaises(AssertionError):
+            self._assert_valid_command(
+                f"{prefix} run abc123",
+                prefix,
+                legal_subcommands,
+                self.DISTINCTIVE_ID6,
+            )
 
 
 if __name__ == "__main__":

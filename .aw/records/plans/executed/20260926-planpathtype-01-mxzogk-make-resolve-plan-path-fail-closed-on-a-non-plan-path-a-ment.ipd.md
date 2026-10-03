@@ -178,7 +178,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence: verified at executing HEAD.
     1. Four probe results (pre-change):
     - Probe 1 (`resolve_plan_path(repo, ".aw/records/plans/README.md", "zzzzzz")`): returned `.aw/records/plans/README.md` in 0.3582s
-    - Probe 2 (`resolve_plan_path(repo, ".aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md", "4sd62s")`): returned `.aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md` in 0.4064s
+    - Probe 2 (`resolve_plan_path(repo, ".aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md", "4sd62s")`): returned `.aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md` in 0.4064s
     - Probe 3 (`resolve_plan_path(repo, "", "77tr3o")`): returned `.aw/records/plans/executed/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md` in 0.3439s
     - Probe 4 (`resolve_plan_path(repo, "", "25kzda")`): raised `DriverError: Ambiguous IPD 25kzda` (total paths 3, in worktrees/state: 3) in 0.3341s
     2. AST call-site origin table (28 real calls in `agent_workflows/runner_shared.py`, 0 in `oc_runipd.py`, 0 in `agy_runipd.py`):
@@ -290,7 +290,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     ```
     2. DriverError text for README and spec:
     - README: `Refusing '.aw/records/plans/README.md' for IPD zzzzzz: it is a plans index file, not an IPD plan`
-    - Spec: `Refusing '.aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md' for IPD 4sd62s: it is a specs, not an IPD plan`
+    - Spec: `Refusing '.aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md' for IPD 4sd62s: it is a specs, not an IPD plan`
     3. Positive controls:
     - Pending plan: `.aw/records/plans/pending/20260926-planpathtype-01-mxzogk-make-resolve-plan-path-fail-closed-on-a-non-plan-path-a-ment.ipd.md` returned
     - `.agents/plans` plan: `.agents/plans/20260101-ag-01-ag1234-test.ipd.md` returned
@@ -424,8 +424,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
       Pre-change: returned .aw/records/plans/README.md in 0.3582s
       Post-change: raised DriverError: Refusing '.aw/records/plans/README.md' for IPD zzzzzz: it is a plans index file, not an IPD plan in 0.2065s
     - Probe 2 (.aw/records/specs/reviewed/...4sd62s.spec.md, "4sd62s"):
-      Pre-change: returned .aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md in 0.4064s
-      Post-change: raised DriverError: Refusing '.aw/records/specs/reviewed/20260925-4sd62s-01-4sd62s-artifact-metadata-store.spec.md' for IPD 4sd62s: it is a specs, not an IPD plan in 0.1594s
+      Pre-change: returned .aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md in 0.4064s
+      Post-change: raised DriverError: Refusing '.aw/records/specs/reviewed/20260925-metastore-01-4sd62s-artifact-metadata-store.spec.md' for IPD 4sd62s: it is a specs, not an IPD plan in 0.1594s
     - Probe 3 ("", "77tr3o"):
       Pre-change: returned .aw/records/plans/executed/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md in 0.3439s
       Post-change: raised DriverError: Cannot locate IPD 77tr3o; configured path was  in 0.1644s

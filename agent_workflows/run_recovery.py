@@ -14,7 +14,7 @@ deterministic recovery behaviours:
     idempotent action already recorded is not duplicated). The retry BUDGET is read back from the
     ledger, so a retry cannot convert failure into success by mere repetition: once the configured
     limit is exhausted the planner ESCALATES (raises `RetryLimitExceededError`) instead of looping.
-    The budget's own legal RANGE is spec 25kzda 2.1's inclusive 0..10, enforced by the shared
+    The budget's own legal RANGE is spec 25kzda 5.5's inclusive 0..10, enforced by the shared
     `validate_retry_budget()` (raising `InvalidRetryBudgetError`) at every entry point that accepts a
     budget, so a bounded retry is actually bounded: a negative budget cannot make every step instantly
     exhausted, and a huge one cannot license an effectively unbounded correction loop.
@@ -48,12 +48,13 @@ from agent_workflows import run_ledger_schema as schema
 
 # ---- configuration --------------------------------------------------------------------------------
 
-# Spec 25kzda 2.1: "The default correction budget is 2; the valid frozen range is 0 through 10."
+# Spec 25kzda 5.5: default is 2; "`N` must be an integer from 0 through 10 inclusive."
 # This was 3, which contradicted the approved spec. Aligned to 2 on the maintainer's decision
 # (2026-08-31), taken while the value is still DORMANT: `plan_retry` / `retry_budget_remaining` have
-# ZERO production callers today (only tests), so the change costs two test edits and no behavior
-# change. Doing it now is deliberate - once the runner wires this layer up, the same edit becomes a
-# real behavior change that alters how many paid model turns every failed step buys.
+# ZERO production callers today. Commit 19313eed deleted their only test coverage on 2026-09-24,
+# which IPD e834yk restored in tests/test_run_recovery_cli.py. Doing it now is deliberate - once the
+# runner wires this layer up, the same edit becomes a real behavior change that alters how many paid
+# model turns every failed step buys.
 #
 # WHY 2 IS THE RIGHT NUMBER, not merely the spec's: a retry here is a CORRECTION attempt, not a
 # network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into
@@ -61,12 +62,12 @@ from agent_workflows import run_ledger_schema as schema
 # defect rather than a transient fault, so a third attempt mostly buys another paid turn and delays
 # escalation. Lower budget = cheaper and escalates sooner.
 #
-# NOT a range check: spec 2.1's 0..10 bound is enforced separately by `validate_retry_budget()`
+# NOT a range check: spec 5.5's 0..10 bound is enforced separately by `validate_retry_budget()`
 # below (runcodes Order 3, `sq61qd`); this constant is only the DEFAULT when no budget is frozen by
 # the CLI or repository policy.
 DEFAULT_RETRY_LIMIT: int = 2
 
-# Spec 25kzda 2.1's legal frozen range for the correction budget: 0 through 10 INCLUSIVE. `0` is a
+# Spec 25kzda 5.5's legal frozen range for the correction budget: 0 through 10 INCLUSIVE. `0` is a
 # LEGAL budget meaning "no retries" (so a falsy check must not treat it as unset), and the upper
 # bound exists because an effectively unbounded budget defeats the point of a bounded retry.
 MIN_RETRY_LIMIT: int = 0
@@ -113,7 +114,7 @@ class NoRetryableStateError(RecoveryError):
 
 
 class InvalidRetryBudgetError(RecoveryError):
-    """Raised when a retry budget is outside spec 25kzda 2.1's legal 0..10 inclusive range.
+    """Raised when a retry budget is outside spec 25kzda 5.5's legal 0..10 inclusive range.
 
     DISTINCT FROM `RetryLimitExceededError` on purpose. That error means "this step consumed its
     budget", a normal runtime escalation a caller may legitimately catch and act on. This one means
@@ -126,7 +127,7 @@ class InvalidRetryBudgetError(RecoveryError):
         self.limit = limit
         super().__init__(
             f"invalid retry budget {limit!r}: must be an int in the inclusive range "
-            f"{MIN_RETRY_LIMIT}..{MAX_RETRY_LIMIT} (spec 25kzda 2.1)"
+            f"{MIN_RETRY_LIMIT}..{MAX_RETRY_LIMIT} (spec 25kzda 5.5)"
         )
 
 
@@ -136,7 +137,7 @@ class InvalidRetryBudgetError(RecoveryError):
 def validate_retry_budget(limit: Any) -> int:
     """Return `limit` if it is a legal retry budget; otherwise raise `InvalidRetryBudgetError`.
 
-    Enforces spec 25kzda 2.1's inclusive 0..10 range. This is the SINGLE definition of that bound.
+    Enforces spec 25kzda 5.5's inclusive 0..10 range. This is the SINGLE definition of that bound.
 
     It deliberately takes ONLY the value, with no engine and no step id, so every layer that accepts
     a budget can call the SAME check: the shipped helpers `plan_retry` and `retry_budget_remaining`,
@@ -288,7 +289,7 @@ def plan_retry(
          (returns `duplicate=True`) so a replayed deterministic action is not duplicated.
       5. Evidence bound to the retried step is INVALIDATED (a change precedes a retry), so a stale
          green result cannot be reused across the retry boundary.
-      6. `limit` MUST be in spec 25kzda 2.1's inclusive 0..10 range, checked via the shared
+      6. `limit` MUST be in spec 25kzda 5.5's inclusive 0..10 range, checked via the shared
          `validate_retry_budget()` (raises `InvalidRetryBudgetError`) BEFORE any ledger read, so an
          illegal budget is refused rather than producing an instantly-exhausted or unbounded budget.
     """
@@ -417,7 +418,7 @@ def retry_budget_remaining(
 ) -> int:
     """Return how many retries remain in the budget for a step (never negative).
 
-    `limit` is validated against spec 25kzda 2.1's inclusive 0..10 range by the shared
+    `limit` is validated against spec 25kzda 5.5's inclusive 0..10 range by the shared
     `validate_retry_budget()` (raises `InvalidRetryBudgetError`). The `max(0, ...)` clamp below is
     INDEPENDENT of that check and stays: it guarantees the RETURN is never negative once retries have
     been consumed, which the range check does not address.

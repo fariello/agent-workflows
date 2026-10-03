@@ -21,7 +21,9 @@ from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
 from agent_workflows import artifact_audit as _audit
 from agent_workflows import lifecycle_style as _LS
+from agent_workflows import run_selection_policy
 from agent_workflows import term as _T
+from agent_workflows.project_context import resolve_verb_repo_root
 
 # `_TREE_COLOR_256` IS DELIBERATELY NO LONGER IMPORTED (plan `9zvl2w` E-04). Its only use here was
 # painting the artifact TYPE word in `format_step_line`, which criterion A10 forbids; see the note at
@@ -41,6 +43,7 @@ from agent_workflows.runner_shared import (
     analytics_root,
     canonical_terminal_status,
     extract_verifier_test_commands,
+    host_labels_for_driver_id,
     landed_verdict,
     path_is_within_analytics,
     queue_entry_type,
@@ -73,6 +76,22 @@ PROJECTION_SUFFIX = "?"
 HOLDER_LIVE = "live"
 HOLDER_NONE = "none"
 HOLDER_UNKNOWN = "unknown"
+
+_FAILED_FILTER_STATUSES: frozenset[str] = frozenset(
+    {
+        "failed",
+        "partial",
+        "blocked",
+        "interrupted",
+        "fail-gate",
+        "fail-begin",
+        "fail-lane",
+        "fail-verify",
+        "fail-depend",
+        "fail-merge",
+        "failed-safely",
+    }
+)
 
 
 def driver_holder_state(run_dir: Path) -> str:
@@ -188,6 +207,9 @@ class StepSummary:
     # runverdict (bxx9af) E-07: verifier evidence (tests_run / corrections_made) surfaced in StepSummary
     tests_run: list[Any] = field(default_factory=list)
     corrections_made: list[str] = field(default_factory=list)
+    # runverdict-09 (`btak7a`) E-04: corroboration verdict surfaced as sibling field
+    corroboration_verdict: str | None = None
+    corroboration_reason: str | None = None
     # mlhryi E-01: preserve typed queue entry metadata
     artifact_type: str | None = None
     initial_status: str | None = None
@@ -608,6 +630,7 @@ def audit_step_artifact(
     step: StepSummary,
     repo_root: Path = Path("."),
     evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> _audit.ArtifactAudit:
     """Audit a STEP's artifact location and status: the run-viewer-shaped adapter over the shared
     predicate.
@@ -636,6 +659,7 @@ def audit_step_artifact(
         artifact_type=step.artifact_type,
         action=step.action,
         initial_status=step.initial_status,
+        artifact_index=artifact_index,
     )
 
 
@@ -949,12 +973,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
             )
             driver_id = driver_info.get("id") if isinstance(driver_info, dict) else None
             if driver_id:
-                if driver_id in ("oc_runipd", "opencode", "oc"):
-                    driver_name = "OpenCode"
-                elif driver_id in ("agy_runipd", "antigravity", "agy", "runagy"):
-                    driver_name = "Antigravity"
-                else:
-                    driver_name = driver_id
+                labels = host_labels_for_driver_id(driver_id)
+                driver_name = labels.product if labels is not None else driver_id
             elif driver_path:
                 if "oc_runipd" in driver_path:
                     driver_name = "OpenCode"
@@ -1112,7 +1132,13 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 
                 item_tests_run = item.get("tests_run")
                 item_corrections = item.get("corrections_made")
-                if (item_tests_run is None or item_corrections is None) and run_dir:
+                item_corr_verdict = item.get("corroboration_verdict")
+                item_corr_reason = item.get("corroboration_reason")
+                if (
+                    item_tests_run is None
+                    or item_corrections is None
+                    or item_corr_verdict is None
+                ) and run_dir:
                     v_outcome_file = (
                         run_dir / "outcomes" / f"{pos:02d}-{id6}-verification.json"
                     )
@@ -1125,8 +1151,16 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                                 item_tests_run = _v_data.get("tests_run")
                             if item_corrections is None:
                                 item_corrections = _v_data.get("corrections_made")
+                            if item_corr_verdict is None:
+                                item_corr_verdict = _v_data.get("corroboration_verdict")
+                                item_corr_reason = _v_data.get("corroboration_reason")
                         except Exception:
                             pass
+                if item_corr_verdict is None and attempts:
+                    last_att = attempts[-1]
+                    if isinstance(last_att, dict):
+                        item_corr_verdict = last_att.get("corroboration_verdict")
+                        item_corr_reason = last_att.get("corroboration_reason")
                 tests_run_list = (
                     list(item_tests_run) if isinstance(item_tests_run, list) else []
                 )
@@ -1172,6 +1206,9 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         # runverdict (bxx9af) E-07: verifier evidence in StepSummary
                         tests_run=tests_run_list,
                         corrections_made=corrections_list,
+                        # runverdict-09 (`btak7a`) E-04: corroboration verdict in StepSummary
+                        corroboration_verdict=item_corr_verdict,
+                        corroboration_reason=item_corr_reason,
                         artifact_type=step_atype,
                         initial_status=step_initial_status,
                     )
@@ -1634,9 +1671,9 @@ def format_step_line(
     status_padded = (
         status_marker
         + " "
-        + term.style_lifecycle_text(status_word, status_resolved)
-        # PADDED BY VISIBLE COLUMNS (Section 9.4), never `len()` on styled text.
-        + (" " * max(0, status_width - _T.visible_width(status_word)))
+        + _T.pad_visible(
+            term.style_lifecycle_text(status_word, status_resolved), status_width
+        )
     )
 
     lead = "   "
@@ -2111,10 +2148,14 @@ def render_steps_table(
     term: Term,
     short: bool = False,
     repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> str:
     """Render a list of steps in a rounded box table."""
     if not steps:
         return ""
+    if artifact_index is None:
+        artifact_index = _audit.build_index(repo_root)
     if short:
         headers = [
             "Status",
@@ -2161,7 +2202,9 @@ def render_steps_table(
         ]
     rows = []
     for step in steps:
-        audit = audit_step_artifact(step, repo_root)
+        audit = audit_step_artifact(
+            step, repo_root, evidence=evidence, artifact_index=artifact_index
+        )
         st_disp = canonical_terminal_status(step.status)
         st_resolved = _resolve_item_status(step.status, action=step.action)
         st_styled = term.style_lifecycle_text(st_disp, st_resolved)
@@ -2394,6 +2437,18 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                     if getattr(term, "color", False)
                     else f"  > test: {truncated}"
                 )
+        # runverdict-09 (`btak7a`) E-04: render corroboration verdict adjacent to tests_run list
+        if step.corroboration_verdict:
+            corr_label = (
+                f"corroboration: {step.corroboration_verdict} (reason: {step.corroboration_reason})"
+                if step.corroboration_reason
+                else f"corroboration: {step.corroboration_verdict}"
+            )
+            details.append(
+                term.color256(f"  * {corr_label}", 36)
+                if getattr(term, "color", False)
+                else f"  * {corr_label}"
+            )
         if step.corrections_made:
             for corr in step.corrections_made:
                 corr_str = str(corr).strip()
@@ -2418,6 +2473,8 @@ def format_run_human(
     detail: bool = False,
     short: bool = False,
     repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> str:
     """Format a RunSummary as human terminal text."""
     lines = []
@@ -2552,7 +2609,14 @@ def format_run_human(
         lines.append(f"    - Verify:   {ver_line}")
 
     if run.steps:
-        tbl = render_steps_table(run.steps, term, short=short, repo_root=repo_root)
+        tbl = render_steps_table(
+            run.steps,
+            term,
+            short=short,
+            repo_root=repo_root,
+            evidence=evidence,
+            artifact_index=artifact_index,
+        )
         if tbl:
             lines.append(tbl)
         if detail:
@@ -2567,6 +2631,8 @@ def format_latest_only_human(
     detail: bool = False,
     short: bool = False,
     repo_root: Path = Path("."),
+    evidence: _audit.FinalizeEvidenceIndex | None = None,
+    artifact_index: _audit.ArtifactIndex | None = None,
 ) -> str:
     """Format the deduplicated latest step records across matched runs."""
     latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
@@ -2586,11 +2652,24 @@ def format_latest_only_human(
             (r for r in summaries if r.run_id in contributing_runs), summaries[0]
         )
         return format_run_human(
-            single_run, term, detail=detail, short=short, repo_root=repo_root
+            single_run,
+            term,
+            detail=detail,
+            short=short,
+            repo_root=repo_root,
+            evidence=evidence,
+            artifact_index=artifact_index,
         )
 
     lines = [f"Data from {len(contributing_runs)} runs"]
-    tbl = render_steps_table(steps, term, short=short, repo_root=repo_root)
+    tbl = render_steps_table(
+        steps,
+        term,
+        short=short,
+        repo_root=repo_root,
+        evidence=evidence,
+        artifact_index=artifact_index,
+    )
     if tbl:
         lines.append(tbl)
     if detail:
@@ -3412,7 +3491,7 @@ def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
 
 def run_viewer_cli(args: argparse.Namespace) -> int:
     """CLI entry point for `aw runs` / run viewer."""
-    repo_root = Path(getattr(args, "dir", None) or ".")
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
     # ssk6nf E-04: `aw runs repair <run-id>` is an opt-in MUTATING verb on an otherwise read-only
     # surface, routed from the first target token so every read path stays side-effect free.
     raw_targets = getattr(args, "target", None) or getattr(args, "targets", None) or []
@@ -3552,9 +3631,24 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         )
 
     summaries: list[RunSummary] = []
+    excluded: list[tuple[Path, str, RunSummary | None]] = []
     for r_dir in run_dirs:
+        if active_only:
+            # Quick pre-filter: if state.json exists and does not contain the status "running",
+            # no step in the queue can be running. Skipping full summary extraction saves
+            # disk reads and session log parsing across hundreds of inactive runs.
+            sf = r_dir / "state.json"
+            if sf.is_file():
+                try:
+                    if b'"running"' not in sf.read_bytes():
+                        excluded.append((r_dir, "active_only", None))
+                        continue
+                except OSError:
+                    pass
+
         summary = load_run_summary(r_dir, repo_root)
         if not summary:
+            excluded.append((r_dir, "unreadable_state", None))
             continue
 
         if (
@@ -3562,45 +3656,104 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             and set_filter not in summary.setids
             and set_filter not in summary.selectors
         ):
+            excluded.append((r_dir, "set_filter", summary))
             continue
 
         if ipd_filter and not any(s.id6 == ipd_filter for s in summary.steps):
+            excluded.append((r_dir, "ipd_filter", summary))
             continue
 
-        if status_filter and not any(s.status == status_filter for s in summary.steps):
+        if status_filter and not any(
+            canonical_terminal_status(s.status)
+            == canonical_terminal_status(status_filter)
+            for s in summary.steps
+        ):
+            excluded.append((r_dir, "status_filter", summary))
             continue
 
         if failed_only and not any(
-            s.status in ("failed", "partial", "blocked", "interrupted")
+            (
+                canonical_terminal_status(s.status) in _FAILED_FILTER_STATUSES
+                or s.status in _FAILED_FILTER_STATUSES
+            )
             for s in summary.steps
         ):
+            excluded.append((r_dir, "failed_only", summary))
             continue
 
         if active_only and not any(s.status == "running" for s in summary.steps):
+            excluded.append((r_dir, "active_only", summary))
             continue
 
         if since_dt:
             run_dt = summary.timestamp_dt
             if run_dt and run_dt < since_dt:
+                excluded.append((r_dir, "since_dt", summary))
                 continue
 
         summaries.append(summary)
 
     if last_n is not None and summaries:
         if last_n > 0:
+            truncated = summaries[:-last_n]
             summaries = summaries[-last_n:]
+            for s in truncated:
+                excluded.append((s.run_dir, "last_n", s))
         else:
+            for s in summaries:
+                excluded.append((s.run_dir, "last_n", s))
             summaries = []
+
+    reportable_excluded = [
+        (r, reason, s)
+        for r, reason, s in excluded
+        if reason != "active_only" and (raw_targets or reason == "unreadable_state")
+    ]
+    excluded_data: list[dict[str, str]] = [
+        {"run_id": s.run_id if s else r.name, "reason": reason}
+        for r, reason, s in reportable_excluded
+    ]
+
+    def _render_human_exclusions(*, leading_blank: bool = True) -> None:
+        if not reportable_excluded:
+            return
+        if leading_blank:
+            term.line("")
+        count_str = f"{len(reportable_excluded)} run{'s' if len(reportable_excluded) != 1 else ''}"
+        term.line(f"filters excluded {count_str} that matched:")
+        for r, reason, s in reportable_excluded:
+            run_id = s.run_id if s else r.name
+            setid = (
+                (s.setids[0] if s.setids else s.selectors[0])
+                if (s and (s.setids or s.selectors))
+                else None
+            )
+            term.line(
+                run_selection_policy.render_item_disposition(
+                    run_id, "run", "excluded", reason, setid=setid
+                )
+            )
 
     # The genuine EMPTY STATE, which stays a SUCCESS. Every token the caller named resolved to a run
     # (an unresolvable one was refused above), so reaching here means a FILTER excluded what matched,
     # or the repository simply has no runs. Neither is a failed request, so both keep exit 0
     # (runsverify 7wei1o, OQ-01).
+    #
+    # IPD 9jkek2 E-02: Write exclusion report to STDOUT (not stderr), because this is not a refusal
+    # (exit stays 0). 7wei1o's stderr choice was for an unresolvable-target REFUSAL whose stated
+    # reason is that a refusal must never land in a stream a caller parses on stdout. A filter
+    # exclusion is a successful narrowing and stdout is the report stream.
     if not summaries and not issues_only:
         if is_agent or is_json:
-            print(json.dumps({"runs": []}, indent=2 if is_json else None))
+            payload: dict[str, Any] = {"runs": []}
+            if excluded_data:
+                payload["excluded_runs"] = excluded_data
+            print(json.dumps(payload, indent=2 if is_json else None))
             return 0
-        term.line("no matching runs found")
+        if not reportable_excluded:
+            term.line("no matching runs found")
+            return 0
+        _render_human_exclusions(leading_blank=False)
         return 0
 
     # Collect artifact audits across displayed steps.
@@ -3616,6 +3769,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     # surfaces below could not see a refusal even though the ONE predicate can, which is the surface
     # DISAGREEMENT F-2 predicts (the table saying YES while `--json` omits the same item).
     evidence_index = _audit.build_finalize_evidence_index(repo_root)
+    artifact_index = _audit.build_index(repo_root)
     all_audits: list[StepArtifactAudit] = []
     all_steps: list[StepSummary] = []
     if latest_only:
@@ -3625,12 +3779,26 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 key = step.id6 or step.stem or step.item
                 latest_steps_dict[key] = (s, step)
         for _, st in latest_steps_dict.values():
-            all_audits.append(audit_step_artifact(st, repo_root, evidence_index))
+            all_audits.append(
+                audit_step_artifact(
+                    st,
+                    repo_root,
+                    evidence_index,
+                    artifact_index=artifact_index,
+                )
+            )
             all_steps.append(st)
     else:
         for s in summaries:
             for st in s.steps:
-                all_audits.append(audit_step_artifact(st, repo_root, evidence_index))
+                all_audits.append(
+                    audit_step_artifact(
+                        st,
+                        repo_root,
+                        evidence_index,
+                        artifact_index=artifact_index,
+                    )
+                )
                 all_steps.append(st)
 
     def _issue_records() -> list[dict[str, Any]]:
@@ -3678,14 +3846,22 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 "runs": contributing,
                 "steps": steps_list,
             }
+            if excluded_data:
+                payload["excluded_runs"] = excluded_data
         elif summary_only:
             payload = {"summary": build_multi_run_summary_dict(summaries)}
+            if excluded_data:
+                payload["excluded_runs"] = excluded_data
         else:
             payload = {"runs": [asdict(s) for s in summaries]}
             for r_dict in payload["runs"]:
-                r_dict["run_dir"] = str(r_dict["run_dir"])
+                r_dict["run_dir"] = _agent_schema.normalize_repo_path(
+                    r_dict["run_dir"], repo_root
+                )
             if len(summaries) > 1:
                 payload["summary"] = build_multi_run_summary_dict(summaries)
+            if excluded_data:
+                payload["excluded_runs"] = excluded_data
 
         if disc:
             payload["artifact_discrepancies"] = disc
@@ -3709,15 +3885,41 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                     latest_steps_dict[key] = (s, step)
             for _, st in latest_steps_dict.values():
                 print(json.dumps(asdict(st), separators=(",", ":"), ensure_ascii=False))
+            if excluded_data:
+                print(
+                    json.dumps(
+                        {"kind": "excluded_runs", "excluded_runs": excluded_data},
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    )
+                )
             return 0
         if summary_only:
             s_dict = build_multi_run_summary_dict(summaries)
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
+            if excluded_data:
+                print(
+                    json.dumps(
+                        {"kind": "excluded_runs", "excluded_runs": excluded_data},
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    )
+                )
             return 0
         for s in summaries:
             s_dict = asdict(s)
-            s_dict["run_dir"] = str(s_dict["run_dir"])
+            s_dict["run_dir"] = _agent_schema.normalize_repo_path(
+                s_dict["run_dir"], repo_root
+            )
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
+        if excluded_data:
+            print(
+                json.dumps(
+                    {"kind": "excluded_runs", "excluded_runs": excluded_data},
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                )
+            )
         return 0
 
     # Human display
@@ -3745,7 +3947,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     if latest_only:
         term.line(
             format_latest_only_human(
-                summaries, term, detail=detail, short=short, repo_root=repo_root
+                summaries,
+                term,
+                detail=detail,
+                short=short,
+                repo_root=repo_root,
+                evidence=evidence_index,
+                artifact_index=artifact_index,
             )
         )
         audit_summary_txt = format_artifact_audit_summary(
@@ -3754,6 +3962,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
+        _render_human_exclusions()
         return 0
 
     if summary_only:
@@ -3764,6 +3973,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if audit_summary_txt:
             term.line("")
             term.line(audit_summary_txt)
+        _render_human_exclusions()
         return 0
 
     for idx, summary in enumerate(summaries):
@@ -3771,7 +3981,13 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             term.line("")
         term.line(
             format_run_human(
-                summary, term, detail=detail, short=short, repo_root=repo_root
+                summary,
+                term,
+                detail=detail,
+                short=short,
+                repo_root=repo_root,
+                evidence=evidence_index,
+                artifact_index=artifact_index,
             )
         )
 
@@ -3786,4 +4002,5 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line("")
         term.line(audit_summary_txt)
 
+    _render_human_exclusions()
     return 0

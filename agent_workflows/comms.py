@@ -17,7 +17,7 @@ functions here are pure: they parse/validate in-memory values and never touch th
 only (zero runtime deps, D46).
 
 See ``.agents/docs/specs/`` (the agent-comms-convention spec) and
-``.agents/docs/research/20260714-2300-01-same-box-agent-wakeup-mechanisms.md`` for the design.
+``.aw/records/research/reference/202607/20260714-same-box-agent-wakeup-mechanisms-00-j2000q-same-box-agent-wakeup-mechanisms.research-report.md`` for the design.
 """
 
 from __future__ import annotations

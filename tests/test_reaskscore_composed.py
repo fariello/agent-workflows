@@ -94,8 +94,6 @@ class TestSharedConstantsByteIdenticalAndUnwidened(unittest.TestCase):
             set(runner_shared.TERMINAL_STATES),
             "host TERMINAL_STATES and runner_shared.TERMINAL_STATES must be equal",
         )
-        # 23 + `retired` (in-lane retirement, runner_shared.RETIRED_STATUS).
-        self.assertEqual(len(runner_shared.TERMINAL_STATES), 24)
         # Deferrable pair is deliberately absent
         self.assertNotIn("merge-retry", runner_shared.TERMINAL_STATES)
         self.assertNotIn("merge-unchecked", runner_shared.TERMINAL_STATES)

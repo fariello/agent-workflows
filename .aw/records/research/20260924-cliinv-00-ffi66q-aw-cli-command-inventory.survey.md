@@ -61,8 +61,8 @@ walk(cli._build_parser(), [])
 EOF
 ```
 
-**Conventions.** Every command accepts `--no-color`, `--color`, `--agent` (aw.agent/v1 JSONL, also
-automatic when piped), and `--json`. Exit codes are `0` clean, `1` findings, `2` cannot-run, unless a
+**Conventions.** Every command accepts `--no-color`, `--color`, `--agent` (aw.agent/v1 JSONL),
+and `--json`. Exit codes are `0` clean, `1` findings, `2` cannot-run, unless a
 row says otherwise. "Preview" means the command writes nothing without `--apply`. The **R/W** column
 is `R` read-only, `W` writes, `R/W` previews by default and writes with a flag.
 

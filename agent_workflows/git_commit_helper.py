@@ -557,7 +557,8 @@ def offer_commit(
         The ``--commit`` flag. When true, commit without prompting (the only way to commit
         non-interactively).
     no_commit:
-        The ``--no-commit`` escape hatch. Short-circuits to ``skipped`` regardless of TTY.
+        The ``--no-commit`` escape hatch. Short-circuits to ``skipped`` regardless of TTY, except
+        for a directory argument which refuses with ``error`` even under preview.
     interactive:
         Explicit interactivity override (used by tests and programmatic callers);
         ``None`` delegates to :func:`agent_workflows.term.is_interactive`, which requires
@@ -580,10 +581,12 @@ def offer_commit(
     -------
     CommitOutcome
         ``committed`` (with the new sha; reports any named paths that had nothing to commit),
-        ``skipped`` (gate declined it non-interactively or ``no_commit``), ``declined`` (interactive
-        user said no), ``refused-dirty`` (``on_unrelated_staged="refuse"`` and the index held
-        unrelated staged paths), ``nothing-to-commit`` (no requested path exists/changed, or EVERY
-        requested path is gitignored), or ``error`` (e.g. a directory argument was passed).
+        ``skipped`` (gate declined it non-interactively or ``no_commit`` for non-directory paths),
+        ``declined`` (interactive user said no), ``refused-dirty`` (``on_unrelated_staged="refuse"``
+        and the index held unrelated staged paths), ``nothing-to-commit`` (no requested path exists/changed,
+        or EVERY requested path is gitignored), or ``error`` (e.g. a directory argument was passed,
+        which refuses even under ``no_commit``; the ``no_commit`` short-circuit still precedes other
+        post-staging/dirty checks so a preview is not a general oracle).
 
     Notes
     -----
@@ -614,16 +617,34 @@ def offer_commit(
             STATUS_NOTHING_TO_COMMIT, None, (), "no paths given to commit"
         )
 
-    if no_commit:
-        return CommitOutcome(STATUS_SKIPPED, None, (), "skipped: --no-commit requested")
-
-    # --- Refuse directory arguments BEFORE staging (OQ-01 / F-6 / F-7). ---
+    # --- Refuse directory arguments BEFORE staging and BEFORE no_commit (OQ-01 / F-6 / F-7 / IPD o39zn9). ---
     # A directory argument is staged by `git add -- <dir>`, but git reports the contained FILES at
     # `_staged_paths`, so `our_staged = now_staged & set(rel_paths)` drops them. That dropped the
     # destination of records moves and committed deletions alone (ca8e22e4 / F-1 / F-2). An
     # all-directories call returned `nothing-to-commit` having already staged the full move with no
     # rollback (F-6). Refusing BEFORE staging ensures the index remains untouched.
-    dir_paths = [p for p in rel_paths if (repo_root / p).is_dir()]
+    #
+    # Sited before `no_commit` so a dry-run preview discovers the refusal instead of reporting a
+    # misleading `skipped: --no-commit requested` (a dry run that cannot see a refusal is worse than
+    # no dry run, because it is read as a clean result). Still sited before any staging so a refused
+    # call leaves the index untouched.
+    #
+    # The predicate catches paths that ARE or WERE directories: `(repo_root / p).is_dir()` checks the
+    # filesystem (live or untracked directories), while `_contained_files` checks git status for paths
+    # whose contents were deleted or moved away (the emptied-directory records move shape). An emptied
+    # directory does not exist on disk, but git knows its deleted contents; without this git-derived
+    # branch, a mixed call naming an emptied directory commits the file half and leaves staged deletions
+    # behind in the shared index (F-11). Deleted plain files must NOT match, so we ensure the contained
+    # set is not exactly `[p]` itself.
+    dir_paths = []
+    for p in rel_paths:
+        target = repo_root / p
+        if target.is_dir():
+            dir_paths.append(p)
+        elif not target.exists():
+            contained = _contained_files(repo_root, [p])
+            if contained and contained != [p]:
+                dir_paths.append(p)
     if dir_paths:
         contained = _contained_files(repo_root, dir_paths)
         hint = f": {', '.join(contained)}" if contained else ""
@@ -633,6 +654,9 @@ def offer_commit(
             (),
             f"refusing directory argument(s): {', '.join(dir_paths)}; name explicit file path(s) instead{hint}",
         )
+
+    if no_commit:
+        return CommitOutcome(STATUS_SKIPPED, None, (), "skipped: --no-commit requested")
 
     # --- Drop gitignored paths BEFORE staging (never force-add them). ---
     # A single ignored path makes `git add` exit 1 having staged NOTHING, which previously turned
@@ -695,143 +719,150 @@ def offer_commit(
     # still fails closed. See `commit_lock` for the reproduction and the honest limit.
     from agent_workflows import commit_lock as _lock
 
-    with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit"):
-        # --- Stage ONLY the requested paths (never -A/-a). ---
-        # git add -- <path> on a deleted path stages the deletion; a nonexistent, never-tracked
-        # path would error, so we let git report it and surface as an error outcome.
-        #
-        # AN ALREADY-STAGED RENAME'S SOURCE IS NEITHER. Relocating callers now use `git mv`
-        # (`artifact_core.git_mv`), which STAGES the rename, so the OLD path is already in the index
-        # and is gone from disk. `git add` on it fails "pathspec did not match any files", which took
-        # the WHOLE commit down (git add stages nothing on failure) and left the move half-committed:
-        # measured 2026-09-13, commit `52837644` holds the addition alone and the unstaged deletion it
-        # left behind refused 27 of 42 items in run `run-20260913T031350Z-1732436`.
-        # Such a path needs no `git add` at all, so drop it from the ADD set while keeping it in
-        # `rel_paths` for the staged-intersection and commit steps below.
-        #
-        # THE TEST IS "GONE FROM DISK AND ALREADY GONE FROM HEAD'S WORKING SET", i.e. a path that no
-        # longer exists and that the index no longer has an entry for. Do NOT test membership in
-        # `_staged_paths()`: for a staged rename git reports only the DESTINATION there, so the source
-        # is absent from it and a `p not in _staged_paths()` test wrongly keeps the source in the ADD
-        # set, which is the same failure with extra steps (measured while writing this fix).
-        add_paths = [
-            p for p in rel_paths if (repo_root / p).exists() or _in_index(repo_root, p)
-        ]
-        if add_paths:
-            rc, _out, err = _git(repo_root, ["add", "--", *add_paths])
-            if rc != 0:
-                # Roll back any partial staging of OUR paths so we leave the index as we found it.
-                _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel_paths])
-                return CommitOutcome(
-                    STATUS_ERROR, None, (), f"git add failed: {err.strip()}"
-                )
+    try:
+        with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit"):
+            # --- Stage ONLY the requested paths (never -A/-a). ---
+            # git add -- <path> on a deleted path stages the deletion; a nonexistent, never-tracked
+            # path would error, so we let git report it and surface as an error outcome.
+            #
+            # AN ALREADY-STAGED RENAME'S SOURCE IS NEITHER. Relocating callers now use `git mv`
+            # (`artifact_core.git_mv`), which STAGES the rename, so the OLD path is already in the index
+            # and is gone from disk. `git add` on it fails "pathspec did not match any files", which took
+            # the WHOLE commit down (git add stages nothing on failure) and left the move half-committed:
+            # measured 2026-09-13, commit `52837644` holds the addition alone and the unstaged deletion it
+            # left behind refused 27 of 42 items in run `run-20260913T031350Z-1732436`.
+            # Such a path needs no `git add` at all, so drop it from the ADD set while keeping it in
+            # `rel_paths` for the staged-intersection and commit steps below.
+            #
+            # THE TEST IS "GONE FROM DISK AND ALREADY GONE FROM HEAD'S WORKING SET", i.e. a path that no
+            # longer exists and that the index no longer has an entry for. Do NOT test membership in
+            # `_staged_paths()`: for a staged rename git reports only the DESTINATION there, so the source
+            # is absent from it and a `p not in _staged_paths()` test wrongly keeps the source in the ADD
+            # set, which is the same failure with extra steps (measured while writing this fix).
+            add_paths = [
+                p
+                for p in rel_paths
+                if (repo_root / p).exists() or _in_index(repo_root, p)
+            ]
+            if add_paths:
+                rc, _out, err = _git(repo_root, ["add", "--", *add_paths])
+                if rc != 0:
+                    # Roll back any partial staging of OUR paths so we leave the index as we found it.
+                    _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel_paths])
+                    return CommitOutcome(
+                        STATUS_ERROR, None, (), f"git add failed: {err.strip()}"
+                    )
 
-        # Which of our requested paths actually ended up staged (existed / had a diff)?
-        now_staged = set(_staged_paths(repo_root))
-        our_staged = sorted(now_staged & set(rel_paths))
-        if not our_staged:
-            # Nothing of ours changed (already committed / identical); no empty commit.
-            # Roll back any unexpected staging residue to restore the pre-call index state (F-6).
-            residue = sorted(now_staged - pre_staged)
-            if residue:
-                _git(repo_root, ["reset", "--quiet", "HEAD", "--", *residue])
+            # Which of our requested paths actually ended up staged (existed / had a diff)?
+            now_staged = set(_staged_paths(repo_root))
+            our_staged = sorted(now_staged & set(rel_paths))
+            if not our_staged:
+                # Nothing of ours changed (already committed / identical); no empty commit.
+                # Roll back any unexpected staging residue to restore the pre-call index state (F-6).
+                residue = sorted(now_staged - pre_staged)
+                if residue:
+                    _git(repo_root, ["reset", "--quiet", "HEAD", "--", *residue])
+                    return CommitOutcome(
+                        STATUS_NOTHING_TO_COMMIT,
+                        None,
+                        (),
+                        f"nothing to commit: requested path(s) had no staged changes ({', '.join(rel_paths)}); reset staged residue: {', '.join(residue)}",
+                    )
                 return CommitOutcome(
                     STATUS_NOTHING_TO_COMMIT,
                     None,
                     (),
-                    f"nothing to commit: requested path(s) had no staged changes ({', '.join(rel_paths)}); reset staged residue: {', '.join(residue)}",
+                    f"nothing to commit: requested path(s) have no staged changes ({', '.join(rel_paths)})",
+                )
+
+            # --- Path-scoped commit, performed in an ISOLATED worktree. ---
+            # Never --no-verify, never push. The isolation is what protects a CONCURRENT WRITER:
+            # committing here would let pre-commit stash the SHARED tree and then restore over a peer's
+            # in-flight edit, destroying it (measured). `commit_isolated` runs the SAME hooks in a private
+            # worktree instead, and advances the branch under a compare-and-swap.
+            iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
+
+            if iso.status == _lock.ISO_RACED:
+                # Another commit moved HEAD between snapshot and compare-and-swap.
+                # Re-attempt the isolated commit on the new tip, bounded by wall time and an attempt cap.
+                from agent_workflows import contention_wait
+
+                raced_attempts = 1
+
+                def _try_raced_commit() -> tuple[bool, Any]:
+                    nonlocal iso, raced_attempts
+                    if raced_attempts >= ISO_RACED_MAX_ATTEMPTS:
+                        return True, iso
+                    raced_attempts += 1
+                    iso = _lock.commit_isolated(
+                        repo_root, our_staged, message=full_message
+                    )
+                    if iso.status == _lock.ISO_COMMITTED:
+                        return True, iso
+                    if iso.status == _lock.ISO_RACED:
+                        return False, iso
+                    return True, iso
+
+                def _holder_fn() -> Optional[str]:
+                    rc, out, _ = _git(repo_root, ["rev-parse", "--short", "HEAD"])
+                    return f"new tip {out.strip()}" if rc == 0 and out.strip() else None
+
+                contention_wait.wait_until(
+                    _try_raced_commit,
+                    what="isolated commit compare-and-swap on new tip",
+                    holder=_holder_fn,
+                    timeout=contention_wait.TIMEOUT_SECONDS,
+                    poll=contention_wait.POLL_SECONDS,
+                    report_every=contention_wait.REPORT_SECONDS,
+                )
+
+            if iso.status == _lock.ISO_COMMITTED:
+                # A MUTATING hook may have rewritten our own paths and had the commit retried once
+                # (`commit_isolated`). Say so rather than reporting a bare success: the committed bytes are
+                # then the HOOK's, not exactly what the caller wrote, and an operator who is not told that
+                # has no way to notice.
+                shortfall = [p for p in rel_paths if p not in set(our_staged)]
+                shortfall_note = (
+                    f" ({len(shortfall)} path(s) had nothing to commit: {', '.join(shortfall)})"
+                    if shortfall
+                    else ""
+                )
+                note = ""
+                if iso.hook_fixed:
+                    note = (
+                        f" (the pre-commit hooks fixed {', '.join(iso.hook_fixed)} and the commit "
+                        "succeeded on a single retry)"
+                    )
+                if iso.hook_fixed_diverged:
+                    note += (
+                        f" NOTE: {', '.join(iso.hook_fixed_diverged)} was changed by another writer "
+                        "during the commit, so the working tree keeps THEIR content"
+                    )
+                return CommitOutcome(
+                    STATUS_COMMITTED,
+                    iso.commit,
+                    tuple(our_staged),
+                    f"committed {len(our_staged)} path(s) as {iso.commit}{note}{shortfall_note}",
+                    tuple(iso.hook_fixed),
+                    tuple(iso.hook_fixed_diverged),
+                )
+
+            # Every non-success path leaves the caller's staging as it was found, then reports honestly.
+            _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
+            if iso.status == _lock.ISO_NOTHING:
+                return CommitOutcome(
+                    STATUS_NOTHING_TO_COMMIT,
+                    None,
+                    (),
+                    f"nothing to commit: {iso.detail}",
+                    tuple(iso.hook_fixed),
+                    tuple(iso.hook_fixed_diverged),
                 )
             return CommitOutcome(
-                STATUS_NOTHING_TO_COMMIT,
+                STATUS_ERROR,
                 None,
-                (),
-                f"nothing to commit: requested path(s) have no staged changes ({', '.join(rel_paths)})",
-            )
-
-        # --- Path-scoped commit, performed in an ISOLATED worktree. ---
-        # Never --no-verify, never push. The isolation is what protects a CONCURRENT WRITER:
-        # committing here would let pre-commit stash the SHARED tree and then restore over a peer's
-        # in-flight edit, destroying it (measured). `commit_isolated` runs the SAME hooks in a private
-        # worktree instead, and advances the branch under a compare-and-swap.
-        iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
-
-        if iso.status == _lock.ISO_RACED:
-            # Another commit moved HEAD between snapshot and compare-and-swap.
-            # Re-attempt the isolated commit on the new tip, bounded by wall time and an attempt cap.
-            from agent_workflows import contention_wait
-
-            raced_attempts = 1
-
-            def _try_raced_commit() -> tuple[bool, Any]:
-                nonlocal iso, raced_attempts
-                if raced_attempts >= ISO_RACED_MAX_ATTEMPTS:
-                    return True, iso
-                raced_attempts += 1
-                iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
-                if iso.status == _lock.ISO_COMMITTED:
-                    return True, iso
-                if iso.status == _lock.ISO_RACED:
-                    return False, iso
-                return True, iso
-
-            def _holder_fn() -> Optional[str]:
-                rc, out, _ = _git(repo_root, ["rev-parse", "--short", "HEAD"])
-                return f"new tip {out.strip()}" if rc == 0 and out.strip() else None
-
-            contention_wait.wait_until(
-                _try_raced_commit,
-                what="isolated commit compare-and-swap on new tip",
-                holder=_holder_fn,
-                timeout=contention_wait.TIMEOUT_SECONDS,
-                poll=contention_wait.POLL_SECONDS,
-                report_every=contention_wait.REPORT_SECONDS,
-            )
-
-        if iso.status == _lock.ISO_COMMITTED:
-            # A MUTATING hook may have rewritten our own paths and had the commit retried once
-            # (`commit_isolated`). Say so rather than reporting a bare success: the committed bytes are
-            # then the HOOK's, not exactly what the caller wrote, and an operator who is not told that
-            # has no way to notice.
-            shortfall = [p for p in rel_paths if p not in set(our_staged)]
-            shortfall_note = (
-                f" ({len(shortfall)} path(s) had nothing to commit: {', '.join(shortfall)})"
-                if shortfall
-                else ""
-            )
-            note = ""
-            if iso.hook_fixed:
-                note = (
-                    f" (the pre-commit hooks fixed {', '.join(iso.hook_fixed)} and the commit "
-                    "succeeded on a single retry)"
-                )
-            if iso.hook_fixed_diverged:
-                note += (
-                    f" NOTE: {', '.join(iso.hook_fixed_diverged)} was changed by another writer "
-                    "during the commit, so the working tree keeps THEIR content"
-                )
-            return CommitOutcome(
-                STATUS_COMMITTED,
-                iso.commit,
                 tuple(our_staged),
-                f"committed {len(our_staged)} path(s) as {iso.commit}{note}{shortfall_note}",
-                tuple(iso.hook_fixed),
-                tuple(iso.hook_fixed_diverged),
+                f"git commit failed: {iso.detail}",
             )
-
-        # Every non-success path leaves the caller's staging as it was found, then reports honestly.
-        _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
-        if iso.status == _lock.ISO_NOTHING:
-            return CommitOutcome(
-                STATUS_NOTHING_TO_COMMIT,
-                None,
-                (),
-                f"nothing to commit: {iso.detail}",
-                tuple(iso.hook_fixed),
-                tuple(iso.hook_fixed_diverged),
-            )
-        return CommitOutcome(
-            STATUS_ERROR,
-            None,
-            tuple(our_staged),
-            f"git commit failed: {iso.detail}",
-        )
+    except _lock.CommitLockBusy as exc:
+        return CommitOutcome(STATUS_ERROR, None, (), str(exc))

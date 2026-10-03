@@ -760,5 +760,88 @@ class TestPredicateBoundaryCases(unittest.TestCase):
                 self.assertTrue(run_dir.exists())
 
 
+class TestFreezeRefusalColorStyling(unittest.TestCase):
+    """Verify that freeze-time refusals format id6 references in bold yellow when color is active."""
+
+    def test_unsatisfiable_dependency_refusal_styles_id6_bold_yellow_when_color_active(
+        self,
+    ):
+        queue = [
+            {
+                "id6": "36sifo",
+                "artifact_type": "ipd",
+                "status": "approved",
+                "action": "execute",
+                "dependencies": ["executed:nwcf8j"],
+            }
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            with self.assertRaises(runner_shared.DriverError) as cm_colored:
+                runner_shared.enforce_freeze_time_refusal(
+                    queue, repo=repo, host="agy", color=True
+                )
+            msg_colored = str(cm_colored.exception)
+            self.assertIn("[RUN-DEPENDENCY-UNSATISFIABLE]", msg_colored)
+            self.assertIn(
+                "\033[1;33m36sifo\033[0m requires executed:\033[1;36mnwcf8j\033[0m",
+                msg_colored,
+            )
+            self.assertIn("\033[1;36mnwcf8j\033[0m is absent", msg_colored)
+            self.assertIn("ipd \033[1;33m36sifo\033[0m at", msg_colored)
+            self.assertIn("then: aw agy run \033[1;33m36sifo\033[0m", msg_colored)
+
+            with self.assertRaises(runner_shared.DriverError) as cm_plain:
+                runner_shared.enforce_freeze_time_refusal(
+                    queue, repo=repo, host="agy", color=False
+                )
+            msg_plain = str(cm_plain.exception)
+            self.assertIn("36sifo requires executed:nwcf8j", msg_plain)
+            self.assertIn("nwcf8j is absent", msg_plain)
+            self.assertNotIn("\033[", msg_plain)
+
+    def test_undetermined_action_styles_id6_bold_yellow_when_color_active(self):
+        queue = [
+            {
+                "id6": "und123",
+                "artifact_type": "ipd",
+                "status": "draft",
+                "action": "undetermined",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            with self.assertRaises(runner_shared.DriverError) as cm:
+                runner_shared.enforce_freeze_time_refusal(
+                    queue, repo=repo, host="oc", color=True
+                )
+            msg = str(cm.exception)
+            self.assertIn("[RUN-UNDETERMINED-ACTION]", msg)
+            self.assertIn("ipd \033[1;33mund123\033[0m", msg)
+            self.assertIn("then: aw oc run \033[1;33mund123\033[0m", msg)
+
+    def test_structure_preflight_styles_id6_bold_yellow_when_color_active(self):
+        queue = [
+            {
+                "id6": "notfnd",
+                "artifact_type": "ipd",
+                "status": "approved",
+                "action": "execute",
+                "configured_file": "missing.ipd.md",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            with self.assertRaises(runner_shared.DriverError) as cm:
+                runner_shared.enforce_freeze_time_refusal(
+                    queue, repo=repo, host="oc", color=True
+                )
+            msg = str(cm.exception)
+            self.assertIn("[RUN-STRUCTURE-PREFLIGHT]", msg)
+            self.assertIn("ipd \033[1;33mnotfnd\033[0m", msg)
+            self.assertIn("run aw check all \033[1;33mnotfnd\033[0m", msg)
+            self.assertIn("then: aw oc run \033[1;33mnotfnd\033[0m", msg)
+
+
 if __name__ == "__main__":
     unittest.main()

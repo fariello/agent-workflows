@@ -22,9 +22,12 @@ Pure stdlib implementation conforming to D138 (dependency minimization) and D139
 
 from __future__ import annotations
 
+import ast
+from collections import defaultdict
 import datetime
 import hashlib
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import (
@@ -32,6 +35,7 @@ from typing import (
     Callable,
     Dict,
     FrozenSet,
+    Iterable,
     List,
     Mapping,
     NamedTuple,
@@ -432,6 +436,51 @@ def build_artifact_ref(
     return rec
 
 
+class CapturedToolEvent(Dict[str, Any]):
+    """A tool_event mapping that carries captured output text out of band as attributes.
+
+    This class subclasses dict so that existing consumers subscripting or calling .get()
+    continue to access schema fields byte-identically, while json.dumps, dict(...),
+    copy.deepcopy(dict(...)) (what RunLedgerStore.append actually does), and mapping iteration
+    see ONLY the schema fields. Attributes are not mapping entries, so unbounded command
+    output is structurally prevented from leaking into the durable ledger.
+
+    Attributes:
+        stdout: Decoded stdout text (utf-8, errors="replace").
+        stderr: Decoded stderr text (utf-8, errors="replace").
+
+    Decode policy and byte/character asymmetry:
+        The text in stdout and stderr is DECODED text (utf-8 with errors="replace"), whereas
+        stdout_len, stderr_len, stdout_sha256, and stderr_sha256 in the mapping are computed
+        over the RAW BYTES. Therefore, len(event.stdout) and event["stdout_len"] may differ
+        for any multi-byte UTF-8 sequence or invalid byte sequence (e.g. 'é' produces
+        stdout_len 2 from raw bytes against 1 decoded character).
+
+    Normalization hazard (F-14):
+        Normalizing this object via dict(result), or any copy that goes through it, drops
+        the .stdout and .stderr attributes silently with no error. Specifically,
+        verify_roles.build_verifier_packet and verify_roles.verifier_packet_from_dict normalize
+        their evidence manifest with tuple(dict(e) for e in ...), and
+        verify_roles.procedure_test_falsifiability then reads str(ev.get("stdout", "")) off those
+        copies. Neither consumer routes through this today, but any future author wiring
+        worker output into the verifier manifest must be aware that dict(...) normalization
+        drops the attributes.
+    """
+
+    __slots__ = ("stdout", "stderr")
+
+    def __init__(
+        self,
+        *args: Any,
+        stdout: str = "",
+        stderr: str = "",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.stdout = stdout
+        self.stderr = stderr
+
+
 def capture_command(
     run_id: str,
     argv: Sequence[str],
@@ -444,7 +493,7 @@ def capture_command(
     parent: str = "",
     timeout: float = 60.0,
     max_output_bytes: Optional[int] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[CapturedToolEvent, Dict[str, Any]]:
     """Execute a command, capture provenance (start/end, exit, stdout/stderr SHA-256, HEAD, dirty digest,
     worktree, env allowlist), and return (tool_event, evidence_envelope)."""
     norm_cwd = str(Path(cwd).resolve())
@@ -498,29 +547,19 @@ def capture_command(
         actor=actor,
         parent=parent,
     )
-    # gatewire-01 (`h5pyqa`): RETURN THE OUTPUT TEXT to the caller, which repairs a measured defect in
-    # every consumer of this function.
+    # toolevtext-01 (`emzbut`): RETURN THE OUTPUT TEXT OUT OF BAND via CapturedToolEvent.
     #
-    # THE DEFECT, measured 2026-09-20 by calling this function directly: `oc_runipd.run_suite_check`
-    # read `tool_event["stdout_excerpt"]` and `host_runner.run_raw_worker` reads
-    # `tool_event["stdout"]`, and `build_tool_event` writes NEITHER - a `tool_event` is a LEDGER record
-    # carrying `stdout_sha256`/`stdout_len` and deliberately not the text. So both reads silently
-    # yielded `""`, and the integration gate's `summary` has always been empty (its refusal reason read
-    # `no summary line parsed` on every failure). The existing tests could not see it because each one
-    # mocks this function and fabricates the very key production never produces.
+    # Historically (under gatewire-01 / `h5pyqa`), output text was attached directly to the
+    # returned mapping using four keys ('stdout', 'stderr', 'stdout_excerpt', 'stderr_excerpt').
+    # While build_tool_event remained untouched, the returned mapping IS a schema-valid tool_event.
+    # Consequently, any caller appending the returned mapping directly (such as RunLedgerStore.append)
+    # persisted unbounded command output into the durable hash-chained ledger twice over (F-01).
     #
-    # WHY IT IS ADDED TO THE RETURNED MAPPING AND NOT TO THE LEDGER RECORD SHAPE. `build_tool_event` is
-    # the ledger's own constructor and its records are persisted and schema-checked
-    # (`run_ledger_schema._KIND_FIELDS["tool_event"]`); writing unbounded command output into a durable
-    # ledger is a far larger decision than repairing these reads, and this plan does not own it. These
-    # keys are therefore attached HERE, on the in-memory value this function hands back, so a caller can
-    # read the output it just asked for while the record's own shape is untouched. `build_tool_event`
-    # remains byte-for-byte what it was for every other caller.
-    #
-    # BOTH SPELLINGS ARE SUPPLIED, and that is a deliberate acceptance of an existing inconsistency
-    # rather than a new one: two consumers already read two different key names, and inventing a third
-    # correct name would leave both of them broken. Widening is the fix that reaches every existing
-    # reader without touching either call site.
+    # Under toolevtext-01, the output text is returned as typed instance attributes (.stdout, .stderr)
+    # on CapturedToolEvent, a dict subclass declaring __slots__ = ("stdout", "stderr").
+    # The four injected mapping keys are removed, converging consumers on one spelling and
+    # structurally preventing unbounded output text from leaking into the persisted ledger, while
+    # preserving all existing subscript and .get() reads on schema fields.
     stdout_text = (
         stdout_raw.decode("utf-8", "replace")
         if isinstance(stdout_raw, bytes)
@@ -531,10 +570,11 @@ def capture_command(
         if isinstance(stderr_raw, bytes)
         else str(stderr_raw)
     )
-    tool_event["stdout"] = stdout_text
-    tool_event["stderr"] = stderr_text
-    tool_event["stdout_excerpt"] = stdout_text
-    tool_event["stderr_excerpt"] = stderr_text
+    captured_event = CapturedToolEvent(
+        tool_event,
+        stdout=stdout_text,
+        stderr=stderr_text,
+    )
 
     bound_ids = list(binds) if binds else []
     envelope = build_evidence_envelope(
@@ -546,11 +586,11 @@ def capture_command(
         dirty_digest=dirty_digest,
         actor=actor,
         parent=parent,
-        stdout_sha256=tool_event["stdout_sha256"],
+        stdout_sha256=captured_event["stdout_sha256"],
         timestamp=end_time,
     )
 
-    return tool_event, envelope
+    return captured_event, envelope
 
 
 # ---- E-02: Evidence Validators -------------------------------------------------------------------
@@ -1190,6 +1230,10 @@ class RunFindingCode(NamedTuple):
                               one still resolves, which is what stops the mapping rotting silently.
       * ``waiting_on``      - for an UNBOUND row, the missing machinery (and its owner, when one
                               exists). Empty for a BOUND row.
+      * ``reachability``    - for a BOUND row, the reachability of each named predicate from runner
+                              entrypoints is not stored as a static field (which would rot or slow
+                              down import), but is derived lazily and memoized via
+                              :func:`predicate_verdicts_for` (or :func:`predicate_reachability_for`).
     """
 
     code: str
@@ -1209,13 +1253,18 @@ class RunFindingCode(NamedTuple):
 # THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates SIX abort classes and closes
 # with "No other finding may abort the whole queue". So transcribing a message while inventing its
 # action would silently license aborting a whole queue on an item-local fault - and item-local
-# failure is exactly what lets independent items keep running. MEASURED 2026-09-22 over the table
-# below: two of the 12 codes abort UNCONDITIONALLY; five abort ONLY under a named 4.1 class; five
-# never abort. Collapsing that distinction into a single boolean is the error this tri-state exists to
+# failure is exactly what lets independent items keep running. Each row's abort tri-state is
+# mechanically derived from its verbatim action text via :func:`derive_abort_from_action`
+# (segments containing "ABORT RUN": unqualified "ABORT RUN" is always, qualified is conditional,
+# absent is never) and gated at runtime by :func:`validate_finding_table` (code RC-ABORT-DERIVATION),
+# with tests anchoring the action text to spec 25kzda Section 4.2 byte for byte.
+# Collapsing that distinction into a single boolean is the error this tri-state exists to
 # prevent. The counts moved twice and BOTH moves are recorded rather than silently overwritten: this
 # comment read "eight ... three" while the table actually held 6 conditional and 5 never even BEFORE
 # `RUN-NO-PUSH` was retired (it was already wrong, presumably from an earlier edit), and retiring that
-# code then took conditional from 6 to 5. Prefer recomputing over trusting this sentence.
+# code then took conditional from 6 to 5. A third drift occurred in commit 544ba188 when
+# `RUN-STRUCTURE-PREFLIGHT` moved to never alongside its action text, leaving the comment's tally stale
+# until plan xjmjq4 replaced the hand count with mechanical derivation.
 
 ABORT_ALWAYS = "always"
 ABORT_CONDITIONAL = "conditional"
@@ -1232,6 +1281,28 @@ ABORT_CLASSES: Tuple[str, ...] = (
 )
 
 
+def derive_abort_from_action(action: str) -> str:
+    """Derive the abort tri-state (:data:`ABORT_ALWAYS`, :data:`ABORT_CONDITIONAL`, :data:`ABORT_NEVER`)
+    from a finding code's verbatim ``action`` string alone.
+
+    The derivation splits ``action`` on ``;`` and inspects segments containing ``ABORT RUN``:
+      * absent -> :data:`ABORT_NEVER`
+      * exactly ``ABORT RUN`` (unqualified) -> :data:`ABORT_ALWAYS`
+      * qualified (e.g. ``ABORT RUN only for ...`` / ``ABORT RUN for ...``) -> :data:`ABORT_CONDITIONAL`
+
+    The stored ``abort`` field on :class:`RunFindingCode` remains the readable index for callers;
+    this helper serves as the runtime and test cross-check so the verbatim spec action text
+    remains the single authority.
+    """
+    segments = [s.strip() for s in action.split(";")]
+    abort_segments = [s for s in segments if "ABORT RUN" in s]
+    if not abort_segments:
+        return ABORT_NEVER
+    if any(s == "ABORT RUN" for s in abort_segments):
+        return ABORT_ALWAYS
+    return ABORT_CONDITIONAL
+
+
 # ---- binding states (E-02) -----------------------------------------------------------------------
 #
 # WHY A CODE RECORDS ITS OWN BINDING STATE. An unbound code that HONESTLY REPORTS ITSELF UNBOUND is
@@ -1239,6 +1310,12 @@ ABORT_CLASSES: Tuple[str, ...] = (
 # predicate that does not answer its question is a fail-OPEN checker - it passes because nothing was
 # checked. The second is the failure this three-state field exists to make impossible, so a binding
 # is recorded only where a shipped predicate genuinely answers THAT code's question.
+#
+# REACHABILITY VS EXISTENCE (f7z10q). A row being BOUND records that it names shipped deciding
+# predicates, but symbol existence does not prove execution reachability from run entrypoints.
+# Reachability is measured dynamically across entrypoints by :func:`prove_predicate_reachability`
+# and partitioned by :func:`bound_run_finding_codes_reachability`. Prefer recomputing via the
+# accessor over trusting static counts.
 
 #: A shipped predicate decides this code; the code is a stable NAME over existing logic.
 BOUND = "BOUND"
@@ -1259,15 +1336,21 @@ BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT
 #   * `RUN-HOST-CAPABILITY` is now BOUND, not UNBOUND-BY-DEPENDENCY: `hostcap-01` (`mjx7ne`)
 #     executed and shipped `host_sandbox_profile.preflight_host_capabilities` plus that code's
 #     verbatim message.
+#     (2026-09-30 note, plan f7z10q): That inference was existence-only; mjx7ne shipped the
+#     function without wiring it to a runner call site. Plan iot7hc later supplied the missing call
+#     site in runner_shared. The row was reported BOUND throughout the intervening period during
+#     which no run could emit it. Reachability is now measured by
+#     :func:`bound_run_finding_codes_reachability` rather than inferred from symbol existence.
 #   * `RUN-BASELINE-OWNERSHIP` is now BOUND, not UNBOUND-UNBUILT: the per-path lease overlap check
 #     F3 said nobody had built ships as `worktree_lease.LeaseTable.claim` (`m2wwns`), and
 #     `dirty_within` decides the pre-existing-dirty-path half.
 #   * `RUN-COMMIT-CONTENTS` / `RUN-COMMIT-GATEWAY` stay UNBOUND, but WAITING ON SOMETHING ELSE.
-#     `runtrail-01` (`m73aet`) executed and the `AW-Run:`/`AW-Item:` trailers exist - but only as
-#     WRITERS. Nothing reads a trailer back, and `m73aet`'s own executed receipt states
-#     "`RUN-COMMIT-GATEWAY` remains wholly unbuilt" and "nothing in the tree PASSES trailers yet".
-#     Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so binding
-#     these two now would be exactly the fail-open error described above.
+#     `runtrail-01` (`m73aet`) executed and trailers exist as writers, and `199u11` shipped a reader
+#     (`ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership`). Historically,
+#     `m73aet`'s executed receipt recorded at the time that "`RUN-COMMIT-GATEWAY` remains wholly
+#     unbuilt" and "nothing in the tree PASSES trailers yet", but both halves have since been
+#     overtaken. Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so
+#     binding these two now would be exactly the fail-open error described above.
 #
 # Net as of 2026-09-05: 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 1 UNBOUND-UNBUILT (F3 recorded 9 / 2 / 2).
 #
@@ -1276,8 +1359,9 @@ BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT
 # UNBOUND-UNBUILT ANY MORE, and that is a RETIREMENT rather than an implementation: the one code in
 # that state named host push-denial enforcement nobody built, so 4.2 stopped promising it instead of
 # binding it to something that does not enforce it. The two remaining unbound codes still WAIT on
-# machinery (a commit-gateway receipt and a trailer READER), so an empty unbuilt set must NOT be read
-# as "everything is now decided by a predicate".
+# machinery (a commit-gateway receipt and a tree-diff contents proof, since `199u11` shipped the
+# `ipd_lifecycle` trailer reader), so an empty unbuilt set must NOT be read as "everything is now
+# decided by a predicate".
 
 RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
     RunFindingCode(
@@ -1506,10 +1590,11 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         binding=UNBOUND_BY_DEPENDENCY,
         predicates=(),
         waiting_on=(
-            "a trailer READ-BACK predicate. `runtrail-01` (`m73aet`) executed and "
-            "`git_commit_helper.run_item_trailers` WRITES `AW-Run:`/`AW-Item:`, but nothing reads "
-            "a trailer back or proves a commit's tree diff equals the item-owned delta; "
-            "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"
+            "a commit tree-diff CONTENTS proof predicate. `git_commit_helper.run_item_trailers` "
+            "writes `AW-Run:`/`AW-Item:` and `199u11` shipped the reader "
+            "`ipd_lifecycle._trailer_owned_committed_paths` / `_commit_run_ownership` for "
+            "run ownership, but no predicate proves a commit's tree diff equals the "
+            "item-owned delta"
         ),
     ),
     RunFindingCode(
@@ -1635,10 +1720,12 @@ def spec_message_for(code: str, **placeholders: Any) -> str:
 def may_abort_run(code: str) -> bool:
     """True when this finding may EVER abort the whole queue (always or conditionally).
 
-    Deliberately reports "may", not "does": spec 4.1 licenses five of the 12 codes to abort only
-    under a named abort class, so a caller deciding to abort must also establish that class. Use
-    :func:`abort_classes_for` for it. Reading a conditional row as an unconditional abort would let
-    an item-local fault stop a whole queue, which spec 4.1's closing rule forbids.
+    Deliberately reports "may", not "does": spec 4.1 licenses conditional codes to abort only
+    under a named abort class (derived from action text via :func:`derive_abort_from_action` and
+    enforced by :func:`validate_finding_table`), so a caller deciding to abort must also
+    establish that class. Use :func:`abort_classes_for` for it. Reading a conditional row as an
+    unconditional abort would let an item-local fault stop a whole queue, which spec 4.1's closing
+    rule forbids.
     """
     return RUN_FINDING_CODES_BY_CODE[code].abort in (ABORT_ALWAYS, ABORT_CONDITIONAL)
 
@@ -1662,6 +1749,340 @@ def unbound_run_finding_codes() -> Tuple[str, ...]:
     return tuple(row.code for row in RUN_FINDING_CODES if row.binding != BOUND)
 
 
+# ---- reachability prover and accessors (f7z10q / E-02, E-03, E-05) -------------------------------
+
+REACHABLE = "reachable"
+UNREACHABLE = "unreachable"
+UNRESOLVED = "unresolved"
+PREDICATE_REACHABILITY_VERDICTS: Tuple[str, ...] = (
+    REACHABLE,
+    UNREACHABLE,
+    UNRESOLVED,
+)
+
+DEFAULT_ENTRYPOINT_MODULES: Tuple[str, ...] = (
+    "oc_runipd",
+    "agy_runipd",
+    "runner_shared",
+)
+
+
+class BoundReachabilityPartition(NamedTuple):
+    """The reachability partition of BOUND codes in :data:`RUN_FINDING_CODES`."""
+
+    reachable: Tuple[str, ...]
+    unreachable: Tuple[str, ...]
+
+
+_REACHABILITY_CACHE: Dict[
+    Tuple[str, Tuple[str, ...]],
+    Tuple[Set[str], Dict[str, Set[str]], Dict[str, Set[str]]],
+] = {}
+
+
+def _build_reachability_graph(
+    package_dir: Path,
+    entrypoints: Tuple[str, ...],
+) -> Tuple[Set[str], Dict[str, Set[str]], Dict[str, Set[str]]]:
+    """Parse modules under package_dir and build name-keyed transitive reachability closure."""
+    py_files = sorted(p for p in package_dir.glob("*.py") if not p.name.startswith("."))
+    defined_func_names: Set[str] = set()
+    defs_by_mod: Dict[str, Set[str]] = defaultdict(set)
+    module_classes: Dict[str, Set[str]] = defaultdict(set)
+    func_nodes: List[Tuple[str, str, ast.AST]] = []
+    top_nodes: Dict[str, List[ast.AST]] = defaultdict(list)
+
+    for p in py_files:
+        mod = p.stem
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            continue
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                defined_func_names.add(node.name)
+                defs_by_mod[mod].add(node.name)
+                func_nodes.append((mod, node.name, node))
+            elif isinstance(node, ast.ClassDef):
+                module_classes[mod].add(node.name)
+                for item in node.body:
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        defined_func_names.add(item.name)
+                        defs_by_mod[mod].add(item.name)
+                        defs_by_mod[mod].add(f"{node.name}.{item.name}")
+                        func_nodes.append((mod, item.name, item))
+            else:
+                top_nodes[mod].append(node)
+
+    graph: Dict[str, Set[str]] = defaultdict(set)
+    for mod, fn_name, node in func_nodes:
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and child.id in defined_func_names:
+                graph[fn_name].add(child.id)
+            elif isinstance(child, ast.Attribute) and child.attr in defined_func_names:
+                graph[fn_name].add(child.attr)
+
+    ep_names = {ep.split(".")[-1] for ep in entrypoints}
+    frontier: Set[str] = set()
+    for ep in ep_names:
+        for fn in defs_by_mod[ep]:
+            frontier.add(fn.split(".")[-1])
+        for top_node in top_nodes[ep]:
+            for child in ast.walk(top_node):
+                if isinstance(child, ast.Name) and child.id in defined_func_names:
+                    frontier.add(child.id)
+                elif (
+                    isinstance(child, ast.Attribute)
+                    and child.attr in defined_func_names
+                ):
+                    frontier.add(child.attr)
+
+    reachable: Set[str] = set(frontier)
+    queue: List[str] = list(frontier)
+    while queue:
+        curr = queue.pop()
+        for neighbor in graph[curr]:
+            if neighbor not in reachable:
+                reachable.add(neighbor)
+                queue.append(neighbor)
+
+    return reachable, defs_by_mod, module_classes
+
+
+def prove_predicate_reachability(
+    predicate: str,
+    *,
+    entrypoints: Optional[Iterable[str]] = None,
+    package_dir: Optional[Union[Path, str]] = None,
+) -> str:
+    """Compute whether a dotted ``module.symbol`` predicate is reachable from runner entrypoints.
+
+    Returns a three-valued verdict:
+      * ``'reachable'``: reachable from the entrypoint frontier via the transitive name-keyed call graph.
+      * ``'unreachable'``: symbol definition exists in the module as a function or method, but no transitive
+        call path from entrypoints reaches it.
+      * ``'unresolved'``: no definition of the symbol exists as a function or method in the named module
+        (this covers rotted symbol mappings as well as non-function symbols like exception classes).
+
+    Entrypoints default to the three runner modules (:mod:`oc_runipd`, :mod:`agy_runipd`, :mod:`runner_shared`).
+    Any trailing ``[...]`` qualification (e.g. ``validate_evidence[EV-HASH-MISMATCH]``) is stripped before
+    resolution.
+
+    DELIBERATE OVER-APPROXIMATION AND ASYMMETRY OF VERDICTS (f7z10q / E-02):
+    Name-keyed edges over-approximate reach: if any function body mentions a name that matches a defined
+    function or method anywhere in the package, an edge is created. A ``'reachable'`` verdict is therefore
+    weaker than a formal proof of reachability. Conversely, an ``'unreachable'`` verdict is STRONG: if no
+    reachable function mentions the name, execution cannot reach it. Validation in :func:`validate_finding_table`
+    (via ``RC-UNREACHABLE-BINDING``) keys strictly on this strong direction: it refuses a BOUND row only when
+    NO named predicate is reachable.
+
+    Two known consequences of this design:
+      1. A method name shared by an unrelated class creates a false edge (over-approximation).
+      2. ``worktree_lease.LeaseTable.claim`` is reported unreachable with zero real ``.claim(`` call sites
+         anywhere in the package, which is a true negative and not a limitation.
+    """
+    if entrypoints is None:
+        ep_tuple = DEFAULT_ENTRYPOINT_MODULES
+    else:
+        ep_tuple = tuple(sorted(entrypoints))
+
+    pkg_path = (
+        Path(package_dir).resolve()
+        if package_dir is not None
+        else Path(__file__).parent.resolve()
+    )
+    key = (str(pkg_path), ep_tuple)
+    if key not in _REACHABILITY_CACHE:
+        _REACHABILITY_CACHE[key] = _build_reachability_graph(pkg_path, ep_tuple)
+
+    reachable, defs_by_mod, module_classes = _REACHABILITY_CACHE[key]
+
+    clean = re.sub(r"\[.*\]$", "", predicate.strip())
+    if clean.startswith("agent_workflows."):
+        clean = clean[len("agent_workflows.") :]
+    mod, _, sym = clean.partition(".")
+    if not mod or not sym:
+        return UNRESOLVED
+
+    target_name = sym.split(".")[-1]
+    if sym in defs_by_mod[mod] or (
+        target_name in defs_by_mod[mod]
+        and any(sym.startswith(f"{cls}.") for cls in module_classes[mod])
+    ):
+        if target_name in reachable:
+            return REACHABLE
+        return UNREACHABLE
+
+    return UNRESOLVED
+
+
+predicate_reachability = prove_predicate_reachability
+
+
+def predicate_verdicts_for(row_or_code: Union[RunFindingCode, str]) -> Dict[str, str]:
+    """Return a mapping of predicate -> verdict for each predicate named by a code or row.
+
+    Derived lazily and memoized so the graph build is paid at most once per process and only
+    when requested. Row literals and NamedTuple field definitions remain untouched.
+    """
+    if isinstance(row_or_code, str):
+        row = RUN_FINDING_CODES_BY_CODE.get(row_or_code)
+        if row is None:
+            # Check IPD_EXEC_FINDING_CODES_BY_CODE if available
+            row = globals().get("IPD_EXEC_FINDING_CODES_BY_CODE", {}).get(row_or_code)
+        if row is None:
+            raise KeyError(f"Unknown finding code: {row_or_code!r}")
+    else:
+        row = row_or_code
+
+    result: Dict[str, str] = {}
+    for pred in row.predicates:
+        result[pred] = prove_predicate_reachability(pred)
+    return result
+
+
+predicate_reachability_for = predicate_verdicts_for
+
+
+def bound_run_finding_codes_reachability() -> BoundReachabilityPartition:
+    """Return the partition of BOUND finding codes by measured reachability.
+
+    Returns a :class:`BoundReachabilityPartition` with ``reachable`` containing codes that have
+    at least one reachable predicate, and ``unreachable`` containing codes where no predicate is
+    reachable.
+
+    NOTE (F-09): This accessor partitions :data:`RUN_FINDING_CODES` specifically, not every
+    ``RUN-*`` code that may be emitted across the package.
+    """
+    reachable_codes: List[str] = []
+    unreachable_codes: List[str] = []
+    for row in RUN_FINDING_CODES:
+        if row.binding != BOUND:
+            continue
+        verdicts = predicate_verdicts_for(row)
+        if any(v == REACHABLE for v in verdicts.values()):
+            reachable_codes.append(row.code)
+        else:
+            unreachable_codes.append(row.code)
+    return BoundReachabilityPartition(tuple(reachable_codes), tuple(unreachable_codes))
+
+
+bound_reachability_partition = bound_run_finding_codes_reachability
+
+
+def _validate_finding_row(
+    row: RunFindingCode,
+    _fail: Callable[[str, str, str, str], None],
+    expected_prefix: str,
+) -> None:
+    where = row.code
+    if not row.code.startswith(expected_prefix):
+        _fail(
+            "RC-NAME",
+            where,
+            f"{row.code!r} is not a {expected_prefix}* code",
+            "bad code name",
+        )
+    if row.binding not in BINDING_STATES:
+        _fail(
+            "RC-BINDING",
+            where,
+            f"unknown binding state {row.binding!r}",
+            "unknown binding state",
+        )
+    if row.binding == BOUND:
+        if not row.predicates:
+            _fail(
+                "RC-BINDING",
+                where,
+                "BOUND code names no deciding predicate",
+                "a BOUND code must name the shipped predicate that decides it",
+            )
+        else:
+            verdicts = predicate_verdicts_for(row)
+            if not any(v == REACHABLE for v in verdicts.values()):
+                unreachable_list = [f"{p} ({v})" for p, v in verdicts.items()]
+                _fail(
+                    "RC-UNREACHABLE-BINDING",
+                    where,
+                    f"BOUND code {row.code} has no reachable predicates: {', '.join(unreachable_list)}",
+                    "a BOUND code must have at least one reachable predicate",
+                )
+        if row.waiting_on:
+            _fail(
+                "RC-BINDING",
+                where,
+                "BOUND code also declares waiting_on",
+                "a BOUND code waits on nothing",
+            )
+    else:
+        if row.predicates:
+            _fail(
+                "RC-BINDING",
+                where,
+                "unbound code names predicates",
+                "an unbound code must not claim a deciding predicate",
+            )
+        if not row.waiting_on:
+            _fail(
+                "RC-BINDING",
+                where,
+                "unbound code does not say what it waits on",
+                "an unbound code must name the missing machinery",
+            )
+    if row.abort not in (ABORT_ALWAYS, ABORT_CONDITIONAL, ABORT_NEVER):
+        _fail(
+            "RC-ABORT",
+            where,
+            f"unknown abort state {row.abort!r}",
+            "bad abort state",
+        )
+    derived_abort = derive_abort_from_action(row.action)
+    if row.abort != derived_abort:
+        _fail(
+            "RC-ABORT-DERIVATION",
+            where,
+            f"code {row.code}: stored abort {row.abort!r} disagrees with derived {derived_abort!r} from action {row.action!r}",
+            "abort tri-state must derive from action text",
+        )
+    for cls in row.abort_classes:
+        if cls not in ABORT_CLASSES:
+            _fail(
+                "RC-ABORT-CLASS",
+                where,
+                f"{cls!r} is not one of spec 4.1's six abort classes",
+                "spec 4.1's abort-class set is exhaustive",
+            )
+    if row.abort == ABORT_NEVER and row.abort_classes:
+        _fail(
+            "RC-ABORT-CLASS",
+            where,
+            "a never-aborting code names abort classes",
+            "only an aborting code may name an abort class",
+        )
+    if row.abort != ABORT_NEVER and not row.abort_classes:
+        _fail(
+            "RC-ABORT-CLASS",
+            where,
+            "an aborting code names no spec 4.1 abort class",
+            "an abort must cite one of the six enumerated classes",
+        )
+    if not row.message.startswith("[" + row.code + "]"):
+        _fail(
+            "RC-MESSAGE",
+            where,
+            "message does not begin with its own [CODE] prefix",
+            "operator-facing message must carry its code",
+        )
+    if ": aw " not in row.message:
+        _fail(
+            "RC-RECOVERY",
+            where,
+            "message does not end in a recovery command",
+            "spec 4.1: every recovery message ends with a command",
+        )
+
+
 def validate_finding_table() -> EvidenceValidationResult:
     """Self-check the table's internal invariants (not the spec text; a test asserts that).
 
@@ -1669,9 +2090,10 @@ def validate_finding_table() -> EvidenceValidationResult:
       * exactly 12 codes, each unique, each named ``RUN-*``;
       * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
         unbound rows carry none and name what they wait on;
-      * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
-        SIX classes (4.1 is exhaustive), an aborting row names at least one class, and a
-        never-aborting row names none;
+      * every ``abort`` is a known tri-state, every ``abort`` tri-state agrees with the
+        mechanical derivation from its ``action`` string (:func:`derive_abort_from_action`),
+        every ``abort_classes`` entry is one of spec 4.1's SIX classes (4.1 is exhaustive), an
+        aborting row names at least one class, and a never-aborting row names none;
       * every message begins with its own ``[CODE]`` prefix and ends in a recovery command
         (spec 4.1: "Every recovery message ends with a command").
     """
@@ -1695,90 +2117,197 @@ def validate_finding_table() -> EvidenceValidationResult:
                 "RC-DUPLICATE", where, f"duplicate code {row.code!r}", "duplicate code"
             )
         seen.add(row.code)
-        if not row.code.startswith("RUN-"):
-            _fail(
-                "RC-NAME", where, f"{row.code!r} is not a RUN-* code", "bad code name"
+        _validate_finding_row(row, _fail, "RUN-")
+    return EvidenceValidationResult(len(findings) == 0, tuple(findings))
+
+
+# ==================================================================================================
+# Spec `25kzda` 4.6 One-off IPD execution verification pre-transition finding codes (`6uhtko`)
+# ==================================================================================================
+#
+# WHAT THIS TABLE IS (AND IS NOT).
+# Spec `25kzda` Section 4.6 specifies eleven `IPD-EXEC-*` finding codes and its preamble concedes
+# that none was bound to a predicate, instructing consumers to "cite the shipped enforcer by
+# symbol ... and treat the code as the name it will take once bound". This table makes exactly
+# three of those codes (`IPD-EXEC-E-COMPLETE`, `IPD-EXEC-V-EVIDENCE`, `IPD-EXEC-PRE-TRANSITION`)
+# an importable, enumerable vocabulary following the `RunFindingCode` convention, with each row
+# recording an honest binding state supported by measured predicate coverage.
+#
+# WHY A SEPARATE TABLE AND NOT APPENDED TO `RUN_FINDING_CODES`.
+# Appending these rows to `RUN_FINDING_CODES` was measured (F-04) to break `validate_finding_table()`
+# at runtime with `RC-COUNT` ("spec 25kzda 4.2 defines 12 codes, table has 13") and `RC-NAME`
+# ("'IPD-EXEC-E-COMPLETE' is not a RUN-* code"). Those tripwires are deliberate and load-bearing.
+# `IPD_EXEC_FINDING_CODES` is therefore a second, IPD-scoped table placed after `validate_finding_table`.
+#
+# PER-CLAUSE COVERAGE MEASUREMENT (THE LOAD-BEARING CORRECTION BEHIND E-02).
+# Exactly ONE row is `BOUND` (`IPD-EXEC-PRE-TRANSITION`), while the other two are
+# `UNBOUND_BY_DEPENDENCY`. Spec `25kzda` 4.6 requires of `IPD-EXEC-E-COMPLETE` that every E item
+# "has an action receipt or artifact binding", and of `IPD-EXEC-V-EVIDENCE` "nonempty concrete
+# observed evidence, and valid evidence bound to the matching E item and candidate state" with
+# inspects naming "evidence IDs, captured commands/artifacts".
+#
+# Measured against `ipd_lint.lint_file(..., checkpoint="pre-transition")`:
+#   - Checkbox presence and state agreement ARE decided (`IPD-S401`, `IPD-S402`, `IPD-S403`, and
+#     pre-transition `IPD-S404` for unperformed/unpassed/empty-evidence rows).
+#   - BUT evidence validity, action receipts, artifact bindings, and concrete evidence ARE DECIDED
+#     BY NOTHING. Driving `ipd_lint.lint_file` over a synthetic plan with every checkbox ticked,
+#     `Execution state: performed`, `Result: pass`, and `Observed evidence` reading
+#     `qqq gibberish, no receipt, no artifact, no command` yields ZERO `IPD-S40x` diagnostics.
+#   - Corroborated statically: `grep -in "action receipt\|artifact binding\|evidence id"` across
+#     `agent_workflows/ipd_lint.py` and `agent_workflows/ipd_schema.py` matches nothing.
+# Writing `BOUND` on those two rows would create a fail-OPEN checker where an unrun check is
+# treated as passing, which the module's definition of `BOUND` explicitly forbids. DO NOT "finish the
+# job" by flipping them to `BOUND` without shipping predicates that actually decide those clauses.
+#
+# THE REMAINING EIGHT `IPD-EXEC-*` CODES REMAIN DELIBERATELY UNBOUND.
+# `IPD-EXEC-EV-BIJECTION` spans bijection and duplicate detection across multiple predicates.
+# `IPD-EXEC-READY`, `IPD-EXEC-BEGIN-RECEIPT`, `IPD-EXEC-SCOPE`, `IPD-EXEC-TERMINAL-TRANSACTION`,
+# `IPD-EXEC-POST-TRANSITION`, `IPD-EXEC-REFERENCES`, and `IPD-EXEC-WORKTREE-CLEAN` each span
+# multiple modules (`ipd_lifecycle`, `check_engine`, git status, and the run ledger), and two
+# demand a commit-trailer read-back that `RUN-COMMIT-CONTENTS` records as unbuilt. None is cheap.
+#
+# NO CONSUMER YET, STATED PLAINLY.
+# As with `RUN_FINDING_CODES` at initial introduction, no runner or linter yet consumes this
+# table or emits these codes. `ipd_lint` continues to emit `IPD-S401`..`IPD-S404`.
+#
+# `runner_shared.finalize_refusal_is_retryable` IS UNCHANGED.
+# This plan does not rewire `runner_shared.finalize_refusal_is_retryable`: it still classifies
+# pre-transition gate refusals by matching prose. Sibling plan `qo9khm` (backlog `144b3x`) owns
+# the classifier evolution and its code-keyed arm.
+IPD_EXEC_FINDING_CODES: Tuple[RunFindingCode, ...] = (
+    RunFindingCode(
+        code="IPD-EXEC-E-COMPLETE",
+        inspects="Execution checklist",
+        pass_criterion="Every E item is checked and has an action receipt or artifact binding",
+        message=(
+            "[IPD-EXEC-E-COMPLETE] <id6> has incomplete execution items: <E-ids>. "
+            "Complete them, then: aw <host> run resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=UNBOUND_BY_DEPENDENCY,
+        predicates=(),
+        waiting_on=(
+            "an action receipt or artifact binding predicate. `ipd_lint.check_checkpoint` "
+            "emits not 'performed' at pre-transition and `ipd_schema.execution_row_error` "
+            "enforces checkbox agreement (IPD-S401), but nothing checks whether an E item has "
+            "an action receipt or artifact binding"
+        ),
+    ),
+    RunFindingCode(
+        code="IPD-EXEC-V-EVIDENCE",
+        inspects=(
+            "Validation rows, result tokens, observed-evidence fields, evidence IDs, "
+            "captured commands/artifacts"
+        ),
+        pass_criterion=(
+            "Every V item has a passing result, nonempty concrete observed evidence, "
+            "and valid evidence bound to the matching E item and candidate state"
+        ),
+        message=(
+            "[IPD-EXEC-V-EVIDENCE] <id6> lacks valid passing evidence for <V-ids>: <detail>. "
+            "Re-run those validations, then: aw <host> run resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=UNBOUND_BY_DEPENDENCY,
+        predicates=(),
+        waiting_on=(
+            "evidence validity and concreteness predicates. `ipd_lint.check_checkpoint` "
+            "checks non-empty observed evidence and 'pass' result, `ipd_schema.validation_row_error` "
+            "enforces checkbox agreement (IPD-S402), and `ipd_schema.cross_state_error` checks E/V "
+            "state consistency (IPD-S403), but nothing inspects evidence IDs, captured commands/artifacts, "
+            "or validates that evidence is concrete rather than arbitrary text"
+        ),
+    ),
+    RunFindingCode(
+        code="IPD-EXEC-PRE-TRANSITION",
+        inspects="Pre-transition linter at candidate product state",
+        pass_criterion="Linter passes before terminal mutation; all validations and attribution fields conform",
+        message=(
+            "[IPD-EXEC-PRE-TRANSITION] <id6> cannot finalize: <finding-code> <detail>. "
+            "Fix it, run aw ipd lint <id6> --phase pre-transition, then: aw <host> run resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "ipd_lifecycle.finalize_precheck",
+            "ipd_lint.lint_file",
+        ),
+        waiting_on="",
+    ),
+)
+
+#: Code -> row, for O(1) lookup by callers that hold only a code string.
+IPD_EXEC_FINDING_CODES_BY_CODE: Dict[str, RunFindingCode] = {
+    row.code: row for row in IPD_EXEC_FINDING_CODES
+}
+
+
+def ipd_exec_finding_codes() -> Tuple[str, ...]:
+    """The 3 pre-transition finding codes of spec `25kzda` 4.6, in spec order."""
+    return tuple(row.code for row in IPD_EXEC_FINDING_CODES)
+
+
+def ipd_exec_spec_message_for(code: str, **placeholders: Any) -> str:
+    """Render an IPD-EXEC code's VERBATIM spec message, substituting ``<...>`` placeholders.
+
+    With no placeholders the spec template is returned unchanged. Each ``placeholders`` key names
+    a bare placeholder token (e.g. ``id6`` for ``<id6>``, ``run_id`` for ``<run-id>``, etc.):
+    underscores map to hyphens. An UNKNOWN code raises `KeyError`.
+    """
+    row = IPD_EXEC_FINDING_CODES_BY_CODE[code]
+    message = row.message
+    for key, value in placeholders.items():
+        k = key.replace("_", "-")
+        message = message.replace("<" + k + ">", str(value))
+        message = message.replace("<" + k.lower() + ">", str(value))
+        message = message.replace("<" + k.upper() + ">", str(value))
+        if "-" in k:
+            first, rest = k.split("-", 1)
+            message = message.replace(
+                "<" + first.upper() + "-" + rest.lower() + ">", str(value)
             )
-        if row.binding not in BINDING_STATES:
+    return message
+
+
+def validate_ipd_exec_finding_table() -> EvidenceValidationResult:
+    """Self-check IPD_EXEC_FINDING_CODES table's internal invariants.
+
+    Enforced here so a later edit cannot quietly break a structural rule:
+      * exactly 3 codes, each unique, each named ``IPD-EXEC-*``;
+      * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
+        unbound rows carry none and name what they wait on;
+      * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
+        SIX classes, an aborting row names at least one class, and a never-aborting row names none;
+      * every message begins with its own ``[CODE]`` prefix and contains a recovery command
+        (spec 4.1: "Every recovery message ends with a command").
+    """
+    findings: List[EvidenceFinding] = []
+
+    def _fail(code: str, where: str, message: str, reason: str) -> None:
+        findings.append(EvidenceFinding(code, where, message, reason))
+
+    if len(IPD_EXEC_FINDING_CODES) != 3:
+        _fail(
+            "RC-COUNT",
+            "IPD_EXEC_FINDING_CODES",
+            f"spec 25kzda 4.6 defines 3 pre-transition codes, table has {len(IPD_EXEC_FINDING_CODES)}",
+            "finding-code table size does not match the spec",
+        )
+    seen: Set[str] = set()
+    for row in IPD_EXEC_FINDING_CODES:
+        where = row.code
+        if row.code in seen:
             _fail(
-                "RC-BINDING",
-                where,
-                f"unknown binding state {row.binding!r}",
-                "unknown binding state",
+                "RC-DUPLICATE", where, f"duplicate code {row.code!r}", "duplicate code"
             )
-        if row.binding == BOUND:
-            if not row.predicates:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "BOUND code names no deciding predicate",
-                    "a BOUND code must name the shipped predicate that decides it",
-                )
-            if row.waiting_on:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "BOUND code also declares waiting_on",
-                    "a BOUND code waits on nothing",
-                )
-        else:
-            if row.predicates:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "unbound code names predicates",
-                    "an unbound code must not claim a deciding predicate",
-                )
-            if not row.waiting_on:
-                _fail(
-                    "RC-BINDING",
-                    where,
-                    "unbound code does not say what it waits on",
-                    "an unbound code must name the missing machinery",
-                )
-        if row.abort not in (ABORT_ALWAYS, ABORT_CONDITIONAL, ABORT_NEVER):
-            _fail(
-                "RC-ABORT",
-                where,
-                f"unknown abort state {row.abort!r}",
-                "bad abort state",
-            )
-        for cls in row.abort_classes:
-            if cls not in ABORT_CLASSES:
-                _fail(
-                    "RC-ABORT-CLASS",
-                    where,
-                    f"{cls!r} is not one of spec 4.1's six abort classes",
-                    "spec 4.1's abort-class set is exhaustive",
-                )
-        if row.abort == ABORT_NEVER and row.abort_classes:
-            _fail(
-                "RC-ABORT-CLASS",
-                where,
-                "a never-aborting code names abort classes",
-                "only an aborting code may name an abort class",
-            )
-        if row.abort != ABORT_NEVER and not row.abort_classes:
-            _fail(
-                "RC-ABORT-CLASS",
-                where,
-                "an aborting code names no spec 4.1 abort class",
-                "an abort must cite one of the six enumerated classes",
-            )
-        if not row.message.startswith("[" + row.code + "]"):
-            _fail(
-                "RC-MESSAGE",
-                where,
-                "message does not begin with its own [CODE] prefix",
-                "operator-facing message must carry its code",
-            )
-        if ": aw " not in row.message:
-            _fail(
-                "RC-RECOVERY",
-                where,
-                "message does not end in a recovery command",
-                "spec 4.1: every recovery message ends with a command",
-            )
+        seen.add(row.code)
+        _validate_finding_row(row, _fail, "IPD-EXEC-")
     return EvidenceValidationResult(len(findings) == 0, tuple(findings))
 
 

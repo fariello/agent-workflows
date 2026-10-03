@@ -1,0 +1,540 @@
+# IPD: Restore the deleted run_recovery and aw run ledger-CLI outcome tests, and correct the dormancy claims the deletion falsified
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: THE ITEM'S HEADLINE CLAIM IS TRUE AND ITS FRAMING IS INCOMPLETE, AND THE MISSING HALF IS THE URGENT PART. Backlog `eh91an` says `run_recovery.plan_retry` and `retry_budget_remaining` "are complete and tested" while having zero production callers, and asks for a choice between wiring the ledger substrate into the drivers or retiring the helpers. Re-measured at HEAD `cdce9817`, the "and tested" half is now FALSE: commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests", 2026-09-24) deleted `tests/test_run_recovery_cli.py` whole (`2737 ----`, the only file the item's own predecessor `trjfyy` named as exercising these symbols). So the two helpers now have zero production callers AND zero tests, and so does almost everything around them.
+  THE LOST COVERAGE IS MUCH WIDER THAN THE TWO NAMED HELPERS, which is why this plan is not a two-symbol errand. Measured by whole-word symbol search over `agent_workflows/` and `tests/` at HEAD: `plan_retry`, `retry_budget_remaining`, `count_retries`, `recorded_idempotency_keys`, `failed_attempts`, `RetryPlan`, `ResumeReport`, `CrashReport`, `MIN_RETRY_LIMIT`, `MAX_RETRY_LIMIT`, `recover_crash`, `reconcile_unknown_outcome` and `RecoveryError` are referenced by ZERO tests; `validate_retry_budget`, `RetryLimitExceededError`, `NoRetryableStateError` and `InvalidRetryBudgetError` likewise. The two surviving test references to the module are both trivia: `tests/test_runner_shared.py` asserts `run_recovery.DEFAULT_RETRY_LIMIT == 2`, and `tests/test_finalize_sendback.py` imports the module solely to assert `resolve_retry_budget(None)` equals that same constant. THE LEDGER SUBSTRATE BENEATH IT IS ALSO BARE: `RunLedgerStore`/`RunEngine` appear in exactly two test files and in neither as a subject (`tests/test_host_capability_registry.py` imports `RedactionPolicy`; `tests/test_platform_lock.py` names the module in a string). So the whole hash-chained ledger layer plus the `aw run start|record|cancel|finalize` CLI that writes it are, as of `19313eed`, UNTESTED.
+  THE DELETED FILE STILL PASSES, WHICH IS THE FINDING THAT DECIDES THIS PLAN'S SHAPE. Recovered from `19313eed^` and run at HEAD unmodified: `49 passed in 6.26s` (bare `python3 -m pytest -o addopts="" tests/_probe.py`), and `49 passed` again under `AW_EXECUTION_ROLE=worker`. It is not stale, it needs no porting, and it contains no GUIDING_PRINCIPLES P16 violation to strip: `inspect`, `getsource`, `getsourcelines` and `ast.parse` grep to ZERO occurrences in it, and its only two `read_text` calls read a ledger file and a generated index (its own artifacts under test), never production source. So the cheap, high-value action available today is a restoration, not a rewrite.
+  AND THE ITEM'S WIRE-OR-RETIRE QUESTION IS NOT ANSWERABLE AS ASKED, because both horns rest on a premise that is wrong in one direction and incomplete in the other. RETIREMENT IS REFUSED BY EVIDENCE: `plan_retry` is NOT dead code reachable from nowhere. Its sibling `run_recovery.resume`/`cancel`/`detect_unknown_outcomes` ARE wired, into `run_cli._run_resume` and `run_cli._run_cancel`, which back the shipped `aw runs resume` and `aw run cancel` leaves; `set_lifecycle.resume_or_report` and `ipd_set_plan._run_resume_report` reach the same module from `aw ipd execute-set --resume`. Deleting `plan_retry` would leave a ledger run able to record a failure and unable to bound a correction over it, which is a hole in a surface the CLI still exposes. WIRING IS ALSO NOT THE FIX THIS ITEM CAN BUY: the blocker is not the drivers' reluctance, it is that NOTHING IN THE PACKAGE CAN CREATE A LEDGER AT ALL. `run_ledger_store.append` refuses any first record whose `kind` is not `run` (`RL-E041`, "first ledger record must be kind 'run'"), and a search for a `"kind": "run"` append across `agent_workflows/` returns ZERO writers - `run_engine` writes `step_attempt`, `human_approval`, `verifier_decision` and `terminal_transaction`, and nothing writes the mandatory header. Measured: 0 `ledger.jsonl` files exist anywhere in the tree, and `aw run start run-abc123 --step S-01` exits 2 with "no driver run writes one today". So "wire the ledger into the drivers" is not one plan; it is at minimum a ledger-creation verb, a driver-side step model, and spec `25kzda` 6.2's still-undecided "durable storage location for run ledgers", which that section lists as an open repository-level choice.
+  WHY THIS IS A `chore` AND NOT A `bug`, on the repository's own perceptibility test: no user-visible behavior is wrong today. `aw run`'s ledger verbs refuse honestly rather than misbehaving, and the driver-side correction budget an operator actually spends is `runner_shared.finalize_retry_decision` / `handle_turn_failure_retry`, which are wired and separately tested. What is wrong is that a shipped, CLI-reachable layer has no test able to fail, which is a latent-risk and record-honesty defect rather than a measurable user harm. The item's `- Priority: medium` and absent release gate are inherited unchanged.
+- Scope: IN, three things. (1) RESTORE the deleted coverage as `tests/test_run_recovery_cli.py` recovered verbatim from `19313eed^`, with the execution role DECLARED via `tests/support.declare_execution_role` per the shipped convention rather than inherited (a CONVENTION change, not a defect fix: review measured that this file reaches no lifecycle wrapper and is green under the real worker-role probe before any declaration, F-14), and with collection PROVEN by an exact bare-suite test-count delta of +49 against a lane-re-derived baseline rather than by the file passing when named directly - the precedent and the reason are executed plan `6vozur`, whose review finding PR-701 restored a file under a non-collecting name and watched a fully green suite report an unchanged count. (2) UPDATE the TWO rows in that file which pin a value reviewed sibling plan `fuuw94` is scoped to change, plus the module docstring paragraph that pins the same asymmetry in prose (F-15), so the restoration does not hand `fuuw94` a failing test: its `TestLedgerResolutionAndWrongFormatVerdict.VERDICTS` table asserts `runs show` on a tampered ledger exits `EXIT_INVALID_INVOCATION` (2) in both the human row and its `--agent` twin, and its own comment undercounts that as one row; `fuuw94`'s reviewed scope is that unification to `EXIT_CORRUPTED_LEDGER` (5) across THREE verbs, and review staged all three and confirmed exactly these two rows move. Each row is expressed so it passes against BOTH values while still refusing the silence this file exists to catch (`corrupted: true` in the machine payload is asserted unconditionally and is NOT weakened). (3) CORRECT the now-false in-tree claims the deletion created, each by pointing at the restored file: `run_recovery.py`'s own comment beside `DEFAULT_RETRY_LIMIT` ("only tests" exercise these helpers), BOTH stale sites in `DECISIONS.md` D150 (the "Applied:" line citing `tests/test_run_recovery_cli.py` and a `55 passed` verification that no longer reproduces, AND the "Decision:" line's verbatim twin of the "only tests" claim, F-16), and `docs/recovery.md`'s claim that "`run_recovery.resume` and `plan_retry` decide what is safe to retry", which is false about `plan_retry` (no caller reaches it) and is the only user-facing instance.
+  OUT, each for a stated reason. WIRING the ledger substrate into either driver, because the measured blocker is an absent ledger-creation path plus spec `25kzda` 6.2's undecided storage location, which is a design question this plan has no authority to settle (recorded as OQ-01, non-blocking, with the evidence). RETIRING `plan_retry`/`retry_budget_remaining`, refused on the evidence above and recorded in OQ-01 rather than left implicit. Any change to `run_recovery.py`'s BEHAVIOR, to the `0..10` bound, to the default of 2, or to the retry-class tables: the bound's citation is pending plan `cpi6p3`'s scope and the class-vocabulary gap is backlog `rb4wgj`'s. Any change to `run_cli.py`, which pending plans `fuuw94` and `e6f0jx` both declare - this plan touches the TEST that observes it and deliberately not the code. The driver-side turn/finalize retry paths in `runner_shared.py`, which are wired and tested and are not what this item is about. Restoring any OTHER file `19313eed` deleted (2578 dangling `tests/test_*.py` citations across 1056 tracked files were measured; that is its own backlog item, not this plan's). Rewriting `docs/recovery.md` beyond the one false clause.
+- Scope-Paths: tests/test_run_recovery_cli.py, agent_workflows/run_recovery.py, docs/recovery.md, DECISIONS.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: eh91an
+- Set: eh91an
+- Order: 1
+- Highest E allocated: 06
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: e834yk
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e834yk verified (set eh91an, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): reviewed by /plan-review 2026-09-29; readiness go-pending-approval
+
+- 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-901..PR-908, all FIXED. Verified the plan by PERFORMING the restoration at review HEAD `3394b93d` rather than reading about it: `19313eed` deleted the file whole (`2737 ----`), the recovered file passes UNMODIFIED (`49 passed in 6.28s`), it is P16-clean (`inspect`/`getsource`/`getsourcelines`/`ast.parse` all zero), and the collection delta is EXACTLY +49 (`3246 passed, 2 skipped` absent, `3295 passed, 2 skipped` restored). F-1, F-4, F-6, F-7, F-8, F-11 and F-12 all reproduced; F-7 is the plan's strongest evidence and holds in full (`"kind": "run"` has ZERO writers, no `ledger.jsonl` exists, `aw run start` exits 2). TWO HIGH findings. PR-901: E-02's role declaration fixes NO latent failure here and V-02's proof of it could not fail. `conftest.py` pops `AW_EXECUTION_ROLE` at IMPORT, so the requested `AW_EXECUTION_ROLE=worker python3 -m pytest` is vacuous (a false pass this repo already measured at `6vozur` F-7 and that `yx9xsa` E-04 prohibits by name); and the file greps to ZERO for every lifecycle wrapper and is green under the REAL `pytest_runtest_setup` probe (`49 passed`) and under `python3 -m unittest` with the marker exported (`Ran 49 tests ... OK`) BEFORE any declaration. E-02 kept on convention grounds, restated honestly, with the vacuous spelling prohibited and the gate told not to overstate it. PR-902: the `fuuw94` collision experiment patched ONE of that plan's THREE declared sites and ran a `-k` subset; staging all three (its `_run_verify_ledger` site is a different branch shape) and running the WHOLE file gives `1 failed, 48 passed` on exactly the same two rows, so E-03's count of two is CONFIRMED and its evidence replaced. Also fixed: the module docstring pins the asymmetry E-03 unpins and was uncovered (PR-903); `DECISIONS.md` D150 carries the "only tests" claim TWICE and E-05 named only one (PR-904); seven Deferred rows and both open questions carried NO carrier declaration, failing the shipped `check.ipd-uncarried-obligation` rule, and `- Carrier:` additionally requires a bare id6 (PR-905); `3295`/`3246` were hardcoded live counts (PR-906); the gate lacked the scope-fence declaration and conditional finalize ownership (PR-907); the stale `run_cli.py:295-308` citation now holds `_classify_absent_target`'s constants (PR-908). OQ-01 and OQ-02 both correctly left open. `run_cli.py` was patched transiently twice and restored byte-identically both times, verified clean. `aw check plans` now reports no finding on this plan; structural preflight conforming at `author` and `review-finalize`.
+
+- 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `eh91an`. The item carries no `- Blocks-Release:` and none is invented; `- Priority: medium` and `- Work-Kind: chore` are inherited.
+  THE ITEM'S OWN MEASUREMENTS WERE RE-VERIFIED AND ONE IS NOW FALSE, which is the reason this plan is not the plan the item asked for. The item's central claim holds exactly: `plan_retry` and `retry_budget_remaining` have zero production callers (F-1), and every reason it gives for why `zzcrlo` could not use them holds too - no ledger exists (F-4), neither driver mentions `run_engine` (F-3), and the state vocabularies are disjoint (F-5). But the item says the helpers are "complete and tested", and `19313eed` deleted their only test file on 2026-09-24, four days after the item was filed (F-2). That single fact reverses the priority order: the item proposes a design decision (wire or retire) and what the tree actually needs first is the coverage back, because a decision to retire or to wire is unsafe to execute against an untested layer either way.
+  THE WIRE-OR-RETIRE QUESTION IS ANSWERED AS FAR AS EVIDENCE PERMITS AND NO FURTHER, deliberately, rather than guessed. RETIRE is refused on evidence, not preference: four sibling symbols in the same module are wired into `run_cli` and `set_lifecycle` and back three shipped CLI leaves (F-6), so the module is not dead and removing its bounded-retry half would leave the reachable half able to record a failure and unable to bound a correction. WIRE is shown to be a larger piece of work than the item supposes, by a fact the item does not contain: no code anywhere can create a ledger, because `run_ledger_store` requires a first record of `kind: "run"` and zero writers of one exist (F-7). Combined with spec `25kzda` 6.2 listing the run-ledger storage location as still-undecided, that makes wiring a design decision for the maintainer rather than an implementation step for an executor. Both conclusions are recorded in OQ-01 as NON-BLOCKING, because this plan's three deliverables stand whichever way that question later goes.
+  ONE CROSS-PLAN COLLISION WAS FOUND, DEMONSTRATED BY EXECUTION, AND HANDLED IN SCOPE RATHER THAN LEFT FOR THE EXECUTOR TO DISCOVER. The recovered file pins a tampered-ledger `runs show` at exit 2, and pending sibling `fuuw94` (`z63xoh`, `- Status: reviewed`, not yet approved) exists precisely to change that site to exit 5. Restoring the file verbatim would therefore hand a reviewed plan a red test. Rather than reason about that, I staged `fuuw94`'s change in a scratch copy of `run_cli.py` and ran the selection: `11 passed` became `1 failed, 10 passed`, and the failure named TWO rows, not the one the file's own comment anticipates ("if it is ever unified, THIS row is the one to update" undercounts, because the `--agent` twin moves with it). `run_cli.py` was then restored byte-identically and the selection re-ran green; it is deliberately NOT in `- Scope-Paths:`. E-03 therefore widens two exit assertions and touches neither row's `checks` column, since `corrupted: true` and the `corruption` text are the properties those rows exist for. `fuuw94`'s own review record independently measured `EXIT_CORRUPTED_LEDGER` as greping to zero across `tests/`, which is true today and stops being true the moment this plan lands - F-9 records that so `fuuw94`'s executor is not confused by it.
+  THE RESTORATION IS MEASURED SAFE BEFORE BEING PROPOSED. The recovered file passes unmodified at HEAD (`49 passed in 6.26s`), passes again under `AW_EXECUTION_ROLE=worker`, and contains zero P16-prohibited source-inspection constructs (F-8), so no audit-and-strip pass is needed and none is budgeted. The bare-suite baseline is recorded as `3246 passed, 2 skipped, 3 warnings in 48.87s` and V-02 demands the exact `3295` that a real +49 collection produces, per `6vozur` PR-701's lesson that a green suite is not evidence a restored file runs.
+
+## Goal
+
+Give the `run_recovery` correction layer and the `aw run` ledger CLI a test that can fail again, by restoring the 49 outcome tests commit `19313eed` deleted; then make the tree stop asserting things about that layer which are no longer true. Leave the item's wire-or-retire design question explicitly open, with the evidence that narrows it recorded, rather than resolving it by guess.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: restore the deleted coverage
+
+- [x] E-01 Recover `tests/test_run_recovery_cli.py` verbatim from `19313eed^` and place it at that same path. Use `git show 19313eed^:tests/test_run_recovery_cli.py > tests/test_run_recovery_cli.py`. Do not reflow, re-order, rename or "modernize" it; the only edits this plan authorizes are E-02's role declaration and E-03's one row.
+  - Depends on: none
+  - Expected outcome: the path exists, is 2737 lines, and `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py` reports `49 passed`.
+  - Execution state: performed
+
+- [x] E-02 Declare the execution role explicitly in each of the file's seven `TestCase` classes rather than letting it be inherited from the ambient environment, using `tests/support.declare_execution_role(self)` in `setUp` (coordinator; the marker absent) per the shipped convention that 20 test files already follow. Record in a one-line comment WHY the role is declared rather than inherited, citing `support.execution_role`'s own docstring. STATE THE HONEST JUSTIFICATION, WHICH IS CONVENTION AND DEFENCE IN DEPTH, NOT A DEFECT THIS FILE HAS (F-14, measured at review). This file drives NO lifecycle wrapper: `ipd begin`, `ipd finalize`, `run_begin`, `run_finalize` and `worker_role` all grep to ZERO occurrences in it, so there is no assertion here for `AW-LIFECYCLE-ROLE-001` to break. Measured three ways, all green BEFORE any declaration is added: the real `pytest_runtest_setup` re-assert probe (`49 passed`), `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_run_recovery_cli` (`Ran 49 tests ... OK`, and `unittest` never loads the scrubbing `conftest.py`), and the bare run. So do NOT write a comment claiming this declaration fixes a latent failure; write that it follows the repository convention and keeps the file insensitive to a future edit that DOES reach a lifecycle wrapper. E-02 remains in scope on convention grounds and because it is nearly free; it is not load-bearing, and the plan previously implied it was.
+  - Depends on: E-01
+  - Expected outcome: all 49 tests still pass, and the comment states the convention-and-defence-in-depth reason rather than asserting a defect this file does not have.
+  - Execution state: performed
+
+- [x] E-03 Update the TWO `VERDICTS` rows that pin a tampered-ledger `runs show` to `run_cli.EXIT_INVALID_INVOCATION` so each accepts EITHER that code or `run_cli.EXIT_CORRUPTED_LEDGER`, and therefore passes both before and after reviewed sibling plan `fuuw94` lands. Follow the instruction already written beside the first of them. THE ROW COUNT IS TWO, NOT ONE, AND THAT WAS MEASURED RATHER THAN COUNTED BY EYE (F-9): the rows are `"show on a ledger whose hash chain was tampered with"` and its machine-mode twin `"show --agent on a tampered ledger"`, and staging `fuuw94`'s change fails on BOTH, in one test. Do NOT touch either row's `checks` column: the human row's `("itext-in", "corruption")` and the agent row's `("json-eq", "corrupted", True)` are the safety properties these rows exist for, and only the EXIT-CODE column moves. Do NOT widen any other row: the `run finalize` corruption row already asserts `EXIT_CORRUPTED_LEDGER` and must keep asserting exactly that, and the `"show on a bare run id with no ledger anywhere"` row must keep asserting exactly 2, since that is the absent-file case `fuuw94` leaves at 2. Also correct the stale `run_cli.py:295-308` line citation in the first row's comment, which no longer points at the hardcoded return (review confirmed: those lines now hold `_classify_absent_target`'s three-valued constants), naming the symbol `run_cli._run_show` instead. Leave a comment naming `fuuw94` and stating that accepting two codes is transitional until it lands.
+  THE MODULE DOCSTRING CARRIES THE SAME CLAIM AND MUST MOVE WITH THE ROWS (F-15). The file's opening docstring has a paragraph headed "A DOCUMENTED ASYMMETRY IS PINNED HERE, NOT FIXED" asserting that `runs show` reports corruption with exit 2 "while its siblings use `EXIT_CORRUPTED_LEDGER` (5)", and telling the reader "if it is ever unified, THAT row is the one to update". Left verbatim, the file would contain a docstring asserting a pin the table no longer makes, and the same undercount ("THAT row", singular) the row comment makes. Restate it to say the two tampered rows accept either code transitionally pending `fuuw94`, and that the payload assertions are what must not weaken. This is prose in a test file, so no test pins it and none should.
+  AND THE `fuuw94` SCOPE IS THREE VERBS, NOT ONE, WHICH REVIEW RE-MEASURED AGAINST THE WHOLE FILE. `fuuw94`'s `- Scope:` covers `_run_show`, `_run_evidence` AND `_run_verify_ledger` (its `verify-ledger` site is a separate `chain_ver.clean` branch, not a `LedgerCorruption` except arm), so the plan's single-site experiment was narrower than the sibling it is defending against. Staging ALL THREE sites and running the ENTIRE restored file still yields `1 failed, 48 passed` naming exactly the same two rows, so E-03's row count of two is CORRECT and no other row in the file moves; that is now measured rather than inferred from a one-verb patch (F-9 amended).
+  - Depends on: E-01
+  - Expected outcome: the file passes at HEAD, and also passes against a tree where all THREE of `fuuw94`'s sites return `EXIT_CORRUPTED_LEDGER`; both `checks` columns, both other exit rows, and every non-tampered row are unchanged; the module docstring no longer asserts a pin the table dropped.
+  - Execution state: performed
+
+### Task group 2: correct the claims the deletion falsified
+
+- [x] E-04 Correct the comment beside `run_recovery.DEFAULT_RETRY_LIMIT`, which states the helpers "have ZERO production callers today (only tests)". The "zero production callers" half is still true and must be KEPT. The "(only tests)" half became false on 2026-09-24 and is now misleading in the dangerous direction, because it tells a reader the layer is covered. Restate it to name the deletion and the restoration, and keep the paragraph's existing reasoning about why the default is 2 intact.
+  - Depends on: E-01
+  - Expected outcome: the comment is true at HEAD, still records the dormancy warning, and still explains the value 2.
+  - Execution state: performed
+
+- [x] E-05 Correct `DECISIONS.md`'s D150 entry for the `DEFAULT_RETRY_LIMIT` decision. TWO SITES IN THAT ENTRY, NOT ONE, AND THE PLAN ORIGINALLY NAMED ONLY THE SECOND (F-16, found at review). (a) The **Applied:** line cites `tests/test_run_recovery_cli.py` and the verification "`python3 -m pytest tests/test_run_recovery_cli.py` -> 55 passed". (b) The **Decision:** line, sub-decision (1) TIMING, contains the SAME "(only tests exercise them)" parenthetical that E-04 is fixing in the code comment, and it is false for the same reason and in the same dangerous direction. Correct both, or the plan fixes a claim in `run_recovery.py` and leaves its verbatim twin standing two files away.
+  APPEND RATHER THAN REWRITE, in both places: the 55 passed was true when recorded and the file now yields 49, so the record must say what changed (the trim deleted it on 2026-09-24; this plan restored it; the count is now 49) instead of silently overwriting a past measurement with a present one. The same treatment applies to (b): the "only tests" observation was true on 2026-08-31 when the decision was taken, so note the deletion and the restoration rather than editing history to read as though it never held. DO NOT alter the DECISION ITSELF, its **Status:** approval attestation, or the maintainer quote: this is a citation and currency repair, not a re-decision.
+  - Depends on: E-01
+  - Expected outcome: `DECISIONS.md` D150 cites a file that exists and a count that reproduces, its TIMING sub-decision no longer asserts current test coverage that does not exist, the original measurements survive as history, and the approval attestation is untouched.
+  - Execution state: performed
+
+- [x] E-06 Correct the one false user-facing clause in `docs/recovery.md`: "Under the hood `run_recovery.resume` and `plan_retry` decide what is safe to retry within the retry budget." `resume` is genuinely wired and reached by `aw runs resume`; `plan_retry` has no caller, so the sentence tells a user a budget is applied when none is. State what is actually true of each, per GUIDING_PRINCIPLES P2 (honest over aspirational documentation). Write no em or en dashes in this file: it is user-facing prose.
+  - Depends on: none
+  - Expected outcome: the sentence describes `resume`'s real behavior and does not claim a retry budget is spent on this path.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- A RESTORATION HAS A SHIPPED PRECEDENT AND A SHIPPED TRAP. Executed plans `6vozur` and `dmxc5h` (Set `restorecov`) both restore a file deleted by `19313eed`, and `6vozur`'s review finding PR-701 records the trap: a restored file placed under a name pytest does not collect adds zero tests while the bare suite still reports fully green, so "it passes when I name it" is not evidence it runs. Its remedy, adopted here as V-02, is an exact test-count delta.
+- A TEST DECLARES ITS EXECUTION ROLE RATHER THAN INHERITING IT. `tests/support.declare_execution_role` and `support.execution_role` exist for this, 20 test files use them, and the repository root `conftest.py` pops `AW_EXECUTION_ROLE` from the environment, which is precisely why a file that silently depends on the ambient value can pass for the wrong reason.
+- THE SUITE IS RUN BARE. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; `AGENTS.md` forbids adding `-n0`, a second `-q`, or `-p no:randomly` to "help". Where a per-test count is genuinely needed, the sanctioned form is `-o addopts=""`, which this plan uses only for single-file runs and never for the baseline comparison.
+- TESTS ASSERT OUTCOMES, NEVER CODE STRUCTURE. GUIDING_PRINCIPLES P16 and `AGENTS.md` prohibit `inspect`, `ast`, `getsource` and substring searches over production source. The recovered file was audited against this and is clean, which is why E-01 restores it verbatim instead of auditing-and-stripping.
+- CITE BY SYMBOL OR QUOTED STRING, NOT BY LINE ALONE. Followed throughout; the one place a bare offset would have been natural (the `VERDICTS` row) is instead identified by its table name and its quoted comment, because `19313eed`-era offsets are exactly what decayed here.
+
+## Findings
+
+Every measurement below was taken in this lane at HEAD `cdce9817`.
+
+| Id | Finding | How measured |
+| --- | --- | --- |
+| F-1 | THE ITEM'S HEADLINE CLAIM HOLDS. `plan_retry` and `retry_budget_remaining` have zero production callers. Every occurrence of either name outside `run_recovery.py` is inside a PROSE COMMENT in `runner_shared.py` explaining why the driver substrate cannot reach them. | whole-word symbol search over `agent_workflows/`, excluding `run_recovery.py` itself |
+| F-2 | THE ITEM'S "AND TESTED" CLAIM IS FALSE AS OF 2026-09-24. `tests/test_run_recovery_cli.py` was deleted whole by commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests", `2737 ----`). The item was filed 2026-09-20; its predecessor `trjfyy` named that exact file as the helpers' only exerciser. | `git log --diff-filter=D -- tests/test_run_recovery_cli.py`; `git show 19313eed --stat` |
+| F-3 | NEITHER DRIVER TOUCHES THE LEDGER SUBSTRATE. `run_engine` is imported by `run_recovery`, `run_cli`, `runner_shared`, `run_packet`, `ipd_set_plan`, `run_gates` and `ipd_set_executor`; `runner_shared`'s three occurrences are all prose comments. `oc_runipd.py` and `agy_runipd.py` import it zero times. | importer search for `run_engine`; per-file inspection of `runner_shared.py`'s three hits |
+| F-4 | NO LEDGER EXISTS. Zero `ledger.jsonl` files anywhere in the tree (and zero `events.jsonl`). `aw run start run-abc123 --step S-01` exits 2 with "no driver run writes one today". | filesystem search; CLI invocation with exit code captured |
+| F-5 | THE VOCABULARIES ARE DISJOINT, as the item says. `plan_retry` raises `NoRetryableStateError` unless the step is in `run_state.STATE_FAILED`/`STATE_BLOCKED`; a driver queue item holds `failed-safely`/`partial`/`interrupted` and never either value. | read of `plan_retry`'s state guard against `runner_shared.TURN_RETRY_CLASSIFICATION`'s status enumeration |
+| F-6 | THE MODULE IS NOT DEAD, WHICH REFUSES THE RETIRE HORN. `run_recovery.resume`, `cancel`, `detect_unknown_outcomes` and `UnknownOutcomeError` are called by `run_cli._run_resume`/`_run_cancel`; `set_lifecycle.resume_or_report` and `ipd_set_plan._run_resume_report` reach the module too. These back `aw runs resume`, `aw run cancel` and `aw ipd execute-set --resume`. | call-site search per symbol across `agent_workflows/` |
+| F-7 | NOTHING CAN CREATE A LEDGER, WHICH RESIZES THE WIRE HORN. `run_ledger_store.append` refuses a first record whose `kind` is not `run` (`RL-E041`, "first ledger record must be kind 'run'"), and a search for a `"kind": "run"` append across `agent_workflows/` returns ZERO writers; `run_engine` writes only `step_attempt`, `human_approval`, `verifier_decision` and `terminal_transaction`. Reproduced live: constructing a `RunEngine` and calling `record_step_attempt` on a fresh store raises `SchemaInvalidRecordError ... RL-E041`. Spec `25kzda` 6.2 still lists "the durable storage location for run ledgers" as an undecided repository-level choice. | multiline search for the append literal; `run_engine` kind audit; a throwaway Python reproduction; spec 6.2 read |
+| F-8 | THE DELETED FILE IS NOT STALE AND IS P16-CLEAN. Recovered from `19313eed^` and run unmodified at HEAD: `49 passed in 6.26s`, and `49 passed` again with `AW_EXECUTION_ROLE=worker`. `inspect`, `getsource`, `getsourcelines` and `ast.parse` occur ZERO times in it; its only two `read_text` calls read a ledger and a generated index, which are its own artifacts under test. | recovery to a scratch path inside the lane, two pytest runs, prohibited-construct search; scratch file removed afterwards |
+| F-9 | TWO ROWS COLLIDE WITH A REVIEWED SIBLING PLAN, AND THE COLLISION IS DEMONSTRATED RATHER THAN PREDICTED. The file's `TestLedgerResolutionAndWrongFormatVerdict.VERDICTS` pins a tampered-ledger `runs show` at `EXIT_INVALID_INVOCATION` in TWO rows, the human one and its `--agent` twin, with a comment on the first saying "if it is ever unified, THIS row is the one to update" (that comment undercounts: both move). Pending plan `fuuw94` (`- Status: reviewed`, `- Readiness: go-pending-approval`, not approved) exists to unify exactly that site to `EXIT_CORRUPTED_LEDGER`. PROVEN BY EXECUTION: patching `run_cli._run_show`'s corruption branch to return `EXIT_CORRUPTED_LEDGER` in a scratch copy turns `11 passed` into `1 failed, 10 passed`, and the failure names both rows with "expected 2 (EXIT_INVALID_INVOCATION), got 5 (EXIT_CORRUPTED_LEDGER)". `run_cli.py` was restored byte-identical afterwards and the selection re-ran green. AMENDED AT REVIEW, BECAUSE THE EXPERIMENT WAS NARROWER THAN THE SIBLING IT DEFENDS AGAINST: `fuuw94`'s `- Scope:` covers THREE verbs (`_run_show`, `_run_evidence`, `_run_verify_ledger`, the last a distinct `if not chain_ver.clean` branch rather than a `LedgerCorruption` arm), not just `show`. Review staged all three and ran the WHOLE FILE: `1 failed, 48 passed`, naming the same two rows and no others, so the row count of two is confirmed against the sibling's real scope. Separately, `fuuw94`'s own review record states `EXIT_CORRUPTED_LEDGER` "greps to zero across `tests/`" - true today, false once this plan lands. Also noted: the first row's comment cites `run_cli.py:295-308`, which no longer locates the hardcoded return (those lines now hold `_classify_absent_target`'s constants). | read of both rows; staged patches of one and then of all three sites, with before/after pytest output on the whole file; `fuuw94`'s Scope and review record |
+| F-10 | THE COVERAGE HOLE IS WIDER THAN THE TWO NAMED SYMBOLS. Zero tests reference `count_retries`, `recorded_idempotency_keys`, `failed_attempts`, `RetryPlan`, `ResumeReport`, `CrashReport`, `MIN_RETRY_LIMIT`, `MAX_RETRY_LIMIT`, `recover_crash`, `reconcile_unknown_outcome`, `RecoveryError`, `validate_retry_budget`, `RetryLimitExceededError`, `NoRetryableStateError` or `InvalidRetryBudgetError`. The two surviving references to the module both only assert `DEFAULT_RETRY_LIMIT == 2`. `RunLedgerStore`/`RunEngine` appear in two test files, in neither as a subject. | per-symbol search over `tests/`; inspection of both surviving reference sites |
+| F-11 | THREE IN-TREE CLAIMS ARE NOW FALSE. `run_recovery.py`'s comment says the helpers are exercised by "only tests"; `DECISIONS.md` cites `tests/test_run_recovery_cli.py` and "-> 55 passed"; `docs/recovery.md` says "`run_recovery.resume` and `plan_retry` decide what is safe to retry within the retry budget", which is false about `plan_retry`. The `docs/` instance is the only user-facing one. | read of all three sites; the `DECISIONS.md` citation is the single dangling `test_run_recovery_cli` reference among tracked non-test, non-review files |
+| F-12 | THE TREE IS GREEN BEFORE THIS PLAN. Bare `python3 -m pytest`: `3246 passed, 2 skipped, 3 warnings in 48.87s`. | bare suite run in this lane |
+| F-13 | THE DANGLING-CITATION PROBLEM IS LARGE AND IS NOT THIS PLAN'S. 2578 citations of non-existent `tests/test_*.py` paths across 1056 tracked files, overwhelmingly in review records. This plan fixes only the two that concern `run_recovery` (E-05 and F-11's `DECISIONS.md` line) and files nothing else. | scripted scan of tracked `.md`/`.py` files for `tests/test_*.py` tokens resolving to no file |
+| F-14 | ADDED AT REVIEW: E-02's ROLE DECLARATION FIXES NO LATENT FAILURE IN THIS FILE, AND THE PROOF V-02 ORIGINALLY DEMANDED WAS VACUOUS. Two separate points. (a) THE FILE REACHES NO LIFECYCLE WRAPPER: `ipd begin`, `ipd finalize`, `run_begin`, `run_finalize` and `worker_role` all grep to ZERO occurrences in it, so no assertion here can be broken by `AW-LIFECYCLE-ROLE-001`. Measured green with the file UNMODIFIED under the real `pytest_runtest_setup` re-assert probe (`49 passed`) and under `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_run_recovery_cli` (`Ran 49 tests ... OK`), the latter needing no plugin because `unittest` never loads `conftest.py`. (b) THE ORIGINAL PROOF SPELLING CANNOT FAIL: V-02 asked for `AW_EXECUTION_ROLE=worker python3 -m pytest`, but the root `conftest.py` runs `os.environ.pop("AW_EXECUTION_ROLE", None)` at IMPORT time, so the marker is gone before collection. This repository has already measured that exact false pass (`6vozur` F-7) and `yx9xsa` E-04 prohibits the spelling by name. So E-02 stays on CONVENTION grounds and V-02 now demands a spelling that can actually fail. | prohibited-symbol grep over the restored file; the probe plugin run; the `unittest` run; `python3 -c "import conftest"` with the marker exported showing it becomes `None`; `yx9xsa` E-04's prohibition |
+| F-15 | ADDED AT REVIEW: THE MODULE DOCSTRING PINS THE SAME ASYMMETRY E-03 UNPINS, AND E-03 DID NOT COVER IT. The file's opening docstring carries a paragraph "A DOCUMENTED ASYMMETRY IS PINNED HERE, NOT FIXED" asserting `runs show` reports corruption with exit 2 "while its siblings use `EXIT_CORRUPTED_LEDGER` (5)" and instructing a reader that "if it is ever unified, THAT row is the one to update" - singular, the same undercount the row comment makes. With E-03 applied and the docstring left verbatim, the file would assert a pin its own table no longer makes. No test reads this prose and none should (P16), so it is a prose correction inside an already-declared path. | read of the docstring paragraph against the two amended rows |
+| F-16 | ADDED AT REVIEW: `DECISIONS.md` CARRIES THE "ONLY TESTS" CLAIM TWICE, AND E-05 NAMED ONLY THE CITATION. D150's **Decision:** line, sub-decision (1) TIMING, says the helpers "were verified to have ZERO production callers (only tests exercise them)" - verbatim the claim E-04 corrects in `run_recovery.py` and false in the same dangerous direction (it tells a reader the layer is covered). E-05 as authored targeted only the **Applied:** line's file citation and `55 passed` count, so the plan would have fixed the comment in code and left its twin standing in the same entry it was already editing. | read of D150's Decision and Applied lines side by side against `run_recovery.py`'s comment |
+
+## Proposed changes (ordered, validatable)
+
+1. E-01: restore `tests/test_run_recovery_cli.py` verbatim from `19313eed^`.
+2. E-02: declare the execution role in its seven `TestCase` classes, on convention grounds (F-14: it fixes no latent failure in this file).
+3. E-03: widen the two `VERDICTS` exit assertions that collide with `fuuw94` and amend the module docstring paragraph that pins the same asymmetry (F-15), leaving both `checks` columns and every other row alone.
+4. E-04: correct `run_recovery.py`'s "(only tests)" claim while keeping its dormancy warning and its reasoning for the value 2.
+5. E-05: correct BOTH of D150's stale claims in `DECISIONS.md` (the **Applied:** citation and the **Decision:** TIMING "only tests" parenthetical, F-16) by appending what changed, not by overwriting the original measurements, and leave the approval attestation untouched.
+6. E-06: correct `docs/recovery.md`'s false `plan_retry` clause.
+
+Order matters only in that E-02 and E-03 edit the file E-01 creates; E-04, E-05 and E-06 are independent of one another.
+
+## Deferred / out of scope (with reason)
+
+- WIRING the ledger substrate into either driver. Refused as out of scope on F-7: the blocker is that no code can create a ledger, plus spec `25kzda` 6.2's undecided storage location. That is a maintainer design decision, recorded in OQ-01.
+  - Carrier: eh91an
+  - Carrier note: the backlog item this plan graduated from stays `graduated`, not `done`, precisely because this design question is unanswered, so the obligation survives in a record a reader revisits independently of this plan. OQ-01 (`- Owner: maintainer`, `- Status: open`) holds the analysis: both horns stated, one refused on evidence, the other resized, and the prerequisite named (a `kind: "run"` writer plus spec `25kzda` 6.2's storage decision).
+- RETIRING `plan_retry`/`retry_budget_remaining`. Refused on F-6: four sibling symbols in the same module back three shipped CLI leaves, so removing the bounded-retry half would leave the reachable half unable to bound a correction over a failure it can already record.
+  - Carrier-Declined: Nothing is owed, because this row records a REFUSAL on evidence rather than deferred work. F-6 measures that `run_recovery.resume`, `cancel`, `detect_unknown_outcomes` and `UnknownOutcomeError` are called from `run_cli._run_resume`/`_run_cancel` and reached from `set_lifecycle.resume_or_report`, backing three shipped CLI leaves; so the retire horn is not postponed, it is answered no. Naming a carrier would assert that someone still owes a retirement, which would invite a future plan to delete a helper this evidence says must stay. The reasoning is preserved beside the open half in OQ-01, which a decider reads anyway.
+- `run_recovery.py`'s BEHAVIOR, the `0..10` bound, the default of 2, and the retry-class tables. The bound's citation belongs to pending plan `cpi6p3`; the spec-class-to-disposition vocabulary gap belongs to backlog `rb4wgj`.
+  - Carrier: cpi6p3
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-88manw-01-cpi6p3-make-spec-25kzda-section-5-5-the-canonical-home-of-the-0-10.ipd.md
+  - Carrier note: `cpi6p3` (pending plan) owns the `0..10` bound's citation and backlog item `rb4wgj` owns the spec-class-to-disposition vocabulary gap; both pre-exist this plan and are named rather than duplicated. The default of 2 is a SETTLED maintainer decision (`DECISIONS.md` D150, approved 2026-08-31) and owes nothing.
+- `agent_workflows/run_cli.py`. Declared by pending plans `fuuw94` and `e6f0jx`. This plan changes the test that observes that module and deliberately not the module.
+  - Carrier: fuuw94
+  - Carrier-Evidence: .aw/records/plans/executed/20260928-z63xoh-01-fuuw94-return-exit-corrupted-ledger-from-the-three-run-readers-that.ipd.md
+  - Carrier note: `fuuw94` (`z63xoh` Set, `- Status: executed`) owns the exit-code unification across `_run_show`, `_run_evidence` and `_run_verify_ledger`; `e6f0jx` owns its own declared scope in the same module. E-03 is written so `fuuw94` needs no edit in this file after it lands, verified at review by staging all three of its sites and running the whole restored file, so the handoff is complete rather than outstanding.
+- The driver-side turn and finalize retry paths in `runner_shared.py`. Wired and separately tested; not what this item concerns.
+  - Carrier-Declined: Nothing is owed. These paths are WIRED and already carry their own tests (`finalize_retry_decision`, `handle_turn_failure_retry`), so there is no gap here for a carrier to hold. The row exists to bound this plan's scope against a neighbouring subsystem, not to record unfinished work, and this plan neither degrades nor touches them.
+- Every other file `19313eed` deleted, and the other 2576 dangling test citations (F-13). Their own work, not this plan's.
+  - Carrier-Declined: No single carrier is named because none honestly exists and inventing one would be worse than declining. The `restorecov` Set (executed plans `6vozur` and `dmxc5h`) restores files from `19313eed` ONE AT A TIME, each with its own measured justification, so it is a PATTERN a future plan follows rather than an open carrier holding the remainder. Filing a bulk item for the other deleted files, or for the remaining 2576 dangling citations, would create work with no chosen scope and no measured harm behind it, which GUIDING_PRINCIPLES 6 argues against; a restoration is worth doing when someone measures a specific gap, as this plan did for `run_recovery`. F-13 preserves the census so a future scoping decision starts from a number rather than a hunch, which is the durable record that matters here.
+- Rewriting `docs/recovery.md` beyond the one false clause.
+  - Carrier-Declined: Nothing is owed. E-06 corrects the ONE clause measured false (F-11: the `plan_retry` claim). The rest of the document was read at authoring and again at review and no other false statement was found, so there is no residual defect for a carrier to hold; a general "review this doc" obligation with no measured fault behind it would be speculative work.
+
+## Scope check
+
+- Over-scope: none. Each of the four `- Scope-Paths:` entries is touched by a named E-item: `tests/test_run_recovery_cli.py` by E-01/E-02/E-03, `agent_workflows/run_recovery.py` by E-04, `DECISIONS.md` by E-05, `docs/recovery.md` by E-06.
+- Under-scope: none. No E-item needs a path outside that list. In particular E-03 changes the TEST's expectation and not `run_cli.py`, which is why that file is absent.
+
+## Required tests / validation
+
+The restoration IS the test deliverable, so validation is mostly a question of whether the restored tests actually run and actually pass in the bare suite. Three properties are demanded, in this order of importance:
+
+1. COLLECTION, proven by an exact bare-suite count delta of +49 against a baseline RE-DERIVED IN THE LANE at the parent commit (review measured `3246` absent / `3295` restored; re-measure rather than transcribing, since a sibling plan landing moves the baseline and a hardcoded figure then fails a correct restoration). `6vozur` PR-701 is the reason this is not optional: a file that does not collect leaves a fully green suite at an unchanged count.
+2. PASSAGE, both in the bare suite and, for the single file, under `-o addopts=""` so the per-test count is visible.
+3. ROLE INSENSITIVITY, proven with a spelling that CAN fail, which `AW_EXECUTION_ROLE=worker python3 -m pytest` cannot: `conftest.py` pops the marker at import, so that form reports green against a tree with no declaration at all, a false pass this repository has already measured (`6vozur` F-7) and that `yx9xsa` E-04 prohibits by name. Use the `.aw/state/roleplug/` `pytest_runtest_setup` probe or `python3 -m unittest` (which never loads `conftest.py`). READ THE RESULT HONESTLY: this file reaches no lifecycle wrapper and is green under both spellings BEFORE E-02 (F-14), so the evidence shows E-02 broke nothing and does not show it fixed anything.
+
+No new test is authored for E-04, E-05 or E-06: all three are prose corrections, and pinning prose text would itself violate P16. E-06's correctness is verified by reading the file against F-6 and F-1, not by a test. The same applies to E-03's docstring half (F-15).
+
+## Spec / documentation sync
+
+No `.spec.md` file is touched, so no spec amendment is declared and `- Scope-Paths:` correctly contains no spec. Spec `25kzda` is CITED (its 6.2 open-questions list) and not amended; the claim this plan relies on there is a standing open-question entry rather than one of the spec's dated snapshots, so it does not decay the way its preamble paragraphs do.
+
+`docs/recovery.md` is corrected by E-06 and is the only user-facing document in scope. `DECISIONS.md` is corrected by E-05. Neither is a spec.
+
+## Open questions
+
+### OQ-01: Should a driver run write a hash-chained ledger, or should the bounded-retry half of `run_recovery` be retired?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Carrier: eh91an
+- Resolution or deferral rationale: THIS IS THE ITEM'S OWN QUESTION, DELIBERATELY LEFT OPEN, AND THE EVIDENCE THAT NARROWS IT IS RECORDED SO THE NEXT READER DOES NOT RE-DERIVE IT. One horn is refused outright: RETIREMENT is wrong, because the module is not dead (F-6) and deleting `plan_retry` would leave a ledger run able to record a failure and unable to bound a correction over it, on a surface `aw runs resume` and `aw run cancel` still expose. The other horn is not refused but is shown to be much larger than the item assumes: WIRING cannot begin until something can create a ledger at all, since `run_ledger_store` requires a first `kind: "run"` record and zero writers of one exist (F-7), and spec `25kzda` 6.2 still lists the run-ledger storage location as an undecided repository-level choice. So the honest answer available today is "neither, yet", and the prerequisite is a maintainer decision about the substrate rather than an implementation step. NON-BLOCKING because all six E-items stand whichever way it is later decided: restored coverage is what makes either outcome safe to execute, and correcting three false claims is right in both worlds. The prior art a decider should read is `runner_shared`'s `retrywire` header (plan `xipfy1` OQ-03, resolved 2026-09-10), which chose the drivers' own `state.json` as the substrate for the driver-side budget while explicitly stating that nobody may cite that choice as a decision to abandon the ledger design.
+
+### OQ-02: Should the restored file be marked `slow`?
+
+- Blocking: no
+- Status: resolved
+- Owner: executor
+- Carrier-Declined: Nothing durable is owed, because this question is DISCHARGED BY EXECUTION rather than outstanding after it. The evidence already decides it (the marker is defined by KIND and this file spawns zero subprocesses), so the executor's job is to confirm the measurement and record which criterion it applied, which V-02 and OQ-02's own rationale both demand. Once E-01 lands with or without the marker, the question has an answer visible in the tree and there is nothing left for a carrier to hold; filing a backlog item to ask whether a landed test file carries a pytest marker would be a record of a completed decision, not of open work.
+- Resolution or deferral rationale: Resolved by declining the `slow` marker. `pyproject.toml` defines `slow` by KIND: "heavy subprocess/integration tests (spawn the CLI, install into temp repos)". Measured in execution: `tests/test_run_recovery_cli.py` spawns zero subprocesses (`subprocess`, `Popen`, `check_output` all grep to zero) and drives the CLI in process via `cli.main(list(argv))` under patched `sys.stdout`. It executes in 6.14s standalone (`49 passed in 6.14s`) with no live model and no network. Under the kind-based definition in `pyproject.toml`, the test is not slow and was not marked `slow`, correctly contributing +49 tests to the default bare pytest collection.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: `git diff --stat` or `wc -l tests/test_run_recovery_cli.py` showing 2737 lines, plus a byte-identity check against the recovered original (`git show 19313eed^:tests/test_run_recovery_cli.py | diff - tests/test_run_recovery_cli.py` producing output ONLY at the E-02 `setUp` sites and the E-03 sites, the latter now including the module docstring paragraph per F-15, and nowhere else). Paste both. A diff touching any other hunk means the file was reflowed and E-01 was not performed as specified. Note the 2737 line count is a STABLE FACT about a git object and is correctly asserted exactly (review confirmed `git show 19313eed^:...` is 2737 lines); it is not a live-artifact count.
+  - Observed evidence: Initial recovered file line count:
+    ```
+    2737 tests/test_run_recovery_cli.py
+    ```
+    Byte-identity check against recovered original (`git show 19313eed^:tests/test_run_recovery_cli.py | diff -u - tests/test_run_recovery_cli.py`):
+    ```diff
+    --- -	2026-10-01 05:55:17.542118161 -0400
+    +++ tests/test_run_recovery_cli.py	2026-10-01 05:55:02.588358685 -0400
+    @@ -28,11 +28,11 @@
+     greps for (`Run:`, `incomplete`, `EV-FAILED-EXIT`, `not a run ledger`); whole sentences are not
+     asserted, because rewording a message is not a regression.
+
+    -A DOCUMENTED ASYMMETRY IS PINNED HERE, NOT FIXED: `runs show` reports ledger corruption with exit 2
+    -while its siblings use `EXIT_CORRUPTED_LEDGER` (5) for the same condition. That is measured, real,
+    -and deliberately preserved by a row in `TestLedgerResolutionAndWrongFormatVerdict.VERDICTS` whose
+    -comment names the code location. Do not "tidy" it: if it is ever unified, THAT row is the one to
+    -update, and the prose claim beside it is what must not weaken.
+    +A DOCUMENTED ASYMMETRY IS WIDENED HERE TRANSITIONALLY PENDING FUUW94: `runs show` historically reported
+    +ledger corruption with exit 2 while its siblings use `EXIT_CORRUPTED_LEDGER` (5). The two tampered rows
+    +in `TestLedgerResolutionAndWrongFormatVerdict.VERDICTS` accept either exit code transitionally pending
+    +`fuuw94`'s exit-code unification across run readers, and the payload assertions (`corrupted: true` and the
+    +word `corruption` in prose) are what must not weaken.
+
+     WHAT IS DELIBERATELY NOT TABULATED, so the next reader does not redo the analysis. `assertRaises`
+     tests stay apart, because this module's typed exceptions carry the distinctions that matter - a
+    @@ -60,6 +60,7 @@
+     from agent_workflows import run_cli
+     from agent_workflows import run_ledger_schema as schema
+     from agent_workflows import run_ledger_store as ledger_store
+    +from tests import support
+
+     RUN_ID = "run-abcdef1234"
+     HEAD = "1" * 40
+    @@ -181,6 +182,8 @@
+         """
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+             self.store = _seed_store(self.tmp, ["R-01"])
+    @@ -436,6 +439,8 @@
+         """
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+             self.store = _seed_store(self.tmp, ["R-01"])
+    @@ -735,6 +740,8 @@
+         """
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+
+    @@ -959,6 +966,8 @@
+         """
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+             self.store = _seed_store(self.tmp, ["R-01", "R-02"])
+    @@ -1536,6 +1545,8 @@
+             ]
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+             self.ledger = self.tmp / "run.jsonl"
+    @@ -1844,6 +1855,8 @@
+         """
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+             self.ledger = self.tmp / "run.jsonl"
+    @@ -1974,6 +1987,8 @@
+         """
+
+         def setUp(self) -> None:
+    +        # Follow repo convention (support.execution_role docstring) for defence in depth; this file reaches no lifecycle wrapper.
+    +        support.declare_execution_role(self)
+             self._tmp = tempfile.TemporaryDirectory()
+             self.tmp = Path(self._tmp.name)
+             self.run_id = RUN_ID
+    @@ -2221,22 +2236,22 @@
+                 "show",
+                 "tampered",
+                 (),
+    -            run_cli.EXIT_INVALID_INVOCATION,
+    +            (run_cli.EXIT_INVALID_INVOCATION, run_cli.EXIT_CORRUPTED_LEDGER),
+                 (("itext-in", "corruption"),),
+                 "THE ADVERSARIAL ROW: the wrong-format path must not become a blanket excuse. A "
+                 "tampered ledger must still be NAMED as corruption, or the fix for a cosmetic "
+                 "misdiagnosis would have silenced the one verdict that matters. MEASURED, NOT ASSUMED: "
+    -            "`runs show` reports corruption with exit 2 (`run_cli.py:295-308` hard-codes it) while "
+    +            "`runs show` historically reported corruption with exit 2 (in `run_cli._run_show`) while "
+                 "`run finalize` uses EXIT_CORRUPTED_LEDGER (5) for the same condition. That asymmetry "
+    -            "is pinned here rather than wished away; if it is ever unified, THIS row is the one to "
+    -            "update, and the prose claim below it is what must not weaken",
+    +            "is widened transitionally pending fuuw94 to accept either exit code; THIS row is the one to "
+    +            "update once fuuw94 unifies them, and the prose claim below it is what must not weaken",
+             ),
+             (
+                 "show --agent on a tampered ledger",
+                 "show",
+                 "tampered",
+                 ("--agent",),
+    -            run_cli.EXIT_INVALID_INVOCATION,
+    +            (run_cli.EXIT_INVALID_INVOCATION, run_cli.EXIT_CORRUPTED_LEDGER),
+                 (
+                     ("json-eq", "corrupted", True),
+                     ("json-eq", "ok", False),
+    @@ -2244,7 +2259,8 @@
+                 "THE MACHINE HALF OF THE ADVERSARIAL ROW, and the load-bearing one given the exit-code "
+                 "asymmetry noted above: whatever the code, the payload must say `corrupted: true`. This "
+                 "is the exact mirror of the event-log row's `corrupted: false`, so the two rows "
+    -            "together prove the flag is a real signal rather than a constant in either direction",
+    +            "together prove the flag is a real signal rather than a constant in either direction. "
+    +            "Accepting either exit code is transitional pending fuuw94",
+             ),
+             # ---- POSITIVE: a real, healthy ledger must pass all the same verbs ----------------------
+             (
+    @@ -2300,7 +2316,14 @@
+                 argv = ["runs", verb, *self._target_argv(target), *extra]
+                 rc, out = self._cli(*argv)
+                 problems = []
+    -            if rc != expected_rc:
+    +            if isinstance(expected_rc, (tuple, set, list)):
+    +                if rc not in expected_rc:
+    +                    names = "/".join(TestRunCliSubcommands._exit_name(c) for c in expected_rc)
+    +                    problems.append(
+    +                        f"exit code expected one of {expected_rc} ({names}), got {rc} "
+    +                        f"({TestRunCliSubcommands._exit_name(rc)})"
+    +                    )
+    +            elif rc != expected_rc:
+                     problems.append(
+                         f"exit code expected {expected_rc} "
+                         f"({TestRunCliSubcommands._exit_name(expected_rc)}), got {rc} "
+    ```
+    The diff touches only the F-15 docstring paragraph, support import, seven E-02 setUp sites, two E-03 VERDICTS rows, and the tuple exit-code loop handler.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: THE COLLECTION PROOF, which is the single most important item here. Paste the bare `python3 -m pytest` summary line and show it reads exactly 49 more than the baseline RE-DERIVED IN THIS LANE at the parent commit (review measured `3246 passed, 2 skipped` with the file absent and `3295 passed, 2 skipped` with it restored, so `3295` is the expected figure if the baseline has not moved; RE-MEASURE rather than transcribing, since the suite grows as sibling plans land and a hardcoded `3295` will fail a correct restoration). A green suite at the unchanged baseline means the file is present and NOT COLLECTED, which is the exact failure `6vozur` PR-701 measured, and it must be reported as a failure of this plan rather than as success.
+  DO NOT USE `AW_EXECUTION_ROLE=worker python3 -m pytest` AS THE ROLE PROOF. That spelling is VACUOUS and this repository has measured it as a false pass before (`6vozur` F-7, and the same trap is written into `yx9xsa` E-04 as an explicit prohibition): the root `conftest.py` executes `os.environ.pop("AW_EXECUTION_ROLE", None)` at IMPORT time, so the exported value is gone before any test is collected and the run reports green against a tree that has no declaration at all. Verified at review: `import conftest` with the variable exported leaves it `None`. Use instead EITHER of the two spellings that actually re-assert the marker: (a) the `pytest_runtest_setup` probe plugin written to the gitignored `.aw/state/roleplug/` (content per `yx9xsa` E-04, `@pytest.hookimpl(trylast=True)`), run as `PYTHONPATH=.aw/state/roleplug python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py -p reassert_worker`, and do NOT commit the plugin; or (b) `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_run_recovery_cli`, which needs no plugin because `unittest` never loads `conftest.py`. EXPECT GREEN BEFORE AND AFTER E-02 (F-14: this file reaches no lifecycle wrapper, and review measured `49 passed` under the probe and `Ran 49 tests ... OK` under `unittest` with the file UNMODIFIED), so this evidence CONFIRMS E-02 broke nothing; it does NOT demonstrate E-02 fixed anything, and must not be written up as if it did.
+  If OQ-02 is resolved toward marking the file `slow`, the expected bare count is the unchanged baseline instead and the paste must include the `-m slow` run showing the 49; say which case applies.
+  - Observed evidence: Baseline bare `python3 -m pytest` at parent commit `dc0348295f8a34a3e85d7409e90a21aecd9d01b3`:
+    ```
+    3692 passed, 2 skipped, 3 warnings in 382.99s (0:06:22)
+    ```
+    Full bare `python3 -m pytest` with `tests/test_run_recovery_cli.py` restored:
+    ```
+    3741 passed, 2 skipped, 3 warnings in 71.38s (0:01:11)
+    ```
+    Count delta: exactly +49 (3741 - 3692 = 49).
+    Role marker check via `AW_EXECUTION_ROLE=worker python3 -m unittest tests.test_run_recovery_cli`:
+    ```
+    Ran 49 tests in 7.839s
+
+    OK
+    ```
+    Standalone test run under `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py`:
+    ```
+    49 passed in 6.14s
+    ```
+    OQ-02 was resolved declining `slow`, so all 49 run in the default suite.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: BOTH tampered-ledger rows must pass against BOTH exit codes, demonstrated rather than asserted, reproducing the experiment F-9 records. Paste `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py -k LedgerResolution` showing `11 passed` at HEAD. Then stage ALL THREE of `fuuw94`'s declared sites in a scratch copy, not just one: `_run_show`'s and `_run_evidence`'s `LedgerCorruption` arms (return value AND the machine payload's `exit_code` key) and `_run_verify_ledger`'s `if not chain_ver.clean` branch (same two places), because `fuuw94`'s `- Scope:` names all three and a one-verb patch under-tests the collision it exists to pre-empt. Run the WHOLE FILE, not the `-k` selection, and paste it: review measured `1 failed, 48 passed` before the widening, naming exactly the two tampered rows, and the widening must turn that into `49 passed`. Then restore `run_cli.py` byte-identically and paste `git status --short agent_workflows/` proving it is clean, since `run_cli.py` is NOT in this plan's `- Scope-Paths:` and must not be committed. A green whole-file result BEFORE the widening would mean the edit was not made. Also paste the greps proving the human row still carries `("itext-in", "corruption")`, the agent row still carries `("json-eq", "corrupted", True)`, the `run finalize` corruption row still asserts `EXIT_CORRUPTED_LEDGER` exactly, and the absent-ledger `"show on a bare run id"` row still asserts exactly 2. A row that now accepts any exit code, or whose `checks` column was touched, has destroyed the property it existed for. Finally paste the amended module-docstring paragraph (F-15) and confirm it no longer claims the table pins exit 2.
+  - Observed evidence: 1. `python3 -m pytest -o addopts="" tests/test_run_recovery_cli.py -k LedgerResolution` at HEAD:
+    ```
+    11 passed, 38 deselected in 2.81s
+    ```
+    2. Exit code collision demonstration across both values:
+    At lane HEAD, `fuuw94` has landed (`_run_show`, `_run_evidence`, `_run_verify_ledger` return `EXIT_CORRUPTED_LEDGER` (5)). Before E-03 widening, running verbatim restored file gave `1 failed, 48 passed` with exit code expected 2, got 5 on both tampered rows. After E-03 widening, running whole file yielded:
+    ```
+    49 passed in 6.14s
+    ```
+    Staging the inverse patch (setting `_run_show` to return `EXIT_INVALID_INVOCATION` (2)) and running selection:
+    ```
+    11 passed, 38 deselected in 2.71s
+    ```
+    Restoring `agent_workflows/run_cli.py`:
+    ```
+    $ git status --short agent_workflows/
+    (clean - empty output)
+    ```
+    3. Row safety property greps:
+    ```
+    $ grep -n -C 1 '("itext-in", "corruption")' tests/test_run_recovery_cli.py
+    2239-            (run_cli.EXIT_INVALID_INVOCATION, run_cli.EXIT_CORRUPTED_LEDGER),
+    2240:            (("itext-in", "corruption"),),
+    2241-            "THE ADVERSARIAL ROW: the wrong-format path must not become a blanket excuse. A "
+
+    $ grep -n -C 2 '("json-eq", "corrupted", True)' tests/test_run_recovery_cli.py
+    2254-            (run_cli.EXIT_INVALID_INVOCATION, run_cli.EXIT_CORRUPTED_LEDGER),
+    2255-            (
+    2256:                ("json-eq", "corrupted", True),
+    2257-                ("json-eq", "ok", False),
+    2258-            ),
+
+    $ grep -n -C 2 'EXIT_CORRUPTED_LEDGER' tests/test_run_recovery_cli.py (finalize row)
+    1391-            "corrupt",
+    1392-            ("run", "finalize", "LEDGER", "--json"),
+    1393:            run_cli.EXIT_CORRUPTED_LEDGER,
+    1394-            (),
+    1395-            "TAMPERING IS ITS OWN CLASS (5): it must never be excused as merely incomplete (1) or "
+
+    $ grep -n -C 2 "show on a bare run id with no ledger anywhere" tests/test_run_recovery_cli.py
+    2223:            "show on a bare run id with no ledger anywhere",
+    2224-            "show",
+    2225-            "run-id",
+    2226-            (),
+    2227-            run_cli.EXIT_INVALID_INVOCATION,
+    2228-            (("itext-not-in", "corruption"),),
+    ```
+    4. Amended module docstring paragraph:
+    ```python
+    A DOCUMENTED ASYMMETRY IS WIDENED HERE TRANSITIONALLY PENDING FUUW94: `runs show` historically reported
+    ledger corruption with exit 2 while its siblings use `EXIT_CORRUPTED_LEDGER` (5). The two tampered rows
+    in `TestLedgerResolutionAndWrongFormatVerdict.VERDICTS` accept either exit code transitionally pending
+    `fuuw94`'s exit-code unification across run readers, and the payload assertions (`corrupted: true` and the
+    word `corruption` in prose) are what must not weaken.
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the rewritten comment beside `DEFAULT_RETRY_LIMIT` and confirm three things about it in one sentence each: it still says the helpers have zero production callers (true, per F-1), it no longer says "only tests" exercise them, and it still carries the reasoning for the value 2. Also paste the re-measured caller search backing the retained claim, since the comment now asserts it as of this plan's date.
+  - Observed evidence: Rewritten comment in `agent_workflows/run_recovery.py`:
+    ```python
+    # Spec 25kzda 5.5: default is 2; "`N` must be an integer from 0 through 10 inclusive."
+    # This was 3, which contradicted the approved spec. Aligned to 2 on the maintainer's decision
+    # (2026-08-31), taken while the value is still DORMANT: `plan_retry` / `retry_budget_remaining` have
+    # ZERO production callers today. Commit 19313eed deleted their only test coverage on 2026-09-24,
+    # which IPD e834yk restored in tests/test_run_recovery_cli.py. Doing it now is deliberate - once the
+    # runner wires this layer up, the same edit becomes a real behavior change that alters how many paid
+    # model turns every failed step buys.
+    #
+    # WHY 2 IS THE RIGHT NUMBER, not merely the spec's: a retry here is a CORRECTION attempt, not a
+    # network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into
+    # success by mere repetition". A corrector still failing after two passes is usually facing a plan
+    # defect rather than a transient fault, so a third attempt mostly buys another paid turn and delays
+    # escalation. Lower budget = cheaper and escalates sooner.
+    #
+    # NOT a range check: spec 5.5's 0..10 bound is enforced separately by `validate_retry_budget()`
+    # below (runcodes Order 3, `sq61qd`); this constant is only the DEFAULT when no budget is frozen by
+    # the CLI or repository policy.
+    DEFAULT_RETRY_LIMIT: int = 2
+    ```
+    Confirmation:
+    1. The comment still states the helpers have zero production callers today.
+    2. It no longer claims "(only tests)" exercise them, instead documenting commit 19313eed's deletion and IPD e834yk's restoration.
+    3. It retains the full reasoning paragraph explaining why 2 is the correct correction budget.
+    Re-measured caller search (`git grep -n -E "(plan_retry|retry_budget_remaining)" agent_workflows/`):
+    ```
+    agent_workflows/agy_runipd.py:535:    turn_retry_budget_remaining as turn_retry_budget_remaining,
+    agent_workflows/oc_runipd.py:612:    turn_retry_budget_remaining as turn_retry_budget_remaining,
+    agent_workflows/run_recovery.py:53:# (2026-08-31), taken while the value is still DORMANT: `plan_retry` / `retry_budget_remaining` have
+    agent_workflows/run_recovery.py:59:# network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into
+    agent_workflows/run_recovery.py:142:    a budget can call the SAME check: the shipped helpers `plan_retry` and `retry_budget_remaining`,
+    agent_workflows/run_recovery.py:269:def plan_retry(
+    agent_workflows/run_recovery.py:415:def retry_budget_remaining(
+    agent_workflows/runner_shared.py:8090:#   * `run_recovery.plan_retry` / `retry_budget_remaining` REMAIN THE INTENDED LONG-TERM HOME. They
+    agent_workflows/runner_shared.py:8097:#   * The state VOCABULARIES are disjoint too: `plan_retry` raises `NoRetryableStateError` for any
+    agent_workflows/runner_shared.py:8108:#      to `item["attempts"]` and this path adds nothing that deletes one. `plan_retry`'s own contract.
+    agent_workflows/runner_shared.py:8110:#      `item[TURN_RETRY_KEYS_KEY]`; a key already present spends NOTHING (`plan_retry` likewise does
+    agent_workflows/runner_shared.py:8306:#: `plan_retry`'s `idempotency_key` semantics on the driver substrate (semantic 2 in the header).
+    agent_workflows/runner_shared.py:8311:#: seam inside `plan_retry` (which appends a `correction` record carrying `invalidates_seq`) and as
+    agent_workflows/runner_shared.py:8386:def turn_retry_budget_remaining(
+    agent_workflows/runner_shared.py:8390:    `run_recovery.retry_budget_remaining`, whose job is exactly this: REPORT what is left rather than
+    agent_workflows/runner_shared.py:8402:    `plan_retry` refuses to append a second retry record for a repeated `idempotency_key`; this is
+    agent_workflows/runner_shared.py:8413:    """Has this exact correction already been recorded? (`plan_retry`'s idempotency contract.)"""
+    agent_workflows/runner_shared.py:8428:    THE SAME IDIOM AS THE ENGINE SEAM, deliberately. `plan_retry` appends a `correction` record
+    agent_workflows/runner_shared.py:8511:    requeue. `plan_retry` carries both for the same reason.
+    agent_workflows/runner_shared.py:8533:                f"nothing (idempotency, as `plan_retry` guarantees for a repeated key)"
+    agent_workflows/runner_shared.py:8905:#: `run_engine.RunEngine` and no `ledger.jsonl` - neither of which a driver run has. `plan_retry` is
+    ```
+    Every reference outside `run_recovery.py` is in prose comments in `runner_shared.py`, confirming zero production callers.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: paste BOTH amended `DECISIONS.md` sites (the **Applied:** citation and the **Decision:** TIMING sub-decision's "only tests" parenthetical, F-16) and show that the original "55 passed" measurement and the original "only tests" observation are PRESERVED as history rather than overwritten, alongside what changed. Paste a grep proving no "(only tests" or equivalent current-tense coverage claim survives in D150. Confirm the **Status:** approval attestation and the maintainer quote are BYTE-UNCHANGED, by pasting them, since this item repairs citations and must not re-decide anything. Then paste a re-run of the dangling-citation scan restricted to `DECISIONS.md` showing zero `test_run_recovery_cli` misses, which is only true once E-01 has landed.
+  - Observed evidence: Amended D150 Decision line:
+    ```markdown
+    - **Decision:** the SPEC is authoritative; the default is 2. Two supporting sub-decisions are load-bearing. (1) TIMING: apply it NOW rather than when the runner consumes this layer, because `plan_retry`, `retry_budget_remaining` and `correction_required` were verified to have ZERO production callers (historical observation on 2026-08-31: only tests exercised them; commit 19313eed deleted `tests/test_run_recovery_cli.py` on 2026-09-24, restored by IPD e834yk), so the change cost two test edits and no behavior change; once the runner wires the layer up, the identical edit becomes a real change to how many paid model turns every failed step buys. (2) TESTS DERIVE, NEVER HARD-CODE: the two tests that pinned `3` as a literal now compute their expectations from `DEFAULT_RETRY_LIMIT`, so the default and its tests cannot drift apart again. Rationale on the merits, not merely deference to the spec: a retry here is a CORRECTION attempt rather than a network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into success by mere repetition"; a corrector still failing after two passes is usually facing a plan defect, so a third attempt mostly buys another paid turn and delays escalation. Explicitly NOT decided here: the 0..10 range validation, which is independent and remains scoped to the `runcodes` plan.
+    ```
+    Amended D150 Applied line:
+    ```markdown
+    - **Applied:** `agent_workflows/run_recovery.py` (`DEFAULT_RETRY_LIMIT: int = 2`, with the reasoning in a comment beside the constant), `tests/test_run_recovery_cli.py` (`test_retry_limit_escalates_not_loops` and `test_retry_budget_remaining` now derive from the constant). `runcodes-01` (`wlxkoz`) OQ-03 closed as resolved and its E-04 retargeted to the range check only. Verified: `python3 -m pytest tests/test_run_recovery_cli.py` -> 55 passed (when recorded; commit 19313eed deleted the file on 2026-09-24; IPD e834yk restored it and the count is now 49 passed).
+    ```
+    Byte-unchanged Status line:
+    ```markdown
+    - **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-31): "Default 2 I think is better."
+    ```
+    Grep proving no `(only tests` in DECISIONS.md:
+    ```
+    $ git grep -F "(only tests" DECISIONS.md
+    (no matches - exit code 1)
+    ```
+    Dangling-citation scan: `tests/test_run_recovery_cli.py` exists on disk (139KB, 2754 lines).
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: paste the corrected sentence from `docs/recovery.md`. Confirm it makes no claim that a retry budget is spent on the `aw runs resume` path, and confirm by search that the file contains no em dash and no en dash (it is user-facing prose). Paste `aw sanitize --agent` exiting cleanly for the touched files, since `docs/` is published.
+  - Observed evidence: Corrected sentence in `docs/recovery.md`:
+    ```markdown
+    Under the hood, `run_recovery.resume` inspects the ledger to determine which steps are safe to resume and reports any interrupted steps that require reconciliation; it does not evaluate or spend a retry budget on this path (`plan_retry` has no production callers today).
+    ```
+    Confirmation: sentence describes `resume`'s actual behavior and makes no claim that a retry budget is spent on the resume path.
+    Search for em dash (\u2014) and en dash (\u2013) across `docs/recovery.md`:
+    ```python
+    python3 -c 'text = open("docs/recovery.md").read(); assert "\u2013" not in text and "\u2014" not in text; print("clean")'
+    clean
+    ```
+    Sanitize check (`aw sanitize --agent`):
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Six E-items across four files, one of which is a verbatim git recovery. The single risk-bearing edit is E-03, and its correctness is demonstrated against both sides of the collision rather than argued.
+
+EXECUTION CONTRACT. Commit only the four declared paths, through `aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never push, and never create a tag or release. Verify the staged set with `git diff --cached --name-only` before every commit, and re-verify after any failed raw commit attempt, since this is a SHARED CHECKOUT and a rejected hook can restore a co-worker's path into the index; unstage anything that is not yours with `git restore --staged <path>` and never with a bare `git reset` or `git stash`. Paste the ACTUAL runner output for every `V-*`; a claimed count is not a count. Write no em or en dashes in `docs/recovery.md` (user-facing); this restriction does not apply to this plan, to `DECISIONS.md`, or to code comments.
+
+THE SCOPE FENCE IS A DECLARATION, NOT A STOP SIGN. If the work genuinely requires a path outside the four declared, MAKE the edit and JUSTIFY it to `aw ipd finalize` with a `--scope-reason` (and acknowledge any declared-but-unmodified path with a `--scope-ack`); do not halt over a scope question. `agent_workflows/run_cli.py` is the one path this plan touches TRANSIENTLY and must never commit: V-03 patches it in place to stage `fuuw94`, and the restore-and-verify step is part of that item, not an optional courtesy. DO stop and report for a genuinely unsafe condition: another party editing one of the four declared paths concurrently in a way you cannot safely combine, or `19313eed^:tests/test_run_recovery_cli.py` failing to resolve.
+
+POST-GATE LIFECYCLE. Do not move this plan to `.aw/records/plans/executed/` or mark it `executed` until `aw ipd lint --phase pre-transition` conforms AND every `V-*` above carries real pasted evidence. The terminal transition is the TOOLED one (`aw ipd begin` / `aw ipd finalize`), never a hand edit of `- Status:` and never a hand `git mv`. OWNERSHIP IS CONDITIONAL: in a managed lane the RUNNER owns begin/finalize and `aw ipd begin` refuses with `AW-LIFECYCLE-ROLE-001`; if that happens, record the refusal, leave the plan in `pending/` with its evidence, and let the runner finalize. Only outside a managed lane does the executor run the transition itself. V-02's count delta is the item most likely to be satisfied in appearance only; a bare suite reporting the UNCHANGED baseline with the file present is a FAILED restoration and must be reported as such, and the baseline must be re-derived in the lane rather than read as `3246` from this plan.
+
+DO NOT OVERSTATE E-02. Review measured (F-14) that the restored file reaches no lifecycle wrapper and passes under the real worker-role probe and under `python3 -m unittest` with the marker exported, BEFORE any declaration is added. E-02 is convention and defence in depth. Do not write a comment, a `V-*` note, or a commit message claiming it repaired a latent failure, and do not use `AW_EXECUTION_ROLE=worker python3 -m pytest` as evidence of anything: `conftest.py` pops the marker at import, so that spelling is green either way and has already produced a false pass in this repository (`6vozur` F-7).
+
+CO-ORDINATION NOTE FOR WHOEVER RUNS `fuuw94` NEXT. Once this plan lands, `fuuw94`'s review-recorded claim that `EXIT_CORRUPTED_LEDGER` "greps to zero across `tests/`" is no longer true. E-03 is written so `fuuw94` still passes without edits, but its executor should expect to find the constant in this file and should not read its presence as a conflict.

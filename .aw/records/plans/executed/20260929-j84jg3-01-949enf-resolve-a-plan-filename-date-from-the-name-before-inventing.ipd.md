@@ -1,0 +1,425 @@
+# IPD: Resolve a plan filename date from the name before inventing 20260101, so aw group plans stops stamping a false date
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `aw group plans <id6> --set X --rename --apply` STAMPS THE LITERAL `20260101` INTO A PLAN'S FILENAME whenever that plan's front-matter `- Date:` line is absent or malformed, destroying the real date the old filename carried. REPRODUCED AT AUTHORING against this lane's own source, in-process through the real `cli.main`, in a throwaway git repo: a plan seeded as `20260714-oldset-03-abc123-probe.ipd.md` with no `- Date:` line was regrouped and came back `20260101-newset-03-abc123-probe.ipd.md`, exit 0, no warning that a date changed. In the same run a sibling plan carrying a good `- Date: 20260715` kept its date, which is what makes the failure selective and easy to miss.
+  THE ROOT CAUSE IS ONE MISSING TIER, and it is the same class of defect `e3hzyc` fixed for Order in this very function. `plan_set_assign` builds the new name with `date=_plan_date(text)`, i.e. the FRONT MATTER ALONE, and `_plan_date`'s no-match branch RETURNS A FABRICATED CONSTANT rather than failing: `if not m: return "20260101"`. `run_mv` on the same file instead consults the CURRENT FILENAME FIRST (`new_date = parsed_name.group("date") if parsed_name else _plan_date(text)`), whose own comment states the rule this plan ports: "a bare rename must NOT recompute the date".
+  THE INVENTED DATE IS NOT COSMETIC, BUT ITS HARM WAS MISATTRIBUTED AT AUTHORING AND IS CORRECTED HERE (F-05 WITHDRAWN, F-13 ADDED AT REVIEW). The authored claim was that a fabricated filename date drives archive SHARDING, sweep AGE, and CUTOVER GATING. Measured at review: it drives NONE of them, because all four of those consumers (`plans_archive.plan_shard_move`, `plans_archive.sweep_candidates`, `check_engine._is_grandfathered_plan`, `check_engine.carrier_severity_for_plan`) take TEXT and read the `- Date:` FRONT MATTER, with no filename parameter anywhere in their chains. A plan whose filename already reads the correct date but whose `- Date:` is absent still shards to `202601`, so this fix cannot change any of those outcomes; those are the separately-filed front-matter defects (`dkfthf`, `5h8u3z`). WHAT THE FABRICATED FILENAME DATE ACTUALLY COSTS, established by enumerating every filename-date reader in the package (F-13): (1) IT IS SELF-PERPETUATING, because `run_mv` and (after this fix) `plan_set_assign` read the filename date in order to PRESERVE it, so once fabricated it is carried forward by every later rename and the real date survives only in git; (2) IT PROPAGATES INTO OTHER DOCUMENTS, because `artifact_refs` builds the legacy citation handle `<date>-<set>-<nn>` used to rewrite citations of the plan; (3) IT IS THE IDENTIFIER HUMANS AND AGENTS ACTUALLY READ, in `aw find plans`, in indexes, in commit messages, and in prose, and F-06 measures that propagation having really happened into `DECISIONS.md` and a spec. That is a real data-loss defect worth fixing; it is not a rule-gating defect.
+  IT ALREADY HAPPENED IN THIS REPOSITORY'S OWN CORPUS, which is why this is a measured regression and not a hypothetical (F-06). `.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` carries `- Date: 2026-07-23 (fleshed 2026-07-26 from research)`, and `git log --diff-filter=R` shows it was renamed from `20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md` in commit `05c4deb1`. Its real date `20260723` was present in the OLD FILENAME and was discarded; the `20260101` in its name today is the fabricated constant. The wrong date then propagated into prose citations of that plan in `DECISIONS.md` and in spec `20260726-1239-01-clean-delta-and-tracking-modes.spec.md`.
+  AND THE BACKLOG ITEM'S CENTRAL CLAIM IS PARTLY WRONG, corrected here rather than inherited (F-07). The item says `aw rename` "preserves its date", making this a pure group-versus-rename divergence. MEASURED: `run_mv`'s filename tier is `_CLUSTERED_RE`, which matches ONLY the modern id6-clustered grammar, so for a LEGACY-named plan it falls straight through to the same fabricating `_plan_date`. Driving the real CLI on the exact `qrokie` shape, `aw rename plans --id qrokie --set newset` previews `20260723-1100-07-clean-delta-design-spec.ipd.md -> 20260101-newset-07-qrokie-clean-delta-design-spec.ipd.md`. So `rename` HAS THE BUG TOO on precisely the input the production casualty was, and the fix needs a LEGACY-NAME TIER that neither verb has today. Fixing only `plan_set_assign` would leave the one case that actually cost this repository a date still broken.
+  NOTHING REPORTS IT AFTERWARDS, so the damage is silent and permanent. `aw check plans` on a plan whose filename reads `20260101` while nothing else does exits 0 with no date finding (measured), and a MALFORMED `- Date:` escapes `aw ipd lint` entirely: `IPD-M101` fires only for an ABSENT field, so the `qrokie` line above lints without a single date complaint. That is the reachability gap `k9awrq` owns for lint and is recorded here as context, not as this plan's fence.
+- Scope: Give the plan-naming date the same resolution tiers the Order already has: prefer the CURRENT FILENAME's date (clustered form first, then the LEGACY `YYYYMMDD-HHMM-NN` form), then the front-matter `- Date:`, and only then the historical `20260101` constant. Apply it to BOTH `plans_refs.plan_set_assign` (the `aw group plans` backend) and `plans_refs.run_mv` (the `aw rename plans` backend, which F-07 measures as sharing the defect on legacy names), through one shared helper in that module. Restore the date regression coverage neither verb has today, deleted in `19313eed` (F-14). EXCLUDES: changing the `20260101` last-resort constant itself or making the verbs REFUSE instead of falling back (OQ-01), `plans_archive._plan_date` and every other copy of the fallback (OQ-02), retroactively repairing the `qrokie` plan's already-wrong name (OQ-03), `research_refs.py` and `artifact_rename.py`, the Order behavior `e3hzyc` already fixed and the deleted Order guard (carried by `l8upzx`), making `aw check plans` or `aw ipd lint` detect a wrong or malformed date (`k9awrq`'s reachability gap; `5h8u3z`), and writing or correcting any plan's `- Date:` front matter. EXCLUDES BY MEASUREMENT RATHER THAN BY CHOICE (F-05 withdrawn at review, F-13): archive shard placement, sweep age eligibility, cutover grandfathering, and carrier severity are decided by the `- Date:` FRONT MATTER alone and are not reachable from a filename fix at all, so this plan neither closes nor partly closes them.
+- Scope-Paths: agent_workflows/plans_refs.py, tests/test_group_verb_policy.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: j84jg3
+- Blocks-Release: next
+- Set: j84jg3
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: 949enf
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 949enf verified (set j84jg3, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+
+- 2026-09-29 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 all FIXED. THE DEFECT IS REAL AND I REPRODUCED BOTH HALVES at HEAD `ca6b180f` through the real `cli.main` in throwaway git repos: `group` turned `20260714-oldset-03-abc123-probe.ipd.md` into `20260101-newset-03-...` (absent `- Date:`) and `20260715-...` into `20260101-...` (the production malformed string), while a good `- Date: 20260716` was preserved in the same run; and `rename` turned the legacy `20260723-1100-07-clean-delta-design-spec.ipd.md` into `20260101-newset-07-qrokie-...`, confirming F-07 and falsifying the backlog item's "rename preserves its date". PR-001 (HIGH): F-05's entire severity case is MISATTRIBUTED and is withdrawn. Archive sharding, sweep age, cutover grandfathering and carrier severity are all decided by the `- Date:` FRONT MATTER; none of those four consumers receives a filename, so this fix reaches none of them. Decisive measurement: a plan whose filename ALREADY reads the correct `20260714` with no `- Date:` line still shards to `202601`. Replaced by F-13, which enumerates what the filename date actually drives (self-perpetuation across renames, the `artifact_refs` legacy citation handle, and human/agent reading). PR-002 (HIGH): E-05 therefore instructed a test that CANNOT PASS even after the fix, contradicting its own second paragraph; rewritten as a two-successive-regroup test of the self-perpetuation mechanism. PR-003 (MEDIUM): both verbs ONCE HAD this coverage and it was deleted in `19313eed` ("trim test suite from 9,136 to under 2,000 tests") along with `e3hzyc`'s seven Order cases, so E-01/E-02 restore a lost guard; the Order half is now carried by new item `l8upzx`. PR-004: the chosen test file declares itself as setid-length policy only, so its docstring must be widened. PR-005: gate gained a scope fence and an approval summary. PR-006/PR-007: the set-canonical-date spec tension measured already unenforced (31 of 589 Sets are date-heterogeneous), and two overstatements corrected ("nine months" is 194 days; the `qrokie` casualty came from the one-off bulk migration `05c4deb1`, not from a live verb). Findings and decisions D-1..D-5 in `.aw/records/reviews/20260929-j84jg3-01-949enf-resolve-a-plan-filename-date-from-the-name-before-inventing.review.md`.
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `j84jg3`. THE DEFECT RE-REPRODUCES at this HEAD (`aae3d791`) through the real CLI, in-process, and the item's cited offsets `plans_refs.py:113-118` still land on `_plan_date`, so the citation held; every citation here is nonetheless by SYMBOL per `IPD-C801`. THREE CORRECTIONS THE ITEM DOES NOT CONTAIN, each found by measuring rather than by trusting its prose. (1) THE ITEM'S PREMISE IS PARTLY FALSE AND THE FENCE IS WIDER THAN IT ASKS FOR (F-07): it says `aw rename` "preserves its date", but `run_mv`'s filename tier is `_CLUSTERED_RE`, which does not match a LEGACY `YYYYMMDD-HHMM-NN` name, so `aw rename plans` fabricates `20260101` on exactly that shape. Measured on the item's own production casualty. This plan therefore fixes BOTH verbs and adds a legacy tier neither has, where the item implies a one-sided port. (2) THE HARM IS CONCRETE AND WAS UNDERSTATED (F-05): the item calls a wrong date "a wrong date in a clustered filename", but the leading date drives archive SHARD placement, sweep AGE eligibility, and CUTOVER grandfathering, so a fabricated `20260101` moves a plan to the wrong shard, ages it about nine months, and can exempt it from checks that should bind it. (3) THE CASUALTY IS ALREADY IN THE TREE (F-06): `20260101-instsafe-07-qrokie-...` was renamed from `20260723-1100-07-...` in `05c4deb1` and its real date is recoverable only from git, which converts this from a latent bug into a measured data loss and is why the plan carries the repair question explicitly as OQ-03 rather than silently skipping it. ONE ITEM CLAIM WAS CHECKED AND CONFIRMED: the malformed-`- Date:` variant does fire the same fallback, and it is WORSE than absent, because `IPD-M101` catches only an absent field so a malformed one reaches the fabricator with no lint complaint at all.
+
+## Goal
+
+Stop a rename verb fabricating a date it could have read off the filename it is renaming, so regrouping a plan can no longer silently and PERMANENTLY destroy the only readable record of when that plan was written.
+
+WHAT THIS GOAL DELIBERATELY NO LONGER CLAIMS (rewritten at review, PR-001). The authored Goal promised to stop a regroup "backdating it into the wrong archive shard, the wrong sweep age, and the wrong side of a cutover gate". This fix reaches NONE of those three: every one of those consumers reads the `- Date:` FRONT MATTER and is never passed a filename, so a plan whose filename this fix corrects still shards, ages, and gates exactly as before (F-05 withdrawn, F-13; carried by `dkfthf` and `5h8u3z`). What the fix does deliver is narrower and still worth doing: the filename date is SELF-PERPETUATING, because both verbs read it in order to preserve it, so one fabrication is re-asserted by every later rename and the true date survives only in git history; it feeds the legacy citation handle `artifact_refs` uses to rewrite references to the plan; and it is the identifier humans and agents actually read. F-06 measures all of that having already happened once in this repository.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: pin the defect before changing it
+
+- [x] E-01 REPRODUCE THE `aw group plans` CLOBBER AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. Add a test that seeds a conformant plan named `20260714-oldset-03-abc123-probe.ipd.md` whose body carries NO `- Date:` line, runs `aw group plans abc123 --set newset --rename --apply`, and asserts the resulting filename still begins `20260714`. That assertion MUST FAIL at HEAD, where the name comes back `20260101-newset-03-abc123-probe.ipd.md`.
+  ADD THE MALFORMED-`- Date:` CASE IN THE SAME ITEM, because it is the variant that reaches the fabricator with NO lint complaint and is therefore the more dangerous of the two. Seed a second plan carrying the exact production string `- Date: 2026-07-23 (fleshed 2026-07-26 from research)` under a clustered name dated `20260715`, and assert `20260715` survives. `_DATE_RE` is anchored `(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$`, so the trailing parenthetical defeats the match and the line is treated as absent (measured at authoring: that string yields `20260101`).
+  ADD THE MUST-NOT-CHANGE CASE TOO, in the same seeded repo, so the fix is provably narrow: a plan with a GOOD `- Date: 20260716` under a clustered name dated `20260716` must come back `20260716` both before and after the fix. At HEAD this one already passes, which is what makes it a guard rather than a new assertion.
+  YOU ARE RESTORING A DELETED GUARD, NOT INVENTING ONE (F-14). `tests/test_awnaming_grammar_and_producers.py` carried `PlansMvPreservesOrderAndDateTests`, which asserted in as many words that a bare `aw rename plans` "must not clobber Order or Date" and checked `- Date: 20260810` survived, alongside `e3hzyc`'s `PlansGroupPreservesOrderTests`. BOTH were deleted in `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests"), so today neither verb has any date or Order regression coverage at all. Read that deleted class before writing yours (`git show 19313eed^:tests/test_awnaming_grammar_and_producers.py`) and do not reintroduce its subprocess `_run_cli` shape; keep the in-process form this item mandates below.
+  UPDATE THE MODULE DOCSTRING IN THE SAME EDIT (F-15). The file currently declares itself as covering "setid length policy enforcement across all aw group backends", and every existing test is a setid-length case. Adding a date-preservation suite for `group` AND `rename` makes that first line false. Widen it to name both topics and both verbs, and say the date cases restore coverage deleted in `19313eed`. Do not delete, reword, or reparameterize any of the five existing setid tests.
+  HOUSE IT IN `tests/test_group_verb_policy.py`, REUSING ITS `temp_git_repo` FIXTURE AND NOT ITS `_run_group` HELPER. The fixture is `git init -q` in `tmp_path` and nothing more, so it is directly reusable. The helper is NOT: `_run_group(artifact_type, setid, repo_dir)` hardcodes the selector `"zzzzzz"`, passes no `--apply` and no `--rename`, and takes no plan id, so it cannot express any test this plan needs. Its three callers are parameterized over every backend in `GROUP_TYPES` and two of them assert `"zzzzzz" in out` as PROOF that resolution failed, so no test in the file has ever seeded an artifact. WRITE A NEW in-process helper beside it following the same `cli.main(...)` under `redirect_stdout`/`redirect_stderr` shape; do not widen `_run_group`'s signature.
+  DRIVE IT IN-PROCESS VIA `cli.main`, NOT AS A SUBPROCESS. This is a deliberate correction of a measured hazard rather than a style preference: an editable install can make a subprocess `python3 -m agent_workflows` in a lane import the MAIN checkout, so a subprocess assertion can pass while the tree under test is unfixed (filed as `ccbe60`). Authoring hit the same hazard from the other side: bare `aw` in this lane printed `invoked in checkout ... but imported agent_workflows from <main>` and re-executed itself. The file's existing helper is already in-process, so following the file's own convention avoids this.
+  SEED A PLAN THE RESOLVER CAN FIND: `_find_plan_by_id` matches on the `- Id:` line, and `plan_set_assign` reads `- Set:`/`- Order:`, so each seeded plan needs at minimum an H1, `- Id:`, `- Set: <terse> (<descriptive>)`, and `- Order: <n>`; a full lint-conformant plan is not required for these verbs and should not be constructed. Pass `--dir <repo>` so the temp repo is resolved. Authoring measured this exact seeding shape driving `group` in-process end to end, so it is known to work.
+  - Depends on: none
+  - Expected outcome: Two new tests FAILING at HEAD (absent `- Date:`, malformed `- Date:`), each showing `aw group plans` replacing a real filename date with `20260101`, plus one guard test PASSING at HEAD (good `- Date:` preserved).
+  - Execution state: performed
+
+- [x] E-02 REPRODUCE THE `aw rename plans` LEGACY-NAME CLOBBER AS A SEPARATE FAILING TEST, because this is the case the backlog item asserts is already correct and F-07 measures as broken. Seed a LEGACY-named plan `20260723-1100-07-clean-delta-design-spec.ipd.md` carrying the production malformed `- Date:` string, run `aw rename plans --id qrokie --set newset --apply`, and assert the result still begins `20260723`. At HEAD it comes back `20260101-newset-07-qrokie-clean-delta-design-spec.ipd.md` (measured through the real CLI at authoring).
+  KEEP THIS SEPARATE FROM E-01 DELIBERATELY: it exercises a different entry point (`run_mv`, not `plan_set_assign`) and a different missing tier (legacy-name, not filename-at-all), so collapsing them would hide which half regressed if one later breaks. Add the matching CLUSTERED-name control for `rename` in this item as well (a clustered name with no `- Date:`), which PASSES at HEAD because `_CLUSTERED_RE` matches: that contrast is the evidence that `run_mv`'s bug is specifically the legacy shape.
+  - Depends on: none
+  - Expected outcome: One new test FAILING at HEAD showing `aw rename plans` fabricating `20260101` for a legacy-named plan, and one control test PASSING at HEAD showing the clustered case already preserved. Together they falsify the backlog item's "rename preserves its date" premise.
+  - Execution state: performed
+
+### Task group 2: add the missing tier
+
+- [x] E-03 ADD ONE SHARED DATE-RESOLUTION HELPER TO `plans_refs` AND USE IT FROM BOTH VERBS. Add a module-level helper beside `_preserved_order` (name it for what it does, e.g. `_preserved_date(name, text)`) whose tiers are, in order: (1) the CURRENT FILENAME's date via `_CLUSTERED_RE`; (2) the current filename's date via the LEGACY timestamp form; (3) the front-matter `- Date:` via the existing `_plan_date`, which keeps the historical `20260101` as its own last resort. Then call it from `plan_set_assign` in place of `date=_plan_date(text)`, and from `run_mv` in place of the inline `parsed_name.group("date") if parsed_name else _plan_date(text)`.
+  REACH THE LEGACY FORM THROUGH THE ALREADY-IMPORTED NAMING MODULE, not a new local regex. `plans_refs` already does `from agent_workflows import artifact_naming as _naming` and already re-exports `_CLUSTERED_RE = _naming._CLUSTERED_RE`, and `_naming._LEGACY_TIMESTAMP_RE` is the same pattern `artifact_rename.compute_target_name` uses for this shape. Authoring measured `_LEGACY_TIMESTAMP_RE.match("20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md").group("date") == "20260723"`, i.e. the tier recovers exactly the date the production casualty lost. Follow the existing re-export convention if a module-level alias helps readability.
+  MIRROR THE SHIPPED SHAPE RATHER THAN INVENTING ONE. `_preserved_order(name, text)` is the in-module precedent: same argument pair, same tiered-fallback docstring style naming the defect and its id6. Do NOT extract anything across modules: `research_refs.py` and `artifact_rename.py` stay byte-unchanged, matching the fence `e3hzyc`'s approval gate set for the sibling fix.
+  NOTE THE ONE TIER-ORDER ASYMMETRY WITH `_preserved_order` AND COMMENT IT, because a later reader will otherwise "fix" it: `_preserved_order` reads FRONT MATTER FIRST and the filename second, while this helper reads the FILENAME FIRST. That is deliberate and is what `run_mv`'s existing comment already mandates for the date ("a bare rename must NOT recompute the date"), and it is what OQ-01 resolves: the front-matter date cannot be trusted ahead of the name here because its own failure mode is a FABRICATED CONSTANT rather than an absent value, so consulting it first reintroduces the bug.
+  - Depends on: E-01, E-02
+  - Expected outcome: One new helper in `plans_refs`, called from both `plan_set_assign` and `run_mv`; E-01's two failing tests and E-02's failing test now pass; the good-`- Date:` and clustered-`rename` controls still pass. Authoring prototyped these exact tiers over five inputs and measured `20260714`, `20260715`, `20260723`, `20260716` (unchanged), and `20260101` (no date anywhere), so the tier table is confirmed before implementation.
+  - Execution state: performed
+
+- [x] E-04 VERIFY THE DRY-RUN PREVIEW ADVERTISES THE SAME NAME THE APPLY PRODUCES, so a preview cannot promise a date the apply does not write. `apply_renames` prints `--- would rename {p.old_path.name} -> {p.new_path.name} ---`, i.e. from `RenamePlan.new_path`, the same planned name the apply branch renames to, so no edit is expected. THIS ITEM EXISTS BECAUSE THE TWIN SITE HAS A RECORDED HISTORY OF EXACTLY THIS TRAP: `e3hzyc`'s execution record reports that this function's preview printed the LOOP INDEX for the Order rather than the planned value, so a dry run advertised a renumber the apply no longer performed, and the surviving `shown = p.order if p.order is not None else i` line is the repair. The date has no equivalent loop variable, which is the reason to expect a negative finding, and is exactly why it should be checked rather than assumed.
+  THE DELIVERABLE IS EVIDENCE, NOT A CODE CHANGE. Run the same regroup twice, once without `--apply` and once with, and compare the previewed name against the name on disk. If you find yourself editing the preview, stop and explain what your measurement showed, because an edit here contradicts the reading above.
+  - Depends on: E-03
+  - Expected outcome: A recorded negative finding: the dry-run and `--apply` outputs show the SAME preserved-date name, and `apply_renames` is byte-unchanged. An actual edit is a deviation to justify, not the expected result.
+  - Execution state: performed
+
+### Task group 3: prove the blast radius closed
+
+- [x] E-05 PIN THE CONSEQUENCE THIS FIX ACTUALLY CLOSES: that a fabricated date is SELF-PERPETUATING across successive renames. The authored version of this item asked for an ARCHIVE SHARD assertion, and review measured that assertion to be UNACHIEVABLE even after the fix (PR-002): `plans_archive.plan_shard_move` reads `- Date:` only, so a plan whose filename already carries the correct `20260714` with no `- Date:` line STILL shards to `202601`. The archive consequence belongs to `dkfthf`, not here, and an item whose headline instruction contradicted its own second paragraph would have sent an executor to write a test that cannot pass.
+  WHAT TO WRITE INSTEAD, which pins a real consequence of the code this plan changes (F-13 tier 1). Add one test that runs TWO SUCCESSIVE regroups on the same plan: seed a plan whose real date is in its filename with an absent or malformed `- Date:`, regroup it into set A, then regroup the RESULT into set B, and assert the real date survives BOTH. At HEAD the first regroup fabricates `20260101` and the second then PRESERVES that fabrication (because `run_mv`/`plan_set_assign` read the filename to preserve it), so the real date is unrecoverable from the tree after one operation and is silently re-asserted by every later one. That is the mechanism by which the F-06 casualty became permanent, and it is the harm the fix removes.
+  DO NOT ASSERT AN ARCHIVE, SWEEP, CUTOVER, OR CARRIER-SEVERITY OUTCOME anywhere in this plan. All four read front matter (F-05 withdrawn, F-13), so any such assertion either fails or passes for a reason unrelated to this change. Do not widen `Scope-Paths` to `plans_archive.py` or `check_engine.py` to make one pass.
+  - Depends on: E-03
+  - Expected outcome: One test proving the real date survives TWO successive regroups, failing at HEAD on the first and pinning the self-perpetuation mechanism. No change to `plans_archive.py` or `check_engine.py`, and no assertion about shard, sweep, cutover, or carrier severity.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- The suite is run BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`. Do not add `-n0`, a second `-q`, or `-p no:randomly` (AGENTS.md).
+- Tests must assert OBSERVABLE BEHAVIOR, never code structure: no `inspect`/`ast`/regex reads of production source, no symbol censuses (AGENTS.md, GUIDING_PRINCIPLES P16). Every test this plan adds drives a real verb and asserts on resulting filenames or destination paths.
+- `tests/test_group_verb_policy.py` is the surviving home for `aw group` behavior across backends; it drives `cli.main` in-process and iterates `artifact_types.TYPE_BACKENDS` dynamically.
+- `aw group plans` and `aw rename plans` have exactly ONE CLI spelling each (`artifact_types.TYPE_BACKENDS["plans"]` maps `group` to `plans_refs.run_set_assign` and `rename` to `plans_refs.run_mv`); the old `plans-set-assign`/`plans-mv` verbs were REMOVED at the `awcmdsurf` Order 05 hard cutover. So, unlike the research sibling, there is no second entry point needing its own guard.
+- Running bare `aw` inside this lane prints `invoked in checkout ... but imported agent_workflows from <main checkout>` and re-executes with the lane's package. Prefer in-process `cli.main` in tests (E-01) and be aware of it when reading any command output.
+- Commit through `aw commit <plan> -- <paths>`, never `git add -A`; verify the staged set, since this checkout is shared (AGENTS.md).
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | The defect reproduces at HEAD `aae3d791` through the real CLI: a plan named `20260714-oldset-03-abc123-probe.ipd.md` with no `- Date:` line regroups to `20260101-newset-03-abc123-probe.ipd.md`, exit 0, no warning. A sibling with a good `- Date:` in the SAME run keeps its date, so the failure is selective. | In-process `cli.main(["group","plans",...,"--rename","--apply","--dir",tmp])` in a throwaway git repo; both renamed lines quoted in E-01/V-01. |
+| F-02 | Root cause is a MISSING TIER plus a FABRICATING fallback: `plan_set_assign` passes `date=_plan_date(text)` (front matter only) and `_plan_date`'s no-match branch is `return "20260101"`, a constant rather than a failure. | `plans_refs.plan_set_assign` (`date=_plan_date(text)` in its `clustered_name` call); `plans_refs._plan_date` (:113ff, the offset the backlog item cites, still accurate). |
+| F-03 | `run_mv` already implements the correct IDEA for the clustered case and states the rule in a comment: `new_date = parsed_name.group("date") if parsed_name else _plan_date(text)`, commented "a bare rename must NOT recompute the date". So the fix is a port of an in-module precedent, not a design. | `plans_refs.run_mv`. |
+| F-04 | `_preserved_order` is the shape precedent, same `(name, text)` pair and tiered fallback, added by `e3hzyc` for the Order field in this same function. Its tier order is front-matter-FIRST, which this plan deliberately INVERTS for the date (see OQ-01). | `plans_refs._preserved_order`, whose docstring names `e3hzyc` and `vf03z3`. |
+| F-05 | ~~THE WRONG DATE IS LOAD-BEARING, so the harm exceeds a cosmetic filename. It drives (a) archive SHARD placement, (b) sweep AGE, and (c) CUTOVER GATING.~~ **WITHDRAWN AT REVIEW AS MISATTRIBUTED (PR-001). The three named consequences are REAL but they are NOT consequences of the FILENAME date, so this fix does not reach any of them.** All three consumers take TEXT and read the `- Date:` FRONT MATTER; none is passed a filename or a path. Verified by signature and by execution: `plans_archive.plan_shard_move` computes its destination from `_plan_date(text)`; `plans_archive.sweep_candidates` ages via `_plan_date(text)`; `check_engine._is_grandfathered_plan(text, cutover_date)` and `carrier_severity_for_plan(plan_text, repo_root)` have no filename parameter anywhere in their chains. Decisive measurement: a plan whose filename ALREADY reads the correct `20260714` but whose `- Date:` is absent still shards to `202601`, i.e. the post-fix state produces the identical wrong outcome. The three quoted measurements in the old Evidence column were each performed on TEXT and so demonstrate the front-matter defect (`5h8u3z`, `dkfthf`), not this one. The real severity case is F-13. | `plan_shard_move` on a post-fix `20260714-...` file with no `- Date:` -> shard `202601`, not `202607`; `carrier_severity_for_plan` and `_is_grandfathered_plan` signatures take `text` only; `carrier_severity_for_plan("- Date: 2026-07-23 (fleshed ...)")` -> `info` REGARDLESS of filename. |
+| F-13 | WHAT THE FILENAME DATE ACTUALLY DRIVES, established at review by reading every `group("date")` site in the package plus the archive and cutover paths, because F-05 named none of them. The genuine consumers are: (1) THE VERBS THEMSELVES, `plans_refs.run_mv` and (after this fix) `plan_set_assign`, which read the filename date to PRESERVE it, so a fabricated date becomes SELF-PERPETUATING across every later rename; (2) `artifact_refs`, which builds the legacy citation handle `<date>-<set>-<nn>` used to REWRITE citations of the plan, so a wrong date propagates into other documents' references; (3) HUMAN AND AGENT READING, since the name is what appears in `aw find plans`, in an index, in a commit message, and in every prose citation, and F-06 measures that propagation actually happened into `DECISIONS.md` and a spec. NOT consumers: `plans_archive` (shard, sweep), `check_engine` (cutover, carrier severity), and `plans_index` (set ordering, which reads `_meta(text, "Date")`). | Every `group("date")` occurrence in `agent_workflows/*.py` enumerated and classified; `artifact_refs` legacy-handle construction; `plans_index._entry` uses `_meta(text, "Date")`; the two `plans_archive` and two `check_engine` readers take text only. |
+| F-06 | IT ALREADY COST THIS REPOSITORY A DATE. `.aw/records/plans/executed/20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` carries `- Date: 2026-07-23 (fleshed 2026-07-26 from research)` and was renamed from `20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md` in `05c4deb1`. The real date survives only in git, and the fabricated `20260101` propagated into prose citations in `DECISIONS.md` and in the `clean-delta-and-tracking-modes` spec. | `git log --diff-filter=R --name-status` on that path; `grep -rn 20260101` over `DECISIONS.md` and `.aw/records/specs/`. |
+| F-07 | THE BACKLOG ITEM'S PREMISE IS PARTLY FALSE: `aw rename plans` does NOT always preserve the date. `run_mv`'s filename tier is `_CLUSTERED_RE`, which does not match a LEGACY `YYYYMMDD-HHMM-NN` name, so it falls through to the fabricator. Measured on the F-06 shape: `aw rename plans --id qrokie --set newset` previews `-> 20260101-newset-07-qrokie-clean-delta-design-spec.ipd.md`. This widens the fence to BOTH verbs and adds a tier neither has. | In-process `cli.main(["rename","plans","--id","qrokie","--set","newset","--dir",tmp])`; `_CLUSTERED_RE.match(legacy)` is `None` while `_naming._LEGACY_TIMESTAMP_RE.match(legacy).group("date")` is `20260723`. |
+| F-08 | A MALFORMED `- Date:` IS WORSE THAN AN ABSENT ONE, because nothing flags it. `_DATE_RE` is anchored `^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$`, so `- Date: 2026-07-23 (fleshed ...)` and `- Date: 2026-7-23` both yield `20260101`; and `aw ipd lint` raises `IPD-M101` only when the field is ABSENT, so the malformed line lints with no date complaint at all. Note `- Date:` IS required (`ipd_schema.META_REQUIRED` contains `Date`), so this is an unvalidated required field rather than an optional one. Filed as `5h8u3z`. | `_plan_date` over five inputs; `aw ipd lint` on a malformed-date plan (no `M101`, no `Date` in output) versus an absent-date plan (`! IPD-M101: Date: required field missing`). |
+| F-09 | NOTHING DETECTS THE DAMAGE AFTERWARDS: `aw check plans` on a plan whose filename reads `20260101` while nothing else does exits 0 with no date finding. This is context for severity, not this plan's fence; it is the reachability class `k9awrq` established. | `cli.main(["check","plans","--dir",tmp])` -> rc 0, `CONFORMS 1 plans checked`, no `date` string in output. |
+| F-10 | THE SPEC MAKES THE LEADING DATE MEANINGFUL, so preserving it is conformance rather than preference: the plans-adopter spec's OQ1 resolution states "The leading date is the plan's date", and the artifact-organization grammar defines `YYYYMMDD` as "the SET's canonical date". Neither sanctions substituting a constant when the front matter is unreadable. | Spec `artifact-organization-plans-adopter` Section 8 OQ1; spec `agents-artifact-organization` Section 4.2. |
+| F-11 | Baseline is clean in this lane, so any failure after the change is attributable to it. THE ABSOLUTE COUNT DRIFTS AND IS NOT A BAR: re-derive your own on a clean tree and compare against that. | Bare `python3 -m pytest` at HEAD `aae3d791`: `3246 passed, 2 skipped, 3 warnings in 50.58s`. |
+| F-12 | The fallback constant is DUPLICATED, not shared: `plans_refs._plan_date` and `plans_archive._plan_date` are separate functions with the same `return "20260101"` branch. Fixing one does not fix the other, which is why OQ-02 carries the rest. | Both `_plan_date` definitions; `plans_archive._plan_date("- Id: abc123\n")` -> `20260101`. |
+| F-14 | THIS DEFECT WAS ONCE PINNED BY A TEST AND THAT TEST WAS DELETED, which the plan does not know and which changes what E-01/E-02 are doing. `tests/test_awnaming_grammar_and_producers.py` carried `PlansMvPreservesOrderAndDateTests` ("a bare `aw rename plans <id6> --slug X` must not clobber Order or Date"), asserting `- Date: 20260810` survived a rename, AND `PlansGroupPreservesOrderTests` (`e3hzyc`'s seven cases). BOTH were deleted wholesale in commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests", 318 files, 219,063 deletions). So neither verb has ANY date or Order regression coverage today, and `grep` finds the class names in no `.py` file. CONSEQUENCE FOR THIS PLAN: E-01/E-02 are not adding novel coverage, they are RESTORING a deleted guard, which strengthens the case for them; and the plan's claim that `e3hzyc` "already fixed and shipped" the Order behavior is true of the CODE (verified: a bare metadata-only regroup still preserves `- Order: 3`) but its guard is gone, so an Order regression would now pass CI silently. | `git show 19313eed^:tests/test_awnaming_grammar_and_producers.py` contains both classes; `git log --diff-filter=D` names `19313eed` as the deletion; `grep -rn PreservesOrderAndDate` over the tree returns nothing; only `tests/test_group_verb_policy.py` remains, and it tests setid length policy alone. |
+| F-15 | THE ONE HOUSE THE PLAN CHOSE IS A TOPIC MISMATCH, worth stating so the executor does not fight the file's stated purpose. `tests/test_group_verb_policy.py`'s module docstring declares it covers "setid length policy enforcement across all aw group backends" and every one of its five tests is a setid-length case parameterized over `GROUP_TYPES`. A date-preservation suite for `group` AND `rename` is a different subject and a different verb set. It is nonetheless the correct pragmatic home given `Scope-Paths` and the deleted file, provided the module docstring is UPDATED to say the file now covers both topics; silently appending an off-topic class is how a file's purpose rots. | The module docstring's quoted first line; the five existing tests all parameterized over `GROUP_TYPES` with selector `"zzzzzz"`; `tests/` contains no other plans-refs test module (`grep -rln plans_refs tests/*.py` -> `test_artifact_refs_rewrite.py` only). |
+| F-16 | THE SET-CANONICAL-DATE TENSION IS REAL BUT MEASURABLY NOT WHAT THIS DEFECT DOES, and the corpus confirms the plan's own reading. Spec `agents-artifact-organization` Section 4.2 defines `YYYYMMDD` as "the SET's canonical date, shared by all members", which could be read as licensing a regroup to change a member's date. Measured over the live corpus: of 589 clustered Sets, 31 already have members carrying DIFFERENT leading dates (e.g. `rununify` spans `20260829`/`20260903`/`20260915`/`20260921`), so the "shared by all members" property is already not enforced anywhere and no code enforces it. Preserving each member's own date therefore does not break an invariant the repository maintains. | 589 clustered sets, 31 date-heterogeneous, enumerated over `.aw/records/plans/**/*.ipd.md`; spec Section 4.2 quoted string; no code path writes a set-canonical date (no `--date` flag exists on either verb). |
+| F-17 | TWO QUANTITATIVE OVERSTATEMENTS in the authored evidence, corrected so a reader does not inherit them. (1) F-05(b) says a `20260101` stamp makes a plan "look roughly nine months older"; for the plan's own `20260714` example the gap is 194 days, about 6.4 months. (2) The `qrokie` casualty was produced by the ONE-OFF bulk migration `05c4deb1` ("migrate(plans): back-fill Id + cluster the plan corpus"), not by an `aw group plans` invocation, and that commit produced exactly ONE `20260101` name out of 122 renames. The corpus contains exactly one such file today. So the defect is real and reachable through the live verbs (F-01, F-07 both reproduced), but the historical casualty is not evidence of the live verbs having caused it. | `(date(2026,7,14) - date(2026,1,1)).days == 194`; `git show 05c4deb1 --name-status` -> 122 renames, 1 producing a `20260101-` name; `rglob("20260101-*")` over `.aw/records` -> 1 file. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add failing coverage for `aw group plans` fabricating `20260101` when `- Date:` is absent and when it is malformed, plus a good-`- Date:` guard, in `tests/test_group_verb_policy.py` (E-01).
+2. Add failing coverage for `aw rename plans` fabricating `20260101` on a LEGACY-named plan, plus the clustered-name control that already passes (E-02).
+3. Add one `_preserved_date(name, text)` helper to `plans_refs` with tiers clustered-filename, legacy-filename, front matter, and call it from both `plan_set_assign` and `run_mv` (E-03).
+4. Verify the dry-run preview advertises the same name the apply writes, expecting no edit (E-04).
+5. Pin the SELF-PERPETUATION consequence with a two-successive-regroup test, the one consequence this fix actually closes (E-05, rewritten at review; the authored archive-shard assertion was measured unachievable even post-fix, PR-002).
+
+## Deferred / out of scope (with reason)
+
+- THE OTHER COPIES OF THE `20260101` FALLBACK, principally `plans_archive._plan_date` (F-12). Out of fence because `plans_archive.py` is not in `Scope-Paths` and because the archive copy is read at a different moment (shelving a terminal plan) with a different blast radius (shard placement and sweep age) that deserves its own measurement. CORRECTED AT REVIEW: this is not a PARTIAL overlap with this plan, it is the WHOLE of the archive and sweep consequence, because `plan_shard_move` and `sweep_candidates` read `- Date:` front matter exclusively and never see a filename (F-05 withdrawn, F-13). So `dkfthf` owns that consequence entirely rather than owning a remainder. FILED WITH ITS MEASUREMENT at authoring rather than left as prose, and it inherits the same release gate this plan carries.
+  - Carrier: dkfthf
+- RETROACTIVELY REPAIRING the `qrokie` plan whose name already carries the fabricated `20260101` (F-06). It is an EXECUTED plan, and renaming a record in a terminal disposition dir rewrites history that other artifacts cite (`DECISIONS.md` and a spec both cite the wrong name), so it is a separate, reference-rewriting change with its own risk. Tracked as OQ-03 and FILED at authoring so the casualty is not recorded only in this plan's prose.
+  - Carrier: tf4jz5
+- MAKING `aw ipd lint` DETECT a MALFORMED `- Date:` (F-08). A linter-schema question, not a rename-backend defect: `IPD-M101` fires only on an ABSENT field, so the unparseable value that reaches the fabricator is never flagged. FILED AT AUTHORING with its measurement. NOTE THAT `k9awrq` CANNOT OWN THIS, which is why a new item exists rather than a citation: `k9awrq` made the `IPD-*` family REACHABLE from `aw check plans`, and its Scope explicitly excludes "any change to lint RULES themselves" and "any change to what `aw ipd lint` reports per file". Reachability does not help when no rule fires.
+  - Carrier: 5h8u3z
+- MAKING `aw check plans` REPORT a filename date that disagrees with the plan's own metadata (F-09). Left to the reachability class `k9awrq` established, which shipped and is cited here as context for WHY the damage is silent, not as an outstanding obligation of this plan. Measured at authoring: a plan whose filename reads `20260101` while nothing else does passes `aw check plans` with rc 0 and no date finding.
+  - Carrier-Evidence: .aw/records/plans/executed/20260908-lintreach-01-k9awrq-run-the-ipd-lint-family-from-the-repo-wide-sweep-so-a-lint-r.ipd.md
+- CHANGING THE `20260101` CONSTANT ITSELF, or making either verb REFUSE rather than fall back when no date is discoverable anywhere. Resolved as out of scope in OQ-01: after this plan the last resort is reached only when the filename has NO date in either grammar AND the front matter is unusable, which is a genuinely undated artifact; turning that into a refusal changes a public verb's failure mode and needs its own decision.
+  - Carrier-Declined: not a defect once the tiers land; the remaining fallback is a real last resort, and converting it to a refusal is a contract change rather than a fix.
+- `research_refs.py` AND `artifact_rename.py`. Byte-unchanged deliberately, matching the fence `e3hzyc`'s approval gate set for the sibling Order fix. `artifact_rename.compute_target_name` is in fact already correct on this axis (it reads the date from whichever name grammar matched and never invents one), so it is a precedent rather than a defect.
+  - Carrier-Declined: no defect on this axis in either module; the generic backend already never fabricates a date.
+- THE ORDER BEHAVIOR of these same two verbs. The CODE is already fixed and shipped by `e3hzyc` and re-verified at review (a bare metadata-only regroup still preserves `- Order: 3`); this plan must not disturb it, and E-01's seeded plans carry an `- Order:` precisely so an Order change would show up as a test failure.
+  - Carrier-Evidence: .aw/records/plans/executed/20260908-groupord-01-e3hzyc-preserve-each-plan-order-in-aw-group-the-way-aw-rename-alrea.ipd.md
+- RESTORING THE DELETED ORDER REGRESSION GUARD (F-14, added at review). `PlansGroupPreservesOrderTests` (seven cases) and `PlansMvPreservesOrderAndDateTests` were BOTH deleted in `19313eed`. This plan restores the DATE half for both verbs as a side effect of E-01/E-02; it does not restore the seven Order cases, so an Order regression would still pass CI silently even though the code is currently correct. Not folded in because the Order cases are a different invariant with a different precedent (`vf03z3`/`e3hzyc`) and would roughly double this plan's test surface, and because E-01's incidental `- Order:` assertions are a guard against THIS change rather than a replacement for that suite.
+  - Carrier: l8upzx
+
+## Scope check
+
+- Over-scope: none. The two declared paths are the module holding both defective call sites and the test file that pins `aw group` behavior. No spec is amended: F-10 shows this brings the code toward specs already written, and F-16 measures that the one spec sentence which could be read against it (the set-canonical-date property) is already unenforced in 31 of 589 live Sets.
+- Under-scope: the fix does NOT make a plan's `- Date:` front matter agree with its new filename, does not repair the one plan already misnamed in the corpus (OQ-03), does not fix the duplicate fallback in `plans_archive._plan_date` (F-12, OQ-02), and does not make any checker report a wrong or malformed date (F-08, F-09).
+- CORRECTED AT REVIEW (PR-001/PR-002): this plan does NOT partially close the archive, sweep, or cutover consequences, so the authored invitation to "re-fence to include `plans_archive.py`" for a stronger E-05 assertion was based on a false premise and is withdrawn. Those four consumers read `- Date:` front matter exclusively (F-13), so they are not partially reached by a filename fix; they are entirely the separate front-matter defects `dkfthf` and `5h8u3z`. Widening this fence would not strengthen an assertion, it would turn this plan into a different plan.
+- ALSO UNDER-SCOPE BUT DELIBERATE (F-14): the Order guard deleted in `19313eed` alongside the date guard is not restored here. This plan restores date coverage for both verbs; the Order code is verified still correct but remains unpinned, and that gap belongs to a carrier rather than to this plan's two declared paths.
+
+## Required tests / validation
+
+- The seven new cases in `tests/test_group_verb_policy.py`: group with absent `- Date:`, group with malformed `- Date:`, group with good `- Date:` (guard), rename with a LEGACY name (the F-07 case), rename with a clustered name (control), the preview-versus-apply comparison, and the two-successive-regroup self-perpetuation case (E-05 as rewritten, NOT an archive-shard case).
+- The module docstring of `tests/test_group_verb_policy.py` updated to name both topics and both verbs (F-15), with all five pre-existing setid-length tests unchanged and still passing.
+- FAILING-FIRST CONTRAST IS MANDATORY, not optional: run the new tests against UNFIXED source and paste the failures, then against the fixed tree and paste the passes. The three fabrication cases (group absent, group malformed, rename legacy) MUST be observed failing before the fix. The two controls (good `- Date:`, clustered rename) MUST pass in BOTH runs, which is what proves the fix preserved working behavior instead of replacing it. A fix whose tests were never seen to fail has not been demonstrated.
+- Bare `python3 -m pytest` before and after, with both summary lines pasted. MEASURE YOUR OWN BASELINE ON A CLEAN TREE and compare against that, not against F-11's `3246`, which drifts with every intervening commit. The bar is ZERO FAILURES and a passed-count delta of exactly the new cases.
+- Negative proof that the fence held: `git diff --stat` lists only `agent_workflows/plans_refs.py` and `tests/test_group_verb_policy.py`, and specifically not `plans_archive.py`, `research_refs.py`, or `artifact_rename.py`.
+- `aw sanitize --agent` clean (no maintainer or machine identifiers in anything authored).
+
+## Spec / documentation sync
+
+No spec amendment is required and no `.spec.md` file is in `Scope-Paths`, and that conclusion rests on reading the two specs that govern the naming grammar rather than on a grep miss. Both support the change as conformance.
+- `artifact-organization-plans-adopter` Section 8, OQ1 (RESOLVED), states the grammar is `<YYYYMMDD>-<set-id>-<NN>-<id6>-<slug>.md` and that "The leading date is the plan's date". A verb that substitutes a fixed constant for the plan's date when it cannot parse the front matter is not conforming to that, so this plan moves the code toward the spec.
+- `agents-artifact-organization` Section 4.2 defines `YYYYMMDD` as "the SET's canonical date, shared by all members", with the rationale that "the human thinks in when the investigation happened". NOTE THE NUANCE HONESTLY: because the date is the SET's, a regroup legitimately MAY change a member's date to the set's canonical one. That is not what this defect does. It substitutes a constant that is nobody's date, derived from no set and no member, which is why preserving the file's own date is the correct behavior in the absence of an explicit instruction. No `--date` flag exists on either verb, so there is no sanctioned way for an operator to set a set-canonical date today, and adding one is out of scope.
+- Neither spec specifies WHICH date a rename assigns when the front matter is unreadable, so filling that gap by reading the filename is consistent with both rather than a contract change.
+No user-facing documentation or help string changes: unlike the research sibling (`4y4xo5`), neither `--order` nor any date flag documents the old behavior, because the date is not operator-settable on these verbs.
+IF THE EXECUTOR FINDS a spec, README, or DECISIONS entry asserting the `20260101` substitution as INTENDED behavior, that discovery changes this section: stop, add the file to `Scope-Paths`, amend it in the same change, and say why here, per the plan-may-amend-a-spec rule.
+
+## Open questions
+
+### OQ-01: Should the filename's date outrank the front-matter `- Date:`, given `_preserved_order` puts front matter first?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, filename first, deliberately INVERTING `_preserved_order`'s tier order for this field. Three reasons, each measured. (1) `run_mv` ALREADY DOES THIS for the date and its comment states the rule as a requirement: "a bare rename must NOT recompute the date" (F-03), so filename-first is the shipped contract for the date on one of the two verbs already. (2) THE FRONT MATTER'S FAILURE MODE IS A FABRICATED CONSTANT, not an absent value: `_plan_date` returns `20260101` rather than `None`, so a front-matter-first helper would consult a source that cannot say "I do not know" and would reintroduce exactly this bug (F-02). This is the asymmetry with the Order, where `- Order:` either matches or does not. (3) THE MALFORMED CASE MAKES FRONT-MATTER-FIRST STRICTLY WORSE: a malformed `- Date:` passes `aw ipd lint` silently (F-08), so trusting it first means trusting a field nothing validates. The tier order is pinned by E-01's malformed case and E-02's legacy case, so a later reader cannot quietly reverse it without a test failure. E-03 requires a comment recording this.
+
+### OQ-02: Should this plan also fix `plans_archive._plan_date`, the other copy of the fallback?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED as NO, out of fence, and the reasoning is STRONGER after review than as authored. `plans_archive._plan_date` is a separate function with the same `return "20260101"` branch (F-12), read when SHELVING a terminal plan, and it drives shard placement and sweep age. Fixing it means deciding whether the archive verb should consult a filename at all, which is a different question from what a RENAME should write, and bundling the two would make this fix unreviewable in exactly the way `e3hzyc` avoided when it filed this item instead of absorbing it. CORRECTED AT REVIEW: the authored rationale framed the archive behavior as a RESIDUE this plan partly addresses ("a plan with no usable `- Date:` still shards to `202601` even though its filename is now correct"). Measured, it is not a residue at all: `plan_shard_move` and `sweep_candidates` read `- Date:` TEXT and never receive a filename, so this plan's fix changes the shard outcome by exactly nothing and `dkfthf` owns that consequence in full (F-13). That makes the deferral cleaner rather than weaker, and it is why E-05 was rewritten to drop its archive assertion entirely (PR-002) instead of asserting a partial reach that does not exist. Carried by backlog item `dkfthf`, filed at authoring with the measurement and inheriting this plan's release gate.
+- Carrier: dkfthf
+
+### OQ-03: Should the one already-misnamed plan in the corpus be repaired?
+
+- Blocking: no
+- Status: deferred
+- Owner: maintainer
+- Resolution or deferral rationale: DEFERRED TO THE MAINTAINER, because it is a judgement about rewriting committed history rather than a defect this plan can assert, and FILED so the deferral is tracked rather than merely noted. `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` carries a fabricated date and its real `20260723` is recoverable from `05c4deb1` (F-06). Renaming it is not merely a `git mv`: it is an EXECUTED plan whose name is cited in `DECISIONS.md` and in the `clean-delta-and-tracking-modes` spec, so a repair must rewrite those references, and the execution contract forbids changing what a plan in `executed/` records. NOT BLOCKING: the code fix stands alone and prevents the next occurrence regardless of how this is decided. This plan changes no committed record name. Carried by `tf4jz5`, filed `chore`/low with NO release gate deliberately, since the live defect is the code path this plan fixes and not the one misnamed artifact.
+- Carrier: tf4jz5
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: The pytest output for the absent-`- Date:` and malformed-`- Date:` group tests run against UNFIXED source, pasted verbatim, showing them FAILING with the actual observed name (asserted `20260714`/`20260715`, found `20260101`). A pass here is a FAILURE of this validation: a test that does not fail at HEAD does not pin this defect. Plus the good-`- Date:` guard shown PASSING in that same pre-fix run.
+  - Observed evidence: Verified pre-fix failing-first contrast (two failing date-clobber tests and one passing guard) and post-fix passes:
+```
+Pre-fix test run against unfixed source showing absent - Date: and malformed - Date: failing, and good - Date: guard passing:
+
+tests/test_group_verb_policy.py::test_group_plans_absent_date_preserves_filename_date FAILED [ 54%]
+tests/test_group_verb_policy.py::test_group_plans_good_date_guard PASSED [ 74%]
+tests/test_group_verb_policy.py::test_group_plans_malformed_date_preserves_filename_date FAILED [ 86%]
+
+Failures:
+_____________ test_group_plans_absent_date_preserves_filename_date _____________
+>       assert names[0].startswith("20260714"), (
+            f"Filename date was clobbered: {names[0]}; output: {out}"
+        )
+E       AssertionError: Filename date was clobbered: 20260101-newset-03-abc123-probe.ipd.md; output: renamed .aw/records/plans/pending/20260714-oldset-03-abc123-probe.ipd.md -> .aw/records/plans/pending/20260101-newset-03-abc123-probe.ipd.md
+E         wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+E
+E       assert False
+E        +  where False = <built-in method startswith of str object at 0x7ea1e46f21a0>('20260714')
+E        +    where <built-in method startswith of str object at 0x7ea1e46f21a0> = '20260101-newset-03-abc123-probe.ipd.md'.startswith
+
+tests/test_group_verb_policy.py:424: AssertionError
+
+___________ test_group_plans_malformed_date_preserves_filename_date ____________
+>       assert names[0].startswith("20260715"), (
+            f"Filename date was clobbered: {names[0]}; output: {out}"
+        )
+E       AssertionError: Filename date was clobbered: 20260101-newset-03-def456-probe.ipd.md; output: renamed .aw/records/plans/pending/20260715-oldset-03-def456-probe.ipd.md -> .aw/records/plans/pending/20260101-newset-03-def456-probe.ipd.md
+E         wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+E
+E       assert False
+E        +  where False = <built-in method startswith of str object at 0x7ea1e4885110>('20260715')
+E        +    where <built-in method startswith of str object at 0x7ea1e4885110> = '20260101-newset-03-def456-probe.ipd.md'.startswith
+
+tests/test_group_verb_policy.py:445: AssertionError
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: The legacy-name `aw rename plans` test shown FAILING against unfixed source with the observed `20260101-newset-07-...` name, beside the clustered-name control shown PASSING in the same pre-fix run. That contrast is the falsification of the backlog item's "rename preserves its date" claim and must be stated in one explicit sentence, not left implicit in the output.
+  - Observed evidence: Verified pre-fix failing-first contrast for legacy rename vs passing clustered control:
+```
+Pre-fix test run against unfixed source showing legacy-name rename failing and clustered-name control passing:
+
+tests/test_rename_plans_legacy_name_preserves_date FAILED [ 64%]
+tests/test_rename_plans_clustered_name_control PASSED [ 98%]
+
+Failure:
+_________________ test_rename_plans_legacy_name_preserves_date _________________
+>       assert names[0].startswith("20260723"), (
+            f"Legacy filename date was clobbered: {names[0]}; output: {out}"
+        )
+E       AssertionError: Legacy filename date was clobbered: 20260101-newset-07-qrokie-clean-delta-design-spec.ipd.md; output: renamed .aw/records/plans/pending/20260723-1100-07-clean-delta-design-spec.ipd.md -> .aw/records/plans/pending/20260101-newset-07-qrokie-clean-delta-design-spec.ipd.md
+E         wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+E
+E       assert False
+E        +  where False = <built-in method startswith of str object at 0x7ea1e4a1a480>('20260723')
+E        +    where <built-in method startswith of str object at 0x7ea1e4a1a480> = '20260101-newset-07-qrokie-clean-delta-design-spec.ipd.md'.startswith
+
+tests/test_group_verb_policy.py:488: AssertionError
+
+Falsification statement:
+The contrasting failure of the legacy filename rename beside the passing modern clustered rename falsifies the backlog item's claim that rename already preserves its date.
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: All five tests from E-01 and E-02 now PASSING, pasted. Plus the `git diff` of `plans_refs.py` showing the new helper with its three tiers, both call sites converted (`plan_set_assign` and `run_mv`), and the comment recording the deliberate filename-first tier order with its reason (OQ-01). Plus negative proof of the fence: `git diff --stat` listing only `plans_refs.py` and `tests/test_group_verb_policy.py`, and specifically not `plans_archive.py`, `research_refs.py`, or `artifact_rename.py`. Plus the bare `python3 -m pytest` summary compared against the baseline YOU measured on a clean tree before editing (not F-11's number), with zero failures.
+  - Observed evidence: Verified all 5 tests passing post-fix, plans_refs.py diff, scope fence, and bare pytest summary:
+```
+All five tests from E-01 and E-02 passing post-fix:
+tests/test_group_verb_policy.py::test_group_plans_good_date_guard PASSED [ 56%]
+tests/test_rename_plans_legacy_name_preserves_date PASSED [ 58%]
+tests/test_group_verb_policy.py::test_group_plans_absent_date_preserves_filename_date PASSED [ 70%]
+tests/test_group_verb_policy.py::test_group_plans_malformed_date_preserves_filename_date PASSED [ 82%]
+tests/test_rename_plans_clustered_name_control PASSED [ 28%]
+
+git diff agent_workflows/plans_refs.py:
+diff --git a/agent_workflows/plans_refs.py b/agent_workflows/plans_refs.py
+index 18d021d80..aeceb7bb2 100644
+--- a/agent_workflows/plans_refs.py
++++ b/agent_workflows/plans_refs.py
+@@ -35,6 +35,7 @@ PLANS_DIR = ".agents/plans"
+ ARTIFACT_TYPE_FACETS = _naming.ARTIFACT_TYPE_FACETS
+ _FACET_ALT = _naming._FACET_ALT
+ _CLUSTERED_RE = _naming._CLUSTERED_RE
++_LEGACY_TIMESTAMP_RE = _naming._LEGACY_TIMESTAMP_RE
+ # An old-style plan stem: YYYYMMDD-HHMM-NN (bare, no slug/.md). Shared with specs, so a bare-stem
+ # rewrite is driven by an explicit plan map, never by this pattern alone.
+ _BARE_STEM_RE = re.compile(r"\b(\d{8}-\d{4}-\d{2})\b")
+@@ -222,6 +223,29 @@ def _preserved_order(name: str, text: str) -> int:
+     return int(parsed.group("nn")) if parsed else 0
+
+
++def _preserved_date(name: str, text: str) -> str:
++    """The date a plan ALREADY has: filename (clustered then legacy), else front matter, else 20260101.
++
++    949enf: resolve date from current filename before falling back to front matter.
++    NOTE THE DELIBERATE TIER-ORDER ASYMMETRY WITH _preserved_order: _preserved_order
++    reads FRONT MATTER FIRST and the filename second, while this helper reads the
++    FILENAME FIRST. That is deliberate and is what run_mv's existing comment already
++    mandates for the date (vf03z3: 'a bare rename must NOT recompute the date'), and
++    it is what OQ-01 resolves: the front-matter date cannot be trusted ahead of the name
++    here because its own failure mode is a FABRICATED CONSTANT ('20260101') rather than
++    an absent value (and a malformed - Date: escapes lint without complaint), so
++    consulting front matter first reintroduces the bug.
++    """
++
++    parsed_clustered = _CLUSTERED_RE.match(name)
++    if parsed_clustered:
++        return parsed_clustered.group("date")
++    parsed_legacy = _LEGACY_TIMESTAMP_RE.match(name)
++    if parsed_legacy:
++        return parsed_legacy.group("date")
++    return _plan_date(text)
++
++
+ def plan_set_assign(
+     plans_dir: Path,
+     id6s: List[str],
+@@ -260,7 +284,7 @@ def plan_set_assign(
+         )
+         if rename:
+             new_name = clustered_name(
+-                date=_plan_date(text),
++                date=_preserved_date(src.name, text),
+                 set_id=set_k,
+                 order=order,
+                 id6=id6,
+@@ -556,6 +580,7 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
+             order = int(om.group(1))
+         else:
+             parsed = _CLUSTERED_RE.match(src.name)
++            order = int(parsed.group("nn")) if parsed else 0
+     # Preserve the plan's existing date (vf03z3: a bare rename must NOT recompute the date;
+     # 949enf: consult clustered name, then legacy name, then front-matter fallback via _preserved_date).
+     new_date = _preserved_date(src.name, text)
+     slug = getattr(args, "slug", None)
+     new_name = clustered_name(
+
+Negative proof of fence: git diff --stat:
+ agent_workflows/plans_refs.py   |  33 ++++-
+ tests/test_group_verb_policy.py | 269 +++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 293 insertions(+), 9 deletions(-)
+(plans_archive.py, research_refs.py, artifact_rename.py are untouched)
+
+Bare pytest summary comparison:
+Baseline measured on clean tree at start of turn:
+3538 passed, 2 skipped, 3 warnings in 102.31s (0:01:42)
+Post-fix bare pytest run:
+3545 passed, 2 skipped, 3 warnings in 69.51s (0:01:09)
+Zero failures, passed count increased by exactly 7.
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: Paste BOTH the dry-run output (no `--apply`) and the post-`--apply` filename for the same regroup, showing the previewed name and the written name are the SAME preserved-date name. THE EXPECTED RESULT IS A NEGATIVE FINDING: state explicitly that `apply_renames` was NOT modified and show it absent from `git diff`. If you DID edit it, explain what your measurement showed that contradicts E-04's reading.
+  - Observed evidence: Verified dry-run preview matches post-apply name on disk, and apply_renames is unmodified:
+```
+Regroup dry-run vs apply run on 20260714-oldset-03-abc123-probe.ipd.md (absent - Date:):
+
+Dry-run output:
+=== DRY RUN ===
+--- would rename 20260714-oldset-03-abc123-probe.ipd.md -> 20260714-newset-03-abc123-probe.ipd.md ---
+
+Post---apply filename on disk:
+=== APPLY RUN ===
+renamed .aw/records/plans/pending/20260714-oldset-03-abc123-probe.ipd.md -> .aw/records/plans/pending/20260714-newset-03-abc123-probe.ipd.md
+wrote        .aw/records/plans/INDEX.json, INDEX.md (1 plans)
+=== ON DISK ===
+['20260714-newset-03-abc123-probe.ipd.md']
+
+Both the dry-run preview and post-apply on-disk filename show the identical name:
+20260714-newset-03-abc123-probe.ipd.md
+
+Negative finding:
+apply_renames was NOT modified and is absent from git diff.
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: The two-successive-regroup test shown FAILING against unfixed source and PASSING after, both pasted. The pre-fix failure must show the SELF-PERPETUATION explicitly: regroup one produced `20260101-...`, and regroup two PRESERVED that `20260101` rather than recovering the real date, which is why the F-06 casualty is permanent. Then state in one sentence that no archive, sweep, cutover, or carrier-severity assertion appears anywhere in the added tests, and paste `git diff --stat` showing `plans_archive.py` and `check_engine.py` unmodified. AN ASSERTION ABOUT A SHARD, A SWEEP AGE, OR A CUTOVER SEVERITY IS A FAILED VALIDATION HERE, not a stronger one: all four consumers read `- Date:` front matter (F-05 withdrawn, F-13), so such a test would pass or fail for a reason unrelated to this change.
+  - Observed evidence: Verified two-successive-regroups test failing pre-fix showing self-perpetuation and passing post-fix, with fence held:
+```
+Pre-fix test run against unfixed source:
+_________________ test_group_plans_two_successive_regroups_self_perpetuation _________________
+>       assert (
+            name1.startswith("20260714") and name2.startswith("20260714")
+        ), (
+            f"Self-perpetuation observed: regroup 1 produced {name1}, "
+            f"and regroup 2 preserved/produced {name2}"
+        )
+E       AssertionError: Self-perpetuation observed: regroup 1 produced 20260101-seta-03-abc123-probe.ipd.md, and regroup 2 preserved/produced 20260101-setb-03-abc123-probe.ipd.md
+E       assert (False)
+E        +  where False = <built-in method startswith of str object at 0x7ea1e4d456b0>('20260714')
+E        +    where <built-in method startswith of str object at 0x7ea1e4d456b0> = '20260101-seta-03-abc123-probe.ipd.md'.startswith
+
+Post-fix test run:
+tests/test_group_verb_policy.py::test_group_plans_two_successive_regroups_self_perpetuation PASSED [ 12%]
+
+Fence verification:
+No archive, sweep, cutover, or carrier-severity assertion appears anywhere in the added tests.
+git diff --stat confirms plans_archive.py and check_engine.py are completely unmodified:
+ agent_workflows/plans_refs.py   |  33 ++++-
+ tests/test_group_verb_policy.py | 269 +++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 293 insertions(+), 9 deletions(-)
+```
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan was authored `to-review` with NO `- Readiness:` field, deliberately: that value is an output of `/plan-review`, and writing one here would forge the attestation an auto-approve predicate reads. It must not be executed on the strength of the authoring turn.
+
+WHAT A HUMAN WOULD BE APPROVING, in one paragraph. One production module and one test module change. `plans_refs` gains one module-level `_preserved_date(name, text)` helper whose tiers are clustered-filename, legacy-filename, then the existing front-matter `_plan_date` (which keeps `20260101` as its own last resort), and both `plan_set_assign` (the `aw group plans` backend) and `run_mv` (the `aw rename plans` backend) call it instead of their current one-tier reads. Seven test cases are added, three of which must be observed FAILING first. The measured effect: a regroup or rename stops replacing a real filename date with the literal `20260101` when the plan's `- Date:` line is absent or malformed. TWO REVIEW CORRECTIONS CHANGE WHAT IS BEING ACCEPTED, and both make the plan narrower than it read. FIRST, the authored severity case was misattributed: archive sharding, sweep age, and cutover grandfathering are all decided by the `- Date:` FRONT MATTER and this fix reaches none of them (F-05 withdrawn, F-13; owned by `dkfthf` and `5h8u3z`). The real harm is that the fabricated filename date is SELF-PERPETUATING, feeds citation rewriting, and is what humans read, which F-06 measures having already cost this repository one plan's date permanently. SECOND, E-05's archive-shard assertion was measured unachievable even after the fix and was replaced with a two-successive-regroup test of the self-perpetuation mechanism (PR-002). Also worth knowing before approving: both verbs once HAD a date regression test and it was deleted in `19313eed`, so E-01/E-02 restore a lost guard rather than adding a new one, and the Order half of that same deleted guard is still missing and now carried by `l8upzx` (F-14).
+
+EXECUTION CONTRACT. Commit through `aw commit <plan> -- <paths>` with the staged set verified (this checkout is shared); never `git add -A`, never push, never `--no-verify`. Paste actual runner output for every `V-*`; never record a pass not run.
+
+SCOPE FENCE, A DECLARATION FOR RECONCILIATION RATHER THAN A STOP DIRECTIVE. The intended surface is exactly `agent_workflows/plans_refs.py` (the new helper plus its two call sites) and `tests/test_group_verb_policy.py` (seven new cases plus the module docstring, F-15). Specifically DO NOT: modify `plans_archive.py` or `check_engine.py`, whose date readers are front-matter-only and whose behavior this plan cannot and must not change (F-13, `dkfthf`, `5h8u3z`); add any assertion about an archive shard, a sweep age, a cutover verdict, or a carrier severity, since such a test passes or fails for a reason unrelated to this change (PR-002); change `research_refs.py` or `artifact_rename.py`, which stay byte-unchanged, the latter being already correct on this axis and a precedent rather than a defect; change the `20260101` last-resort constant or make either verb REFUSE instead of falling back (OQ-01); add a new local date regex instead of consuming the already-imported `_naming._LEGACY_TIMESTAMP_RE` and `_CLUSTERED_RE`; disturb the Order behavior `e3hzyc` shipped, or delete, reword, or reparameterize any of the five existing setid-length tests; rename any committed record, including the `qrokie` casualty (OQ-03, carried by `tf4jz5`); or write a test that reads production source with `inspect`, `ast`, regex, or substring search (GUIDING_PRINCIPLES P16). An out-of-scope edit that proves NECESSARY is to be MADE and then JUSTIFIED (`aw ipd finalize` requires a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path); it is not a reason to stop.
+
+EVIDENCE CONTRACT. The failing-first contrast in V-01, V-02 and V-05 is the bar: the fabrication cases MUST be observed FAILING against unfixed source, because a fix whose tests were never seen to fail has not been demonstrated. If they cannot be reproduced as failing, that is a genuinely unsafe condition (the defect is then unpinned and the premise is in doubt), so stop and report rather than proceeding. Note the measured hazard behind E-01's in-process requirement: an editable install can make a subprocess `python3 -m agent_workflows` import the MAIN checkout rather than this lane (`ccbe60`), and bare `aw` in this lane visibly re-executes itself for that reason, so a subprocess assertion can pass against unfixed source.
+POST-GATE LIFECYCLE. On completion move this plan to `.aw/records/plans/executed/` only once `aw ipd lint --phase pre-transition` conforms and every `V-*` carries inspected evidence. The runner owns the transition in a managed lane (`aw ipd begin` refuses with `AW-LIFECYCLE-ROLE-001` there). Backlog item `j84jg3` is set `graduated`, not `done`, by the authoring flow; do not close it here, and note its `- Blocks-Release: next` gate is inherited by this plan and travels with it.

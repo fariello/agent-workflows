@@ -33,7 +33,12 @@ worker (x03wgn Section 1: "A same-user process with arbitrary shell access canno
 cryptographically or filesystem-enforced from prompts, hooks, environment variables, or
 Python role checks alone."). This module is the OPT-IN complement for when "the driver is
 the only writer" must be literal. Hardened mode is NOT the default (Phase 6.4). Network
-scoping and container isolation are out of scope here.
+denial is measured and cannot separate a git remote from the model API on one port, so
+none is applied (network scoping is now measured rather than out of scope, and
+`handled_access_net` is already the second member of the ruleset attr
+`landlock_bootstrap_source` packs passing literal 0 today, so the reason no network rule
+is added is this port-granularity limit, not absence of a mechanism); container isolation
+remains out of scope here.
 
 PLATFORM AND PROBE THE GUARANTEE WAS VERIFIED ON. Linux ONLY. The mechanism is a ladder,
 and every rung is decided by an EXECUTED probe, never by inspection:
@@ -120,6 +125,13 @@ action NEEDS against what a host PROVED. Two fields and a preflight close that:
     `subprocess.Popen` seam, refuses to launch, and verifies the host's resume flag
     (`--session` for OpenCode, `--conversation` for Antigravity) is immediately followed
     by the sentinel. Platform-independent, and confined to a throwaway temporary repo.
+  * `emits_structured_tool_events` - PROBED by attempt (dwbm7a). Requires both halves:
+    the host's turn builder requests a structured stream (`--format json` for OpenCode,
+    `--output-format stream-json` for Antigravity), and the host's event renderer parses
+    a canonical structured tool event in that host's wire schema (producing a rendered line
+    containing the tool name while ignoring a well-formed non-tool event).
+    Platform-independent.
+
 
 `check_action_capabilities` compares an action class against a descriptor, naming every
 missing capability plus the spec-required capabilities this contract cannot yet
@@ -787,63 +799,57 @@ def os_sandbox_probe_notes() -> Dict[str, str]:
     return dict(_probe_linux_sandbox()[1])
 
 
-# qul11h E-04 / PR-304: module-level re-entrancy guard for session resume probing.
-# `oc_runipd.run_opencode` calls `_apply_execution_profile`, which itself calls
-# `detect_host_capabilities("opencode")`. The guard terminates the cycle and returns the
-# conservative False. Must be set and cleared in a try/finally so a raising probe cannot wedge it.
-_PROBING_SESSION_RESUME: bool = False
+_HOST_ARGV_CACHE: Dict[str, List[str]] = {}
+_CAPTURING_TURN_ARGV: bool = False
 
 
-def _probe_session_resume(host: str) -> Tuple[bool, str]:
-    """Decide supports_session_resume by PROBING each host's real turn argv builder.
+def _capture_turn_argv(host: str, force: bool = False) -> List[str]:
+    """Capture the full turn argv for `host` at the Popen seam in a throwaway temp repo.
 
-    E-03 / qul11h: Replaces host-identity assertions with an executed observation.
-    Drives each host's own argv builder with an explicit sentinel session id, intercepts
-    the launch at the `subprocess.Popen` seam, refuses to launch, and verifies that the
-    captured argv carries the host's resume flag immediately followed by the sentinel.
-
-    Confined to a throwaway temporary git directory tree that it creates and removes,
-    so no caller run directory or workspace state is touched (PR-302 / F-10).
-    A git subprocess runs during temporary repo initialization and runner git calls.
+    Shared between _probe_session_resume and _probe_structured_tool_events to avoid
+    re-driving turn construction twice on dispatch preflight (E-04 / F-12).
     """
-    global _PROBING_SESSION_RESUME
-    if _PROBING_SESSION_RESUME:
-        return False, "re-entrant probe suppressed"
-    _PROBING_SESSION_RESUME = True
+    global _CAPTURING_TURN_ARGV
+    if host in _HOST_ARGV_CACHE and not force:
+        return list(_HOST_ARGV_CACHE[host])
+    if _CAPTURING_TURN_ARGV:
+        return []
+    _CAPTURING_TURN_ARGV = True
     try:
         # Mandatory function-local imports: oc_runipd imports host_sandbox_profile at module level (F-04).
         from agent_workflows import agy_runipd as _agy, oc_runipd as _oc
 
         invokers: Dict[
             str,
-            Tuple[
-                str,
-                Callable[[Dict[str, Any], Path, Dict[str, Any], Path, Path, str], Any],
-            ],
+            Callable[[Dict[str, Any], Path, Dict[str, Any], Path, Path, str], Any],
         ] = {
-            "opencode": (
-                "--session",
-                lambda state, run_dir, item, plan, prompt, sentinel: _oc.run_opencode(
-                    state, run_dir, item, plan, prompt, 1, resume_session=sentinel
-                ),
+            "opencode": lambda state,
+            run_dir,
+            item,
+            plan,
+            prompt,
+            sentinel: _oc.run_opencode(
+                state, run_dir, item, plan, prompt, 1, resume_session=sentinel
             ),
-            "antigravity": (
-                "--conversation",
-                lambda state, run_dir, item, plan, prompt, sentinel: _agy.run_agy_turn(
-                    state,
-                    run_dir,
-                    item,
-                    prompt,
-                    1,
-                    session_id=sentinel,
-                    use_continue=False,
-                ),
+            "antigravity": lambda state,
+            run_dir,
+            item,
+            plan,
+            prompt,
+            sentinel: _agy.run_agy_turn(
+                state,
+                run_dir,
+                item,
+                prompt,
+                1,
+                session_id=sentinel,
+                use_continue=False,
             ),
         }
         if host not in invokers:
-            return False, f"no resume argv builder is known for host {host!r}"
+            return []
 
-        flag, invoker = invokers[host]
+        invoker = invokers[host]
         sentinel = "ses-probe-sentinel"
         captured: Dict[str, List[str]] = {}
         real_popen = subprocess.Popen
@@ -895,6 +901,47 @@ def _probe_session_resume(host: str) -> Tuple[bool, str]:
                 subprocess.Popen = real_popen  # type: ignore[assignment]
 
         argv = captured.get("argv", [])
+        if argv:
+            _HOST_ARGV_CACHE[host] = argv
+        return list(argv)
+    finally:
+        _CAPTURING_TURN_ARGV = False
+
+
+# qul11h E-04 / PR-304: module-level re-entrancy guard for session resume probing.
+# `oc_runipd.run_opencode` calls `_apply_execution_profile`, which itself calls
+# `detect_host_capabilities("opencode")`. The guard terminates the cycle and returns the
+# conservative False. Must be set and cleared in a try/finally so a raising probe cannot wedge it.
+_PROBING_SESSION_RESUME: bool = False
+
+
+def _probe_session_resume(host: str) -> Tuple[bool, str]:
+    """Decide supports_session_resume by PROBING each host's real turn argv builder.
+
+    E-03 / qul11h: Replaces host-identity assertions with an executed observation.
+    Drives each host's own argv builder with an explicit sentinel session id, intercepts
+    the launch at the `subprocess.Popen` seam, refuses to launch, and verifies that the
+    captured argv carries the host's resume flag immediately followed by the sentinel.
+
+    Confined to a throwaway temporary git directory tree that it creates and removes,
+    so no caller run directory or workspace state is touched (PR-302 / F-10).
+    A git subprocess runs during temporary repo initialization and runner git calls.
+    """
+    global _PROBING_SESSION_RESUME
+    if _PROBING_SESSION_RESUME or _CAPTURING_TURN_ARGV:
+        return False, "re-entrant probe suppressed"
+    _PROBING_SESSION_RESUME = True
+    try:
+        resume_flags: Dict[str, str] = {
+            "opencode": "--session",
+            "antigravity": "--conversation",
+        }
+        if host not in resume_flags:
+            return False, f"no resume argv builder is known for host {host!r}"
+
+        flag = resume_flags[host]
+        sentinel = "ses-probe-sentinel"
+        argv = _capture_turn_argv(host)
         if flag in argv:
             idx = argv.index(flag)
             if idx + 1 < len(argv) and argv[idx + 1] == sentinel:
@@ -914,6 +961,158 @@ def _probe_session_resume(host: str) -> Tuple[bool, str]:
         )
     finally:
         _PROBING_SESSION_RESUME = False
+
+
+def _probe_host_event_renderer(host: str) -> Tuple[bool, str]:
+    """Renderer half of structured tool event probe (dwbm7a E-03).
+
+    Verifies that the host's own renderer parses a canonical structured tool event
+    in that host's wire schema (producing a line containing the tool name), and returns
+    None for a well-formed non-tool event (discriminator against passthrough).
+    """
+    try:
+        import json
+        from agent_workflows import agy_runipd as _agy, render_stream as _rs
+
+        pal = _rs.Palette(False)
+        specs: Dict[
+            str,
+            Tuple[
+                Dict[str, Any],
+                Dict[str, Any],
+                Callable[[str, Any], Optional[str]],
+                str,
+                str,
+            ],
+        ] = {
+            "opencode": (
+                {
+                    "type": "tool_use",
+                    "part": {
+                        "tool": "bash",
+                        "state": {
+                            "status": "completed",
+                            "input": {"command": "pytest -q"},
+                            "metadata": {},
+                        },
+                    },
+                },
+                {"type": "totally_unknown", "part": {}},
+                _rs.render_event,
+                "bash",
+                "canonical opencode tool event",
+            ),
+            "antigravity": (
+                {
+                    "event": "step_update",
+                    "step_update": {
+                        "state": "DONE",
+                        "step_type": "tool",
+                        "tool_info": {
+                            "name": "run_command",
+                            "parameters": {"CommandLine": "pytest -q"},
+                        },
+                    },
+                },
+                {
+                    "event": "step_update",
+                    "step_update": {"state": "DONE", "step_type": "thinking"},
+                },
+                _agy.render_agy_event,
+                "bash",
+                "canonical antigravity tool event",
+            ),
+        }
+        if host not in specs:
+            return False, f"no event renderer is known for host {host!r}"
+
+        tool_spec, nontool_spec, render_fn, tool_needle, label = specs[host]
+        tool_event = json.dumps(tool_spec)
+        rendered_tool = render_fn(tool_event, pal)
+        if not rendered_tool or tool_needle not in rendered_tool:
+            return (
+                False,
+                f"renderer failed to render {label} containing tool name: {rendered_tool!r}",
+            )
+
+        nontool_event = json.dumps(nontool_spec)
+        rendered_nontool = render_fn(nontool_event, pal)
+        if rendered_nontool is not None:
+            return (
+                False,
+                f"renderer did not return None for well-formed non-tool event: {rendered_nontool!r}",
+            )
+
+        return (
+            True,
+            f"renderer parsed {label} containing '{tool_needle}' and ignored non-tool event",
+        )
+    except Exception as exc:
+        return (
+            False,
+            f"event renderer probe failed for {host!r}: {type(exc).__name__}: {exc}",
+        )
+
+
+def _probe_host_stream_argv(host: str) -> Tuple[bool, str]:
+    """Argv half of structured tool event probe (dwbm7a E-04).
+
+    Verifies that the host's own turn builder requests a structured stream.
+    Reuses captured argv from _capture_turn_argv to avoid re-driving a full turn.
+    """
+    expected_flags: Dict[str, Tuple[str, str]] = {
+        "opencode": ("--format", "json"),
+        "antigravity": ("--output-format", "stream-json"),
+    }
+    if host not in expected_flags:
+        return False, f"no structured stream argv builder is known for host {host!r}"
+
+    flag, val = expected_flags[host]
+    try:
+        argv = _capture_turn_argv(host)
+        if flag in argv:
+            idx = argv.index(flag)
+            if idx + 1 < len(argv) and argv[idx + 1] == val:
+                return True, f"observed {flag} {val} in the host's own turn argv"
+        return False, f"flag pair {flag} {val} not observed in argv: {argv!r}"
+    except Exception as exc:
+        return False, f"argv probe failed for {host!r}: {type(exc).__name__}: {exc}"
+
+
+# dwbm7a E-04 / E-05: module-level re-entrancy guard for structured tool events probing.
+# Set and cleared in a try/finally so a raising probe cannot wedge it.
+_PROBING_STRUCTURED_TOOL_EVENTS: bool = False
+
+
+def _probe_structured_tool_events(host: str) -> Tuple[bool, str]:
+    """Decide emits_structured_tool_events by PROBING renderer and stream argv (dwbm7a).
+
+    Replaces host-identity assertion with executed observations.
+    Requires BOTH halves to pass:
+    (1) the host's turn builder requests a structured stream in argv (E-04);
+    (2) the host's event renderer parses a canonical structured tool event (E-03).
+    """
+    global _PROBING_STRUCTURED_TOOL_EVENTS
+    if _PROBING_STRUCTURED_TOOL_EVENTS or _CAPTURING_TURN_ARGV:
+        return False, "re-entrant probe suppressed"
+    _PROBING_STRUCTURED_TOOL_EVENTS = True
+    try:
+        renderer_ok, renderer_note = _probe_host_event_renderer(host)
+        if not renderer_ok:
+            return False, f"renderer probe failed: {renderer_note}"
+
+        argv_ok, argv_note = _probe_host_stream_argv(host)
+        if not argv_ok:
+            return False, f"argv probe failed: {argv_note}"
+
+        return True, f"{renderer_note}; {argv_note}"
+    except Exception as exc:
+        return (
+            False,
+            f"structured tool events probe failed for {host!r}: {type(exc).__name__}: {exc}",
+        )
+    finally:
+        _PROBING_STRUCTURED_TOOL_EVENTS = False
 
 
 def detect_host_capabilities(
@@ -941,18 +1140,35 @@ def detect_host_capabilities(
     `supports_session_resume` is decided by an EXECUTED probe of each host's real resume
     argv builder (qul11h E-03). Because inspecting a command list is platform-independent,
     it is probed unconditionally before the platform gate.
+
+    `emits_structured_tool_events` is decided by an EXECUTED probe of each host's real
+    stream argv and event parser (dwbm7a E-03..E-05). Platform-independent, and probed
+    unconditionally before the platform gate.
     """
     plat = (platform_name or sys.platform or "").lower()
     caps = HostSandboxCapabilities(platform=plat)
     running_platform = (sys.platform or "").lower()
 
-    # Session resume is platform-independent (reading an argv list, not a kernel sandbox or
-    # host-identity assertion) and decided by executed attempt. It is placed before the
-    # platform gates so asking about cross-platform hosts (e.g. darwin or win32) returns True
-    # for capable runner hosts rather than claiming neither host can resume (PR-303 / F-11).
-    res_ok, res_note = _probe_session_resume(host)
-    caps.supports_session_resume = res_ok
-    caps.probe_notes["supports_session_resume"] = res_note
+    try:
+        # Session resume is platform-independent (reading an argv list, not a kernel sandbox or
+        # host-identity assertion) and decided by executed attempt. It is placed before the
+        # platform gates so asking about cross-platform hosts (e.g. darwin or win32) returns True
+        # for capable runner hosts rather than claiming neither host can resume (PR-303 / F-11).
+        res_ok, res_note = _probe_session_resume(host)
+        caps.supports_session_resume = res_ok
+        caps.probe_notes["supports_session_resume"] = res_note
+
+        # Structured tool events capability is platform-independent (reading an argv list and
+        # executing in-process JSON event rendering, not a kernel sandbox rung) and decided by
+        # executed attempt. Placed before the platform gates so asking about cross-platform hosts
+        # (e.g. darwin or win32) returns True for capable runner hosts rather than claiming neither
+        # host emits structured tool events off-platform (dwbm7a E-05 / F-04 / PR-007).
+        ste_ok, ste_note = _probe_structured_tool_events(host)
+        caps.emits_structured_tool_events = ste_ok
+        caps.probe_notes["emits_structured_tool_events"] = ste_note
+    finally:
+        if not _CAPTURING_TURN_ARGV:
+            _HOST_ARGV_CACHE.pop(host, None)
 
     if plat == running_platform:
         # Platform-independent runner-safety guarantees: decided by an executed attempt (or
@@ -990,10 +1206,6 @@ def detect_host_capabilities(
     # it is available precisely when the sandbox itself is - and never otherwise.
     caps.supports_read_only_phase = caps.supports_os_sandbox
 
-    if host == "opencode":
-        # Proven by the existing driver: `--format json` streams structured events
-        # (oc_runipd.run_opencode). Session resume is probed above.
-        caps.emits_structured_tool_events = True
     return caps
 
 
@@ -1337,6 +1549,13 @@ def run_discovery_then_execution(
     both True. Otherwise NO before-edit barrier is claimed (`barrier_enforced=False`) and
     the caller must keep the prerequisite in the driver - x03wgn Layer 4: "If the host
     cannot enforce read-only files or phase-specific tools, the barrier is advisory."
+
+    The second input (`emits_structured_tool_events`) is decided by an EXECUTED probe of
+    the host's real event stream and parser (dwbm7a), replacing the prior host-identity
+    assertion. On a Linux host with a proven sandbox, the barrier becomes reachable for
+    Antigravity where it previously was not. Note that `run_discovery_then_execution`
+    currently has no non-test caller in the repository, so this reachability change is
+    LATENT and does not alter live dispatch behavior.
 
     A PROSE claim is never sufficient: the driver validates a STRUCTURED submission, and a
     submission that fails validation does NOT get product writes.

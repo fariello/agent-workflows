@@ -12,8 +12,7 @@ aw runs resume <run-id-or-path>
 
 `resume` reconstructs the run state and reports the steps it can resume. It refuses to resume a
 step whose side effect was interrupted (it will not silently re-apply a half-done mutation).
-Under the hood `run_recovery.resume` and `plan_retry` decide what is safe to retry within the
-retry budget.
+Under the hood, `run_recovery.resume` inspects the ledger to determine which steps are safe to resume and reports any interrupted steps that require reconciliation; it does not evaluate or spend a retry budget on this path (`plan_retry` has no production callers today).
 
 ## Recover a corrupted ledger
 
@@ -49,11 +48,16 @@ The final release-readiness review aggregates the gates into a GO or NO-GO verdi
 (`agent_workflows/release_readiness.py`). It NEVER tags, publishes, deploys, or pushes; those are
 separately authorized actions (see `RELEASING.md` and the release-review workflow). The review
 runs the canonical leak scan and all IPD lint phases for real, checks the benchmark invariants,
-the changelog and versioning, and the residual-risk sign-off, then emits the verdict. Reproduce
-it:
+the changelog and versioning, and the residual-risk sign-off, then emits the verdict.
+
+The full release-readiness test suite was deleted in commit 19313eed, so the aggregate review
+verdict, changelog and versioning check, and residual-risk gate currently lack dedicated test
+coverage (tracked in backlog item 3rmvik). A partial behavioral guard survives in
+`tests/test_release_readiness_child_pin.py`, covering only subprocess child pinning and
+stdin denial for `gate_leak_scan` and `gate_ipd_lint`:
 
 ```
-python3 -m pytest tests/test_release_readiness.py -q
+python3 -m pytest tests/test_release_readiness_child_pin.py -q
 ```
 
 ## Responsibility boundary

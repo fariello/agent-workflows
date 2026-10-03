@@ -17,13 +17,25 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Collection, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Collection,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from agent_workflows import artifact_core as core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows.artifact_types import EXIT_CANNOT_RUN
 from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import lifecycle_style as LS
@@ -473,6 +485,14 @@ _TREE_TO_SCAN_ROOTS: Dict[str, Tuple[str, ...]] = {
 }
 
 
+#: The fatal status-parse drift rules that cause an artifact to fail its per-tree status
+#: parse. When one of these fires and no Item was produced, attention.scan synthesizes a
+#: degraded Item so the broken artifact is visible across CLI surfaces.
+FATAL_STATUS_PARSE_RULES: FrozenSet[str] = frozenset(
+    {"attention.missing-status", "attention.unknown-status"}
+)
+
+
 def scan(
     repo_root: Path, type_filters: Optional[Collection[str]] = None
 ) -> Tuple[List[Item], List[core.Drift]]:
@@ -536,6 +556,37 @@ def scan(
         rec, rec_drift = _record_for(pol.name, rel, f, text)
         drift.extend(rec_drift)
         if rec is None:
+            if any(d.rule in FATAL_STATUS_PARSE_RULES for d in rec_drift):
+                m = _naming.parse_clustered(f.name)
+                if m is None:
+                    m = _naming.parse_clustered_prefix(f.name)
+                deg_id = m.group("id6") if m else ""
+                # E-03: Assign the existing `blocked` class (A.BLOCKED) and add no new class.
+                # Three reasons:
+                # (1) A new class would edit attention_contract.py (declared by live pending plans
+                #     1qt1u3 and r61br4), break tests/test_attention_contract.py::EnumAndPolicyTests::test_five_classes
+                #     plus the ATTENTION_CLASS_ORDER identity assertion beside it, and falsify the
+                #     five-value enum contract in the attention-registry-and-cross-tree-status spec
+                #     (decision 2, G1, Section 6, F1).
+                # (2) `blocked` is semantically right by the spec's Section 6 definition: work is
+                #     intended to continue but a named gate prevents progress - an unparseable artifact
+                #     cannot proceed until a human fixes the status.
+                # (3) /whatnext already surfaces `blocked` items and stops on `valid: false`, so the
+                #     artifact lands in front of a human with no workflow changes.
+                # Gateless `blocked` is safe: the spec's Section 8.4 gate requirement governs artifact
+                # front matter, not synthesized view records, and all gate consumers in attention.py
+                # guard on truthiness (if it.gate) before reading kind/ref, rendering as no gate.
+                items.append(
+                    Item(
+                        id=deg_id,
+                        path=rel,
+                        tree=pol.name,
+                        native_status="-",
+                        attention_class=A.BLOCKED,
+                        gate=None,
+                        last_history_at=None,
+                    )
+                )
             continue
 
         # worksequence i6015i E-07: extract the declared dependency edges HERE, while `text` is still
@@ -2249,6 +2300,58 @@ def setup_needed(repo_root: Path) -> bool:
         return False
 
 
+_INBOX_BOOKKEEPING_NAMES = frozenset({"README.md", ".gitkeep"})
+
+
+def inbox_waiting(repo_root: Path) -> int:
+    """awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): how many RAW drops are waiting in `<repo>/.aw/inbox/`.
+
+    Structural twin of `setup_needed` above: DERIVED on demand, read-only, swallows its own
+    exceptions, NEVER creates anything (in particular it must not create `.aw/inbox/` by looking
+    for it), and feeds one advisory footer nudge that touches neither the item list nor the exit
+    code.
+
+    LISTS DIRECTORY ENTRIES ONLY; OPENS NO FILE, EVER. Inbox drops are VISIBLE AS FILES here and
+    are NEVER INTERPRETED AS RECORDS, and that distinction is the whole safety property of this
+    function rather than a style preference. `.aw/inbox/` holds unvetted third-party text, and
+    `selectors._ID_RE` is position-unanchored (`(?m)^- Id:\\s*([0-9a-z]{6})\\s*$` applied with
+    `.search()` over a whole body), so a `- Id:` line anywhere in a drop - INCLUDING one merely
+    QUOTED inside an external report as an example - is harvested as an identity claim and can
+    collide with a real artifact's id6, making that artifact unresolvable to `aw set`/`aw show`
+    (see `.aw/.gitignore`, which records exactly this hazard as the reason the inbox sits OUTSIDE
+    `.aw/records/`). Listing a directory cannot forge an identity; parsing a drop can. So do NOT
+    "improve" this by reading front matter, sniffing a body, or classifying a drop by type: use
+    `os.scandir`, which yields names without opening anything.
+
+    A MISSING DIRECTORY MEANS ZERO. `.aw/inbox/` is gitignored and therefore per-checkout, so it
+    is simply absent in a fresh worktree; absent must not raise, and the caller must print nothing
+    for zero, because a nudge that fires when there is nothing to nudge about is noise that trains
+    readers to ignore it.
+
+    ONE ANCHORED PATH, NEVER A SEARCH BY NAME. Resolves exactly `<repo>/.aw/inbox/` and never looks
+    for directories called `inbox` anywhere else: `.aw/records/comms/*/inbox/` is the TRACKED
+    inter-agent comms lane and is unrelated (an unanchored `inbox/` gitignore pattern once
+    threatened exactly that path and would have broken `aw install`).
+
+    A NESTED DIRECTORY COUNTS AS ONE ENTRY AND IS NOT WALKED (OQ-02). The number's job is to be
+    nonzero and roughly right, not exact; counting a directory as one entry keeps the whole
+    operation a single shallow `scandir` that cannot recurse unboundedly.
+
+    BUT THE TREE'S OWN BOOKKEEPING FILES ARE EXCLUDED (`README.md`, `.gitkeep`), because they are
+    not waiting for anyone. `.aw/inbox/README.md` is committed scaffolding that documents the lane
+    (`git ls-files .aw/inbox` shows it tracked), so counting it would make this nudge fire FOREVER
+    on a fully drained inbox on every machine, defeating the silent-when-empty rule above. Every
+    other entry counts, including hidden files and non-`.md` drops: a genuine hidden drop (say
+    `.report.md`) must not be missed.
+    """
+    try:
+        inbox = Path(repo_root) / ".aw" / "inbox"
+        with os.scandir(inbox) as entries:
+            return sum(1 for e in entries if e.name not in _INBOX_BOOKKEEPING_NAMES)
+    except Exception:
+        return 0
+
+
 def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
     """awdoctor Order 02: items carrying a `- Blocks-Release: next|<id6>` field that are still LIVE.
     Reads the field from each item's file (the awrelease Set defines it). Returns the blocking items.
@@ -2395,7 +2498,7 @@ def _render_item_row(
         marker = term.format_lifecycle_marker(resolved, width=2)
         status_txt = term.style_lifecycle_text(status_word, resolved)
         # PADDED BY VISIBLE COLUMNS (Section 9.4), never by `len()` on styled text.
-        status_padded = status_txt + (" " * max(0, 12 - T.visible_width(status_word)))
+        status_padded = T.pad_visible(status_txt, 12)
         age = _age_marker(it.last_history_at, it.tree)
         gate_glyph = "#" if it.gate else ""
         rb_glyph = ">" if it.blocks_release else ""
@@ -2783,7 +2886,7 @@ def _render_table_row(
     # Status column's width grows from 8 to 10. `format_lifecycle_marker` pads by RENDERED width, so
     # `⚠︎` (2 code points, 1 column) occupies the same 2 columns as `◕` (1 and 1).
     st_marker = term.format_lifecycle_marker(resolved, width=2, style=colored)
-    st_col = st_marker + st_styled + (" " * (8 - T.visible_width(st_raw)))
+    st_col = st_marker + T.pad_visible(st_styled, 8)
 
     if runs_mode:
         run_raw = (run_state or "-")[:7]
@@ -2866,7 +2969,7 @@ def _render_table_row(
             rd_styled = term.color256(rd_raw, 244)
     else:
         rd_styled = rd_raw
-    rd_col = rd_styled + (" " * (9 - T.visible_width(rd_raw)))
+    rd_col = T.pad_visible(rd_styled, 9)
 
     oq_cnt = getattr(it, "oqs", 0) or 0
     rq_cnt = getattr(it, "rqs", 0) or 0
@@ -3822,8 +3925,8 @@ def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
     from agent_workflows.project_context import (
+        classify_project_dir,
         git_root_for_message,
-        is_project_dir,
         no_project_message,
         resolve_verb_repo_root,
     )
@@ -3841,19 +3944,17 @@ def run(args) -> int:
     check = getattr(args, "check", False)
     ctx = select_output(args)
 
-    # No AW project at cwd or any ancestor (and none named via --dir): emit the verbose guidance
-    # instead of a silent empty board. --check stays fail-closed-valid (nothing to violate).
-    #
-    # lanestrand-01 (`pr5b0t`) E-06: THE LANE CHECK DELIBERATELY DOES NOT APPLY ON THIS EARLY-RETURN
-    # PATH, and the decision is recorded rather than left implicit. A directory that is not an AW
-    # project has no `.aw/records/runs`, so there is no run record to read and therefore no lane a
-    # driver of THIS toolkit could have stranded; running the probe would answer "no lanes" after doing
-    # filesystem work, which is a slower way to reach the same 0. The honesty requirement is satisfied
-    # because the branch's own precondition ("there is no project here") is what makes the empty answer
-    # true, not an unexamined assumption: this is not the "prints a clean view without having looked"
-    # case, since there is nothing in scope to look at.
-    if not explicit_dir and not is_project_dir(repo_root):
-        if check:
+    # ci9kx2-01 (`bjgqez`) E-02 / OQ-01: An explicitly named directory that is not an AW project (or a
+    # subdirectory of a real project without upward climb) enters this branch intentionally and exits
+    # nonzero (human 3 / machine 2) rather than exiting 0. Exit 0 was a false clean claim for an
+    # unsurveyed directory. The nonzero exit on explicit --dir is deliberate and required by
+    # cli-output-contract.md Section 3 / 11.4.
+    classification = classify_project_dir(repo_root)
+    if not classification.is_root:
+        # ci9kx2-01 (`bjgqez`) E-03: --check is valid only for a climb that found no project (nothing
+        # to violate); an explicitly named non-project directory fails closed with cannot-run
+        # (spec Section 8.1: could-not-run is exit 2 / fail closed; human 3).
+        if check and not explicit_dir:
             if ctx.is_agent or ctx.is_json:
                 res = CommandResult(
                     command="attention",
@@ -3887,8 +3988,7 @@ def run(args) -> int:
             # the directory it checked, which is exactly what helps an operator standing in the wrong
             # one); the MACHINE summary states the condition and the remedies without the path.
             #
-            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract, recorded
-            # here because the number differs from the human path's on purpose (decision D1).
+            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract.
             # `aw.agent/v1` admits ONLY 0/1/2 (`agent_schema.validate_agent_record`: "Field 'exit'
             # must be an integer in (0, 1, 2)"), and additionally requires an error-class record to
             # carry exit=2; `docs/cli-output-contract.md` Section 3 classifies precisely this case
@@ -3899,11 +3999,13 @@ def run(args) -> int:
             # stdout this fix removes. (The sibling `aw ipd board` had the identical defect and was
             # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in
             # the package now builds an `exit_code=3` record. That property is pinned by
-            # `tests/test_awretrofit_project_root_climb.py::NoProjectSubprocessMatrixTests`.)
+            # `tests/test_attention.py::NoProjectAgentEnvelopeTests` and
+            # `tests/test_no_project_exit_is_cannot_run.py`.)
             #
-            # THE HUMAN PATH IS UNCHANGED at exit 3, so the shipped assertion in
-            # `tests/test_awretrofit_project_root_climb.py` (rc 3, prose on stderr, empty stdout)
-            # keeps passing and no operator-visible behavior regresses.
+            # THE HUMAN PATH WAS LATER MOVED TO EXIT 2 AS WELL by backlog `c6vs7y` (IPD `rwvzqm`),
+            # retiring the human exit 3 so one condition has one code and satisfies the published
+            # uniform three-state exit classification across all audience surfaces. Pinned by
+            # `tests/test_no_project_exit_is_cannot_run.py`.
             #
             # nogitmsg `quqyc4` E-04 ADDS THE INSTALL OFFER AS STRUCTURED DATA, not only as prose:
             # when cwd IS inside a git repository, the record carries a `NextAction` so an automated
@@ -3914,16 +4016,24 @@ def run(args) -> int:
             # (measured; decision 03-quqyc4-D2). `aw install` defaults to cwd, so `.` is literally
             # runnable. In a NON-git directory no action is attached and `next` stays null, because an
             # unconditional install suggestion would be wrong there.
-            git_root = git_root_for_message(repo_root)
-            res = CommandResult(
-                command="attention",
-                status="cannot-run",
-                exit_code=2,
-                summary=(
-                    "no AW project found at the working directory or any ancestor; "
-                    "cd into the repository or pass --dir <repo>"
-                ),
-                next_actions=(
+            if classification.is_inside_project and explicit_dir:
+                summary = (
+                    "the specified directory is inside an AW project but is not its root; "
+                    "--dir is honored verbatim with no upward climb"
+                )
+                next_actions = []
+            else:
+                git_root = git_root_for_message(repo_root)
+                summary = (
+                    "no AW project found at the specified directory; "
+                    "--dir is honored verbatim with no upward climb"
+                    if explicit_dir
+                    else (
+                        "no AW project found at the working directory or any ancestor; "
+                        "cd into the repository or pass --dir <repo>"
+                    )
+                )
+                next_actions = (
                     [
                         NextAction(
                             command="aw install .",
@@ -3932,11 +4042,20 @@ def run(args) -> int:
                     ]
                     if git_root is not None
                     else []
-                ),
+                )
+            res = CommandResult(
+                command="attention",
+                status="cannot-run",
+                exit_code=2,
+                summary=summary,
+                next_actions=next_actions,
             )
             return get_renderer(ctx).emit(res, ctx)
-        sys.stderr.write(no_project_message("attention", repo_root) + "\n")
-        return 3
+        sys.stderr.write(
+            no_project_message("attention", repo_root, explicit=bool(explicit_dir))
+            + "\n"
+        )
+        return EXIT_CANNOT_RUN
 
     type_filters = parse_type_filters(getattr(args, "types", None))
 
@@ -4501,6 +4620,26 @@ def run(args) -> int:
         if needs_setup:
             # The --all hint lives on the count line now; do not repeat it here.
             footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
+
+        # awinbox Order 03 (`olmvgw`, recovering `9iiqmm`): the waiting-inbox-drops nudge.
+        # AN INDEPENDENT `if` appending to `footer_lines`, composing with today's single-`if`
+        # `setup_needed` notice above rather than competing with it. Do NOT convert either into
+        # an `elif`: a dropped-and-forgotten file is especially likely on a fresh checkout that
+        # also needs setup, so both lines must render when both conditions hold.
+        # ADVISORY ONLY, exactly like the `order_notices` and `release-gate-warnings` sections above:
+        # it constructs no `Drift` and therefore CANNOT affect the exit code (owned solely by
+        # `core.drift_exit_code(drift)`), invents no status, and creates no `Item` - a waiting local
+        # drop in a gitignored directory is not a repository defect, and failing `--check` on a file
+        # no other machine can even see would be wrong. It shows ALWAYS, not only under `--all`,
+        # because `--all` reveals hidden done/parked ARTIFACTS and an un-adopted drop is not one:
+        # it is outstanding work, which is what a nudge is for. It carries no mtime or other
+        # time-derived value, preserving the spec's byte-determinism invariant.
+        waiting = inbox_waiting(repo_root)
+        if waiting:
+            noun = "file" if waiting == 1 else "files"
+            footer_lines.append(
+                f"TODO: {waiting} {noun} waiting in `.aw/inbox/`. Run `aw adopt <path>` to file one."
+            )
 
         if footer_lines:
             board = board.rstrip("\n") + "\n" + "\n".join(footer_lines) + "\n"

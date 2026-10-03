@@ -39,7 +39,7 @@ def packaged_source_root() -> Optional[Path]:
 
             try:
                 base = files("agent_workflows")
-                candidate = base.joinpath(*rel)
+                candidate = base.joinpath(*rel)  # type: ignore[call-arg]  # version-conditional: Traversable.joinpath accepts multi-arg in 3.11+
                 path = Path(str(candidate))
                 if path.is_dir():
                     return path

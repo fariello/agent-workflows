@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
+import re
 import subprocess
 import sys
 import unittest.mock
+from collections.abc import Sequence
 from pathlib import Path
 
 # Repo root = the directory containing install-workflows.py (two up from this file's dir).
@@ -414,6 +417,79 @@ def ready_plan_text(
     return "\n".join(out) + "\n"
 
 
+def scope_drift_repo(
+    path: Path,
+    *,
+    scope_paths: str | Sequence[str] = "src/demo.py",
+    plan_id: str = "abc123",
+    write_receipt: bool = True,
+    plan_dir: str | Path = "pending",
+) -> tuple[Path, Path]:
+    """Build a complete scope-drift test subject repository, returning ``(repo_root, lane_path)``.
+
+    Arranges a minimal git repo via :func:`init_repo`, writes a ``.gitignore`` containing
+    both ``.aw/state/`` and ``.aw/worktrees/`` (giving the fixture repo the shape a real
+    managed repo has, and keeping main-tree dirty assertions in tests like E-06 readable and
+    clean of ungitignored runtime scratch; note that ``check_scope_drift`` excludes both prefixes
+    unconditionally in its own comprehension, so the gitignore is for fixture shape and clean
+    main porcelain rather than keeping the lane out of the delta), writes an approved plan
+    carrying ``plan_id`` and ``scope_paths`` under ``plan_dir`` (relative to the plans root),
+    commits, captures HEAD as the frozen base, writes an atomic begin receipt at that base using
+    :func:`agent_workflows.ipd_lifecycle.receipt_path_for` (when ``write_receipt=True``),
+    and allocates a dedicated lane worktree cut at that base commit via
+    :func:`agent_workflows.worktree_lease.allocate_worktree`.
+
+    WHY CHANGES BELONG IN THE LANE (PRECONDITION OF THE RULE, NOT FIXTURE SCAFFOLDING):
+    ``check_scope_drift`` measures the plan's ISOLATED LANE and reports nothing at all
+    for a plan without one. A change placed in the main checkout is INVISIBLE to it, so any
+    assertion built in the main tree passes vacuously for a reason unrelated to its subject.
+
+    Authority recorded in the rule itself: ``check_scope_drift``'s docstring section
+    "WHICH TREE IS MEASURED IS PART OF THE RULE" (rcptstale `wmnmei`, backlog `v880xk`,
+    maintainer ruling 2026-09-10), and the accepted cost it names: hand work in a shared
+    main checkout gets no advisory at all. Callers must place modifications in the returned
+    lane path rather than the main repo root, unless explicitly testing main-tree non-advisory
+    behavior.
+    """
+    from agent_workflows import ipd_lifecycle as _life
+    from agent_workflows import worktree_lease as _lease
+
+    root = init_repo(path)
+    (root / ".gitignore").write_text(".aw/state/\n.aw/worktrees/\n", encoding="utf-8")
+
+    plan_dir_path = root / ".aw" / "records" / "plans" / plan_dir
+    plan_dir_path.mkdir(parents=True, exist_ok=True)
+    plan_file = plan_dir_path / f"20260901-demo-01-{plan_id}-demo.ipd.md"
+
+    scope_paths_str = (
+        scope_paths if isinstance(scope_paths, str) else ", ".join(scope_paths)
+    )
+    plan_content = ready_plan_text(
+        plan_id=plan_id,
+        scope_paths=scope_paths_str,
+        status="approved",
+    )
+    plan_file.write_text(plan_content, encoding="utf-8")
+
+    git(root, "add", "-A")
+    git(root, "commit", "-m", "initial", "-q")
+    base = git(root, "rev-parse", "HEAD").stdout.strip()
+
+    if write_receipt:
+        rcpt_path = _life.receipt_path_for(root, plan_id)
+        rcpt_path.parent.mkdir(parents=True, exist_ok=True)
+        rcpt_data = {
+            "schema_version": 2,
+            "kind": "ipd_begin_receipt",
+            "plan_id": plan_id,
+            "base_head": base,
+        }
+        rcpt_path.write_text(json.dumps(rcpt_data), encoding="utf-8")
+
+    handle = _lease.allocate_worktree(root, plan_id, base_commit=base)
+    return root, handle.path
+
+
 def make_fake_executable(path: Path, source: str) -> Path:
     """Write ``source`` (a Python program) as a DIRECTLY EXECUTABLE file and return what to invoke.
 
@@ -457,3 +533,163 @@ def _write_windows_launcher(path: Path, body: str) -> Path:
     shebang = f"#!{sys.executable}\r\n".encode("utf-8")
     exe.write_bytes(launcher + shebang + buf.getvalue())
     return exe
+
+
+# --------------------------------------------------------------------------------------
+# Bounded section extractors for the test suite (IPD `78rxzc`).
+# --------------------------------------------------------------------------------------
+
+
+class SectionBoundError(AssertionError):
+    """Raised when a section boundary cannot be located or is invalid.
+
+    Subclasses ``AssertionError`` so a refusal reports as a test FAILURE rather than an
+    ERROR (the assertion cannot be made, not that the helper crashed), and cannot be
+    swallowed by an ``except Exception`` in a caller's cleanup path.
+    """
+
+
+def _find_marker(
+    text: str,
+    marker: str,
+    start: int = 0,
+    *,
+    anchored: bool = True,
+) -> tuple[int, int] | None:
+    if not isinstance(marker, str):
+        raise TypeError(f"marker must be str, got {type(marker).__name__}")
+    if not isinstance(text, str):
+        raise TypeError(f"text must be str, got {type(text).__name__}")
+    if not marker:
+        raise ValueError("marker cannot be empty")
+
+    if anchored:
+        m = re.compile(r"(?m)^" + re.escape(marker)).search(text, start)
+        return (m.start(), m.end()) if m else None
+    idx = text.find(marker, start)
+    return (idx, idx + len(marker)) if idx != -1 else None
+
+
+def section(
+    text: str,
+    start_marker: str,
+    end_marker: str,
+    *,
+    anchored: bool = True,
+    include_end: bool = False,
+) -> str:
+    """Extract bounded text between ``start_marker`` and ``end_marker``, refusing on missing bounds.
+
+    Returns ``text[start:end]`` (or through ``end_marker`` when ``include_end=True``).
+    The extracted section includes ``start_marker``; this deliberately differs from
+    production helper ``attention._history_section_lines`` (which returns body lines stripped
+    of the heading line), because test callers typically assert on the heading or index
+    relative to the marker.
+
+    Refuses rather than falls back:
+    - If ``start_marker`` is absent, raises :class:`SectionBoundError` naming the marker.
+    - If ``end_marker`` is absent after ``start_marker``, raises :class:`SectionBoundError`
+      stating that the section extent is unknown, that unrelated later additions would enter it,
+      and that :func:`final_section` is the remedy for a genuinely terminal section.
+
+    Markers are literal strings (no regex patterns are accepted, preventing unbounded reads
+    via patterns like ``.*``).
+
+    Matching is line-anchored by default (``anchored=True``), matching at line start
+    (``(?m)^`` + ``re.escape``). This fixes a measured defect where body prose quotes a heading
+    before the real heading. Tracked ``.md`` files containing ``## Workflow history`` where an
+    unanchored ``.find`` diverges from a line-anchored match numbered 33 of 1806 at authoring,
+    104 of 1891 at review, and 122 of 3077 at execution.
+
+    The anchored default produces three distinct outcomes:
+    1. Anchored match found: starts extraction at the real line-anchored heading.
+    2. Marker exists only in prose: anchored search finds nothing and raises
+       :class:`SectionBoundError` on the start marker, pointing at ``anchored=False``.
+       (Review measured 66 such files; execution measured 80).
+    3. ``anchored=False`` restores substring search behavior and its attendant defect.
+
+    The ``anchored=False`` escape exists for callers that intentionally do unanchored matching,
+    notably ``tests/test_merge_conflict_sendback.py`` which lowercases its subject before
+    splitting (searching for ``## conflict details``, which no line in the original text starts with).
+    """
+    start_span = _find_marker(text, start_marker, 0, anchored=anchored)
+    if start_span is None:
+        if anchored and start_marker in text:
+            raise SectionBoundError(
+                f"start marker {start_marker!r} not found at line start (marker exists unanchored; "
+                f"pass anchored=False if matching in prose was intended)"
+            )
+        raise SectionBoundError(f"start marker {start_marker!r} not found in text")
+
+    search_start = start_span[1]
+    end_span = _find_marker(text, end_marker, search_start, anchored=anchored)
+    if end_span is None:
+        if anchored and end_marker in text[search_start:]:
+            raise SectionBoundError(
+                f"end marker {end_marker!r} not found at line start after start marker {start_marker!r}: "
+                f"section extent is unknown (marker exists unanchored; pass anchored=False if matching in prose was intended; "
+                f"an unrelated later change would enter it; use final_section to declare a genuinely terminal section)"
+            )
+        raise SectionBoundError(
+            f"end marker {end_marker!r} not found after start marker {start_marker!r}: "
+            f"section extent is unknown (an unrelated later change would enter it; "
+            f"use final_section to declare a genuinely terminal section)"
+        )
+
+    start = start_span[0]
+    end = end_span[1] if include_end else end_span[0]
+    return text[start:end]
+
+
+def final_section(
+    text: str,
+    start_marker: str,
+    *,
+    next_marker: str,
+    anchored: bool = True,
+) -> str:
+    """Extract a terminal section from ``start_marker`` to end of text, refusing if followed by ``next_marker``.
+
+    This provides an honest declaration that a section runs to the end of input, and fails
+    with :class:`SectionBoundError` naming the offset if a subsequent section is introduced,
+    falsifying the terminal premise.
+
+    Unlike unbounded slicing (``text[start:]``), which silently absorbs subsequent sections,
+    ``final_section`` detects when the section is no longer terminal.
+    """
+    start_span = _find_marker(text, start_marker, 0, anchored=anchored)
+    if start_span is None:
+        if anchored and start_marker in text:
+            raise SectionBoundError(
+                f"start marker {start_marker!r} not found at line start (marker exists unanchored; "
+                f"pass anchored=False if matching in prose was intended)"
+            )
+        raise SectionBoundError(f"start marker {start_marker!r} not found in text")
+
+    search_start = start_span[1]
+    next_span = _find_marker(text, next_marker, search_start, anchored=anchored)
+    if next_span is not None:
+        raise SectionBoundError(
+            f"terminal section starting at {start_marker!r} is followed by next marker {next_marker!r} "
+            f"at offset {next_span[0]}: premise that section runs to end of text is falsified"
+        )
+
+    return text[start_span[0] :]
+
+
+def section_lines(
+    text: str,
+    start_marker: str,
+    end_marker: str,
+    *,
+    anchored: bool = True,
+    include_end: bool = False,
+) -> list[str]:
+    """Return ``section(...).splitlines()``. Thin wrapper forwarding parameters unchanged."""
+    return section(
+        text,
+        start_marker,
+        end_marker,
+        anchored=anchored,
+        include_end=include_end,
+    ).splitlines()

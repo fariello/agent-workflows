@@ -26,9 +26,9 @@ import unittest
 from pathlib import Path
 
 from agent_workflows import lifecycle_style as L
+from tests import support
 
 REPO = Path(__file__).resolve().parents[1]
-MODULE_PATH = REPO / "agent_workflows" / "lifecycle_style.py"
 SPEC_PATH = next(
     (REPO / ".aw" / "records" / "specs").rglob(
         "20260913-uonrjg-01-uonrjg-cross-artifact-lifecycle-symbols-and-ansi-status-styling.spec.md"
@@ -49,12 +49,11 @@ def _parse_spec_section5():
     than transcribing is the whole point: a transcription slip in any of 20 rows times 4 fields
     fails here instead of being read past.
     """
-    lines = SPEC_PATH.read_text(encoding="utf-8").splitlines()
-    start = next(i for i, line in enumerate(lines) if line.startswith("## 5. "))
+    lines = support.section_lines(
+        SPEC_PATH.read_text(encoding="utf-8"), "## 5. ", "## 6. "
+    )
     rows = []
-    for line in lines[start:]:
-        if line.startswith("## 6."):
-            break
+    for line in lines:
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]

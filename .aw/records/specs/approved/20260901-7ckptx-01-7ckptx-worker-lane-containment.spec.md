@@ -11,6 +11,8 @@
 
 ## Workflow history
 
+- 2026-10-01 note (aw specs): AMENDED 2026-10-01 by malgate Order 02 (38pxaz): constraints 0.3, R6.2, and A16 amended following the deletion of wtiso_gate.py under GUIDING_PRINCIPLES P15 (measured zero product callers across all nine predicates; two cited test files were deleted in commit 19313eed; AW_MISSING_INPUT re-homed to lane_containment). R6.1 and R6.3 are preserved untouched; R6.2 and A16 clauses 1-3 have no live subject.
+- 2026-10-01 note (aw specs): AMENDED 2026-10-01 (specfin7ck-01 e9ekuj): A12b coverage sentence corrected to cite behavioral test coverage restored by 654a3adb (dmxc5h) in tests/test_lane_input_manifest.py
 - 2026-09-25 note (aw specs): AMENDED 2026-09-25 (statusvocab 9x7otz / cyamvi): canonical terminal status vocabulary updated (fail-depend, fail-merge, fail-gate, fail-verify, fail-begin, fail-lane, not-run, interrupted). Legacy terminal status tokens (including dependency-blocked, integration-blocked, merge-needs-human, merge-conflict, merge-refused, substantially-complete, failed-safely, not-attempted) remain readable forever for backward compatibility on historical run records (via TERMINAL_STATUS_ALIASES), but are no longer written by the runner.
 - 2026-09-18 note (aw specs): AMENDED 2026-09-18 by maintainer ruling: R5.5's refusal on unknown ignored files is removed. Gitignored files (bytecode caches, toolchain dependencies, test residues) are disposable upon lane destruction and do not block teardown. Teardown refuses only on dirty tracked files, unknown untracked files, or uncollected submissions. A15 updated accordingly.
 - 2026-09-16 note (aw specs): AMENDED 2026-09-16 by dirtygates Order 01 (d7qoxv) E-04: R5.4's dirty-tracked-base obligation is SPLIT BY PATH rather than removed. SHARED TREE (--no-isolate-worktree) KEEPS the refusal verbatim in force, because the turn executes in the polluted tree and cannot tell its own changes from the uncommitted work already there at commit or finalize time; that half is what approved release-blocking plan 3i0aaz E-03 builds on and it is deliberately preserved. ISOLATED turns now REPORT the dirty paths and PROCEED. WHY, measured 2026-09-13: a lane cut from HEAD lacking an uncommitted tracked change failed its validation EXACTLY as committing that same change with no lane involved failed, so the refusal never prevented the stale-base harm it named, it only deferred it to whenever the operator committed. What actually catches a stale base is the merge-and-revalidate gate, which re-runs validation against the combined result. MEASURED COST of keeping it: across three consecutive runs the gate blocked 27 of 42, 23 of 41 and 18 of 43 queue items, each refusal naming exactly ONE uncommitted markdown file no plan declared, cascading 36 further items into dependency-blocked (reviews were exempt, so this was the majority of each run and not a total failure). A14 rewritten to assert BOTH halves separately, and new A14b requires the RULE's classification (clean=False, paths named, identical on both paths) be pinned separately from the CALLER's disposition, so an implementation cannot achieve the isolated behavior by making the rule report clean. Untracked exclusion unchanged on both paths.
@@ -59,9 +61,12 @@ every requirement below inherits it.
 - OS-level confinement is OUT OF SCOPE here and is owned elsewhere (`fjs11i` for the unreachable
   hardened profile, research `q65sz3` for the cross-platform question). This spec must remain true
   whether or not that lands.
-- `wtiso_gate.py` is the designated home for shared containment predicates. It exists as a fail-loud
-  skeleton by design: a stub raises `NotImplementedError` naming its owning phase so a premature caller
-  breaks visibly rather than silently allowing.
+- `wtiso_gate.py` formerly served as the designated home for shared containment predicates. Under
+  GUIDING_PRINCIPLES P15 ("we guard against honest mistakes, never against a malicious agent") and
+  malgate Order 02 (`38pxaz`), the unowned anti-malice predicate skeleton was deleted in its
+  entirety. Shared containment rules are single-defined directly in the modules that consume them
+  (such as `lane_containment.py` for `AW_MISSING_INPUT` and the token format functions), honoring
+  R6.1 without preserving an empty skeleton.
 
 ## 1. Goals
 
@@ -492,6 +497,12 @@ calls. Forking the rule is non-conforming even when the copies agree at the time
 R6.2 A predicate that is declared but not yet implemented MUST fail loudly rather than return a
 permissive default, and MUST name its owner.
 
+AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT in the current tree. The five
+unowned raising stubs in `wtiso_gate.py` were deleted because they targeted malice (ruled out by
+GUIDING_PRINCIPLES P15) and had zero callers. The fail-loud discipline is NOT withdrawn--any future
+declared-not-implemented predicate must still fail loudly and name its owner--but P15 rules out
+re-adding the anti-malice stubs, so the requirement currently governs no code in the tree.
+
 R6.3 Implementing a predicate body and wiring its callers are SEPARABLE deliverables and may be owned by
 different plans. A plan that implements a body it is not chartered to wire MUST NOT wire it.
 
@@ -614,9 +625,13 @@ re-flag it as a traceability gap.
   for a shared lane, that each turn's attachment resolves to its own revision when turns are dispatched out
   of position order. Also state in the artifact that read-only is an accident guard and not immutability,
   since the owning user can restore the write bit. Parts (i) and (ii) and the in-place edit check of part
-  (iii) currently have no shipped test since commit `19313eed` deleted `tests/test_lane_input_manifest.py`,
-  leaving only the out-of-position dispatch scoping of part (iii) covered in
-  `tests/test_lane_input_revision_scope.py`. (R5.1a)
+  (iii) are covered behaviorally in `tests/test_lane_input_manifest.py` (restored by commit `654a3adb`,
+  restorecov `dmxc5h`): `test_an_accidental_in_place_write_fails` asserts an in-place write to the manifest
+  or an input raises `PermissionError`, `test_a_restored_write_bit_is_detected` asserts
+  `verify_lane_input_seal` detects a restored write bit, and
+  `test_part_iii_a_change_is_a_new_revision_not_an_edit` asserts an input change produces a new revision
+  leaving prior revision bytes untouched, alongside `tests/test_lane_input_revision_scope.py` covering
+  the out-of-position dispatch scoping of part (iii). (R5.1a)
 - A13. Every attachment handed to an isolated worker resolves inside the lane, asserted over ALL
   attachments with at least two checked. (R5.3)
 - A14. With a dirty TRACKED file, the evaluation happens before any worker process is spawned, and its
@@ -640,9 +655,15 @@ re-flag it as a traceability gap.
   that preserved a lane, showing it names the lane and the reason. A test that only asserts the EVENT was
   written does NOT satisfy this criterion, because that is exactly the state measured on
   `run-20260901T042331Z-118022`: two lanes preserved, zero mentions in the summary. (R5.6a)
-- A16. Each implemented shared predicate has unit tests; each unimplemented one still raises naming its
-  owner; and a predicate implemented but not chartered for wiring has no product caller. (R6.1, R6.2,
-  R6.3)
+- A16. AMENDED 2026-10-01 by malgate Order 02 (`38pxaz`): NO LIVE SUBJECT for clauses 1, 2, and 3 in
+  the current tree following the deletion of `wtiso_gate.py`. Formerly: each implemented shared
+  predicate has unit tests; each unimplemented one still raises naming its owner; and a predicate
+  implemented but not chartered for wiring has no product caller. Under P15 the unowned raising
+  predicates were deleted (clause 2 has no subject); the uncalled implemented bodies were deleted
+  (clause 1 has no subject, with surviving token behavior tested in
+  `tests/test_lane_missing_input_token.py`); and `check_scope` was deleted so R6.3's demonstration is
+  removed while R6.3's rule remains live (clause 3 has no subject in the shared predicate library).
+  (R6.1, R6.2, R6.3)
 - A17. The isolated prompt states the cwd-is-the-workspace rule in plain language AND names the exact
   missing-input token form, so R1.1's strictness always ships with its escape hatch. Assert both are
   present in the emitted text. (R1.4, R3.1)

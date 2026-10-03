@@ -980,6 +980,9 @@ _QUALIFIED_IDENT_RE = re.compile(r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$")
 #: newest plan date for that reason and caught it. Moved to `20260923` rather than `20260922` so a
 #: plan authored later today does not immediately re-trip the same guard.
 CITATION_ANCHOR_CUTOVER_DATE = "20260923"  # compact YYYYMMDD
+#: citeanchor `tx0q0e` E-02. Proximity window (characters) for durable anchor association.
+CITATION_ANCHOR_PROXIMITY_WINDOW = 80
+CITATION_ANCHOR_WINDOW = CITATION_ANCHOR_PROXIMITY_WINDOW
 
 _CITATION_PLAN_DATE_RE = re.compile(r"(?m)^- Date:[ \t]*(\d{4})-(\d{2})-(\d{2})[ \t]*$")
 
@@ -1000,6 +1003,51 @@ def _citation_anchor_applies(doc: ParsedDoc) -> bool:
     return "{0}{1}{2}".format(*m.groups()) >= CITATION_ANCHOR_CUTOVER_DATE
 
 
+_LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])(?:\s+|$)")
+
+
+def _is_logical_unit_start(line: str) -> bool:
+    """True if ``line`` starts a new logical unit (list item, table row, heading, or blank line)."""
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if stripped.startswith("|"):
+        return True
+    if line.lstrip().startswith("#"):
+        return True
+    if _LIST_ITEM_RE.match(line):
+        return True
+    return False
+
+
+def _group_logical_units(
+    struct_lines: Iterable[Tuple[int, str]],
+) -> List[Tuple[int, str]]:
+    """Group structural lines into logical units (Set hesb87 tx0q0e E-01).
+
+    A new unit starts at a list-item marker, a table row (a line whose stripped form begins with a
+    pipe), a heading, or a blank line; any other line continues the current unit.
+    """
+    units: List[Tuple[int, str]] = []
+    curr_lines: List[str] = []
+    curr_lineno: int = 0
+    for lineno, line in struct_lines:
+        if _is_logical_unit_start(line):
+            if curr_lines:
+                units.append((curr_lineno, "\n".join(curr_lines)))
+                curr_lines = []
+            curr_lineno = lineno
+            if line.strip():
+                curr_lines.append(line)
+        else:
+            if not curr_lines:
+                curr_lineno = lineno
+            curr_lines.append(line)
+    if curr_lines:
+        units.append((curr_lineno, "\n".join(curr_lines)))
+    return units
+
+
 def _citation_units(line: str) -> List[str]:
     """The text spans a citation is judged against: a table row's CELLS, else the whole line."""
     stripped = line.strip()
@@ -1008,10 +1056,20 @@ def _citation_units(line: str) -> List[str]:
     return [line]
 
 
-def _has_durable_anchor(unit: str) -> bool:
-    """True when ``unit`` carries a durable anchor BESIDE its citation (spec Section 10.2 (a)/(b))."""
-    for token in _BACKTICK_TOKEN_RE.findall(unit):
-        tok = token.strip()
+def _has_durable_anchor(
+    unit: str,
+    cit_start: Optional[int] = None,
+    cit_end: Optional[int] = None,
+    *,
+    window: int = CITATION_ANCHOR_PROXIMITY_WINDOW,
+) -> bool:
+    """True when ``unit`` carries a durable anchor BESIDE its citation within ``window`` chars (spec Section 10.2)."""
+    if cit_start is None:
+        m = _CITATION_RE.search(unit)
+        if m is not None:
+            cit_start, cit_end = m.start(), m.end()
+    for m_tok in _BACKTICK_TOKEN_RE.finditer(unit):
+        tok = m_tok.group(1).strip()
         if not tok:
             continue
         if _CITATION_RE.search(tok):
@@ -1020,10 +1078,20 @@ def _has_durable_anchor(unit: str) -> bool:
             continue  # `:906-915` - a second offset, not an anchor
         if _BARE_PATH_RE.match(tok):
             continue  # `check_engine.py` - names the file the citation already named
+        is_anchor = False
         if re.search(r"\s", tok):
-            return True  # a quoted content string (Section 10.2 (b))
-        if _QUALIFIED_IDENT_RE.match(tok):
-            return True  # `module.function` / `Class.method` (Section 10.2 (a))
+            is_anchor = True  # a quoted content string (Section 10.2 (b))
+        elif _QUALIFIED_IDENT_RE.match(tok):
+            is_anchor = True  # `module.function` / `Class.method` (Section 10.2 (a))
+        if not is_anchor:
+            continue
+        if cit_start is not None and cit_end is not None and window is not None:
+            tok_start = m_tok.start()
+            tok_end = m_tok.end()
+            dist = max(0, cit_start - tok_end, tok_start - cit_end)
+            if dist > window:
+                continue
+        return True
     return False
 
 
@@ -1040,25 +1108,24 @@ def check_citation_anchors(
     exempt for free. Re-implementing it is how a rule starts flagging pasted diagnostics, whose
     offsets are the FACT being reported (the Section 10.2 line-as-subject exception).
 
-    KNOWN AND ACCEPTED LIMIT, recorded so it is not later filed as a bug: the helper's unit is a LINE,
-    so a multi-line E-item whose symbol sits on the first line and whose offset sits on an indented
-    continuation line is judged per line, and the continuation flags. That is a false positive. It is
-    precisely why this rule is `info` and must not be promoted to a gating severity without the
-    measurement the plan's deferred row demands.
+    Judges citations against their LOGICAL unit (bullet plus indented continuations, via
+    ``_group_logical_units``) within a proximity window (``CITATION_ANCHOR_PROXIMITY_WINDOW``),
+    curing continuation-line false positives while ensuring candidate anchors accompany the citation.
     """
     if not include_pre_cutover and not _citation_anchor_applies(doc):
         return []
     out: List[Diagnostic] = []
-    for lineno, line in _structural_lines(text):
-        for unit in _citation_units(line):
+    for lineno, unit_text in _group_logical_units(_structural_lines(text)):
+        for unit in _citation_units(unit_text):
             if not _CITATION_RE.search(unit):
                 continue
-            if _has_durable_anchor(unit):
-                continue
             for m in _CITATION_RE.finditer(unit):
+                if _has_durable_anchor(unit, m.start(), m.end()):
+                    continue
+                line_offset = unit[: m.start()].count("\n")
                 out.append(
                     Diagnostic(
-                        lineno,
+                        lineno + line_offset,
                         1,
                         C_CITATION_ANCHOR,
                         "citation '{0}' has no durable anchor: name the SYMBOL "
@@ -1770,9 +1837,9 @@ def orchestrator_row_conformance(
 
 
 # THE PHASES AT WHICH THE ROW RULE BLOCKS A LINT. Every inclusion and every exclusion below is a
-# MEASUREMENT taken 2026-09-22, not a preference, because this constant is where the rule's blast
-# radius is decided and a wrong value here either mass-refuses other agents' approved plans or ships a
-# rule that never fires.
+# MEASUREMENT, not a preference, because this constant is where the rule's blast radius is decided
+# and a wrong value here either mass-refuses other agents' approved plans or ships a rule that never
+# fires.
 #
 # `review-finalize` IS THE PRIMARY GATE, because it is where R5's bounded repair loop lives. A
 # violation found at review costs a revision; found anywhere later it costs a dead end.
@@ -1782,37 +1849,25 @@ def orchestrator_row_conformance(
 # pass through it (`ipd_lifecycle.ROLLUP_OMITTED_GATES["pre-transition-ev-checkpoint"]`), so this does
 # not block a legitimate retirement.
 #
-# `author` IS EXCLUDED ON A CORPUS MEASUREMENT. The grammar is NEW, so nothing authored before it
-# conforms by accident: 11 of the 12 live pending orchestrators do not conform (the twelfth, `d1u4sy`,
-# is written in the grammar on purpose) and 6 of the 12 additionally declare no `Id` column at all.
-# `aw check plans` sweeps at `author` (`check_engine._IPD_LINT_SWEEP_CHECKPOINT`), so firing here
-# would turn `aw ipd lint --all` and `aw check` red on eleven other agents' APPROVED plans before the
-# migration that fixes them (child `68uhp0`) has run. Spec `25kzda` 2.5b records where that leads: mass
-# false-refusal "would teach agents to DELETE the child checklist", the exact failure R2/R7 prevent.
+# `author` IS EXCLUDED ON A CORPUS AND SCOPE MEASUREMENT. `aw check plans` sweeps at `author`
+# (`check_engine._IPD_LINT_SWEEP_CHECKPOINT`), and that sweep is pending-lane only
+# (`check_engine.check_ipd_lint_reach` skips non-pending paths), so the terminal corpus is outside its
+# reach by construction. Widening `author` is a separate decision that requires its own measurement of
+# the sweep's blast radius across live drafting workflows; spec `25kzda` 2.5b records that mass
+# false-refusal at authoring "would teach agents to DELETE the child checklist", the exact failure
+# R2/R7 prevent.
 #
 # `post-transition` IS EXCLUDED MECHANICALLY: it runs on the ALREADY-COMMITTED plan, so a finding there
 # cannot refuse anything and would only leave a completed transition `committed-incomplete`.
 #
-# `pre-execution` IS EXCLUDED, AND THIS ONE WAS LEARNED BY BREAKING A TEST RATHER THAN BY REASONING.
-# It was included first, on the reasoning that it is the ready-to-execute gate. That made
-# `tests/test_orchestrator_retirement.py::TheHumanFacingGateIsUNCHANGED::
-# test_the_ordinary_finalize_still_refuses_an_orchestrator` fail, and the failure was CORRECT: that
-# test mints a real begin receipt via `ipd_lifecycle.begin`, which gates on the `pre-execution` lint,
-# and its fixture is built from the REAL `aw ipd scaffold` skeleton. Measured directly:
-# `ipd_authoring.build_skeleton(kind="orchestrator", ...)` emits the row `- [ ] E-01 TODO one
-# observable action.` and the prose placeholder `TODO: child IPD table (Order | File | What it does |
-# Depends on).` in place of a table, so THE SHIPPED SCAFFOLD IS NOT CONFORMING and `aw ipd begin`
-# would refuse every freshly scaffolded orchestrator before its author could fill it in. Blocking at
-# `begin` is therefore blocking the wrong end of the lifecycle: an orchestrator is authored, reviewed
-# and repaired BEFORE it is begun, and `review-finalize` already covers that. Teaching the scaffold to
-# emit a conforming skeleton is the right fix and is spec OQ-01's own proposed direction, but
-# `ipd_authoring.py` is NOT in this plan's `- Scope-Paths:`, so it is reported as a finding (backlog
-# filed) rather than done here. If a later plan makes the scaffold conforming, adding `pre-execution`
-# back becomes a one-line change with this test as its proof.
-#
-# THE ROUTE FOR THE PRE-EXISTING CORPUS IS CHILD `68uhp0`'s TO CHOOSE (spec criterion 12), and this
-# constant does not pre-empt it: a migrate-all route leaves it untouched.
-_ORCH_ROW_BLOCKING_CHECKPOINTS = frozenset(("review-finalize", "pre-transition"))
+# `pre-execution` IS INCLUDED (plan zojfn6): it is the ready-to-execute gate for `aw ipd begin`, and it
+# also arms the runners' pre-queue pre-flight for `approved`/`auto-approved` plans. It was originally
+# excluded because the scaffold itself emitted untyped rows; now that `ipd_authoring.build_skeleton`
+# emits a conforming skeleton with a typed row and child table, `pre-execution` blocks untyped
+# orchestrators at `begin` and queue build without refusing a freshly scaffolded plan.
+_ORCH_ROW_BLOCKING_CHECKPOINTS = frozenset(
+    ("review-finalize", "pre-execution", "pre-transition")
+)
 
 
 def check_orchestrator_rows(
@@ -1929,7 +1984,7 @@ def lint_text(
     if S.is_quarantined(doc.meta_fields) and not _is_terminal_dir(directory):
         return LintResult(S.DISPOSITION_QUARANTINED, [])
 
-    diags: List[Diagnostic] = []
+    diags: List[Diagnostic] = []  # type: ignore[no-redef]  # benign re-annotation in disjoint branch
     diags += check_metadata(doc, directory)
     diags += check_readiness_attestation(doc)
     diags += check_headings(doc)
@@ -2345,21 +2400,37 @@ def _visible_advisories(advisories: List[Diagnostic], detail: bool) -> List[Diag
     return [a for a in advisories if a.code in _ALWAYS_VISIBLE_ADVISORY_CODES]
 
 
-def _iter_plan_files(root: Path) -> List[Path]:
-    # Layout-aware (IPD awretrofit Order 01): resolve .aw/records/plans with a legacy
-    # .agents/plans read-fallback, so `aw ipd lint --all` scans the migrated tree instead of
-    # false-passing with conforming=0.
+def _iter_plan_files(root: Path) -> Tuple[Optional[Path], List[Path]]:
+    # Layout-aware (IPD awretrofit Order 01, gonzhl Order 01): resolve .aw/records/plans
+    # with an in-tree fallback rung and a legacy .agents/plans read-fallback.
+    # Why the in-tree fallback rung exists: for an unconfigured target repo lacking
+    # .aw/config/project.json, resolve_record_path defaults records_backend to 'home'
+    # (provenance builtin_defaults), returning an out-of-tree path under ~/.aw/projects/
+    # that does not exist on disk. When resolve_record_path succeeds with a non-existent
+    # path, we fall back to <root>/.aw/records/plans before trying legacy <root>/.agents/plans,
+    # avoiding a false-pass where plans inside <root> are missed.
     from agent_workflows.record_producers import resolve_record_path
 
+    base: Optional[Path] = None
     try:
-        base = resolve_record_path("plans", target_repo=str(root))
+        resolved = resolve_record_path("plans", target_repo=str(root))
+        if resolved.is_dir():
+            base = resolved
     except Exception:
-        base = root / ".aw" / "records" / "plans"
-    if not base.is_dir() and (root / ".agents" / "plans").is_dir():
-        base = root / ".agents" / "plans"
-    if not base.is_dir():
-        return []
-    return sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
+        pass
+
+    if base is None:
+        in_tree = root / ".aw" / "records" / "plans"
+        if in_tree.is_dir():
+            base = in_tree
+        elif (root / ".agents" / "plans").is_dir():
+            base = root / ".agents" / "plans"
+
+    if base is None or not base.is_dir():
+        return None, []
+
+    files = sorted(p for p in base.rglob("*.md") if p.name not in _NON_IPD_BASENAMES)
+    return base, files
 
 
 def _default_pending_files() -> List[Path]:
@@ -2434,9 +2505,8 @@ def run_lint(args: argparse.Namespace) -> int:
         status_padded = (
             status_marker
             + " "
-            + (
-                term.style_lifecycle_text(status_word, status_resolved)
-                + (" " * max(0, 12 - _T.visible_width(status_word)))
+            + _T.pad_visible(
+                term.style_lifecycle_text(status_word, status_resolved), 12
             )
         )
 
@@ -2522,8 +2592,47 @@ def run_lint(args: argparse.Namespace) -> int:
 
     try:
         if getattr(args, "all", False):
-            root = Path(getattr(args, "path", None) or ".")
-            files = _iter_plan_files(root)
+
+            def _refuse_all(msg: str) -> int:
+                if ctx.is_agent or ctx.is_json:
+                    res = CommandResult(
+                        command="ipd lint",
+                        status="cannot-run",
+                        exit_code=2,
+                        summary=msg,
+                    )
+                    return get_renderer(ctx).emit(res, ctx)
+                print(f"error: {msg}")
+                return 2
+
+            raw_path = getattr(args, "path", None)
+            roots: List[str]
+            if isinstance(raw_path, str):
+                roots = [raw_path]
+            elif raw_path:
+                roots = list(raw_path)
+            else:
+                roots = []
+
+            if len(roots) > 1:
+                return _refuse_all(
+                    f"--all takes at most one repo root (got {len(roots)})."
+                )
+
+            root = Path(roots[0]) if roots else Path(".")
+            if not root.is_dir():
+                from agent_workflows.agent_schema import normalize_repo_path
+
+                return _refuse_all(f"not a directory: {normalize_repo_path(root)}")
+
+            base, files = _iter_plan_files(root)
+            if base is None:
+                from agent_workflows.agent_schema import normalize_repo_path
+
+                return _refuse_all(
+                    f"no plans tree located under {normalize_repo_path(root)}"
+                )
+
             counts = {
                 S.DISPOSITION_CONFORMING: 0,
                 S.DISPOSITION_QUARANTINED: 0,

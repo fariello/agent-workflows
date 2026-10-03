@@ -36,6 +36,9 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
+from agent_workflows.run_analytics_schema import resolve_attempt_model
+from agent_workflows.runner_shared import canonical_terminal_status
+
 __all__ = [
     "DASHBOARD_SCHEMA_VERSION",
     "ASSETS_DIRNAME",
@@ -460,6 +463,10 @@ _FAIL = {
     "merge-refused",
     "interrupted",
     "fail-depend",
+    "fail-begin",
+    "fail-lane",
+    "dependency-blocked",
+    "merge-needs-human",
 }
 
 
@@ -475,9 +482,12 @@ def _outcome(disposition: str | None, role: str, verification: str | None) -> st
     d = (disposition or "").strip()
     if d in ("executed", "reviewed", "approved"):
         return "success"
+    # Raw token must be checked before canonicalization: canonical_terminal_status("partial")
+    # is "fail-verify" and canonical_terminal_status("substantially-complete") is "fail-gate",
+    # which would fold both into "failed" (OQ-03, E-04).
     if d in ("substantially-complete", "partial"):
         return "partial"
-    if d in _FAIL:
+    if d in _FAIL or canonical_terminal_status(d) in _FAIL:
         return "failed"
     return "unknown"
 
@@ -492,21 +502,11 @@ def _iso_ts(value: Any) -> float | None:
 
 
 def _run_model(state: Mapping[str, Any]) -> tuple[str, str]:
-    opts: Mapping[str, Any] = (
-        state["options"] if isinstance(state.get("options"), Mapping) else {}
+    model, source = resolve_attempt_model(None, state, role="main")
+    return (
+        _normalize_model(str(model)) if model else UNRECORDED,
+        source if model else "",
     )
-    ca: Mapping[str, Any] = (
-        opts["cost_attribution"]
-        if isinstance(opts.get("cost_attribution"), Mapping)
-        else {}
-    )
-    model = opts.get("model") or opts.get("explicit_model") or ca.get("model")
-    source = (
-        "options"
-        if (opts.get("model") or opts.get("explicit_model"))
-        else ("cost_attribution" if ca.get("model") else "")
-    )
-    return (_normalize_model(str(model)) if model else UNRECORDED, source)
 
 
 def _normalize_model(model: str) -> str:
@@ -524,10 +524,19 @@ def _run_host(state: Mapping[str, Any], formats: Iterable[str]) -> str:
         state["driver"] if isinstance(state.get("driver"), Mapping) else {}
     )
     did = str(drv.get("id") or "")
-    if did.startswith("agy"):
-        return "agy"
-    if did.startswith("oc"):
-        return "oc"
+    if did:
+        # Lazy import: importing runner_shared costs ~0.17-0.35s and run_dashboard
+        # avoids module-level import weight (in-module precedent: _default_cache_path).
+        from agent_workflows.runner_shared import host_labels_for_driver_id
+
+        labels = host_labels_for_driver_id(did)
+        if labels is not None and labels.argv_tokens:
+            # argv_tokens[0] yields the short host token ("oc" / "agy") used by
+            # this dashboard for grouping and interpolation, without hand-mapping.
+            # The behavioral win is fall-through: an unregistered id falls through
+            # to options / cost_attribution / formats rather than being misrouted by
+            # prefix matching (e.g. octopus -> oc, agyx -> agy).
+            return labels.argv_tokens[0]
     opts: Mapping[str, Any] = (
         state["options"] if isinstance(state.get("options"), Mapping) else {}
     )
@@ -673,15 +682,23 @@ def collect_rows(
         for f in session_files:
             live.add(str(f))
             stats_of[f] = cache.get(f)
-        model, model_source = _run_model(state)
         host = _run_host(state, (s.get("format") for s in stats_of.values()))
-        if model == UNRECORDED:
-            # Per host, so an unknown OpenCode model never pools with an unknown Antigravity one.
-            model = "(unrecorded, {0})".format(host)
+
+        def _row_model(
+            att_map: Mapping[str, Any] | None, r_role: str
+        ) -> tuple[str, str]:
+            raw_m, m_src = resolve_attempt_model(att_map, state, role=r_role)
+            norm_m = _normalize_model(raw_m) if raw_m else UNRECORDED
+            if norm_m == UNRECORDED:
+                # Per host, so an unknown OpenCode model never pools with an unknown Antigravity one.
+                norm_m = "(unrecorded, {0})".format(host)
+            return norm_m, m_src
+
         run_id = str(state.get("run_id") or run_dir.name)
         run_start = _iso_ts(state.get("created_at"))
         queue = state.get("queue") if isinstance(state.get("queue"), list) else []
         by_item_attempt: dict[tuple[str, int], dict[str, Any]] = {}
+        by_item_attempt_att: dict[tuple[str, int], Mapping[str, Any]] = {}
         for item in queue:
             if not isinstance(item, Mapping):
                 continue
@@ -698,6 +715,7 @@ def collect_rows(
                 att_action = str(att.get("action") or action)
                 disposition = att.get("disposition")
                 verification = att.get("verification") or att.get("verification_status")
+                main_model, main_model_source = _row_model(att, "main")
                 base = {
                     "run": run_id,
                     "set": str(item.get("setid") or ""),
@@ -712,12 +730,13 @@ def collect_rows(
                     "verification": str(verification or ""),
                     "item_status": str(item.get("status") or ""),
                     "host": host,
-                    "model": model,
-                    "model_source": model_source,
+                    "model": main_model,
+                    "model_source": main_model_source,
                     "exit_code": att.get("exit_code"),
                     "run_start": run_start,
                 }
                 by_item_attempt[(id6, number)] = base
+                by_item_attempt_att[(id6, number)] = att
                 started, ended = (
                     _iso_ts(att.get("started_at")),
                     _iso_ts(att.get("ended_at")),
@@ -745,8 +764,12 @@ def collect_rows(
                     if vlog is not None:
                         claimed.add(vlog)
                     vst = stats_of.get(vlog) if vlog is not None else None
+                    v_model, v_model_source = _row_model(att, "verify")
+                    v_base = dict(base)
+                    v_base["model"] = v_model
+                    v_base["model_source"] = v_model_source
                     vrow = _row_from_stats(
-                        base,
+                        v_base,
                         vst or _empty_stats(),
                         "verify",
                         att.get("verify_tokens"),
@@ -771,6 +794,9 @@ def collect_rows(
             )
             base = by_item_attempt.get((id6, number))
             if base is None:
+                # Genuinely synthesized base (no attempt record was found);
+                # legitimately keeps the run-level value.
+                synth_model, synth_source = _row_model(None, role)
                 base = {
                     "run": run_id,
                     "set": "",
@@ -785,11 +811,19 @@ def collect_rows(
                     "verification": "",
                     "item_status": "",
                     "host": host,
-                    "model": model,
-                    "model_source": model_source,
+                    "model": synth_model,
+                    "model_source": synth_source,
                     "exit_code": None,
                     "run_start": run_start,
                 }
+            else:
+                base = dict(base)
+                # When an attempt record exists, resolve per row using that attempt
+                # and its filename-derived role (which may be "verify").
+                att = by_item_attempt_att.get((id6, number))
+                unclaimed_model, unclaimed_source = _row_model(att, role)
+                base["model"] = unclaimed_model
+                base["model_source"] = unclaimed_source
             row = _row_from_stats(base, stats_of[f], role, None, None, None, None)
             row["outcome"] = (
                 "unknown"

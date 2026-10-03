@@ -575,6 +575,79 @@ class ContentionWaitCallSiteTests(unittest.TestCase):
         self.assertIsNone(outcome_unmeas.last_activity_age)
         self.assertIn("unmeasurable", outcome_unmeas.detail)
 
+    def test_writer_lock_and_finalize_lock_paths_are_identical(self):
+        """(E-03) commit_lock.lock_path and ipd_lifecycle.finalize_lock_path resolve to the identical path."""
+        from agent_workflows import commit_lock, ipd_lifecycle
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            self.assertEqual(
+                commit_lock.lock_path(repo),
+                ipd_lifecycle.finalize_lock_path(repo),
+            )
+
+    def test_offer_commit_returns_error_outcome_on_busy_writer_lock(self):
+        """(E-04) offer_commit with a live peer holding writer_lock returns STATUS_ERROR and does not raise."""
+        from agent_workflows import commit_lock, git_commit_helper
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir) / "repo"
+            repo.mkdir()
+            for cmd in (
+                ["git", "init", "-q"],
+                ["git", "config", "user.email", "test@example.com"],
+                ["git", "config", "user.name", "Tester"],
+            ):
+                subprocess.run(cmd, cwd=repo, check=True)
+
+            (repo / "file.txt").write_text("initial\n", encoding="utf-8")
+            subprocess.run(["git", "add", "file.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "initial commit"], cwd=repo, check=True
+            )
+
+            (repo / "file.txt").write_text("updated\n", encoding="utf-8")
+
+            lock_path = commit_lock.lock_path(repo)
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            lock_path.write_text(
+                json.dumps(
+                    {
+                        "pid": 999999,
+                        "owner": "live-peer",
+                        "timestamp": "2026-09-29T00:00:00+00:00",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            orig_writer_lock = commit_lock.writer_lock
+
+            def fast_writer_lock(*args, **kwargs):
+                kwargs["timeout"] = 0.1
+                kwargs["poll"] = 0.02
+                return orig_writer_lock(*args, **kwargs)
+
+            with mock.patch(
+                "agent_workflows.commit_lock._pid_alive", return_value=True
+            ):
+                with mock.patch(
+                    "agent_workflows.commit_lock.writer_lock",
+                    side_effect=fast_writer_lock,
+                ):
+                    outcome = git_commit_helper.offer_commit(
+                        repo,
+                        ["file.txt"],
+                        message="test commit",
+                        assume_yes=True,
+                    )
+
+            self.assertEqual(git_commit_helper.STATUS_ERROR, outcome.status)
+            self.assertIsNone(outcome.commit)
+            self.assertEqual((), outcome.staged)
+            self.assertIn("live PID 999999 (owner: live-peer)", outcome.message)
+            self.assertIn("ipd_finalize_writer.lock", outcome.message)
+
 
 if __name__ == "__main__":
     unittest.main()
