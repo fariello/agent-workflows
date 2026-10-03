@@ -994,6 +994,48 @@ class StatusChangeResult(tuple):
         self.rewritten_paths = list(rewritten_paths or [])
 
 
+def inherit_from_backlog_release_gate(
+    text: str,
+    repo_root: Path,
+    from_backlog: str | None,
+    blocks_release: str | None,
+    verb_label: str = "aw set",
+) -> str:
+    """Inherit the backlog item's release gate at graduation if artifact has no gate.
+
+    nobugship di08i9 E-03: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION, so the handoff
+    obligation stops depending on prose.
+
+    Shared between `status_set.apply_status_change` and `specs.run_set` (c6f6sj E-02).
+    Text in, text out.
+
+    Three semantics preserved:
+    (1) A write, never a refusal: un-inheritable gate does not fail the call.
+    (2) An explicit blocks_release in the same call wins (guarded by blocks_release is None).
+    (3) An existing gate on the artifact is never overwritten (carrier_m is None).
+    """
+    if not from_backlog or from_backlog == "-":
+        return text
+    if blocks_release is not None:
+        return text
+    carrier_m = re.search(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", text)
+    if carrier_m is not None:
+        return text
+    from agent_workflows import backlog as _backlog
+    from agent_workflows import releases as _releases
+
+    item_gate = _backlog.blocks_release_of_item(Path(repo_root), from_backlog)
+    if not item_gate:
+        return text
+    prefix = verb_label if verb_label.endswith(":") else f"{verb_label}:"
+    updated_text = _releases.set_blocks_release_line(text, item_gate)
+    sys.stdout.write(
+        f"{prefix} inherited - Blocks-Release: {item_gate} from backlog item "
+        f"{from_backlog} (graduation handoff: the gate travels with the work)\n"
+    )
+    return updated_text
+
+
 def apply_status_change(
     rec: ArtifactRecord,
     target_status: str,
@@ -1282,42 +1324,17 @@ def apply_status_change(
         tmp_text = _releases.set_from_backlog_line(tmp_text, fb)
         new_lines = tmp_text.splitlines()
 
-        # nobugship di08i9 E-03: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION, so the handoff
-        # obligation stops depending on prose. `AGENTS.md` already instructs an agent graduating an
-        # item to inherit its `- Blocks-Release:`, and that instruction was measurably not followed:
-        # every graduated gateless bug had a `From-Backlog` carrier and NONE of the carriers carried a
-        # gate. Writing it here makes the one route a setter OWNS carry it by construction.
-        #
-        # WHAT THIS DOES NOT CLOSE, stated as the deliverable rather than buried as a caveat: this
-        # covers `aw ipd set --from-backlog` ONLY. The dominant historical route is HAND AUTHORING
-        # (12 of 13 existing carriers carry the field in the file's FIRST commit), `aw ipd scaffold`
-        # has no `--from-backlog` flag at all, and `aw specs set` does not either, so a spec-first
-        # graduation has no setter route. This strictly reduces FUTURE mismatch on one route; the
-        # historical population and the uncovered routes belong to child 03's checker + backfill.
-        #
-        # IT IS A WRITE, NEVER A REFUSAL. Refusing `--from-backlog` when the gate cannot be applied
-        # would break a link the author is legitimately recording, and `check.from-backlog-gate-
-        # mismatch` already ships at ERROR to catch a mismatch afterwards. An EXPLICIT
-        # `--blocks-release` in the same call wins, and an existing gate on the artifact is never
-        # overwritten (that would silently discard a decision a plan made for its own reasons; a plan
-        # may legitimately gate a release its originating item never knew about).
-        if fb != "-" and getattr(args, "blocks_release", None) is None:
-            from agent_workflows import backlog as _backlog
-
-            _carrier_m = re.search(
-                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", "\n".join(new_lines)
-            )
-            if _carrier_m is None:
-                _item_gate = _backlog.blocks_release_of_item(repo_root, fb)
-                if _item_gate:
-                    tmp_text = _releases.set_blocks_release_line(
-                        "\n".join(new_lines), _item_gate
-                    )
-                    new_lines = tmp_text.splitlines()
-                    sys.stdout.write(
-                        f"aw set: inherited - Blocks-Release: {_item_gate} from backlog item "
-                        f"{fb} (graduation handoff: the gate travels with the work)\n"
-                    )
+        # nobugship di08i9 E-03 / c6f6sj E-02: INHERIT THE ITEM'S RELEASE GATE AT GRADUATION.
+        # Collapsed to shared inherit_from_backlog_release_gate.
+        tmp_text = "\n".join(new_lines)
+        tmp_text = inherit_from_backlog_release_gate(
+            tmp_text,
+            repo_root,
+            fb,
+            getattr(args, "blocks_release", None),
+            verb_label="aw set",
+        )
+        new_lines = tmp_text.splitlines()
 
     # From-Spec write (IPD 0ykozn E-02): the same hoisted, status-branch-independent shape as the
     # Blocks-Release and From-Backlog writes above, so `aw ipd set --from-spec <id6|->` persists even

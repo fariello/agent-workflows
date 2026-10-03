@@ -39,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one self-commit helper
 
-- [ ] E-01 Collapse `specs._offer_specs_set_commit` into `status_set._offer_self_commit`, so one function serves both spellings. Give the surviving function the label it already takes (`scoped_type_canonical`, which it already turns into `chore(<label>): set status <status>`), and have `specs.run_set` call it with the canonical type `specs`, which reproduces its current message `chore(specs): set status <new_status>` EXACTLY. The surviving function STAYS in `status_set` (spec `wy9aru` 4.1 names it the canonical engine) and `specs.run_set` reaches it through a FUNCTION-LOCAL import, exactly as it already imports `status_set.same_status_message_is_duplicate`; a module-level import would add a cycle, since `status_set` already imports `specs` lazily. Pass `specs.run_set`'s existing `touched_paths` (`[src_rel, dest_rel]` when the transition moves the file, `[src_rel]` otherwise) unchanged: a status change normally RELOCATES a spec between lifecycle directories, so both halves of the rename must reach the commit.
+- [x] E-01 Collapse `specs._offer_specs_set_commit` into `status_set._offer_self_commit`, so one function serves both spellings. Give the surviving function the label it already takes (`scoped_type_canonical`, which it already turns into `chore(<label>): set status <status>`), and have `specs.run_set` call it with the canonical type `specs`, which reproduces its current message `chore(specs): set status <new_status>` EXACTLY. The surviving function STAYS in `status_set` (spec `wy9aru` 4.1 names it the canonical engine) and `specs.run_set` reaches it through a FUNCTION-LOCAL import, exactly as it already imports `status_set.same_status_message_is_duplicate`; a module-level import would add a cycle, since `status_set` already imports `specs` lazily. Pass `specs.run_set`'s existing `touched_paths` (`[src_rel, dest_rel]` when the transition moves the file, `[src_rel]` otherwise) unchanged: a status change normally RELOCATES a spec between lifecycle directories, so both halves of the rename must reach the commit.
 
     PRESERVE THREE BEHAVIORS THAT LOOK INCIDENTAL AND ARE NOT. FIRST, the `_git(["reset","--quiet","HEAD","--",*paths])` call before `offer_commit` must stay, and must stay SCOPED TO THE VERB'S OWN PATHS: its comment records it as `jgcm68` D2, and a bare `reset` in a shared checkout would unstage a co-worker's staged work (`AGENTS.md`). SECOND, `on_unrelated_staged="scope"` must stay, for the same reason. Note it is ALSO `offer_commit`'s default, so deleting the keyword would change nothing observable; the risk being guarded is a change to `"refuse"` or to a non-path-scoped commit, which is what E-03's probe exercises. THIRD, the empty-path early return must stay in the surviving function; both copies have it, and `offer_commit` with an empty path list is not the same as not calling it.
 
@@ -48,9 +48,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT "simplify" the `assume_yes` expression while moving it. It reads `--commit` OR (`--yes` AND NOT agent/json), and the agent/json exclusion is deliberate: an agent passing `--yes` to clear a confirmation gate must not thereby be taken to have authorized a commit. Both copies carry it identically; preserve it character for character.
   - Depends on: none
   - Expected outcome: `agent_workflows/specs.py` no longer defines `_offer_specs_set_commit`; `specs.run_set` calls the shared helper; `aw specs set <path> --status <s>` with `--commit` produces a commit whose message is byte-identical to today's (`chore(specs): set status <s>`), containing exactly the spec's own change (a single rename from the old lifecycle directory to the new one when the transition relocates it) and nothing else; the same call with `--no-commit` commits nothing; an unrelated staged path is never folded in.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Correct the misattributed output prefix in the `From-Backlog` inheritance notice, THEN collapse the duplicated block. Today both copies print `aw set: inherited - Blocks-Release: <gate> from backlog item <id6> (graduation handoff: the gate travels with the work)`. The copy inside `specs.run_set` is reached ONLY by `aw specs set <path> --status ...`, so it tells the user a verb they did not type.
+- [x] E-02 Correct the misattributed output prefix in the `From-Backlog` inheritance notice, THEN collapse the duplicated block. Today both copies print `aw set: inherited - Blocks-Release: <gate> from backlog item <id6> (graduation handoff: the gate travels with the work)`. The copy inside `specs.run_set` is reached ONLY by `aw specs set <path> --status ...`, so it tells the user a verb they did not type.
 
     THIS IS THE FINDING THAT JUSTIFIES THE WHOLE SET AND IT MUST BE RECORDED, NOT JUST FIXED. The drift is the predicted consequence of duplication, observed in the wild: one copy was edited (or authored) without the other, and the surviving string names the wrong verb. Cite it in the commit message as the measured instance.
 
@@ -63,36 +63,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     SHAPE OF THE SHARED HELPER, so the executor does not invent it. Host it in `status_set` beside `apply_status_change` (same reason and same function-local import from `specs` as E-01). Make it TEXT IN, TEXT OUT: it takes the artifact text, the repo root, the `--from-backlog` value, the explicit `--blocks-release` value (or `None`), and the verb label, and returns the possibly-updated text, printing the notice itself. `status_set` currently holds `new_lines` (a list) and joins/splits around the block; keep that conversion at ITS call site. Keep the `fb != "-"` and explicit-`--blocks-release` guards INSIDE the helper so neither caller can drift on them. Do NOT move the unresolvable-id REFUSAL into it: that refusal runs BEFORE the From-Backlog write in both callers, differs deliberately in shape (`raise ValueError` in `apply_status_change`, exit 2 with an `aw specs set:` message in `specs.run_set`), and is `izh17y` E-03/E-04's, not this plan's.
   - Depends on: none
   - Expected outcome: one implementation of the inheritance block, called from both sites; `aw specs set <path> --status implementing --from-backlog <id6>` on a gated item prints a notice prefixed `aw specs set:` and writes the inherited `- Blocks-Release:`; the positional spelling still prints `aw set:`; in both, an explicit `--blocks-release` wins, an existing gate is untouched, and a resolvable item that carries NO gate does not fail the call; an UNRESOLVABLE id is still refused exactly as today.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: fence both dedups with outcome tests
 
-- [ ] E-03 Author `tests/test_set_dispatch_dedup.py` covering the SELF-COMMIT behavior through BOTH spellings. Every test DRIVES a CLI surface and asserts on the resulting git state; none may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). The point of this file is to prove ONE implementation by proving IDENTICAL OBSERVABLE BEHAVIOR, which is the only proof P16 permits.
+- [x] E-03 Author `tests/test_set_dispatch_dedup.py` covering the SELF-COMMIT behavior through BOTH spellings. Every test DRIVES a CLI surface and asserts on the resulting git state; none may read production source with `inspect`/`ast`/regex, count callers, or assert docstring text (`AGENTS.md`, GUIDING_PRINCIPLES P16, spec `wy9aru` S1). The point of this file is to prove ONE implementation by proving IDENTICAL OBSERVABLE BEHAVIOR, which is the only proof P16 permits.
 
     Cover, each as a named test: (a) `aw specs set <path> --status <s> --commit` produces exactly one commit whose message is `chore(specs): set status <s>` and whose content is exactly the spec's own change (assert on `git log -1 --format=%s` and `git show --name-status --format= HEAD`; a `draft -> to-review` transition RELOCATES the file, so expect exactly one `R` entry from `.../specs/draft/<name>` to `.../specs/to-review/<name>` and nothing else); (b) the POSITIONAL spelling (`aw specs set --dir <root> <s> <id6> --commit`, on a FRESH fixture, selecting by id6) produces the same message and the same single-rename content; (c) with an UNRELATED staged file present, neither spelling folds it into the commit, and the unrelated staging survives the call (this is the `on_unrelated_staged="scope"` property, and it is the one with real consequences in a shared checkout); (d) `--no-commit` commits nothing on both spellings; (e) `--yes` WITHOUT `--commit` and WITH `--agent` commits nothing on both spellings (the deliberate agent/json exclusion in `assume_yes`). Use legal transitions only (`draft -> to-review` is legal and gate-free; `-> reviewed` needs a review record and `-> approved` needs `--by-human`), and build each fixture as a fresh committed git repository (the `_setup_test_repo` shape in `tests/test_releases_line_writers.py` is a working model).
 
     Test (e) is the one a careless refactor of E-01 would break silently, so do not drop it as redundant: `--yes` is routinely passed by automation to clear the confirmation gate, and the distinction between that and commit authorization is the whole reason the expression is shaped as it is.
   - Depends on: E-01
   - Expected outcome: a new test module whose five named self-commit cases pass after E-01; case (c) demonstrably fails if `on_unrelated_staged="scope"` is changed to `"refuse"` (merely deleting the keyword is NOT a valid probe, because `"scope"` is the default) and case (e) if the agent/json exclusion is dropped (demonstrate both with a throwaway probe, then revert it and show `git status --porcelain` clean).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Extend `tests/test_set_dispatch_dedup.py` with the `From-Backlog` INHERITANCE cases, through both spellings. Cover: (a) the `--status` spelling on a gated backlog item inherits the gate AND prints a notice prefixed `aw specs set:` (assert the prefix positively by name, so the corrected attribution is pinned and cannot silently revert to `aw set:`); (b) the positional spelling inherits the gate and prints `aw set:`; (c) an explicit `--blocks-release` in the same call WINS over inheritance on both spellings; (d) an artifact that ALREADY carries a `- Blocks-Release:` keeps its own value on both spellings; (e) `--from-backlog` naming an item that RESOLVES but carries NO `- Blocks-Release:` does NOT fail the call and does NOT write a gate (the write-never-refuse property).
+- [x] E-04 Extend `tests/test_set_dispatch_dedup.py` with the `From-Backlog` INHERITANCE cases, through both spellings. Cover: (a) the `--status` spelling on a gated backlog item inherits the gate AND prints a notice prefixed `aw specs set:` (assert the prefix positively by name, so the corrected attribution is pinned and cannot silently revert to `aw set:`); (b) the positional spelling inherits the gate and prints `aw set:`; (c) an explicit `--blocks-release` in the same call WINS over inheritance on both spellings; (d) an artifact that ALREADY carries a `- Blocks-Release:` keeps its own value on both spellings; (e) `--from-backlog` naming an item that RESOLVES but carries NO `- Blocks-Release:` does NOT fail the call and does NOT write a gate (the write-never-refuse property).
 
     Case (e) must assert the EXIT CODE is 0, the status change still happened, and the `From-Backlog` line was written, because the tempting wrong fix is to refuse. `status_set`'s comment records why refusing is wrong: it would break a link the author is legitimately recording, and the at-rest checker already catches the mismatch. DO NOT use an UNRESOLVABLE id for case (e): both spellings DELIBERATELY refuse one (`izh17y` E-03/E-04: exit nonzero, file byte-identical), that refusal is already pinned by `tests/test_releases_line_writers.py`'s `test_cli_ipd_set_refuse_unresolvable_backlog_id` and `test_cli_specs_set_refuse_unresolvable_backlog_id`, and "fixing" it to exit 0 would regress a shipped guard. For case (c) pass `--blocks-release -` (explicit clear): it needs no second release record and proves the explicit value won because no gate is inherited.
 
     ALSO UPDATE THE ONE EXISTING ASSERTION THE PREFIX CORRECTION BREAKS: `tests/test_releases_line_writers.py` `TestCliSpecsSetFromBacklog.test_cli_specs_set_resolvable_backlog_id_writes_and_inherits_gate` asserts `"aw set: inherited - Blocks-Release: relaaa"` on the `--status` path and must now assert `"aw specs set: inherited - Blocks-Release: relaaa"`. Change ONLY that string; the positional twin `TestCliIpdSetFromBacklog.test_cli_ipd_set_resolvable_backlog_id_writes_and_inherits_gate` keeps `aw set:` and must stay untouched.
   - Depends on: E-02
   - Expected outcome: five further named cases passing after E-02, with the `aw specs set:` prefix asserted by name in (a) and `aw set:` in (b), so a future regression that re-unifies the prefix to the wrong verb fails here; the one existing `tests/test_releases_line_writers.py` assertion updated to `aw specs set:` and passing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: record the change
 
-- [ ] E-05 Add ONE `CHANGELOG.md` entry under the TOPMOST pending-release heading (today `## 2.0.0 (pending)`; the file carries more than one `(pending)` heading, so re-read it and use the first), as a `- Fixed:` bullet matching that section's voice, recording the only USER-VISIBLE effect, which is that the message `aw specs set --status --from-backlog` prints when it inherits a release gate now names `aw specs set` instead of `aw set`.
+- [x] E-05 Add ONE `CHANGELOG.md` entry under the TOPMOST pending-release heading (today `## 2.0.0 (pending)`; the file carries more than one `(pending)` heading, so re-read it and use the first), as a `- Fixed:` bullet matching that section's voice, recording the only USER-VISIBLE effect, which is that the message `aw specs set --status --from-backlog` prints when it inherits a release gate now names `aw specs set` instead of `aw set`.
 
     CONSTRAINTS ON THE WORDING. Describe only that effect. Name no private helper. Write no em or en dashes (user-facing prose, `AGENTS.md`). Do NOT describe the two deduplications: they are invisible to a user, and an internal refactor in a changelog teaches a reader to expect a behavior change that did not occur.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: one entry in the file's established voice naming the corrected message attribution and nothing else, containing no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -133,7 +133,7 @@ Every finding was established at HEAD `ec857565a` by reading the two function pa
 - THE POSITIONAL SPELLING'S `aw set:` PREFIX IS NOT MADE PER-VERB. E-02 corrects the `aw specs set --status` copy to name its own verb, but leaves the positional spelling printing `aw set:` even when the user typed `aw backlog set` or `aw ipd set`. That is a wider question (one engine serves four verbs, and every message it emits would have to take the invoked verb's name), it affects messages this plan does not touch, and conflating it with a two-line attribution fix would make the fix unreviewable.
   - Carrier-Declined: deliberately not filed; the positional engine's prefix is CONSISTENT today (always `aw set:`) and so is merely terse rather than wrong, unlike the specs copy which names a different verb than the one that ran. Recorded in F-02 so a later author can take it up on its merits.
 - EVERY AXIS SPEC `wy9aru` SECTION 7 ASSIGNS ELSEWHERE is untouched and must be normalized around, not fixed: the UTC-versus-local clock, the history label token, the same-status dedup asymmetry, the sidecar write order, and the dead `apply` read in the dry-run guard.
-  - Carrier: wy9aru
+  - Carrier: 63zo2f
 - THE TWO MEASURED POSITIONAL GATE BYPASSES ARE NOT FIXED HERE. They are child 03's whole subject and each has its own release-gated carrier.
   - Carrier: m1jlwm
 
@@ -175,26 +175,169 @@ user-visible effect (the corrected message prefix) is recorded in `CHANGELOG.md`
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted `git log -1 --format=%s` and `git show --stat --name-only HEAD` from a scratch repository after `aw specs set <path> --status <s> --commit`, showing the message `chore(specs): set status <s>` and exactly the spec file staged; the same pair after the POSITIONAL spelling showing the same message and path set; pasted output of the same call with `--no-commit` plus `git log --oneline` proving no commit was created; and the answer to OQ-01 stated with the search that produced it.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    1. `aw specs set <path> --status <s> --commit`:
+    ```
+    git log -1 --format=%s:
+    chore(specs): set status to-review
+    git show --stat --name-only HEAD:
+    commit d91475a5464be78e7d134700d5de554be877c1c8
+    Author: Tester <tester@example.com>
+    Date:   Sat Oct 3 07:15:37 2026 -0400
+
+        chore(specs): set status to-review
+
+    .aw/records/specs/to-review/20260930-spc001-01-spc001-test-spec.spec.md
+    ```
+
+    2. Positional spelling `aw specs set --dir <root> <s> <id6> --commit`:
+    ```
+    git log -1 --format=%s:
+    chore(specs): set status to-review
+    git show --stat --name-only HEAD:
+    commit 7eb1f91c18fc19cc84ca36fdecd021b30b0fcb70
+    Author: Tester <tester@example.com>
+    Date:   Sat Oct 3 07:15:38 2026 -0400
+
+        chore(specs): set status to-review
+
+    .aw/records/specs/to-review/20260930-spc001-01-spc001-test-spec.spec.md
+    ```
+
+    3. Call with `--no-commit`:
+    ```
+    call output:
+    aw specs set: /tmp/tmplntvo_2j/.aw/records/specs/to-review/20260930-spc001-01-spc001-test-spec.spec.md -> to-review
+    git log --oneline:
+    2870dbc init repo
+    ```
+
+    4. OQ-01 search:
+    ```
+    grep -rn "builtins.print" tests/ -> 0 matches
+    grep -rn "stdout.write" tests/ -> only test subprocess write scripts, no test mocks/patches stdout.write
+    ```
+    Answer: No test asserts self-commit human output by patching print or sys.stdout.write.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted stdout of `aw specs set <path> --status implementing --from-backlog <id6>` on a gated item showing a notice prefixed exactly `aw specs set:` and the resulting `- Blocks-Release:` line read back from the file; pasted stdout of the positional spelling showing `aw set:`; pasted evidence for all three preserved semantics (an explicit `--blocks-release` winning, an existing gate surviving untouched, and a RESOLVABLE but UNGATED `--from-backlog` item exiting 0 with the status changed, `- From-Backlog:` written, and no gate written); plus pasted output showing an UNRESOLVABLE id is still refused on both spellings (nonzero exit, file unchanged).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    1. `--status` spelling on gated item:
+    ```
+    stdout:
+    aw specs set: inherited - Blocks-Release: relaaa from backlog item bkl001 (graduation handoff: the gate travels with the work)
+    aw specs set: /tmp/tmpymwvuarv/.aw/records/specs/draft/20260930-spc001-01-spc001-test-spec.spec.md -> draft
+    read back gate line: - Blocks-Release: relaaa
+    ```
+
+    2. Positional spelling on gated item:
+    ```
+    stdout:
+    aw set: inherited - Blocks-Release: relaaa from backlog item bkl001 (graduation handoff: the gate travels with the work)
+    -    spec        20260930-spc001-01-spc001  unchanged
+    read back gate line: - Blocks-Release: relaaa
+    ```
+
+    3. Explicit `--blocks-release -` wins:
+    ```
+    exit: 0
+    stdout: aw specs set: /tmp/tmpp86p8cd0/.aw/records/specs/draft/20260930-spc001-01-spc001-test-spec.spec.md -> draft
+    has - Blocks-Release: line in file: False
+    ```
+
+    4. Existing gate survives untouched:
+    ```
+    exit: 0
+    stdout: aw specs set: /tmp/tmp830am9xs/.aw/records/specs/draft/20260930-spcgtd-01-spcgtd-gated-spec.spec.md -> draft
+    read back gate line (preserved): - Blocks-Release: relorig
+    ```
+
+    5. Resolvable ungated item:
+    ```
+    exit: 0
+    stdout: aw specs set: /tmp/tmptr8h6gh2/.aw/records/specs/draft/20260930-spc001-01-spc001-test-spec.spec.md -> draft
+    line in file: - From-Backlog: bklung
+    ```
+    (- Blocks-Release: absent)
+
+    6. Unresolvable id refusal:
+    ```
+    --status exit: 2 file identical: True
+    --status stderr: aw specs set: unresolvable backlog id 'nosuch' (does not resolve to an existing backlog item)
+    positional exit: 2 file identical: True
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `python3 -m pytest tests/test_set_dispatch_dedup.py -o addopts=""` output naming all five self-commit cases as passed; plus the throwaway-probe demonstration for cases (c) and (e), each showing the FAILURE output with the property removed (for (c): `on_unrelated_staged` flipped to `"refuse"`) and `git status --porcelain` empty after reverting the probe.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    1. Five self-commit cases passing:
+    ```
+    tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_unrelated_staged_file_preserved PASSED
+    tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_yes_agent_does_not_commit PASSED
+    tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_specs_set_status_creates_single_rename_commit PASSED
+    tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_specs_set_positional_creates_single_rename_commit PASSED
+    tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_no_commit_commits_nothing PASSED
+    ```
+
+    2. Throwaway probe 1 failure (case c with on_unrelated_staged="refuse"):
+    ```
+    FAILED tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_unrelated_staged_file_preserved
+    AssertionError: 'init repo' != 'chore(specs): set status to-review'
+    - init repo
+    + chore(specs): set status to-review
+    ```
+    Reverted and verified `git status --porcelain` clean on agent_workflows/status_set.py.
+
+    3. Throwaway probe 2 failure (case e with agent/json exclusion dropped):
+    ```
+    FAILED tests/test_set_dispatch_dedup.py::TestSelfCommitDedup::test_self_commit_yes_agent_does_not_commit
+    AssertionError: '711458d87c2947314372f6457c20d675b73e955b' != '809b7b41688328f9d9e4dc26b1a6333cc4ac054b'
+    ```
+    Reverted and verified `git status --porcelain` clean on agent_workflows/status_set.py.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted `python3 -m pytest tests/test_set_dispatch_dedup.py -o addopts=""` output naming all five inheritance cases as passed, including the two cases asserting the prefix strings `aw specs set:` and `aw set:` by name, and case (e) asserting exit code 0 with no gate written for a resolvable ungated item; plus pasted `python3 -m pytest tests/test_releases_line_writers.py -o addopts=""` output passing with the updated `aw specs set:` assertion.
   - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+    1. Five inheritance cases passing:
+    ```
+    tests/test_set_dispatch_dedup.py::TestFromBacklogInheritanceDedup::test_inheritance_specs_set_status_notice_prefix PASSED
+    tests/test_set_dispatch_dedup.py::TestFromBacklogInheritanceDedup::test_inheritance_specs_set_positional_notice_prefix PASSED
+    tests/test_set_dispatch_dedup.py::TestFromBacklogInheritanceDedup::test_inheritance_existing_gate_preserved PASSED
+    tests/test_set_dispatch_dedup.py::TestFromBacklogInheritanceDedup::test_inheritance_explicit_blocks_release_wins PASSED
+    tests/test_set_dispatch_dedup.py::TestFromBacklogInheritanceDedup::test_inheritance_resolvable_ungated_backlog_item PASSED
+    ```
+    Cases (a) and (b) assert prefixes `aw specs set:` and `aw set:` positively by name; case (e) asserts exit code 0 and no gate written.
+
+    2. `test_releases_line_writers.py` passing with updated `aw specs set:` assertion:
+    ```
+    tests/test_releases_line_writers.py::TestCliSpecsSetFromBacklog::test_cli_specs_set_resolvable_backlog_id_writes_and_inherits_gate PASSED
+    ============================= 23 passed in 15.46s ==============================
+    ```
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted diff of the `CHANGELOG.md` hunk; a grep over it for em and en dashes returning nothing; and a statement that it describes ONLY the corrected message attribution, with the two deduplications absent from it.
   - Observed evidence:
-  - Result: pending
+    1. Diff of CHANGELOG.md hunk:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index f47707e3e..7177f3cd1 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+     Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Fixed: corrected the message prefix printed by aw specs set --status when inheriting a release gate from a backlog item, so it attributes the notice to aw specs set rather than aw set.
+     - Fixed: unified artifact workflow history dates onto the UTC clock across all history writers per spec 2vev8j Section 4.4, while human-facing artifact filename date prefixes deliberately remain on the local machine clock per DECISIONS.md D55.
+     - Added: status setters (aw backlog set, aw specs set, and aw set) gain an opt-in --rewrite-citations flag (default off) to rewrite citing Scope-Paths in pending plans when relocating records, guarded by a fail-closed check that skips in-flight plans with live begin receipts (D159).
+    ```
+
+    2. Grep for em and en dashes over diff returned nothing ("No em or en dashes found.").
+
+    3. Statement: The entry describes ONLY the corrected message attribution (`aw specs set --status` attributing to `aw specs set` instead of `aw set`), and mentions neither of the two internal helper deduplications.
+  - Result: pass
 
 ## Approval and execution gate
 
