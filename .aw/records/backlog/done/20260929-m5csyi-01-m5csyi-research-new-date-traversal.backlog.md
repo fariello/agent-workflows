@@ -1,5 +1,5 @@
 - Id: m5csyi
-- Status: graduated
+- Status: done
 - Graduated-To: m5csyi
 - Blocks-Release: next
 - Set: m5csyi
@@ -8,6 +8,7 @@
 - Summary: aw research new interpolates an unvalidated --date into the derived filename, so a traversal in it writes a record outside the records tree; prompts new already refuses this and specs is fixed under qbz8i1
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD iumgvk executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-m5csyi-01-iumgvk-validate-the-research-date-against-the-grammar-it-fills-so-a.ipd.md); evidence .aw/records/plans/executed/20261001-m5csyi-01-iumgvk-validate-the-research-date-against-the-grammar-it-fills-so-a.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: iumgvk
 - 2026-09-29 created (aw backlog): aw research new interpolates an unvalidated --date into the derived filename, so a traversal in it writes a record outside the records tree; prompts new already refuses this and specs is fixed under qbz8i1
 
