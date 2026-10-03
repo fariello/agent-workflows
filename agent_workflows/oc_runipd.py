@@ -78,6 +78,7 @@ from agent_workflows import runner_profiles
 # seam in `run_opencode` only; when no `execution_profile` is requested the default launch
 # is byte-for-byte unchanged and nothing in this module is invoked.
 from agent_workflows.host_sandbox_profile import (
+    HostSandboxCapabilities,
     SandboxProfileError,
     build_sandbox_plan,
     detect_host_capabilities,
@@ -2325,7 +2326,25 @@ def _apply_execution_profile(
     """
     options = state.get("options", {})
     requested = options.get("execution_profile")
-    capabilities = detect_host_capabilities("opencode")
+    req_norm = (requested or "default").strip().lower()
+    if req_norm in ("", "default"):
+        select_execution_profile(requested, HostSandboxCapabilities())
+        return argv
+
+    # Hardened or unknown profile requested (bqtgmo E-06). Capabilities are rehydrated
+    # from the run-scoped frozen descriptor (self-healing if absent). Fails closed
+    # with an all-False descriptor on rehydration error, raising HardModeUnavailableError.
+    try:
+        from agent_workflows import runner_shared
+
+        capabilities = runner_shared.ensure_frozen_host_capabilities(
+            state,
+            "opencode",
+            detect_host_fn=detect_host_capabilities,
+        )
+    except Exception:
+        capabilities = HostSandboxCapabilities()
+
     # Raises rather than returning "default" when hardened is unavailable.
     profile = select_execution_profile(requested, capabilities)
     if profile != "hardened":

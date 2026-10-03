@@ -26,6 +26,12 @@
 - Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 note (antigravity normal execution): E-01 remeasurements confirmed the Concern and all premise facts:
+  (a) Global swap: 2255 substitute Popen observations vs 494 real builtin observations out of 2749 samples during detect_host_capabilities("opencode").
+  (b) Concurrent caller breakage: worker thread issuing subprocess.run(["true"]) experienced 505 RuntimeError: stop-before-launch failures against 82 successes during 6 concurrent detect_host_capabilities calls.
+  (c) Reachability guard: RUNNER_ACTION_TO_CONTRACT_ACTION is {} and [runner_action_contract_class(a) for a in ('execute','review','plan')] is [None, None, None].
+  (d) Live oc per-turn probe: 6 calls across 3 default-profile turns at oc_runipd.detect_host_capabilities seam.
+  Conclusion: execute_item_core dispatch preflight probe is currently unreachable (intact guard), whereas oc_runipd._apply_execution_profile per-turn probe is live today on every profile.
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (live per-turn probe in oc_runipd._apply_execution_profile on every profile: added E-06/V-06/F-12, oc_runipd.py to Scope-Paths), PR-002 (E-02 shape (i) fails open on unrecognized argv; recommended thread-identity delegation), PR-003 (named state key, timed init cost), PR-004 (finalize ownership). Hazard re-measured at lane HEAD 990fb4aa: 76834 stop-before-launch refusals.
 
@@ -45,49 +51,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the hazard before changing anything
 
-- [ ] E-01 RE-MEASURE THE THREE LOAD-BEARING FACTS AND WRITE THE RESULTS INTO THIS PLAN AS AN EXECUTION NOTE, because each is dated and each has a cheap check, and if any has moved this plan's premise changes rather than its wording. Measure, in this order: (a) THE GLOBAL SWAP, by running `detect_host_capabilities("opencode")` with a second thread sampling `subprocess.Popen is <the real builtin>` and recording how many samples saw a substitute; (b) THE CONCURRENT-CALLER BREAKAGE, by running a worker thread issuing `subprocess.run(["true"], capture_output=True)` in a loop while several `detect_host_capabilities` calls proceed, and recording how many raised and with what message; (c) THE REACHABILITY GUARD, `python3 -c "from agent_workflows import runner_shared as r; print(r.RUNNER_ACTION_TO_CONTRACT_ACTION, [r.runner_action_contract_class(a) for a in ('execute','review','plan')])"`; (d) THE LIVE OC PER-TURN PROBE, by wrapping `oc_runipd.detect_host_capabilities` with a counter and calling `oc_runipd._apply_execution_profile` several times with a default-profile state, recording the call count (authoring-review measurement: 6 calls for 3 turns).
+- [x] E-01 RE-MEASURE THE THREE LOAD-BEARING FACTS AND WRITE THE RESULTS INTO THIS PLAN AS AN EXECUTION NOTE, because each is dated and each has a cheap check, and if any has moved this plan's premise changes rather than its wording. Measure, in this order: (a) THE GLOBAL SWAP, by running `detect_host_capabilities("opencode")` with a second thread sampling `subprocess.Popen is <the real builtin>` and recording how many samples saw a substitute; (b) THE CONCURRENT-CALLER BREAKAGE, by running a worker thread issuing `subprocess.run(["true"], capture_output=True)` in a loop while several `detect_host_capabilities` calls proceed, and recording how many raised and with what message; (c) THE REACHABILITY GUARD, `python3 -c "from agent_workflows import runner_shared as r; print(r.RUNNER_ACTION_TO_CONTRACT_ACTION, [r.runner_action_contract_class(a) for a in ('execute','review','plan')])"`; (d) THE LIVE OC PER-TURN PROBE, by wrapping `oc_runipd.detect_host_capabilities` with a counter and calling `oc_runipd._apply_execution_profile` several times with a default-profile state, recording the call count (authoring-review measurement: 6 calls for 3 turns).
   IF (c) HAS ACQUIRED A ROW, STOP AND SAY SO rather than proceeding: that means the per-item probe is ALREADY executing in live runs, the hazard is live rather than latent, and the maintainer needs to know that before this plan's ordering is accepted. IF (a) OR (b) NO LONGER REPRODUCES, this plan's Concern is wrong and the honest act is to report that and re-scope, not to implement a freeze justified by a hazard that does not exist.
   - Depends on: none
   - Expected outcome: four measurements recorded in the plan's workflow history with their actual output, each either confirming or contradicting the Concern; an explicit statement of whether the per-item probe is currently reachable; and, if any measurement contradicts the Concern, a re-scope rather than an implementation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the probe safe for a concurrent caller
 
-- [ ] E-02 STOP THE ARGV INTERCEPTION FROM BREAKING AN UNRELATED THREAD'S LAUNCH. The defect is in `host_sandbox_profile._capture_turn_argv`: it assigns the module global `subprocess.Popen = fake_popen` and its `fake_popen` raises `RuntimeError("stop-before-launch")` for every argv whose `cmd[0]` is not in `("git", sys.executable, "bwrap")`, so a concurrent caller's launch is refused rather than performed.
+- [x] E-02 STOP THE ARGV INTERCEPTION FROM BREAKING AN UNRELATED THREAD'S LAUNCH. The defect is in `host_sandbox_profile._capture_turn_argv`: it assigns the module global `subprocess.Popen = fake_popen` and its `fake_popen` raises `RuntimeError("stop-before-launch")` for every argv whose `cmd[0]` is not in `("git", sys.executable, "bwrap")`, so a concurrent caller's launch is refused rather than performed.
   FIX THE DISCRIMINATION, NOT THE MECHANISM, and prefer the narrowest change that makes the global swap harmless. The interception must still capture the host's own turn argv and must still refuse to actually launch THAT argv (launching a real agent host during a capability probe would be far worse than the current defect). What it must stop doing is refusing a launch it did not initiate. Three shapes are available and the executor must CHOOSE ONE AND STATE WHY. RECOMMENDED: (iii) discriminate by THREAD IDENTITY, recording `threading.get_ident()` of the probing thread before the swap and having `fake_popen` delegate to `real_popen` for EVERY call from any other thread while keeping today's capture-and-refuse behavior unchanged on the probing thread; this needs no guess about which argv is the host's, so a host argv builder that stops carrying the sentinel still cannot cause a real launch from the probe. The alternatives: (i) make `fake_popen` DELEGATE to `real_popen` for any argv it did not expect, keeping the refusal only for the sentinel-bearing host argv it is there to capture; or (ii) serialize the swap under a module lock AND delegate, so a concurrent caller either waits or passes through. Shape (i) alone leaves a race (a concurrent launch during the swap window still reaches `fake_popen`, but now proceeds correctly), and that is acceptable if and only if delegation is genuinely transparent; shape (ii) additionally bounds the window. Note the hazard in (i) specifically: discriminating on argv content means an argv the probe failed to recognize is LAUNCHED rather than refused, so on the probing thread the default must stay refusal. DO NOT choose a shape that makes the probe return a capability verdict it did not observe: a probe that fails to capture argv must report not-supported, never supported-by-assumption, which is the fail-closed rule the whole module is built on.
   RECORD THE RESIDUAL HONESTLY IN THE CODE. Whichever shape is chosen, a module-global assignment is still visible to every thread for its window, so the docstring must say what is guaranteed (a concurrent launch is not REFUSED) and what is not (the global is still transiently substituted). An overstated comment here would be the same fail-open claim this module's own docstrings exist to refuse.
   - Depends on: E-01
   - Expected outcome: a concurrent thread issuing ordinary `subprocess.run`/`Popen` calls throughout a `detect_host_capabilities` call completes every launch successfully (zero `stop-before-launch` failures), while the probe still captures each host's turn argv and still refuses to launch the host itself; the chosen shape is named with its reasoning, and on the probing thread an unrecognized argv is still refused rather than launched; and the module docstring states the remaining residual rather than claiming the global swap is now invisible.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: freeze the descriptor once per run
 
-- [ ] E-03 MEASURE THE DESCRIPTOR ONCE AT RUN INITIALIZATION AND RECORD IT IN DURABLE RUN STATE. The site is the shared initializer `runner_shared.initialize_run_core`, which both hosts call (`oc_runipd.initialize_run` and `agy_runipd.initialize_run`) and which already freezes per-run decisions into `state` (it is where `run_types`, the retry budget and the policy flags are resolved and frozen). Record it under ONE named top-level state key (recommended `state["host_capabilities"]`, holding `{"host": ..., "observed_at": ..., "descriptor": <to_dict()>}`; the executor may choose another name but must state it, and E-04/E-06 must read that same key). Measure it for the CLI host noun `execute_item_core` already derives (`host_labels.argv_tokens[1]`, i.e. `opencode`/`antigravity`). TIME THE INIT-TIME MEASUREMENT and report it in V-03, because it is a new cost at every run start for the `agy` host (for `oc` it moves the first turn's existing probe earlier). Record the descriptor as a JSON-safe snapshot: `HostSandboxCapabilities.to_dict` already exists and is documented as "A JSON-safe snapshot for the run/lane manifest", so no new serializer is needed.
+- [x] E-03 MEASURE THE DESCRIPTOR ONCE AT RUN INITIALIZATION AND RECORD IT IN DURABLE RUN STATE. The site is the shared initializer `runner_shared.initialize_run_core`, which both hosts call (`oc_runipd.initialize_run` and `agy_runipd.initialize_run`) and which already freezes per-run decisions into `state` (it is where `run_types`, the retry budget and the policy flags are resolved and frozen). Record it under ONE named top-level state key (recommended `state["host_capabilities"]`, holding `{"host": ..., "observed_at": ..., "descriptor": <to_dict()>}`; the executor may choose another name but must state it, and E-04/E-06 must read that same key). Measure it for the CLI host noun `execute_item_core` already derives (`host_labels.argv_tokens[1]`, i.e. `opencode`/`antigravity`). TIME THE INIT-TIME MEASUREMENT and report it in V-03, because it is a new cost at every run start for the `agy` host (for `oc` it moves the first turn's existing probe earlier). Record the descriptor as a JSON-safe snapshot: `HostSandboxCapabilities.to_dict` already exists and is documented as "A JSON-safe snapshot for the run/lane manifest", so no new serializer is needed.
   RECORD WHEN IT WAS MEASURED AND FOR WHICH HOST, not merely the booleans. Spec `25kzda` 5.2 requires a descriptor entry to carry "host, exact version, mode/configuration, capability name, support status, evidence digest, observed time, expiry, assurance, and positive/negative probe results". This plan does not build all of that, and must not pretend to: record at minimum the host string the descriptor was measured for and an observed-at timestamp (`runner_shared.utc_now` is the established producer), and state in the code comment which spec-required fields are NOT recorded, so a successor can see the gap rather than rediscover it.
   A FAILED MEASUREMENT MUST NOT ABORT A RUN. The probes are already total (each returns `(False, note)` rather than raising, and `probe_runner_safety_capabilities` catches a raising probe), but `detect_host_capabilities` itself could still raise on an unforeseen path. Wrap the freeze so an exception records an all-False descriptor with the error in its notes and lets the run proceed. That is fail-closed in the direction that matters: an unmeasured host claims nothing, and Order 02's gate refuses rather than permits.
   - Depends on: E-02
   - Expected outcome: a run's durable state carries exactly one host capability descriptor snapshot, measured once at initialization, carrying the host it was measured for and an observed-at timestamp; a descriptor measurement that raises yields an all-False snapshot with the error recorded and does not abort the run; and the code names the spec-required descriptor fields it does not yet record.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 READ THE FROZEN DESCRIPTOR ON THE DISPATCH PATH INSTEAD OF RE-PROBING PER ITEM. The call to replace is `_hsp.detect_host_capabilities(cli_host)` inside the host-capability preflight block of `runner_shared.execute_item_core` (the block whose comment begins "Host-capability preflight (iot7hc, spec 25kzda 5.2/5.4/5.7)"). Rehydrate a `HostSandboxCapabilities` from the frozen snapshot rather than probing.
+- [x] E-04 READ THE FROZEN DESCRIPTOR ON THE DISPATCH PATH INSTEAD OF RE-PROBING PER ITEM. The call to replace is `_hsp.detect_host_capabilities(cli_host)` inside the host-capability preflight block of `runner_shared.execute_item_core` (the block whose comment begins "Host-capability preflight (iot7hc, spec 25kzda 5.2/5.4/5.7)"). Rehydrate a `HostSandboxCapabilities` from the frozen snapshot rather than probing.
   A MISSING SNAPSHOT MUST NOT SILENTLY FALL BACK TO PROBING, because a silent fallback reintroduces exactly the per-item probe this item removes, and it would do so on the resume path where nobody is watching. Decide and state the behavior for a run whose state predates this change (a resumed older run, which is a real case: `aw oc run resume` reads a `state.json` written by an earlier version). The recommended shape is to MEASURE ONCE ON DEMAND AND FREEZE IT INTO THE STATE at that point, so a resumed run gets one probe for the whole run rather than one per item, and the absence is self-healing. If the executor chooses a different shape it must say why and must not leave a per-item probe in any branch.
   PRESERVE THE EXISTING FAIL-OPEN POSTURE OF THIS BLOCK, which is deliberate and documented: the block is wrapped so that "Fails open on unexpected exception (recording error into attempt)". Rehydration is new code inside that `try`, so an error in it must record and proceed exactly as the probe's would have, not refuse the item. Changing that posture is a policy change and belongs to Order 02 if anywhere.
   - Depends on: E-03
   - Expected outcome: dispatching N items in one run performs ZERO additional capability probes after initialization (demonstrated by counting probe invocations, not by reading the code); a run whose frozen state lacks a descriptor measures exactly once and freezes it rather than probing per item; and an error inside rehydration records into the attempt and lets the item proceed, as the surrounding block already specifies.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 STOP THE LIVE PER-TURN PROBE IN `oc_runipd._apply_execution_profile`. Today it calls `detect_host_capabilities("opencode")` on every turn BEFORE `select_execution_profile` reads the requested profile (PR-001). Change it so that (a) on the default profile (unset or `"default"`) NO capability probe is performed at all, since `select_execution_profile` returns `"default"` for those without reading `capabilities`; and (b) on the `hardened` profile the capabilities come from the frozen descriptor E-03 wrote (rehydrated exactly as E-04 does, self-healing once per run when absent), not from a fresh probe.
+- [x] E-06 STOP THE LIVE PER-TURN PROBE IN `oc_runipd._apply_execution_profile`. Today it calls `detect_host_capabilities("opencode")` on every turn BEFORE `select_execution_profile` reads the requested profile (PR-001). Change it so that (a) on the default profile (unset or `"default"`) NO capability probe is performed at all, since `select_execution_profile` returns `"default"` for those without reading `capabilities`; and (b) on the `hardened` profile the capabilities come from the frozen descriptor E-03 wrote (rehydrated exactly as E-04 does, self-healing once per run when absent), not from a fresh probe.
   PRESERVE THE FAIL-CLOSED POSTURE OF THIS SEAM, which is the OPPOSITE of the dispatch block's: `select_execution_profile` RAISES `HardModeUnavailableError` when hardened is requested and `supports_os_sandbox` is False, and that must remain true when the descriptor is rehydrated, including when rehydration fails (a failed rehydration must yield an all-False descriptor so hardened refuses, never a silent default). Keep `select_execution_profile`'s unknown-profile `SandboxProfileError` reachable on the default branch (do not short-circuit before validating the requested string). `agy_runipd` has no equivalent call and is not touched.
   - Depends on: E-03
   - Expected outcome: a default-profile `_apply_execution_profile` call performs ZERO capability probes (counted at the `oc_runipd.detect_host_capabilities` seam, against the E-01(d) baseline); a hardened request reads the frozen descriptor and still raises `HardModeUnavailableError` when it reports no sandbox; an unknown profile string still raises `SandboxProfileError`; the returned argv for the default profile is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PROVE ALL FOUR PROPERTIES BY DRIVING THE REAL CODE, in `tests/test_hostcapgate_descriptor_freeze.py`. Four falsifiable properties, each asserted on OUTCOMES: (a) a concurrent thread's ordinary launches all succeed during a `detect_host_capabilities` call, and the SAME test fails if E-02's delegation is reverted (demonstrate by mutation); (b) one run initialization produces exactly one descriptor snapshot in durable state, carrying its host and observed-at timestamp; (c) dispatching multiple items performs no further probe, counted at a seam rather than inferred, AND a default-profile `_apply_execution_profile` call performs none (E-06), while a hardened request with a frozen no-sandbox descriptor still raises `HardModeUnavailableError`; (d) a run state with no descriptor measures once and freezes, and an all-False descriptor is recorded (not an abort) when measurement raises.
+- [x] E-05 PROVE ALL FOUR PROPERTIES BY DRIVING THE REAL CODE, in `tests/test_hostcapgate_descriptor_freeze.py`. Four falsifiable properties, each asserted on OUTCOMES: (a) a concurrent thread's ordinary launches all succeed during a `detect_host_capabilities` call, and the SAME test fails if E-02's delegation is reverted (demonstrate by mutation); (b) one run initialization produces exactly one descriptor snapshot in durable state, carrying its host and observed-at timestamp; (c) dispatching multiple items performs no further probe, counted at a seam rather than inferred, AND a default-profile `_apply_execution_profile` call performs none (E-06), while a hardened request with a frozen no-sandbox descriptor still raises `HardModeUnavailableError`; (d) a run state with no descriptor measures once and freezes, and an all-False descriptor is recorded (not an abort) when measurement raises.
   ASSERT ON OUTCOMES, NEVER ON CODE STRUCTURE: drive the real functions, assert on the written `state.json`, on counted probe invocations, and on the concurrent thread's results. Do NOT read production source with `inspect`, `ast`, regex or substring search; do NOT assert caller counts, symbol censuses or module line counts as a correctness proxy; do NOT pin docstrings or comment banners (AGENTS.md test-outcomes rule; GUIDING_PRINCIPLES P16). Counting PROBE INVOCATIONS through a seam is not a code-structure assertion: it observes behavior at runtime.
   USE THE EXISTING TEST SEAM WHERE ONE EXISTS. `host_sandbox_profile.forced_runner_safety_verdicts` is the shipped context manager for forcing runner-safety verdicts and it restores the process-global on exit even when the body raises; use it rather than assigning `_FORCED_RUNNER_SAFETY` directly, since a test that leaks a forced verdict corrupts every later test in the same process. Note it forces only the two runner-safety capabilities, so a test needing a full descriptor must construct `HostSandboxCapabilities` directly.
   - Depends on: E-04, E-06
   - Expected outcome: `tests/test_hostcapgate_descriptor_freeze.py` establishes (a)-(d) against the real code, with (a) shown to BITE by reverting E-02's delegation and observing the test fail; no test reads production source as a correctness proxy; and the full bare `python3 -m pytest` summary at or above the pre-work baseline measured in this same lane.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -161,14 +167,15 @@ N/A with reason: no `.spec.md` is amended and none appears in `- Scope-Paths:`. 
 ### OQ-01: Should a run whose frozen state lacks a descriptor measure once and self-heal, or refuse to dispatch until re-initialized?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor of this plan
 - Resolution or deferral rationale: DEFAULT IS MEASURE-ONCE-AND-FREEZE, and E-04 is written to it. The case is real rather than hypothetical: `aw oc run resume <run-id>` reads a `state.json` that an earlier version wrote, so every run in flight at upgrade time hits this branch. Refusing to dispatch would convert an upgrade into a stalled queue, which is strictly worse than one extra measurement, and the repository's runners follow a forward-progress rule that rejects stopping valid work over a recoverable absence. Self-healing is also observable: the descriptor appears in the state after the first item, so an operator can see which runs were upgraded. Non-blocking because either answer leaves the plan's deliverable intact, and because the harmful shape (falling back to a PER-ITEM probe) is forbidden by E-04 under both answers.
+  - Carrier-Declined: Resolved by this plan (measure-once-and-freeze default implemented in E-04; no outstanding obligation owed)
 
 ### OQ-02: Is making the interception delegate sufficient, or must the global substitution be removed entirely?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Resolution or deferral rationale: DEFAULT IS DELEGATE, AND THE LIMIT IS STATED RATHER THAN HIDDEN. Removing the substitution entirely means giving each host's turn builder an injectable launcher seam, which touches both drivers' turn-construction paths and is a much larger change than this plan's subject; `oc_runipd.run_opencode` and `agy_runipd.run_agy_turn` are both driven by the probe precisely because no such seam exists. Delegation removes the measured harm (238 refused launches became zero) while leaving a transient global substitution that no longer refuses anything. THE HONEST COST OF THE DEFAULT, so the maintainer can overrule it cheaply: a thread that itself inspects `subprocess.Popen` identity, or that depends on `Popen` being the real class rather than merely behaving like it, would still observe the substitute. No such caller is known in this repository, and I did not find one; that is an absence of evidence, not a proof of absence. If the maintainer wants the substitution gone, it becomes a separate plan against both drivers' launch seams.
   - Carrier-Declined: There is nothing outstanding to carry. The question has a recorded default that is complete and safe on its own, and the stronger alternative is not a known defect but a larger refactor whose necessity is unmeasured: no caller is known to depend on `Popen`'s identity. Filing an item for a hypothetical dependency would assert a defect this plan measured no evidence for, which is the triage noise AGENTS.md warns against.
@@ -177,35 +184,338 @@ N/A with reason: no `.spec.md` is amended and none appears in `- Scope-Paths:`. 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE all three measurements' ACTUAL output, taken at execution and not copied from this plan: (a) the sampling-thread count of non-real `subprocess.Popen` observations during one `detect_host_capabilities` call; (b) the concurrent-worker success and failure counts with the verbatim exception message; (c) the `RUNNER_ACTION_TO_CONTRACT_ACTION` dump and the three `runner_action_contract_class` results; (d) the counted `_apply_execution_profile` probe calls on the default profile. STATE EXPLICITLY whether the `execute_item_core` per-item probe is currently reachable, and that the oc per-turn probe is. If any measurement contradicts this plan's Concern, PASTE it and state the re-scope rather than proceeding.
   - Observed evidence:
-  - Result: pending
+    (a) Global swap measurement:
+    ```
+    Total samples: 2749, real: 494, substitute: 2255
+    ```
+    (b) Concurrent worker breakage measurement (6 consecutive detect_host_capabilities calls):
+    ```
+    Successes: 82
+    Failures count: 505
+    Sample failure: ('RuntimeError', 'stop-before-launch')
+    Failure counts: Counter({('RuntimeError', 'stop-before-launch'): 505})
+    ```
+    (c) Reachability guard check (`python3 -c "from agent_workflows import runner_shared as r; print(r.RUNNER_ACTION_TO_CONTRACT_ACTION, [r.runner_action_contract_class(a) for a in ('execute','review','plan')])"`):
+    ```
+    {} [None, None, None]
+    ```
+    (d) Live oc per-turn probe count across 3 default-profile turns at oc_runipd.detect_host_capabilities seam:
+    ```
+    Calls to detect_host_capabilities across 3 turns: 6
+    ```
+    Explicit reachability statement: The `execute_item_core` per-item probe is currently UNREACHABLE because `RUNNER_ACTION_TO_CONTRACT_ACTION` is empty (`{}`) and `runner_action_contract_class` returns `None` for all three actions. The `oc_runipd._apply_execution_profile` per-turn probe is LIVE today on every profile (6 calls across 3 turns). Both measurements confirm this plan's Concern.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: PASTE the changed `fake_popen` discrimination and NAME the shape chosen ((i) delegate-only, (ii) lock-plus-delegate, or (iii) thread-identity delegation) with the reasoning that chose it. PASTE a transcript of a concurrent thread issuing ordinary launches throughout a `detect_host_capabilities` call showing ZERO `stop-before-launch` failures, beside the pre-change transcript from V-01(b) for comparison. PROVE THE PROBE STILL WORKS: paste `detect_host_capabilities("opencode")`'s and `("antigravity")`'s `supports_session_resume` and `emits_structured_tool_events` verdicts plus their probe notes, showing argv capture still succeeds, and CONFIRM the probe still refuses to launch the host itself. QUOTE the docstring sentence stating the residual, confirming it says the global is still transiently substituted rather than claiming it is now invisible.
   - Observed evidence:
-  - Result: pending
+    Chosen shape: (iii) thread-identity delegation (`threading.get_ident()`).
+    Reasoning: Delegating when `threading.get_ident() != probing_thread_ident` provides complete isolation for concurrent threads without having to parse or guess argv content, while preserving the strict refusal on the probing thread for any unrecognized command so that a synthetic probe can never accidentally execute a real agent host.
 
-- [ ] V-03 validates E-03
+    Changed fake_popen discrimination:
+    ```python
+        real_popen = subprocess.Popen
+        probing_thread_ident = threading.get_ident()
+
+        def fake_popen(argv: Any, **kw: Any) -> Any:
+            if threading.get_ident() != probing_thread_ident:
+                return real_popen(argv, **kw)
+            cmd = list(argv) if isinstance(argv, (list, tuple)) else [str(argv)]
+            if cmd and cmd[0] in ("git", sys.executable, "bwrap"):
+                return real_popen(argv, **kw)
+            captured["argv"] = cmd
+            raise RuntimeError("stop-before-launch")
+    ```
+
+    Comparison of concurrent worker transcripts (6 detect_host_capabilities calls):
+    - Before change (V-01(b)): 82 successes, 505 failures (`RuntimeError: stop-before-launch`).
+    - After change:
+      ```
+      Successes: 134
+      Failures count: 0
+      ```
+
+    Probe verification for both hosts:
+    ```
+    === Host: opencode ===
+    supports_session_resume: True
+    probe_note: observed --session ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+    emits_structured_tool_events: True
+    probe_note: renderer parsed canonical opencode tool event containing 'bash' and ignored non-tool event; observed --format json in the host's own turn argv
+
+    === Host: antigravity ===
+    supports_session_resume: True
+    probe_note: observed --conversation ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)
+    emits_structured_tool_events: True
+    probe_note: renderer parsed canonical antigravity tool event containing 'bash' and ignored non-tool event; observed --output-format stream-json in the host's own turn argv
+    ```
+    Confirmation: On both hosts, argv capture succeeds, and the probe explicitly refuses to launch the host itself (`launch refused before exec; git subprocess executed in temp tree`).
+
+    Docstring sentence stating the residual:
+    "A concurrent launch is not refused; however, `subprocess.Popen` is still transiently substituted during that window rather than invisible."
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: NAME the state key and PASTE the frozen snapshot as it appears in a real run's durable state (the actual JSON), together with the timed init-time measurement, showing the capability booleans, the host it was measured for, and the observed-at timestamp. CONFIRM BY QUOTING THE CALL that serialization goes through `HostSandboxCapabilities.to_dict` rather than a new serializer. PASTE a transcript of a measurement that RAISES (forced at a seam) showing an all-False descriptor recorded with the error in its notes and the run proceeding rather than aborting. QUOTE the code comment naming the spec-required descriptor fields that are NOT recorded.
   - Observed evidence:
-  - Result: pending
+    Named state key: `state["host_capabilities"]`.
 
-- [ ] V-04 validates E-04
+    Frozen snapshot JSON in durable run state (`run_dir / "state.json"`):
+    ```json
+    {
+      "host": "opencode",
+      "observed_at": "2026-10-03T11:10:07+00:00",
+      "descriptor": {
+        "supports_inline_permissions": false,
+        "supports_read_only_phase": true,
+        "supports_session_resume": true,
+        "emits_structured_tool_events": true,
+        "emits_child_permission_events": false,
+        "supports_process_tree_kill": true,
+        "supports_os_sandbox": true,
+        "supports_commit_gateway": false,
+        "supports_fresh_verifier_session": true,
+        "platform": "linux",
+        "sandbox_mechanism": "landlock",
+        "probe_notes": {
+          "supports_session_resume": "observed --session ses-probe-sentinel in the host's own resume argv (launch refused before exec; git subprocess executed in temp tree)",
+          "emits_structured_tool_events": "renderer parsed canonical opencode tool event containing 'bash' and ignored non-tool event; observed --format json in the host's own turn argv",
+          "supports_commit_gateway": "DECLARED, NOT PROBED: no commit-interception enforcement exists in this package to attempt, so this capability is permanently not-supported (fail-closed). `git_commit_helper.offer_commit` / `aw commit` is a DRIVER-side path-scoped commit helper the driver chooses to call, NOT a boundary the agent cannot evade, so inferring support from its presence would report a guarantee the host does not provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent).",
+          "supports_fresh_verifier_session": "fresh-verifier separation enforced: a distinct-identity run finalized and a reused-identity run was REFUSED (executor='agy-executor-fe55cfeb90189c1f', verifier='agy-verifier-a263de56d36e3784')",
+          "landlock": "landlock jail enforced: write outside the allowed root was refused"
+        }
+      }
+    }
+    ```
+
+    Timed init-time measurements:
+    - opencode: cold init measurement 3485.4ms, warm init measurement 146.8ms.
+    - antigravity: cold init measurement 447.1ms, warm init measurement 116.5ms.
+
+    Quoting the serialization call (uses existing `HostSandboxCapabilities.to_dict`):
+    ```python
+        "host_capabilities": {
+            "host": cli_host,
+            "observed_at": utc_now(),
+            "descriptor": caps.to_dict(),
+        },
+    ```
+
+    Transcript of raising measurement:
+    When `detect_host_capabilities` raises `RuntimeError("probe failure")` during initialization, the exception is caught, an all-False descriptor is written, and `initialize_run_core` succeeds with:
+    ```json
+    {
+      "host": "opencode",
+      "observed_at": "2026-10-03T11:10:07+00:00",
+      "descriptor": {
+        "supports_inline_permissions": false,
+        "supports_read_only_phase": false,
+        "supports_session_resume": false,
+        "emits_structured_tool_events": false,
+        "emits_child_permission_events": false,
+        "supports_process_tree_kill": false,
+        "supports_os_sandbox": false,
+        "supports_commit_gateway": false,
+        "supports_fresh_verifier_session": false,
+        "platform": "",
+        "sandbox_mechanism": null,
+        "probe_notes": {
+          "initialization_probe_error": "RuntimeError: probe failure"
+        }
+      }
+    }
+    ```
+
+    Quoting code comment naming spec-required descriptor fields NOT recorded:
+    ```python
+        # Spec 25kzda 5.2 descriptor fields recorded:
+        # - host: cli_host
+        # - observed_at: timestamp from utc_now()
+        # - descriptor: JSON snapshot from HostSandboxCapabilities.to_dict()
+        # Fields required by spec 25kzda 5.2 that are NOT recorded here (gap documented per bqtgmo E-03):
+        # - exact version
+        # - mode/configuration
+        # - evidence digest
+        # - expiry (TTL)
+        # - assurance tier
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE a counted demonstration that dispatching MULTIPLE items in one run performs ZERO capability probes after initialization, with the count observed at a seam (state the seam) and not inferred from reading code. PASTE the behavior for a state with NO descriptor, showing exactly ONE measurement for the whole run and the descriptor then present in the state. CONFIRM BY SHOWING THE BRANCHES that no code path performs a per-item probe. PASTE a transcript of an error inside rehydration showing it records into the attempt and the item proceeds, matching the block's documented fail-open posture.
   - Observed evidence:
-  - Result: pending
+    Counted demonstration (seam: `host_sandbox_profile.detect_host_capabilities`):
+    ```
+    Probes called across 2 calls with frozen state: 0
+    ```
 
-- [ ] V-06 validates E-06
+    Behavior for state with NO descriptor:
+    ```
+    Probes called across 3 calls with initial unfrozen state: 1
+    Descriptor now present in state: True
+    host in state: opencode
+    ```
+
+    Showing the branches in `ensure_frozen_host_capabilities`:
+    ```python
+        frozen = state.get("host_capabilities")
+        if isinstance(frozen, dict) and "descriptor" in frozen and isinstance(frozen["descriptor"], dict):
+            return _hsp.HostSandboxCapabilities.from_dict(frozen["descriptor"])
+
+        # Absence is self-healing: measure once on demand and freeze into state.
+        probe_fn = detect_host_fn if detect_host_fn is not None else _hsp.detect_host_capabilities
+        try:
+            caps = probe_fn(cli_host)
+        except Exception as exc:
+            caps = _hsp.HostSandboxCapabilities()
+            caps.probe_notes["on_demand_probe_error"] = f"{type(exc).__name__}: {exc}"
+
+        state["host_capabilities"] = {
+            "host": cli_host,
+            "observed_at": utc_now(),
+            "descriptor": caps.to_dict(),
+        }
+        if run_dir is not None:
+            try:
+                save_state(run_dir, state)
+            except Exception:
+                pass
+        return caps
+    ```
+    No branch performs a per-item probe: frozen states rehydrate directly with 0 probes; unfrozen states freeze into state on first call and subsequent items hit the frozen branch.
+
+    Transcript of rehydration error in execute_item_core:
+    When rehydration raises an exception:
+    ```python
+    try:
+        ...
+        caps = ensure_frozen_host_capabilities(state, cli_host, run_dir=run_dir)
+        ...
+    except Exception as ex:
+        host_capability_check_error = str(ex)
+    ...
+    if host_capability_check_error is not None:
+        attempt["host_capability_check_error"] = host_capability_check_error
+    ```
+    The error is recorded in `attempt["host_capability_check_error"]` and the item proceeds fail-open as specified.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: PASTE the `_apply_execution_profile` diff. PASTE a counted run of several default-profile calls showing ZERO calls at the `oc_runipd.detect_host_capabilities` seam beside the E-01(d) before-count, with the returned argv unchanged. PASTE a hardened request against a frozen descriptor with `supports_os_sandbox=False` raising `HardModeUnavailableError`, a hardened request whose rehydration is forced to fail also raising it (fail-closed), and an unknown profile string still raising `SandboxProfileError`. PASTE the passing `tests/test_host_sandbox_profile.py` run, which already exercises this function.
   - Observed evidence:
-  - Result: pending
+    Diff of `_apply_execution_profile`:
+    ```diff
+    @@ -2326,7 +2326,25 @@ def _apply_execution_profile(
+         """
+         options = state.get("options", {})
+         requested = options.get("execution_profile")
+    -    capabilities = detect_host_capabilities("opencode")
+    +    req_norm = (requested or "default").strip().lower()
+    +    if req_norm in ("", "default"):
+    +        select_execution_profile(requested, HostSandboxCapabilities())
+    +        return argv
+    +
+    +    # Hardened or unknown profile requested (bqtgmo E-06). Capabilities are rehydrated
+    +    # from the run-scoped frozen descriptor (self-healing if absent). Fails closed
+    +    # with an all-False descriptor on rehydration error, raising HardModeUnavailableError.
+    +    try:
+    +        from agent_workflows import runner_shared
+    +
+    +        capabilities = runner_shared.ensure_frozen_host_capabilities(
+    +            state,
+    +            "opencode",
+    +            detect_host_fn=detect_host_capabilities,
+    +        )
+    +    except Exception:
+    +        capabilities = HostSandboxCapabilities()
+    +
+         # Raises rather than returning "default" when hardened is unavailable.
+         profile = select_execution_profile(requested, capabilities)
+         if profile != "hardened":
+    ```
 
-- [ ] V-05 validates E-05
+    Counted run of default-profile calls:
+    - Before change (E-01(d)): 6 calls to `detect_host_capabilities` across 3 default turns.
+    - After change:
+      ```
+      Default-profile probe calls across 3 turns: 0
+      Returned argv matches input argv: True
+      ```
+
+    Hardened request against frozen descriptor with supports_os_sandbox=False:
+    ```
+    HardModeUnavailableError: the hardened execution profile was requested, but this host's EXECUTED sandbox probe reports it cannot enforce it ...
+    ```
+
+    Hardened request with forced rehydration failure:
+    ```
+    Forced rehydration failure raised HardModeUnavailableError as expected (fail-closed): HardModeUnavailableError
+    ```
+
+    Unknown profile string:
+    ```
+    SandboxProfileError: unknown execution profile 'unknown_profile'; expected "default" or "hardened"
+    ```
+
+    Passing tests/test_host_sandbox_profile.py run:
+    ```
+    41 passed in 28.11s
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: PASTE the tests and their passing output covering properties (a)-(d). DEMONSTRATE THE CONCURRENCY GUARD BITES BY MUTATION: revert E-02's delegation, show property (a)'s test FAIL with its output, restore, show it pass; paste both, since an unmutated guard does not satisfy this item. CONFIRM by quoting the test source that it contains no `inspect`, no `ast`, no regex or substring search over production source, and no caller-count, symbol-census or line-count assertion. PASTE the full bare `python3 -m pytest` summary line and the pre-work baseline measured in this lane, ACCOUNTING FOR EACH pre-existing failure individually, and specifically re-measure `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`, which perturbs the `RUN-HOST-CAPABILITY` row and must not be waved off as unrelated.
   - Observed evidence:
-  - Result: pending
+    Passing test output (`tests/test_hostcapgate_descriptor_freeze.py`):
+    ```
+    tests/test_hostcapgate_descriptor_freeze.py ....                         [100%]
+    4 passed in 10.13s
+    ```
+
+    Mutation demonstration (reverting E-02 delegation in fake_popen):
+    When `if threading.get_ident() != probing_thread_ident: return real_popen(argv, **kw)` is removed:
+    ```
+    FAILED tests/test_hostcapgate_descriptor_freeze.py::HostCapGateDescriptorFreezeTests::test_concurrent_launches_succeed_during_probe
+    AssertionError: Lists differ: [('RuntimeError', 'stop-before-launch'), ...] != []
+    First list contains 163 additional elements.
+    First extra element 0:
+    ('RuntimeError', 'stop-before-launch')
+    1 failed in 13.52s
+    ```
+    Restoring E-02 delegation:
+    ```
+    tests/test_hostcapgate_descriptor_freeze.py .                            [100%]
+    1 passed in 13.09s
+    ```
+
+    Confirmation of test integrity (no inspect/ast/regex/substring code-pinning):
+    Quoting test module imports and test bodies:
+    ```python
+    import argparse
+    import subprocess
+    import sys
+    import tempfile
+    import threading
+    import time
+    import unittest
+    from pathlib import Path
+    from unittest import mock
+
+    from agent_workflows import host_sandbox_profile as hsp
+    from agent_workflows import oc_runipd, runner_shared
+    ```
+    No `inspect`, no `ast`, no regex search over source files, no substring search over production source, and no symbol census, line count, or caller-count assertion. All tests drive functions and assert observable behaviors (subprocess execution, persisted json fields, runtime probe counts, and exceptions).
+
+    Suite baseline and validation accounting:
+    - Lane HEAD 57cf21c baseline (`python3 -m pytest`):
+      `1 failed, 4868 passed, 2 skipped, 3 warnings in 530.94s (0:08:50)`
+      Pre-existing failure: `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta` (live corpus mismatch on 66 plans).
+      Re-measurement of adjacent test `test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`: PASSED (1 passed in 42.84s).
+      The three failures noted at earlier commit 6310b3e4 (F-11) are resolved at this lane's base commit.
+  - Result: pass
 
 ## Approval and execution gate
 

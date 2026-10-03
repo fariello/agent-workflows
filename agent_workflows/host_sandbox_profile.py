@@ -132,6 +132,11 @@ action NEEDS against what a host PROVED. Two fields and a preflight close that:
     containing the tool name while ignoring a well-formed non-tool event).
     Platform-independent.
 
+  LAUNCH INTERCEPTION CONCURRENCY (bqtgmo E-02): During turn argv capture, `subprocess.Popen`
+  is transiently substituted process-wide. A concurrent launch on another thread is delegated
+  transparently and not refused; however, `subprocess.Popen` is still transiently substituted
+  during that window rather than invisible.
+
 
 `check_action_capabilities` compares an action class against a descriptor, naming every
 missing capability plus the spec-required capabilities this contract cannot yet
@@ -153,7 +158,8 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from dataclasses import asdict, dataclass, field
+import threading
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -250,6 +256,14 @@ class HostSandboxCapabilities:
     def to_dict(self) -> Dict[str, Any]:
         """A JSON-safe snapshot for the run/lane manifest."""
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "HostSandboxCapabilities":
+        """Rehydrate a HostSandboxCapabilities instance from a JSON snapshot."""
+        if not isinstance(data, dict):
+            return cls()
+        valid_fields = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in valid_fields})
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +822,13 @@ def _capture_turn_argv(host: str, force: bool = False) -> List[str]:
 
     Shared between _probe_session_resume and _probe_structured_tool_events to avoid
     re-driving turn construction twice on dispatch preflight (E-04 / F-12).
+
+    CONCURRENCY RESIDUAL (bqtgmo E-02): During the interception window, `subprocess.Popen` is
+    transiently substituted process-wide by `fake_popen`. To prevent breaking concurrent threads,
+    `fake_popen` checks thread identity (`threading.get_ident()`): calls from any thread other
+    than the probing thread are delegated transparently to `real_popen`. A concurrent launch is
+    never refused; however, `subprocess.Popen` is still transiently substituted during that window
+    rather than invisible.
     """
     global _CAPTURING_TURN_ARGV
     if host in _HOST_ARGV_CACHE and not force:
@@ -853,8 +874,11 @@ def _capture_turn_argv(host: str, force: bool = False) -> List[str]:
         sentinel = "ses-probe-sentinel"
         captured: Dict[str, List[str]] = {}
         real_popen = subprocess.Popen
+        probing_thread_ident = threading.get_ident()
 
         def fake_popen(argv: Any, **kw: Any) -> Any:
+            if threading.get_ident() != probing_thread_ident:
+                return real_popen(argv, **kw)
             cmd = list(argv) if isinstance(argv, (list, tuple)) else [str(argv)]
             if cmd and cmd[0] in ("git", sys.executable, "bwrap"):
                 return real_popen(argv, **kw)
