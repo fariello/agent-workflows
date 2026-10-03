@@ -817,6 +817,34 @@ class SafetyInvariantTwoNeverPush(TempCase):
             + "\n".join(wrong),
         )
 
+    def test_neutralize_git_refuses_tool_repo_root(self) -> None:
+        """neutralize_git must never touch the toolkit checkout itself."""
+        with self.assertRaises(uat.HarnessError) as cm:
+            uat.neutralize_git(REPO_ROOT)
+        self.assertIn("non-sandbox", str(cm.exception))
+
+    def test_neutralize_git_refuses_current_working_directory(self) -> None:
+        """neutralize_git must refuse the working directory."""
+        with self.assertRaises(uat.HarnessError) as cm:
+            uat.neutralize_git(Path.cwd())
+        self.assertIn("non-sandbox", str(cm.exception))
+
+    def test_is_safe_sandbox_discrimination(self) -> None:
+        """is_safe_sandbox accurately separates real repos from valid disposable sandboxes."""
+        self.assertFalse(uat.is_safe_sandbox(REPO_ROOT))
+        self.assertFalse(uat.is_safe_sandbox(Path.cwd()))
+        self.assertFalse(uat.is_safe_sandbox(Path("/opt/live-repository")))
+        # Positive indicators
+        self.assertTrue(uat.is_safe_sandbox(self.tmp / "box"))
+        self.assertTrue(
+            uat.is_safe_sandbox(Path("/anywhere/repo.aw-upgrade-test.20261002-120000"))
+        )
+
+    def test_git_requires_non_empty_repo_path(self) -> None:
+        """git helper must refuse an empty or None repo path to prevent defaulting to cwd."""
+        with self.assertRaises(uat.HarnessError):
+            uat.git(Path(""), "status")
+
 
 class SafetyInvariantThreeNoInventoryPollution(TempCase):
     """Invariant 3: the operator's real config and repo inventory are never written."""
