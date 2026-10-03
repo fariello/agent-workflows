@@ -6,7 +6,7 @@
 - Scope: Give `verifier_corroboration` a per-line tool-call extraction primitive that returns EVERY tool call (not only shell calls) carrying the five fields both consumers need, keep the existing `extract_session_commands` behavior byte-identical on top of it, route `run_dashboard._oc_line`/`_agy_line` onto that primitive for their tool-call branch while keeping their own aggregation, token and timestamp reads local, and pin the three measured per-host disagreements the unification resolves.
 - Scope-Paths: agent_workflows/verifier_corroboration.py, agent_workflows/run_dashboard.py, tests/test_verifier_corroboration.py, tests/test_run_dashboard.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 07
 - Author: OpenCode lane 2mjfo7
 - Id: e08ssu
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: e08ssu verified (set runverdict, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Re-measured F-04/F-05/F-07..F-10/F-12/F-14 at HEAD 147c37f47 and all reproduce. Fixed: field count seven->eight; ToolCall specified as NamedTuple (0.83us vs 2.3us frozen dataclass; interleaved routing sim +7.1%) and V-06 timing made interleaved best-of-15; invoke_subagent does have an in-tree reference (stall_progress); schema bump covers E-02..E-04 not E-04 alone, and no existing dashboard test case should change; import-purity check made a delta over the package __init__ imports; live-count failure bar; under-scope filing contradiction; finalize command; str() coercion of non-string commands pinned.
