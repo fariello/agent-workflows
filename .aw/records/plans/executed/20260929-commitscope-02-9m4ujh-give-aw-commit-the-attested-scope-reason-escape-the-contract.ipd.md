@@ -6,7 +6,7 @@
 - Scope: Give `aw commit` the `--scope-reason PATH=WHY` spelling `aw ipd finalize` already uses, reusing `ipd_lifecycle._parse_scope_reason_flags` rather than forking a parser, and RECORD each accepted reason durably in the plan's begin receipt so `finalize` consumes it instead of demanding the same justification twice. The commit-time refusal REMAINS fail-closed: a staged or named out-of-scope path with no supplied reason still refuses exactly as today, and only a path carrying an explicit reason proceeds. This deliberately does NOT change `check_engine.check_scope_drift`, does NOT change that rule's registered severity, does NOT touch `aw check`, CI, `aw doctor` or the opt-in pre-commit hook, and does NOT change which findings BLOCK the commit gate (that partition is `ygb3nk`'s single change and this plan must not also make it).
 - Scope-Paths: agent_workflows/work_cmd.py, agent_workflows/ipd_lifecycle.py, agent_workflows/cli.py, tests/test_scope_match.py, tests/test_commit_scope_reason.py
 - Item-Dependencies: executed:ygb3nk
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 9m4ujh
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (antigravity): Support --scope-reason at aw commit and persist to begin receipt [Scope reconciliation - in-scope-unmodified tests/test_scope_match.py: tested-no-changes]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-601..PR-607 all FIXED. The plan's core measurements (F-01, F-04, F-06, F-07, F-08, F-09) all reproduced, F-04 key for key. Three HIGH corrections: (1) F-01's refusal is the ENGINE gate's wording, not run_commit's own branch, so E-03's exemption alone leaves the escape refused and Item-Dependencies is now executed:ygb3nk rather than none (F-15); (2) _reconcile_scope has exactly ONE in-package call site and status_set plus the runner both reach it through finalize, so the plan's 'other consumers untouched' claim is inverted and the merge order is the sole protection (F-16); (3) _parse_scope_reason_flags silently returns {} and raises nothing, so E-03's inherited exit-2 refusal must be built as a token-count comparison (F-17). Plus F-18: every fixture's lane must be named for the plan id or it resolves to None and the refusing commit succeeds at exit 0, a false green review hit on its own first probe.
 
