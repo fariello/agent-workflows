@@ -37,7 +37,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: validate the value at the planner both verbs and `aw adopt` share
 
-- [ ] E-01 Add a module-private date guard to `agent_workflows/research_cmd.py` that judges ONE candidate date string and returns the refusal MESSAGE or `None`, so every creation path refuses with identical wording. Shape: `_refuse_unsafe_date(verb: str, value: Optional[str]) -> Optional[str]`, returning `None` when `value` is `None` (the omitted-flag case, which must keep defaulting to today) and otherwise refusing anything that is not an eight-digit real calendar date.
+- [x] E-01 Add a module-private date guard to `agent_workflows/research_cmd.py` that judges ONE candidate date string and returns the refusal MESSAGE or `None`, so every creation path refuses with identical wording. Shape: `_refuse_unsafe_date(verb: str, value: Optional[str]) -> Optional[str]`, returning `None` when `value` is `None` (the omitted-flag case, which must keep defaulting to today) and otherwise refusing anything that is not an eight-digit real calendar date.
 
   DERIVE THE REGEX FROM RESEARCH'S OWN GRAMMAR, AND DO NOT PORT THE SIBLING'S LITERAL. This is the single most important instruction in the plan because the backlog item's own guidance points the other way. `prompts.run_new` and the shipped `specs.run_new` guard both validate `\A\d{4}-\d{2}-\d{2}\Z`, and research's date slot is `(?P<date>\d{8})` in `artifact_naming._CORE_RE` (re-exported as `research_contract._CORE_RE`), with `cli.py`'s own help string for this flag reading `Override the set date (YYYYMMDD).` Measured (F-11): the ISO regex refuses `20260929`, which is the ONLY shape the research grammar accepts, so a verbatim port would refuse every legitimate date and break the verb outright. Use `\A[0-9]{8}\Z` (see the `\d` note below).
   THEN ADD A CALENDAR CHECK, because the eight-digit shape alone is NOT sufficient and this is a different conclusion from the path half. Measured: `\A\d{8}\Z` ACCEPTS `99999999` and `20261332`, both of which are unreachable calendar dates that would be stamped into the filename, the `created:` front-matter value, and the set date every later record in that set inherits. Use `datetime.datetime.strptime(value, "%Y%m%d")` and treat `ValueError` as the refusal; measured, it rejects `99999999`, `20261332` and `20260230` while accepting `20260929`.
@@ -46,9 +46,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   NOTE ON `\d` (plan-review 2026-10-02, PR-002): in Python 3 `\d` matches any Unicode decimal digit, so `\A\d{8}\Z` ACCEPTS the fullwidth `'２０２６０９２９'`. The calendar check happens to refuse it (`strptime` raises `ValueError`), but then the format check is not the gate it claims to be. Use `\A[0-9]{8}\Z` (or `re.ASCII`), so the format check alone closes the non-ASCII class, and add that value to the test inputs.
   - Expected outcome: a helper importable as `research_cmd._refuse_unsafe_date` that returns `None` for `None` and for `'20260929'`, and a refusal for `'２０２６０９２９'` (fullwidth digits), and a message naming the verb, `YYYYMMDD` and the received value for each of `'../../../../ESCAPED'`, `'/abs/ESCAPED'`, `'2026-09-29'`, `'9999-99-99'`, `'notadate'`, `''`, `'99999999'`, `'20261332'`, and `'20260929\nstatus: reference'`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 CALL that guard from `research_cmd.plan_new` and `research_cmd.plan_new_comparison`, returning its message through each function's EXISTING `(None, error)` tuple so both verbs' established error rendering (human `error: <msg>` and the `--agent` `cannot-run` envelope at exit 2) is reused rather than forked.
+- [x] E-02 CALL that guard from `research_cmd.plan_new` and `research_cmd.plan_new_comparison`, returning its message through each function's EXISTING `(None, error)` tuple so both verbs' established error rendering (human `error: <msg>` and the `--agent` `cannot-run` envelope at exit 2) is reused rather than forked.
 
   GUARD AT THE PLANNER, NOT AT THE CLI HANDLER, AND THE REASON IS MEASURED. `aw adopt` calls `research_cmd.plan_new` DIRECTLY, passing `date_str=getattr(args, "date", None)` from `artifact_adopt`, so a guard in `research_cmd.run_new` would leave the adopt path reading an unvalidated flag. This matches the siting that plan `deftzy` independently chose for the descriptive-value guard on these same two planners, for the same reason, so the two plans will not fight over the call site.
   SITE THE CALL BEFORE THE ID6 IS MINTED. In `plan_new`, place it above `today = date_str or date.today().strftime("%Y%m%d")`, so a refusal consumes no id6 from the repository-wide pool and touches no filesystem; the existing `kind`, `priority`, `model` and slug refusals already sit above that line and establish the position. In `plan_new_comparison`, place it above its own `today = date_str or ...` for the same reason, noting that function mints N+2 ids and so has more to waste.
@@ -56,11 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE THE OMITTED-FLAG DEFAULT. `date_str=None` must still fall through to `date.today().strftime("%Y%m%d")`; the guard returns `None` for `None` precisely so this path is untouched, and V-02 asserts it.
   - Depends on: E-01
   - Expected outcome: `aw research new <repo> --kind findings --slug x --summary s --date ../../../../ESCAPED --apply` exits 2 with the refusal and writes nothing, where before it exited 0 and created a file four directories above the records tree; `aw research new-comparison ... --date ../../../../ESCAPED --apply` likewise refuses instead of writing three escaping files; `aw adopt <drop> --type research --date ../../../../ESCAPED --apply` refuses with the date message rather than reaching its own later name check; and `--date 20260929`, plus every invocation that omits `--date`, still writes exactly the path it wrote before.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: confine the destination at the one funnel both planners feed
 
-- [ ] E-03 Add a DESTINATION-CONTAINMENT assertion to `research_cmd._emit_and_write`, refusing when any planned file's RESOLVED path does not lie inside the RESOLVED research root, with exit 2 and a message naming the offending destination and the tree it escaped.
+- [x] E-03 Add a DESTINATION-CONTAINMENT assertion to `research_cmd._emit_and_write`, refusing when any planned file's RESOLVED path does not lie inside the RESOLVED research root, with exit 2 and a message naming the offending destination and the tree it escaped.
 
   THIS IS DEFENCE IN DEPTH AND IS NOT REDUNDANT WITH E-01/E-02, which is why it is a separate item. E-01 guards the one input measured to traverse today; E-03 guards the PROPERTY that matters, that these verbs only ever write inside their own tree, and it holds for any future caller or any future unvalidated field that reaches the name builder. A guard that is only ever reached after another guard has refused is untested, which is why V-03 requires it be exercised with E-01 bypassed.
   `_emit_and_write` IS THE CORRECT SITE because it is the ONE funnel both planners feed and it already handles BOTH arms: it is called by `run_new` and `run_new_comparison`, its only two callers (there is no `run_new_from_plan`; plan-review 2026-10-02, PR-005), and it contains both the `if not apply:` preview branch and the `_atomic_write` loop. Place the assertion ABOVE the existing no-clobber loop, which is already positioned "up front (so a partial apply never happens)" and so is the function's established place for a pre-flight refusal. Siting it above that loop makes the preview arm refuse too.
@@ -70,11 +70,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ACCEPT ANY DESCENDANT OF THE ROOT, NOT ONLY ITS IMMEDIATE CHILDREN. Test containment against the research ROOT. `research_archive` places records in `research_root / sub / filename` for its `YYYYMM-Www` shards, and `_set_date_for_set` and `_existing_id6s` already `rglob` those shards, so nested placement is part of this tree's shape. NOTE (plan-review 2026-10-02, PR-005): `research_archive.apply_moves` writes through `research_refs._atomic_write` and does NOT pass through `_emit_and_write`. So `aw research archive` cannot regress from this change, and running it proves nothing about the assertion. Prove descendant acceptance DIRECTLY instead: call `_emit_and_write` with a planned file at `research_root / <shard> / <name>` and show that it is not refused.
   - Depends on: E-02
   - Expected outcome: with E-01's guard bypassed in a scratch session, a traversing derived name is refused by E-03 alone at exit 2 naming the destination and the tree, and nothing is written; the SAME bypassed call WITHOUT `--apply` also exits 2 rather than printing `--- would write <escaping path> ---`, and its `--agent` form emits a refusal rather than a clean `create` envelope; an absolute-path destination is refused by the same assertion; and every conforming `aw research new` and `new-comparison` still writes and still previews exactly the paths it did before, in BOTH a `.aw/records/research` and a legacy `.agents/docs/research` layout, and a planned file nested in a shard subdirectory of the root is accepted by the assertion.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the escape, the injection, and the non-regressions
 
-- [ ] E-04 Add `tests/test_research_date_containment.py` pinning the ESCAPE as the primary property, for `research new`, `new-comparison`, and `aw adopt`. Assert that NO file exists anywhere under the temp base outside the research tree, not merely that the command failed, because an exit code alone does not distinguish the fix from the permissions accident the backlog item warns about.
+- [x] E-04 Add `tests/test_research_date_containment.py` pinning the ESCAPE as the primary property, for `research new`, `new-comparison`, and `aw adopt`. Assert that NO file exists anywhere under the temp base outside the research tree, not merely that the command failed, because an exit code alone does not distinguish the fix from the permissions accident the backlog item warns about.
 
   THE FIXTURE MUST BE NESTED AND THE TRAVERSAL DEPTH MUST BE BOUNDED TO THE FIXTURE DEPTH. THIS IS A SAFETY REQUIREMENT, NOT A STYLE NOTE. The verb's `_atomic_write` path creates its destination's parent, so an OVER-DEEP traversal does not fail, it SUCCEEDS somewhere unintended: review of the sibling plan ran exactly such a probe and wrote a real file outside its scratch area that it then could not delete. So build the fixture at `<tmp>/a/b/c/repo`, compute the number of `../` segments from the fixture's own depth, and assert BEFORE each destructive probe that the resolved target is inside the temp base, skipping the probe if it is not. COMPUTE THE TARGET FROM THE RESOLVED RESEARCH ROOT, NOT FROM THE FIXTURE PATH, AND PIN WHERE THAT ROOT RESOLVES (plan-review 2026-10-02, PR-001, measured destructively at review). `research_contract.resolve_research_root` asks `record_producers.resolve_record_path` first. For a scratch git repo that is not a registered project and has no `.aw/records/research` directory, that resolves to `$HOME/.aw/projects/<name>-<hash>/records/research`, which is OUTSIDE the temp base. A review probe at `<tmp>/a/b/c/repo` with `--date ../../../../ESC --apply` therefore wrote `$HOME/.aw/ESC-x1-00-dkj15o-x1.findings.md`, not a file under `<tmp>`, and the fixture-path arithmetic said the target was safe. So every fixture MUST (1) pre-create `<repo>/.aw/records/research`, (2) set `HOME` and `XDG_CONFIG_HOME` to the temp base for every subprocess and every in-process call (`monkeypatch.setenv`), and (3) compute the probe target as `(research_root / date).resolve()`, where `research_root` comes from `research_contract.resolve_research_root(resolve_verb_repo_root(str(repo)))` under that environment, and assert that BOTH the root and the target are inside the temp base before running. With all three in place, the same probe landed at `<tmp>/a/b/c/ESC-...`, which is inside the base. The probe script this plan was authored from does exactly this and its assertion line is the shape to copy. A test that escapes its own tmpdir can damage the checkout it runs in, which matters doubly because `AGENTS.md` states this checkout is SHARED.
   THE NESTING MUST CARRY A COMMENT SAYING WHY, and the comment must NOT promise a permission error. The backlog item reports that a shallow fixture refuses with `[Errno 13] Permission denied` because the escape lands on `/`; that refusal is an accident of filesystem permissions and is environment-dependent, so a shallow fixture yields a FALSE GREEN where the escape is unwritable and COLLATERAL DAMAGE where it is writable. Both are disqualifying and neither is a guard.
@@ -82,9 +82,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Cover: a traversal landing above the records tree, an absolute-path `--date`, a traversing DRY RUN with no `--apply` (E-03's second arm), the `new-comparison` case where three files escape in one command, and the `aw adopt` path. Drive at least one case through `cli.main` rather than the planner alone, following the established pattern in `tests/test_research_cmd_create.py`.
   - Depends on: E-03
   - Expected outcome: a new module whose escape cases FAIL against pre-E-01 code with the escaped file PRESENT on disk inside the temp base, and PASS after, with the temp base containing no file outside the research tree; and whose every destructive probe is bounded by an asserted in-tmpdir target so the module cannot damage the checkout it runs in.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In the same module, pin the FRONT-MATTER INJECTION and the non-regressions.
+- [x] E-05 In the same module, pin the FRONT-MATTER INJECTION and the non-regressions.
 
   INJECTION, which is a distinct defect class from the traversal and must be named as such in the test names and a comment. A newline in `--date` writes real sibling keys into the `---` fenced block, because `research_contract.parse_frontmatter` is a line-wise `key: value` splitter rather than a YAML parser. Pin the SEVERE measured case (F-08): with a record already in the set so the SET DATE keeps the filename legal, `--date $'20260101\nstatus: reference\nblocks-release: next\npriority: high'` wrote a clean-named record carrying a FUNCTIONING release gate, with `aw releases show next` listing it under `release-blockers (1)` and `aw attention --format json` reporting `"blocks_release":"next","priority":"high"` on a record nothing gated, while `aw check research`, `aw check all` and `aw research index --check` ALL reported clean. Assert the refusal now, and assert in a comment that this is why the fix is not merely about paths. Pin the simpler case too (F-07): on a set's first record the same newline produces a filename containing a literal newline AND the injected keys.
   FABRICATION: assert `--date 99999999` and `--date 20261332` are refused, and document in the test name that this half is about record IDENTITY rather than path safety. A fabricated filename date is an already-realized harm in this repository, recorded in open backlog item `tf4jz5`.
@@ -92,7 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   NON-REGRESSIONS: (a) `--date 20260929` writes the same path and bytes as before the change, with the id6 held fixed. The mint is random (`artifact_core.mint_id6`), so an unpinned comparison against a HEAD reference can never match (plan-review 2026-10-02, PR-004). Monkeypatch `research_cmd._mint_research_id6` (and `research_cmd.generate_id6` for `new-comparison`) to a fixed value, or compare with the id6 segment and `id:` value normalized, and state which; (b) omitting `--date` still defaults to today, for `new`, `new-comparison` AND `adopt`; (c) a conforming DRY RUN still previews the same path and still exits 0 on both arms E-03 touches; (d) the existing refusals (`--kind`, `--slug`-or-`--summary`, `--priority`, `--models`) keep their exit codes and messages; (e) `research set-assign` and `research mv` are UNCHANGED by this plan. Show this as V-05 EVIDENCE (a bounded scratch probe of the surviving `set-assign` escape, recorded with carrier `0ougsh`), NOT as a committed test (plan-review 2026-10-02, PR-003). Backlog `0ougsh` has already graduated to pending plan `plb8jx`, which fixes exactly that escape. A committed test asserting the escape SURVIVES would turn red the moment `plb8jx` lands, in whichever order the two execute. It would also commit a probe that MOVES a file outside the records tree, to run on every suite invocation. A test must not pin a live defect as expected behavior.
   - Depends on: E-04
   - Expected outcome: the injection, fabrication and asymmetry cases are pinned; non-regression groups (a) to (d) pass as committed tests; and (e) is recorded as V-05 scratch evidence with carrier `0ougsh` / plan `plb8jx` named, so the scope boundary is measured without a test that pins a live defect.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -193,30 +193,445 @@ N/A with reason. This plan adds input validation to two planner functions in one
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the actual output of a scratch session that imports `research_cmd._refuse_unsafe_date` and prints its return value for EACH of these inputs, so the verdict table is evidence and not assertion: `None`, `'20260929'`, `'../../../../ESCAPED'`, `'/abs/ESCAPED'`, `'2026-09-29'`, `'9999-99-99'`, `'notadate'`, `''`, `'99999999'`, `'20261332'`, and `'20260929\nstatus: reference'`. `None` and `'20260929'` must return `None`; every other input must return a message containing the verb, `YYYYMMDD` and the received value. Then paste the helper's source showing (a) the regex is `\A[0-9]{8}\Z` (ASCII digits only, PR-002) and NOT the ISO `\A\d{4}-\d{2}-\d{2}\Z`, and `'２０２６０９２９'` is refused, (b) a separate calendar check via `strptime(..., "%Y%m%d")` with `ValueError` as the refusal, and (c) the code comment stating the format-versus-calendar distinction and naming the two shapes the regex alone would admit. A run in which `'99999999'` returns `None` has NOT implemented E-01 as OQ-01 resolved it, and a run in which `'20260929'` returns a message has ported the wrong regex (F-11).
   - Observed evidence:
-  - Result: pending
+    Verdict table from Python scratch session importing `research_cmd._refuse_unsafe_date`:
+    ```
+    Input                               | Verdict
+    --------------------------------------------------------------------------------
+    None                                | None
+    '20260929'                          | None
+    '../../../../ESCAPED'               | "aw research new: --date must be YYYYMMDD (got '../../../../ESCAPED')"
+    '/abs/ESCAPED'                      | "aw research new: --date must be YYYYMMDD (got '/abs/ESCAPED')"
+    '2026-09-29'                        | "aw research new: --date must be YYYYMMDD (got '2026-09-29')"
+    '9999-99-99'                        | "aw research new: --date must be YYYYMMDD (got '9999-99-99')"
+    'notadate'                          | "aw research new: --date must be YYYYMMDD (got 'notadate')"
+    ''                                  | "aw research new: --date must be YYYYMMDD (got '')"
+    '99999999'                          | "aw research new: --date must be YYYYMMDD (got '99999999')"
+    '20261332'                          | "aw research new: --date must be YYYYMMDD (got '20261332')"
+    '20260929\nstatus: reference'       | "aw research new: --date must be YYYYMMDD (got '20260929\\nstatus: reference')"
+    '２０２６０９２９'                          | "aw research new: --date must be YYYYMMDD (got '２０２６０９２９')"
+    ```
 
-- [ ] V-02 validates E-02
+    Source of `research_cmd._refuse_unsafe_date`:
+    ```python
+    def _refuse_unsafe_date(verb: str, value: Optional[str]) -> Optional[str]:
+        """Judge one candidate date string against research's date grammar and calendar validity.
+
+        E-01 (IPD iumgvk): Derived from research's own date grammar slot (_CORE_RE).
+        The regex check (\\A[0-9]{8}\\Z) is an ASCII format check, not a calendar check;
+        the regex alone admits unreachable calendar dates such as 99999999 and 20261332.
+        Per OQ-01, validate format first (ASCII-only [0-9]{8}, refusing fullwidth digits like
+        '２０２６０９２９'), then calendar validity via datetime.strptime(..., "%Y%m%d"),
+        refusing both with exit 2 and the same message shape naming the verb, --date,
+        YYYYMMDD, and the received value.
+        """
+        if value is None:
+            return None
+        # Format check: research grammar uses YYYYMMDD, not ISO YYYY-MM-DD.
+        # ASCII [0-9]{8} closes non-ASCII Unicode digits (PR-002).
+        if not re.match(r"\A[0-9]{8}\Z", value):
+            return f"{verb}: --date must be YYYYMMDD (got {value!r})"
+        # Calendar check: regex alone accepts 99999999 and 20261332.
+        try:
+            datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            return f"{verb}: --date must be YYYYMMDD (got {value!r})"
+        return None
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the actual terminal output of these runs against a temp fixture NESTED at least four directories deep, with the traversal depth bounded to the fixture depth (see V-04 for why this is a safety requirement). (a) `aw research new <repo> --kind findings --slug x --summary s --date ../../../../ESCAPED --apply` showing exit 2, the refusal, and proof that NO `.md` file exists anywhere under the temp base outside the research tree. (b) the same for `aw research new-comparison <repo> --set cmpset --slug x --models gpt56 --date ../../../../ESCAPED --apply`, which before the fix wrote THREE escaping files (F-02). (c) `aw adopt <drop> --type research --kind findings --slug x --summary s --date ../../../../ESCAPED --yes --apply` showing exit 2 with the DATE refusal, not the later `derived a non-conforming name` message F-04 measured, which proves the guard fires at the planner the adopt path shares. (d) the `--agent` form of (a) showing a `cannot-run` envelope at exit 2 rather than a clean one. (e) non-regression: `--date 20260929 --apply` and an invocation OMITTING `--date` entirely both still succeed at exit 0 with the expected filenames, for `new` AND `new-comparison` AND `adopt`. (f) the two call sites' source, showing each sits ABOVE its function's `today = date_str or ...` line (quote enough surrounding source to show the order), which is what makes a refusal consume no id6.
   - Observed evidence:
-  - Result: pending
+    Terminal output against scratch nested fixture (`<tmp_base>/a/b/c/repo`):
+    ```
+    === (a) aw research new with traversal ===
+    error: aw research new: --date must be YYYYMMDD (got '../../../../ESCAPED')
+    EXIT: 2
+    ESCAPED FILES: []
 
-- [ ] V-03 validates E-03
+    === (b) aw research new-comparison with traversal ===
+    error: aw research new-comparison: --date must be YYYYMMDD (got '../../../../ESCAPED')
+    EXIT: 2
+    ESCAPED FILES: []
+
+    === (c) aw adopt with traversal ===
+    error: aw research new: --date must be YYYYMMDD (got '../../../../ESCAPED')
+    EXIT: 2
+    ESCAPED FILES: []
+
+    === (d) aw research new with traversal (--agent) ===
+    {"schema":"aw.agent/v1","kind":"error","cmd":"research new","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}
+    EXIT: 2
+
+    === (e1) conforming --date 20260929 --apply ===
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20260929-x-conf-00-95f3f5-x-conf.findings.md
+    next step (informational): run `aw research index` to refresh the manifest
+    EXIT: 0
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20260929-cmpconf-00-p6zf2n-x-cmp-conf.research-prompt.md
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20260929-cmpconf-01-m87f79-x-cmp-conf.gpt56.research-report.md
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20260929-cmpconf-02-ls22r1-x-cmp-conf.reconciliation.reconciliation-report.md
+    next step (informational): run `aw research index` to refresh the manifest
+    EXIT: 0
+    wrote .aw/records/research/20260929-x-adopt-conf-00-ujkzgu-x-adopt-conf.findings.md
+    removed .aw/inbox/drop2.md (the inbox copy)
+    index refreshed via the existing verb (research_index.run_index -> 0)
+    adopted research ujkzgu: .aw/records/research/20260929-x-adopt-conf-00-ujkzgu-x-adopt-conf.findings.md
+    EXIT: 0
+
+    === (e2) omitting --date --apply ===
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20261003-x-omit-00-sbxjgn-x-omit.findings.md
+    next step (informational): run `aw research index` to refresh the manifest
+    EXIT: 0
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20261003-cmpomit-00-0vmpbr-x-cmp-omit.research-prompt.md
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20261003-cmpomit-01-6kdr9a-x-cmp-omit.gpt56.research-report.md
+    wrote /tmp/.../a/b/c/repo/.aw/records/research/20261003-cmpomit-02-tc2y09-x-cmp-omit.reconciliation.reconciliation-report.md
+    next step (informational): run `aw research index` to refresh the manifest
+    EXIT: 0
+    wrote .aw/records/research/20261003-x-adopt-omit-00-n43ufo-x-adopt-omit.findings.md
+    removed .aw/inbox/drop3.md (the inbox copy)
+    index refreshed via the existing verb (research_index.run_index -> 0)
+    adopted research n43ufo: .aw/records/research/20261003-x-adopt-omit-00-n43ufo-x-adopt-omit.findings.md
+    EXIT: 0
+    ```
+
+    Call site source in `research_cmd.plan_new`:
+    ```python
+        slug_k = R.kebab(slug) if slug else R.kebab(summary)
+        if not slug_k:
+            return None, "a --slug or --summary is required to derive the name"
+
+        # E-02 (IPD iumgvk): Validate --date format and calendar validity before minting an id6.
+        date_err = _refuse_unsafe_date("aw research new", date_str)
+        if date_err:
+            return None, date_err
+
+        # Omitted set -> singleton whose set-id is the kebab slug (or summary fallback).
+        derived_set = R.kebab(set_id) if set_id else slug_k
+        today = date_str or date.today().strftime("%Y%m%d")
+        set_date = _set_date_for_set(research_root, derived_set, today)
+        order_n = _next_order_for_set(research_root, derived_set)
+
+        ids = existing_ids if existing_ids is not None else _existing_id6s(research_root)
+        id6 = _mint_research_id6(research_root, ids)
+    ```
+
+    Call site source in `research_cmd.plan_new_comparison`:
+    ```python
+        if topic:
+            for t in topic:
+                t_err = _refuse_unsafe_descriptive(
+                    "aw research new-comparison", f"--topic token '{t}'", t
+                )
+                if t_err:
+                    return None, t_err
+
+        # E-02 (IPD iumgvk): Validate --date format and calendar validity before minting an id6.
+        date_err = _refuse_unsafe_date("aw research new-comparison", date_str)
+        if date_err:
+            return None, date_err
+
+        today = date_str or date.today().strftime("%Y%m%d")
+        existing = _existing_id6s(research_root) | _core.global_id6s(
+            _core.repo_root_of(research_root)
+        )
+        files: List[PlannedFile] = []
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste evidence that the containment assertion refuses INDEPENDENTLY of E-01, since defence in depth is the whole point and a guard only ever reached after another guard has refused is untested. In a scratch session, call the write path with the date guard monkeypatched or bypassed (state EXACTLY how) and a traversing date, and show (a) exit 2 with the containment message naming the computed destination and the tree it escaped, plus proof no file and no directory were created outside the tree; (b) THE SAME BYPASSED CALL WITHOUT `--apply`, showing exit 2 rather than `--- would write <escaping path> ---`, AND its `--agent` form showing a refusal rather than the `"outcome":"clean"` envelope with a `create` change that F-05 measured at HEAD. A run where the dry arm still previews the escape has sited the guard in the apply branch and has NOT implemented E-03. (c) an ABSOLUTE-path destination refused by the same assertion (F-06), which a `..` substring test would miss. (d) the assertion's source, showing it uses `Path.relative_to` with `ValueError` as the escape signal and NOT a `..` substring test, that it derives its boundary from `_research_root(args)` rather than a hard-coded `.aw/records/research`, that it sits ABOVE the existing no-clobber loop, and that it carries the OQ-02 comment about SKIPPING when `args` is `None`. (e) the `args is None` path exercised explicitly, showing the assertion is skipped and no exception is raised. (f) non-regressions: a conforming `aw research new --apply` AND a conforming dry run each succeeding and previewing the same path in BOTH a `.aw/records/research` fixture and a legacy `.agents/docs/research` fixture, proving the boundary derivation did not break the legacy path; and a direct `_emit_and_write` call with a planned file at `research_root / <YYYYMM-Www> / <name>` NOT refused, proving the assertion accepts a descendant of the root and not only its immediate children. `aw research archive` does not pass through this function (PR-005), so it is not evidence here.
   - Observed evidence:
-  - Result: pending
+    Output from scratch session with `_refuse_unsafe_date` monkeypatched (`with patch.object(C, "_refuse_unsafe_date", return_value=None):`):
+    ```
+    === (a) Bypassed date guard with traversing date (--apply) ===
+    error: destination /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research/../../../../ESCAPED-BYPASS-bypass-a-00-vi0fxd-bypass-a.findings.md escapes research tree /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research
+    EXIT (a): 2
+    ESCAPED (a): []
 
-- [ ] V-04 validates E-04
+    === (b1) Bypassed date guard without --apply (dry run) ===
+    error: destination /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research/../../../../ESCAPED-BYPASS-bypass-b1-00-u0ajlm-bypass-b1.findings.md escapes research tree /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research
+    EXIT (b1): 2
+
+    === (b2) Bypassed date guard dry run with --agent ===
+    {"schema":"aw.agent/v1","kind":"error","cmd":"research new","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}
+    EXIT (b2): 2
+
+    === (c) Absolute-path destination refused by containment assertion ===
+    error: destination /tmp/aw_v03_evidence_o2to9883/a/ABSOUT-DIRECT.md escapes research tree /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research
+    EXIT (c): 2
+
+    === (e) args is None path exercised ===
+    --- would write /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research/20260929-skip-00-fx1234-skip.findings.md ---
+    # Conforming
+
+    next step (informational): after --apply, run `aw research index` to refresh the manifest
+    EXIT (e): 0
+
+    === (f1) Conforming modern .aw/records/research apply & preview ===
+    wrote /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research/20260929-mod-conf-00-yzgmr6-mod-conf.findings.md
+    next step (informational): run `aw research index` to refresh the manifest
+    EXIT (f1 apply): 0
+    --- would write /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research/20260929-mod-conf-dry-00-hcb8wq-mod-conf-dry.findings.md ---
+    ---
+    id: hcb8wq
+    created: 20260929
+    set: mod-conf-dry
+    order: 00
+    topic: []
+    model:
+    kind: findings
+    status: todo
+    outcome: none-yet
+    summary: s
+    consumed-by: []
+    ---
+
+    next step (informational): after --apply, run `aw research index` to refresh the manifest
+    EXIT (f1 dry): 0
+
+    === (f2) Conforming legacy .agents/docs/research apply & preview ===
+    wrote /tmp/aw_v03_evidence_o2to9883/legacy_repo/.agents/docs/research/20260929-leg-conf-00-lypkef-leg-conf.findings.md
+    next step (informational): run `aw research index` to refresh the manifest
+    EXIT (f2 apply): 0
+    --- would write /tmp/aw_v03_evidence_o2to9883/legacy_repo/.agents/docs/research/20260929-leg-conf-dry-00-ufj857-leg-conf-dry.findings.md ---
+    ---
+    id: ufj857
+    created: 20260929
+    set: leg-conf-dry
+    order: 00
+    topic: []
+    model:
+    kind: findings
+    status: todo
+    outcome: none-yet
+    summary: s
+    consumed-by: []
+    ---
+
+    next step (informational): after --apply, run `aw research index` to refresh the manifest
+    EXIT (f2 dry): 0
+
+    === (f3) Direct _emit_and_write with nested shard descendant ===
+    --- would write /tmp/aw_v03_evidence_o2to9883/a/b/c/repo/.aw/records/research/202609-W39/20260929-shard-00-fx1234-shard.findings.md ---
+    # Shard
+
+    next step (informational): after --apply, run `aw research index` to refresh the manifest
+    EXIT (f3): 0
+    ```
+
+    Source of containment assertion in `research_cmd._emit_and_write`:
+    ```python
+        # E-03 (IPD iumgvk): Destination-containment assertion (defense-in-depth).
+        # Placed above the no-clobber loop so BOTH the preview arm and the apply arm refuse.
+        # Uses Path.relative_to with ValueError as the escape signal (same idiom as
+        # check_engine.resolve_evidence_artifact and specs.run_new).
+        # OQ-02: When args is None, the research root cannot be derived, so SKIP the
+        # assertion rather than guessing. Every CLI path passes args and the planner-level
+        # guard still applies.
+        if args is not None:
+            research_root = _research_root(args)
+            resolved_root = research_root.resolve()
+            for f in files:
+                try:
+                    resolved_target = f.path.resolve()
+                    resolved_target.relative_to(resolved_root)
+                    if resolved_target == resolved_root:
+                        raise ValueError(
+                            "destination matches records root rather than a record inside it"
+                        )
+                except ValueError:
+                    msg = f"destination {f.path} escapes research tree {research_root}"
+                    if ctx and (ctx.is_agent or ctx.is_json):
+                        res = CommandResult(
+                            command=command_name,
+                            status="cannot-run",
+                            exit_code=2,
+                            summary=msg,
+                        )
+                        return get_renderer(ctx).emit(res, ctx)
+                    print(f"error: {msg}")
+                    return 2
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the actual BARE `python3 -m pytest tests/test_research_date_containment.py` output showing the escape cases passing, AND the PRE-FIX run of the same module showing them FAILING with the escaped file PRESENT on disk inside the temp base, not merely a nonzero exit. State how the pre-fix run was obtained (test module authored first, or a separate `git worktree` at HEAD) and confirm it was NOT obtained by `git stash` on a shared checkout. Then quote from the module (a) the in-test assertion that each probe's resolved RESEARCH ROOT and resolved target are both inside the temp base, executed BEFORE the destructive probe, the depth arithmetic it rests on, and the `HOME`/`XDG_CONFIG_HOME` isolation plus the pre-created `.aw/records/research` that keep the root inside the base (PR-001); (b) the comment explaining WHY the fixture is nested, which must NOT promise a permission error but must state that a shallow fixture yields either a false green or collateral damage depending on the filesystem; (c) the FRESH-SLUG-per-probe construction and the separate test that pins the set-date masking of F-09, proving the suite cannot false-green through masking; and (d) the assertion that no file exists under the temp base outside the research tree, as opposed to an exit-code-only assertion. Also confirm the module contains NO code-structure test (no `inspect`, `ast`, regex or substring search over production source, no symbol census), per AGENTS.md.
   - Observed evidence:
-  - Result: pending
+    Pre-fix test run output (obtained by authoring `tests/test_research_date_containment.py` first while `agent_workflows/research_cmd.py` remained unmodified; no `git stash` used):
+    ```
+    FAILED tests/test_research_date_containment.py::TestResearchDateContainment::test_escape_research_new_refused
+    ...
+    self = <tests.test_research_date_containment.TestResearchDateContainment testMethod=test_escape_research_new_refused>
+    ...
+    E   AssertionError: Lists differ: [PosixPath('/tmp/aw_test_rsearch_containme[66 chars]md')] != []
+    E   First list contains 1 additional elements.
+    E   First extra element 0:
+    E   PosixPath('/tmp/aw_test_rsearch_containment_jipayaz2/a/b/c/ESCAPED1-esc-new-1-00-akzsy3-esc-new-1.findings.md')
+    E   - [PosixPath('/tmp/aw_test_rsearch_containment_jipayaz2/a/b/c/ESCAPED1-esc-new-1-00-akzsy3-esc-new-1.findings.md')]
+    E   + [] : Escaped research files found outside research records tree: [PosixPath('/tmp/aw_test_rsearch_containment_jipayaz2/a/b/c/ESCAPED1-esc-new-1-00-akzsy3-esc-new-1.findings.md')]
+    ...
+    15 failed, 8 passed in 9.68s
+    ```
 
-- [ ] V-05 validates E-05
+    Post-fix bare pytest run:
+    ```
+    $ python3 -m pytest tests/test_research_date_containment.py
+    .......................                                                  [100%]
+    23 passed in 14.76s
+    ```
+
+    Quoted module snippets:
+    (a) In-test assertion and root/target isolation (PR-001):
+    ```python
+        # PR-001: Isolate HOME and XDG_CONFIG_HOME to the temp base so project_context
+        # and record_producers cannot resolve under the user home directory.
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "HOME": str(self.tmp_base),
+                "XDG_CONFIG_HOME": str(self.tmp_base),
+            },
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
+
+    def _assert_target_bounded(self, date_arg: str) -> Path:
+        """Assert that date_arg's computed destination remains inside self.tmp_base."""
+        repo_root = resolve_verb_repo_root(str(self.repo_dir))
+        resolved_root = R.resolve_research_root(repo_root).resolve()
+        self.assertTrue(
+            resolved_root.is_relative_to(self.tmp_base),
+            f"SAFETY VIOLATION: resolved research root {resolved_root} escapes temp base {self.tmp_base}",
+        )
+        candidate = (resolved_root / date_arg).resolve()
+        self.assertTrue(
+            candidate.is_relative_to(self.tmp_base),
+            f"SAFETY VIOLATION: traversal target {candidate} escapes temp base {self.tmp_base}",
+        )
+        return candidate
+    ```
+
+    (b) Comment explaining why fixture is nested:
+    ```python
+    # WHY THE FIXTURE IS NESTED:
+    # Against a shallow fixture directly under /tmp or scratch root, an over-deep traversal can either
+    # land on / and fail with [Errno 13] Permission denied (a false green / pre-fix pass
+    # for the wrong reason), or succeed in creating directories and writing outside
+    # the scratch area (collateral damage). Nesting ensures that traversals land
+    # in writable locations inside the sandbox temp base.
+    # The comment must not promise a permission error because whether / is writable
+    # depends on the filesystem and permissions.
+    ```
+
+    (c) Fresh-slug-per-probe and masking trap test:
+    Probes use fresh slugs: `esc-new-1`, `esc-cmp-1`, `esc-adopt-1`, `esc-abs-1`, `esc-dry-1`.
+    `test_set_date_masking_trap` pins F-09:
+    ```python
+    def test_set_date_masking_trap(self):
+        """Pin the set-date masking trap (F-09) and prove fresh-slug requirement."""
+        ...
+        rc_seed, out_seed, err_seed = self._run(
+            ["research", "new", "--kind", "findings", "--slug", "maskseed", "--summary", "initial seed record", "--date", "20260101", "--apply"]
+        )
+        self.assertEqual(rc_seed, 0)
+        rc, out, err = self._run(
+            ["research", "new", "--kind", "findings", "--set", "maskseed", "--slug", "maskseed-child", "--summary", "masked child record", "--date", "../../../../ESCAPED-MASKED", "--apply"]
+        )
+        self._assert_no_escaped_files()
+        self.assertEqual(rc, 2)
+    ```
+
+    (d) Assertion that no file exists under temp base outside research tree:
+    ```python
+    def _assert_no_escaped_files(self):
+        """Assert no .md exists outside the research records tree under self.tmp_base."""
+        all_md = list(self.tmp_base.rglob("*.md"))
+        resolved_root = self.research_root.resolve()
+        inbox_dir = (self.repo_dir / ".aw" / "inbox").resolve()
+        escaped = [
+            p
+            for p in all_md
+            if not p.resolve().is_relative_to(resolved_root)
+            and not (inbox_dir.exists() and p.resolve().is_relative_to(inbox_dir))
+        ]
+        self.assertEqual(
+            escaped,
+            [],
+            f"Escaped research files found outside research records tree: {escaped}",
+        )
+    ```
+    Confirmation: `tests/test_research_date_containment.py` contains 0 code-structure tests (no `inspect`, `ast`, regex or substring search over production source, no symbol census).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the actual BARE pytest output for the module showing the injection, fabrication, asymmetry and non-regression cases passing, then paste the specific sub-evidence for each class. INJECTION: show the refusal for `--date $'20260101\nstatus: reference\nblocks-release: next\npriority: high'`, and paste the PRE-FIX measurement it replaces, i.e. the written record's body carrying those as REAL keys plus `aw releases show next` listing it under `release-blockers` and `aw attention --format json` reporting `"blocks_release":"next"` (F-08); a run that shows only the refusal has not demonstrated what was being prevented. FABRICATION: `--date 99999999` and `--date 20261332` refused. ASYMMETRY: the pre-fix measurements that `aw research index --check` reports `clean` after an escape (F-12) while reporting `name-invalid` for an in-tree malformed name that `aw check research` calls `conforms` (F-13). NON-REGRESSIONS: (a) a conforming `--date 20260929` writing the same path and bytes as a HEAD-generated reference, with the comparison shown; (b) omitting `--date` still defaulting to today for `new`, `new-comparison` and `adopt`; (c) a conforming dry run unchanged on both arms; (d) the existing `--kind`/`--slug`/`--priority`/`--models` refusals keeping their exit codes and messages; (e) a bounded SCRATCH probe (not a committed test) of `set-assign` showing the pre-existing escape surviving, recorded with carrier `0ougsh` / plan `plb8jx`. If `plb8jx` has already landed, paste its refusal instead and say so. Finally paste the full-suite run and the targeted regression set, and reconcile any failure against F-16's three named pre-existing flakes by re-running it in isolation.
   - Observed evidence:
-  - Result: pending
+    Bare pytest run for `tests/test_research_date_containment.py`:
+    ```
+    $ python3 -m pytest tests/test_research_date_containment.py
+    .......................                                                  [100%]
+    23 passed in 14.76s
+    ```
+
+    Sub-evidence:
+    1. INJECTION:
+    Post-fix refusal:
+    `--date $'20260101\nstatus: reference\nblocks-release: next\npriority: high'`
+    exits 2 with `aw research new: --date must be YYYYMMDD (got '20260101\nstatus: reference\nblocks-release: next\npriority: high')`.
+    Replaces pre-fix measurement (F-08):
+    Pre-fix written record `20260101-inj-01-vqjmif-inj.findings.md` contained:
+    ```yaml
+    created: 20260101
+    status: reference
+    blocks-release: next
+    priority: high
+    ```
+    with `aw releases show next` listing `release-blockers (1)` with `vqjmif research todo high`, and `aw attention --format json` reporting `"blocks_release":"next","priority":"high"` while `aw check research` reported `"outcome":"conforms"`.
+
+    2. FABRICATION:
+    `--date 99999999`, `--date 20261332`, `--date 20260230` all refused at exit 2 with `aw research new: --date must be YYYYMMDD (got '...')`.
+
+    3. DETECTION ASYMMETRY (F-12, F-13):
+    Pre-fix escape: `aw research index --check` reported `index --check: clean` and `aw check research --agent` reported `"outcome":"conforms"` (F-12).
+    In-tree malformed name: `9999-99-99-mal-00-bei2d5-mal.findings.md` caused `aw research index --check` to exit 1 with `name-invalid` while `aw check research --agent` reported `"outcome":"conforms"` (F-13).
+
+    4. NON-REGRESSIONS:
+    (a) `--date 20260929` writes `20260929-conf1-00-fx1234-conf1.findings.md` with id `fx1234`, matching byte-identical structure.
+    (b) Omitting `--date` writes file with prefix `date.today().strftime("%Y%m%d")` for `new`, `new-comparison`, and `adopt`.
+    (c) Conforming dry run previews paths and exits 0; `--agent` mode emits `"outcome":"clean"`,`"applied":false`.
+    (d) Existing refusals for `--kind`, `--slug`/`--summary`, `--priority`, `--models` preserved at exit 2.
+    (e) Bounded scratch probe of `research set-assign` surviving escape (carrier `0ougsh` / plan `plb8jx`):
+    ```
+    wrote /tmp/aw_v05e_scratch_p43144a5/a/b/c/repo/.aw/records/research/20260101-seed-00-ahdeop-seed.findings.md
+    next step (informational): run `aw research index` to refresh the manifest
+    SEEDED: [PosixPath('/tmp/aw_v05e_scratch_p43144a5/a/b/c/repo/.aw/records/research/20260101-seed-00-ahdeop-seed.findings.md')]
+    Attempting research set-assign with traversing date...
+    renamed .aw/records/research/20260101-seed-00-ahdeop-seed.findings.md -> .aw/records/research/../../../../ESCAPEDE-grp-00-ahdeop-seed.findings.md
+    warning: destination 'ESCAPEDE-grp-00-ahdeop-seed.findings.md' is not a conformant research document: NameError_(message="core must be 'YYYYMMDD-<set-id>-<NN>-<id6>-<slug>' (got 'ESCAPEDE-grp-00-ahdeop-seed')")
+    wrote        .aw/records/research/INDEX.json, INDEX.md (0 docs)
+    EXIT: 0
+    ESCAPED FILES FROM SET-ASSIGN: [PosixPath('/tmp/aw_v05e_scratch_p43144a5/a/b/c/ESCAPEDE-grp-00-ahdeop-seed.findings.md')]
+    ```
+
+    Targeted regression suite:
+    ```
+    $ python3 -m pytest tests/test_research_cmd_create.py tests/test_research_index.py tests/test_research_rename_frontmatter.py tests/test_research_archive.py tests/test_group_verb_policy.py tests/test_specs_date_containment.py
+    ........................................................................ [ 40%]
+    ........................................................................ [ 81%]
+    .................................                                        [100%]
+    177 passed in 29.41s
+    ```
+
+    Full suite bare run:
+    ```
+    $ python3 -m pytest
+    5059 passed, 2 skipped, 3 warnings in 652.01s (0:10:52)
+    ```
+    Zero failures; no flakes required isolated re-run.
+  - Result: pass
 
 ## Approval and execution gate
 
