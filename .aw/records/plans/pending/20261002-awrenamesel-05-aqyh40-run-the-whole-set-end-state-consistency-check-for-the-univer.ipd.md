@@ -6,18 +6,20 @@
 - Scope: Run, read-only, the Set's end-state consistency check and the full suite at a HEAD where Orders 01 to 04 are all executed, and record the pasted evidence here. EXCLUDES any production code, test, spec, or record change: every verb is run in its default PREVIEW mode (no `--apply`), so nothing on disk moves. If any check fails, this plan records the failure and STOPS; the fix belongs to a new corrective IPD against the owning child, never to this file.
 - Scope-Paths: .aw/records/plans/pending/20261002-awrenamesel-05-aqyh40-run-the-whole-set-end-state-consistency-check-for-the-univer.ipd.md
 - Item-Dependencies: executed:eby93o, executed:87m438, executed:1x4tdo, executed:3qxuw1
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: gyv9tf
 - Blocks-Release: next
 - Set: awrenamesel
 - Order: 5
-- Highest E allocated: 05
+- Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: aqyh40
 
 ## Workflow history
+- 2026-10-03 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM), PR-002 (MEDIUM), PR-003 (LOW), PR-004 (LOW), all FIXED. Every end-state check re-run in preview mode at review behaves as expected. Findings in .aw/records/reviews/20261002-awrenamesel-05-aqyh40-run-the-whole-set-end-state-consistency-check-for-the-univer.review.md.
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): created to own the whole-Set end-state verification the orchestrator `95jk4s` carried with no child covering it, after the orchestrator coverage probe refused `aw agy run` on it. The parent's checklist is left unchanged; this child is added as Order 05 in its child table.
 
@@ -40,17 +42,32 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Run `aw rename plans <filename>` and `aw group plans <filename> --set <scratch-set>` against one existing plan addressed by its FILENAME, both without `--apply`.
   - Depends on: E-01
-  - Expected outcome: both exit 0 and preview an action on that plan; neither prints `no plan has Id`; `git status --porcelain` is unchanged afterwards.
+  - Expected outcome: both exit 0 and preview an action on that plan; neither prints `no plan has Id`. For the rename, the previewed target filename's `<id6>` segment equals the plan's DECLARED `- Id:` (parent criterion 3), never the selector string. The target plan still exists at its original path afterwards with `git diff --stat -- <that path>` empty.
   - Execution state: pending
 
 - [ ] E-03 Run `aw archive plans <filename>` against a terminal-root plan addressed by its FILENAME, and `aw archive plans <a token matching nothing>`, both without `--apply`.
   - Depends on: E-01
-  - Expected outcome: the filename resolves to that plan in the preview; the unmatched token exits NONZERO rather than printing a `CLEAN` banner at exit 0; `git status --porcelain` is unchanged afterwards.
+  - Expected outcome: the filename resolves to that plan in the preview; the unmatched token exits NONZERO rather than printing a `CLEAN` banner at exit 0; a BARE `aw archive plans` (no target) still exits 0 (parent criterion 4); the target plan still exists at its original path afterwards.
   - Execution state: pending
 
 - [ ] E-04 Run `aw rename plans <a repo-relative SPEC path> --slug zzz` without `--apply`.
   - Depends on: E-01
   - Expected outcome: exits nonzero with a refusal naming the type mismatch / out-of-tree path; the spec file is untouched.
+  - Execution state: pending
+
+- [ ] E-06 Run `aw rename <t> <a repo-relative PLAN path> --slug zzz` without `--apply` for each of the six generic-engine types `specs`, `prompts`, `backlog`, `walkthroughs`, `roadmaps`, `releases` (parent criterion 2).
+  - Depends on: E-01
+  - Expected outcome: all six exit nonzero with a `<t> verb cannot act on ...` refusal; the plan is still at its original path.
+  - Execution state: pending
+
+- [ ] E-07 Run `aw archive plans <a terse setid whose plans carry a descriptive parenthetical in - Set:>` without `--apply` (parent criterion 5). Re-derive a qualifying setid at execution (for example by `rg '^- Set: \S+ \(' .aw/records/plans/executed`), do not reuse one from this plan.
+  - Depends on: E-01
+  - Expected outcome: exits 0 and previews archiving that Set's plans, rather than printing `no terminal-root plan or Set matches`.
+  - Execution state: pending
+
+- [ ] E-08 For one record under `.aw/records/roadmaps/` (re-derive at execution), compute `check_engine._identity_rename_hint('roadmaps', <id6>, 'Id', False, path=<resolved path>)` and RUN the command it returns without `--apply` (parent criterion 6).
+  - Depends on: E-01
+  - Expected outcome: the hint names the `roadmaps` type, and running it exits 0.
   - Execution state: pending
 
 ### Task group 3: suite
@@ -79,8 +96,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 1. Confirm preconditions (E-01).
 2. Run the three plans verbs by filename in preview mode (E-02, E-03).
-3. Confirm a foreign-type path is refused (E-04).
-4. Run the suite (E-05).
+3. Confirm a foreign-type path is refused by the plans verbs (E-04) and by the six generic-engine types (E-06).
+4. Confirm a terse setid with a descriptive parenthetical addresses its Set (E-07) and the roadmap rename hint resolves (E-08).
+5. Run the suite (E-05).
 
 No file other than this plan changes.
 
@@ -92,11 +110,11 @@ No file other than this plan changes.
 ## Scope check
 
 - Over-scope: none. The single Scope-Path is this plan, which is where the evidence is recorded.
-- Under-scope: none known; this covers exactly the parent's end-state check, V-04's pasted evidence, and criterion 7.
+- Under-scope: none known; this covers the parent's end-state check, V-04's pasted evidence, and completion criteria 1 to 7 at the combined end state. Criterion 2's research/plans exceptions are covered by the parent's own wording and need no separate check.
 
 ## Required tests / validation
 
-The deliverable IS validation: the pasted outputs of E-02 to E-05, plus an unchanged `git status --porcelain` showing the preview runs mutated nothing.
+The deliverable IS validation: the pasted outputs of every E-item. That nothing was mutated is shown per target (the target file still exists at its original path and `git diff --stat -- <path>` is empty), NOT by a whole-tree `git status`, which is unreliable in this shared checkout because co-workers change it concurrently.
 
 ## Spec / documentation sync
 
@@ -121,17 +139,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste both commands, their full output and exit codes, and `git status --porcelain` before and after showing no change.
+  - Required evidence: paste both commands, their full output and exit codes (both 0, neither printing `no plan has Id`); show the rename preview's target `<id6>` segment equals the plan's pasted `- Id:` line; paste `git diff --stat -- <target path>` (empty) and `ls <target path>` showing it still exists.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste both commands, their output and exit codes (filename resolves; unmatched token exits nonzero), and `git status --porcelain` before and after.
+  - Required evidence: paste the three commands (filename target, unmatched token, bare sweep), their output and exit codes (0, nonzero, 0 respectively), and `ls <target path>` showing the filename target was not moved.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the command, its refusal text and nonzero exit code, and `git status --porcelain -- .aw/records/specs/` showing the spec untouched.
+  - Required evidence: paste the command, its refusal text and nonzero exit code, and `git diff --stat -- <the spec path>` (empty) showing the spec untouched.
   - Observed evidence:
   - Result: pending
 
@@ -140,9 +158,24 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-06 validates E-06
+  - Required evidence: paste, for each of the six types, the command, its exit code (nonzero) and its `<t> verb cannot act on` refusal line; plus `ls <plan path>` showing the plan was not renamed.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste the `rg` line that selected the setid (showing its parenthetical), the archive command, its exit code (0) and at least one `would archive` line naming a plan of that Set.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: paste the python invocation and the hint string it returned (naming `roadmaps`), then the hint command run without `--apply` and its exit code (0).
+  - Observed evidence:
+  - Result: pending
+
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-Authored `to-review`; requires `/plan-review` and explicit human approval before execution. EXECUTION CONTRACT: run every verb in preview mode only, never `--apply`; record evidence in this file only; commit through `aw commit aqyh40 -- <this plan>`, never push. POST-GATE LIFECYCLE: move to `.aw/records/plans/executed/` only once `aw ipd lint --phase pre-transition` conforms and every `V-*` reads `pass`. On any failure, set the item `failed`, stop, and open a corrective IPD. Once this child is executed, the orchestrator `95jk4s` may be retired.
+Requires explicit human approval before execution. EXECUTION CONTRACT: open questions are resolved; the scope fence is this plan file only (an out-of-scope edit, should one prove necessary, is made and then justified at finalize via `--scope-reason`); run every verb in preview mode only, never `--apply`; you MUST paste the ACTUAL command output and exit code for every `V-*`, never a paraphrase or an assumed result; commit through `aw commit aqyh40 -- <this plan>`, never `git add -A`, never push. On any check failure, record it as `failed` and stop with the evidence; the fix is a new corrective IPD against the owning child, since executed plans may not be rewritten. POST-GATE LIFECYCLE: the terminal transition requires `aw ipd lint --phase pre-transition` to conform and every `V-*` to read `pass`. In a managed `aw oc run` / `aw agy run` lane the RUNNER owns the finalize transition; when executing by hand, the executor runs `aw ipd finalize` for this plan. Once this child is executed, the runner retires orchestrator `95jk4s`.
