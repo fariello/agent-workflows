@@ -371,19 +371,15 @@ def test_must_not_refuse_matrix(temp_git_repo: Path):
     rc, out = run_cli("rename", "research", "rs0001", "--slug", "newslug")
     assert rc == 0 and "would rename" in out, f"research id6 failed: rc={rc}, {out}"
 
-    # Plans: id6 succeeds; path selectors exhibit pre-existing refusal with "no plan has Id"
+    # Plans: id6, relpath, and abspath selectors succeed
     rc, out = run_cli("rename", "plans", "pl0001", "--slug", "newslug")
     assert rc == 0 and "would rename" in out, f"plans id6 failed: rc={rc}, {out}"
     rc, out = run_cli(
         "rename", "plans", str(plan.relative_to(repo)), "--slug", "newslug"
     )
-    assert (
-        rc == 2 and "no plan has Id" in out
-    ), f"plans relpath unexpected result: rc={rc}, {out}"
+    assert rc == 0 and "would rename" in out, f"plans relpath failed: rc={rc}, {out}"
     rc, out = run_cli("rename", "plans", str(plan.resolve()), "--slug", "newslug")
-    assert (
-        rc == 2 and "no plan has Id" in out
-    ), f"plans abspath unexpected result: rc={rc}, {out}"
+    assert rc == 0 and "would rename" in out, f"plans abspath failed: rc={rc}, {out}"
 
 
 def test_effzzi_research_roadmap_facet_resolves_by_id6(temp_git_repo: Path):

@@ -7,7 +7,6 @@
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/attention.py, tests/test_attention_output_safety.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
 - Status: to-review
-- Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: llnvwj

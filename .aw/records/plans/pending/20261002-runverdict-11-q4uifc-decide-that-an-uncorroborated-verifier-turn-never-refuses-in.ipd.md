@@ -13,7 +13,6 @@
 - Scope-Paths: agent_workflows/verifier_corroboration.py, tests/test_verifier_corroboration.py, .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, DECISIONS.md, CHANGELOG.md
 - Item-Dependencies: none
 - Status: to-review
-- Readiness: go-pending-approval
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: sinhkj

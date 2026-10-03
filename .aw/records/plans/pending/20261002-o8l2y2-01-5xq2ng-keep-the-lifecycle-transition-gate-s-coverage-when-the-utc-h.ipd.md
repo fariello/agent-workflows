@@ -6,7 +6,6 @@
 - Scope: IN: one `info`-severity companion rule that reports when a plan's history carries two or more distinct lifecycle statuses yet the gate validated ZERO transitions, so the gate's own blindness is visible in its output; and an outcome test that pins the reported-not-silent property across the date-collapse. OUT, each with a reason recorded under "Deferred": the production clock fix (`5ivkdh`); the cross-spelling guard (`ayhveg`); the scaffold site (`9wcei0`); the plan-family `created` site (`rfyrvp`); the duplicate convergence (`qjm4bg`); implementing spec 4.3's `seq`; changing the direction classifier; and relaxing or strengthening the existing `error` rule's verdicts.
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_lifecycle_gate_coverage.py, CHANGELOG.md
 - Item-Dependencies: none
-- Readiness: go-pending-approval
 - Status: to-review
 - Work-Kind: bug
 - Priority: medium

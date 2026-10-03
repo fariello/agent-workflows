@@ -6,7 +6,7 @@
 - Author: opencode / antigravity (IPD jjh4aj)
 - From-Backlog: vy20et
 - From-Spec: 25kzda
-- Scope: Specification of the requirement-ID addressing convention for new specs, the distinct acceptance-criterion namespace, the declaration-site rule, the retrofit/grandfathering policy via the stamped cutover mechanism, and the SPEC-PLAN-TRACE verification contract (scope, severity, grandfathering behavior, and citation-not-implementation limit).
+- Scope: Requirement-ID convention for new specs, acceptance-criterion namespace, declaration-site rule, retrofit policy via stamped cutover, and SPEC-PLAN-TRACE verification contract (scope, severity, grandfathering behavior, and citation-not-implementation limit).
 
 ## Workflow history
 

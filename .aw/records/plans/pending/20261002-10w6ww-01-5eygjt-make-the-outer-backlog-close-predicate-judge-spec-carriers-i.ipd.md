@@ -6,7 +6,6 @@
 - Scope: IN: (a) in `runner_shared.evaluate_backlog_close`, stop returning before non-IPD carriers are judged, so a MIXED carrier set requires every IPD carrier executed AND every spec carrier `implemented`, reusing `check_engine._carrier_is_executed` as the single spec-state authority rather than adding a second status reader; (b) keep the two SHIPPED rules exactly as they are, namely the IPD-only rule (every IPD carrier executed) and the no-IPD rule (artifact existence, spec status deliberately not consulted); (c) tests pinning the mixed refusal, the mixed allowance once the spec is `implemented`, and both unchanged single-kind rules; (d) correct the carrier-kind comment block and `BacklogCloseVerdict.rule`'s docstring, which both describe a partition the fix changes the meaning of; (e) a CHANGELOG entry. OUT: the inner gate `check_engine.evaluate_blocking_close` and its SATISFIED arm (see Deferred: the masking is a CONSEQUENCE here, and narrowing SATISFIED is a separate decision over every hand close); `release_gate_warnings` staying plans-only (`2o5wka` E-05 left it so deliberately); the F-06 ungated-sibling residue that `2o5wka` OQ-02 defers with a trigger; the `rule` string values in the verdict (consumed by recorded run state).
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_outer_close_spec_carrier.py, CHANGELOG.md
 - Item-Dependencies: none
-- Readiness: go-pending-approval
 - Status: to-review
 - Work-Kind: bug
 - Priority: medium

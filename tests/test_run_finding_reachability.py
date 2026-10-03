@@ -143,13 +143,13 @@ class TestRunFindingReachability(unittest.TestCase):
         orig = run_evidence.RUN_FINDING_CODES
         try:
             # Perturb a row to name only unreachable predicates
-            # worktree_lease.LeaseTable.claim is unreachable
+            # worktree_lease.LeaseTable.held_by is unreachable
             perturbed_rows = []
             target_code = "RUN-HOST-CAPABILITY"
             for row in orig:
                 if row.code == target_code:
                     perturbed_rows.append(
-                        row._replace(predicates=("worktree_lease.LeaseTable.claim",))
+                        row._replace(predicates=("worktree_lease.LeaseTable.held_by",))
                     )
                 else:
                     perturbed_rows.append(row)
@@ -166,7 +166,7 @@ class TestRunFindingReachability(unittest.TestCase):
             self.assertEqual(unreachable_finding.where, target_code)
             self.assertIn(target_code, unreachable_finding.message)
             self.assertIn(
-                "worktree_lease.LeaseTable.claim", unreachable_finding.message
+                "worktree_lease.LeaseTable.held_by", unreachable_finding.message
             )
 
             # Second perturbation: BOUND row with one reachable predicate beside unreachable ones passes
@@ -177,7 +177,7 @@ class TestRunFindingReachability(unittest.TestCase):
                         row._replace(
                             predicates=(
                                 "host_sandbox_profile.preflight_host_capabilities",  # reachable
-                                "worktree_lease.LeaseTable.claim",  # unreachable
+                                "worktree_lease.LeaseTable.held_by",  # unreachable
                             )
                         )
                     )
