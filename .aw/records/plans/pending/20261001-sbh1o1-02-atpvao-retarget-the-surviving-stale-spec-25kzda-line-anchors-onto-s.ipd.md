@@ -43,27 +43,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-derive the census before touching anything
 
-- [ ] E-01 RE-DERIVE THE CENSUS MECHANICALLY AND RECORD IT, because this plan's own numbers will have moved by the time it executes exactly as the item's did. Run the detector shipped by `mt54wr`: `aw check specs --source-anchors`. Record, as pasted output, every finding with its file, line, cited offset, and the heading the offset ACTUALLY resolves to. ALSO, before any edit, run the bare suite (`python3 -m pytest`, no added flags) and record its summary line and the SET of failing test ids as the baseline E-04 compares against. THEN SUBTRACT THE SITES THIS PLAN DOES NOT OWN and state the remainder explicitly: the three `:166` sites in `closure_target_admission`'s rationale comment, that function's refusal f-string, and `enforce_mixed_type_gate`'s docstring (owned by `yu47nf` E-07 and `mt54wr` E-04), which should already be gone if the declared dependencies executed. VERIFY THE TWO DRIVER FILES CARRY NO SPEC ANCHOR: `grep -n '25kzda' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` and confirm that any `:NNNN` token near a hit cites `oc_runipd.py` rather than the spec (F-02). If the detector is absent or its output is empty, STOP and record that rather than falling back to a hand grep: the dependency edge exists precisely so this does not happen, and `aw check specs --source-citations` is a DIFFERENT check that will mislead you by reporting clean. THE DETECTOR IS NECESSARY BUT NOT COMPLETE (PR-002), so ALSO run a SUPPLEMENTARY grep as a CROSS-CHECK, not a substitute: `grep -nE '(^|[ (\`/])\`?:[0-9]{3,4}\b' agent_workflows/runner_shared.py agent_workflows/run_evidence.py agent_workflows/host_sandbox_profile.py tests/test_host_capability_extension.py | grep -vE '[A-Za-z0-9_]\.(py|md|json|yml)\`?:[0-9]'`. Measured at review (HEAD `e75cde645`) the detector reported 22 `25kzda` findings while the grep found further spec anchors the detector cannot attribute because their comment or docstring block never names the id6: the `RUN_POLICY_FLAGS` `--type` row comment (`:129`, `:131`), `evaluate_unverifiable_admission`'s docstring (`spec 2.1 \`:136\``), and `AggregatedItem`'s docstring bullets (`:938` twice); `validate_non_maskable_table`'s docstring bullet (`:938`) is also grep-only. Classify every grep hit as a `25kzda` anchor (owned), a sibling-owned site, or a non-spec citation, and paste the classification. The detector's one non-`25kzda` finding (`check_engine.py`, spec `pqsx96` `:135`) is out of scope: it is a valid I-07 table-row citation the detector misreads, recorded on `1vd74h`.
+- [x] E-01 RE-DERIVE THE CENSUS MECHANICALLY AND RECORD IT, because this plan's own numbers will have moved by the time it executes exactly as the item's did. Run the detector shipped by `mt54wr`: `aw check specs --source-anchors`. Record, as pasted output, every finding with its file, line, cited offset, and the heading the offset ACTUALLY resolves to. ALSO, before any edit, run the bare suite (`python3 -m pytest`, no added flags) and record its summary line and the SET of failing test ids as the baseline E-04 compares against. THEN SUBTRACT THE SITES THIS PLAN DOES NOT OWN and state the remainder explicitly: the three `:166` sites in `closure_target_admission`'s rationale comment, that function's refusal f-string, and `enforce_mixed_type_gate`'s docstring (owned by `yu47nf` E-07 and `mt54wr` E-04), which should already be gone if the declared dependencies executed. VERIFY THE TWO DRIVER FILES CARRY NO SPEC ANCHOR: `grep -n '25kzda' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` and confirm that any `:NNNN` token near a hit cites `oc_runipd.py` rather than the spec (F-02). If the detector is absent or its output is empty, STOP and record that rather than falling back to a hand grep: the dependency edge exists precisely so this does not happen, and `aw check specs --source-citations` is a DIFFERENT check that will mislead you by reporting clean. THE DETECTOR IS NECESSARY BUT NOT COMPLETE (PR-002), so ALSO run a SUPPLEMENTARY grep as a CROSS-CHECK, not a substitute: `grep -nE '(^|[ (\`/])\`?:[0-9]{3,4}\b' agent_workflows/runner_shared.py agent_workflows/run_evidence.py agent_workflows/host_sandbox_profile.py tests/test_host_capability_extension.py | grep -vE '[A-Za-z0-9_]\.(py|md|json|yml)\`?:[0-9]'`. Measured at review (HEAD `e75cde645`) the detector reported 22 `25kzda` findings while the grep found further spec anchors the detector cannot attribute because their comment or docstring block never names the id6: the `RUN_POLICY_FLAGS` `--type` row comment (`:129`, `:131`), `evaluate_unverifiable_admission`'s docstring (`spec 2.1 \`:136\``), and `AggregatedItem`'s docstring bullets (`:938` twice); `validate_non_maskable_table`'s docstring bullet (`:938`) is also grep-only. Classify every grep hit as a `25kzda` anchor (owned), a sibling-owned site, or a non-spec citation, and paste the classification. The detector's one non-`25kzda` finding (`check_engine.py`, spec `pqsx96` `:135`) is out of scope: it is a valid I-07 table-row citation the detector misreads, recorded on `1vd74h`.
   - Depends on: none
   - Expected outcome: a pasted detector census naming every live stale anchor with its true enclosing heading; the sites owned by `yu47nf`/`mt54wr` identified and excluded; the two driver files confirmed to hold no spec anchor; the supplementary grep classified so no detector-invisible anchor is missed; and the OWNED site list stated as a count measured now rather than copied from this plan or from the item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: retarget the surviving anchors, one file at a time
 
-- [ ] E-02 RETARGET THE `runner_shared.py` ANCHORS onto stable section tokens, preserving every quoted sentence and every technical claim. Locate each site by SYMBOL, never by offset. The sites and their correct targets, each verified at authoring by resolving the cited claim's current location to its enclosing heading: `RunPolicyFlag`'s `resume_rule` field comment citing `` spec `:131` `` for the freeze rule becomes **Section 2.1** (the sentence "`--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy" is in `### 2.1 Command grammar`); `refuse_frozen_flags_on_resume`'s docstring, which cites `:131` three times and `:129` twice while explicitly reasoning about the TENSION between them, becomes **Section 2.1** for both, and its "whoever reconciles `:129` with `:131`" sentence must be rewritten to name the two CLAIMS rather than two offsets, since both now live in the same section and the offset pair is the only thing distinguishing them; `freeze_run_policy_flags`'s `` (spec `:134`) `` for `--full-auto` implying `--unattended` becomes **Section 2.1** (the `--full-auto` implies `--unattended` bullet, under `### 2.1` at review); `expand_dependency_closure`'s docstring citing `` :166 `` and `` :1007 `` for the negative ("Without the flag, dependencies outside the selection are checked against current repository state but are not silently enqueued"), `` :351 `` for "changes selection, not satisfaction semantics", and `` :1007 `` for running before the mixed-type gate, become **Section 2.1**, **Section 5.4**, **Section 2.6**, and **Section 5.4** respectively; `initialize_run_core`'s `:1007` becomes **Section 5.4**; `edge_satisfied`'s `:351` becomes **Section 2.6**. ADDED AT REVIEW (PR-002), two sites the detector misses: the `RUN_POLICY_FLAGS` comment on the `--type` row ("Spec `:129` names exactly this case ... no `:129`-versus-`:131` tension to inherit") becomes **Section 2.1** and, like the `refuse_frozen_flags_on_resume` sentence, must name the two CLAIMS rather than the offset pair; `evaluate_unverifiable_admission`'s docstring `(spec 2.1 \`:136\`)` drops the offset, keeping **Section 2.1** (the sentence "`--unverifiable-ok` is legal only when contractless prompts were explicitly admitted" is under `### 2.1 Command grammar`, measured at review). RE-VERIFY EACH TARGET BEFORE WRITING IT by locating the quoted sentence in the spec and reading its nearest preceding heading, because the spec is live and these section numbers are themselves a measurement. DO NOT TOUCH the three `:166` sites in `closure_target_admission` and `enforce_mixed_type_gate` (F-05); if they still carry an offset because a dependency did not execute, record that and leave them.
+- [x] E-02 RETARGET THE `runner_shared.py` ANCHORS onto stable section tokens, preserving every quoted sentence and every technical claim. Locate each site by SYMBOL, never by offset. The sites and their correct targets, each verified at authoring by resolving the cited claim's current location to its enclosing heading: `RunPolicyFlag`'s `resume_rule` field comment citing `` spec `:131` `` for the freeze rule becomes **Section 2.1** (the sentence "`--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy" is in `### 2.1 Command grammar`); `refuse_frozen_flags_on_resume`'s docstring, which cites `:131` three times and `:129` twice while explicitly reasoning about the TENSION between them, becomes **Section 2.1** for both, and its "whoever reconciles `:129` with `:131`" sentence must be rewritten to name the two CLAIMS rather than two offsets, since both now live in the same section and the offset pair is the only thing distinguishing them; `freeze_run_policy_flags`'s `` (spec `:134`) `` for `--full-auto` implying `--unattended` becomes **Section 2.1** (the `--full-auto` implies `--unattended` bullet, under `### 2.1` at review); `expand_dependency_closure`'s docstring citing `` :166 `` and `` :1007 `` for the negative ("Without the flag, dependencies outside the selection are checked against current repository state but are not silently enqueued"), `` :351 `` for "changes selection, not satisfaction semantics", and `` :1007 `` for running before the mixed-type gate, become **Section 2.1**, **Section 5.4**, **Section 2.6**, and **Section 5.4** respectively; `initialize_run_core`'s `:1007` becomes **Section 5.4**; `edge_satisfied`'s `:351` becomes **Section 2.6**. ADDED AT REVIEW (PR-002), two sites the detector misses: the `RUN_POLICY_FLAGS` comment on the `--type` row ("Spec `:129` names exactly this case ... no `:129`-versus-`:131` tension to inherit") becomes **Section 2.1** and, like the `refuse_frozen_flags_on_resume` sentence, must name the two CLAIMS rather than the offset pair; `evaluate_unverifiable_admission`'s docstring `(spec 2.1 \`:136\`)` drops the offset, keeping **Section 2.1** (the sentence "`--unverifiable-ok` is legal only when contractless prompts were explicitly admitted" is under `### 2.1 Command grammar`, measured at review). RE-VERIFY EACH TARGET BEFORE WRITING IT by locating the quoted sentence in the spec and reading its nearest preceding heading, because the spec is live and these section numbers are themselves a measurement. DO NOT TOUCH the three `:166` sites in `closure_target_admission` and `enforce_mixed_type_gate` (F-05); if they still carry an offset because a dependency did not execute, record that and leave them.
   - Depends on: E-01
   - Expected outcome: no `:NNN` spec anchor survives in the named symbols; each rewritten citation names a section whose heading was re-verified to enclose the quoted claim; every quoted sentence and the surrounding technical reasoning are unchanged in substance; the `:129`/`:131` reconciliation sentence names claims rather than offsets; and the three `yu47nf`/`mt54wr` sites are untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 RETARGET THE `run_evidence.py` ANCHORS, all of which cite the same rule and must therefore all land on the same section. At authoring five sites were counted citing `:938` for the six classes `--unverifiable-ok` may never mask, and one cites `:936` beside it: the `NON_MASKABLE_CLASSES` section-header comment, `NonMaskableClass`'s docstring, `non_maskable_classes`'s docstring, `aggregate_run_exit`'s "THE FLAG'S LIMITS" paragraph (which carries BOTH `:936` and `:938`), and `validate_non_maskable_table`'s docstring bullet plus its assertion message f-string, PLUS (added at review, PR-002) `AggregatedItem`'s two docstring bullets (`dependency_not_met` and `needs_input`, each `spec \`:938\``), which the detector does not attribute to `25kzda`. The rule they all mean ("`--unverifiable-ok` cannot mask a failed prompt process, scope/containment failure, host-capability refusal, dependency-not-met item, human gate, or run-wide abort class") is in `### 5.6 Reporting`, so every one becomes **Section 5.6** (measured at review: the sentence is under `### 5.6 Reporting`). NOTE THE ASSERTION MESSAGE IS NOT OPERATOR-FACING despite being an f-string: `validate_non_maskable_table` builds a list of problem strings for a contract test, so rewriting it changes no operator output; VERIFY that claim by driving the function rather than reading it, and if it does reach an operator, say so in the evidence (at review no caller of it exists outside its own module, so the drive is a direct call). Keep the "exactly six" count and the exhaustiveness claim byte-identical in substance; this item changes citations only.
+- [x] E-03 RETARGET THE `run_evidence.py` ANCHORS, all of which cite the same rule and must therefore all land on the same section. At authoring five sites were counted citing `:938` for the six classes `--unverifiable-ok` may never mask, and one cites `:936` beside it: the `NON_MASKABLE_CLASSES` section-header comment, `NonMaskableClass`'s docstring, `non_maskable_classes`'s docstring, `aggregate_run_exit`'s "THE FLAG'S LIMITS" paragraph (which carries BOTH `:936` and `:938`), and `validate_non_maskable_table`'s docstring bullet plus its assertion message f-string, PLUS (added at review, PR-002) `AggregatedItem`'s two docstring bullets (`dependency_not_met` and `needs_input`, each `spec \`:938\``), which the detector does not attribute to `25kzda`. The rule they all mean ("`--unverifiable-ok` cannot mask a failed prompt process, scope/containment failure, host-capability refusal, dependency-not-met item, human gate, or run-wide abort class") is in `### 5.6 Reporting`, so every one becomes **Section 5.6** (measured at review: the sentence is under `### 5.6 Reporting`). NOTE THE ASSERTION MESSAGE IS NOT OPERATOR-FACING despite being an f-string: `validate_non_maskable_table` builds a list of problem strings for a contract test, so rewriting it changes no operator output; VERIFY that claim by driving the function rather than reading it, and if it does reach an operator, say so in the evidence (at review no caller of it exists outside its own module, so the drive is a direct call). Keep the "exactly six" count and the exhaustiveness claim byte-identical in substance; this item changes citations only.
   - Depends on: E-01
   - Expected outcome: no `:936`/`:938` anchor survives in `run_evidence.py`; every `25kzda` citation in the file names Section 5.6; the enumerated six classes and the exhaustiveness claim are unchanged; and `validate_non_maskable_table`'s reach is stated from a driven observation rather than assumed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RETARGET THE `host_sandbox_profile.py` AND TEST ANCHORS, which are the two sites citing a VERBATIM message and therefore the two where a wrong section costs the most. Both the module-level comment above `RUN_HOST_CAPABILITY_MESSAGE` in `agent_workflows/host_sandbox_profile.py` and the `SPEC_MESSAGE` comment in `tests/test_host_capability_extension.py` read `` (spec 25kzda `:534` and `:763`) ``. NEITHER offset resolves to the message: `:534` lands mid-code-fence in `### 2.7 Mandatory cross-item dependency statement` and `:763` in `### 4.1 Message and recovery conventions`, while the verbatim `[RUN-HOST-CAPABILITY]` template actually appears under `#### Per-host capability descriptor` and as a table cell in `### 4.2 Checks common to every actionable type`. Replace both with **Section 4.2** and the `RUN-HOST-CAPABILITY` finding-code name, which is the stable handle the message is indexed by and which the same comment already uses two lines above. ALSO fix the `OUTCOME_FAILED` comment's `` spec `:842`/`:972` `` for the report schema: `:842` lands in `### 4.2` and `:972` under `#### Implementing and implemented specs`, while the report schema is `### 5.6 Reporting`, so cite **Section 5.6** there. AFTER this file pair, run the bare suite (`python3 -m pytest`, no added flags) and compare its failing test ids against the baseline you captured at the base commit BEFORE E-02 (capture that baseline during E-01). DO NOT alter the message TEMPLATE text itself in either file: the test exists to compare the implementation against the spec's wording, and an edit to either string would silently weaken that comparison.
+- [x] E-04 RETARGET THE `host_sandbox_profile.py` AND TEST ANCHORS, which are the two sites citing a VERBATIM message and therefore the two where a wrong section costs the most. Both the module-level comment above `RUN_HOST_CAPABILITY_MESSAGE` in `agent_workflows/host_sandbox_profile.py` and the `SPEC_MESSAGE` comment in `tests/test_host_capability_extension.py` read `` (spec 25kzda `:534` and `:763`) ``. NEITHER offset resolves to the message: `:534` lands mid-code-fence in `### 2.7 Mandatory cross-item dependency statement` and `:763` in `### 4.1 Message and recovery conventions`, while the verbatim `[RUN-HOST-CAPABILITY]` template actually appears under `#### Per-host capability descriptor` and as a table cell in `### 4.2 Checks common to every actionable type`. Replace both with **Section 4.2** and the `RUN-HOST-CAPABILITY` finding-code name, which is the stable handle the message is indexed by and which the same comment already uses two lines above. ALSO fix the `OUTCOME_FAILED` comment's `` spec `:842`/`:972` `` for the report schema: `:842` lands in `### 4.2` and `:972` under `#### Implementing and implemented specs`, while the report schema is `### 5.6 Reporting`, so cite **Section 5.6** there. AFTER this file pair, run the bare suite (`python3 -m pytest`, no added flags) and compare its failing test ids against the baseline you captured at the base commit BEFORE E-02 (capture that baseline during E-01). DO NOT alter the message TEMPLATE text itself in either file: the test exists to compare the implementation against the spec's wording, and an edit to either string would silently weaken that comparison.
   - Depends on: E-01
   - Expected outcome: no `:NNN` spec anchor survives in either file; the two verbatim-message comments cite Section 4.2 plus the `RUN-HOST-CAPABILITY` code; the report-schema comment cites Section 5.6; and `RUN_HOST_CAPABILITY_MESSAGE` and `SPEC_MESSAGE` are byte-identical to their pre-edit values; and, as the closing step of the whole sweep, the bare suite shows an empty failure-set delta against the baseline captured before E-02.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,22 +150,235 @@ N/A for spec text: this plan changes how spec `25kzda` is cited and never what i
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTED output of `aw check specs --source-anchors` showing the live census, each finding naming file, line, cited offset and true enclosing heading. PLUS the pasted output of `grep -n '25kzda' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` demonstrating that no hit carries a SPEC anchor (any `:NNNN` present must visibly belong to an `oc_runipd.py:NNNN` token). PLUS the pasted supplementary grep from E-01 with EVERY hit classified (owned `25kzda` anchor, sibling-owned, or non-spec citation), naming each detector-invisible owned site. PLUS an explicit statement of the OWNED site count measured now and how it differs from this plan's authoring figure of 27 occurrences at 21 sites. A census that merely says "matches the plan" is NOT acceptable: the numbers are expected to differ and the point is to state the live ones.
   - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+    1. PASTED `aw check specs --source-anchors` baseline output (23 findings, 22 on spec 25kzda):
+    ```
+    agent_workflows/check_engine.py:353: spec pqsx96 :135 -> ## 3. Invariant catalog
+    agent_workflows/host_sandbox_profile.py:1769: spec 25kzda :842 -> ### 4.2 Checks common to every actionable type
+    agent_workflows/host_sandbox_profile.py:1769: spec 25kzda :972 -> blank_line
+    agent_workflows/host_sandbox_profile.py:1773: spec 25kzda :534 -> ### 2.7 Mandatory cross-item dependency statement
+    agent_workflows/host_sandbox_profile.py:1773: spec 25kzda :763 -> ### 4.1 Message and recovery conventions
+    agent_workflows/run_evidence.py:2433: spec 25kzda :938 -> ### 4.6 One-off IPD execution verification
+    agent_workflows/run_evidence.py:2443: spec 25kzda :938 -> ### 4.6 One-off IPD execution verification
+    agent_workflows/run_evidence.py:2588: spec 25kzda :938 -> ### 4.6 One-off IPD execution verification
+    agent_workflows/run_evidence.py:2685: spec 25kzda :936 -> ### 4.6 One-off IPD execution verification
+    agent_workflows/run_evidence.py:2685: spec 25kzda :938 -> ### 4.6 One-off IPD execution verification
+    agent_workflows/run_evidence.py:2780: spec 25kzda :938 -> ### 4.6 One-off IPD execution verification
+    agent_workflows/runner_shared.py:14765: spec 25kzda :131 -> ### 1.1 Normative roles
+    agent_workflows/runner_shared.py:15763: spec 25kzda :351 -> blank_line
+    agent_workflows/runner_shared.py:15768: spec 25kzda :1007 -> blank_line
+    agent_workflows/runner_shared.py:16287: spec 25kzda :131 -> ### 1.1 Normative roles
+    agent_workflows/runner_shared.py:16289: spec 25kzda :129 -> blank_line
+    agent_workflows/runner_shared.py:16292: spec 25kzda :131 -> ### 1.1 Normative roles
+    agent_workflows/runner_shared.py:16295: spec 25kzda :129 -> blank_line
+    agent_workflows/runner_shared.py:16295: spec 25kzda :131 -> ### 1.1 Normative roles
+    agent_workflows/runner_shared.py:28900: spec 25kzda :1007 -> blank_line
+    agent_workflows/runner_shared.py:37841: spec 25kzda :351 -> blank_line
+    tests/test_host_capability_extension.py:55: spec 25kzda :534 -> ### 2.7 Mandatory cross-item dependency statement
+    tests/test_host_capability_extension.py:55: spec 25kzda :763 -> ### 4.1 Message and recovery conventions
+    ```
+    2. PASTED `grep -n '25kzda' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    ```
+    agent_workflows/oc_runipd.py:382:# ABORT-RUN escalation spec 25kzda 1.4/A1 reserves for the identity class was therefore lost, and the
+    agent_workflows/oc_runipd.py:914:# (see `_read_item_dependencies`). Spec 25kzda 2.10: "All surfaces call this evaluator; none
+    agent_workflows/oc_runipd.py:1697:# revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares. `review` is IMPLEMENTED
+    agent_workflows/oc_runipd.py:1709:# 25kzda 2.6's three refusals) now has ONE implementation; only the `aw oc review` hint is per-host.
+    agent_workflows/oc_runipd.py:3872:        # are ALREADY ready (spec 25kzda 5.4 rules 3-5). Selecting from a dependency-ordered list is
+    agent_workflows/oc_runipd.py:4320:    # mh60nd/q32qeg: wire the exit code to spec 25kzda 5.6's run aggregate via `runner_shared.run_exit_code`.
+    agent_workflows/oc_runipd.py:4585:    # revsweep 76gsmv E-03: the flag `aw oc review` expands to (spec 25kzda 2.1). It NARROWS, never
+    agent_workflows/oc_runipd.py:4609:    # runflags-01 (`uyeko5`) E-01..E-07: spec `25kzda` 2.1's EIGHT policy flags, registered from the
+    agent_workflows/oc_runipd.py:5461:        # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY
+    agent_workflows/agy_runipd.py:609:# 25kzda 1.4/A1 reserves for the identity class. Filed as `232wcg`; oc's duplicate is deleted in the
+    agent_workflows/agy_runipd.py:1903:# revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares, in PARITY with the oc
+    agent_workflows/agy_runipd.py:1914:# 25kzda 2.6's three refusals) now has ONE implementation; only the `aw agy review` hint is per-host.
+    agent_workflows/agy_runipd.py:3168:        # are ALREADY ready (spec 25kzda 5.4 rules 3-5).
+    agent_workflows/agy_runipd.py:3531:    # mh60nd/q32qeg: wire the exit code to spec 25kzda 5.6's run aggregate via `runner_shared.run_exit_code`.
+    agent_workflows/agy_runipd.py:3758:    # revsweep 76gsmv E-03: the flag `aw agy review` expands to (spec 25kzda 2.1). It NARROWS, never
+    agent_workflows/agy_runipd.py:3777:    # runflags-01 (`uyeko5`) E-01..E-07: spec `25kzda` 2.1's EIGHT policy flags, from the SHARED table.
+    agent_workflows/agy_runipd.py:4167:        # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY
+    ```
+    No hits carry spec line anchors; all name section tokens. The only :NNNN tokens in agy_runipd.py attach to oc_runipd.py:NNNN cross-file citations.
+    3. PASTED supplementary grep from E-01 with classification:
+    ```
+    agent_workflows/runner_shared.py:14765:      * ``resume_rule`` - ``"refuse"`` (spec `:131` freezes the value, so passing it with `resume` is
+      -> [owned 25kzda anchor, RunPolicyFlag field comment]
+    agent_workflows/runner_shared.py:14855:    # Spec `:129` names exactly this case ("mutually exclusive with ... flags that would change the
+    agent_workflows/runner_shared.py:14856:    # frozen queue"), so unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit.
+      -> [owned 25kzda anchor, RUN_POLICY_FLAGS --type row comment, detector-invisible (block lacks 25kzda token)]
+    agent_workflows/runner_shared.py:15757:    :166 and :1007 both state the negative: "Without the flag, dependencies outside the selection are
+      -> [owned 25kzda anchor, expand_dependency_closure docstring, 4th :166 site routed to p9y51u/atpvao by mt54wr F-12]
+    agent_workflows/runner_shared.py:15763:    IT REBINDS THE SELECTION; IT NEVER CHANGES SATISFACTION SEMANTICS. Spec :351: "`--with-dependencies`
+      -> [owned 25kzda anchor, expand_dependency_closure docstring]
+    agent_workflows/runner_shared.py:15768:    IT RUNS BEFORE THE MIXED-TYPE GATE AND BEFORE FREEZING, which spec :1007 fixes as a contract and
+      -> [owned 25kzda anchor, expand_dependency_closure docstring]
+    agent_workflows/runner_shared.py:16287:    """REFUSE a flag spec 2.1 freezes when it is passed with `resume` (spec `25kzda` :131).
+      -> [owned 25kzda anchor, refuse_frozen_flags_on_resume docstring]
+    agent_workflows/runner_shared.py:16289:    SCOPED DELIBERATELY, and the scope is the interesting part. Spec `:129` says `--resume` is
+      -> [owned 25kzda anchor, refuse_frozen_flags_on_resume docstring]
+    agent_workflows/runner_shared.py:16292:    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: `:131` says
+      -> [owned 25kzda anchor, refuse_frozen_flags_on_resume docstring]
+    agent_workflows/runner_shared.py:16295:    shipped flag, which belongs to whoever reconciles `:129` with `:131`, not to a plan whose fence is
+      -> [owned 25kzda anchor, refuse_frozen_flags_on_resume docstring]
+    agent_workflows/runner_shared.py:16318:      * `--full-auto` IMPLIES `--unattended` (spec `:134`), and implying nothing else. Implemented
+      -> [owned 25kzda anchor, freeze_run_policy_flags docstring]
+    agent_workflows/runner_shared.py:17435:    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec 2.1 `:136`).
+      -> [owned 25kzda anchor, evaluate_unverifiable_admission docstring, detector-invisible (block lacks 25kzda token)]
+    agent_workflows/runner_shared.py:28900:    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda :1007 fixes
+      -> [owned 25kzda anchor, initialize_run_core comment]
+    agent_workflows/runner_shared.py:37841:        # (`runner_shared.expand_dependency_closure`), but spec 25kzda :351 is explicit that it
+      -> [owned 25kzda anchor, edge_satisfied comment]
+    agent_workflows/run_evidence.py:2433:# ---- the six classes `--unverifiable-ok` may NEVER mask (spec 25kzda `:938`) ----------------------
+      -> [owned 25kzda anchor, NON_MASKABLE_CLASSES section header]
+    agent_workflows/run_evidence.py:2443:    """One row of spec `25kzda` `:938`: a class `--unverifiable-ok` may never mask.
+      -> [owned 25kzda anchor, NonMaskableClass docstring]
+    agent_workflows/run_evidence.py:2528:      * ``dependency_not_met`` - True for spec `:938`'s dependency-not-met class.
+      -> [owned 25kzda anchor, AggregatedItem docstring, detector-invisible (block lacks 25kzda token)]
+    agent_workflows/run_evidence.py:2529:      * ``needs_input``        - True when a human gate stopped the item (spec `:938`).
+      -> [owned 25kzda anchor, AggregatedItem docstring, detector-invisible (block lacks 25kzda token)]
+    agent_workflows/run_evidence.py:2588:    """Spec `25kzda` `:938`'s classes that `--unverifiable-ok` may never mask, in spec order."""
+      -> [owned 25kzda anchor, non_maskable_classes docstring]
+    agent_workflows/run_evidence.py:2685:    THE FLAG'S LIMITS (spec `:936`, `:938`). Neutrality is narrow. It never suppresses another
+      -> [owned 25kzda anchor, aggregate_run_exit docstring]
+    agent_workflows/run_evidence.py:2768:      * exactly six classes, spec `:938` being exhaustive, each named once;
+      -> [owned 25kzda anchor, validate_non_maskable_table docstring, detector-invisible (block lacks 25kzda token)]
+    agent_workflows/run_evidence.py:2780:                f"spec 25kzda :938 enumerates 6 classes, table has {len(NON_MASKABLE_CLASSES)}",
+      -> [owned 25kzda anchor, validate_non_maskable_table assertion message]
+    agent_workflows/host_sandbox_profile.py:1769:#: report schema at spec `:842`/`:972`).
+      -> [owned 25kzda anchor, OUTCOME_FAILED comment]
+    agent_workflows/host_sandbox_profile.py:1773:#: The spec's VERBATIM message template (spec 25kzda `:534` and `:763`), including the
+      -> [owned 25kzda anchor, RUN_HOST_CAPABILITY_MESSAGE comment]
+    tests/test_host_capability_extension.py:55:#: The spec's VERBATIM message (spec 25kzda `:534` and `:763`), transcribed here so the test
+      -> [owned 25kzda anchor, SPEC_MESSAGE comment]
+    ```
+    4. Owned site count measured: 32 occurrences across 24 lines (17 in runner_shared.py, 9 in run_evidence.py, 4 in host_sandbox_profile.py, 2 in tests/test_host_capability_extension.py). The authoring census estimated 27 occurrences across 21 sites; the live count is 32 occurrences at 24 sites due to identifying detector-invisible anchors (in RUN_POLICY_FLAGS comment, evaluate_unverifiable_admission, AggregatedItem, validate_non_maskable_table docstring, and expand_dependency_closure docstring line 15757). The 3 sibling-owned sites in closure_target_admission and enforce_mixed_type_gate were already cleanly updated by executed dependencies yu47nf and mt54wr.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: PASTED output of a content search for surviving anchors in the swept symbols, demonstrating zero: both the after-sweep `aw check specs --source-anchors` output (no `runner_shared.py` `25kzda` finding) AND E-01's supplementary grep over `agent_workflows/runner_shared.py` returning no OWNED hit (any remaining hit must be classified as sibling-owned or non-spec). The detector alone is not sufficient evidence, because it misses the `RUN_POLICY_FLAGS` comment and `evaluate_unverifiable_admission` (PR-002). PLUS, for at least THREE rewritten sites, the quoted claim and the spec heading it was re-verified against, shown as the pasted spec line plus the heading above it, proving the new section token was measured and not copied from this plan. PLUS the pasted before/after of BOTH `:129`/`:131` reconciliation sentences (in `refuse_frozen_flags_on_resume` and in the `RUN_POLICY_FLAGS` `--type` row comment) showing each now names claims rather than offsets. PLUS confirmation that the three sibling-owned `:166` sites are untouched by this plan's diff (`git diff` on those line ranges, or a statement that they no longer carry an offset because a dependency executed).
   - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+    1. PASTED after-sweep `aw check specs --source-anchors` output:
+    ```
+    aw: invoked in checkout ...
+    agent_workflows/check_engine.py:353: spec pqsx96 :135 -> ## 3. Invariant catalog
+    ```
+    (0 findings for runner_shared.py, 0 findings for spec 25kzda).
+    Supplementary grep over `agent_workflows/runner_shared.py` for `:[0-9]{3,4}` returns zero owned hits (only non-spec string slices `[:120]` at line 5668 and `[:500]` at line 29503).
+    2. THREE re-verified sites with spec heading and line:
+       Site A (RunPolicyFlag / refuse_frozen_flags_on_resume):
+       Heading at line 185: `### 2.1 Command grammar`
+       Claim at line 224: `- --retry-budget takes an integer value counting automatic correction attempts after the initial execution attempt. Section 5.5 is the normative home for the 0..10 bound, default of 2, and three-tier precedence. The frozen value cannot change on resume.`
+       Site B (expand_dependency_closure negative rule):
+       Heading at line 185: `### 2.1 Command grammar`
+       Claim at line 229: `- --with-dependencies expands the selection to the transitive declared dependency closure before the mixed-type gate and before freezing. Without the flag, dependencies outside the selection are checked against current repository state but are not silently enqueued.`
+       Site C (edge_satisfied selection vs satisfaction):
+       Heading at line 480: `### 2.6 Overrides`
+       Claim at line 488: `- --with-dependencies changes selection, not satisfaction semantics. Every declared dependency is enforced whether or not its target was selected.`
+    3. PASTED before/after of BOTH :129/:131 reconciliation sentences:
+       Site 1 (`refuse_frozen_flags_on_resume`):
+       BEFORE:
+       `Converting --full-auto's shipped override into a refusal would be a behavior change to a shipped flag, which belongs to whoever reconciles :129 with :131, not to a plan whose fence is flag registration.`
+       AFTER:
+       `Converting --full-auto's shipped override into a refusal would be a behavior change to a shipped flag, which belongs to whoever reconciles the blanket mutual-exclusion rule with the per-flag freeze rule, not to a plan whose fence is flag registration.`
+       Site 2 (`RUN_POLICY_FLAGS` `--type` row comment):
+       BEFORE:
+       `# Spec :129 names exactly this case ("mutually exclusive with ... flags that would change the frozen queue"), so unlike --full-auto there is no :129-versus-:131 tension to inherit.`
+       AFTER:
+       `# Spec Section 2.1 names exactly this case ("mutually exclusive with ... flags that would change the frozen queue"), so unlike --full-auto there is no blanket-exclusion-versus-per-flag-freeze tension to inherit.`
+    4. Sibling-owned :166 sites:
+       Inspected `closure_target_admission` (lines 15630-15720) and `enforce_mixed_type_gate` (lines 16900-16950). Both already cited Section 2.1 prior to execution from executed dependencies `yu47nf` and `mt54wr`. `git diff agent_workflows/runner_shared.py` touches neither line range.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: PASTED grep output showing no `:936`/`:938` anchor remains in `agent_workflows/run_evidence.py` (including `AggregatedItem`'s two bullets and `validate_non_maskable_table`'s docstring bullet, which the detector does not see) and that every rewritten citation names Section 5.6. PLUS the pasted spec line at the non-maskable rule with its enclosing heading, proving Section 5.6 was re-verified. PLUS evidence from DRIVING `validate_non_maskable_table` (its returned problem list, or the pasted result of calling it) establishing whether its message reaches an operator, with the conclusion stated either way rather than assumed.
   - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+    1. PASTED grep output of `grep -nE ':[0-9]{3,4}\b' agent_workflows/run_evidence.py`:
+    ```
+    2366:# surface: all three grep to zero outside a prose comment at `run_selection_policy.py:168`. When
+    ```
+    Zero :936 or :938 anchors remain in `agent_workflows/run_evidence.py`. All 6 target sites (and 8 total anchor instances including AggregatedItem and validate_non_maskable_table docstring/message) now cite Section 5.6.
+    2. PASTED spec line and heading:
+       Heading at line 1387: `### 5.6 Reporting`
+       Claim at line 1439: `- --unverifiable-ok cannot mask a failed prompt process, scope/containment failure, host-capability refusal, dependency-not-met item, human gate, or run-wide abort class.`
+    3. Driven evidence for `validate_non_maskable_table`:
+       Ran in python:
+       ```python
+       from agent_workflows import run_evidence
+       result = run_evidence.validate_non_maskable_table()
+       print("validate_non_maskable_table result:", result)
+       ```
+       Output:
+       `validate_non_maskable_table result: EvidenceValidationResult(ok=True, findings=())`
+       Repository search confirms zero external callers outside `run_evidence.py`. The function is an internal sanity test returning an EvidenceValidationResult and its assertion messages do not reach an operator surface.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: PASTED grep output showing no `:NNN` spec anchor remains in `agent_workflows/host_sandbox_profile.py` or `tests/test_host_capability_extension.py`. PLUS a pasted `git diff` of both files demonstrating that `RUN_HOST_CAPABILITY_MESSAGE` and `SPEC_MESSAGE` are UNCHANGED (the diff must show only comment lines touched). PLUS the pasted result of running `tests/test_host_capability_extension.py` showing it still passes, since that test is the comparison the message strings exist to support. PLUS (moved here from the removed V-06) BOTH bare `python3 -m pytest` summary lines, base commit and final, pasted verbatim with no added flags, and the failure-set delta stated as an explicit SET of test ids, required empty (a count comparison is not acceptable). PLUS `git diff --name-only` for the whole change, showing no path outside `- Scope-Paths:` and this plan, and specifically not `agent_workflows/check_engine.py`, `agent_workflows/cli.py` or `tests/test_spec_citation_anchors.py`.
   - Observed evidence:
-  - Result: pending
+    1. PASTED grep for `:NNN` in `agent_workflows/host_sandbox_profile.py` and `tests/test_host_capability_extension.py`:
+    ```
+    agent_workflows/host_sandbox_profile.py:457:        return False, f"landlock probe rc={rc}: {err[:300]}"
+    agent_workflows/host_sandbox_profile.py:492:        return False, f"bwrap probe rc={rc}: {err[:300]}"
+    ```
+    Zero spec line anchors remain (only `[:300]` string slices).
+    2. PASTED `git diff agent_workflows/host_sandbox_profile.py tests/test_host_capability_extension.py`:
+    ```diff
+    diff --git a/agent_workflows/host_sandbox_profile.py b/agent_workflows/host_sandbox_profile.py
+    index f2e9a4e1b..8139e1563 100644
+    --- a/agent_workflows/host_sandbox_profile.py
+    +++ b/agent_workflows/host_sandbox_profile.py
+    @@ -1766,11 +1766,11 @@ def check_action_capabilities(
+     RUN_HOST_CAPABILITY = "RUN-HOST-CAPABILITY"
+
+     #: The outcome and reason a refused item records (spec 25kzda 5.2 fail-closed rule, and the
+    -#: report schema at spec `:842`/`:972`).
+    +#: report schema at spec Section 5.6).
+     OUTCOME_FAILED = "failed"
+     REASON_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
+
+    -#: The spec's VERBATIM message template (spec 25kzda `:534` and `:763`), including the
+    +#: The spec's VERBATIM message template (spec 25kzda Section 4.2, RUN-HOST-CAPABILITY), including the
+     #: `<item>` and the recovery command. Composed here as a template rather than by hand at
+     #: each call site so the text cannot drift from the spec one message at a time.
+     RUN_HOST_CAPABILITY_MESSAGE = (
+    diff --git a/tests/test_host_capability_extension.py b/tests/test_host_capability_extension.py
+    index 5a49d4e25..000a2a1a4 100644
+    --- a/tests/test_host_capability_extension.py
+    +++ b/tests/test_host_capability_extension.py
+    @@ -52,7 +52,7 @@ from agent_workflows.host_sandbox_profile import (
+         probe_runner_safety_capabilities,
+     )
+
+    -#: The spec's VERBATIM message (spec 25kzda `:534` and `:763`), transcribed here so the test
+    +#: The spec's VERBATIM message (spec 25kzda Section 4.2, RUN-HOST-CAPABILITY), transcribed here so the test
+     #: compares the implementation against the SPEC rather than against itself.
+     SPEC_MESSAGE = (
+    ```
+    `RUN_HOST_CAPABILITY_MESSAGE` and `SPEC_MESSAGE` are completely unchanged and byte-identical.
+    3. PASTED `python3 -m pytest tests/test_host_capability_extension.py` output:
+    ```
+    42 passed in 20.00s
+    ```
+    4. BOTH bare `python3 -m pytest` summary lines:
+       Base commit summary line:
+       `3 failed, 4856 passed, 2 skipped, 3 warnings in 851.19s (0:14:11)`
+       Final summary line:
+       `1 failed, 4858 passed, 2 skipped, 3 warnings in 621.33s (0:10:21)`
+       Base commit failing test IDs:
+       - `tests/test_oc_runipd.py::StallWatchdogTests::test_stall_watchdog_does_not_trip_on_active_child`
+       - `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`
+       - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+       Final failing test IDs:
+       - `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+       Failure-set delta: `set()` (empty set; 0 new failing test IDs).
+    5. PASTED `git diff --name-only` for whole change:
+    ```
+    .aw/records/plans/pending/20261001-sbh1o1-02-atpvao-retarget-the-surviving-stale-spec-25kzda-line-anchors-onto-s.ipd.md
+    agent_workflows/host_sandbox_profile.py
+    agent_workflows/run_evidence.py
+    agent_workflows/runner_shared.py
+    tests/test_host_capability_extension.py
+    ```
+    No paths outside declared `- Scope-Paths:` and this plan file. `agent_workflows/check_engine.py`, `agent_workflows/cli.py`, and `tests/test_spec_citation_anchors.py` are completely untouched.
+  - Result: pass
 
 ## Approval and execution gate
 

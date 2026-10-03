@@ -14762,7 +14762,7 @@ class RunPolicyFlag(NamedTuple):
                           the divergence is stated HERE, because an operator reads `--help` and never
                           reads an IPD.
       * ``freeze``      - whether the value is frozen into run state at queue build.
-      * ``resume_rule`` - ``"refuse"`` (spec `:131` freezes the value, so passing it with `resume` is
+      * ``resume_rule`` - ``"refuse"`` (spec Section 2.1 freezes the value, so passing it with `resume` is
                           an error) or ``"none-default"`` (re-declared with ``default=None`` so an
                           OMITTED flag cannot clobber the frozen value; the shipped `--full-auto`
                           pattern).
@@ -14852,8 +14852,8 @@ RUN_POLICY_FLAGS: tuple = (
     # The reason is stronger here than there: `--type` is not a policy a resume could re-apply, it IS
     # THE SELECTION, and the queue is frozen. So an accepted `--type` on resume could not re-scope the
     # queue; it could only write a frozen option CONTRADICTING the queue the run actually holds.
-    # Spec `:129` names exactly this case ("mutually exclusive with ... flags that would change the
-    # frozen queue"), so unlike `--full-auto` there is no `:129`-versus-`:131` tension to inherit.
+    # Spec Section 2.1 names exactly this case ("mutually exclusive with ... flags that would change the
+    # frozen queue"), so unlike `--full-auto` there is no blanket-exclusion-versus-per-flag-freeze tension to inherit.
     RunPolicyFlag(
         flag="--type",
         dest="types",
@@ -15754,18 +15754,18 @@ def expand_dependency_closure(
     invisible.
 
     WHEN THE FLAG IS ABSENT THIS IS THE IDENTITY FUNCTION, and that is the load-bearing half. Spec
-    :166 and :1007 both state the negative: "Without the flag, dependencies outside the selection are
+    Section 2.1 and Section 5.4 both state the negative: "Without the flag, dependencies outside the selection are
     checked against current repository state but are not silently enqueued." An implementation that
     expanded unconditionally would silently enqueue prerequisites for EVERY run, which is the exact
     mirror of the falsehood the old refusal prevented. So the flag is read first and nothing is read
     from disk when it is off.
 
-    IT REBINDS THE SELECTION; IT NEVER CHANGES SATISFACTION SEMANTICS. Spec :351: "`--with-dependencies`
+    IT REBINDS THE SELECTION; IT NEVER CHANGES SATISFACTION SEMANTICS. Spec Section 2.6: "`--with-dependencies`
     changes selection, not satisfaction semantics. Every declared dependency is enforced whether or
     not its target was selected." So `enforce_dependency_preflight` and the dispatch-time
     `dependency_status` re-check keep their rules untouched; only the SET being run changes.
 
-    IT RUNS BEFORE THE MIXED-TYPE GATE AND BEFORE FREEZING, which spec :1007 fixes as a contract and
+    IT RUNS BEFORE THE MIXED-TYPE GATE AND BEFORE FREEZING, which spec Section 5.4 fixes as a contract and
     not a preference. In `initialize_run_core` that means before `selected_plan_paths` is built, since
     that list - not `queue_ids` - is what feeds BOTH the dependency preflight and
     `enforce_mixed_type_gate`; expanding after it would leave both reasoning about the pre-expansion
@@ -16284,15 +16284,15 @@ def clean_base_launch_decision(
 
 
 def refuse_frozen_flags_on_resume(args: Any) -> None:
-    """REFUSE a flag spec 2.1 freezes when it is passed with `resume` (spec `25kzda` :131).
+    """REFUSE a flag spec 2.1 freezes when it is passed with `resume` (spec `25kzda` Section 2.1).
 
-    SCOPED DELIBERATELY, and the scope is the interesting part. Spec `:129` says `--resume` is
+    SCOPED DELIBERATELY, and the scope is the interesting part. Spec Section 2.1 says `--resume` is
     mutually exclusive with "flags that would change the frozen queue or policy", but the SHIPPED
     `--full-auto` on resume does not refuse - it OVERWRITES the frozen option and saves it. So the
-    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: `:131` says
+    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: Section 2.1 says
     of `--retry-budget` that "the frozen value cannot change on resume". That one is refused here.
     Converting `--full-auto`'s shipped override into a refusal would be a behavior change to a
-    shipped flag, which belongs to whoever reconciles `:129` with `:131`, not to a plan whose fence is
+    shipped flag, which belongs to whoever reconciles the blanket mutual-exclusion rule with the per-flag freeze rule, not to a plan whose fence is
     flag registration.
     """
 
@@ -16315,7 +16315,7 @@ def freeze_run_policy_flags(args: Any, *, repo: Any = None) -> dict:
 
     Two values are NORMALIZED here rather than at their read sites, so no consumer has to remember:
 
-      * `--full-auto` IMPLIES `--unattended` (spec `:134`), and implying nothing else. Implemented
+      * `--full-auto` IMPLIES `--unattended` (spec Section 2.1), and implying nothing else. Implemented
         explicitly instead of being left to chance, because "unattended" is what makes a gate refuse
         rather than prompt, and a `--full-auto` run has no one to prompt by construction.
       * `--retry-budget` is resolved to its EFFECTIVE integer through
@@ -17432,7 +17432,7 @@ def enforce_draft_admission_gate(
 
 
 def evaluate_unverifiable_admission(args: Any) -> Any:
-    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec 2.1 `:136`).
+    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec Section 2.1).
 
     Spec 2.1: `--unverifiable-ok` is legal ONLY when contractless prompts were explicitly admitted by
     `--allow-unverifiable` or the interactive `run unverifiable` confirmation. The rule is already
@@ -28897,7 +28897,7 @@ def initialize_run_core(
     # BEFORE THAT LIST, NOT MERELY BEFORE THE MIXED-TYPE GATE, and the distinction is the whole
     # correctness argument: the list immediately below - not `queue_ids` - is what feeds BOTH
     # `enforce_dependency_preflight` and `enforce_mixed_type_gate`, so an expansion placed after it
-    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda :1007 fixes
+    # would leave both of them reasoning about the pre-expansion selection. Spec 25kzda Section 5.4 fixes
     # the order as a contract: the closure "computes the transitive closure before mixed-type
     # confirmation and freezing".
     #
@@ -37838,7 +37838,7 @@ def edge_satisfied(
         #
         # Evaluated from frozen repository state, and that is UNCHANGED by the arrival of
         # `--with-dependencies` (depclosure 01, `dhycim`). The flag now ships
-        # (`runner_shared.expand_dependency_closure`), but spec 25kzda :351 is explicit that it
+        # (`runner_shared.expand_dependency_closure`), but spec 25kzda Section 2.6 is explicit that it
         # "changes selection, not satisfaction semantics": it can put the target IN the queue before
         # freezing, which is a different run, and it grants no relaxation to the rule below. Without
         # the flag an unsatisfied external target still simply cannot be met in this run.
