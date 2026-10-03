@@ -1653,7 +1653,10 @@ LANE_ATTENTION_STATES: frozenset[str] = frozenset(
 #: The integration target the landing question asks about, when the run record names no other. Both
 #: drivers merge a verified lane into whatever the shared checkout has checked out, which is `main` in
 #: this repository (`integrate_lane_branch` runs a bare `git merge` in the main checkout), so `HEAD` is
-#: the honest fallback: it is the branch the merge would actually land on.
+#: the honest fallback: it is the branch the merge would actually land on. That argument is sound only
+#: when `HEAD` resolves against the checkout rather than the caller's worktree; this precondition is
+#: enforced in `lane_work_has_landed` and `lane_work_landed_by_content`, which anchor the target via
+#: `ipd_lifecycle.checkout_git_common_dir`.
 LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"
 
 
