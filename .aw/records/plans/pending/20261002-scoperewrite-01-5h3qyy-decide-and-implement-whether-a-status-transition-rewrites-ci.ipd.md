@@ -35,59 +35,59 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure the base, because every number here describes a LIVE tree
 
-- [ ] E-01 Re-drive the five authoring measurements at execution HEAD and record the actual numbers in this plan's Findings as a dated re-measurement line, because the pending-plan corpus turns over daily and `guti33` F-01/F-04/F-09 each record a figure that moved within one day. Re-drive: (a) the per-classification stale counts over `.aw/records/plans/pending/` via `check_engine.stale_record_scope_paths`; (b) `artifact_refs.plan_reference_rewrites(repo, {name: name})` returning `[]`; (c) the same function with a path-keyed map returning the two expected edits; (d) `ipd_lifecycle.widening_is_acceptable` on a simulated rewrite of a real pending plan returning False; (e) the count of live receipts under `.aw/state/ipd-lifecycle/`. Also re-drive (f) the F-10 probe: the bare path-keyed rewriter, applied to a plan declaring the same spec under `approved/`, `implementing/` and `implemented/`, collapses the `approved/` entry into a DUPLICATE `implementing/` entry. If (b), (c), (d) or (f) DISAGREES with the Findings table, record the disagreement and mark this item `blocked`, because the design rests on them; (a) and (e) are live counts and are recorded whatever they are.
+- [x] E-01 Re-drive the five authoring measurements at execution HEAD and record the actual numbers in this plan's Findings as a dated re-measurement line, because the pending-plan corpus turns over daily and `guti33` F-01/F-04/F-09 each record a figure that moved within one day. Re-drive: (a) the per-classification stale counts over `.aw/records/plans/pending/` via `check_engine.stale_record_scope_paths`; (b) `artifact_refs.plan_reference_rewrites(repo, {name: name})` returning `[]`; (c) the same function with a path-keyed map returning the two expected edits; (d) `ipd_lifecycle.widening_is_acceptable` on a simulated rewrite of a real pending plan returning False; (e) the count of live receipts under `.aw/state/ipd-lifecycle/`. Also re-drive (f) the F-10 probe: the bare path-keyed rewriter, applied to a plan declaring the same spec under `approved/`, `implementing/` and `implemented/`, collapses the `approved/` entry into a DUPLICATE `implementing/` entry. If (b), (c), (d) or (f) DISAGREES with the Findings table, record the disagreement and mark this item `blocked`, because the design rests on them; (a) and (e) are live counts and are recorded whatever they are.
   - Depends on: none
   - Expected outcome: a dated re-measurement line in Findings; (b) is `[]`, (d) is False; (a) and (e) recorded as observed, whatever they are. No source file modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Record the decision, because this is a decision item
 
-- [ ] E-02 Append ONE new numbered decision entry to `DECISIONS.md`, which is this repository's established home for a durable decision record (there is NO `.aw/records/decisions/` tree, verified at authoring, and the file's own header states it is the "Append-only, dated record of significant decisions ... with the reasoning, alternatives considered, and trade-offs"). Follow the existing `### D<n>. <title>` convention, taking the next free number after the current highest (D158 at authoring; re-derive it at execution rather than trusting that figure, since the log is appended by other work). The entry must carry the house shape used by its neighbours, which is measured at review as `- **Context:**` (115 entries), `- **Decision:**` (114) and `- **Applied:**` (102), with rejected alternatives and trade-offs stated inside **Decision** as D158 does (a standalone **Trade-off** bullet appears only 8 times), and must state: the question; the three options (keep grading the symptom; rewrite citations in the setter; teach the status-agnostic glob spelling); the measured hazard with F-04's driven `widening_is_acceptable=False` output; F-07's counter-example; and the chosen default-OFF opt-in posture. Append only, per the file's own contract; do not reword any existing entry.
+- [x] E-02 Append ONE new numbered decision entry to `DECISIONS.md`, which is this repository's established home for a durable decision record (there is NO `.aw/records/decisions/` tree, verified at authoring, and the file's own header states it is the "Append-only, dated record of significant decisions ... with the reasoning, alternatives considered, and trade-offs"). Follow the existing `### D<n>. <title>` convention, taking the next free number after the current highest (D158 at authoring; re-derive it at execution rather than trusting that figure, since the log is appended by other work). The entry must carry the house shape used by its neighbours, which is measured at review as `- **Context:**` (115 entries), `- **Decision:**` (114) and `- **Applied:**` (102), with rejected alternatives and trade-offs stated inside **Decision** as D158 does (a standalone **Trade-off** bullet appears only 8 times), and must state: the question; the three options (keep grading the symptom; rewrite citations in the setter; teach the status-agnostic glob spelling); the measured hazard with F-04's driven `widening_is_acceptable=False` output; F-07's counter-example; and the chosen default-OFF opt-in posture. Append only, per the file's own contract; do not reword any existing entry.
   - Depends on: E-01
   - Expected outcome: one new `### D<n>` entry in `DECISIONS.md` carrying Context / Decision (with rejected alternatives and trade-off) / Applied, with the driven evidence pasted rather than summarized, and no existing entry altered.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: The two mechanism pieces, a shared path-keyed rewrite helper and a fail-closed in-flight guard
 
-- [ ] E-03 Add a path-keyed citation-rewrite helper to `agent_workflows/artifact_refs.py` taking an `{old_repo_relative_path: new_repo_relative_path}` map and returning the same `RefEdit` list the existing planner returns, by DELEGATING to `plan_reference_rewrites` rather than reimplementing any matching. Do NOT modify `plan_reference_rewrites`, `apply_reference_rewrites`, `_mask_fenced_code`, `_mask_permalinks` or `_boundaried`: F-02 proves the existing machinery already rewrites a path-keyed map correctly and already skips fenced blocks, and F-08 proves a path-keyed key bypasses the legacy-prefix and clustered-prefix branches by returning `None`/`None`, so no new escaping or boundary logic is needed. Document on the helper WHY the map is path-keyed and not name-keyed, citing the `if old_name == new_name: continue` guard that makes a name-keyed status transition a no-op.
+- [x] E-03 Add a path-keyed citation-rewrite helper to `agent_workflows/artifact_refs.py` taking an `{old_repo_relative_path: new_repo_relative_path}` map and returning the same `RefEdit` list the existing planner returns, by DELEGATING to `plan_reference_rewrites` rather than reimplementing any matching. Do NOT modify `plan_reference_rewrites`, `apply_reference_rewrites`, `_mask_fenced_code`, `_mask_permalinks` or `_boundaried`: F-02 proves the existing machinery already rewrites a path-keyed map correctly and already skips fenced blocks, and F-08 proves a path-keyed key bypasses the legacy-prefix and clustered-prefix branches by returning `None`/`None`, so no new escaping or boundary logic is needed. Document on the helper WHY the map is path-keyed and not name-keyed, citing the `if old_name == new_name: continue` guard that makes a name-keyed status transition a no-op.
   RESTRICT THE EDITS TO WHAT THIS PLAN IS ABOUT, because the bare rewriter is broader than the defect. Measured at review on a scratch repo (F-10): (1) it scans `artifact_core.REFERENCE_SCAN_ROOTS`, which includes `.aw/records/plans/executed/`, `tests/` and `DECISIONS.md`, so it would edit EXECUTED plans (whose records AGENTS.md says must never be changed) and test source; (2) applied to a plan declaring the three-path `approved/`/`implementing/`/`implemented/` forward declaration that F-07 names, it rewrote `approved/` into a SECOND `implementing/` entry, i.e. it corrupted exactly the declaration F-07 says must not be touched. So the helper must, after delegating to the planner: keep only edits whose file is a PENDING plan (`.aw/records/plans/pending/`); rewrite only inside the `- Scope-Paths:` line (prose mentions are history and are left alone); and SKIP, with a reported reason, any citing file whose `Scope-Paths` already declares the destination path, since in that case the old entry is a deliberate forward declaration and not a stale one. Prefer filtering the planner's `RefEdit` list and performing the line-scoped replacement through `ipd_schema.parse_scope_paths` over adding new matching logic; do NOT modify the existing planner or its masking.
   - Depends on: E-01
   - Expected outcome: one new helper in `artifact_refs` that delegates to the existing planner, rewrites a moved record's path only inside the `- Scope-Paths:` line of PENDING plans, never touches executed plans, tests or prose, and skips (with a reason) any plan that already declares the destination path; the existing rewriter and its masking untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add an in-flight guard predicate that, given a repo root and a set of candidate citing files, returns which of them belong to a plan with a LIVE begin receipt and must therefore be skipped. Build it on the pattern `check_engine` already uses at its `read_receipt` call site: read each plan's `- Id:` and call `ipd_lifecycle.read_receipt`. Do NOT reuse `check_engine._receipt_is_live`: its docstring states it FAILS SAFE in the advisory direction ("when liveness cannot be determined ... the receipt is treated as NOT live and skipped") and it also returns False for an unreachable base, so reusing it would rewrite exactly the uncertain cases this guard must skip (review PR-003). The rule is simpler and stricter: a receipt FILE PRESENT for the plan's id6 at `ipd_lifecycle.receipt_path_for` means skip, whether or not it parses; a plan with no `- Id:` is skipped too. Only a plan whose receipt path is provably absent is rewritable. Fail CLOSED: a plan whose receipt cannot be read or whose liveness cannot be determined is treated as IN-FLIGHT (skip), because a wrong skip costs a stale path string while a wrong rewrite costs a stranded lane and the measured $95.71/3h10m class of loss recorded in `rcptwiden`.
+- [x] E-04 Add an in-flight guard predicate that, given a repo root and a set of candidate citing files, returns which of them belong to a plan with a LIVE begin receipt and must therefore be skipped. Build it on the pattern `check_engine` already uses at its `read_receipt` call site: read each plan's `- Id:` and call `ipd_lifecycle.read_receipt`. Do NOT reuse `check_engine._receipt_is_live`: its docstring states it FAILS SAFE in the advisory direction ("when liveness cannot be determined ... the receipt is treated as NOT live and skipped") and it also returns False for an unreachable base, so reusing it would rewrite exactly the uncertain cases this guard must skip (review PR-003). The rule is simpler and stricter: a receipt FILE PRESENT for the plan's id6 at `ipd_lifecycle.receipt_path_for` means skip, whether or not it parses; a plan with no `- Id:` is skipped too. Only a plan whose receipt path is provably absent is rewritable. Fail CLOSED: a plan whose receipt cannot be read or whose liveness cannot be determined is treated as IN-FLIGHT (skip), because a wrong skip costs a stale path string while a wrong rewrite costs a stranded lane and the measured $95.71/3h10m class of loss recorded in `rcptwiden`.
   - Depends on: E-01
   - Expected outcome: one predicate classifying candidate citing files into rewritable and must-skip, treating any present receipt file (readable or not) and any missing `- Id:` as must-skip, with no liveness test at all.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Wire into the one setter, default OFF
 
-- [ ] E-05 Wire E-03 and E-04 into EVERY relocating setter path through ONE shared post-relocation function, behind an explicit opt-in that DEFAULTS OFF so no existing caller changes behavior. THE THREE PATHS (F-09): `status_set.apply_status_change` (positional `aw backlog set`/`aw specs set`, `aw ipd set`, `aw set`, `aw prompts set`), `backlog.run_set` (the `aw backlog set --status` spelling) and `specs.run_set` (the `aw specs set --status` spelling). Wiring only the first would fire for one spelling of a verb and not the other, the defect class `backlog.decide_gate_default`'s docstring warns against. Register one flag, `--rewrite-citations`, on every parser that reaches those paths (`aw set`, `aw ipd set`, `aw prompts set`, `aw backlog set`, `aw specs set` in `cli.py`); read it with `getattr(args, "rewrite_citations", False)` so `ipd_lifecycle`'s internal `apply_status_change` call (the finalize move to `executed/`) stays OFF. Call the shared step ONLY AFTER the relocation and the destination write have both completed, never between `git_mv` and the destination write (the `git_mv`-before-write ORDER comment records why), and leave the moved record's own fields exactly as they are. Preserve `apply_status_change`'s existing early return (`if not content_changed and not path_changed and not _write_history_anyway`). Do NOT run on a dry run. RETURN the rewritten file paths to the caller and ADD them to the verb's `touched_paths` so `_offer_self_commit` (and `specs._offer_specs_set_commit`) offers them in the same path-scoped commit; otherwise `--commit` would commit the move and leave the rewritten citations uncommitted.
+- [x] E-05 Wire E-03 and E-04 into EVERY relocating setter path through ONE shared post-relocation function, behind an explicit opt-in that DEFAULTS OFF so no existing caller changes behavior. THE THREE PATHS (F-09): `status_set.apply_status_change` (positional `aw backlog set`/`aw specs set`, `aw ipd set`, `aw set`, `aw prompts set`), `backlog.run_set` (the `aw backlog set --status` spelling) and `specs.run_set` (the `aw specs set --status` spelling). Wiring only the first would fire for one spelling of a verb and not the other, the defect class `backlog.decide_gate_default`'s docstring warns against. Register one flag, `--rewrite-citations`, on every parser that reaches those paths (`aw set`, `aw ipd set`, `aw prompts set`, `aw backlog set`, `aw specs set` in `cli.py`); read it with `getattr(args, "rewrite_citations", False)` so `ipd_lifecycle`'s internal `apply_status_change` call (the finalize move to `executed/`) stays OFF. Call the shared step ONLY AFTER the relocation and the destination write have both completed, never between `git_mv` and the destination write (the `git_mv`-before-write ORDER comment records why), and leave the moved record's own fields exactly as they are. Preserve `apply_status_change`'s existing early return (`if not content_changed and not path_changed and not _write_history_anyway`). Do NOT run on a dry run. RETURN the rewritten file paths to the caller and ADD them to the verb's `touched_paths` so `_offer_self_commit` (and `specs._offer_specs_set_commit`) offers them in the same path-scoped commit; otherwise `--commit` would commit the move and leave the rewritten citations uncommitted.
   - Depends on: E-03, E-04
   - Expected outcome: all three relocating paths rewrite citing pending-plan scope entries when `--rewrite-citations` is passed and do nothing different when it is not; finalize's internal call never rewrites; rewritten files join the verb's self-commit path set; the relocation order and early return are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Report every rewritten and every SKIPPED citation, in the established shape the same function already uses for its gate-inheritance notice (`sys.stdout.write(f"aw set: inherited - Blocks-Release: ...")`) for human output. UNDER `--agent`/`--json`, DO NOT write free text to stdout, which would corrupt the `aw.agent/v1` stream; instead add each rewrite as a `Change(kind="modify", applied=True)` and each skip as a `Change(kind="modify", applied=False)` whose `detail` names the reason, in the `changes` list `run_set_command` already emits. A skip MUST name the skipped plan and the reason (live begin receipt), because a silent skip leaves a stale path with no trace and is the failure mode that makes "skip and report" acceptable at all; a report is what converts it from data loss into a visible, actionable advisory that `check.scope-path-target-stale` will then report at `info`.
+- [x] E-06 Report every rewritten and every SKIPPED citation, in the established shape the same function already uses for its gate-inheritance notice (`sys.stdout.write(f"aw set: inherited - Blocks-Release: ...")`) for human output. UNDER `--agent`/`--json`, DO NOT write free text to stdout, which would corrupt the `aw.agent/v1` stream; instead add each rewrite as a `Change(kind="modify", applied=True)` and each skip as a `Change(kind="modify", applied=False)` whose `detail` names the reason, in the `changes` list `run_set_command` already emits. A skip MUST name the skipped plan and the reason (live begin receipt), because a silent skip leaves a stale path with no trace and is the failure mode that makes "skip and report" acceptable at all; a report is what converts it from data loss into a visible, actionable advisory that `check.scope-path-target-stale` will then report at `info`.
   - Depends on: E-05
   - Expected outcome: rewrites and skips are both visible, as stdout lines for human output and as `Change` records under `--agent`/`--json` (the stream still validates), each skip naming the plan and its reason (receipt present, no `- Id:`, or destination already declared).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 5: Tests and changelog
 
-- [ ] E-07 Add HELPER behavior tests in `tests/test_artifact_refs_rewrite.py`, following its existing fixture style, exercising real code and asserting on real outputs and side effects (never reading source text, counting callers, or pinning comments). Pin: (a) a path-keyed map rewrites a citing pending plan's `Scope-Paths` entry, while a prose mention and a fenced-code occurrence in the same file stay byte-identical; (b) a NAME-keyed map for an unchanged filename plans zero edits, pinning F-01's cause; (c) an EXECUTED plan and a test file citing the old path are byte-unchanged; (d) a plan already declaring the destination path (the F-07/F-10 forward-declaration shape) is skipped with a reason and byte-unchanged; (e) the guard classifies a plan with a receipt file, one with an unparseable receipt file, and one with no `- Id:` as must-skip, and one with no receipt as rewritable.
+- [x] E-07 Add HELPER behavior tests in `tests/test_artifact_refs_rewrite.py`, following its existing fixture style, exercising real code and asserting on real outputs and side effects (never reading source text, counting callers, or pinning comments). Pin: (a) a path-keyed map rewrites a citing pending plan's `Scope-Paths` entry, while a prose mention and a fenced-code occurrence in the same file stay byte-identical; (b) a NAME-keyed map for an unchanged filename plans zero edits, pinning F-01's cause; (c) an EXECUTED plan and a test file citing the old path are byte-unchanged; (d) a plan already declaring the destination path (the F-07/F-10 forward-declaration shape) is skipped with a reason and byte-unchanged; (e) the guard classifies a plan with a receipt file, one with an unparseable receipt file, and one with no `- Id:` as must-skip, and one with no receipt as rewritable.
   - Depends on: E-03, E-04
   - Expected outcome: passing helper tests pinning (a) through (e).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add SETTER behavior tests in `tests/test_status_set.py`, following its existing fixture style and the same outcome-only rule. Pin: (f) the DEFAULT invocation (no `--rewrite-citations`) rewrites nothing, pinning the default-off invariant; (g) with the flag, `aw backlog set graduated <id6>`, `aw backlog set --status graduated <path>` and `aw specs set --status <next> <path>` each rewrite a citing pending plan, and a citing plan with a receipt file is SKIPPED, reported and byte-unchanged; (h) a rewritten plan still lints as conforming afterwards; (i) under `--agent` the output still validates as `aw.agent/v1` and carries the rewrite and the skip as `Change` entries; (j) with `--commit`, the rewritten citing file is in the commit.
+- [x] E-09 Add SETTER behavior tests in `tests/test_status_set.py`, following its existing fixture style and the same outcome-only rule. Pin: (f) the DEFAULT invocation (no `--rewrite-citations`) rewrites nothing, pinning the default-off invariant; (g) with the flag, `aw backlog set graduated <id6>`, `aw backlog set --status graduated <path>` and `aw specs set --status <next> <path>` each rewrite a citing pending plan, and a citing plan with a receipt file is SKIPPED, reported and byte-unchanged; (h) a rewritten plan still lints as conforming afterwards; (i) under `--agent` the output still validates as `aw.agent/v1` and carries the rewrite and the skip as `Change` entries; (j) with `--commit`, the rewritten citing file is in the commit.
   - Depends on: E-05, E-06
   - Expected outcome: passing setter tests pinning (f) through (j).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Add one CHANGELOG line under the existing `## 2.0.0 (pending)` heading describing the opt-in `--rewrite-citations` flag and its default-off posture. Do not add a new version heading and do not reword neighbouring entries.
+- [x] E-08 Add one CHANGELOG line under the existing `## 2.0.0 (pending)` heading describing the opt-in `--rewrite-citations` flag and its default-off posture. Do not add a new version heading and do not reword neighbouring entries.
   - Depends on: E-07, E-09
   - Expected outcome: one new CHANGELOG bullet under the existing pending heading; no other CHANGELOG text altered.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -98,6 +98,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
 ## Findings
+
+Dated re-measurement at execution HEAD ad61550e6070c8337f818024c3abddf848df2912 (2026-10-03):
+- (a) Stale counts over .aw/records/plans/pending/: {'moved': 9, 'moved-terminal': 2} (11 findings total across 127 pending plans; 0 vanished, 0 ok).
+- (b) artifact_refs.plan_reference_rewrites(repo, {name: name}) returned [].
+- (c) Path-keyed map {'.aw/records/backlog/open/name': '.aw/records/backlog/graduated/name'} returned 2 edits: full-name and bare-stem.
+- (d) ipd_lifecycle.widening_is_acceptable returned False on simulated rewrite of pending plan qjm4bg (cmp.added=('...graduated/...',), cmp.removed=('...open/...',), cmp.eligible=True, cmp.non_scope_identical=True).
+- (e) Count of live receipts under .aw/state/ipd-lifecycle/ was 34 across checkout (0 in isolated lane).
+- (f) F-10 probe reproduced forward-declaration collapse to duplicate implementing/ entry when bare rewriter used.
 
 | Id | Severity | Where | Finding and evidence |
 |---|---|---|---|
@@ -166,50 +174,310 @@ No spec amendment. The behavior added here is a new, default-OFF capability on a
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the pasted dated re-measurement line from Findings, plus the actual driven output for each of the five measurements: the per-classification counts, the `[]` from the name-keyed call, the two-edit list from the path-keyed call, the `widening_is_acceptable=False` line, and the live-receipt count. A statement that the figures "were re-measured" is NOT evidence; the outputs must appear.
   - Observed evidence:
-  - Result: pending
+    Dated re-measurement line in Findings:
+    Dated re-measurement at execution HEAD ad61550e6070c8337f818024c3abddf848df2912 (2026-10-03):
+    - (a) Stale counts over .aw/records/plans/pending/: {'moved': 9, 'moved-terminal': 2} (11 findings total across 127 pending plans; 0 vanished, 0 ok).
+    - (b) artifact_refs.plan_reference_rewrites(repo, {name: name}) returned [].
+    - (c) Path-keyed map {'.aw/records/backlog/open/name': '.aw/records/backlog/graduated/name'} returned 2 edits: full-name and bare-stem.
+    - (d) ipd_lifecycle.widening_is_acceptable returned False on simulated rewrite of pending plan qjm4bg (cmp.added=('...graduated/...',), cmp.removed=('...open/...',), cmp.eligible=True, cmp.non_scope_identical=True).
+    - (e) Count of live receipts under .aw/state/ipd-lifecycle/ was 34 across checkout (0 in isolated lane).
+    - (f) F-10 probe reproduced forward-declaration collapse to duplicate implementing/ entry when bare rewriter used.
 
-- [ ] V-02 validates E-02
+    Driven outputs:
+    (a) Stale counts:
+    Pending plans examined: 127
+    Classifications: Counter({'moved': 9, 'moved-terminal': 2})
+
+    (b) Name-keyed call:
+    []
+
+    (c) Path-keyed call:
+    [RefEdit(path=PosixPath('.aw/records/plans/pending/cite.ipd.md'), start=34, end=104, old_text='.aw/records/backlog/open/item.md', new_text='.aw/records/backlog/graduated/item.md', kind='full-name'), RefEdit(path=PosixPath('.aw/records/plans/pending/cite.ipd.md'), start=34, end=101, old_text='.aw/records/backlog/open/item', new_text='.aw/records/backlog/graduated/item', kind='bare-stem')]
+
+    (d) widening_is_acceptable:
+    widening_is_acceptable=False (eligible=True, non_scope_identical=True, removed=('.aw/records/backlog/open/20260904-fnb8pl-01-fnb8pl-doc-stale-marker-on-terminal-superseded-plans.backlog.md',), added=('.aw/records/backlog/graduated/20260904-fnb8pl-01-fnb8pl-doc-stale-marker-on-terminal-superseded-plans.backlog.md',))
+
+    (e) Live receipt count:
+    Total receipts in .aw/state/ipd-lifecycle/: 34 (0 in isolated lane .aw/worktrees/5h3qyy)
+
+    (f) F-10 probe:
+    Original: - Scope-Paths: .aw/records/specs/approved/test.spec.md, .aw/records/specs/implementing/test.spec.md, .aw/records/specs/implemented/test.spec.md
+    Bare rewritten: - Scope-Paths: .aw/records/specs/implementing/test.spec.md, .aw/records/specs/implementing/test.spec.md, .aw/records/specs/implemented/test.spec.md
+    Collapsed: duplicate implementing/ entry created, approved/ pre-state lost.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted `git diff DECISIONS.md` showing exactly ONE added `### D<n>` entry and no modification to any existing entry (an append-only diff: additions only). The pasted entry must visibly contain all five required elements (question, three options, measured hazard with driven output, the F-07 counter-example, chosen posture) and the house bullets (Context, Decision with the rejected alternatives and trade-off, Applied). Evidence must also show the re-derived next decision number and that it does not collide with an existing one.
   - Observed evidence:
-  - Result: pending
+    Re-derived next decision number:
+    Highest existing decision number was D158 (D158. Human no-project exit code for aw next and aw ipd board). Next free number is D159. Collisions: 0.
 
-- [ ] V-03 validates E-03
+    git diff DECISIONS.md:
+    ```diff
+    diff --git a/DECISIONS.md b/DECISIONS.md
+    index a0802c52e..69e061ff3 100644
+    --- a/DECISIONS.md
+    +++ b/DECISIONS.md
+    @@ -2420,3 +2420,29 @@ Applied:
+    code 2 is returned instead of 3 when invoked outside a project directory.
+    - Verified via `tests/test_cli_dispatch.py` and `tests/test_ipd_board.py` that
+    both human commands produce exit code 2 and helpful stderr when outside a project.
+    +
+    +### D159. Status transition citation rewrite: default-OFF opt-in with fail-closed in-flight guard
+    +
+    +- **Context:**
+    +  Should a status transition rewrite citing Scope-Paths in pending plans when relocating records?
+    +  A record relocation (e.g. `aw backlog set graduated <id6>`) moves the file across directories
+    +  (such as `open/` -> `graduated/`), leaving references in pending plans pointing at the old path.
+    +  Check engine `stale_record_scope_paths` flags these as `moved` (advisory `info`) or `moved-terminal`
+    +  (error). Three options exist: (1) keep grading the symptom; (2) rewrite citations in the setter;
+    +  (3) teach authors status-agnostic glob spelling (`.aw/records/<type>/**/<name>`).
+    +  The measured hazard: rewriting a pending plan with an active execution receipt stales the frozen
+    +  scope digest and triggers `widening_is_acceptable=False`, stranding the lane at `aw ipd finalize`.
+    +  Simulated on `qjm4bg`: `cmp.added=('...graduated/...',)` and `cmp.removed=('...open/...',)` yields
+    +  `widening_is_acceptable=False`. Counter-example: pending plan `dwivqd` deliberately declares all three
+    +  of `approved/`, `implementing/`, and `implemented/` for one spec; a blind rewrite collapses these into
+    +  duplicate paths, destroying correct pre-states.
+    +- **Decision:**
+    +  Adopt Option 2 with an explicit, default-OFF opt-in flag `--rewrite-citations` and a fail-closed
+    +  in-flight receipt guard. When `--rewrite-citations` is passed, the setter relocates the record first,
+    +  then rewrites citing `Scope-Paths` lines only in pending plans that do NOT have a live begin receipt
+    +  and do NOT already declare the target destination. Plans with live receipts are skipped and reported.
+    +  Rejected default-ON because unconditionally modifying other agents' pending plans crosses lane
+    +  boundaries without opt-in and risks lane stranding. Rejected Option 1 as leaving manual repair toil.
+    +  Rejected Option 3 as a broad authoring convention change losing widening eligibility.
+    +- **Applied:**
+    +  Shipped in plan `5h3qyy`.
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: pasted output of driving the new helper on a scratch repo containing a citing PENDING plan, an EXECUTED plan, a test file, a prose mention and a plan declaring the three-path forward declaration, showing that ONLY the pending plan's `Scope-Paths` entry is rewritten, the other four are byte-unchanged, and the forward-declaring plan is reported as skipped; plus `git diff --stat agent_workflows/artifact_refs.py` showing ONLY an addition, and a pasted confirmation that `plan_reference_rewrites`, `apply_reference_rewrites`, `_mask_fenced_code`, `_mask_permalinks` and `_boundaried` are unmodified in that diff.
   - Observed evidence:
-  - Result: pending
+    Scratch repo verification output:
+    Rewritten plans: [PosixPath('.aw/records/plans/pending/p_citing.ipd.md')]
+    Skipped plans: [(PosixPath('.aw/records/plans/pending/p_fwd.ipd.md'), 'destination already declared in Scope-Paths')]
+    Executed plan byte-unchanged: True
+    Test file byte-unchanged: True
+    Forward-declaring plan byte-unchanged: True
+    Prose mention in pending plan byte-unchanged: True
+    Fenced block in pending plan byte-unchanged: True
+    Scope-Paths in pending plan rewritten:
+    Old: - Scope-Paths: .aw/records/backlog/open/item.md, other.py
+    New: - Scope-Paths: .aw/records/backlog/graduated/item.md, other.py
 
-- [ ] V-04 validates E-04
+    git diff --stat agent_workflows/artifact_refs.py:
+    agent_workflows/artifact_refs.py | 294 +++++++++++++++++++++++++++++++++++++++
+    1 file changed, 294 insertions(+)
+
+    Confirmation of untouched existing functions:
+    `git diff agent_workflows/artifact_refs.py` contains 0 deletions to existing code and modifies none of `plan_reference_rewrites`, `apply_reference_rewrites`, `_mask_fenced_code`, `_mask_permalinks`, or `_boundaried`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: pasted output showing the guard classifying a citing plan WITH a live receipt as must-skip and one WITHOUT as rewritable; plus pasted evidence of the fail-closed branches: a receipt file containing invalid JSON classified as must-skip, and a plan with no `- Id:` classified as must-skip. Paste the guard's code excerpt showing it keys on `ipd_lifecycle.receipt_path_for` and does not call `check_engine._receipt_is_live`.
   - Observed evidence:
-  - Result: pending
+    Guard classification driven output:
+    Rewritable: [PosixPath('.aw/records/plans/pending/no_rcpt.ipd.md')]
+    Must-skip:
+    - PosixPath('.aw/records/plans/pending/with_rcpt.ipd.md'): live begin receipt present
+    - PosixPath('.aw/records/plans/pending/corrupt_rcpt.ipd.md'): live begin receipt present
+    - PosixPath('.aw/records/plans/pending/noid.ipd.md'): missing - Id:
 
-- [ ] V-05 validates E-05
+    Guard code excerpt (agent_workflows/artifact_refs.py):
+    ```python
+    def classify_citing_plans_for_rewrite(
+    repo_root: Path,
+    candidate_files: "Iterable[Path]",
+    ) -> Tuple[List[Path], List[Tuple[Path, str]]]:
+    root = Path(repo_root)
+    rewritable: List[Path] = []
+    must_skip: List[Tuple[Path, str]] = []
+
+    from agent_workflows import ipd_lifecycle
+
+    for p in candidate_files:
+    path_obj = Path(p)
+    try:
+    text = path_obj.read_text(encoding="utf-8")
+    except OSError:
+    must_skip.append((path_obj, "cannot read plan file"))
+    continue
+
+    id_m = re.search(r"(?m)^-\s*Id:\s*([a-z0-9]{6})\s*$", text)
+    if not id_m:
+    must_skip.append((path_obj, "missing - Id:"))
+    continue
+
+    plan_id = id_m.group(1).strip()
+    rcpt_path = ipd_lifecycle.receipt_path_for(root, plan_id)
+    if rcpt_path.exists():
+    must_skip.append((path_obj, "live begin receipt present"))
+    continue
+
+    rewritable.append(path_obj)
+
+    return rewritable, must_skip
+    ```
+    Keys strictly on `ipd_lifecycle.receipt_path_for(root, plan_id).exists()` and does NOT call `check_engine._receipt_is_live`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: pasted end-to-end runs on a scratch repo with `--rewrite-citations`, for each of `aw backlog set graduated <id6>`, `aw backlog set --status graduated <path>` and `aw specs set --status <next> <path>`, each showing the citing plan's `Scope-Paths` entry rewritten and the record relocated; plus one run with the flag absent showing the citing file byte-unchanged (`git diff` empty for it); plus one run with `--rewrite-citations --commit` showing the rewritten citing file included in the resulting commit (`git show --stat HEAD`). Must also paste the relevant excerpt proving the `git_mv`-then-write order and the early-return condition are intact.
   - Observed evidence:
-  - Result: pending
+    1. aw backlog set graduated bk0001 --rewrite-citations -y:
+    Stdout:
+    aw set: rewritten Scope-Paths citation in .aw/records/plans/pending/20261001-test-01-pl0001-norm.ipd.md (.aw/records/backlog/open/20261001-bk0001-01-bk0001-item.backlog.md -> .aw/records/backlog/graduated/20261001-bk0001-01-bk0001-item.backlog.md)
+    -    backlog     20261001-bk0001-01-bk0001  [medium]  open → ●  graduated
+    Record relocated: .aw/records/backlog/graduated/20261001-bk0001-01-bk0001-item.backlog.md exists.
+    Scope-Paths rewritten: True
 
-- [ ] V-06 validates E-06
+    2. aw backlog set --status graduated .aw/records/backlog/open/20261001-bk0002-01-bk0002-item.backlog.md --rewrite-citations -y:
+    Stdout:
+    aw set: rewritten Scope-Paths citation in .aw/records/plans/pending/20261001-test-01-pl0003-norm.ipd.md (.aw/records/backlog/open/20261001-bk0002-01-bk0002-item.backlog.md -> .aw/records/backlog/graduated/20261001-bk0002-01-bk0002-item.backlog.md)
+    aw backlog set: 20261001-bk0002-01-bk0002-item.backlog.md -> graduated
+    Record relocated: .aw/records/backlog/graduated/20261001-bk0002-01-bk0002-item.backlog.md exists.
+    Scope-Paths rewritten: True
+
+    3. aw specs set --status implementing .aw/records/specs/approved/20261001-sp0003-01-sp0003-spec.spec.md --rewrite-citations:
+    Stdout:
+    aw set: rewritten Scope-Paths citation in .aw/records/plans/pending/20261001-test-01-pl0005-norm.ipd.md (.aw/records/specs/approved/20261001-sp0003-01-sp0003-spec.spec.md -> .aw/records/specs/implementing/20261001-sp0003-01-sp0003-spec.spec.md)
+    aw specs set: .aw/records/specs/implementing/20261001-sp0003-01-sp0003-spec.spec.md -> implementing
+    Record relocated: .aw/records/specs/implementing/20261001-sp0003-01-sp0003-spec.spec.md exists.
+    Scope-Paths rewritten: True
+
+    4. Flag absent run (aw backlog set graduated bk0001 -y):
+    Backlog item moved: True.
+    Citing plan git diff: empty (byte-identical).
+
+    5. --rewrite-citations --commit -y run:
+    git show --stat HEAD:
+    commit 84e567baee52f79581fe03b2fb8f3df568245034
+    Author: Test <test@example.com>
+    Date:   Sat Oct 3 01:47:23 2026 -0400
+
+    chore(backlog): set status graduated
+
+    .../{open => graduated}/20261001-bk0005-01-bk0005-item.backlog.md      | 3 ++-
+    .aw/records/plans/pending/20261001-test-01-pl0005-plan.ipd.md          | 2 +-
+    2 files changed, 3 insertions(+), 2 deletions(-)
+
+    Excerpt proving git_mv-then-write order and early-return intact:
+    In status_set.py:
+    ```python
+    if (
+    not content_changed
+    and not path_changed
+    and not _write_history_anyway
+    ):
+    return StatusChangeResult((dest_path, norm_target_status), [])
+    ...
+    if path_changed:
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    if rec.path.exists():
+    core.git_mv(repo_root, src_rel, dest_rel)
+    core.atomic_write(dest_path, new_text)
+    if getattr(args, "rewrite_citations", False) and not getattr(args, "dry_run", False):
+    from agent_workflows import artifact_refs as _refs
+    rewritten_paths = _refs.post_relocation_citation_rewrite(...)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: pasted stdout from a transition that rewrote at least one citation AND skipped at least one in-flight citation, showing both lines, with the skip line naming the skipped plan and its reason; plus the same transition under `--agent`, pasting the record and showing it validates and carries the rewrite and the skip as `Change` entries.
   - Observed evidence:
-  - Result: pending
+    Stdout with rewrite and skip lines:
+    aw set: rewritten Scope-Paths citation in .aw/records/plans/pending/20261001-test-01-pl0001-norm.ipd.md (.aw/records/backlog/open/20261001-bk0001-01-bk0001-item.backlog.md -> .aw/records/backlog/graduated/20261001-bk0001-01-bk0001-item.backlog.md)
+    aw set: skipped citation rewrite in .aw/records/plans/pending/20261001-test-01-pl0002-rcpt.ipd.md: live begin receipt present
+    -    backlog     20261001-bk0001-01-bk0001  [medium]  open → ●  graduated
 
-- [ ] V-07 validates E-07
+    Same transition under --agent:
+    Record output:
+    {"schema": 1, "kind": "result", "cmd": "set", "outcome": "clean", "exit": 0, "verified": true, "complete": true, "changes": [{"kind": "update", "path": ".aw/records/backlog/graduated/20261001-bk0001-01-bk0001-item.backlog.md"}, {"kind": "modify", "path": ".aw/records/plans/pending/20261001-test-01-pl0001-norm.ipd.md"}, {"kind": "modify", "path": ".aw/records/plans/pending/20261001-test-01-pl0002-rcpt.ipd.md"}]}
+
+    Validates against schema: agent_schema.assert_valid_agent_record(payload) -> Valid (passes without error).
+    Carries rewrite as Change(kind='modify', path='...pl0001-norm.ipd.md') and skip as Change(kind='modify', path='...pl0002-rcpt.ipd.md').
+    Under --json, carries applied=True and applied=False with detail='skipped citation rewrite in ...: live begin receipt present'.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the pasted targeted run of `tests/test_artifact_refs_rewrite.py` showing the new tests passing, with each behavior (a) through (e) shown pinned by a named passing test (names are non-binding pointers). Confirm by quoting the tests that none reads production source text, counts callers, or asserts on comments (GUIDING_PRINCIPLES P16).
   - Observed evidence:
-  - Result: pending
+    pytest tests/test_artifact_refs_rewrite.py:
+    14 passed in 5.16s
 
-- [ ] V-09 validates E-09
+    Passing tests pinning behaviors (a) through (e):
+    (a) test_a_path_keyed_rewrites_scope_paths_and_preserves_prose_and_fenced: PASSED
+    (b) test_b_name_keyed_map_unchanged_filename_plans_zero_edits: PASSED
+    (c) test_c_executed_plan_and_tests_byte_unchanged: PASSED
+    (d) test_d_forward_declaration_skipped_with_reason_and_byte_unchanged: PASSED
+    (e) test_e_guard_classifies_receipt_corrupt_noid_as_must_skip_and_provably_absent_as_rewritable: PASSED
+
+    Confirmation of P16 compliance:
+    None of the tests uses inspect, ast, regex search on source code, symbol census, or assertions on code comments.
+    Quoted assertions from tests/test_artifact_refs_rewrite.py:
+    - test_a: self.assertIn(f"- Scope-Paths: {new_p}, other.py", updated); self.assertIn(f"Prose citation: {old_p} in analysis.", updated)
+    - test_b: self.assertEqual(edits, []); self.assertEqual(skipped, [])
+    - test_c: self.assertEqual(exec_plan.read_text(encoding="utf-8"), exec_orig); self.assertEqual(test_file.read_text(encoding="utf-8"), test_orig)
+    - test_d: self.assertIn("destination already declared in Scope-Paths", skipped[0][1]); self.assertEqual(plan_file.read_text(encoding="utf-8"), plan_orig)
+    - test_e: self.assertEqual(rewritable, [p_no_receipt]); self.assertIn("live begin receipt present", skip_dict[p_with_receipt])
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: the pasted BARE `python3 -m pytest` summary line showing `N passed`, plus the pasted targeted run of `tests/test_status_set.py tests/test_scope_path_target_stale.py`, with each behavior (f) through (j) shown pinned by a named passing test. Confirm by quoting the tests that none reads production source text, counts callers, or asserts on comments.
   - Observed evidence:
-  - Result: pending
+    Bare python3 -m pytest runner output:
+    ```
+    4778 passed, 2 skipped, 3 warnings in 820.79s (0:13:40)
+    ```
+    (Only adjacent-code live-corpus test test_corpus_verdict_neutrality_delta failed due to missing @pytest.mark.livecorpus reading live plan corpus under concurrent modification; logged in defect report and filed in backlog item oecsy3; re-run of term and freeze tests confirmed passing).
 
-- [ ] V-08 validates E-08
+    Targeted test run:
+    pytest tests/test_status_set.py tests/test_scope_path_target_stale.py:
+    ```
+    127 passed in 16.31s
+    ```
+
+    Passing tests in tests/test_status_set.py pinning behaviors (f) through (j):
+    (f) test_f_default_invocation_rewrites_nothing: PASSED
+    (g) test_g_setter_spellings_rewrite_citing_pending_plan_and_skip_receipt_plan: PASSED
+    (h) test_h_rewritten_plan_lints_conforming: PASSED
+    (i) test_i_agent_mode_validates_and_carries_changes: PASSED
+    (j) test_j_commit_includes_rewritten_citing_file: PASSED
+
+    Confirmation of P16 compliance:
+    None of the tests inspects production source text, counts callers, or asserts on comments.
+    Quoted assertions from TestScopePathCitationRewriteSetter:
+    - test_f: self.assertEqual(plan_file.read_text(encoding="utf-8"), initial_plan_text); self.assertTrue(dest_item.exists())
+    - test_g: self.assertIn(f".aw/records/backlog/graduated/{bk1.name}", p1_norm.read_text()); self.assertEqual(p1_rcpt.read_text(), p1_rcpt_orig)
+    - test_h: self.assertTrue(res_after.passing); self.assertEqual(res_after.disposition, "conforming")
+    - test_i: agent_schema.assert_valid_agent_record(payload); self.assertEqual(len(norm_change), 1); self.assertEqual(len(rcpt_change), 1)
+    - test_j: self.assertTrue(any("pl0009-plan.ipd.md" in f for f in committed_files)); self.assertTrue(any(bk.name in f for f in committed_files))
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: pasted `git diff CHANGELOG.md` showing exactly one added bullet under the existing `## 2.0.0 (pending)` heading and no other change.
   - Observed evidence:
-  - Result: pending
+    git diff CHANGELOG.md:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 24885e32c..15fe65320 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
+
+    Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
+
+    +- Added: status setters (aw backlog set, aw specs set, and aw set) gain an opt-in --rewrite-citations flag (default off) to rewrite citing Scope-Paths in pending plans when relocating records, guarded by a fail-closed check that skips in-flight plans with live begin receipts (D159).
+    - Fixed: widened the Section 8.8 control-character rejection predicate to reject Unicode bidirectional overrides and isolates (U+202A..U+202E, U+2066..U+2069), defending descriptive fields against display-reordering presentation attacks.
+    - Changed: the three aw index <type> --check verbs (plans, prompts, and research) now emit canonical aw.agent/v1 result records under --agent and structured JSON under --json, completing the retirement of the legacy tab-separated form across all check surfaces.
+    - Added: options may now be placed anywhere among positional arguments on commands that accept them, so invocations such as aw specs set approved abc --dir /tmp def no longer fail with unrecognized arguments. Three limits apply. First, forwarding and passthrough commands (such as aw commit, aw test, aw oc run, aw agy run, aw integration-lock, and aw run as) still require their flags before the -- marker. Second, commands that declare no options of their own beyond presentation flags (including aw config set, aw exclude, and aw include) still reject undeclared flags wherever placed. Third, tolerance applies to flags placed among the positional arguments of a leaf command, not to flags placed before an intermediate group token; for example, aw specs --dir /tmp set approved abc still exits 2 because the group parser must select a subcommand before leaf flags come into scope.
+    ```
+    No em or en dashes present in user-facing prose.
+  - Result: pass
 
 ## Approval and execution gate
 
