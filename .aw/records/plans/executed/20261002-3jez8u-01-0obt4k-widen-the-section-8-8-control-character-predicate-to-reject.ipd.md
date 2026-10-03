@@ -6,7 +6,7 @@
 - Scope: Widen `_CONTROL_CHAR_RE` ONCE, in `attention_contract`, to additionally match the nine bidi overrides and isolates, so every existing reader of that one definition (`is_safe_descriptive`, `validate_gate_ref`, the specs/backlog/status_set/releases refusal helpers, and the `attention.unsafe-field` check rule) inherits the fix with no second character class. Resolve Section 8.8's internally inconsistent sentence by amending the spec to name the code points. Add behavioral tests. EXCLUDES the zero-width and formatting members of `Cf` (U+200B..U+200D, U+00AD, U+FEFF), which are measured present in legitimate prose, and excludes the length bound, the renderer-side neutralizer (`llnvwj`/`qpw45x`), and any change to `escape_detail`.
 - Scope-Paths: agent_workflows/attention_contract.py, tests/test_attention_contract.py, tests/test_bidi_control_rejection.py, .aw/records/specs/implemented/20260808-1945-01-attention-registry-and-cross-tree-status.spec.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0obt4k
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0obt4k verified (set 3jez8u, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. Review record: .aw/records/reviews/20261002-3jez8u-01-0obt4k-widen-the-section-8-8-control-character-predicate-to-reject.review.md
