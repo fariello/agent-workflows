@@ -221,6 +221,7 @@ The gate has five honest limits:
   P16 ("Tabulated and table-driven tests (accumulate versus subTest)") for the row
   shape, the mandatory `why` column, when to tabulate, and runner-dependent row
   verdicts.
+- Comparing run-queue item status: when checking an item's status against a terminal status token, include the canonical spelling or canonicalize through `runner_shared.canonical_terminal_status`. CI refuses new bare comparisons against the eight retired legacy tokens (`substantially-complete`, `failed-safely`, `dependency-blocked`, `integration-blocked`, `merge-conflict`, `merge-needs-human`, `merge-refused`, `not-attempted`). The two ambiguous tokens `blocked` and `partial` are deliberately not policed by this rule because they collide across multiple unrelated vocabularies. Run `python3 tools/dead_status_token_scan.py` before committing to verify that your changes introduce no dead legacy status token comparisons.
 
 ## Adding a CLI command: the output-contract checklist
 
