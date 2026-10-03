@@ -3850,6 +3850,7 @@ class ContinuationSubfieldOutcomeTests(unittest.TestCase):
             with self.subTest(row=name):
                 self._check_row(name)
 
+    @pytest.mark.livecorpus
     @pytest.mark.timeout(180)
     def test_corpus_verdict_neutrality_delta(self):
         """E-03: asserting the PROPERTY that continuation read changes no tracked plan's verdict.

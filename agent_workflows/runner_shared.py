@@ -1095,12 +1095,13 @@ def save_state(
     run_dir: Path,
     state: dict[str, Any],
     *,
-    write_report: Callable[[Path, dict[str, Any]], None],
+    write_report: Callable[[Path, dict[str, Any]], None] | None = None,
 ) -> None:
     _check_run_state_transitions(state)
     state["updated_at"] = utc_now()
     atomic_write_json(run_dir / "state.json", state)
-    write_report(run_dir, state)
+    if write_report is not None:
+        write_report(run_dir, state)
 
 
 def add_output_mode_flags(
