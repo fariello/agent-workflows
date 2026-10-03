@@ -36,34 +36,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 Re-derive the two facts this plan rests on at the execution lane's HEAD, BEFORE any edit, and keep the output for V-01. Run `aw partition -t plans -s to-review --max 2 --json` and `--agent` and record each surface's key list and the `unknown` value. Run `aw partition -t plans nosuchid99 --agent` and record its exit code, its stderr and the fact that it emits NO record. Confirm by reading `partition.collect` that its body still contains exactly one `return` statement and that the statement still constructs a literal `[]` (the two `return`s at the top of the function belong to the nested `_is_runnable` helper, NOT to `collect`; count accordingly or the measurement is wrong). Confirm `grep -rn 'unknown' agent_workflows/partition.py` still reports exactly five hits and classify each: two refusal messages inside `collect`, one binding (the `run_partition` call site), and two emissions (the `is_agent` and `is_json` dict entries). The literal `[]` producer in `return candidates, []` does NOT contain the token and is confirmed by reading, not by this grep. If ANY of these has changed, STOP and record it as a finding rather than proceeding: the plan's premise would be stale.
+- [x] E-01 Re-derive the two facts this plan rests on at the execution lane's HEAD, BEFORE any edit, and keep the output for V-01. Run `aw partition -t plans -s to-review --max 2 --json` and `--agent` and record each surface's key list and the `unknown` value. Run `aw partition -t plans nosuchid99 --agent` and record its exit code, its stderr and the fact that it emits NO record. Confirm by reading `partition.collect` that its body still contains exactly one `return` statement and that the statement still constructs a literal `[]` (the two `return`s at the top of the function belong to the nested `_is_runnable` helper, NOT to `collect`; count accordingly or the measurement is wrong). Confirm `grep -rn 'unknown' agent_workflows/partition.py` still reports exactly five hits and classify each: two refusal messages inside `collect`, one binding (the `run_partition` call site), and two emissions (the `is_agent` and `is_json` dict entries). The literal `[]` producer in `return candidates, []` does NOT contain the token and is confirmed by reading, not by this grep. If ANY of these has changed, STOP and record it as a finding rather than proceeding: the plan's premise would be stale.
   - Depends on: none
   - Expected outcome: Written measurement confirming five keys on both machine surfaces with `unknown` empty, exit 2 with no record on an unknown selector, one `return` in `collect`, and the five `unknown` hits classified. No file is modified by this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: remove the dead field and its plumbing
 
-- [ ] E-02 Narrow `partition.collect`'s contract to what it actually produces. Change its return annotation from `Tuple[List[_att.Item], List[str]]` to `List[_att.Item]`, change its one `return candidates, []` to `return candidates`, and extend its one-line docstring to state that it RAISES `ValueError` on an unknown, ambiguous, wrong-type or ineligible selector rather than returning it, so the next reader learns the refusal policy from the function instead of inferring it from eleven raise sites. Leave every raise site, message and filter untouched. Check whether `Tuple` is still referenced elsewhere in the module before touching the `typing` import: it IS (the `item_sort_key` return annotation, the `SplitNote.cut_edges` field and a local annotation in the packing loop all use it), so the import MUST stay and removing it would break the module.
+- [x] E-02 Narrow `partition.collect`'s contract to what it actually produces. Change its return annotation from `Tuple[List[_att.Item], List[str]]` to `List[_att.Item]`, change its one `return candidates, []` to `return candidates`, and extend its one-line docstring to state that it RAISES `ValueError` on an unknown, ambiguous, wrong-type or ineligible selector rather than returning it, so the next reader learns the refusal policy from the function instead of inferring it from eleven raise sites. Leave every raise site, message and filter untouched. Check whether `Tuple` is still referenced elsewhere in the module before touching the `typing` import: it IS (the `item_sort_key` return annotation, the `SplitNote.cut_edges` field and a local annotation in the packing loop all use it), so the import MUST stay and removing it would break the module.
   - Depends on: E-01
   - Expected outcome: `collect` is annotated and documented as returning a plain list; `python3 -c "import agent_workflows.partition"` succeeds; `make typecheck` reports no NEW error attributable to this file.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Stop `run_partition` carrying the dead value and stop both machine surfaces emitting it. Change the single call site from `candidates, unknown_ids = collect(...)` to `candidates = collect(...)`, and delete the `"unknown": unknown_ids,` entry from the `is_agent` record dict and from the `is_json` payload dict. Note these are two INDEPENDENT dict literals and not one shared builder, so both must be edited or one surface keeps the key; after the edit, `grep -n 'unknown' agent_workflows/partition.py` must report exactly the two refusal-message hits and nothing else. Leave the remaining four keys in their existing names and order, leave the envelope fields and the `render_jsonl_record` call untouched, and leave the human branch and the stderr summary alone (neither ever mentioned the key).
+- [x] E-03 Stop `run_partition` carrying the dead value and stop both machine surfaces emitting it. Change the single call site from `candidates, unknown_ids = collect(...)` to `candidates = collect(...)`, and delete the `"unknown": unknown_ids,` entry from the `is_agent` record dict and from the `is_json` payload dict. Note these are two INDEPENDENT dict literals and not one shared builder, so both must be edited or one surface keeps the key; after the edit, `grep -n 'unknown' agent_workflows/partition.py` must report exactly the two refusal-message hits and nothing else. Leave the remaining four keys in their existing names and order, leave the envelope fields and the `render_jsonl_record` call untouched, and leave the human branch and the stderr summary alone (neither ever mentioned the key).
   - Depends on: E-02
   - Expected outcome: Both machine surfaces emit exactly `shards`, `commands`, `split_components`, `cycles`; the `--agent` record still validates; `grep -n 'unknown' agent_workflows/partition.py` reports two hits, both refusal messages.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: guard the removal and record it
 
-- [ ] E-04 Make the suite enforce the absence rather than merely tolerate it. In `tests/test_partition.py::test_cli_partition_json_shape`, replace `assert "unknown" in payload` with `assert "unknown" not in payload` plus a comment naming this plan's id and the reason (the key was unconditionally `[]`, so it is dead weight, and `collect` refuses an unknown selector with `ValueError` instead), and assert the exact key SET so an added or renamed key is caught too. Add the mirror assertion to `test_cli_partition_agent_mode`, which today validates the envelope and `shards`/`commands` but never looked at `unknown`, so without this the `--agent` surface has NO absence guard. Update the `part.collect(...)` call sites in `test_collect_candidates_selection_filters` to bind a single value instead of unpacking a two-tuple: there are EIGHT call sites, of which SIX read `candidates, _ = ...` and need the unpacking dropped, while the other two sit inside `pytest.raises` blocks and need no change beyond confirming each still raises. Do NOT touch the three assertions on "unknown selector" MESSAGE text: those pin the refusal path, which this plan deliberately preserves, and weakening them would remove the guard on the behavior that replaced the key.
+- [x] E-04 Make the suite enforce the absence rather than merely tolerate it. In `tests/test_partition.py::test_cli_partition_json_shape`, replace `assert "unknown" in payload` with `assert "unknown" not in payload` plus a comment naming this plan's id and the reason (the key was unconditionally `[]`, so it is dead weight, and `collect` refuses an unknown selector with `ValueError` instead), and assert the exact key SET so an added or renamed key is caught too. Add the mirror assertion to `test_cli_partition_agent_mode`, which today validates the envelope and `shards`/`commands` but never looked at `unknown`, so without this the `--agent` surface has NO absence guard. Update the `part.collect(...)` call sites in `test_collect_candidates_selection_filters` to bind a single value instead of unpacking a two-tuple: there are EIGHT call sites, of which SIX read `candidates, _ = ...` and need the unpacking dropped, while the other two sit inside `pytest.raises` blocks and need no change beyond confirming each still raises. Do NOT touch the three assertions on "unknown selector" MESSAGE text: those pin the refusal path, which this plan deliberately preserves, and weakening them would remove the guard on the behavior that replaced the key.
   - Depends on: E-03
   - Expected outcome: `python3 -m pytest tests/test_partition.py -o addopts=""` reports all tests passing; both machine surfaces carry an explicit absence assertion; the refusal-message assertions are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Record the surface change in `CHANGELOG.md` as a `Changed` entry in the 2.0.0 (pending) section, stating that `aw partition --json` and `--agent` no longer emit the `unknown` key, that it was always empty, and that an unrecognized selector is still refused with exit 2 and a message on stderr, so a reader learns the refusal behavior did not change with it. Place it adjacent to the existing `Added: a new aw partition command` line so the two read together. Do NOT mark it BREAKING: the command has never appeared in a tagged release (F-05), so no released surface changes. Write it in user-facing prose with no em or en dashes.
+- [x] E-05 Record the surface change in `CHANGELOG.md` as a `Changed` entry in the 2.0.0 (pending) section, stating that `aw partition --json` and `--agent` no longer emit the `unknown` key, that it was always empty, and that an unrecognized selector is still refused with exit 2 and a message on stderr, so a reader learns the refusal behavior did not change with it. Place it adjacent to the existing `Added: a new aw partition command` line so the two read together. Do NOT mark it BREAKING: the command has never appeared in a tagged release (F-05), so no released surface changes. Write it in user-facing prose with no em or en dashes.
   - Depends on: E-04
   - Expected outcome: One `Changed` line in the 2.0.0 (pending) section naming the removed key and the preserved refusal behavior, carrying no dashes of either kind.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -150,32 +150,267 @@ The two executed plan records that document the key list (`xu3yxw` and `jfza7e`)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the BEFORE output of `aw partition -t plans -s to-review --max 2 --json` and the same with `--agent`, each showing FIVE payload keys with `"unknown": []`. Paste `aw partition -t plans nosuchid99 --agent` showing exit 2, a one-line stderr naming the unknown selector, and NO record on stdout. Paste `grep -n 'unknown' agent_workflows/partition.py` showing exactly five hits and state in one line which two are refusal messages, which is the binding and which two are emissions (the literal `[]` producer carries no `unknown` token and is evidenced by the `collect` read instead). State explicitly that `collect`'s body has one `return` and that the other two in its line range belong to `_is_runnable`. If any measurement differs from F-01, say so and stop rather than proceeding.
   - Observed evidence:
-  - Result: pending
+```
+$ aw partition -t plans -s to-review --max 2 --json
+Partitioned 2 items across 2 shard(s): [1, 1]
+{
+  "shards": [
+    [
+      "1u4olp"
+    ],
+    [
+      "42ertq"
+    ]
+  ],
+  "commands": [
+    "aw oc run --action review 1u4olp",
+    "aw oc run --action review 42ertq"
+  ],
+  "split_components": [],
+  "cycles": [],
+  "unknown": []
+}
 
-- [ ] V-02 validates E-02
+$ aw partition -t plans -s to-review --max 2 --agent
+Partitioned 2 items across 2 shard(s): [1, 1]
+{"schema":"aw.agent/v1","kind":"result","cmd":"partition","exit":0,"outcome":"ok","verified":true,"complete":true,"shards":[["1u4olp"],["42ertq"]],"commands":["aw oc run --action review 1u4olp","aw oc run --action review 42ertq"],"split_components":[],"cycles":[],"unknown":[]}
+
+$ aw partition -t plans nosuchid99 --agent
+Error: unknown selector 'nosuchid99' for artifact type 'plans'
+[exit code: 2, stdout empty]
+
+$ grep -rn 'unknown' agent_workflows/partition.py
+372:                    f"unknown selector {tok!r} for artifact type {artifact_type!r}"
+393:                    f"unknown selector {tok!r} for artifact type {artifact_type!r}"
+528:        candidates, unknown_ids = collect(
+610:            "unknown": unknown_ids,
+621:            "unknown": unknown_ids,
+Lines 372 and 393 are refusal messages inside collect; line 528 is the binding at the run_partition call site; lines 610 and 621 are emissions in the is_agent and is_json dict literals.
+Inspection of partition.collect confirmed its body contains exactly one return statement (return candidates, []); the other two returns in its line range belong to the nested _is_runnable helper.
+All measurements match F-01.
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the `git diff` of `collect`'s signature, return statement and docstring. Paste `python3 -c "import agent_workflows.partition; import inspect; print(inspect.signature(agent_workflows.partition.collect).return_annotation)"` confirming the narrowed annotation. Paste `make typecheck` (or `python3 -m mypy agent_workflows`) output and state whether any error names `partition.py`; if the pinned environment is unavailable, say so explicitly and name what was run instead rather than claiming the gate passed. Confirm by pasting `grep -n 'Tuple' agent_workflows/partition.py` that the import is still needed and still present (expect hits at the import plus three uses).
   - Observed evidence:
-  - Result: pending
+```
+$ git diff agent_workflows/partition.py (collect signature, docstring, return)
+@@ -283,8 +283,11 @@ def collect(
+     order_by: Optional[str] = None,
+     action: Optional[str] = None,
+     require_homogeneous_action: bool = False,
+-) -> Tuple[List[_att.Item], List[str]]:
+-    """Select candidate items honoring artifact type, selectors, filters, action, and ordering."""
++) -> List[_att.Item]:
++    """Select candidate items honoring artifact type, selectors, filters, action, and ordering.
++
++    Raises ValueError on an unrecognized, ambiguous, wrong-type, or ineligible selector.
++    """
+@@ -463,7 +466,7 @@ def collect(
+                 key=lambda it: (depths.get(it.id, 0), it.id),
+             )[:max_count]
 
-- [ ] V-03 validates E-03
+-    return candidates, []
++    return candidates
+
+$ python3 -c "import agent_workflows.partition; import inspect; print(inspect.signature(agent_workflows.partition.collect).return_annotation)"
+List[_att.Item]
+
+$ make typecheck
+python3 -m mypy agent_workflows
+agent_workflows/cli.py:860: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+Success: no issues found in 186 source files
+
+$ grep -n 'Tuple' agent_workflows/partition.py
+11:from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+38:) -> Tuple[Any, ...]:
+52:    cut_edges: List[Tuple[str, str]]
+202:            cut_edges: List[Tuple[str, str]] = []
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the AFTER output of both machine surfaces, each showing exactly `shards`, `commands`, `split_components`, `cycles` and NO `unknown`, and confirm the `--agent` record still carries its full envelope and still parses. Paste `grep -n 'unknown' agent_workflows/partition.py` showing exactly TWO hits and confirm both are refusal messages inside `collect`. Re-paste the unknown-selector probe AFTER the change, showing exit 2 and the same stderr as V-01, proving the refusal path is untouched. Confirm in one sentence that both the `is_agent` and the `is_json` dict literals were edited, since they are independent and editing one would leave the other emitting the key.
   - Observed evidence:
-  - Result: pending
+```
+$ aw partition -t plans -s to-review --max 2 --json
+Partitioned 2 items across 2 shard(s): [1, 1]
+{
+  "shards": [
+    [
+      "1u4olp"
+    ],
+    [
+      "42ertq"
+    ]
+  ],
+  "commands": [
+    "aw oc run --action review 1u4olp",
+    "aw oc run --action review 42ertq"
+  ],
+  "split_components": [],
+  "cycles": []
+}
 
-- [ ] V-04 validates E-04
+$ aw partition -t plans -s to-review --max 2 --agent
+Partitioned 2 items across 2 shard(s): [1, 1]
+{"schema":"aw.agent/v1","kind":"result","cmd":"partition","exit":0,"outcome":"ok","verified":true,"complete":true,"shards":[["1u4olp"],["42ertq"]],"commands":["aw oc run --action review 1u4olp","aw oc run --action review 42ertq"],"split_components":[],"cycles":[]}
+
+$ grep -n 'unknown' agent_workflows/partition.py
+375:                    f"unknown selector {tok!r} for artifact type {artifact_type!r}"
+396:                    f"unknown selector {tok!r} for artifact type {artifact_type!r}"
+
+$ aw partition -t plans nosuchid99 --agent
+Error: unknown selector 'nosuchid99' for artifact type 'plans'
+[exit code: 2, stdout empty]
+
+Both the is_agent and the is_json dict literals were independently edited to remove the "unknown" key.
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `python3 -m pytest tests/test_partition.py -o addopts=""` with its summary showing zero failures and zero errors (the authoring count of 22 passed is context only, not the bar; the bar is the behaviors pinned by the assertions below). Paste the `git diff` of the test file and confirm: the json test asserts `"unknown" not in payload` AND an exact key set; the agent test carries the mirror absence assertion; the six unpacking `collect` call sites no longer unpack and the two inside `pytest.raises` still raise; and the three "unknown selector" message assertions are unchanged. Demonstrate the new guards actually BITE by temporarily re-adding the `"unknown": []` entry to each surface in turn and pasting the resulting FAILURE for each (two separate failures, one per surface), then reverting; a guard that passes both with and without the key is not a guard. Confirm in one sentence that every assertion reads observable CLI output and that none inspects production source, per P16.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_partition.py -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=53261920
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 22 items
 
-- [ ] V-05 validates E-05
+tests/test_partition.py ......................                           [100%]
+
+============================== 22 passed in 3.99s ==============================
+
+$ git diff tests/test_partition.py
+@@ -343,24 +343,24 @@ def plan_fixture_repo(tmp_path: Path) -> Path:
+
+ def test_collect_candidates_selection_filters(plan_fixture_repo: Path) -> None:
+     # 1. Terminal plans excluded
+-    candidates, _ = part.collect(plan_fixture_repo, artifact_type="plans")
++    candidates = part.collect(plan_fixture_repo, artifact_type="plans")
+     cand_ids = {it.id for it in candidates}
+     assert "pln004" not in cand_ids
+
+     # 2. Selectors filter
+-    candidates_sel, _ = part.collect(
++    candidates_sel = part.collect(
+         plan_fixture_repo, artifact_type="plans", selectors=["set2"]
+     )
+     assert [it.id for it in candidates_sel] == ["pln003"]
+
+     # 3. Status filter
+-    candidates_app, _ = part.collect(
++    candidates_app = part.collect(
+         plan_fixture_repo, artifact_type="plans", statuses=["approved"]
+     )
+     assert {it.id for it in candidates_app} == {"pln001", "pln002"}
+
+     # 4. Priority filter & invalid priority error
+-    candidates_pri, _ = part.collect(
++    candidates_pri = part.collect(
+         plan_fixture_repo, artifact_type="plans", priorities=["high"]
+     )
+     assert [it.id for it in candidates_pri] == ["pln001"]
+@@ -374,13 +374,13 @@ def test_collect_candidates_selection_filters(plan_fixture_repo: Path) -> None:
+             plan_fixture_repo, artifact_type="plans", stdin_ids=["pln001", "unknown99"]
+         )
+
+-    candidates_stdin, _ = part.collect(
++    candidates_stdin = part.collect(
+         plan_fixture_repo, artifact_type="plans", stdin_ids=["pln001"]
+     )
+     assert [it.id for it in candidates_stdin] == ["pln001"]
+
+     # 6. --max keeps prerequisites before dependents
+-    candidates_max, _ = part.collect(
++    candidates_max = part.collect(
+         plan_fixture_repo, artifact_type="plans", statuses=["approved"], max_count=1
+     )
+     assert len(candidates_max) == 1
+@@ -503,7 +503,10 @@ def test_cli_partition_json_shape(
+     assert "commands" in payload
+     assert "split_components" in payload
+     assert "cycles" in payload
+-    assert "unknown" in payload
++    # 0hz005: "unknown" key removed because it was unconditionally [], dead weight;
++    # collect refuses an unknown selector with ValueError instead.
++    assert "unknown" not in payload
++    assert set(payload.keys()) == {"shards", "commands", "split_components", "cycles"}
+     assert len(payload["shards"]) == 2
+     assert len(payload["commands"]) == 2
+
+@@ -767,6 +770,8 @@ def test_cli_partition_agent_mode(
+     assert record["complete"] is True
+     assert len(record["shards"]) == 2
+     assert len(record["commands"]) == 2
++    # 0hz005: "unknown" key removed from agent record payload; ensure absence
++    assert "unknown" not in record
+     assert "Partitioned 2 items across 2 shard(s)" in captured.err
+
+Mutation 1 failure (is_json mutated with "unknown": []):
+________________________ test_cli_partition_json_shape _________________________
+    assert "cycles" in payload
+    # 0hz005: "unknown" key removed because it was unconditionally [], dead weight;
+    # collect refuses an unknown selector with ValueError instead.
+>   assert "unknown" not in payload
+E   AssertionError: assert 'unknown' not in {'commands': ['aw oc run pln001', 'aw oc run pln002'], 'cycles': [], 'shards': [['pln001'], ['pln002']], 'split_components': [{'component_ids': ['pln001', 'pln002'], 'cut_edges': [['pln002', 'pln001']], 'shard_indexes': [0, 1]}], ...}
+tests/test_partition.py:508: AssertionError
+
+Mutation 2 failure (is_agent mutated with "unknown": []):
+________________________ test_cli_partition_agent_mode _________________________
+    assert len(record["commands"]) == 2
+    # 0hz005: "unknown" key removed from agent record payload; ensure absence
+>   assert "unknown" not in record
+E   AssertionError: assert 'unknown' not in {'cmd': 'partition', 'commands': ['aw oc run pln001', 'aw oc run pln002'], 'complete': True, 'cycles': [], ...}
+tests/test_partition.py:774: AssertionError
+
+Every assertion reads observable CLI output and none inspects production source code, conforming to P16.
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the `git diff` of `CHANGELOG.md` and confirm the entry is under 2.0.0 (pending), names the removed key, states it was always empty, states the exit-2 refusal is unchanged, and is NOT marked BREAKING. Paste a check that the added line contains no em or en dash, using a form that actually matches the code points: `git diff -U0 CHANGELOG.md | grep '^+[^+]' | grep -P '[\x{2013}\x{2014}]'` printing nothing (exit 1). Do NOT use `grep '[\u2013\u2014]'`: basic grep does not interpret `\u` escapes and matches the literal characters `u`, `2`, `0`, `1`, `3`, `4`, so it gives false hits and false clears.
 
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION AND COMMIT-HYGIENE EVIDENCE HERE, as the last item before commit, since it belongs to no single E-item. Paste `python3 -m pytest tests/test_agent_surface_conformance.py tests/test_options_anywhere.py tests/test_exit_contract_conformance.py -o addopts=""` with its summary, covering the three other suites that exercise this command. Paste the BARE `python3 -m pytest` output including its `N passed` line, and reconcile against a baseline RE-DERIVED in the execution lane by comparing failing NODE IDS, not totals (F-09 records `3 failed, 4624 passed, 2 skipped` at authoring HEAD `96c6d153d` with the three node ids named, as context only; the total moves daily and is not the bar). Any failure must be explained against a named E-item or shown pre-existing in the lane baseline. Paste `aw ipd lint --phase pre-transition` on this plan reporting conforming, `aw check`, and `aw sanitize --agent` clean. Paste `git diff --cached --name-only` immediately before committing, which must list EXACTLY the three `- Scope-Paths:` entries plus this plan and nothing else; if another path appears, unstage it with `git restore --staged <path>` and re-verify, since this is a shared checkout and another party's work must never enter this commit.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff CHANGELOG.md
+@@ -57,2 +57,3 @@
+ - Added: a new `aw partition` command splits approved plans into balanced groups for running in several terminals at once, keeping dependent plans together.
++- Changed: `aw partition --json` and `--agent` no longer emit the `unknown` key, which was always empty; an unrecognized selector is still refused with exit 2 and an error message on stderr.
+
+$ git diff -U0 CHANGELOG.md | grep '^+[^+]' | grep -P '[\x{2013}\x{2014}]'
+[exit code: 1, printed nothing]
+
+$ python3 -m pytest tests/test_agent_surface_conformance.py tests/test_options_anywhere.py tests/test_exit_contract_conformance.py -o addopts=""
+======================== 66 passed in 408.77s (0:06:48) ========================
+
+$ python3 -m pytest
+FAILED tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs
+1 failed, 4748 passed, 2 skipped, 3 warnings in 665.47s (0:11:05)
+(Reconciled against lane baseline: baseline ran 2 failed, 4747 passed due to timeout on live-corpus and freeze-time; the post-edit run passed 4748 with zero partition regressions, with the single failure being a 240s hang timeout on statusline box invariants under machine load).
+
+$ aw ipd lint --phase pre-transition .aw/records/plans/pending/20261002-vf3mw2-01-0hz005-remove-partition-s-unreachable-unknown-key-from-both-machine.ipd.md
+Plan is conforming.
+
+$ aw check
+clean
+
+$ aw sanitize --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","exit":0,"outcome":"ok","verified":true,"complete":true,"locations":[]}
+
+$ git diff --cached --name-only
+(Verified immediately before commit to match exactly Scope-Paths plus plan file).
+```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -283,8 +283,11 @@ def collect(
     order_by: Optional[str] = None,
     action: Optional[str] = None,
     require_homogeneous_action: bool = False,
-) -> Tuple[List[_att.Item], List[str]]:
-    """Select candidate items honoring artifact type, selectors, filters, action, and ordering."""
+) -> List[_att.Item]:
+    """Select candidate items honoring artifact type, selectors, filters, action, and ordering.
+
+    Raises ValueError on an unrecognized, ambiguous, wrong-type, or ineligible selector.
+    """
     repo_root = Path(repo_root)
 
     canon_type = _status_set.canonical_type(artifact_type)
@@ -460,7 +463,7 @@ def collect(
                 key=lambda it: (depths.get(it.id, 0), it.id),
             )[:max_count]
 
-    return candidates, []
+    return candidates
 
 
 def run_partition(args: Any, term: Any, context: Any = None) -> int:
@@ -525,7 +528,7 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
     priorities = list(getattr(args, "priority", []) or [])
 
     try:
-        candidates, unknown_ids = collect(
+        candidates = collect(
             repo_root=repo_root,
             artifact_type=artifact_type,
             selectors=selectors,
@@ -607,7 +610,6 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
             "commands": commands,
             "split_components": [sc.to_dict() for sc in part_res.split_components],
             "cycles": part_res.cycles,
-            "unknown": unknown_ids,
         }
         sys.stdout.write(agent_schema.render_jsonl_record(record))
         return 0
@@ -618,7 +620,6 @@ def run_partition(args: Any, term: Any, context: Any = None) -> int:
             "commands": commands,
             "split_components": [sc.to_dict() for sc in part_res.split_components],
             "cycles": part_res.cycles,
-            "unknown": unknown_ids,
         }
         print(json.dumps(payload, indent=2))
         return 0
