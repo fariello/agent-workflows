@@ -6,7 +6,7 @@
 - Scope: Delete exactly ONE source line, `self.assertEqual(len(swept), 24)`, from that one test, adding no replacement. KEEP the preceding `assertEqual(swept, set(...))` statement, the `swept` binding, and every other line, even though F-03 proves that surviving assertion is vacuous; the reason that tautology is retained rather than cleaned up is argued in OQ-01 and is deliberately a REFUSAL of an adjacent tidy-up, because this plan's file is also declared by the `to-review` plan `8fo926` (F-06) and a minimal one-line diff is what keeps the two from colliding. EXCLUDES the docstring line "22 other members", which is a prose count in the same test; it is measured as CURRENTLY ACCURATE (F-05) and left alone with reasons, since P16 governs assertions and not comments, and editing prose while claiming a pure deletion invites the hollowing-out V-01 exists to detect. EXCLUDES `tests/test_terminal_status_vocabulary.py`, which this plan only READS and whose own `len(TERMINAL_STATES_CANONICAL) == 14` literal is the separately-filed live item `rdtme9` (F-07). EXCLUDES any production change, any new test, and any mechanical guard against a count literal returning (undecidable syntactically; owned by `76ic0k`).
 - Scope-Paths: tests/test_artifact_audit.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 01
 - Author: opencode/its_direct-pt3-claude-opus-5-1m-us
 - Id: 9g97e5
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9g97e5 verified (set structpin, attempt 2).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review revisions applied; see review record
 
@@ -42,10 +42,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the one count literal
 
-- [ ] E-01 DELETE THE SINGLE LINE `self.assertEqual(len(swept), 24)` FROM `tests/test_artifact_audit.py::TestArtifactAuditEngine::test_terminal_states_tolerance_and_counterexample_trichotomy`, ADDING NO REPLACEMENT. Delete that ONE statement and nothing else: not the `assertEqual(swept, set(runner_shared.TERMINAL_STATES))` above it, not the `swept` binding or its `swept.add(st)` accumulation, not the `# Assert closed vocabulary is completely swept and equal to TERMINAL_STATES` comment, and not the docstring. DO NOT substitute a different literal, a range, a floor, or a `>=` bound: the quantity is not the invariant, and any bound over a vocabulary that grows by design is the same defect with a longer fuse (`TERMINAL_STATES` has grown at least twice by name in tracked history, gaining `already-landed` and `retired`, each visible in its own source comment). VERIFY THE CROSS-FILE PIN IS LIVE BEFORE DELETING, AND TREAT ITS ABSENCE AS A STOP CONDITION, exactly as sibling plan `44c42h` E-01 did for the same vocabulary: run `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union` and confirm it PASSES BY NAME and is not skipped or deselected. That test asserts `runner_shared.TERMINAL_STATES == frozenset(EXPECTED_CANONICAL_STATES | set(EXPECTED_LEGACY_ALIASES.keys()))` where both operands are hand-written module-level tables in that file (measured: 14 canonical + 10 aliases = 24), which fixes every member BY NAME and is therefore strictly stronger than fixing the count. If that test is absent, skipped, or green under a mutated vocabulary, DO NOT DELETE: report instead, because then the premise fails and a redundant literal honestly labelled beats a silent coverage loss. NOTE THE ASYMMETRY E-01 ACCEPTS, measured in F-04 and NOT waved away: after this deletion the edited test no longer notices a SHRINK of the vocabulary (it stays green), so the shrink direction is carried ENTIRELY by the cross-file pin; that is why verifying the pin is a stop condition rather than a courtesy.
+- [x] E-01 DELETE THE SINGLE LINE `self.assertEqual(len(swept), 24)` FROM `tests/test_artifact_audit.py::TestArtifactAuditEngine::test_terminal_states_tolerance_and_counterexample_trichotomy`, ADDING NO REPLACEMENT. Delete that ONE statement and nothing else: not the `assertEqual(swept, set(runner_shared.TERMINAL_STATES))` above it, not the `swept` binding or its `swept.add(st)` accumulation, not the `# Assert closed vocabulary is completely swept and equal to TERMINAL_STATES` comment, and not the docstring. DO NOT substitute a different literal, a range, a floor, or a `>=` bound: the quantity is not the invariant, and any bound over a vocabulary that grows by design is the same defect with a longer fuse (`TERMINAL_STATES` has grown at least twice by name in tracked history, gaining `already-landed` and `retired`, each visible in its own source comment). VERIFY THE CROSS-FILE PIN IS LIVE BEFORE DELETING, AND TREAT ITS ABSENCE AS A STOP CONDITION, exactly as sibling plan `44c42h` E-01 did for the same vocabulary: run `tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union` and confirm it PASSES BY NAME and is not skipped or deselected. That test asserts `runner_shared.TERMINAL_STATES == frozenset(EXPECTED_CANONICAL_STATES | set(EXPECTED_LEGACY_ALIASES.keys()))` where both operands are hand-written module-level tables in that file (measured: 14 canonical + 10 aliases = 24), which fixes every member BY NAME and is therefore strictly stronger than fixing the count. If that test is absent, skipped, or green under a mutated vocabulary, DO NOT DELETE: report instead, because then the premise fails and a redundant literal honestly labelled beats a silent coverage loss. NOTE THE ASYMMETRY E-01 ACCEPTS, measured in F-04 and NOT waved away: after this deletion the edited test no longer notices a SHRINK of the vocabulary (it stays green), so the shrink direction is carried ENTIRELY by the cross-file pin; that is why verifying the pin is a stop condition rather than a courtesy.
   - Depends on: none
   - Expected outcome: the line `self.assertEqual(len(swept), 24)` is absent from the file; `rg` finds no `len(swept)` in it; `ruff check tests/test_artifact_audit.py` reports `All checks passed!` (no binding is orphaned, because `swept` keeps its reader on the line above); `python3 -m pytest tests/test_artifact_audit.py -o addopts=""` reports every collected test passing with the collected count UNCHANGED from the pre-edit run of the same command (24 at authoring; `8fo926`, now `reviewed`, adds two tests to this file, so the number is live and must be re-derived, never asserted); and the cross-file pin still turns RED when a member is added to or removed from the shipped vocabulary. Authoring baseline to re-derive at execution rather than trust: 24 tests in this file, `len(runner_shared.TERMINAL_STATES) == 24` (14 canonical + 10 aliases), and `test_terminal_states_union` passing by name.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -233,7 +233,7 @@ mutation probes of Required-tests item 5 and must be reverted.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) THE STOP CONDITION, CHECKED BEFORE THE EDIT AND PASTED:
     `python3 -m pytest "tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union" -o addopts="" -v`
     showing `PASSED` by name and `1 passed`. A skipped, deselected, or missing result is a STOP: do not delete,
@@ -261,7 +261,291 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     injected member, STOP: the carrying pin is not sensitive, the premise of this plan has failed, and the
     literal must be restored rather than the evidence written up.
   - Observed evidence:
-  - Result: pending
+    (a) Stop condition checked before the edit:
+    ```
+    $ python3 -m pytest "tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union" -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=163361216
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 1 item
+
+    tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union PASSED [100%]
+
+    ============================== 1 passed in 1.67s ===============================
+    ```
+
+    (b) The literal is gone:
+    ```
+    $ rg -n "len\(swept\)" tests/test_artifact_audit.py
+    [exit code 1, empty output]
+    ```
+
+    (c) Nothing else changed in the file:
+    ```
+    $ git diff -- tests/test_artifact_audit.py
+    diff --git a/tests/test_artifact_audit.py b/tests/test_artifact_audit.py
+    index 5b053dcd1..172f32aa6 100644
+    --- a/tests/test_artifact_audit.py
+    +++ b/tests/test_artifact_audit.py
+    @@ -512,7 +512,6 @@ class TestArtifactAuditEngine(unittest.TestCase):
+
+             # Assert closed vocabulary is completely swept and equal to TERMINAL_STATES
+             self.assertEqual(swept, set(runner_shared.TERMINAL_STATES))
+    -        self.assertEqual(len(swept), 24)
+
+             # F-07 pin: _RUN_SUCCESS_STATUSES is strictly {"executed"} and complete is flagged in executed/
+             self.assertEqual(_audit._RUN_SUCCESS_STATUSES, frozenset({"executed"}))
+    ```
+
+    (d) The fence is live on growth (injected "probe-25th-state" into runner_shared.TERMINAL_STATES_CANONICAL):
+    ```
+    $ python3 -m pytest tests/test_terminal_status_vocabulary.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=969770852
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 5 items                                                             collected 16 items
+
+    tests/test_terminal_status_vocabulary.py .....F...F......                [100%]
+
+    =================================== FAILURES ===================================
+    ______ TestTerminalStatusVocabularyDefinitions.test_terminal_states_union ______
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_terminal_states_union>
+
+        def test_terminal_states_union(self):
+            """TERMINAL_STATES is the exact union of canonical states and legacy aliases."""
+            expected_union = frozenset(
+                EXPECTED_CANONICAL_STATES | set(EXPECTED_LEGACY_ALIASES.keys())
+            )
+    >       self.assertEqual(runner_shared.TERMINAL_STATES, expected_union)
+    E       AssertionError: Items in the first set but not the second:
+    E       'probe-25th-state'
+
+    tests/test_terminal_status_vocabulary.py:91: AssertionError
+    __ TestTerminalStatusVocabularyDefinitions.test_canonical_terminal_states_set __
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_canonical_terminal_states_set>
+
+        def test_canonical_terminal_states_set(self):
+            """TERMINAL_STATES_CANONICAL contains exactly the 14 canonical states."""
+    >       self.assertEqual(
+                runner_shared.TERMINAL_STATES_CANONICAL, EXPECTED_CANONICAL_STATES
+            )
+    E       AssertionError: Items in the first set but not the second:
+    E       'probe-25th-state'
+
+    tests/test_terminal_status_vocabulary.py:71: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_states_set
+    ========================= 2 failed, 14 passed in 4.91s =========================
+    ```
+
+    Edited test under the same growth injection:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=4137898696
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 8 items                                                             collected 24 items
+
+    tests/test_artifact_audit.py F.......................                    [100%]
+
+    =================================== FAILURES ===================================
+    _ TestArtifactAuditEngine.test_terminal_states_tolerance_and_counterexample_trichotomy _
+
+    self = <tests.test_artifact_audit.TestArtifactAuditEngine testMethod=test_terminal_states_tolerance_and_counterexample_trichotomy>
+
+        def test_terminal_states_tolerance_and_counterexample_trichotomy(self) -> None:
+            ...
+            swept = set()
+            for st in sorted(runner_shared.TERMINAL_STATES):
+                swept.add(st)
+                # Anti-drift: in the style of runner_shutdown.KNOWN_ITEM_STATUSES
+    >           self.assertIn(st, runner_shutdown.KNOWN_ITEM_STATUSES)
+    E           AssertionError: 'probe-25th-state' not found in frozenset({'approved', 'fail-merge', 'queued', 'fail-begin', 'already-landed', 'reviewed', 'substantially-complete', 'not-run', 'fail-gate', 'fail-lane', 'merge-needs-human', 'integration-blocked', 'merge-refused', 'fail-verify', 'partial', 'retired', 'merge-retry', 'fail-depend', 'merge-conflict', 'failed-safely', 'executed', 'integration-deferred', 'dependency-blocked', 'failed', 'not-attempted', 'running', 'interrupted', 'blocked'})
+
+    tests/test_artifact_audit.py:467: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_artifact_audit.py::TestArtifactAuditEngine::test_terminal_states_tolerance_and_counterexample_trichotomy
+    ========================= 1 failed, 23 passed in 2.65s =========================
+    ```
+
+    Reverted and verified clean:
+    ```
+    $ git restore agent_workflows/runner_shared.py
+    $ git status --short
+     M tests/test_artifact_audit.py
+    ```
+
+    (e) The fence is live on shrink (removed "not-attempted": "not-run" from TERMINAL_STATUS_ALIASES):
+    ```
+    $ python3 -m pytest tests/test_terminal_status_vocabulary.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1385139250
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 5 items                                                             collected 16 items
+
+    tests/test_terminal_status_vocabulary.py .........F.F.F..                [100%]
+
+    =================================== FAILURES ===================================
+    ______ TestTerminalStatusVocabularyDefinitions.test_terminal_states_union ______
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_terminal_states_union>
+
+        def test_terminal_states_union(self):
+            """TERMINAL_STATES is the exact union of canonical states and legacy aliases."""
+            expected_union = frozenset(
+                EXPECTED_CANONICAL_STATES | set(EXPECTED_LEGACY_ALIASES.keys())
+            )
+    >       self.assertEqual(runner_shared.TERMINAL_STATES, expected_union)
+    E       AssertionError: Items in the second set but not the first:
+    E       'not-attempted'
+
+    tests/test_terminal_status_vocabulary.py:91: AssertionError
+    _ TestTerminalStatusVocabularyDefinitions.test_canonical_terminal_status_mapping _
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_canonical_terminal_status_mapping>
+
+        def test_canonical_terminal_status_mapping(self):
+            """canonical_terminal_status maps legacy to canonical and preserves canonical/unknown."""
+            for legacy, canonical in EXPECTED_LEGACY_ALIASES.items():
+    >           self.assertEqual(
+                    runner_shared.canonical_terminal_status(legacy),
+                    canonical,
+                    f"Expected '{legacy}' to map to '{canonical}'",
+                )
+    E           AssertionError: 'not-attempted' != 'not-run'
+    E           - not-attempted
+    E           + not-run
+    E            : Expected 'not-attempted' to map to 'not-run'
+
+    tests/test_terminal_status_vocabulary.py:128: AssertionError
+    ___ TestTerminalStatusVocabularyDefinitions.test_terminal_status_aliases_map ___
+
+    self = <tests.test_terminal_status_vocabulary.TestTerminalStatusVocabularyDefinitions testMethod=test_terminal_status_aliases_map>
+
+        def test_terminal_status_aliases_map(self):
+            """TERMINAL_STATUS_ALIASES maps all legacy tokens to canonical members."""
+    >       self.assertEqual(runner_shared.TERMINAL_STATUS_ALIASES, EXPECTED_LEGACY_ALIASES)
+    E       AssertionError: {'sub[251 chars]ge', 'merge-refused': 'fail-merge'} != {'sub[251 chars]ge', 'merge-refused': 'fail-merge', 'not-attempted': 'not-run'}
+    E         {'blocked': 'fail-gate',
+    E          'dependency-blocked': 'fail-depend',
+    E          'failed-safely': 'fail-gate',
+    E          'integration-blocked': 'fail-merge',
+    E          'merge-conflict': 'fail-merge',
+    E          'merge-needs-human': 'fail-merge',
+    E          'merge-refused': 'fail-merge',
+    E       +  'not-attempted': 'not-run',
+    E          'partial': 'fail-verify',
+    E          'substantially-complete': 'fail-gate'}
+
+    tests/test_terminal_status_vocabulary.py:78: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_states_union
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_canonical_terminal_status_mapping
+    FAILED tests/test_terminal_status_vocabulary.py::TestTerminalStatusVocabularyDefinitions::test_terminal_status_aliases_map
+    ========================= 3 failed, 13 passed in 3.34s =========================
+    ```
+
+    Edited test under the same shrink mutation (accepted residue of F-04: GREEN):
+    ```
+    $ python3 -m pytest tests/test_artifact_audit.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3774287347
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 8 items                                                             collected 24 items
+
+    tests/test_artifact_audit.py ........................                    [100%]
+
+    ============================== 24 passed in 5.03s ==============================
+    ```
+
+    Reverted and verified clean:
+    ```
+    $ git restore agent_workflows/runner_shared.py
+    $ git status --short
+     M tests/test_artifact_audit.py
+    ```
+
+    (f) ruff check and test_artifact_audit.py runs:
+    ```
+    $ ruff check tests/test_artifact_audit.py
+    All checks passed!
+    ```
+
+    Pre-edit run:
+    ```
+    $ python3 -m pytest tests/test_artifact_audit.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1286290798
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 8 items                                                             collected 24 items
+
+    tests/test_artifact_audit.py ........................                    [100%]
+
+    ============================== 24 passed in 2.88s ==============================
+    ```
+
+    Post-edit run (collected count unchanged at 24):
+    ```
+    $ python3 -m pytest tests/test_artifact_audit.py -o addopts=""
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2050962511
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 8 items                                                             collected 24 items
+
+    tests/test_artifact_audit.py ........................                    [100%]
+
+    ============================== 24 passed in 2.13s ==============================
+    ```
+
+    (g) Suite failure set is unchanged:
+    Pre-edit baseline:
+    ```
+    $ python3 -m pytest
+    FAILED tests/test_scope_match.py::ScopeMatchUnitTests::test_pathological_glob_avoids_exponential_time
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    2 failed, 4838 passed, 2 skipped, 3 warnings in 438.20s (0:07:18)
+    ```
+    (Note: test_pathological_glob_avoids_exponential_time was a timing flake under load; when run isolated: 1 passed in 0.31s).
+
+    Post-edit run:
+    ```
+    $ python3 -m pytest
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4839 passed, 2 skipped, 3 warnings in 556.89s (0:09:16)
+    ```
+    The single failure is ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta, the pre-existing live-corpus failure on other parties' artifacts. Zero new failures introduced.
+
+    (h) Git status clean except tests/test_artifact_audit.py:
+    ```
+    $ git status --short
+     M tests/test_artifact_audit.py
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -513,7 +513,6 @@ class TestArtifactAuditEngine(unittest.TestCase):
 
         # Assert closed vocabulary is completely swept and equal to TERMINAL_STATES
         self.assertEqual(swept, set(runner_shared.TERMINAL_STATES))
-        self.assertEqual(len(swept), 24)
 
         # F-07 pin: _RUN_SUCCESS_STATUSES is strictly {"executed"} and complete is flagged in executed/
         self.assertEqual(_audit._RUN_SUCCESS_STATUSES, frozenset({"executed"}))
