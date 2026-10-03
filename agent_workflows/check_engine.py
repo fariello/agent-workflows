@@ -907,6 +907,20 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "backlog.gate-descriptive-unsafe": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # Repeated frontmatter key rule covers research docs in YAML dialect (Set jnpl08 / IPD 7d4bgs).
+    # Registered `error` to match sibling bullet rules (backlog.metadata-bullet-repeated and
+    # spec.metadata-bullet-repeated); `error` is not a free choice dressed as one:
+    # artifact_core.drift_exit_code exempts ONLY `info`, so `warning` would fail the gate
+    # identically while stating a weaker contract. The sibling bullet-dialect rule is registered `error`,
+    # so any other tier here would make one defect class gate differently in two trees.
+    # Deterministic line-shape check over the file's own bytes with no inference (ASSURANCE_REPOSITORY,
+    # DET_DETERMINISTIC). Invariant is `""`: the catalog in spec pqsx96 has no invariant for
+    # record-metadata well-formedness (I-09 is filename grammar, I-03 is lifecycle-status authority,
+    # I-07 is release-gate preservation), and inventing one is out of scope.
+    # Rule id uses `-repeated` and avoids `duplicate`, `graduation`, `stale-index`, and `summary-unsafe`.
+    "research.frontmatter-key-repeated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
