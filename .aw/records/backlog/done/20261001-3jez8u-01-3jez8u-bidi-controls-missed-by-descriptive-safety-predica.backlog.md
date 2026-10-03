@@ -1,5 +1,5 @@
 - Id: 3jez8u
-- Status: graduated
+- Status: done
 - Graduated-To: 3jez8u
 - Set: 3jez8u
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: is_safe_descriptive misses the bidi controls Section 8.8 names explicitly, because _CONTROL_CHAR_RE covers only C0/C1 and the bidi overrides are Cf
 
 ## Workflow history
+- 2026-10-02 done (aw backlog): closed by aw agy run: IPD 0obt4k executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-3jez8u-01-0obt4k-widen-the-section-8-8-control-character-predicate-to-reject.ipd.md); evidence .aw/records/plans/executed/20261002-3jez8u-01-0obt4k-widen-the-section-8-8-control-character-predicate-to-reject.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 0obt4k
 - 2026-10-01 created (aw backlog): is_safe_descriptive misses the bidi controls Section 8.8 names explicitly, because _CONTROL_CHAR_RE covers only C0/C1 and the bidi overrides are Cf
 
