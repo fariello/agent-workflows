@@ -12,6 +12,8 @@ import argparse
 import contextlib
 import io
 import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import pytest
@@ -91,6 +93,82 @@ class VerboseFlagReachTests(unittest.TestCase):
         args = parser.parse_args(["check", "plans", "--agent", "--verbose"])
         self.assertTrue(getattr(args, "verbose", False))
 
+    def test_verbose_flag_synthetic_observable_difference(self) -> None:
+        """Drive check plans against a synthetic repo and assert compact vs verbose key sets.
+
+        Fast-suite twin for test_verbose_flag_end_to_end_observable_difference.
+        Asserts that every diagnostics entry in the compact record carries exactly
+        the keys 'location' and 'rule', while the verbose record's entries additionally
+        carry 'detail' and 'severity'.
+        Asserts on key presence and absence only, never on a findings count or a diagnostic's
+        text (both of which move with the tree).
+        Asserts that both compact and verbose diagnostics lists are non-empty before iterating.
+        Asserts the verbose call does not raise and returns an exit code in (0, 1).
+        """
+        with tempfile.TemporaryDirectory() as td:
+            repo_root = Path(td)
+
+            compact_stdout = io.StringIO()
+            with contextlib.redirect_stdout(compact_stdout):
+                compact_rc = cli.main(
+                    ["check", "plans", "--agent", "--dir", str(repo_root)]
+                )
+            self.assertIn(compact_rc, (0, 1), f"Unexpected exit code {compact_rc}")
+
+            verbose_stdout = io.StringIO()
+            with contextlib.redirect_stdout(verbose_stdout):
+                verbose_rc = cli.main(
+                    ["check", "plans", "--agent", "--verbose", "--dir", str(repo_root)]
+                )
+            self.assertIn(verbose_rc, (0, 1), f"Unexpected exit code {verbose_rc}")
+
+            def parse_record(output: str) -> dict:
+                for line in output.strip().splitlines():
+                    line = line.strip()
+                    if line.startswith("{") and line.endswith("}"):
+                        try:
+                            data = json.loads(line)
+                            if (
+                                data.get("schema") == "aw.agent/v1"
+                                and data.get("kind") == "result"
+                            ):
+                                return data
+                        except json.JSONDecodeError:
+                            continue
+                self.fail(f"No aw.agent/v1 result record found in output: {output}")
+
+            compact_rec = parse_record(compact_stdout.getvalue())
+            verbose_rec = parse_record(verbose_stdout.getvalue())
+
+            compact_diags = compact_rec.get("diagnostics", [])
+            verbose_diags = verbose_rec.get("diagnostics", [])
+
+            self.assertTrue(
+                compact_diags, "Expected non-empty diagnostics for check plans"
+            )
+            self.assertTrue(
+                verbose_diags, "Expected non-empty diagnostics for check plans"
+            )
+
+            for diag in compact_diags:
+                self.assertEqual(
+                    set(diag.keys()),
+                    {"location", "rule"},
+                    f"Compact diagnostic has unexpected keys: {diag.keys()}",
+                )
+                self.assertNotIn("detail", diag)
+                self.assertNotIn("severity", diag)
+
+            for diag in verbose_diags:
+                self.assertIn("location", diag)
+                self.assertIn("rule", diag)
+                self.assertIn("detail", diag)
+                self.assertIn("severity", diag)
+
+    # Deselected from the default fast suite via @pytest.mark.livecorpus because it sweeps
+    # this repository's live .aw/records/ tree in-process (costing ~27s-135s).
+    # Its key-presence/absence contract is covered in the fast suite by the synthetic-repo
+    # twin test_verbose_flag_synthetic_observable_difference. Still run in make test-all.
     @pytest.mark.livecorpus
     def test_verbose_flag_end_to_end_observable_difference(self) -> None:
         """Drive check plans in-process and assert compact vs verbose observable difference.
