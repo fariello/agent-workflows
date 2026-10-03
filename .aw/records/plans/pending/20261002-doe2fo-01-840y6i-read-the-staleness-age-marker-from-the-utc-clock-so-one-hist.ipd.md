@@ -42,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the defect before changing it
 
-- [ ] E-01 Add `tests/test_history_date_clock_readers.py` asserting that a staleness verdict is INVARIANT under the reader's timezone, and demonstrate it RED at base. This comes first and is its own item because the suite cannot currently see the defect: a census of `tests/` found ZERO test referencing `_age_marker` and ZERO test setting `TZ` or calling `time.tzset()`, so "the suite is green" is worthless evidence here and a fix landed without a failing test first would be unfalsifiable.
+- [x] E-01 Add `tests/test_history_date_clock_readers.py` asserting that a staleness verdict is INVARIANT under the reader's timezone, and demonstrate it RED at base. This comes first and is its own item because the suite cannot currently see the defect: a census of `tests/` found ZERO test referencing `_age_marker` and ZERO test setting `TZ` or calling `time.tzset()`, so "the suite is green" is worthless evidence here and a fix landed without a failing test first would be unfalsifiable.
 
     DRIVE BOTH SIDES OF UTC, not just one. Use a timezone EAST of UTC and one WEST of it, because which side is inside the skew window depends on the wall-clock hour the suite happens to run at: measured in this lane at 11:09 UTC, `TZ=XXX-20` (UTC+20) gives local `2026-10-03` against UTC `2026-10-02` and so skews, while `TZ=Pacific/Honolulu` (UTC-10) gives local `2026-10-02` and does NOT. A test pinned to only one side passes for part of every day for the wrong reason. Prefer fixed-offset zones over named cities, since a named zone's offset is a political value that can change under the test. CHOOSE THE PAIR SO THAT AT EVERY UTC HOUR AT LEAST ONE OF THEM IS ON A DIFFERENT CALENDAR DATE FROM UTC, and have the test compute and ASSERT that at least one case is in a skew window, so it can never pass vacuously: `XXX-20` (UTC+20) differs from UTC whenever the UTC hour is 04 or later, `XXX+12` (UTC-12) whenever it is before 12, so together they cover all 24 hours (measured at review at 20:50 UTC: `XXX-20` flips 10 real items, `XXX+12` flips 0, exactly as predicted).
 
@@ -55,11 +55,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     SET `TZ` FOR THE CODE UNDER TEST ONLY, restoring it afterwards, and never for the suite as a whole. A suite-wide `TZ=UTC` would hide this class of bug behind an environment variable, which is the anti-pattern `ayhveg` records the `jbipfa` masks as having introduced.
   - Depends on: none
   - Expected outcome: a new test file whose cases cover the marker boundary under an east and a west timezone, plus one case for the injectable `today`; the timezone cases demonstrated FAILING at base with the actual output pasted, naming each failing case.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: put the history-date reader on the UTC clock
 
-- [ ] E-02 Put `attention._age_marker` on the UTC clock with an INJECTABLE `today` parameter, and correct the docstring claim that is now false. The function compares `date.today()` against a date parsed out of `last_history_at`, which `attention_contract.last_history_at` derives from the artifact's `## Workflow history` and which spec `2vev8j` 4.4 rules is UTC.
+- [x] E-02 Put `attention._age_marker` on the UTC clock with an INJECTABLE `today` parameter, and correct the docstring claim that is now false. The function compares `date.today()` against a date parsed out of `last_history_at`, which `attention_contract.last_history_at` derives from the artifact's `## Workflow history` and which spec `2vev8j` 4.4 rules is UTC.
 
     GIVE IT A `today: Optional[date] = None` SEAM DEFAULTING TO THE UTC DATE, following the shipped precedent `docs_render._as_of`, which takes an optional `now` and defaults to `datetime.now(timezone.utc)`. The seam is not decoration: E-01 needs to assert a boundary verdict without waiting for a real calendar day to pass, and the alternative (monkeypatching `datetime` inside the module) is the brittle pattern `tests/test_specs_date_containment.py` already had to build `_FakeDate`/`_FakeDateTime` for.
 
@@ -70,11 +70,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     DO NOT CHANGE THE 30-DAY THRESHOLD OR THE `'!'`/`'?'`/`''` VOCABULARY. The verdict for an UNAMBIGUOUS input must be byte-identical before and after; only the AMBIGUOUS boundary cohort may move. That is what makes this a clock fix rather than a policy change, and V-02 proves it on the real corpus.
   - Depends on: E-01
   - Expected outcome: `_age_marker` resolves its reference date from the UTC clock, accepts an injectable `today`, and carries a docstring that names the clock and cites `2vev8j` 4.4; the human board renders unchanged outside the boundary cohort; the E-01 marker cases pass.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the census, so "every reader" is checkable
 
-- [ ] E-04 Audit every REMAINING local-clock date call in `agent_workflows/` and record a per-site READER-or-WRITER-or-NEITHER verdict with the clock of its OTHER operand, converting nothing further without a measured mixed-clock comparison. This item exists because E-02 was chosen from a census, and a census can miss a site; a verdict table is what makes "every reader" checkable instead of asserted. It is deliberately the LAST item so its table describes the tree as this plan leaves it.
+- [x] E-04 Audit every REMAINING local-clock date call in `agent_workflows/` and record a per-site READER-or-WRITER-or-NEITHER verdict with the clock of its OTHER operand, converting nothing further without a measured mixed-clock comparison. This item exists because E-02 was chosen from a census, and a census can miss a site; a verdict table is what makes "every reader" checkable instead of asserted. It is deliberately the LAST item so its table describes the tree as this plan leaves it.
 
     FOUR SITES ARE ALREADY CLASSIFIED AND MUST BE RE-CONFIRMED RATHER THAN TRUSTED. `workflow_artifacts_prune._calculate_run_age` compares against `_parse_run_date`, which parses only a LEADING `YYYYMMDD`; the workflow-artifacts RUN_ID shape is `YYYYMMDD-HHMMSS`, which `DECISIONS.md` D55 rules LOCAL by name, and a runner `run-%Y%m%dT%H%M%SZ-<pid>` id does not parse at all (`_parse_run_date('run-20261002T110915Z-830789')` returns `None`, measured at review) and falls back to `date.fromtimestamp(mtime)`, also local. Both operands are LOCAL, so it must stay as it is (PR-001). `plans_archive._age_days` compares against `_plan_date`, read from a plan's `- Date:` front matter or filename prefix, which `DECISIONS.md` D55 rules LOCAL, so a LOCAL today is the MATCHING operand and converting it would introduce the very mixed-clock error this plan removes. `research_archive._age_days` compares against a research doc's `created` field, same reasoning. `attention._age_marker`'s `'?'` branch returns before any date arithmetic and is unaffected.
 
@@ -83,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     WATCH FOR A SITE THE WRITER PLANS ARE ABOUT TO MOVE. `5ivkdh`, `9wcei0`, `rfyrvp` and `dmrbqa` are all `to-review` and change what clock several stored dates carry. If any of them has executed by the time this item runs, a row whose verdict was "local today, local stored date, correct" may have become a defect. Re-derive each row against the tree as it actually is and name which sibling plans were executed at audit time.
   - Depends on: E-02
   - Expected outcome: a table of every remaining `date.today()`/`datetime.now()`-class call in `agent_workflows/`, each with a READER/WRITER/NEITHER verdict, the clock of its other operand, and a convert-or-leave decision; the enumerating command recorded so the census is reproducible; which sibling writer plans were executed at audit time stated; no site converted without a measured mixed-clock comparison.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -193,20 +193,349 @@ widened to name readers explicitly is a maintainer call, recorded in OQ-02 and n
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: the full committed source of `tests/test_history_date_clock_readers.py`, plus its output run with `-o addopts=""` FAILING at base (source edits reverted or stashed, and say which) and PASSING after, every case named in both runs. The failing run must show the timezone cases failing on the verdict, not on a missing keyword (E-01). State explicitly which timezone is east and which west of UTC, and confirm from the pasted output that at least one case was INSIDE a skew window by printing the local and UTC dates the test observed (the test must itself assert this) (F-09: a run at the wrong hour can make a one-sided test pass vacuously). Confirm `TZ` was set only in subprocess environments and that no suite-wide or in-worker `TZ`/`tzset` was used. Confirm P16 compliance: state that no assertion calls `inspect`, reads production source text, or asserts on a symbol name.
   - Observed evidence:
-  - Result: pending
+    Full committed source of `tests/test_history_date_clock_readers.py`:
+    ```python
+    \"\"\"Tests for history date clock reader timezone invariance (IPD 840y6i).
 
-- [ ] V-02 validates E-02
+    Asserts that staleness verdicts returned by attention._age_marker are invariant
+    under the reader's timezone by testing across UTC, east of UTC (XXX-20, UTC+20),
+    and west of UTC (XXX+12, UTC-12).
+
+    Subprocesses are used to isolate environment variables (TZ) so no in-worker
+    time.tzset() or os.environ mutation occurs under pytest-xdist.
+    \"\"\"
+
+    from __future__ import annotations
+
+    import os
+    import subprocess
+    import sys
+    import unittest
+    from datetime import date, datetime, timedelta, timezone
+    from pathlib import Path
+    from typing import Optional
+
+    REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+    def _run_in_subprocess(code: str, args: list[str], tz: str) -> str:
+        \"\"\"Run a small python snippet in a subprocess with a specific TZ.\"\"\"
+        env = {
+            **os.environ,
+            "TZ": tz,
+            "PYTHONPATH": str(REPO_ROOT),
+            "AW_NO_REEXEC": "1",
+        }
+        proc = subprocess.run(
+            [sys.executable, "-c", code, *args],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return proc.stdout
+
+
+    def _get_observed_date(tz: str) -> date:
+        \"\"\"Query date.today() in a subprocess under the given timezone.\"\"\"
+        code = "from datetime import date; print(date.today().isoformat())"
+        out = _run_in_subprocess(code, [], tz)
+        return date.fromisoformat(out.strip())
+
+
+    def _call_age_marker_subprocess(last_history_at: Optional[str], tree: str, tz: str) -> str:
+        \"\"\"Call attention._age_marker in a subprocess with the given TZ.
+
+        Crucially, calls _age_marker WITHOUT a 'today' keyword argument so the test
+        asserts on verdict invariance under reader timezone rather than signature errors.
+        \"\"\"
+        code = (
+            "import sys;"
+            "from agent_workflows.attention import _age_marker;"
+            "hist = None if sys.argv[1] == '__NONE__' else sys.argv[1];"
+            "tree = sys.argv[2];"
+            "sys.stdout.write(_age_marker(hist, tree))"
+        )
+        arg_hist = "__NONE__" if last_history_at is None else last_history_at
+        return _run_in_subprocess(code, [arg_hist, tree], tz)
+
+
+    class TestHistoryDateClockReadersTimezoneInvariance(unittest.TestCase):
+        \"\"\"Verifies that attention._age_marker produces timezone-invariant staleness markers.\"\"\"
+
+        def test_timezone_invariance_east_and_west_boundaries(self):
+            \"\"\"Assert staleness verdicts are invariant under reader timezone across UTC, east, and west.
+
+            East: XXX-20 (UTC+20)
+            West: XXX+12 (UTC-12)
+            \"\"\"
+            # 1. Measure observed dates under UTC, east (XXX-20), and west (XXX+12)
+            utc_date = _get_observed_date("UTC")
+            east_date = _get_observed_date("XXX-20")
+            west_date = _get_observed_date("XXX+12")
+
+            print(
+                f"\n[Skew Window Observation] UTC: {utc_date.isoformat()}, "
+                f"East (XXX-20, UTC+20): {east_date.isoformat()}, "
+                f"West (XXX+12, UTC-12): {west_date.isoformat()}"
+            )
+
+            # Confirm that at least one timezone is in a skew window (dates differ)
+            # to ensure the test never runs vacuously (F-09).
+            self.assertTrue(
+                east_date != utc_date or west_date != utc_date,
+                f"Neither east ({east_date}) nor west ({west_date}) differed from UTC ({utc_date}); "
+                "cannot verify timezone invariance without clock skew.",
+            )
+
+            # 2. Test boundary cohort:
+            # Boundary 1: exactly 30 days before UTC date.
+            # Under UTC clock, age_days == 30. Threshold is age_days > 30, so verdict is ''.
+            # Under a reader ahead of UTC (e.g. XXX-20 tomorrow), age_days would be 31 -> '!'.
+            d30 = (utc_date - timedelta(days=30)).isoformat()
+
+            # Boundary 2: exactly 31 days before UTC date.
+            # Under UTC clock, age_days == 31. Threshold is age_days > 30, so verdict is '!'.
+            # Under a reader behind UTC (e.g. XXX+12 yesterday), age_days would be 30 -> ''.
+            d31 = (utc_date - timedelta(days=31)).isoformat()
+
+            # Midpoint / non-boundary dates:
+            d10 = (utc_date - timedelta(days=10)).isoformat()   # Recent -> ''
+            d400 = (utc_date - timedelta(days=400)).isoformat() # Stale -> '!'
+
+            test_cases = [
+                ("boundary_30d_recent", d30, ""),
+                ("boundary_31d_stale", d31, "!"),
+                ("non_boundary_10d_recent", d10, ""),
+                ("non_boundary_400d_stale", d400, "!"),
+            ]
+
+            for label, hist_date, expected_verdict in test_cases:
+                utc_verdict = _call_age_marker_subprocess(hist_date, "plans", "UTC")
+                east_verdict = _call_age_marker_subprocess(hist_date, "plans", "XXX-20")
+                west_verdict = _call_age_marker_subprocess(hist_date, "plans", "XXX+12")
+
+                self.assertEqual(
+                    utc_verdict,
+                    expected_verdict,
+                    f"[{label}] UTC verdict {utc_verdict!r} did not match expected {expected_verdict!r} for date {hist_date}",
+                )
+                self.assertEqual(
+                    east_verdict,
+                    expected_verdict,
+                    f"[{label}] East timezone XXX-20 (UTC+20) verdict {east_verdict!r} != expected {expected_verdict!r} for date {hist_date}",
+                )
+                self.assertEqual(
+                    west_verdict,
+                    expected_verdict,
+                    f"[{label}] West timezone XXX+12 (UTC-12) verdict {west_verdict!r} != expected {expected_verdict!r} for date {hist_date}",
+                )
+
+        def test_age_marker_injectable_today_seam(self):
+            \"\"\"Verify that _age_marker accepts an explicit injectable 'today' seam.\"\"\"
+            from agent_workflows.attention import _age_marker
+
+            # Explicit reference date
+            fixed_ref = date(2026, 6, 15)
+            # 30 days before 2026-06-15 is 2026-05-16 -> age_days=30 -> ''
+            self.assertEqual(_age_marker("2026-05-16", tree="plans", today=fixed_ref), "")
+            # 31 days before 2026-06-15 is 2026-05-15 -> age_days=31 -> '!'
+            self.assertEqual(_age_marker("2026-05-15", tree="plans", today=fixed_ref), "!")
+
+            # Passing today=None defaults to the UTC clock
+            utc_today = datetime.now(timezone.utc).date()
+            d30 = (utc_today - timedelta(days=30)).isoformat()
+            d31 = (utc_today - timedelta(days=31)).isoformat()
+            self.assertEqual(_age_marker(d30, tree="plans", today=None), "")
+            self.assertEqual(_age_marker(d31, tree="plans", today=None), "!")
+
+        def test_age_marker_edge_cases_and_historyless_trees(self):
+            \"\"\"Verify None, malformed history dates, and history-less trees.\"\"\"
+            from agent_workflows.attention import _age_marker
+
+            # History-less trees suppress '?'
+            self.assertEqual(_age_marker(None, tree="actions"), "")
+            self.assertEqual(_age_marker(None, tree="research"), "")
+
+            # Normal trees return '?' on missing or malformed history
+            self.assertEqual(_age_marker(None, tree="plans"), "?")
+            self.assertEqual(_age_marker(None, tree="backlog"), "?")
+            self.assertEqual(_age_marker("invalid-date", tree="plans"), "?")
+
+
+    if __name__ == "__main__":
+        unittest.main()
+    ```
+
+    Failing run at base (`agent_workflows/attention.py` unedited):
+    ```
+    $ python3 -m pytest tests/test_history_date_clock_readers.py -o addopts="" -v
+    collected 3 items
+
+    tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_age_marker_edge_cases_and_historyless_trees PASSED [ 33%]
+    tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_timezone_invariance_east_and_west_boundaries FAILED [ 66%]
+    tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_age_marker_injectable_today_seam FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _ TestHistoryDateClockReadersTimezoneInvariance.test_timezone_invariance_east_and_west_boundaries _
+    ...
+    >           self.assertEqual(
+                    east_verdict,
+                    expected_verdict,
+                    f"[{label}] East timezone XXX-20 (UTC+20) verdict {east_verdict!r} != expected {expected_verdict!r} for date {hist_date}",
+                )
+    E           AssertionError: '!' != ''
+    E           - !
+    E            : [boundary_30d_recent] East timezone XXX-20 (UTC+20) verdict '!' != expected '' for date 2026-09-03
+    ----------------------------- Captured stdout call -----------------------------
+
+    [Skew Window Observation] UTC: 2026-10-03, East (XXX-20, UTC+20): 2026-10-04, West (XXX+12, UTC-12): 2026-10-02
+    =========================== short test summary info ============================
+    FAILED tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_timezone_invariance_east_and_west_boundaries
+    FAILED tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_age_marker_injectable_today_seam
+    ========================= 2 failed, 1 passed in 3.95s ==========================
+    ```
+
+    Passing run after fix:
+    ```
+    $ python3 -m pytest tests/test_history_date_clock_readers.py -o addopts="" -v -s
+    collected 3 items
+
+    tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_age_marker_injectable_today_seam PASSED
+    tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_age_marker_edge_cases_and_historyless_trees PASSED
+    tests/test_history_date_clock_readers.py::TestHistoryDateClockReadersTimezoneInvariance::test_timezone_invariance_east_and_west_boundaries
+    [Skew Window Observation] UTC: 2026-10-03, East (XXX-20, UTC+20): 2026-10-04, West (XXX+12, UTC-12): 2026-10-02
+    PASSED
+
+    ============================== 3 passed in 17.09s ==============================
+    ```
+
+    Timezones:
+    - East of UTC: `XXX-20` (UTC+20, POSIX offset -20 hours -> local time is UTC + 20 hours). Observed local date: 2026-10-04 vs UTC 2026-10-03.
+    - West of UTC: `XXX+12` (UTC-12, POSIX offset +12 hours -> local time is UTC - 12 hours). Observed local date: 2026-10-02 vs UTC 2026-10-03.
+    Skew window: Confirmed inside skew window (East observed 2026-10-04, West observed 2026-10-02, UTC observed 2026-10-03; assertion passed).
+    Environment isolation: `TZ` set strictly in `subprocess.run(..., env={...})` environments. No in-worker `time.tzset()` or `os.environ` modification in pytest worker process.
+    P16 compliance: Zero calls to `inspect`, zero reads of production source code or AST, zero assertions on code structure or symbol names. Asserts strictly on returned marker string and behavior.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `git diff agent_workflows/attention.py`, showing the UTC reference date, the injectable `today` parameter, and the corrected docstring naming the clock and citing `2vev8j` 4.4; the old "Deterministic: compares ISO dates only" sentence must be gone. Plus THE REAL-CORPUS INVARIANCE CHECK: the replay over every `aw attention --all --format json` item under `TZ=UTC` and a timezone east of UTC, pasted, reporting a NONZERO re-derived count of flipping items at base and ZERO after. Plus THE NO-POLICY-CHANGE CHECK: the before/after diff of all `(path, marker)` pairs at a fixed `TZ=UTC`, with every difference shown to be inside the boundary cohort. Plus `AW_NO_REEXEC=1 aw attention` rendering a board without error, proving both call sites (`attention._render_item_row` and the `cli` board renderer) still work with the defaulted parameter. Plus `tests/test_attention.py` and `tests/test_attention_contract.py` results.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/attention.py`:
+    ```diff
+    diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
+    index 2248b56b4..300758f06 100644
+    --- a/agent_workflows/attention.py
+    +++ b/agent_workflows/attention.py
+    @@ -20,6 +20,7 @@ import json
+     import os
+     import re
+     import sys
+    +from datetime import date, datetime, timezone
+     from pathlib import Path
+     from typing import (
+         Any,
+    @@ -2452,17 +2453,20 @@ def _common_dir_prefix(paths: List[str]) -> str:
+     _HISTORYLESS_TREES = {"actions", "research"}
 
-- [ ] V-04 validates E-04
+
+    -def _age_marker(last_history_at: Optional[str], tree: str = "") -> str:
+    +def _age_marker(
+    +    last_history_at: Optional[str],
+    +    tree: str = "",
+    +    today: Optional[date] = None,
+    +) -> str:
+         """awdoctor Order 01 + awdoctorfix Order 03: a compact staleness marker from last_history_at.
+         '!' when older than ~30 days, '?' when unknown (None) EXCEPT on a history-less tree (returns ''),
+    -    else '' (recent). Deterministic: compares ISO dates only."""
+    +    else '' (recent). Reads the UTC clock per spec 2vev8j Section 4.4 so verdicts are invariant under reader timezone."""
+         if last_history_at is None:
+             return "" if tree in _HISTORYLESS_TREES else "?"
+         try:
+    -        from datetime import date
+    -
+    +        ref_date = today if today is not None else datetime.now(timezone.utc).date()
+             y, m, d = (int(x) for x in last_history_at.split("-")[:3])
+    -        age_days = (date.today() - date(y, m, d)).days
+    +        age_days = (ref_date - date(y, m, d)).days
+             return "!" if age_days > 30 else ""
+         except (ValueError, TypeError):
+             return "?"
+    ```
+    The old "Deterministic: compares ISO dates only" sentence is removed, replaced with explicit documentation that the function reads the UTC clock per spec `2vev8j` Section 4.4 so verdicts are invariant under reader timezone.
+
+    Real-corpus invariance check:
+    Replaying `_age_marker` over all 2382 items from `aw attention --all --format json` under `TZ=UTC` vs `TZ=XXX-20` (east of UTC) and `TZ=XXX+12` (west of UTC):
+    - At base:
+      `Diff UTC vs XXX-20 count: 5` (items stamped `2026-09-03` flipped from `''` to `'!'`)
+      `Diff UTC vs XXX+12 count: 10` (items stamped `2026-09-02` flipped from `'!'` to `''`)
+    - After fix:
+      `Diff UTC vs XXX-20 count: 0`
+      `Diff UTC vs XXX+12 count: 0`
+    Zero items flip verdict across timezones after the fix.
+
+    Real-corpus no-policy-change check:
+    Diff of all `(path, marker)` pairs at fixed `TZ=UTC` across all 2382 items before and after fix:
+    - `Diff under fixed TZ=UTC count: 0` (0 items change verdict).
+
+    Board rendering check:
+    `PYTHONPATH=. AW_NO_REEXEC=1 aw attention | head -n 35` rendered the attention board without error, confirming both call sites (`attention._render_item_row` and `cli.py` board renderer) work with the defaulted parameter.
+
+    Test results:
+    - `python3 -m pytest tests/test_attention.py tests/test_attention_contract.py`:
+      `92 passed in 41.87s`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: the full census table (every remaining `date.today()`/`datetime.now()`-class call in `agent_workflows/`), each row carrying the site, a READER/WRITER/NEITHER verdict, THE CLOCK OF ITS OTHER OPERAND, and a convert-or-leave decision with its reason; plus the exact command used to enumerate the sites so the census is reproducible. An explicit statement that no reader remains comparing a UTC-stamped value against a local today. An explicit row for `plans_archive._age_days`, `research_archive._age_days` and `workflow_artifacts_prune._calculate_run_age` recording them as correctly LOCAL with their stored operand named (F-07, PR-001), and confirmation via `tests/test_plans_archive.py`, `tests/test_workflow_artifacts_prune.py` and `git diff --name-only` that they were not changed. A statement naming which sibling writer plans (`5ivkdh`, `9wcei0`, `rfyrvp`, `dmrbqa`) were `executed` at audit time, since an executed one can move a stored value's clock and invalidate a row. Plus the bare-suite `N passed` line, and `aw check` / `aw attention --check` before-and-after finding sets showing no new finding.
   - Observed evidence:
-  - Result: pending
+    Enumeration command:
+    `git grep -n -E "(today\(\)|now\(|fromtimestamp\()" agent_workflows/`
+    Filtered for local-clock calls (excluding monotonic elapsed timers and explicit `timezone.utc` calls).
+
+    Full census table:
+    | Site | Verdict | Other Operand Clock | Decision | Reason |
+    |---|---|---|---|---|
+    | `agent_workflows/agy_sessions.py:173, 177, 183` (`fromtimestamp(...).astimezone()`) | NEITHER | None (display helper) | Leave | Epoch second conversion to local timezone for Antigravity session viewer display. No date comparison. |
+    | `agent_workflows/artifact_adopt.py:771` (`date.today().strftime("%Y%m%d")`) | WRITER | None (file name) | Leave | Generates filename prefix date for adopted artifact. Governed by DECISIONS.md D55 (local time). |
+    | `agent_workflows/backlog.py:1233` (`datetime.date.today().strftime("%Y%m%d")`) | WRITER | None (file name) | Leave | Generates filename prefix date for new backlog item. Governed by DECISIONS.md D55 (local time). |
+    | `agent_workflows/contention_wait.py:61, 69, 77, 82` (`now()` / `time.monotonic`) | NEITHER | Monotonic float | Leave | Bounded wait timeout using monotonic clock. Not a calendar date. |
+    | `agent_workflows/engine.py:474, 483` (`datetime.now().strftime(...)`) | WRITER | None (dir name) | Leave | Generates local backup directory name. Governed by DECISIONS.md D55. |
+    | `agent_workflows/ipd_authoring.py:495` (`date.today().strftime("%Y-%m-%d")`) | WRITER | None (frontmatter) | Leave | Mints plan `- Date:` frontmatter. Governed by DECISIONS.md D55 (local time). |
+    | `agent_workflows/ipd_authoring.py:543` (`date.today().strftime("%Y%m%d")`) | WRITER | None (file name) | Leave | Mints plan filename date prefix. Governed by DECISIONS.md D55 (local time). |
+    | `agent_workflows/plans_archive.py:198` (`t = today or date.today()`) | READER | LOCAL (`_plan_date` from `- Date:` or filename) | Leave | Both operands are LOCAL per DECISIONS.md D55. Converting today to UTC would create an off-by-one mixed-clock defect. |
+    | `agent_workflows/prompts.py:95, 385` (`_now().date().isoformat()`) | WRITER | None (frontmatter/file) | Leave | Mints prompt `- Date:` and filename date prefix. Governed by DECISIONS.md D55. |
+    | `agent_workflows/record_history.py:64, 228` (`_date.today().strftime("%Y%m%d")`) | WRITER | None (sidecar record) | Leave | Activity log sidecar record stamping. Owned by pending plan `dmrbqa` (backlog `tl8qmc`). |
+    | `agent_workflows/releases.py:83` (`date.today().strftime("%Y%m%d")`) | WRITER | None (file name) | Leave | Mints release filename prefix date. Governed by DECISIONS.md D55. (History date already moved to UTC by `5ivkdh`). |
+    | `agent_workflows/research_archive.py:291` (`t = today or date.today()`) | READER | LOCAL (doc `created` field) | Leave | Both operands are LOCAL per DECISIONS.md D55. Converting today to UTC would create a mixed-clock error. |
+    | `agent_workflows/research_cmd.py:201, 259` (`date.today().strftime("%Y%m%d")`) | WRITER | None (frontmatter/file) | Leave | Mints research document filename and created field. Governed by DECISIONS.md D55. |
+    | `agent_workflows/research_refs.py:456` (`date.today().strftime("%Y%m%d")`) | WRITER | None (file name) | Leave | Mints research document filename prefix. Governed by DECISIONS.md D55. |
+    | `agent_workflows/set_records.py:176, 267, 348` (`datetime.date.today()`) | WRITER | None (metadata/file) | Leave | Mints walkthrough Date and filename, and promoted backlog item filename. Governed by DECISIONS.md D55. |
+    | `agent_workflows/specs.py:559, 1423` (`_today() = datetime.date.today().isoformat()`) | WRITER | None (file name) | Leave | Mints spec filename date prefix. Governed by DECISIONS.md D55. (History record already moved to UTC by `5ivkdh`). |
+    | `agent_workflows/storage.py:347, 390` (`datetime.now().isoformat()`) | WRITER | None (metadata) | Leave | Local machine companion directory metadata timestamps. Governed by DECISIONS.md D55. |
+    | `agent_workflows/upgrade_rehearsal.py:435, 748, 971` (`datetime.now()`) | WRITER | None (sandbox artifact) | Leave | Mints sandbox directory names and probe markers on disposable copies. |
+    | `agent_workflows/workflow_artifacts_prune.py:127, 200` (`datetime.date.today()`) | READER | LOCAL (`_parse_run_date` leading `YYYYMMDD` or mtime) | Leave | Both operands are LOCAL per DECISIONS.md D55 and filesystem mtime. PR-001 confirmed leave. |
+    | `agent_workflows/attention.py:2467` (`today or datetime.now(timezone.utc).date()`) | READER | UTC (`last_history_at` from `## Workflow history`) | Converted | Reader now uses UTC clock matching `last_history_at` governed by spec 2vev8j Section 4.4. Fixed in E-02. |
+
+    Statement on readers: No reader remains in `agent_workflows/` comparing a UTC-stamped value against a local today.
+    D55 readers unchanged:
+    - `plans_archive._age_days`, `research_archive._age_days`, and `workflow_artifacts_prune._calculate_run_age` are confirmed correctly LOCAL with their stored operands named above.
+    - Verified via `tests/test_plans_archive.py` and `tests/test_workflow_artifacts_prune.py`: `39 passed in 16.76s`.
+    - `git diff --name-only` confirms neither file was modified.
+    Sibling plans status at audit time:
+    - `5ivkdh`: executed (.aw/records/plans/executed/20261001-7qvs1c-01-5ivkdh-unify-every-artifact-history-date-onto-the-utc-clock-ruled-b.ipd.md)
+    - `9wcei0`: approved (.aw/records/plans/pending/20261002-jvw1kg-01-9wcei0-stamp-the-scaffold-s-draft-history-record-from-the-utc-clock.ipd.md)
+    - `rfyrvp`: superseded (.aw/records/plans/superseded/20261002-lq2w86-01-rfyrvp-put-the-plan-family-created-record-on-the-utc-history-clock.ipd.md)
+    - `dmrbqa`: to-review (.aw/records/plans/pending/20261002-tl8qmc-01-dmrbqa-put-the-gitignored-history-sidecar-on-the-utc-clock-so-one-e.ipd.md)
+    Suite and health checks:
+    - Bare suite `python3 -m pytest`: `1 failed, 4830 passed, 2 skipped, 3 warnings in 444.51s (0:07:24)`. Pre-existing failure: `tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`.
+    - `AW_NO_REEXEC=1 aw check`: Finding set unchanged from baseline.
+    - `AW_NO_REEXEC=1 aw attention --check`: Finding set unchanged from baseline (`aw/lane/76ic0k: attention.lane-stranded`).
+    - `AW_NO_REEXEC=1 aw sanitize --agent`: Clean (0 findings, exit 0).
+  - Result: pass
 
 ## Approval and execution gate
 
