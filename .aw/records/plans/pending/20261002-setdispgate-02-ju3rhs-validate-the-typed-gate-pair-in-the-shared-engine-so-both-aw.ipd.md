@@ -6,7 +6,8 @@
 - Scope: IN: validate the typed gate pair ONCE, in a shared validator that every setter surface consumes, so all eight measured surfaces refuse identically on an out-of-vocabulary kind, a malformed ref, and a half-supplied pair; repair the two existing tests that pin the out-of-vocabulary kind `question` as acceptable; pin the parity as paired outcome tests across both record types and all four spellings each. OUT, each with a reason recorded under "Deferred": the `implementing -> implemented` evidence bypass (a separate measured defect with its own release-gated carrier and its own authored plan); removing the `cli.main` dispatch fork itself; changing the `GATE_KINDS` vocabulary or any per-kind ref regex; the `Release-Exempt-Kind` pair, which is already validated at the point of typing; and the three pre-existing suite failures this plan neither causes nor fixes.
 - Scope-Paths: agent_workflows/attention_contract.py, agent_workflows/status_set.py, agent_workflows/backlog.py, agent_workflows/specs.py, tests/test_gate_pair_validation_parity.py, tests/test_backlog_gate_follows_status.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: fv4b6s
@@ -18,6 +19,7 @@
 - Id: ju3rhs
 
 ## Workflow history
+- 2026-10-03 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-measured the seven-of-eight bypass at lane HEAD f5671f1a2. Bounded the new refusal so same-status re-sets of an already-gated record without gate flags keep succeeding (measured regression under E-02 as written), corrected the stale fv4b6s status expectation, scoped the verb label in status_set, named the m1jlwm E-02 double-implementation hazard, and completed the execution contract.
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `fv4b6s`. The item's measurement was re-reproduced at this tree's HEAD `45bd52b2f` rather than trusted, and the reproduction WIDENED it on two independent axes: the positional spelling also accepts a malformed ref and an absent gate (not only an invalid kind), and the BACKLOG twin is broken on BOTH spellings rather than one, so the defect is not purely a dispatch asymmetry. All eight setter surfaces were enumerated and measured. The fix's blast radius was measured by applying it in-memory and running nine candidate test modules, which identified exactly TWO breaking tests by name, both of which pin the out-of-vocabulary kind `question`; the FIRST such probe was a false negative because xdist made the monkeypatch inert, and that method defect is recorded as F-05 rather than quietly discarded. The bare-suite baseline was measured at the same HEAD. One adjacent defect found while measuring (the same vocabulary hole on `aw backlog new`) was FILED as release-gated backlog item `go8ztx` rather than absorbed into this plan or left as prose.
 - 2026-10-02 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -40,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
     PUT IT IN `attention_contract`, NOT IN `specs` OR `backlog`. That module already OWNS this vocabulary: `GATE_KINDS`, `validate_gate_ref`, `is_safe_descriptive` and the three gate regexes are all defined there, and it is imported as `A` by every module that needs them. Siting the validator anywhere else forces a cross-import between two sibling record-type modules that have no reason to depend on each other, and `status_set` must reach it too. DO NOT create a new module for one function.
 
-    TAKE THE VERB LABEL AS A PARAMETER so each caller's refusal names the command the operator actually typed (`aw specs set`, `aw backlog set`, `aw set`). A single hardcoded prefix would make `aw backlog set` report itself as `aw specs set`, which is the exact class of misattribution that the sibling plan `c6f6sj` was authored to fix elsewhere in this same family; do not introduce a new instance of it while fixing a gate.
+    TAKE THE VERB LABEL AS A PARAMETER so each caller's refusal names the command the operator actually typed (`aw specs set`, `aw backlog set`, `aw set`). NOTE THE LIMIT IN `status_set` (review PR-003): `validate_transition_allowed` does not know which of its five surfaces invoked it (it receives only the record, target, args and root, and the shipped exempt call passes the literal `"aw set"`), so pass `"aw set"` there too, as that precedent does, rather than inventing dispatch plumbing; the per-surface label is honest only for `backlog.run_set`. Do not let V-01's 'names the command typed' be read as requiring more. A single hardcoded prefix would make `aw backlog set` report itself as `aw specs set`, which is the exact class of misattribution that the sibling plan `c6f6sj` was authored to fix elsewhere in this same family; do not introduce a new instance of it while fixing a gate.
 
     THIS ITEM ADDS NO CALLER AND CHANGES NO BEHAVIOR. It is separated from E-02 and E-03 deliberately: the validator is shared by two record types through three call sites, and landing it alone makes the subsequent wiring a one-line change per surface that a reviewer can check against the single definition.
   - Depends on: none
@@ -53,16 +55,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
     GATE IT ON THE EXISTING `_GATE_STATUS_BY_TYPE` LOOKUP, NOT ON A HARDCODED `"deferred"`. That table already maps `specs -> deferred` and `backlog -> blocked` and is the single place this engine decides which status carries a gate for a given record type; reading it means the specs and backlog cases are fixed by ONE branch and a future gated record type is covered automatically. Fire only when `norm_status` equals that record type's gate status, so a transition OUT of the gated status still clears the fields as it does today.
 
+    BOUND THE REFUSAL TO A TRANSITION INTO THE GATED STATUS, OR TO A PASSED FLAG, NEVER TO A SAME-STATUS RE-SET WITH NO GATE FLAGS (review PR-001). MEASURED at review over a fixture spec already `deferred` with a valid gate: today `aw specs set deferred <id6> --message note` and `aw set deferred <id6> --blocks-release next` both exit 0 and leave the existing gate untouched, because `apply_status_change` writes gate lines only `if gk and gr:`, so a same-status call with no flags PRESERVES the gate. A branch keyed only on `norm_status == gate_status` refuses both (patched and driven at review: both returned rc 1 "Refusing before making changes"), breaking every metadata-only re-set of a deferred spec or blocked item, which is exactly how `--blocks-release`, `--message` and similar same-status writes reach a gated record. So the predicate is: refuse when the record's CURRENT status differs from the gate status (a real transition in) and the pair is not valid, OR when EITHER `--gate-kind` or `--gate-ref` (or `--gate-summary`) was passed and the supplied pair is not valid. A same-status call that passes no gate flag keeps today's behavior and preserves the on-disk gate. This also corrects the pre-existing backlog arm, which refuses `aw backlog set blocked <id6> --message note` on an already-blocked item today (measured rc 1 "Moving backlog item to blocked requires --gate-kind and --gate-ref"); that change is intended, is the same parity, and E-05's same-status fence pins it.
+
     REPLACE THE PRESENCE-ONLY BACKLOG CHECK RATHER THAN STACKING A SECOND ONE BESIDE IT. `validate_transition_allowed` already contains a backlog-only arm refusing `blocked` when the pair is absent (`if not gk or not gr`). Leaving it in place beside the new branch would mean two refusals for the same condition with two different messages, decided by evaluation order. Delete it and let the shared validator own presence too, which is why E-01 requires the validator to check presence.
 
     DO NOT ALSO VALIDATE IN `apply_status_change`. A defensive second copy there is the duplication that caused this defect class, and `AGENTS.md` names fixing an instance by duplicating behavior into the second path as the reason instances keep being found.
   - Depends on: E-01
-  - Expected outcome: all five `status_set`-reached surfaces exit nonzero on an invalid kind, an invalid ref, or a half-supplied pair, leaving the record byte-identical and in its original status directory; a valid pair still succeeds and relocates; a transition out of the gated status still clears the gate fields.
+  - Expected outcome: all five `status_set`-reached surfaces exit nonzero on a transition INTO the gated status with an invalid kind, an invalid ref, or a half-supplied pair, and on any call that PASSES an invalid gate flag, leaving the record byte-identical and in its original status directory; a valid pair still succeeds and relocates; a same-status call with no gate flags on an already-gated record still succeeds and preserves its gate; a transition out of the gated status still clears the gate fields.
   - Execution state: pending
 
 - [ ] E-03 Wire the same validator into `backlog.run_set`, which serves the `aw backlog set <path> --status blocked` spelling and is the one surface this plan fixes that is NOT a dispatch asymmetry. MEASURED: this spelling exits 0 and writes `- Gate-Kind: bogus-kind`, so the backlog twin is broken on BOTH spellings and `fv4b6s`'s framing as a positional-only defect does not hold for backlog.
 
-    REPLACE THE EXISTING PRESENCE-ONLY CHECK IN PLACE. `run_set` already refuses with exit 2 when the pair is absent on a transition to `blocked`; swap that condition for the shared validator and keep the exit code 2 it returns today, since that is this verb's established refusal code for a bad flag and changing it would be an unrelated user-visible change.
+    REPLACE THE EXISTING PRESENCE-ONLY CHECK IN PLACE, WITH THE SAME SAME-STATUS BOUND AS E-02. Note that `run_set` today REWRITES the item from parsed fields, so on a same-status call it would drop the gate if no flags were passed; that is why it refuses today (measured: `aw backlog set <path> --status blocked --message n` on a blocked item -> rc 2). Keep that refusal for a same-status call without flags ONLY if preserving the on-disk gate would require a change outside this item; otherwise preserve the parsed `item.gate_kind`/`item.gate_ref` when the item is already blocked and no gate flag was passed, so the two spellings agree with E-02. Record which in the transition message. `run_set` already refuses with exit 2 when the pair is absent on a transition to `blocked`; swap that condition for the shared validator and keep the exit code 2 it returns today, since that is this verb's established refusal code for a bad flag and changing it would be an unrelated user-visible change.
 
     LEAVE `specs.run_set` ALONE except as E-04 requires. It already enforces all four conditions correctly, so rewriting it to call the shared validator is a refactor whose only user-visible effect would be changing a shipped refusal message. That trade is not worth taking inside a release-gated bug fix, and the duplication it leaves is a `chore` already carried elsewhere.
 
@@ -98,7 +102,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
     ASSERT THE ABSENCE OF THE WRITE, NOT ONLY THE EXIT CODE. A test checking only a nonzero rc would pass against a half-fix that refuses AFTER relocating the file or AFTER appending a history record. Read the record back from its ORIGINAL path and assert byte-identical content and an unchanged status directory, and assert no file appeared in the destination directory.
 
-    ADD TWO FENCES. The CLEARING fence: a transition OUT of the gated status (`deferred -> approved`, `blocked -> open`) still succeeds with no gate flags and still strips the gate fields, which is what bounds the new refusal to transitions INTO the gated status. The UNRELATED-TRANSITION fence: a non-gated transition (`draft -> to-review`) still succeeds with no gate flags.
+    ADD THREE FENCES. The SAME-STATUS fence (review PR-001): on a record ALREADY in its gated status with a valid gate, a positional same-status call with NO gate flags (`aw specs set deferred <id6> --message note`, `aw set deferred <id6> --blocks-release next`, `aw backlog set blocked <id6> --message note`) SUCCEEDS and leaves the existing `- Gate-Kind:`/`- Gate-Ref:` lines intact, while the same call passing an INVALID `--gate-kind` refuses. The CLEARING fence: a transition OUT of the gated status (`deferred -> approved`, `blocked -> open`) still succeeds with no gate flags and still strips the gate fields, which is what bounds the new refusal to transitions INTO the gated status. The UNRELATED-TRANSITION fence: a non-gated transition (`draft -> to-review`) still succeeds with no gate flags.
 
     NO CODE-PINNING. Do not read production source with `inspect`, `ast`, regex or substring search, do not count callers, and do not assert docstring or comment text (`AGENTS.md` execution contract; GUIDING_PRINCIPLES P16).
   - Depends on: E-02, E-03
@@ -111,9 +115,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
     Name no private predicate and no internal function. Write no em or en dashes (user-facing prose, `AGENTS.md`).
 
-    DO NOT CLOSE THE BACKLOG ITEM. `fv4b6s` carries `- Blocks-Release: next` and this plan is its `- From-Backlog:` carrier (MEASURED: no other artifact in the tree carries `- From-Backlog: fv4b6s`, so before this plan the release-gated item had NO carrier at all). The HANDOFF route closes the gate automatically once this plan is `executed`; the runner sets the item `graduated` on verification, and an agent must never set it `done`.
+    DO NOT CLOSE THE BACKLOG ITEM. `fv4b6s` carries `- Blocks-Release: next` and this plan is its `- From-Backlog:` carrier (MEASURED: no other artifact in the tree carries `- From-Backlog: fv4b6s`, so before this plan the release-gated item had NO carrier at all). The item is ALREADY `graduated` (set by the authoring run on 2026-10-02, measured at review), so nothing needs setting; the HANDOFF route makes the `done` close legitimate once this plan is `executed`, and an agent must never set it `done` by hand inside this plan.
   - Depends on: E-01, E-02, E-03, E-04, E-05
-  - Expected outcome: one CHANGELOG entry naming the refusal and the accepted vocabulary, containing no em or en dash; `fv4b6s` left untouched at `- Status: open` with its gate intact.
+  - Expected outcome: one CHANGELOG entry naming the refusal and the accepted vocabulary, containing no em or en dash; `fv4b6s` left untouched at its current `- Status:` (`graduated` at review, set by the authoring run) with `- Blocks-Release: next` intact.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -238,7 +242,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: for each of the five `status_set`-reached surfaces (`aw specs set deferred <id6>`, `aw backlog set blocked <id6>`, `aw set <status> <id6>` for both record types, `aw set specs deferred <id6>`, `aw set backlog blocked <id6>`), paste rc and stderr for an out-of-vocabulary kind, a malformed ref, a half-supplied pair, and a VALID pair; for every refusal also paste the record read back from its ORIGINAL path proving byte-identical content and an unchanged status directory, and for the valid pair prove the relocation happened. Confirm in words that the refusal is returned from `validate_transition_allowed` in the pre-flight (not from `apply_status_change`), that it is gated on the `_GATE_STATUS_BY_TYPE` lookup rather than a hardcoded status, that the former presence-only backlog arm was REPLACED and not left beside the new branch, and that no second copy of the validation was added to `apply_status_change`.
+  - Required evidence: for each of the five `status_set`-reached surfaces (`aw specs set deferred <id6>`, `aw backlog set blocked <id6>`, `aw set <status> <id6>` for both record types, `aw set specs deferred <id6>`, `aw set backlog blocked <id6>`), paste rc and stderr for an out-of-vocabulary kind, a malformed ref, a half-supplied pair, and a VALID pair; for every refusal also paste the record read back from its ORIGINAL path proving byte-identical content and an unchanged status directory, and for the valid pair prove the relocation happened. Paste the same-status case for each record type (a record already in its gated status, positional call with no gate flags, plus `aw set deferred <id6> --blocks-release next`) exiting 0 with the gate lines read back unchanged, and the same call with `--gate-kind bogus-kind --gate-ref x` refusing. Confirm in words that the refusal is returned from `validate_transition_allowed` in the pre-flight (not from `apply_status_change`), that it is gated on the `_GATE_STATUS_BY_TYPE` lookup rather than a hardcoded status, that the former presence-only backlog arm was REPLACED and not left beside the new branch, and that no second copy of the validation was added to `apply_status_change`.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
@@ -250,11 +254,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-05 validates E-05
-  - Required evidence: paste `python3 -m pytest tests/test_gate_pair_validation_parity.py -o addopts=""` naming every case as passed. Paste the PRE-FIX run of the same file (via `git stash` or a scratch checkout) showing the seven broken surfaces FAILING, so the fix's effect is attributable rather than asserted; name which seven failed and confirm the one that passed pre-fix is the `aw specs set --status deferred` spelling. Confirm explicitly that the file covers all eight surfaces, that each refusal case asserts CONTENT and LOCATION as well as exit code, that the valid-pair SUCCESS case is present on every surface, that both the clearing fence and the unrelated-transition fence are present, and that no test reads production source or counts callers.
+  - Required evidence: paste `python3 -m pytest tests/test_gate_pair_validation_parity.py -o addopts=""` naming every case as passed. Paste the PRE-FIX run of the same file (via `git stash` or a scratch checkout) showing the seven broken surfaces FAILING, so the fix's effect is attributable rather than asserted; name which seven failed and confirm the one that passed pre-fix is the `aw specs set --status deferred` spelling. Confirm explicitly that the file covers all eight surfaces, that each refusal case asserts CONTENT and LOCATION as well as exit code, that the valid-pair SUCCESS case is present on every surface, that the same-status fence, the clearing fence and the unrelated-transition fence are all present, paste the same-status fence's three positional cases passing with the gate lines read back intact, and that no test reads production source or counts callers.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06
-  - Required evidence: paste the bare `python3 -m pytest` summary line with its re-derived baseline alongside, and compare the FAILURE SETS BY NAME (not counts), showing the three pre-existing failures unchanged and no new failure. Paste the `CHANGELOG.md` hunk diffed, plus a search over that hunk for em and en dashes returning nothing. Paste `AW_NO_REEXEC=1 aw check release-gates`, `AW_NO_REEXEC=1 aw specs check`, `AW_NO_REEXEC=1 aw backlog check` and `AW_NO_REEXEC=1 aw sanitize --agent`. Read back `fv4b6s` showing `- Status: open` and `- Blocks-Release: next` still present, proving this plan did NOT close its own carrier item.
+  - Required evidence: paste the bare `python3 -m pytest` summary line with its re-derived baseline alongside, and compare the FAILURE SETS BY NAME (not counts), showing the three pre-existing failures unchanged and no new failure. Paste the `CHANGELOG.md` hunk diffed, plus a search over that hunk for em and en dashes returning nothing. Paste `AW_NO_REEXEC=1 aw check release-gates`, `AW_NO_REEXEC=1 aw specs check`, `AW_NO_REEXEC=1 aw backlog check` and `AW_NO_REEXEC=1 aw sanitize --agent`. Read back `fv4b6s` showing its `- Status:` unchanged from before execution (`graduated` at review) and `- Blocks-Release: next` still present, proving this plan did NOT close its own carrier item.
   - Observed evidence:
   - Result: pending
 
@@ -277,7 +281,7 @@ contract true. SECOND, THE FIX MAKES PREVIOUSLY-ACCEPTED INPUT REFUSE, which is 
 any operator or script passing a kind outside the documented six starts failing; F-06's sweep found only
 two such uses in the entire test suite and no in-tree record carries an invalid kind, so the real-world
 blast radius is believed small, and E-06 documents the change. THIRD, THIS PLAN OVERLAPS pending plan
-`m1jlwm` (Set `setdisp`, Order 3), which proposes fixing this bypass together with `h4fiwa`'s; that plan
+`m1jlwm` (Set `setdisp`, Order 3) DIRECTLY: its E-02 makes the same `deferred` gate-pair validation fire on the positional spelling in the same function (review PR-004), so whichever executes second must REBASE ONTO the first rather than add a second copy; an executor of either should check whether the other is already `executed` and, if so, treat its validator as the one to consume; that plan
 declares `- From-Backlog: fcnz1r` rather than this item and sits behind a two-plan dependency chain, so
 no artifact carried `fv4b6s`'s gate before this one (F-10). If the maintainer prefers the Set to own
 this fix, retire THIS plan to `superseded/` and add `- From-Backlog: fv4b6s` plus the gate to `m1jlwm`;
@@ -291,8 +295,17 @@ is inadmissible (F-05). Verify the staged set with `git diff --cached --name-onl
 and re-verify after any failed commit attempt, because a rejecting hook can leave paths in the index
 that you never staged.
 
+SCOPE FENCE: `- Scope-Paths:` is a DECLARATION so finalize can reconcile what was edited against what
+was declared, not a stop condition; an out-of-scope edit the work genuinely requires is made and then
+justified at finalize with `--scope-reason`, and a declared-but-unmodified path (for example
+`agent_workflows/specs.py`, if it needs no change) is acknowledged with `--scope-ack`. STOP and report
+only for a genuinely unsafe condition: an unresolvable concurrent edit to a declared path (note PR-004:
+`m1jlwm` targets the same function), or an absent prerequisite symbol.
+
 Post-gate lifecycle: on completion, `aw ipd lint --phase pre-transition` must report conforming and
-every `V-*` above must carry pasted evidence before the plan moves to
-`.aw/records/plans/executed/`. Do NOT set backlog item `fv4b6s` to any status: this plan is its
-`- From-Backlog:` carrier, so reaching `executed` closes its gate through the HANDOFF route and the
-runner sets the item `graduated` on verification. An agent must never set it `done`.
+every `V-*` above must carry pasted evidence with a non-pending `Result` before the plan moves to
+`.aw/records/plans/executed/`. Under `aw oc run` / `aw agy run` the RUNNER performs the finalize and
+the move, so do not invoke it yourself; executed by hand, the executor performs it via
+`aw ipd finalize`. Never hand-edit the status line or hand-move the file, and never tag or release. Do NOT set backlog item `fv4b6s` to any status: this plan is its
+`- From-Backlog:` carrier, so reaching `executed` makes its gate closable through the HANDOFF route. The item is already
+`graduated`; an agent must never set it `done` inside this plan.
