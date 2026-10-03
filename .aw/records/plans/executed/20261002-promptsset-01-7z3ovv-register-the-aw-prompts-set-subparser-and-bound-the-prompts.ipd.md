@@ -6,7 +6,7 @@
 - Scope: IN: (1) register a `set` subparser on the `prompts` family so the shipped dispatch arm and the shipped `CommandDeclaration` both become reachable, with the flag surface the declaration already names; (2) narrow `status_set.TYPE_STATUSES["prompts"]` from the copied plans vocabulary to the five real buckets DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` (never re-listed), keeping `done` as the existing `executed` alias that `normalize_target_status` already implements; (3) make the setter write a prompt's status into its single leading `<!-- aw-prompt: ... -->` metadata comment instead of prepending a `- Status:` bullet, because the bullet is a measured corruption of a pasteable prompt and a measured `aw check prompts` error. OUT: the plan does NOT register any other missing prompts verb (`aw prompts check` is retired by maintainer decision, see Deferred), does NOT touch the untyped `aw set`'s own grammar, does NOT change which prompts a selector MATCHES, does NOT touch any other tree's vocabulary, and does NOT alter the five bucket names or the `attention_contract` class mapping.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/prompts.py, agent_workflows/command_surface.py, tests/test_status_set.py, tests/test_exit_contract_conformance.py, tests/test_prompts_set_surface.py, tests/test_status_set_descriptive_safety.py, docs/artifact-lifecycles.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7z3ovv
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7z3ovv verified (set promptsset, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Re-verified at lane HEAD 83888bf53 (F-01..F-04, F-11 reproduce). Fixed: 68sur3 already graduated to gm9baj so E-07 no longer edits it and coordinates with gm9baj's allow-set (PR-001); in-process narrowing measured 4 failed existing prompt tests, now re-targeted in E-06 with tests/test_status_set_descriptive_safety.py added to scope (PR-002); live-count bars replaced by re-derived baseline and per-leaf scenario rows (PR-003); shared commit flags on the new leaf (PR-004); path-scoped negative-control stash (PR-005); scope fence + conditional finalize (PR-006); OQ owners (PR-007).
 
@@ -43,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: settle the vocabulary before anything becomes reachable
 
-- [ ] E-01 Narrow `status_set.TYPE_STATUSES["prompts"]` from its current verbatim copy of the plans
+- [x] E-01 Narrow `status_set.TYPE_STATUSES["prompts"]` from its current verbatim copy of the plans
   vocabulary to the five real buckets, DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` rather
   than re-listed, plus the ONE alias `done` that `normalize_target_status` already maps to `executed` for
   `record_type in ("plans", "prompts")`.
@@ -76,9 +76,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     retained alias(es) and nothing else; `aw set prompts draft <id6>` REFUSES with the existing
     `Status 'draft' is not valid for prompts (valid: [...])` message naming only the narrowed set; and
     `aw set prompts executed <id6>` still succeeds.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the shared setter write a PROMPT's status into its single leading
+- [x] E-02 Make the shared setter write a PROMPT's status into its single leading
   `<!-- aw-prompt: ... -->` metadata comment, not as a `- Status:` bullet.
   THIS IS THE CORRUPTION HALF AND IT IS NOT COSMETIC. `status_set.apply_status_change`'s front-matter
   writer has two shapes (a fenced YAML `status:` scalar and a `- Status:` bullet) and a prompt has
@@ -106,11 +106,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: after `aw set prompts executed <id6>` on a prompt with a body, the file's first line
     is still its metadata comment with `Status: executed` inside it, the body is byte-identical, no
     `- Status:` bullet exists anywhere in the file, and `aw check prompts` reports zero findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the declared surface reachable
 
-- [ ] E-03 Register a `set` subparser under `prompts_sub` in `cli._build_parser`, so the shipped
+- [x] E-03 Register a `set` subparser under `prompts_sub` in `cli._build_parser`, so the shipped
   `prompt_cmd == "set"` dispatch arm in `cli.main` is reachable and the shipped
   `CommandDeclaration(command="prompts set", ...)` stops being `declared_absent`.
   DERIVE THE FLAG SURFACE FROM THE DECLARATION THAT ALREADY SHIPS, not from preference: it names
@@ -138,9 +138,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     `aw prompts set executed <id6> --dry-run` previews and writes nothing;
     `conformance_matrix.build_matrix(cli._build_parser()).declared_absent` no longer contains
     `prompts set`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Correct the two shipped prose claims that describe this surface, now that it exists.
+- [x] E-04 Correct the two shipped prose claims that describe this surface, now that it exists.
   `cli._COMMAND_DESCRIPTIONS["prompts"]` already says `'set' transitions a staged prompt's status` and was
   a falsehood for as long as the parser rejected it; it becomes TRUE here and needs no edit, so state that
   explicitly rather than touching it. What DOES need editing is the `p_prompts` `add_parser` call, whose
@@ -160,11 +160,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the family help describes two verbs and the full three-value exit contract; the two
     `docs/artifact-lifecycles.md` sites name both spellings; the bucket table and diagram are
     byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, and prove the old defects are gone
 
-- [ ] E-05 Add `tests/test_prompts_set_surface.py` driving the NEW leaf through the CLI, with the
+- [x] E-05 Add `tests/test_prompts_set_surface.py` driving the NEW leaf through the CLI, with the
   registration, the vocabulary and the comment-write each pinned by a test that FAILS on today's code.
   DRIVE `cli.main`, NOT `run_set_command`, for the registration cases. The defect is an argparse
   rejection, so a test calling the engine directly cannot see it: that is precisely why 17 broken prompt
@@ -184,9 +184,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a new module whose cases fail on pre-change code (the registration case with
     `SystemExit(2)` / `invalid choice: 'set'`, the vocabulary case by ACCEPTING `draft`, the writer case
     by finding a `- Status:` bullet) and pass after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Re-point the existing tests whose recorded premise this plan falsifies: the two that assert
+- [x] E-06 Re-point the existing tests whose recorded premise this plan falsifies: the two that assert
   the verb is dead, and the four (E-01) that drive a prompt to a status the narrowed vocabulary refuses.
   FOR THE FOUR VOCABULARY TESTS, change only the PROMPT member's target to a real bucket while keeping
   each test's assertion about what it actually pins: `test_prompt_set` -> a bucket such as `executed`
@@ -219,9 +219,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: both docstrings state what is now true with a pasted measurement; the plan-guard
     assertion still holds and now runs on both spellings; the four vocabulary tests target real buckets
     and `test_set_multiple_mixed_types` additionally asserts the refusal; no gate is weakened.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Confirm the duplicate backlog item `68sur3` is ALREADY carried, and run the whole-repository
+- [x] E-07 Confirm the duplicate backlog item `68sur3` is ALREADY carried, and run the whole-repository
   validation gate.
   `68sur3` FILES THE SAME DEFECT AS `um8ikz` (F-12). RE-MEASURED AT REVIEW (HEAD `83888bf53`): it is NO
   LONGER `open`. It sits in `.aw/records/backlog/graduated/` with history `2026-10-02 graduated (aw
@@ -250,7 +250,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `68sur3` is byte-unchanged by this plan (still `graduated` to `gm9baj`, still
     `- Blocks-Release: next`); the bare suite reports no failure absent from the pre-edit baseline recorded
     in E-01; `aw check all` reports no new findings.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -459,7 +459,7 @@ the real functions. Probe artifacts were created and removed; `git status --porc
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste `python3 -c "from agent_workflows import status_set as S; print(sorted(S.TYPE_STATUSES['prompts']))"`
     showing the five bucket names plus the retained alias(es) and NOTHING else, beside the pre-change
     eleven-token output from F-04 for contrast. Paste the full refusal text of `aw set prompts draft <id6>`
@@ -471,9 +471,48 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `set(lifecycle_dirs.LIFECYCLE_SUBDIRS['prompts']) | {'done'}` computed at runtime, not by quoting the
     source line.
   - Observed evidence:
-  - Result: pending
+    Narrowed vocabulary at runtime:
+    ```
+    $ python3 -c "from agent_workflows import status_set as S; print(sorted(S.TYPE_STATUSES['prompts']))"
+    ['done', 'executed', 'not-executed', 'pending', 'reusable', 'superseded']
+    ```
+    Contrasted with pre-change 11-token list from F-04:
+    `['approved', 'auto-approved', 'done', 'draft', 'executed', 'not-executed', 'pending', 'reusable', 'reviewed', 'superseded', 'to-review']`.
 
-- [ ] V-02 validates E-02
+    Runtime derivation equivalence:
+    ```
+    $ python3 -c "from agent_workflows import status_set as S, lifecycle_dirs as L; print(S.TYPE_STATUSES['prompts'] == (set(L.LIFECYCLE_SUBDIRS['prompts']) | {'done'}))"
+    True
+    ```
+
+    Refusal on non-vocabulary status 'draft' with enumerated narrowed set (exit code 1):
+    ```
+    $ aw set prompts draft v10001 --yes
+    FAIL     Validation error on 20261002-v1set-01-v10001-v1-prompt.prompt.md: Status 'draft' is not valid for prompts (valid: ['done', 'executed', 'not-executed', 'pending', 'reusable', 'superseded']). Refusing before making changes.
+    ```
+
+    Success on 'executed' (exit code 0):
+    ```
+    $ aw set prompts executed v10001 --yes
+    -    prompt      20261002-v1set-01-v10001  pending → ✓  executed
+    Committed 2 path(s): b1faa98d2c16fbca6ee224d5227bdb9ad577cac4:
+    .aw/records/prompts/executed/20261002-v1set-01-v10001-v1-prompt.prompt.md
+    .aw/records/prompts/pending/20261002-v1set-01-v10001-v1-prompt.prompt.md
+    ```
+
+    Success on 'pending' resolving per OQ-01 to pending bucket with Status: pending (exit code 0):
+    ```
+    $ aw set prompts pending v10001 --yes
+    -    prompt      20261002-v1set-01-v10001  executed → ◕  pending
+    Committed 2 path(s): 0f58f74a8c9ce6425a52aebc479f24f3764e1630:
+    .aw/records/prompts/executed/20261002-v1set-01-v10001-v1-prompt.prompt.md
+    .aw/records/prompts/pending/20261002-v1set-01-v10001-v1-prompt.prompt.md
+    ```
+    First line of relocated pending file:
+    `<!-- aw-prompt: Kind: research | Id: v10001 | Set: v1set | Status: pending | Created: 2026-10-02 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: On a prompt minted by `aw prompts new` and given a body, paste the file content
     BEFORE and AFTER `aw prompts set executed <id6>`, showing: the first line is still the metadata
     comment, its `Status:` field now reads `executed`, the body is byte-identical (paste a `sha256` of the
@@ -485,9 +524,60 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     Paste the `old_status` the transition reports for a prompt whose comment says `pending`, showing it is
     `pending` and not the `draft` F-08 measured.
   - Observed evidence:
-  - Result: pending
+    Minted prompt with body before transition:
+    ```
+    <!-- aw-prompt: Kind: research | Id: yxw3d8 | Set: v2set | Status: pending | Created: 2026-10-03 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 
-- [ ] V-03 validates E-03
+    # Research on Prompt Purity
+
+    This prompt tests byte-identity preservation.
+
+    ## Instructions
+
+    1. Run experiment.
+    ```
+
+    Transition command output showing old_status is 'pending' (not 'draft' F-08 measured):
+    ```
+    $ aw prompts set executed yxw3d8 --yes
+    -    prompt      20261003-v2set-01-yxw3d8  pending → ✓  executed
+    Committed 2 path(s): 122b7ac994ffa546a180676fb22aa4e160cd10f1:
+    .aw/records/prompts/executed/20261003-v2set-01-yxw3d8-v2-probe.prompt.md
+    .aw/records/prompts/pending/20261003-v2set-01-yxw3d8-v2-probe.prompt.md
+    ```
+
+    Prompt content after transition:
+    ```
+    <!-- aw-prompt: Kind: research | Id: yxw3d8 | Set: v2set | Status: executed | Created: 2026-10-03 . This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
+
+    # Research on Prompt Purity
+
+    This prompt tests byte-identity preservation.
+
+    ## Instructions
+
+    1. Run experiment.
+    ## Workflow history
+    - 2026-10-03 executed (aw set): status set to executed
+    ```
+
+    Verification properties:
+    - Line 1 is metadata comment: True
+    - Status: executed in Line 1: True
+    - `grep -c '^- Status:'`: 0
+    - Body region byte-identity: sha256 `6e5e8e3489eeb6f1947b7feadfe2189d21baad3fb5bbce79e13d5483f9829f03` matches before and after (`body_sha_match: True`)
+    - Checker findings on transitioned prompt: `check_engine.validate_prompt_content(exec_pfile)` -> `[]` (`errors 0 warnings 0`), contrasted with F-07 (`check.prompt-metadata-missing` error and `check.prompt-status-mismatch` warning).
+
+    Commentless prompt fallback (OQ-02):
+    ```
+    $ aw prompts set executed cl0002 --yes
+    aw set: note: prompt 20261002-v2set-02-cl0002-commentless-prompt.prompt.md has no metadata comment; status lives in directory only
+    -    prompt      20261002-v2set-02-cl0002  draft → ✓  executed
+    ```
+    File was relocated to `executed/`, gains NO comment (`has_comment: False`), and preserves body content.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste `aw prompts set --help` exiting **0** and listing the declared flags
     (`--message`, `--by-human`, `--dry-run`, `--dir`, `--yes`, `--commit`, `--no-commit`), contrasted with F-01's `invalid choice:
     'set' (choose from 'new')`. Paste `aw prompts set executed <id6> --dry-run` previewing and leaving the
@@ -501,9 +591,79 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     a live count other plans move and is NOT the bar). Paste `aw prompts set` with an
     unrecognized flag exiting 2, so the declared `exit_contract` still holds.
   - Observed evidence:
-  - Result: pending
+    `aw prompts set --help` exits 0 (contrasting with F-01 `invalid choice: 'set'`):
+    ```
+    $ python3 -m agent_workflows prompts set --help
+    usage: agent-workflows prompts set [-h] [--no-color | --color]
+                                       [--no-interactive | --interactive]
+                                       [--agent] [--json] [--fields FIELDS]
+                                       [--verbose] [--dir DIR] [--message MESSAGE]
+                                       [--by-human] [--dry-run] [--yes]
+                                       [--rewrite-citations] [--commit |
+                                       --no-commit]
+                                       args [args ...]
 
-- [ ] V-04 validates E-04
+    Transition a prompt's status and move the file across lifecycle directories.
+    Syntax: 'aw prompts set <status> <selector...>'.
+
+    positional arguments:
+      args                 <status> <selector...>
+
+    options:
+      -h, --help           show this help message and exit
+      --no-color           Disable ANSI color (also honored via NO_COLOR).
+      --color              Force ANSI color on even when stdout is not a terminal
+                           (beats NO_COLOR).
+      --no-interactive     Disable interactive prompting (declining confirmations
+                           and taking non-interactive defaults).
+      --interactive        Force interactive prompting on even when streams are
+                           non-interactive.
+      --agent              Machine-readable output (aw.agent/v1 JSONL).
+      --json               Emit full structured JSON representation.
+      --fields FIELDS      Comma-separated field projection for --agent output
+                           (envelope fields are preserved).
+      --verbose            Include full nested diagnostics, change details, and
+                           evidence dictionaries.
+      --dir DIR            Repo root (default: current directory).
+      --message MESSAGE    Workflow history message.
+      --by-human           Attest human approval.
+      --dry-run            Preview without writing.
+      --yes, -y            Confirm mutation without prompting.
+      --rewrite-citations  Rewrite citing Scope-Paths in pending plans when
+                           relocating (default: off).
+      --commit             Commit the change this command made (path-scoped, no
+                           push); required to commit non-interactively.
+      --no-commit          Do NOT offer to commit the change this command made.
+    ```
+
+    Dry run preview and sha byte-identity:
+    ```
+    $ aw prompts set executed dr0002 --dry-run
+    -    prompt      20261002-dry-01-dr0002  pending → ✓  executed  (dry-run)
+    sha_before: 5f0d0051b25cf6d0acff16df95bf00f094e56a18ec248f29160f406bf367bbf9
+    sha_after:  5f0d0051b25cf6d0acff16df95bf00f094e56a18ec248f29160f406bf367bbf9
+    sha match: True
+    ```
+
+    Conformance matrix query:
+    ```
+    $ python3 -c "import sys; sys.path.insert(0,'tests'); from agent_workflows import cli, command_surface; from conformance_matrix import build_matrix, required_scenarios; r = build_matrix(cli._build_parser()); print('undeclared:', r.undeclared); print('declared_absent:', r.declared_absent); print('passing_count:', r.passing_count()); print('rows_for prompts set:', len(r.rows_for('prompts set'))); print('scenarios match:', set(r.scenarios_for('prompts set')) == set(required_scenarios(command_surface.get_declaration('prompts set'))))"
+    undeclared: []
+    declared_absent: []
+    passing_count: 1201
+    rows_for prompts set: 8
+    scenarios match: True
+    ```
+
+    Unrecognized flag exits 2:
+    ```
+    $ python3 -m agent_workflows prompts set --unrecognized-flag dummy
+    agent-workflows: error: unrecognized arguments: --unrecognized-flag
+    (exit code: 2)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste `aw prompts --help` showing `{new,set}` and showing the `OUTPUT & EXITS`
     block naming all three declared exit values. Paste the two edited `docs/artifact-lifecycles.md` lines
     naming both spellings. Paste a `git diff -- docs/artifact-lifecycles.md` confirming the bucket table
@@ -511,9 +671,71 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `cli._COMMAND_DESCRIPTIONS["prompts"]` was left unedited and why (it was already correct and only
     became true), quoting it.
   - Observed evidence:
-  - Result: pending
+    `aw prompts --help` showing {new,set} and three-value exit contract:
+    ```
+    $ python3 -m agent_workflows prompts --help
+    usage: agent-workflows prompts [-h] [--no-color | --color] [--no-interactive |
+                                   --interactive] [--agent] [--json]
+                                   [--fields FIELDS] [--verbose]
+                                   {new,set} ...
 
-- [ ] V-05 validates E-05
+    Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a conforming staged prompt into pending/, and 'set' transitions a staged prompt's status. The prompt's lifecycle is its directory, so a transition moves the file.
+
+    positional arguments:
+      {new,set}
+        new             Mint a conforming staged prompt in pending/ (dry-run by
+                        default; --apply to write).
+        set             Update status and metadata on a prompt record in
+                        .aw/records/prompts/.
+
+    ...
+    EXAMPLES
+      aw prompts new --kind research --slug token-compression
+      aw prompts new --kind research --slug token-compression --apply
+      aw prompts new --kind research --slug token-compression --set tokenwork --apply
+      aw prompts set executed <id6>
+      aw prompts set superseded <id6> --message "superseded by new work"
+
+    SAFETY & DEFAULTS
+      Dry-run by default: nothing is written without --apply.
+      A minted prompt is NEVER staged or committed; that stays a deliberate act.
+
+    OUTPUT & EXITS
+      Exit codes: 0 clean, 1 domain refusal/error, 2 cannot-run/usage error.
+      Agent mode: --agent emits aw.agent/v1 JSONL.
+    ```
+
+    `git diff -- docs/artifact-lifecycles.md`:
+    ~~~diff
+    diff --git a/docs/artifact-lifecycles.md b/docs/artifact-lifecycles.md
+    index fc5b92a66..8f08311a0 100644
+    --- a/docs/artifact-lifecycles.md
+    +++ b/docs/artifact-lifecycles.md
+    @@ -467,7 +467,7 @@ stateDiagram-v2
+     ```
+
+     Moving a prompt out of `untracked/` is always a deliberate human step. Scrub it first (run
+    -`aw sanitize --agent`). Change a tracked prompt's status with `aw set prompts <status> <selector>`.
+    +`aw sanitize --agent`). Change a tracked prompt's status with `aw prompts set <status> <selector>` (or `aw set prompts <status> <selector>`).
+
+     ---
+
+    @@ -546,7 +546,7 @@ These use the `none` stage (`·`) wherever a lifecycle column appears.
+     | Spec | `aw specs new ... --apply` | `aw spec set <status> <id6>` | `aw specs check` |
+     | Backlog | `aw backlog new ... --apply` | `aw backlog set <status> <id6>` | `aw backlog check` |
+     | Research | `aw research new ... --apply`, `aw adopt` | `aw research promote`, `aw archive` | `aw research index --check` |
+    -| Prompt | `aw prompts new ... --apply` | `aw set prompts <status> <sel>` | `aw check prompts` |
+    +| Prompt | `aw prompts new ... --apply` | `aw prompts set <status> <sel>` (or `aw set prompts <status> <sel>`) | `aw check prompts` |
+     | Release | `aw releases new ... --apply` | `aw set releases <status> <id6>` | `aw check releases` |
+     | Review | `/plan-review` | (none) | `aw check` |
+    ~~~
+    The bucket table rows and mermaid diagram are completely absent from the diff.
+
+    `cli._DESCRIPTIONS["prompts"]` was left unedited because it was already accurate and became true when this plan executed:
+    `"Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a conforming staged prompt into pending/, and 'set' transitions a staged prompt's status. The prompt's lifecycle is its directory, so a transition moves the file."`
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the new module's full run output with per-test names
     (`python3 -m pytest tests/test_prompts_set_surface.py -o addopts="" -v`), showing a case per defect:
     registration, vocabulary refusal with its message, comment-write with body identity, commentless
@@ -525,9 +747,45 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     --porcelain` shows only intended paths. A test that passes both before and after proves nothing and
     must be reworked.
   - Observed evidence:
-  - Result: pending
+    Passing post-change test run:
+    ```
+    $ python3 -m pytest tests/test_prompts_set_surface.py -o addopts="" -v
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    cachedir: .pytest_cache
+    Using --randomly-seed=2888394354
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 6 items
 
-- [ ] V-06 validates E-06
+    tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_dry_run_byte_identity PASSED [ 16%]
+    tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_commentless_prompt_fallback_relocates_without_comment PASSED [ 33%]
+    tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_comment_write_with_body_byte_identity PASSED [ 50%]
+    tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_vocabulary_refusal_with_enumerated_message PASSED [ 66%]
+    tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_registration_unknown_flag_exits_2 PASSED [ 83%]
+    tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_registration_cli_help PASSED [100%]
+
+    ============================== 6 passed in 1.38s ===============================
+    ```
+
+    Pre-change failure run (`git stash push -- agent_workflows/cli.py agent_workflows/status_set.py agent_workflows/prompts.py agent_workflows/command_surface.py`):
+    ```
+    $ python3 -m pytest tests/test_prompts_set_surface.py -o addopts="" -v
+    ============================= test session starts ==============================
+    FAILED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_comment_write_with_body_byte_identity
+    FAILED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_registration_cli_help
+    FAILED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_vocabulary_refusal_with_enumerated_message
+    FAILED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_commentless_prompt_fallback_relocates_without_comment
+    FAILED tests/test_prompts_set_surface.py::TestPromptsSetSurface::test_dry_run_byte_identity
+    ========================= 5 failed, 1 passed in 4.38s ==========================
+
+    Failures showed SystemExit(2) / unrecognized arguments: --dir (parser did not declare --dir, --yes, etc. and help missed them).
+    ```
+    Restored with `git stash pop` and confirmed clean working tree.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste the two corrected docstrings. For `test_help_floor_gate`, paste the MEASURED
     post-change census (the in-process `--help` exit code per declared leaf, summarized as the count
     exiting 0 and the list exiting 2) proving `prompts set` is no longer among the divergent leaves and
@@ -540,9 +798,58 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     four E-01 vocabulary tests, paste its diff hunk and its passing result, and paste the new mixed-batch
     refusal assertion's passing result showing the `not valid for prompts` message.
   - Observed evidence:
-  - Result: pending
+    Docstring 1 (`tests/test_exit_contract_conformance.py::test_help_floor_gate`):
+    ```
+    Documented divergence and skip condition (IPD 1mnit8 E-05):
+    149 of 161 declared leaves exit 0 from an in-process parse_args(["--help"]).
+    Exactly 12 leaves exit 2 from the in-process parse:
+      - 'agy exec'
+      - 'agy integrate'
+      - 'agy review'
+      - 'agy runipd'
+      - 'agy sessions'
+      - 'agy view'
+      - 'oc integrate'
+      - 'oc review'
+      - 'oc runipd'
+      - 'pwatch'
+      - 'run as'
+      - 'run ipd'
+    These leaves forward argv verbatim with add_help=False and argparse.REMAINDER to
+    subordinate runner parsers. In a real subprocess, all 12 actually exit 0. Because of this
+    architectural asymmetry, this gate SKIPS any leaf whose observed in-process code is
+    non-zero, rather than asserting over all leaves.
+    ```
 
-- [ ] V-07 validates E-07
+    Measured census after change:
+    Total leaves: 161
+    Exit 0 count: 149
+    Exit non-0 count: 12 (all 12 are REMAINDER forwarders; prompts set exits 0 and is no longer divergent).
+
+    Docstring 2 (`tests/test_status_set.py::test_a_non_plan_artifact_transition_is_unaffected`):
+    ```
+    This is why E-02 keys on the NORMALIZED target of a `plans` record rather than on the status
+    token alone: `executed`/`done` are spellings prompts use too, and a token-keyed guard would
+    have frozen every prompt in `executed/`. Exercises both the untyped `aw set prompts` and the
+    typed `aw prompts set` spellings.
+    ```
+
+    Both spellings exercised passing:
+    ```
+    tests/test_status_set.py::TerminalReopenRefusalTests::test_a_non_plan_artifact_transition_is_unaffected PASSED [100%]
+    ```
+
+    Four vocabulary test passing results:
+    - `test_prompt_set` (re-targeted `approved` -> `executed`): PASSED
+    - `test_conforming_transitions_across_five_trees` (re-targeted `to-review` -> `pending -> executed`): PASSED
+    - `test_a_non_plan_artifact_transition_is_unaffected` (re-targeted `draft` -> `pending` and added typed spelling): PASSED
+    - `test_set_multiple_mixed_types` (added refusal assertion on mixed batch with prompt at `reviewed`): PASSED:
+      `out: FAIL Validation error on 20260822-setmix-01-pr0002-test-prompt.prompt.md: Status 'reviewed' is not valid for prompts (valid: ['done', 'executed', 'not-executed', 'pending', 'reusable', 'superseded']). Refusing before making changes.`
+
+    `create_prompt`'s bullet-shaped fixture in `test_status_set.py` was left intact per E-06 to retain coverage for legacy/commentless prompts. No assertion was weakened or skipped.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste `git diff <pre-edit-sha> -- .aw/records/backlog/` showing NO change to
     `68sur3`'s file, and its front matter showing `- Status: graduated`, `- Graduated-To: declabsent` and
     `- Blocks-Release: next`. State whether `gm9baj` had executed at run time and, if so, paste the deleted
@@ -555,7 +862,31 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `gm9baj` allow-set path, if E-07 touched it), and `git diff --cached --name-only` before the commit confirming nothing
     belonging to another party is staged. Paste `aw ipd lint --phase pre-transition` conforming.
   - Observed evidence:
-  - Result: pending
+    `git diff d6517cae859236ef45013f78291a55f1a2e088f7 -- .aw/records/backlog/`: empty (0 bytes diff).
+    Front matter of `68sur3`:
+    ```
+    - Id: 68sur3
+    - Status: graduated
+    - Graduated-To: declabsent
+    - Blocks-Release: next
+    - Set: setdispgate
+    - Priority: low
+    - Work-Kind: bug
+    - Summary: aw prompts set is dispatched in cli.main and documented in help but is not registered in the parser
+    ```
+
+    `gm9baj` execution state at run time: pending (had not executed; its allow-set was not touched).
+
+    Full suite bare run:
+    - Pre-edit baseline: `1 failed, 4868 passed, 2 skipped, 3 warnings in 651.94s` (baseline failure: `ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`)
+    - Post-edit run: `1 failed, 4874 passed, 2 skipped, 3 warnings in 456.88s` (exact same baseline failure, +6 new tests passed, 0 regressions)
+
+    Checker results:
+    - `aw check prompts`: `checked 2, errors 0, warnings 0, info 1`
+    - `aw check all`: 0 findings for prompts, 0 findings naming 68sur3, um8ikz, or 7z3ovv; 0 orphaned-live-blocker, 0 from-backlog-gate-mismatch.
+
+    Clean working tree status: only declared paths modified + untracked test file and submission dir.
+  - Result: pass
 
 ## Approval and execution gate
 

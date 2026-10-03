@@ -376,13 +376,13 @@ class TestStatusSetCommands(StatusSetTestBase):
             "20260822-testset-01-pr0001-test-prompt.prompt.md",
             "pr0001",
             "testset",
-            "draft",
+            "pending",
         )
         rc = cli.main(
             [
                 "set",
                 "prompts",
-                "approved",
+                "executed",
                 "pr0001",
                 "--yes",
                 "--dir",
@@ -390,8 +390,11 @@ class TestStatusSetCommands(StatusSetTestBase):
             ]
         )
         self.assertEqual(rc, 0)
-        text = prompt.read_text(encoding="utf-8")
-        self.assertIn("- Status: approved", text)
+        dest_prompt = (
+            self.repo_root / ".aw" / "records" / "prompts" / "executed" / prompt.name
+        )
+        self.assertTrue(dest_prompt.exists())
+        self.assertFalse(prompt.exists())
 
     def test_backlog_set_and_directory_move(self):
         bk = self.create_backlog(
@@ -491,14 +494,37 @@ class TestStatusSetCommands(StatusSetTestBase):
         # missing review stays deliberately silent for a plan).
         self._write_spec_review_record("sp0003")
 
-        # Set all 3 to reviewed in one command
+        # Mixed batch carrying a prompt at reviewed is refused before making changes:
+        # prompt vocabulary does not include 'reviewed'.
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc_refused = cli.main(
+                [
+                    "set",
+                    "reviewed",
+                    "pl0005",
+                    "sp0003",
+                    "pr0002",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertNotEqual(rc_refused, 0)
+        out = buf.getvalue()
+        self.assertIn("Status 'reviewed' is not valid for prompts", out)
+        self.assertIn("Refusing before making changes", out)
+        self.assertIn("- Status: to-review", plan.read_text(encoding="utf-8"))
+        self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
+        self.assertIn("- Status: to-review", prompt.read_text(encoding="utf-8"))
+
+        # Valid batch with plan and spec succeeds
         rc = cli.main(
             [
                 "set",
                 "reviewed",
                 "pl0005",
                 "sp0003",
-                "pr0002",
                 "--yes",
                 "--dir",
                 str(self.repo_root),
@@ -511,7 +537,6 @@ class TestStatusSetCommands(StatusSetTestBase):
             self.repo_root / ".aw" / "records" / "specs" / "reviewed" / spec.name
         )
         self.assertIn("- Status: reviewed", dest_spec.read_text(encoding="utf-8"))
-        self.assertIn("- Status: reviewed", prompt.read_text(encoding="utf-8"))
 
     def test_mixed_batch_refuses_ALL_when_the_spec_member_is_unattested(self):
         """revsweep `5slbpi`: the attestation composes with the ATOMIC pre-flight, so a batch
@@ -2591,9 +2616,8 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
 
         This is why E-02 keys on the NORMALIZED target of a `plans` record rather than on the status
         token alone: `executed`/`done` are spellings prompts use too, and a token-keyed guard would
-        have frozen every prompt in `executed/`. Driven through the UNTYPED `aw set other` spelling
-        because `aw prompts set` is not a live parser surface (`aw prompts` accepts only `new`); the
-        untyped verb is the shipped route to a prompt transition and reaches the same code.
+        have frozen every prompt in `executed/`. Exercises both the untyped `aw set prompts` and the
+        typed `aw prompts set` spellings.
         """
         prompt = self.create_prompt(
             "20260910-pr-01-pm0001-a.prompt.md",
@@ -2602,11 +2626,12 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
             "executed",
             disposition="executed",
         )
+        # 1. Untyped spelling
         rc = cli.main(
             [
                 "set",
                 "prompts",
-                "draft",
+                "pending",
                 "pm0001",
                 "--yes",
                 "--dir",
@@ -2615,7 +2640,34 @@ class TerminalReopenRefusalTests(StatusSetTestBase):
         )
         self.assertEqual(rc, 0, "prompts are not governed by the plan terminal guard")
         moved = self.repo_root / ".aw" / "records" / "prompts" / "pending" / prompt.name
-        self.assertIn("- Status: draft", moved.read_text(encoding="utf-8"))
+        self.assertTrue(moved.exists())
+
+        # 2. Typed spelling on a second prompt
+        prompt2 = self.create_prompt(
+            "20260910-pr-02-pm0002-b.prompt.md",
+            "pm0002",
+            "prset",
+            "executed",
+            disposition="executed",
+        )
+        rc2 = cli.main(
+            [
+                "prompts",
+                "set",
+                "pending",
+                "pm0002",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(
+            rc2, 0, "prompts set is live and not governed by the plan terminal guard"
+        )
+        moved2 = (
+            self.repo_root / ".aw" / "records" / "prompts" / "pending" / prompt2.name
+        )
+        self.assertTrue(moved2.exists())
 
 
 class SameStatusMessageIsRecordedTests(StatusSetTestBase):

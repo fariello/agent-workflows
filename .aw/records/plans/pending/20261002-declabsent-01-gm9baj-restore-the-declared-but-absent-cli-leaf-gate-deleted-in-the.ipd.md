@@ -245,6 +245,7 @@ only this plan.
   from the duplicate item `um8ikz` (F-06). Two pending plans in the same hunks of `cli._build_parser` and
   the same `TYPE_STATUSES` entry is the collision the production contract exists to prevent.
   - Carrier: 7z3ovv
+  - Carrier-Evidence: .aw/records/plans/executed/20261002-promptsset-01-7z3ovv-register-the-aw-prompts-set-subparser-and-bound-the-prompts.ipd.md
 - DELETING THE `upgrade-test` ROOT DECLARATION, or fixing its `agent_record_kind`, is out of scope. Both
   belong to `lbbo9s`, which is `open` and release-gated (F-10). The behavioral gate this plan adds does
   not flag it at all (F-04), so nothing here depends on that resolution.
