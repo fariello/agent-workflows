@@ -222,8 +222,11 @@ class TestPromptsSetSurface(unittest.TestCase):
         dest_text = dest_path.read_text(encoding="utf-8")
         self.assertFalse(prompts.has_metadata_comment(dest_text))
         self.assertNotIn("- Status:", dest_text)
-        # Check original body is preserved in dest
-        self.assertEqual(dest_text, original_text)
+        # Check original body is preserved in dest (before workflow history)
+        hist_idx = dest_text.find("## Workflow history")
+        self.assertNotEqual(hist_idx, -1)
+        body_region = dest_text[:hist_idx].strip()
+        self.assertEqual(body_region, original_text.strip())
 
     def test_dry_run_byte_identity(self):
         """Dry-run previews and leaves file byte-identical without relocating."""
