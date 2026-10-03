@@ -6,7 +6,7 @@
 - Scope: Run, read-only, the Set's end-state consistency check and the full suite at a HEAD where Orders 01 to 04 are all executed, and record the pasted evidence here. EXCLUDES any production code, test, spec, or record change: every verb is run in its default PREVIEW mode (no `--apply`), so nothing on disk moves. If any check fails, this plan records the failure and STOPS; the fix belongs to a new corrective IPD against the owning child, never to this file.
 - Scope-Paths: .aw/records/plans/pending/20261002-awrenamesel-05-aqyh40-run-the-whole-set-end-state-consistency-check-for-the-univer.ipd.md
 - Item-Dependencies: executed:eby93o, executed:87m438, executed:1x4tdo, executed:3qxuw1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: aqyh40
+- Approval: 2026-10-03, human ("approved"): maintainer approved in session after /plan-review (APPROVE WITH REVISIONS APPLIED)
 
 ## Workflow history
+- 2026-10-03 approved (aw set, --by-human): maintainer approved in session after /plan-review (APPROVE WITH REVISIONS APPLIED)
 - 2026-10-03 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM), PR-002 (MEDIUM), PR-003 (LOW), PR-004 (LOW), all FIXED. Every end-state check re-run in preview mode at review behaves as expected. Findings in .aw/records/reviews/20261002-awrenamesel-05-aqyh40-run-the-whole-set-end-state-consistency-check-for-the-univer.review.md.
 
 - 2026-10-02 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): created to own the whole-Set end-state verification the orchestrator `95jk4s` carried with no child covering it, after the orchestrator coverage probe refused `aw agy run` on it. The parent's checklist is left unchanged; this child is added as Order 05 in its child table.
