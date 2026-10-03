@@ -6,7 +6,7 @@
 - Scope: IN: convert every `- Blocks-Release:` READER and the one WRITER onto the existing shared metadata-region boundary (`selectors.metadata_region`), which already owns exactly this bounding for `- Id:`, `- Status:` and `- Set:` under executed plan `76w6mq`. The answer to the item's question "which reader is correct" is therefore NOT a new invention: it is the boundary this repository already decided on and shipped, and the 4 diverging readers are the ones that were never converted. Concretely: add ONE shared reader to `selectors` beside its `read_front_matter_id`/`read_front_matter_status` twins; route `status_set`'s display read, `status_set`'s two `_existing_br` gate-default reads, `ipd_lint`'s board read, `attention`'s plans read, and `releases._ITEM_BLOCKS_RELEASE_RE`'s three call sites through it; bound the `releases.set_blocks_release_line` STRIP to the metadata region so it can no longer delete a body line; and author outcome tests driving each. OUT, each with a reason recorded under Deferred: the six SIBLING line writers in `releases` (`_PRIORITY_LINE_RE`, `_WORK_KIND_LINE_RE`, `_FROM_BACKLOG_LINE_RE`, `_FROM_SPEC_LINE_RE`, `_ITEM_DEPENDENCIES_LINE_RE`, `_GRADUATED_TO_LINE_RE`), which share the writer's unbounded shape but are a different field family with their own blast radius; `check_engine._read_blocks_release` and `specs._read_blocks_release`, which are ALREADY bounded and are the correctness reference this plan converges on rather than changes; `check_engine._META_BLOCKS_RELEASE_RE`'s one unbounded call site at the `check_release_gate_consistency` at-rest arm, which is measured here as non-diverging on the corpus and is folded in as E-06 only because it is the same pattern in the same rule family; and any change to WHAT the gate means or to the close-legitimacy ladder.
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/status_set.py, agent_workflows/attention.py, agent_workflows/releases.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, tests/test_blocks_release_reader_bounding.py, tests/test_status_set_descriptive_safety.py, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 08
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: b92m14
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: b92m14 verified (set brgate, attempt 1). [Scope reconciliation - widened-scope tests/test_status_set_descriptive_safety.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode/its_direct/pt3-claude-opus-5.5-1m-us): plan-review complete
 
