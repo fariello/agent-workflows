@@ -46,7 +46,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure before changing anything
 
-- [ ] E-01 RE-DERIVE THE FIVE MEASUREMENTS THIS PLAN RESTS ON at execution HEAD, each as pasted output of a command or short script and never as a restatement of this plan. Build a throwaway checkout under a gitignored scratch path (`tmp/` is gitignored; do NOT touch this repository's live lanes) with a main worktree and ONE lane created the way production creates one, i.e. `git worktree add -b <branch> <path> <explicit-base-sha>` as `worktree_lease.allocate_worktree` does, then commit once in the lane.
+- [x] E-01 RE-DERIVE THE FIVE MEASUREMENTS THIS PLAN RESTS ON at execution HEAD, each as pasted output of a command or short script and never as a restatement of this plan. Build a throwaway checkout under a gitignored scratch path (`tmp/` is gitignored; do NOT touch this repository's live lanes) with a main worktree and ONE lane created the way production creates one, i.e. `git worktree add -b <branch> <path> <explicit-base-sha>` as `worktree_lease.allocate_worktree` does, then commit once in the lane.
   FIRST, THE RAW GIT ASYMMETRY: run `git merge-base --is-ancestor <branch> HEAD` with cwd set to the main tree and then to the lane, printing both exit codes. Authoring measured rc 1 from main and rc 0 from the lane at git 2.43.0.
   SECOND, THE PREDICATE: print `runner_shared.lane_work_has_landed(main, branch)` and `(lane, branch)`. Authoring measured `False` and `True`.
   THIRD, THE DESTROY-AUTHORIZING FIELD: print `merged_into_target` and `reclaimable` from `worktree_lease.inspect_lane` for the main root and the lane root. Authoring measured `False`/`False` and `True`/`True`. Also print `state` and `commits_ahead`; authoring measured `HOLDS-WORK` and `1` from BOTH roots with the production creation shape, which is the isolation F-2 records.
@@ -55,50 +55,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   If the first four no longer reproduce, the defect is already fixed: STOP and report rather than editing.
   - Depends on: none
   - Expected outcome: five pasted measurements, each with an explicit "still holds" or "now reads X" statement, plus a STOP report if the false positive no longer reproduces.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one anchoring primitive, then the predicates
 
-- [ ] E-02 EXTRACT THE SHARED `--git-common-dir` RESOLUTION INTO ONE THREE-VALUED PRIMITIVE in `agent_workflows/ipd_lifecycle.py`, beside `checkout_control_root`, returning the checkout's ABSOLUTE GIT COMMON DIR (`Optional[Path]`), and make `checkout_control_root` CONSUME it so exactly one definition of the git invocation and its failure handling exists (spec `7ckptx` R6.1 forbids forking a rule consumed by more than one surface, and this rule is about to gain a second consumer). `checkout_control_root` keeps its OWN `.git`-name test and parent derivation on top of the primitive, because that test answers ITS question (where is the main worktree's `.aw`) and is NOT the landing predicate's question (REVISED AT REVIEW, PR-001: see below).
+- [x] E-02 EXTRACT THE SHARED `--git-common-dir` RESOLUTION INTO ONE THREE-VALUED PRIMITIVE in `agent_workflows/ipd_lifecycle.py`, beside `checkout_control_root`, returning the checkout's ABSOLUTE GIT COMMON DIR (`Optional[Path]`), and make `checkout_control_root` CONSUME it so exactly one definition of the git invocation and its failure handling exists (spec `7ckptx` R6.1 forbids forking a rule consumed by more than one surface, and this rule is about to gain a second consumer). `checkout_control_root` keeps its OWN `.git`-name test and parent derivation on top of the primitive, because that test answers ITS question (where is the main worktree's `.aw`) and is NOT the landing predicate's question (REVISED AT REVIEW, PR-001: see below).
   WHY THE PRIMITIVE RETURNS THE COMMON DIR AND NOT THE MAIN WORKTREE, measured at review on git 2.43.0. The authored design returned the main worktree (common dir named `.git`, parent a directory) and `None` otherwise, and then ran the target lookup IN that worktree. That makes every checkout whose common dir is not literally named `.git` UNANSWERABLE, which is not only a bare repository: a `git init --separate-git-dir` checkout (common dir `<x>/store.git`) and a SUBMODULE checkout (common dir `<super>/.git/modules/<name>`) both fall in it. Measured: `checkout_control_root` on a separate-git-dir checkout falls back to `start/.aw`. Under the authored design every lane in such a checkout would read `None`, so `attention --check` would red every lane holding work as `attention.lane-unknown` and reclamation of GENUINELY LANDED lanes would be blocked, a regression OQ-01 had not measured. The common dir is enough on its own: its `HEAD` IS the main worktree's `HEAD` (every linked worktree's own `HEAD` lives under `<common>/worktrees/<name>/`), so `git --git-dir=<common> rev-parse --verify --quiet <target>^{commit}` resolves a symbolic target against the checkout in EVERY layout. Review prototype results: normal layout unmerged `main=False lane=False`, merged `True/True`; separate-git-dir unmerged `False/False`, merged `True/True`; a bare repository with linked worktrees, unmerged lane, `False` from both its main worktree and the lane, where the raw `merge-base --is-ancestor <branch> HEAD` gives rc 0 from the lane; an empty bare repository returns `None`.
   WHY AN EXTRACTION RATHER THAN A SECOND CALL TO `checkout_control_root`: that function is deliberately TOTAL, returning `start/.aw` when git cannot be spawned, when the directory is not a checkout, and for a bare or exotic `GIT_DIR`. Its parent directory in those fallback cases is `start` ITSELF, which for an in-lane caller is THE LANE. So deriving the anchor as `checkout_control_root(repo).parent` would silently re-introduce the very lane anchoring this plan removes, and would do it in the cases hardest to notice. The landing predicate needs to DISTINGUISH "collapsed to the main worktree" from "could not anchor", which a total function cannot express.
   THE PRIMITIVE RETURNS `Optional[Path]`: the absolute common dir on a zero-rc non-empty answer, and `None` for not a directory, `OSError` spawning git, nonzero rc, or empty output. It does NOT apply the `.git`-name test (that stays in `checkout_control_root`, which maps a non-`.git` common dir to its `start/.aw` fallback exactly as today). Keep the single git invocation `rev-parse --path-format=absolute --git-common-dir` and keep catching ONLY `OSError`, both exactly as today, so a genuine programming error still surfaces.
   `checkout_control_root` MUST BE A PURE REFACTOR with its observable behavior byte-identical, including its memoization: it returns `<main>/.aw` on a positive resolution and `base / ".aw"` on every `None`. Preserve the existing cache semantics (only positive resolutions cached, the `_CONTROL_ROOT_CACHE_MAX` clear, and `clear_checkout_control_root_cache`) rather than reorganizing them; decide deliberately whether the memo sits on the primitive or stays on `checkout_control_root`, and state which in the commit message.
   - Depends on: E-01
   - Expected outcome: a three-valued common-dir primitive exists; `checkout_control_root` calls it and returns the same paths as before for a main-checkout root, an in-lane root, a non-git directory, a bare repo, a separate-git-dir checkout, and a nonexistent directory.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ANCHOR THE TARGET IN `runner_shared.lane_work_has_landed`, the leaf where the wrong answer is produced. Before asking `merge-base --is-ancestor`, resolve `target` to a concrete commit id AGAINST THE CHECKOUT by running `git --git-dir=<common dir from E-02's primitive> rev-parse --verify --quiet <target>^{commit}` (a single git argv with the `--git-dir=` option before the subcommand; `_run_git` takes the argv list, so no new helper is needed), and pass that resolved id to `--is-ancestor` instead of the caller-supplied string. The branch check and the `--is-ancestor` call keep running with `cwd=repo`: once both revisions are concrete, F-6 and review both measured the answer cwd-insensitive.
+- [x] E-03 ANCHOR THE TARGET IN `runner_shared.lane_work_has_landed`, the leaf where the wrong answer is produced. Before asking `merge-base --is-ancestor`, resolve `target` to a concrete commit id AGAINST THE CHECKOUT by running `git --git-dir=<common dir from E-02's primitive> rev-parse --verify --quiet <target>^{commit}` (a single git argv with the `--git-dir=` option before the subcommand; `_run_git` takes the argv list, so no new helper is needed), and pass that resolved id to `--is-ancestor` instead of the caller-supplied string. The branch check and the `--is-ancestor` call keep running with `cwd=repo`: once both revisions are concrete, F-6 and review both measured the answer cwd-insensitive.
   WHY RESOLVING THE TARGET IS SUFFICIENT, measured at authoring: a NAMED ref is already cwd-insensitive because every linked worktree shares one ref store (`rev-parse main` and `rev-parse <lane-branch>` gave identical ids from both roots), and only symbolic or relative revisions differ (`HEAD` and `@` differed between roots; `HEAD~1` resolved in the lane and failed in the main tree). Once BOTH revisions are concrete, `--is-ancestor` is itself cwd-insensitive (rc 1 from both roots). So resolving the target closes the defect without moving the branch lookup or the ancestry query to a different cwd.
   AN UNRESOLVABLE ANCHOR RETURNS `None`, NOT a cwd-relative retry. `None` is already the documented "could not be answered" value, every consumer collapses it to not-merged, and `LaneState.merged_into_target` maps it to `False` precisely so an unanswerable lane is never treated as recovered. Note in the docstring which shapes are unanswerable under this rule: in practice only a path where `--git-common-dir` itself fails, which (since the branch check runs first in the same cwd) means git broke between two calls. A separate-git-dir checkout and a bare repository with linked worktrees REMAIN answerable (measured at review), as does a submodule checkout by the same mechanism (its common dir is `<super>/.git/modules/<name>`; reasoned, not measured); do not reintroduce a `.git`-name test here.
   KEEP THE THREE-VALUED CONTRACT AND THE EXISTING EARLY RETURNS intact: empty branch, an unverifiable branch, and git's `rc` convention (0 ancestor, 1 not, anything else unknown) are unchanged. Do NOT change `LANE_INTEGRATION_TARGET_FALLBACK`'s value, and do NOT rewrite the `integration_target` that `classify_lane_integration` records: that field is the human-readable label the caller asked about (`HEAD`), and the resolution is an internal detail.
   - Depends on: E-02
   - Expected outcome: `lane_work_has_landed` returns the SAME value for a main-checkout root and an in-lane root, for both an unmerged and a genuinely merged lane.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 ANCHOR THE TARGET IN `runner_shared.lane_work_landed_by_content` THE SAME WAY, because it takes the identical defaulted target and runs `git cherry <target> <branch>` with `cwd=repo`, so it is cwd-sensitive by the same mechanism.
+- [x] E-04 ANCHOR THE TARGET IN `runner_shared.lane_work_landed_by_content` THE SAME WAY, because it takes the identical defaulted target and runs `git cherry <target> <branch>` with `cwd=repo`, so it is cwd-sensitive by the same mechanism.
   IT IS CURRENTLY MASKED RATHER THAN CORRECT, and that distinction is the reason to fix it rather than leave it. Measured at authoring: from the lane, `git cherry HEAD <branch>` printed NOTHING (the branch adds nothing beyond a merge-base that is its own tip) while from the main tree it printed `+ <sha>`. The function returned `False` from both roots, so the symptom did not surface, but only because its empty-output guard reads empty as NOT landed. The guard exists to stop a VACUOUS true on a lane with zero commits and a dirty tree, not to compensate for a target resolving to the wrong commit, so leaving this unfixed parks a live wrong reading behind an unrelated guard.
   Apply the same common-dir target resolution and `None`-on-unresolvable-anchor rule, and leave both documented parse guards (empty output is not landed; a nonzero git exit is `None`) untouched. Review re-measured the effect: with the target resolved through the common dir, `git cherry <resolved> <branch>` printed `+ <sha>` from BOTH roots (normal and separate-git-dir layouts), where the raw `git cherry HEAD <branch>` printed nothing from the lane.
   - Depends on: E-02
   - Expected outcome: `lane_work_landed_by_content` resolves its target against the checkout; `git cherry` sees the same target from either root, so an in-lane call reports the same patch-id reading as a main-tree call.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: correct the claims the code makes about itself
 
-- [ ] E-05 CORRECT THE THREE DOCSTRINGS THAT NOW ASSERT SOMETHING FALSE, because each currently tells a reader that `HEAD` is unconditionally the honest default and none of them mentions that it is resolved against the CALLER'S worktree.
+- [x] E-05 CORRECT THE THREE DOCSTRINGS THAT NOW ASSERT SOMETHING FALSE, because each currently tells a reader that `HEAD` is unconditionally the honest default and none of them mentions that it is resolved against the CALLER'S worktree.
   FIRST, the comment on `LANE_INTEGRATION_TARGET_FALLBACK`, which argues `HEAD` "is the branch the merge would actually land on" and cites `integrate_lane_branch` running a bare `git merge` in the main checkout. That argument is sound ONLY when the invoking worktree IS the main checkout; record the precondition and name where it is now enforced.
   SECOND, `worktree_lease.lane_merged_into_target`, whose docstring states the `HEAD` default "is the honest default" and that "hardcoding `"main"` would be the one wrong answer". Keep the rejection of `"main"` (it is still right, and E-01's measurements do not disturb it) and add that the default is honest BECAUSE the target is now checkout-anchored, not because the caller is assumed to be in the main tree.
   THIRD, `LaneState.merged_into_target`'s field comment, which explains the `None`-to-`False` collapse as covering "the branch is gone, the target does not resolve, or git failed". Add the new member of that set: an anchor that cannot be established.
   THIS IS A DOCUMENTATION-ONLY ITEM and must change no behavior; it is separate from E-03/E-04 so that a reviewer can see the corrected claims without them being buried in a logic diff.
   - Depends on: E-03, E-04
   - Expected outcome: no docstring in the touched files claims `HEAD` is safe irrespective of the invoking worktree; each names the anchoring and the fail-toward-preservation rule.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: pin the behavior
 
-- [ ] E-06 ADD A BEHAVIORAL REGRESSION TEST at `tests/test_lane_landing_anchor.py` that DRIVES A REAL `git worktree` and asserts on returned values, never on production source text (GUIDING_PRINCIPLES P16 forbids a code-pinning test; several such tests in this area were deleted by `80db6750c`, as pending plan `d8sc5n` records).
+- [x] E-06 ADD A BEHAVIORAL REGRESSION TEST at `tests/test_lane_landing_anchor.py` that DRIVES A REAL `git worktree` and asserts on returned values, never on production source text (GUIDING_PRINCIPLES P16 forbids a code-pinning test; several such tests in this area were deleted by `80db6750c`, as pending plan `d8sc5n` records).
   CREATE LANES THE WAY PRODUCTION DOES, with `git worktree add -b <branch> <path> <explicit-base-sha>`. This is load-bearing: authoring measured that passing the literal `HEAD` instead makes the branch's creation reflog read `branch: Created from HEAD`, which `_lane_base_sha` resolves against the INVOKING worktree and which collapses `commits_ahead` to 0 from inside the lane. A test built that way would appear to pass for a second, unrelated reason and would not pin this fix. `tests/test_runner_shared.py`'s own `_add_lane` helper already documents why `git branch` is not interchangeable here; follow it.
-  FOUR CASES, EACH ASSERTING MAIN-ROOT AND LANE-ROOT ANSWERS ARE EQUAL:
+  FOURCASES, EACH ASSERTING MAIN-ROOT AND LANE-ROOT ANSWERS ARE EQUAL:
   (a) UNMERGED lane holding one commit: `lane_work_has_landed` is `False` from both roots, and `inspect_lane(...).merged_into_target` and `.reclaimable` are `False` from both. This is the false positive; assert the lane-root values explicitly so a regression names itself.
   (b) GENUINELY MERGED lane (`git merge --ff-only` in the main tree): `lane_work_has_landed` is `True` from both roots and `reclaimable` is `True` from both. This pins the true positive the fix must not break.
   (c) THE SECOND SURFACE: `classify_lane_integration` reports the same `landed` and `landed_by` from both roots for the unmerged lane.
@@ -107,14 +107,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO assert the sibling: `lane_work_landed_by_content` gives equal answers from both roots for the unmerged lane.
   - Depends on: E-03, E-04
   - Expected outcome: a new test module that FAILS against the pre-fix predicates (confirm this by stashing the fix or by asserting the measured pre-fix values first) and passes after.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 RUN THE SUITE BARE as `python3 -m pytest` and paste the actual summary line. The configured `addopts` already supply `-q -n auto --dist=worksteal` and the fast-subset marker filter, so add NO flags.
+- [x] E-07 RUN THE SUITE BARE as `python3 -m pytest` and paste the actual summary line. The configured `addopts` already supply `-q -n auto --dist=worksteal` and the fast-subset marker filter, so add NO flags.
   PAY PARTICULAR ATTENTION TO THE MODULES THAT EXERCISE THESE PREDICATES, since they are the ones this change can break: `tests/test_runner_shared.py` (classes `StrandedLanePredicateTests`, `SupersededLaneTests`, `ContentLandedReadingTests`, `ReintegrationVerbTests`), `tests/test_lane_reclaim_decision_order.py`, `tests/test_worktree_lease.py`, `tests/test_recovone_single_definition.py`, `tests/test_attention.py`, `tests/test_attention_lane_detail_bound.py`, and the `checkout_control_root` consumers in `tests/test_driver_attestation_gate.py` and `tests/test_orchestrator_retirement.py`. Authoring measured the first four GREEN at `152 passed` before any edit; that is CONTEXT, and the executor must RE-DERIVE it. Run the bare suite ONCE BEFORE E-02 as the baseline, because the bare suite is not necessarily green on this repository (sibling lanes on 2026-10-02 measured three pre-existing failures), and attribute to this change only failures ABSENT from that baseline.
   A FAILURE IS A FINDING, NOT A NUISANCE: the existing tests pass an explicit `target="main"` and a tempdir main checkout, so any new failure most likely means the anchoring changed an answer for a non-lane caller, which this plan asserts it does not.
   - Depends on: E-02, E-03, E-04, E-05, E-06
   - Expected outcome: pasted suite output with no new failures attributable to this change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -204,40 +204,212 @@ CORRECTED AT REVIEW: the authored text said no spec record with the slug `attent
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all five measurements pasted as actual command or script output, each with the git version and an explicit "still holds" or "now reads X". The third must show `merged_into_target` and `reclaimable` for BOTH roots, and the fifth must show the merged-lane case reading `True` from both roots. A restatement of this plan's numbers without pasted output FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Re-derived all five measurements at execution HEAD on git 2.43.0; all reproduce exactly and still hold:
+    ```
+    === GIT VERSION ===
+    git version 2.43.0
 
-- [ ] V-02 validates E-02
+    === MEASUREMENT 1: RAW GIT ASYMMETRY ===
+    git merge-base --is-ancestor aw/lane/lane01 HEAD (cwd=main): rc=1 (still holds)
+    git merge-base --is-ancestor aw/lane/lane01 HEAD (cwd=lane): rc=0 (still holds)
+
+    === MEASUREMENT 2: PREDICATE ===
+    lane_work_has_landed(main, branch): False (still holds)
+    lane_work_has_landed(lane, branch): True (still holds)
+
+    === MEASUREMENT 3: DESTROY-AUTHORIZING FIELD ===
+    inspect_lane(main): merged_into_target=False reclaimable=False state=HOLDS-WORK commits_ahead=1 (still holds)
+    inspect_lane(lane): merged_into_target=True reclaimable=True state=HOLDS-WORK commits_ahead=1 (still holds)
+
+    === MEASUREMENT 4: SECOND SURFACE ===
+    classify_lane_integration(main): landed=False landed_by=None integration_target=HEAD (still holds)
+    classify_lane_integration(lane): landed=True landed_by=ancestor integration_target=HEAD (still holds)
+
+    === MEASUREMENT 5: TRUE POSITIVE (GENUINELY MERGED LANE) ===
+    lane_work_has_landed(main2, branch2): True (still holds)
+    lane_work_has_landed(lane2, branch2): True (still holds)
+    inspect_lane(main2): merged_into_target=True reclaimable=True (still holds)
+    inspect_lane(lane2): merged_into_target=True reclaimable=True (still holds)
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: pasted output of the three-valued primitive called on a main-checkout root, an in-lane root, a separate-git-dir checkout, a bare repository, a non-git directory, and a nonexistent directory (expect the SAME common dir for the first two, `<x>/store.git` for the separate-git-dir checkout, the bare repository's own path for the bare repository, and `None` for the last two), BESIDE `checkout_control_root` called on the same six showing values UNCHANGED from the pre-refactor function (`<main>/.aw` for the first two; `start/.aw` for the separate-git-dir checkout, the bare repository, the non-git directory and the nonexistent path, F-10 and review). Also paste a run of the `checkout_control_root` consumer tests named in E-07 (`tests/test_driver_attestation_gate.py`, `tests/test_orchestrator_retirement.py`) showing they still pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Output of `checkout_git_common_dir` and `checkout_control_root` across all 6 cases, showing expected common dirs and identical control roots:
+    ```
+    === POST-REFACTOR checkout_git_common_dir & checkout_control_root ===
+    main-checkout root (main_repo):
+      checkout_git_common_dir: tmp/v02_scratch/main_repo/.git
+      checkout_control_root:   tmp/v02_scratch/main_repo/.aw
+    in-lane root (lane):
+      checkout_git_common_dir: tmp/v02_scratch/main_repo/.git
+      checkout_control_root:   tmp/v02_scratch/main_repo/.aw
+    separate-git-dir (sep_wt):
+      checkout_git_common_dir: tmp/v02_scratch/store.git
+      checkout_control_root:   tmp/v02_scratch/sep_wt/.aw
+    bare repo (bare.git):
+      checkout_git_common_dir: tmp/v02_scratch/bare.git
+      checkout_control_root:   tmp/v02_scratch/bare.git/.aw
+    non-git dir (nongit_ylmobx3j):
+      checkout_git_common_dir: None
+      checkout_control_root:   /tmp/nongit_ylmobx3j/.aw
+    nonexistent dir (nonexistent):
+      checkout_git_common_dir: None
+      checkout_control_root:   tmp/v02_scratch/nonexistent/.aw
+    ```
+    Consumer tests run:
+    ```
+    python3 -m pytest tests/test_driver_attestation_gate.py tests/test_orchestrator_retirement.py
+    61 passed in 11.55s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: pasted output of `lane_work_has_landed` from the main root and the lane root for BOTH throwaway checkouts AND for a separate-git-dir checkout built the same way: `False`/`False` for the unmerged lane and `True`/`True` for the merged one in every layout, never `None`. Paste the post-fix `inspect_lane` `merged_into_target`/`reclaimable` pair from both roots in both cases too, since that field is the destroy-authorizing consumer. Equality between roots is the assertion; a lane-root `True` on the unmerged lane FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Post-fix measurements showing root equality and no false positive:
+    ```
+    [Normal unmerged]
+      lane_work_has_landed: main=False, lane=False
+      inspect_lane(main):   merged_into_target=False, reclaimable=False
+      inspect_lane(lane):   merged_into_target=False, reclaimable=False
+    [Normal merged]
+      lane_work_has_landed: main=True, lane=True
+      inspect_lane(main):   merged_into_target=True, reclaimable=True
+      inspect_lane(lane):   merged_into_target=True, reclaimable=True
+    [Separate-git-dir unmerged]
+      lane_work_has_landed: main=False, lane=False
+      inspect_lane(main):   merged_into_target=False, reclaimable=False
+      inspect_lane(lane):   merged_into_target=False, reclaimable=False
+    [Separate-git-dir merged]
+      lane_work_has_landed: main=True, lane=True
+      inspect_lane(main):   merged_into_target=True, reclaimable=True
+      inspect_lane(lane):   merged_into_target=True, reclaimable=True
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: pasted `git cherry <target> <branch>` output from both roots showing the SAME lines after the fix, beside `lane_work_landed_by_content` returning equal values from both roots. Also paste a run of `ContentLandedReadingTests` in `tests/test_runner_shared.py` showing its guards (empty output is not landed; a nonzero exit is `None`) still hold.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git cherry` prints identical patch id output from both roots, and `lane_work_landed_by_content` agrees:
+    ```
+    git cherry 6bc6d488 aw/lane/norm01 (cwd=main):
+    + ba48ffc95cb8d23a4c385e69aacf79e2b2342963
+    git cherry 6bc6d488 aw/lane/norm01 (cwd=lane):
+    + ba48ffc95cb8d23a4c385e69aacf79e2b2342963
+    lane_work_landed_by_content(main): False
+    lane_work_landed_by_content(lane): False
+    ```
+    Runner guard tests run:
+    ```
+    python3 -m pytest tests/test_runner_shared.py -k ContentLandedReadingTests
+    10 passed in 5.62s
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: the diff of the three corrected docstrings/comments pasted, plus an explicit statement that no executable line changed in E-05's commit. A reviewer must be able to see that `LANE_INTEGRATION_TARGET_FALLBACK`'s comment now records the anchoring precondition, that `lane_merged_into_target` still rejects a hardcoded `"main"`, and that `LaneState.merged_into_target` lists an unestablishable anchor among the unanswerable cases.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Commit 7d5fe5d27 diff:
+    ```diff
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    index 1e8503901..bd5e57853 100644
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -1652,7 +1652,10 @@ LANE_ATTENTION_STATES: frozenset[str] = frozenset(
+     #: The integration target the landing question asks about, when the run record names no other. Both
+     #: drivers merge a verified lane into whatever the shared checkout has checked out, which is `main` in
+     #: this repository (`integrate_lane_branch` runs a bare `git merge` in the main checkout), so `HEAD` is
+    -#: the honest fallback: it is the branch the merge would actually land on.
+    +#: the honest fallback: it is the branch the merge would actually land on. That argument is sound only
+    +#: when `HEAD` resolves against the checkout rather than the caller's worktree; this precondition is
+    +#: enforced in `lane_work_has_landed` and `lane_work_landed_by_content`, which anchor the target via
+    +#: `ipd_lifecycle.checkout_git_common_dir`.
+     LANE_INTEGRATION_TARGET_FALLBACK = "HEAD"
 
-- [ ] V-06 validates E-06
+
+    diff --git a/agent_workflows/worktree_lease.py b/agent_workflows/worktree_lease.py
+    index 55930fb4a..30bbfcb2d 100644
+    --- a/agent_workflows/worktree_lease.py
+    +++ b/agent_workflows/worktree_lease.py
+    @@ -198,9 +198,10 @@ class LaneState(NamedTuple):
+         #
+         # THREE-VALUED SOURCE, COLLAPSED IN THE SAFE DIRECTION. `lane_work_has_landed` returns
+         # `True`/`False`/`None`, `None` meaning the question could not be answered (the branch is gone, the
+    -    # target does not resolve, or git failed). A `NamedTuple` boolean cannot express that, so `None`
+    -    # maps to `False`: an UNANSWERABLE lane is never treated as recovered, because this field widens
+    -    # `reclaimable`, and a false True there is what would authorize destroying unproven work.
+    +    # target does not resolve, an anchor cannot be established, or git failed). A `NamedTuple` boolean
+    +    # cannot express that, so `None` maps to `False`: an UNANSWERABLE lane is never treated as recovered,
+    +    # because this field widens `reclaimable`, and a false True there is what would authorize destroying
+    +    # unproven work.
+         merged_into_target: bool = False
+
+         @property
+    @@ -323,8 +324,10 @@ def lane_merged_into_target(repo_root: Path, branch: str) -> bool:
+         DELEGATES to `runner_shared.lane_work_has_landed`, which is the repository's ONE landing predicate
+         (`git merge-base --is-ancestor <branch> <target>`), so no second definition of "merged" exists
+         (spec `7ckptx` R6.1). The TARGET is that function's own `LANE_INTEGRATION_TARGET_FALLBACK`
+    -    (`HEAD`), which is the honest default: both drivers merge a verified lane into whatever the shared
+    -    checkout has checked out, so `HEAD` is the branch the merge would actually land on. A fork using
+    +    (`HEAD`), which is the honest default because the target is now checkout-anchored through the
+    +    git common dir (backlog `cjrjtu`), not because the caller is assumed to be in the main tree:
+    +    both drivers merge a verified lane into whatever the shared checkout has checked out, so `HEAD`
+    +    resolved against the checkout is the branch the merge would actually land on. A fork using
+         `master` or `trunk` is therefore correct with no configuration, and hardcoding `"main"` would be
+         the one wrong answer.
+    ```
+    Explicit confirmation: No executable line changed in E-05's commit; all edits were comments and docstrings.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: TWO pasted runs of `tests/test_lane_landing_anchor.py`: one against the PRE-FIX predicates showing the false-positive case FAILING (demonstrating the test has power), and one after the fix showing all cases passing. The post-fix run must show the merged-lane case passing, so the test is not satisfiable by making every lane read not-landed. State explicitly how case (d) was constructed, and paste case (e)'s separate-git-dir assertions passing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Two pasted runs demonstrating test power pre-fix and full suite passing post-fix:
+    Pre-fix test run against execution starting HEAD:
+    ```
+    $ python3 -m pytest tests/test_lane_landing_anchor.py
+    FF.FF                                                                    [100%]
+    =================================== FAILURES ===================================
+    ...
+    AssertionError: True is not false : lane root must answer False for unmerged lane (no false True)
+    ...
+    =========================== short test summary info ============================
+    FAILED tests/test_lane_landing_anchor.py::TestLaneLandingAnchor::test_case_d_fail_toward_preservation_unresolvable_anchor
+    FAILED tests/test_lane_landing_anchor.py::TestLaneLandingAnchor::test_case_e_separate_git_dir_answers_equal_and_non_none
+    FAILED tests/test_lane_landing_anchor.py::TestLaneLandingAnchor::test_case_a_unmerged_lane_answers_equal_and_false_from_both_roots
+    FAILED tests/test_lane_landing_anchor.py::TestLaneLandingAnchor::test_case_c_second_surface_classify_lane_integration_answers_equal
+    4 failed, 1 passed in 10.77s
+    ```
+    Post-fix test run:
+    ```
+    $ python3 -m pytest tests/test_lane_landing_anchor.py
+    .....                                                                    [100%]
+    5 passed in 10.11s
+    ```
+    Construction of case (d):
+    `test_case_d_fail_toward_preservation_unresolvable_anchor` drives `target="refs/heads/nosuch"` from both lane root and main root through `lane_work_has_landed` and `lane_work_landed_by_content`, asserting `None` (unanswerable) in all cases instead of trivially True. It also drives `ipd_lifecycle.checkout_git_common_dir` directly with a fresh non-git directory outside git and a nonexistent path, asserting `None` for both.
 
-- [ ] V-07 validates E-07
+    Case (e) separate-git-dir passing assertions:
+    `test_case_e_separate_git_dir_answers_equal_and_non_none` passed as part of the 5 passing tests, asserting both unmerged (False/False) and merged (True/True) equality across roots for `git init --separate-git-dir`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: the actual summary lines from TWO BARE `python3 -m pytest` runs, the pre-E-02 baseline and the post-change run, pasted verbatim, with no added flags. Any failure in the post-change run must be listed and either fixed or shown with evidence to also be present in the baseline. A claim of success without pasted runner output FAILS this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Actual summary lines from the two bare pytest runs:
+    Baseline pre-E-02 bare run:
+    ```
+    FAILED tests/test_term.py::ColorDepthEndToEndLadderTests::test_end_to_end_ladder_observable_ansi_rendering
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    FAILED tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes
+    3 failed, 4753 passed, 2 skipped, 3 warnings in 862.35s (0:14:22)
+    ```
+    Post-change bare run:
+    ```
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    FAILED tests/test_term.py::ColorDepthEndToEndLadderTests::test_end_to_end_ladder_observable_ansi_rendering
+    2 failed, 4759 passed, 2 skipped, 3 warnings in 805.88s (0:13:25)
+    ```
+    Both failures in post-change run were pre-existing failures in baseline; 0 new failures introduced.
+  - Result: pass
 
 ## Approval and execution gate
 
