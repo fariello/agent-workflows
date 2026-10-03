@@ -3115,6 +3115,8 @@ def finalize_precheck(
         "in_scope": bool(scope_paths) and not out_of_scope,
         "out_of_scope_paths": list(out_of_scope),
         "in_scope_unmodified": list(in_scope_unmodified),
+        "all_declared_unmodified": bool(scope_paths)
+        and len(in_scope_unmodified) == len(scope_paths),
         "intervening_in_scope_commits": collisions,
         # E-03: what the ownership filter DISREGARDED, kept visible rather than silently dropped.
         # Paths this execution cannot be shown to own: a concurrent agent's in-flight work, or (since
@@ -3632,6 +3634,53 @@ def _disregarded_history_note(
     return (
         f"Scope attribution - {total} changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not "
         f"attributable to this execution (evidence: {source}), so no --scope-reason was demanded for them: {named}"
+    )
+
+
+# --------------------------------------------------------------------------------------
+# WARN AND RECORD ONLY, VERDICT UNCHANGED (IPD a8e2l8, backlog gmbdxe, OQ-01).
+#
+# WHY THIS WARNS RATHER THAN REFUSES:
+# Across the executed corpus, 6 finalizes were auto-acknowledged with every declared path
+# unmodified, and every one of them legitimately landed work (committed before the begin
+# baseline, or declared paths later deleted by their own attributed commits). A bare refusal
+# keyed on this predicate would therefore have refused 6 valid executions while catching 0
+# real losses. Worked example: 20260824-8t5ghsgi-01-s2ufeo states in its own recorded ack:
+# "committed in b78501b before the begin baseline".
+#
+# WHAT THIS DOES NOT FIX:
+# The finalize still succeeds (the verdict is unchanged), the auto-ack is unchanged, and
+# an execution that genuinely did nothing is still recorded executed. The refuse-or-warn
+# direction awaits the maintainer; OQ-01 and backlog gmbdxe remain the residue's carriers.
+# Separately, the sibling loss mechanism (work modified but never committed, which actually
+# affected 9iiqmm) is NOT this gate's and is carried by z8ex9f, so a reader does not conflate
+# the two.
+# --------------------------------------------------------------------------------------
+
+
+def _empty_declared_scope_history_note(
+    all_declared_unmodified: bool,
+    paths: Sequence[str],
+) -> str:
+    """Render the all-declared-unmodified scope delta fact as a compact, capped note.
+
+    Per IPD a8e2l8 E-02:
+    Names at most the first 5 paths in sorted order, always stating the total count
+    unconditionally. Capped to prevent unbounded history lines in shared checkouts.
+    When all_declared_unmodified is False, returns empty string.
+    """
+    if not all_declared_unmodified:
+        return ""
+    sorted_paths = sorted(paths)
+    total = len(sorted_paths)
+    head = sorted_paths[:5]
+    named = ", ".join(head)
+    if total > 5:
+        residual = total - 5
+        named = f"{named} (... and {residual} more; see in_scope_unmodified in the finalize evidence)"
+    return (
+        f"Scope delta - no declared Scope-Paths were modified since the frozen base "
+        f"({total} declared path(s) unmodified; work may have landed before the begin baseline or not at all): {named}"
     )
 
 
@@ -4762,6 +4811,12 @@ def finalize(
     )
     if disregarded_note:
         message = f"{message} [{disregarded_note}]"
+    empty_declared_note = _empty_declared_scope_history_note(
+        evidence.get("scope_audit", {}).get("all_declared_unmodified", False),
+        evidence.get("scope_audit", {}).get("in_scope_unmodified", []),
+    )
+    if empty_declared_note:
+        message = f"{message} [{empty_declared_note}]"
 
     # --- E-02/E-03 forward transition, wrapped in the durable two-phase journal (Order 3xh53a) ---
     rec = _ss.read_artifact_record(plan_path, repo_root)

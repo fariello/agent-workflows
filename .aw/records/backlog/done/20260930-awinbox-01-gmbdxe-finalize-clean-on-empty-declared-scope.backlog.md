@@ -1,5 +1,5 @@
 - Id: gmbdxe
-- Status: graduated
+- Status: done
 - Graduated-To: emptyscope
 - Blocks-Release: next
 - Set: awinbox
@@ -8,6 +8,7 @@
 - Summary: Finalize reconciles an execution that touched NEITHER declared Scope-Path as clean, because the runner auto-acknowledges every declared-but-unmodified path and the zero-work retry predicate only ever considers a partial
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD a8e2l8 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-emptyscope-01-a8e2l8-warn-and-record-when-an-execution-modified-none-of-its-decla.ipd.md); evidence .aw/records/plans/executed/20261001-emptyscope-01-a8e2l8-warn-and-record-when-an-execution-modified-none-of-its-decla.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: a8e2l8
 - 2026-09-30 created (aw backlog): Filed while authoring plan olmvgw from backlog an77ub, which re-lands the inbox counter lost by exactly this mechanism. an77ub deliberately does not diagnose the systemic half; this item owns it so olmvgw's Deferred row has a live carrier rather than pointing back at the item it graduated from.
 
