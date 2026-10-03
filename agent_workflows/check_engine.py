@@ -4196,7 +4196,8 @@ _ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
 # `- Gate-Kind:` field nor an IPD's REQUIRED structural `- Kind:` (both are distinct vocabularies).
 _ITEM_WORK_KIND_RE = _re.compile(r"(?m)^- Work-Kind:[ \t]*(\S+)[ \t]*$")
 _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
-_META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(\S+)[ \t]*$")
+# gh409m byzkr7 E-05: widened to (.+?) matching backlog._CLOSE_EVIDENCE_RE, while stripping trailing space.
+_META_CLOSE_EVIDENCE_RE = _re.compile(r"(?m)^- Close-Evidence:[ \t]*(.+?)[ \t]*$")
 _META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
 
@@ -4893,7 +4894,8 @@ def evaluate_blocking_close(
     )
     item_id6 = _read_item_id(text)
     blocks_release = _read_blocks_release(text)
-    mce = _META_CLOSE_EVIDENCE_RE.search(text)
+    # gh409m byzkr7 E-05 (PR-002): bound Close-Evidence reader to metadata region so body-quoted bullet is ignored.
+    mce = _META_CLOSE_EVIDENCE_RE.search(_metadata_region(text))
     item_close_evidence = mce.group(1) if mce else None
 
     # Resolve lane carrier override pair if provided

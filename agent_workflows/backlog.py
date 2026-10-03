@@ -585,7 +585,11 @@ def validate_item(path: Path, text: str) -> List[core.Drift]:
                 )
             )
 
-    # gateatrest f7igdu E-02: validate close_evidence shape fail-closed
+    # gateatrest f7igdu E-02: validate close_evidence shape fail-closed.
+    # gh409m byzkr7 E-05/E-06: with check_engine._META_CLOSE_EVIDENCE_RE widened to (.+?) matching
+    # _CLOSE_EVIDENCE_RE, any value that passes attention_contract.is_safe_descriptive (single bounded
+    # control-char-free line) is readable by both parser and predicate reader. Resolvability is not checked
+    # here (f7igdu design constraint: shape checker with no repo root). No new drift rule is required.
     if item.close_evidence is not None and not A.is_safe_descriptive(
         item.close_evidence
     ):
@@ -1032,14 +1036,38 @@ def set_release_exempt_ref_line(text: str, value: Optional[str]) -> str:
 _CLOSE_EVIDENCE_LINE_RE = re.compile(r"(?m)^- Close-Evidence:[ \t]*[^\n]*$\n?")
 
 
-def set_close_evidence_line(text: str, value: Optional[str]) -> str:
+def set_close_evidence_line(
+    text: str,
+    value: Optional[str],
+    repo_root: Optional[Path | str] = None,
+) -> str:
     """Return `text` with the `- Close-Evidence:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or leaving unchanged)."""
+    (falling back to after `- Id:`, or leaving unchanged).
+
+    gh409m byzkr7 E-02: Normalizes `value` to a repo-relative POSIX path against `repo_root` when
+    `value` is an absolute path. An already-relative value is preserved byte-identical.
+    """
     text = _CLOSE_EVIDENCE_LINE_RE.sub("", text)
     if value in (None, "-"):
         return text
-    new_line = f"- Close-Evidence: {value}\n"
+    val_str = str(value).strip()
+    if Path(val_str).is_absolute():
+        if repo_root is None:
+            raise ValueError(
+                f"cannot normalize absolute evidence citation '{val_str}' without repo_root"
+            )
+        root_path = Path(repo_root).resolve()
+        target_path = Path(val_str).resolve()
+        try:
+            norm_value = target_path.relative_to(root_path).as_posix()
+        except ValueError:
+            raise ValueError(
+                f"evidence citation '{val_str}' is outside repository root '{repo_root}'"
+            )
+    else:
+        norm_value = val_str
+    new_line = f"- Close-Evidence: {norm_value}\n"
     for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
         m = re.search(anchor, text)
         if m:
@@ -1778,7 +1806,9 @@ def run_set(args) -> int:
             getattr(args, "evidence", None) or parse_item(rendered).close_evidence
         )
         if accepted_evidence:
-            rendered = set_close_evidence_line(rendered, accepted_evidence)
+            rendered = set_close_evidence_line(
+                rendered, accepted_evidence, repo_root=gate_root
+            )
 
     dest_dir = _resolve_backlog_root(repo_root) / _rp.target_subdir(  # type: ignore[operator]  # checker-limitation: target_subdir returns str for backlog
         "backlog", new_status

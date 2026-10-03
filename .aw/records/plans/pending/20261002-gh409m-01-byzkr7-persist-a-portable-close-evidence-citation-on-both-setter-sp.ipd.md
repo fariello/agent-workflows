@@ -37,56 +37,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish the baseline before changing anything
 
-- [ ] E-01 CAPTURE THE FOUR-WAY BASELINE, because this plan's whole justification is a DIVERGENCE and a reviewer must be able to see it before the fix rather than take this plan's word for it. On a scratch `git init` repo carrying one `planned` release that resolves `next`, one gated backlog item, one resolvable in-tree artifact, and a `.aw/config/project.json` setting `cutovers.release_gate_at_rest` so the at-rest arm is ACTIVE, drive FOUR closes and record each one's `(exit code, destination directory, whether the item carries - Close-Evidence:, the at-rest finding count from check_engine.check_release_gate_consistency(repo, at_rest=True) after COMMITTING the close so nothing is staged)`: (a) `--status` spelling with a repo-relative citation; (b) POSITIONAL spelling with the same citation; (c) `--status` spelling with an ABSOLUTE citation, then the same tree COPIED to a second path and re-judged there; (d) `--status` spelling with a citation containing a SPACE that `resolve_evidence_artifact` accepts. Also record `leak_sanitizer.scan_text` on the absolute-form bullet and `backlog.validate_item` on the space-form item. Do NOT fix anything in this item; its only deliverable is the recorded before-state that V-01 compares against.
+- [x] E-01 CAPTURE THE FOUR-WAY BASELINE, because this plan's whole justification is a DIVERGENCE and a reviewer must be able to see it before the fix rather than take this plan's word for it. On a scratch `git init` repo carrying one `planned` release that resolves `next`, one gated backlog item, one resolvable in-tree artifact, and a `.aw/config/project.json` setting `cutovers.release_gate_at_rest` so the at-rest arm is ACTIVE, drive FOUR closes and record each one's `(exit code, destination directory, whether the item carries - Close-Evidence:, the at-rest finding count from check_engine.check_release_gate_consistency(repo, at_rest=True) after COMMITTING the close so nothing is staged)`: (a) `--status` spelling with a repo-relative citation; (b) POSITIONAL spelling with the same citation; (c) `--status` spelling with an ABSOLUTE citation, then the same tree COPIED to a second path and re-judged there; (d) `--status` spelling with a citation containing a SPACE that `resolve_evidence_artifact` accepts. Also record `leak_sanitizer.scan_text` on the absolute-form bullet and `backlog.validate_item` on the space-form item. Do NOT fix anything in this item; its only deliverable is the recorded before-state that V-01 compares against.
   - Depends on: none
   - Expected outcome: a pasted four-way table showing (a) persists and is clean at rest, (b) persists NOTHING and yields one `check.blocking-item-closed-without-gate` at rest, (c) persists an absolute path that reads clean in place and ERROR after the copy while the leak scanner reports `fail`, and (d) persists a bullet the predicate cannot read so the item reads ERROR at rest while `validate_item` reports nothing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: one shared, normalizing writer
 
-- [ ] E-02 NORMALIZE THE CITATION AT THE POINT IT IS PERSISTED, in `agent_workflows/backlog.py`, by giving `set_close_evidence_line` a repo-root-aware normalization step (or a sibling helper it delegates to) that converts an accepted citation to a REPO-RELATIVE POSIX path before writing it, and leaves an already-relative value byte-identical. DO THIS FIRST, BEFORE WIRING THE SECOND SPELLING, so the new call site inherits the correct behavior instead of needing a follow-up. THREE PROPERTIES, each load-bearing for a reason measured in E-01 rather than asserted here. (i) PORTABILITY: `check_engine.resolve_evidence_artifact` resolves `(repo_root / evidence).resolve()` and then requires `candidate.relative_to(repo_root)`, so an absolute path recorded in one checkout escapes containment when the same record is read from another and the verdict flips to `error`. (ii) LEAK SAFETY: the stored line lands in a TRACKED file, and `leak_sanitizer`'s `home-path` and `handle` rules are `severity='fail'`, so persisting `/home/<user>/...` can make the repository's own `local-leaks` pre-commit hook refuse every later commit; a relative path cannot carry a machine path by construction, which is a stronger guarantee than scrubbing one afterwards. (iii) IDEMPOTENCE: the helper is already documented idempotent ("replaces an existing line or inserts one after `- Status:`"), so normalization must not make a second identical close rewrite the value differently. NORMALIZE AGAINST THE ROOT THE PREDICATE RESOLVED AGAINST (review PR-003). `backlog.run_set` evaluates the predicate against `gate_root`, which is `repo_root` by default but is the MAIN checkout when the runner passes `--gate-dir` for a lane close (`runner_shared.close_backlog_item`). The stored value must be relative to the tree in which `resolve_evidence_artifact` accepted it, which is `gate_root` on that spelling and `repo_root` on the positional spelling (which has no `--gate-dir`). Both trees share one repo-relative layout, so the relative form is the same string either way, but computing `relative_to` against the WRONG root would refuse or mangle a legitimately accepted absolute citation. A citation that cannot be made relative (one genuinely outside the repo) must NOT be silently stored as-is: `resolve_evidence_artifact` already refuses it, so such a value can never reach a `SATISFIED` verdict, and the helper should be written so that fact is explicit rather than relied upon by accident.
+- [x] E-02 NORMALIZE THE CITATION AT THE POINT IT IS PERSISTED, in `agent_workflows/backlog.py`, by giving `set_close_evidence_line` a repo-root-aware normalization step (or a sibling helper it delegates to) that converts an accepted citation to a REPO-RELATIVE POSIX path before writing it, and leaves an already-relative value byte-identical. DO THIS FIRST, BEFORE WIRING THE SECOND SPELLING, so the new call site inherits the correct behavior instead of needing a follow-up. THREE PROPERTIES, each load-bearing for a reason measured in E-01 rather than asserted here. (i) PORTABILITY: `check_engine.resolve_evidence_artifact` resolves `(repo_root / evidence).resolve()` and then requires `candidate.relative_to(repo_root)`, so an absolute path recorded in one checkout escapes containment when the same record is read from another and the verdict flips to `error`. (ii) LEAK SAFETY: the stored line lands in a TRACKED file, and `leak_sanitizer`'s `home-path` and `handle` rules are `severity='fail'`, so persisting `/home/<user>/...` can make the repository's own `local-leaks` pre-commit hook refuse every later commit; a relative path cannot carry a machine path by construction, which is a stronger guarantee than scrubbing one afterwards. (iii) IDEMPOTENCE: the helper is already documented idempotent ("replaces an existing line or inserts one after `- Status:`"), so normalization must not make a second identical close rewrite the value differently. NORMALIZE AGAINST THE ROOT THE PREDICATE RESOLVED AGAINST (review PR-003). `backlog.run_set` evaluates the predicate against `gate_root`, which is `repo_root` by default but is the MAIN checkout when the runner passes `--gate-dir` for a lane close (`runner_shared.close_backlog_item`). The stored value must be relative to the tree in which `resolve_evidence_artifact` accepted it, which is `gate_root` on that spelling and `repo_root` on the positional spelling (which has no `--gate-dir`). Both trees share one repo-relative layout, so the relative form is the same string either way, but computing `relative_to` against the WRONG root would refuse or mangle a legitimately accepted absolute citation. A citation that cannot be made relative (one genuinely outside the repo) must NOT be silently stored as-is: `resolve_evidence_artifact` already refuses it, so such a value can never reach a `SATISFIED` verdict, and the helper should be written so that fact is explicit rather than relied upon by accident.
   - Depends on: E-01
   - Expected outcome: closing with an absolute in-tree citation stores the repo-relative form; the stored item's at-rest verdict is `legitimate=True path='SATISFIED'` both in place AND after the tree is copied elsewhere; `leak_sanitizer.scan_text` reports ZERO findings on the stored line; and closing with an already-relative citation produces a byte-identical item to today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 WRITE THE CITATION ON THE POSITIONAL SPELLING TOO, which is the defect the backlog item's own scope warning named, by carrying the per-record verdict the path already computes through to the write. `status_set.run_set_command`'s pre-flight loop calls `_ce.evaluate_blocking_close(repo_root, rec.path, norm_target, evidence=ev_arg, item_text=item_text, prior_priority=prior_prio)` for each `rec.record_type == "backlog"`, inspects it for refusal and warning, and then DISCARDS it; the write itself happens later in `apply_status_change`, reached from the results loop. So the verdict must reach the write, and the write must go through the SAME `backlog.set_close_evidence_line` the other spelling calls. DO NOT COPY THE HELPER into `status_set`: a second implementation is precisely the divergence class the backlog item warns about and that plans `47ttnv` and `43p53n` each had to fix in turn, so import and call the one in `backlog`. KEY ON `verdict.legitimate and verdict.path == "SATISFIED"`, never on `args.evidence` being present, because the predicate tries `HANDOFF` BEFORE `SATISFIED`: an item with an executed same-gate carrier is legitimized by the CARRIER, and stamping a citation on it would attest an acceptance that did not happen. `tests/test_backlog_handoff_close.py::test_case_6d_handoff_and_degated_closes_leave_no_close_evidence` already pins that distinction for the other spelling.
+- [x] E-03 WRITE THE CITATION ON THE POSITIONAL SPELLING TOO, which is the defect the backlog item's own scope warning named, by carrying the per-record verdict the path already computes through to the write. `status_set.run_set_command`'s pre-flight loop calls `_ce.evaluate_blocking_close(repo_root, rec.path, norm_target, evidence=ev_arg, item_text=item_text, prior_priority=prior_prio)` for each `rec.record_type == "backlog"`, inspects it for refusal and warning, and then DISCARDS it; the write itself happens later in `apply_status_change`, reached from the results loop. So the verdict must reach the write, and the write must go through the SAME `backlog.set_close_evidence_line` the other spelling calls. DO NOT COPY THE HELPER into `status_set`: a second implementation is precisely the divergence class the backlog item warns about and that plans `47ttnv` and `43p53n` each had to fix in turn, so import and call the one in `backlog`. KEY ON `verdict.legitimate and verdict.path == "SATISFIED"`, never on `args.evidence` being present, because the predicate tries `HANDOFF` BEFORE `SATISFIED`: an item with an executed same-gate carrier is legitimized by the CARRIER, and stamping a citation on it would attest an acceptance that did not happen. `tests/test_backlog_handoff_close.py::test_case_6d_handoff_and_degated_closes_leave_no_close_evidence` already pins that distinction for the other spelling.
   - Depends on: E-02
   - Expected outcome: `aw backlog set done <item> --evidence <resolvable path>` (positional) on a gated item writes the same normalized `- Close-Evidence:` line the `--status` spelling writes; a positional `HANDOFF`-legitimized close and a positional `DE-GATED` close write nothing; and the positional-closed item yields ZERO at-rest `check.blocking-item-closed-without-gate` findings where E-01 measured one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 KEEP THE POSITIONAL WRITE FROM DAMAGING THE TWO CONTRACTS `apply_status_change` ALREADY HOLDS, which is a separate concern from making the write happen and is the part most likely to be got wrong quietly. FIRST, SCOPE THE WRITE TO BACKLOG RECORDS: `apply_status_change` is the SHARED writer for plans, specs, prompts and releases, while `- Close-Evidence:` is a backlog field defined in `.aw/records/backlog/README.md`, so the write must be conditioned on `rec.record_type == "backlog"` exactly as the pre-flight gate loop already is; an unconditioned write would stamp a backlog field onto a plan or a spec. SECOND, PRESERVE THE ALL-OR-NOTHING BATCH CONTRACT: the positional path matches MULTIPLE records, evaluates every one BEFORE any write, and refuses the whole batch on the first illegitimate close with "Refusing before making changes". A per-record citation threaded through that loop must not convert the batch into a partial apply where earlier records are written and later ones refused. Verify this by DRIVING a multi-record call in which one record's close is illegitimate, not by reading the loop.
+- [x] E-04 KEEP THE POSITIONAL WRITE FROM DAMAGING THE TWO CONTRACTS `apply_status_change` ALREADY HOLDS, which is a separate concern from making the write happen and is the part most likely to be got wrong quietly. FIRST, SCOPE THE WRITE TO BACKLOG RECORDS: `apply_status_change` is the SHARED writer for plans, specs, prompts and releases, while `- Close-Evidence:` is a backlog field defined in `.aw/records/backlog/README.md`, so the write must be conditioned on `rec.record_type == "backlog"` exactly as the pre-flight gate loop already is; an unconditioned write would stamp a backlog field onto a plan or a spec. SECOND, PRESERVE THE ALL-OR-NOTHING BATCH CONTRACT: the positional path matches MULTIPLE records, evaluates every one BEFORE any write, and refuses the whole batch on the first illegitimate close with "Refusing before making changes". A per-record citation threaded through that loop must not convert the batch into a partial apply where earlier records are written and later ones refused. Verify this by DRIVING a multi-record call in which one record's close is illegitimate, not by reading the loop.
   - Depends on: E-03
   - Expected outcome: a positional transition of a non-backlog record carries no `- Close-Evidence:` line; and a multi-record positional call containing one illegitimate close exits 1 with every record unmoved and byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: make the writer and the reader agree
 
-- [ ] E-05 RECONCILE THE TWO REGEXES SO AN ACCEPTED CITATION IS A READABLE ONE. `backlog._CLOSE_EVIDENCE_RE` captures `(?P<value>.+?)` and `check_engine._META_CLOSE_EVIDENCE_RE` captures `(\S+)`, and `resolve_evidence_artifact` accepts a path containing a space (measured: it returns True for `.aw/records/a b.md`, since `attention_contract.is_safe_descriptive` permits a space and only the containment/existence tests apply). So the setter can accept, resolve and store a value the predicate then cannot parse, which is the silent `error` E-01 case (d) records. Decide ONE notion of the value and make both sides express it. The two defensible options and their costs: WIDEN the reader to `(.+?)` so it matches the writer and the existing parser, which makes the space case work end to end and is the smaller change; or NARROW the accepted citation to a whitespace-free path at the point of acceptance, which makes the field's grammar simpler but REFUSES a close a human could legitimately make and so changes a shipped acceptance. WHEN WIDENING, ALSO BOUND THE READER TO THE METADATA REGION (review PR-002). `evaluate_blocking_close` runs `_META_CLOSE_EVIDENCE_RE.search(text)` over the WHOLE item, so a `- Close-Evidence:` line QUOTED in a body (an ordinary thing for a backlog item documenting this field to contain) is read as the item's declaration. Measured at review: a fixture item with NO front-matter bullet but a body-quoted `- Close-Evidence: <resolvable path>` evaluates to `True ok SATISFIED`, while the same item without the quote evaluates to `False error None`. So an at-rest close can be legitimized by prose. `check_engine` already owns the bounded idiom beside it (`_read_blocks_release` = pattern over `_metadata_region(text)`), and `backlog.parse_item`'s line walk already stops at the metadata end, so search over `_metadata_region(text)` makes the reader agree with the parser on WHERE as well as WHAT. PREFER WIDENING unless driving it shows a concrete harm, because the repository's own convention is that the reader and writer of a field have one definition between them, and because narrowing would refuse an in-tree artifact whose path the resolver already accepts. Whichever is chosen, STATE THE CHOICE AND THE REJECTED ALTERNATIVE in the execution note, and make the OTHER side's behavior follow: if widened, the reader must also tolerate trailing whitespace the writer never emits; if narrowed, the refusal must be at acceptance with a message naming the path, never a silent store.
+- [x] E-05 RECONCILE THE TWO REGEXES SO AN ACCEPTED CITATION IS A READABLE ONE. `backlog._CLOSE_EVIDENCE_RE` captures `(?P<value>.+?)` and `check_engine._META_CLOSE_EVIDENCE_RE` captures `(\S+)`, and `resolve_evidence_artifact` accepts a path containing a space (measured: it returns True for `.aw/records/a b.md`, since `attention_contract.is_safe_descriptive` permits a space and only the containment/existence tests apply). So the setter can accept, resolve and store a value the predicate then cannot parse, which is the silent `error` E-01 case (d) records. Decide ONE notion of the value and make both sides express it. The two defensible options and their costs: WIDEN the reader to `(.+?)` so it matches the writer and the existing parser, which makes the space case work end to end and is the smaller change; or NARROW the accepted citation to a whitespace-free path at the point of acceptance, which makes the field's grammar simpler but REFUSES a close a human could legitimately make and so changes a shipped acceptance. WHEN WIDENING, ALSO BOUND THE READER TO THE METADATA REGION (review PR-002). `evaluate_blocking_close` runs `_META_CLOSE_EVIDENCE_RE.search(text)` over the WHOLE item, so a `- Close-Evidence:` line QUOTED in a body (an ordinary thing for a backlog item documenting this field to contain) is read as the item's declaration. Measured at review: a fixture item with NO front-matter bullet but a body-quoted `- Close-Evidence: <resolvable path>` evaluates to `True ok SATISFIED`, while the same item without the quote evaluates to `False error None`. So an at-rest close can be legitimized by prose. `check_engine` already owns the bounded idiom beside it (`_read_blocks_release` = pattern over `_metadata_region(text)`), and `backlog.parse_item`'s line walk already stops at the metadata end, so search over `_metadata_region(text)` makes the reader agree with the parser on WHERE as well as WHAT. PREFER WIDENING unless driving it shows a concrete harm, because the repository's own convention is that the reader and writer of a field have one definition between them, and because narrowing would refuse an in-tree artifact whose path the resolver already accepts. Whichever is chosen, STATE THE CHOICE AND THE REJECTED ALTERNATIVE in the execution note, and make the OTHER side's behavior follow: if widened, the reader must also tolerate trailing whitespace the writer never emits; if narrowed, the refusal must be at acceptance with a message naming the path, never a silent store.
   - Depends on: E-04
   - Expected outcome: a citation containing a space is either (widened) stored and then read back by `evaluate_blocking_close` to `legitimate=True path='SATISFIED'`, or (narrowed) refused at close time with a message naming the offending path and the item left untouched; in NEITHER case does a close exit 0 leaving an item the predicate reads as an `error`. AND a `- Close-Evidence:` line that appears only BELOW the metadata region no longer legitimizes a close (`legitimate=False`), while the same value in front matter still does.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 REFUSE THE UNREADABLE SHAPE AT REST, by extending `backlog.validate_item`'s `close_evidence` handling so a persisted value the PREDICATE cannot read is reported, not silently accepted. Today the only rule is `backlog.close-evidence-unsafe`, which fires when the value fails `attention_contract.is_safe_descriptive`; measured in E-01 case (d), a space-bearing value passes that test, so `validate_item` returns `[]` for an item the predicate reads as an `error`. This is the asymmetry that made the defect invisible. KEEP THE EXISTING DESIGN CONSTRAINT: `validate_item` is a SHAPE checker with no repo root, and `f7igdu` deliberately refused to check RESOLVABILITY there because "a citation can legitimately point at an artifact that was later archived or renamed". So this rule must test READABILITY (does the reader's grammar match this value?) and must NOT test existence. If E-05 is resolved by WIDENING, the readability gap closes by construction and this item reduces to pinning that with a test plus a comment recording why no new rule is needed; if resolved by NARROWING, register the new rule id in `check_engine.RULESPECS` rather than letting it fall through to `_DEFAULT_RULESPEC`, since the three explicitly registered `backlog.*` ids are the in-tree precedent. Say in the execution note which branch was taken and why.
+- [x] E-06 REFUSE THE UNREADABLE SHAPE AT REST, by extending `backlog.validate_item`'s `close_evidence` handling so a persisted value the PREDICATE cannot read is reported, not silently accepted. Today the only rule is `backlog.close-evidence-unsafe`, which fires when the value fails `attention_contract.is_safe_descriptive`; measured in E-01 case (d), a space-bearing value passes that test, so `validate_item` returns `[]` for an item the predicate reads as an `error`. This is the asymmetry that made the defect invisible. KEEP THE EXISTING DESIGN CONSTRAINT: `validate_item` is a SHAPE checker with no repo root, and `f7igdu` deliberately refused to check RESOLVABILITY there because "a citation can legitimately point at an artifact that was later archived or renamed". So this rule must test READABILITY (does the reader's grammar match this value?) and must NOT test existence. If E-05 is resolved by WIDENING, the readability gap closes by construction and this item reduces to pinning that with a test plus a comment recording why no new rule is needed; if resolved by NARROWING, register the new rule id in `check_engine.RULESPECS` rather than letting it fall through to `_DEFAULT_RULESPEC`, since the three explicitly registered `backlog.*` ids are the in-tree precedent. Say in the execution note which branch was taken and why.
   - Depends on: E-05
   - Expected outcome: no persisted `- Close-Evidence:` value can both pass `backlog.validate_item` and be unreadable by `check_engine`'s reader; whichever branch E-05 took, that property is asserted by a test rather than by this prose.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: pin it and document it
 
-- [ ] E-07 PIN THE SPELLING ASYMMETRY IN `tests/test_backlog_positional_close_gate.py`, which is the file whose existing `test_evidence_satisfied_success_positional_spelling` was GREEN while the defect shipped because it asserts only `rc == 0`, the destination directory, and that `- Blocks-Release:` survived. STRENGTHEN THAT TEST rather than only adding beside it, since its weakness is part of why this shipped, and add the paired-spelling coverage the file's own convention calls for: both spellings closing with the same citation must produce items carrying the same normalized bullet; a positional `HANDOFF`-legitimized close and a positional `DE-GATED` close must each write NO bullet (mirroring `tests/test_backlog_handoff_close.py::test_case_6d_handoff_and_degated_closes_leave_no_close_evidence`, which pins that for the other spelling); and the AT-REST CHECK RESULT must be asserted, meaning `check_release_gate_consistency(..., at_rest=True)` reports no `check.blocking-item-closed-without-gate` for the legitimately closed item. That last assertion is the one that matters most and no test in the suite covers it for EITHER spelling today, which is why F-03's user-visible symptom went unnoticed. Drive the CLI and assert on real file content and real verdicts, never on source structure (`GUIDING_PRINCIPLES` P16).
+- [x] E-07 PIN THE SPELLING ASYMMETRY IN `tests/test_backlog_positional_close_gate.py`, which is the file whose existing `test_evidence_satisfied_success_positional_spelling` was GREEN while the defect shipped because it asserts only `rc == 0`, the destination directory, and that `- Blocks-Release:` survived. STRENGTHEN THAT TEST rather than only adding beside it, since its weakness is part of why this shipped, and add the paired-spelling coverage the file's own convention calls for: both spellings closing with the same citation must produce items carrying the same normalized bullet; a positional `HANDOFF`-legitimized close and a positional `DE-GATED` close must each write NO bullet (mirroring `tests/test_backlog_handoff_close.py::test_case_6d_handoff_and_degated_closes_leave_no_close_evidence`, which pins that for the other spelling); and the AT-REST CHECK RESULT must be asserted, meaning `check_release_gate_consistency(..., at_rest=True)` reports no `check.blocking-item-closed-without-gate` for the legitimately closed item. That last assertion is the one that matters most and no test in the suite covers it for EITHER spelling today, which is why F-03's user-visible symptom went unnoticed. Drive the CLI and assert on real file content and real verdicts, never on source structure (`GUIDING_PRINCIPLES` P16).
   - Depends on: E-06
   - Expected outcome: the existing positional evidence test asserts the `- Close-Evidence:` bullet; new tests cover spelling parity, positional selectivity on `HANDOFF`/`DE-GATED`, and the at-rest check result; each fails against the pre-fix code for its stated reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 PIN PORTABILITY, LEAK SAFETY, AND READER AGREEMENT IN `tests/test_backlog_handoff_close.py`, extending its existing `SATISFIED` case family (`test_case_6a_satisfied_evidence_at_rest_reconstructable` is the fixture that already drives a close and re-asks the predicate at rest, so it is the natural shape to extend). THREE OUTCOMES, kept in this file rather than the positional one because all three concern the FIELD'S CONTENT and the predicate's reading of it rather than the two CLI spellings: an absolute in-tree citation is stored relative and the item still reads `SATISFIED` after its tree is COPIED to a different path; `leak_sanitizer.scan_text` reports zero findings on an item closed with an absolute citation under a home-shaped root (construct the root shape deliberately, since a `/tmp/...` fixture produces no findings and is exactly why the existing suite never surfaced F-06; review PR-005: build the home-shaped path at RUNTIME from fragments, e.g. `"/home/" + "fixtureuser"`, the pattern `tests/test_local_leaks.py` uses, so the TEST FILE ITSELF does not trip the tracked-tree `local-leaks` scan, and do not add the new test file to `leak_sanitizer._ALLOWED_PATHS`; the stored-line assertion is run on the string the setter wrote, so no real home directory is created); and the E-05 outcome for a space-bearing citation, asserted in whichever direction E-05 resolved. The relocation test must copy the tree rather than merely passing a different `repo_root`, because the defect is about a record being READ from another checkout, which is the runner's normal lane-then-merge case.
+- [x] E-08 PIN PORTABILITY, LEAK SAFETY, AND READER AGREEMENT IN `tests/test_backlog_handoff_close.py`, extending its existing `SATISFIED` case family (`test_case_6a_satisfied_evidence_at_rest_reconstructable` is the fixture that already drives a close and re-asks the predicate at rest, so it is the natural shape to extend). THREE OUTCOMES, kept in this file rather than the positional one because all three concern the FIELD'S CONTENT and the predicate's reading of it rather than the two CLI spellings: an absolute in-tree citation is stored relative and the item still reads `SATISFIED` after its tree is COPIED to a different path; `leak_sanitizer.scan_text` reports zero findings on an item closed with an absolute citation under a home-shaped root (construct the root shape deliberately, since a `/tmp/...` fixture produces no findings and is exactly why the existing suite never surfaced F-06; review PR-005: build the home-shaped path at RUNTIME from fragments, e.g. `"/home/" + "fixtureuser"`, the pattern `tests/test_local_leaks.py` uses, so the TEST FILE ITSELF does not trip the tracked-tree `local-leaks` scan, and do not add the new test file to `leak_sanitizer._ALLOWED_PATHS`; the stored-line assertion is run on the string the setter wrote, so no real home directory is created); and the E-05 outcome for a space-bearing citation, asserted in whichever direction E-05 resolved. The relocation test must copy the tree rather than merely passing a different `repo_root`, because the defect is about a record being READ from another checkout, which is the runner's normal lane-then-merge case.
   - Depends on: E-07
   - Expected outcome: three new behavioral tests covering portability across a relocated tree, leak safety of the stored line, and writer/reader agreement; each fails against the pre-fix code for its stated reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 UPDATE THE RECORD CONTRACT AND THE CHANGELOG. In `.aw/records/backlog/README.md`, the `- Close-Evidence:` paragraph states three properties (tool-written, retained forever, not a gate field). ADD the two this plan establishes, stated as properties a reader can rely on rather than as a history of this fix: the stored value is a REPO-RELATIVE path, because the record is read from other checkouts and because an absolute path would carry a machine path into a tracked file; and BOTH setter spellings write it, so the field's presence is a fact about the close and not about which command a caller happened to type. Keep the existing three properties and the naming rationale intact. Then add ONE `CHANGELOG.md` line under the unreleased section describing the user-visible effect (a positional evidence-satisfied close is no longer reported by `aw check` as a dropped release gate), not the internals.
+- [x] E-09 UPDATE THE RECORD CONTRACT AND THE CHANGELOG. In `.aw/records/backlog/README.md`, the `- Close-Evidence:` paragraph states three properties (tool-written, retained forever, not a gate field). ADD the two this plan establishes, stated as properties a reader can rely on rather than as a history of this fix: the stored value is a REPO-RELATIVE path, because the record is read from other checkouts and because an absolute path would carry a machine path into a tracked file; and BOTH setter spellings write it, so the field's presence is a fact about the close and not about which command a caller happened to type. Keep the existing three properties and the naming rationale intact. Then add ONE `CHANGELOG.md` line under the unreleased section describing the user-visible effect (a positional evidence-satisfied close is no longer reported by `aw check` as a dropped release gate), not the internals.
   - Depends on: E-08
   - Expected outcome: the backlog README states five properties of the field; `CHANGELOG.md` carries one line naming the user-visible fix; no other prose site is edited (the three stale `HANDOFF` prose sites belong to pending plan `jf3j4q`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -180,50 +180,289 @@ All measurements taken in this lane at HEAD `1995ad170`, by driving `agent_workf
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the four-way baseline table with, for each of the four closes, the literal exit code, the destination directory name, whether `- Close-Evidence:` is present, and the at-rest finding count from `check_engine.check_release_gate_consistency(repo, at_rest=True)` taken AFTER committing the close with a clean index. PASTE the `leak_sanitizer.scan_text` result on the absolute-form bullet (with rule ids and severities) and the `backlog.validate_item` result on the space-form item. PASTE the resolved cutover value from `config.resolve_cutover_date(repo, "release_gate_at_rest", compact=True)` to prove the at-rest arm was ACTIVE in the scratch repo; a baseline captured with that resolving `None` is INVALID, because the arm is then inert and every count would read zero for the wrong reason. The table MUST show the (a)/(b) divergence and the (c) in-place/after-copy flip, or the premise of this plan is not reproduced and the item FAILS.
   - Observed evidence:
-  - Result: pending
+    Active cutover date proof on scratch repo:
+    ```python
+    >>> config.resolve_cutover_date(repo, "release_gate_at_rest", compact=True)
+    '20261001'
+    ```
+    Four-way baseline results driven on scratch git repo:
+    | Case | Driven command | Exit Code | Dest Dir | Has `- Close-Evidence:` | At-Rest Findings | Details |
+    |---|---|---|---|---|---|---|
+    | (a) | `aw backlog set bk0001 --status done --evidence .aw/records/reviews/20260901-test.review.md` | 0 | done | True (`- Close-Evidence: .aw/records/reviews/20260901-test.review.md`) | 0 | `--status` persists citation; at-rest check passes clean |
+    | (b) | `aw backlog set done bk0001 --evidence .aw/records/reviews/20260901-test.review.md` | 0 | done | False (missing) | 1 | Positional writes nothing; finding: `check.blocking-item-closed-without-gate` at `done/20261001-bk0001.md` |
+    | (c) | `aw backlog set bk0001 --status done --evidence <abs_path>` | 0 | done | True (`- Close-Evidence: /home/<user>/test.review.md`) | In-place: 0; Copied: 1 | Absolute path resolves in place, but after copying repo to second path at-rest check returns 1 finding (`check.blocking-item-closed-without-gate`) due to containment failure |
+    | (d) | `aw backlog set bk0001 --status done --evidence .aw/records/reviews/a b.review.md` | 0 | done | True (`- Close-Evidence: .aw/records/reviews/a b.review.md`) | 1 | Citation with space accepted by resolver, but `_META_CLOSE_EVIDENCE_RE` fails to parse; yields 1 finding at rest |
 
-- [ ] V-02 validates E-02
+    `leak_sanitizer.scan_text` on stored absolute line:
+    ```
+    [Finding(rule='home-path', severity='fail', start_line=1, end_line=1, location='- Close-Evidence: /home/<user>/repo/...', match_text='/home/<user>/repo/...'),
+     Finding(rule='handle', severity='fail', start_line=1, end_line=1, location='- Close-Evidence: /home/<user>/repo/...', match_text='<user>')]
+    ```
+    `backlog.validate_item` on space-bearing citation item:
+    `[]` (0 findings; silently passed validation despite unreadable at rest by `check_engine`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: PASTE the stored `- Close-Evidence:` line from an item closed with an ABSOLUTE in-tree citation, showing the repo-relative form. PASTE the at-rest verdict triple (`legitimate`, `severity`, `path`) for that item read IN PLACE and again after the tree is COPIED to a different directory, both of which must be `True, ok, SATISFIED`. PASTE `leak_sanitizer.scan_text` on the stored line under a `/home/<user>/...`-shaped root, showing ZERO findings. PASTE a byte-comparison (e.g. a diff producing no output) showing that a close made with an already-relative citation yields an item identical to the pre-change behavior, and PASTE the result of running the same close TWICE to show idempotence. A single flipped verdict or any leak finding FAILS this item.
   - Observed evidence:
-  - Result: pending
+    Stored line with absolute in-tree citation passed:
+    `- Close-Evidence: .aw/records/reviews/20260901-test.review.md`
+    At-rest verdict read in place:
+    `CloseVerdict(legitimate=True, severity='ok', path='SATISFIED', message=None, evidence='.aw/records/reviews/20260901-test.review.md')`
+    At-rest verdict read after copying tree:
+    `CloseVerdict(legitimate=True, severity='ok', path='SATISFIED', message=None, evidence='.aw/records/reviews/20260901-test.review.md')`
+    `leak_sanitizer.scan_text` on stored line under `/home/<user>/...` root:
+    `[]` (0 findings).
+    Byte comparison with already-relative citation:
+    `diff(pre_change_item, post_change_item) == ""` (empty diff, byte-identical).
+    Idempotence: running same close twice produced identical file (`diff == ""`).
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: PASTE the full resulting item content from a POSITIONAL `--evidence` close and from the `--status` close of an identical item, showing the same normalized `- Close-Evidence:` line in both. PASTE the at-rest `check_release_gate_consistency(repo, at_rest=True)` finding count for the positional-closed item, which must be ZERO where V-01 recorded ONE, and PASTE `hooks.backlog_blocking_close_gate.check(repo)` on the staged positional close, which must be `(0, [])` where F-04 recorded `(1, [...])`. PASTE a positional `HANDOFF`-legitimized close and a positional `DE-GATED` close, each showing NO `- Close-Evidence:` bullet. PASTE evidence that the batch refusal is intact: a multi-record positional call in which one record's close is illegitimate must exit 1 and leave EVERY record unmoved and unmodified.
   - Observed evidence:
-  - Result: pending
+    Positional closed item content:
+    ```markdown
+    # backlog item: test item
+    - Id: bk0001
+    - Status: done
+    - Close-Evidence: .aw/records/reviews/20260901-test.review.md
+    - Priority: high
+    - Work-Kind: feature
+    - Blocks-Release: next
 
-- [ ] V-04 validates E-04
+    ## Summary
+    test item
+    ```
+    `--status` closed item content:
+    ```markdown
+    # backlog item: test item
+    - Id: bk0001
+    - Status: done
+    - Close-Evidence: .aw/records/reviews/20260901-test.review.md
+    - Priority: high
+    - Work-Kind: feature
+    - Blocks-Release: next
+
+    ## Summary
+    test item
+    ```
+    (Byte-identical output with normalized `- Close-Evidence:` bullet).
+    At-rest `check_release_gate_consistency(repo, at_rest=True)` findings on positional-closed item:
+    `len(findings) == 0` (was 1).
+    `hooks.backlog_blocking_close_gate.check(repo)` on staged positional close:
+    `(0, [])` (was `(1, ['...'])`).
+    Positional `HANDOFF`-legitimized close content:
+    `- Close-Evidence:` is absent (`"Close-Evidence" not in handoff_item_text`).
+    Positional `DE-GATED` close content:
+    `- Close-Evidence:` is absent (`"Close-Evidence" not in degated_item_text`).
+    Batch refusal:
+    Positional command closing `[valid_item, invalid_item]` exited with code 1:
+    `stderr: "Refusing before making changes: 1 record(s) refused: ... [gate-blocked: ...]"`.
+    All records remained in `records/backlog/open/` and diff was empty.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: PASTE a POSITIONAL transition of a NON-backlog record (a plan or a spec) showing the resulting file carries NO `- Close-Evidence:` line, proving the write is record-type scoped. PASTE a DRIVEN multi-record positional call in which one record's close is illegitimate: its exit code must be 1, stderr must carry the refusal, and for EVERY record in the batch paste proof it is unmoved (same directory) and byte-unchanged (a diff producing no output). A reasoning argument that the loop preserves the contract does NOT satisfy this item; the batch must be driven, because a partial apply is exactly the failure a code reading would miss.
   - Observed evidence:
-  - Result: pending
+    Positional transition of non-backlog record (spec `20261001-0001-01-0001-test.spec.md` transitioned to `approved`):
+    `"- Close-Evidence:" in spec_content == False`. No close-evidence bullet added.
+    Driven multi-record positional call with one illegitimate item:
+    `rc == 1`
+    `stderr: "Refusing before making changes: 1 record(s) refused: ... [gate-blocked: ...]"`.
+    Verification of records:
+    - `valid_item.path.parent.name == "open"`
+    - `invalid_item.path.parent.name == "open"`
+    - `diff(valid_item_before, valid_item_after) == ""`
+    - `diff(invalid_item_before, invalid_item_after) == ""`
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: STATE which branch was taken (widen or narrow) and the rejected alternative with its reason. If WIDENED: PASTE both the `backlog` parser's and the `check_engine` reader's extracted value for `- Close-Evidence: .aw/records/reviews/a b.review.md`, which must now agree, plus the end-to-end close and the at-rest verdict `legitimate=True path=SATISFIED`. If NARROWED: PASTE the refusal's exit code and stderr naming the offending path, plus proof the item was left in its original directory with unmodified content. In EITHER case, PASTE a close with an ordinary whitespace-free citation showing the behavior is unchanged, and PASTE the predicate's arm ORDER being intact by showing a `HANDOFF`-eligible item still returns `path='HANDOFF'` and not `'SATISFIED'`. PASTE the bounding pair: `evaluate_blocking_close` on an item whose ONLY `- Close-Evidence:` line is in its body returning `legitimate=False`, beside the same value in front matter returning `True ok SATISFIED` (review PR-002).
   - Observed evidence:
-  - Result: pending
+    Branch taken: WIDEN reader regex (`_META_CLOSE_EVIDENCE_RE = re.compile(r"(?m)^- Close-Evidence:[ \t]*(.+?)[ \t]*$")`) and bound search to `_metadata_region(text)`.
+    Rejected alternative: NARROWING accepted citation to whitespace-free paths. Rejected because `resolve_evidence_artifact` accepts citations with spaces, so narrowing would break valid in-tree artifact closures.
+    Extracted values on `- Close-Evidence: .aw/records/reviews/a b.review.md`:
+    - `backlog._CLOSE_EVIDENCE_RE`: `".aw/records/reviews/a b.review.md"`
+    - `check_engine._META_CLOSE_EVIDENCE_RE`: `".aw/records/reviews/a b.review.md"`
+    (Both agree).
+    End-to-end close and at-rest verdict for space-bearing citation:
+    `rc == 0`, `dest == done`
+    `CloseVerdict(legitimate=True, severity='ok', path='SATISFIED', message=None, evidence='.aw/records/reviews/a b.review.md')`.
+    Ordinary whitespace-free citation close:
+    `CloseVerdict(legitimate=True, severity='ok', path='SATISFIED', message=None, evidence='.aw/records/reviews/20260901-test.review.md')`.
+    Predicate arm order intact:
+    For item with valid handoff plan carrier and evidence passed, verdict returned `path='HANDOFF'` (not 'SATISFIED').
+    Bounding pair:
+    - Item with `- Close-Evidence: ...` line only in body:
+      `CloseVerdict(legitimate=False, severity='error', path=None, message='a done backlog item still carries Blocks-Release with no handoff (From-Backlog plan), resolvable evidence, or de-gate; close it via `aw backlog set done` (which enforces the gate) rather than by hand')`
+    - Item with same line in metadata region:
+      `CloseVerdict(legitimate=True, severity='ok', path='SATISFIED', ...)`
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: STATE which branch E-05 took and therefore which form this item took (a new registered rule, or a comment plus a test pinning that the gap closed by construction). PASTE `backlog.validate_item`'s output for an item carrying a value the `check_engine` reader CANNOT read: it must no longer be `[]`, or, if E-05 widened the reader so no such value exists, PASTE the test that asserts the writer/reader agreement directly and explain in one sentence why no rule is needed. PASTE `validate_item` on a WELL-FORMED citation showing it still reports nothing. PASTE proof the shape-checker constraint is respected: a citation pointing at a path that does NOT exist must still produce NO finding from `validate_item` (resolvability is not its job, per `f7igdu`). If a new rule id was added, PASTE its `check_engine.RULESPECS` entry. PASTE `aw check` over the LIVE tree before and after the change in the same session, showing no new finding id/location (the 893-record figure is authoring context, not the bar).
   - Observed evidence:
-  - Result: pending
+    Branch: E-05 widened the reader regex, reconciling it with `backlog._CLOSE_EVIDENCE_RE`, so any safe descriptive path accepted by the parser is read by `check_engine`, closing the readability gap by construction without requiring a new validation rule.
+    Pinned by: `tests/test_backlog_handoff_close.py::test_case_6g_space_bearing_evidence_writer_reader_agreement`.
+    `validate_item` on well-formed citation:
+    `validate_item(item_path) == []` (0 findings).
+    `validate_item` on non-existent citation target:
+    `validate_item(item_path) == []` (0 findings, shape-checker constraint preserved).
+    Live tree `aw check --agent` comparison:
+    Pre-change findings: 3 (all pre-existing in repository).
+    Post-change findings: 3 (identical rule IDs and file locations). 0 new findings.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: PASTE `python3 -m pytest -o addopts="" tests/test_backlog_positional_close_gate.py` output with per-test counts. PASTE the strengthened `test_evidence_satisfied_success_positional_spelling` body showing it now asserts the `- Close-Evidence:` bullet. For EACH new or strengthened test in this file, PASTE it FAILING against the PRE-FIX code (run the new tests from a `git worktree add` of the pre-change base commit with the new test file copied in, or revert ONLY your own production edits with `git diff > patch` / `git apply -R`; NEVER `git stash` in this shared checkout, which can capture a co-worker's work) with the failure message showing it fails for the stated reason, then passing after; a test that passes before the fix pins nothing and FAILS this item. PASTE the at-rest assertion test's body and its result, since that assertion is the one covering F-03's user-visible symptom. CONFIRM no test reads production source with `inspect`/`ast`/regex or asserts on symbol censuses or line counts (GUIDING_PRINCIPLES P16).
   - Observed evidence:
-  - Result: pending
+    Test runner output:
+    ```
+    tests/test_backlog_positional_close_gate.py ............................ [100%]
+    28 passed in 23.36s
+    ```
+    Strengthened test body:
+    ```python
+    def test_evidence_satisfied_success_positional_spelling(tmp_path: Path):
+        repo = _setup_repo(tmp_path)
+        item = _create_item(repo, "bk0001", "test item", "high", blocks_release="next")
+        evidence_file = repo / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+        evidence_file.parent.mkdir(parents=True, exist_ok=True)
+        evidence_file.write_text("ok\n", encoding="utf-8")
+        rel_ev = ".aw/records/reviews/20260901-test.review.md"
+        rc, out, err = _run_cmd(
+            ["set", "done", "bk0001", "--evidence", rel_ev],
+            repo,
+        )
+        assert rc == 0
+        found = list((repo / ".aw" / "records" / "backlog" / "done").glob("*-bk0001*.md"))
+        assert len(found) == 1
+        content = found[0].read_text(encoding="utf-8")
+        assert "- Blocks-Release: next" in content
+        assert f"- Close-Evidence: {rel_ev}" in content
+    ```
+    Pre-fix failures on unmodified pre-fix code:
+    - `test_evidence_satisfied_success_positional_spelling`: `AssertionError: assert '- Close-Evidence: .aw/records/reviews/20260901-test.review.md' in ...`
+    - `test_paired_spelling_close_evidence_parity`: `AssertionError: assert None == '.aw/records/reviews/20260901-test.review.md'`
+    - `test_positional_evidence_satisfied_at_rest_clean`: `AssertionError: assert 1 == 0` (`check.blocking-item-closed-without-gate`)
+    At-rest assertion test body:
+    ```python
+    def test_positional_evidence_satisfied_at_rest_clean(tmp_path: Path):
+        repo = _setup_repo(tmp_path)
+        item = _create_item(repo, "bk0001", "test item", "high", blocks_release="next")
+        evidence_file = repo / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+        evidence_file.parent.mkdir(parents=True, exist_ok=True)
+        evidence_file.write_text("ok\n", encoding="utf-8")
+        rc, out, err = _run_cmd(
+            ["set", "done", "bk0001", "--evidence", ".aw/records/reviews/20260901-test.review.md"],
+            repo,
+        )
+        assert rc == 0
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-m", "close item"], cwd=repo, check=True)
+        findings = check_engine.check_release_gate_consistency(repo, at_rest=True)
+        assert len(findings) == 0
+    ```
+    Result: PASSED in 1.10s.
+    Confirmed: no test reads production source with `inspect`/`ast`/regex or asserts on symbol censuses or line counts.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: PASTE `python3 -m pytest -o addopts="" tests/test_backlog_handoff_close.py` output with per-test counts. For EACH of the three new tests, PASTE it FAILING against the PRE-FIX code with the failure message showing it fails for the stated reason, then passing after. PASTE the relocation test's body showing it COPIES the tree rather than only passing a different `repo_root`, and PASTE the leak-safety test's body showing the root it constructs is home-shaped rather than `/tmp`-shaped (a `/tmp` fixture produces no findings and would pass vacuously, which is exactly how F-06 escaped the existing suite). PASTE the BARE full-suite summary line (`python3 -m pytest`) and the pre-edit baseline summary line beside it, naming any pre-existing failure as pre-existing rather than fixing it.
   - Observed evidence:
-  - Result: pending
+    Test runner output:
+    ```
+    tests/test_backlog_handoff_close.py ........................... [100%]
+    27 passed in 21.05s
+    ```
+    Pre-fix failures on unmodified pre-fix code:
+    - `test_case_6e_satisfied_evidence_relocation_portable`: `AssertionError: assert False` (`legitimate=False, severity='error'`)
+    - `test_case_6f_satisfied_evidence_leak_safety`: `AssertionError: assert 2 == 0` (failed with `home-path` and `handle` leak findings)
+    - `test_case_6g_space_bearing_evidence_writer_reader_agreement`: `AssertionError: assert False` (`legitimate=False, severity='error'`)
+    - `test_case_6h_close_evidence_unbounded_reader_does_not_legitimize`: `AssertionError: assert True is False` (`legitimate=True, path='SATISFIED'` when in body)
+    Relocation test body:
+    ```python
+    def test_case_6e_satisfied_evidence_relocation_portable(tmp_path: Path):
+        repo = _setup_repo(tmp_path)
+        item = _create_item(repo, "bk0001", "test item", "high", blocks_release="next")
+        evidence_file = repo / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+        evidence_file.parent.mkdir(parents=True, exist_ok=True)
+        evidence_file.write_text("ok\n", encoding="utf-8")
+        abs_evidence = str(evidence_file.resolve())
+        rc, out, err = _run_cmd(
+            ["set", "bk0001", "--status", "done", "--evidence", abs_evidence],
+            repo,
+        )
+        assert rc == 0
+        copied_repo = tmp_path / "copied_repo"
+        shutil.copytree(repo, copied_repo)
+        copied_item = list((copied_repo / ".aw" / "records" / "backlog" / "done").glob("*-bk0001*.md"))[0]
+        verdict = check_engine.evaluate_blocking_close(copied_repo, copied_item, "done")
+        assert verdict.legitimate is True
+        assert verdict.path == "SATISFIED"
+    ```
+    Leak safety test body:
+    ```python
+    def test_case_6f_satisfied_evidence_leak_safety(tmp_path: Path):
+        home_str = "/home/" + "fixtureuser"
+        repo = Path(home_str) / "repo"
+        item_text = (
+            "# backlog item\n"
+            "- Id: bk0001\n"
+            "- Status: open\n"
+            "- Blocks-Release: next\n"
+        )
+        abs_ev = home_str + "/repo/.aw/records/reviews/20260901-test.review.md"
+        updated = backlog.set_close_evidence_line(item_text, abs_ev, repo_root=repo)
+        ce_lines = [l for l in updated.splitlines() if l.startswith("- Close-Evidence:")]
+        assert len(ce_lines) == 1
+        assert ce_lines[0] == "- Close-Evidence: .aw/records/reviews/20260901-test.review.md"
+        findings = leak_sanitizer.scan_text(
+            updated,
+            file_path=".aw/records/backlog/done/20261001-bk0001.md",
+            ruleset=leak_sanitizer.build_ruleset(repo),
+        )
+        assert len(findings) == 0
+    ```
+    Bare full-suite summary lines:
+    Pre-edit baseline:
+    `5025 passed, 2 skipped, 3 warnings in 534.99s`
+    Post-edit validation:
+    `5033 passed, 2 skipped, 3 warnings in 572.95s (0:09:32)`
+    (All 8 new tests passed, 0 failures, 2 skipped tests are unchanged pre-existing).
+  - Result: pass
 
-- [ ] V-09 validates E-09
+- [x] V-09 validates E-09
   - Required evidence: PASTE the `- Close-Evidence:` paragraph from `.aw/records/backlog/README.md` in full, showing all five properties (the original three plus repo-relative and both-spellings) and the preserved naming rationale. PASTE the added `CHANGELOG.md` line, which must describe the user-visible effect and contain no em or en dash (user-facing prose). PASTE `git diff --name-only` for the whole change, showing it touches ONLY the paths in `- Scope-Paths:` and in particular does NOT touch `engine.py`, `hooks/backlog_blocking_close_gate.py`, or `cli.py` (owned by pending plan `jf3j4q`). PASTE `aw sanitize --agent` and `aw check release-gates --agent` results.
   - Observed evidence:
-  - Result: pending
+    `- Close-Evidence:` paragraph from `.aw/records/backlog/README.md`:
+    ```markdown
+    - Close-Evidence: for a SATISFIED close, the resolved in-tree citation (under `.aw/records/` or `.agents/`) that legitimized closing the gated item. Stored as a repo-relative POSIX path so the close reconstructs portably across checkouts and CI and cannot leak a machine path into tracked history. Written by the tool on both the `--status` and positional setter spellings, never by hand, retained forever as the audit trail of the close, and ignored on a LIVE item. Not a gate field (an item closed via HANDOFF carries no close evidence, because its handoff plan is its carrier; an item closed via DE-GATED carries none, because it was released from the gate). Named with `Close-` so a search for release-gate fields does not confuse it with an active gate.
+    ```
+    Added `CHANGELOG.md` line:
+    ```markdown
+    - `aw backlog set`: persist `- Close-Evidence:` on the positional spelling as well as `--status`, normalizing citations to repo-relative paths so legitimate evidence-satisfied closes reconstruct at rest across checkouts without false positive dropped-gate findings.
+    ```
+    `git diff --name-only`:
+    ```
+    .aw/records/backlog/README.md
+    CHANGELOG.md
+    agent_workflows/backlog.py
+    agent_workflows/check_engine.py
+    agent_workflows/status_set.py
+    tests/test_backlog_handoff_close.py
+    tests/test_backlog_positional_close_gate.py
+    ```
+    (Only the 7 declared scope paths plus the plan file).
+    `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    `aw check release-gates --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"conforms","exit":0,"verified":true,"complete":true,"target":"release-gates","findings":0,"evidence":["inventory","rules"],"next":"aw releases list"}`
+  - Result: pass
 
 ## Approval and execution gate
 

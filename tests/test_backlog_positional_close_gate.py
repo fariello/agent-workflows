@@ -548,7 +548,12 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(rc, 0)
             found = _find_item(repo, "bk0001")
             self.assertEqual(found.parent.name, "done")
-            self.assertIn("- Blocks-Release: next", found.read_text(encoding="utf-8"))
+            content = found.read_text(encoding="utf-8")
+            self.assertIn("- Blocks-Release: next", content)
+            self.assertIn(
+                "- Close-Evidence: .aw/records/reviews/20260901-test.review.md",
+                content,
+            )
 
     # =========================================================================
     # V-03 / E-03: Evidence unresolvable refusal
@@ -717,3 +722,272 @@ class TestBacklogPositionalCloseGate(unittest.TestCase):
             self.assertEqual(found.parent.name, "open")
             self.assertEqual(found.read_bytes(), original_bytes)
             self.assertIn("refused", err.getvalue())
+
+    # =========================================================================
+    # gh409m byzkr7 E-03 / E-04 / E-07: Close-Evidence persistence and parity
+    # =========================================================================
+
+    def test_evidence_satisfied_both_spellings_parity(self) -> None:
+        """Both setter spellings persist the same normalized - Close-Evidence: bullet."""
+        with tempfile.TemporaryDirectory() as tmp1, tempfile.TemporaryDirectory() as tmp2:
+            repo1 = _setup_repo(Path(tmp1))
+            repo2 = _setup_repo(Path(tmp2))
+            _create_item(repo1, status="open", work_kind="bug", blocks_release="next")
+            _create_item(repo2, status="open", work_kind="bug", blocks_release="next")
+
+            ev1 = repo1 / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+            ev1.parent.mkdir(parents=True, exist_ok=True)
+            ev1.write_text("# Review\n", encoding="utf-8")
+
+            ev2 = repo2 / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+            ev2.parent.mkdir(parents=True, exist_ok=True)
+            ev2.write_text("# Review\n", encoding="utf-8")
+
+            rel_ev = ".aw/records/reviews/20260901-test.review.md"
+
+            # 1. --status spelling
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc1 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "bk0001",
+                        "--status",
+                        "done",
+                        "--evidence",
+                        rel_ev,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo1),
+                    ]
+                )
+            self.assertEqual(rc1, 0)
+            item1 = _find_item(repo1, "bk0001")
+            content1 = item1.read_text(encoding="utf-8")
+            self.assertIn(f"- Close-Evidence: {rel_ev}", content1)
+
+            # 2. positional spelling
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc2 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        rel_ev,
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo2),
+                    ]
+                )
+            self.assertEqual(rc2, 0)
+            item2 = _find_item(repo2, "bk0001")
+            content2 = item2.read_text(encoding="utf-8")
+            self.assertIn(f"- Close-Evidence: {rel_ev}", content2)
+
+    def test_positional_handoff_and_degated_closes_leave_no_close_evidence(
+        self,
+    ) -> None:
+        """Positional HANDOFF close and DE-GATED close write NO - Close-Evidence: bullet."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            _create_item(
+                repo,
+                item_id="bk0001",
+                status="graduated",
+                work_kind="bug",
+                blocks_release="next",
+            )
+            # Create executed plan for bk0001
+            plan = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "executed"
+                / "20260928-bk0001-01-pl0001-test.ipd.md"
+            )
+            plan.parent.mkdir(parents=True, exist_ok=True)
+            plan.write_text(
+                "- Id: pl0001\n- Status: executed\n- Blocks-Release: next\n- From-Backlog: bk0001\n",
+                encoding="utf-8",
+            )
+            ev_path = repo / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+            ev_path.parent.mkdir(parents=True, exist_ok=True)
+            ev_path.write_text("# Evidence\n", encoding="utf-8")
+
+            # 1. HANDOFF close via positional
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc1 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        str(ev_path),
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc1, 0)
+            found1 = _find_item(repo, "bk0001")
+            self.assertEqual(found1.parent.name, "done")
+            content1 = found1.read_text(encoding="utf-8")
+            self.assertIn("- Blocks-Release: next", content1)
+            self.assertNotIn("- Close-Evidence:", content1)
+
+            # 2. DE-GATED close via positional
+            _create_item(
+                repo,
+                item_id="bk0002",
+                status="open",
+                work_kind="bug",
+                blocks_release="next",
+            )
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc2 = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0002",
+                        "--blocks-release",
+                        "-",
+                        "--evidence",
+                        str(ev_path),
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc2, 0)
+            found2 = _find_item(repo, "bk0002")
+            self.assertEqual(found2.parent.name, "done")
+            content2 = found2.read_text(encoding="utf-8")
+            self.assertNotIn("- Blocks-Release:", content2)
+            self.assertNotIn("- Close-Evidence:", content2)
+
+    def test_evidence_satisfied_positional_close_clean_at_rest(self) -> None:
+        """Positional close with evidence yields zero at-rest release gate consistency findings."""
+        import subprocess
+        from agent_workflows import check_engine
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Tester"], check=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+                check=True,
+            )
+            (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+            (repo / ".aw" / "config" / "project.json").write_text(
+                '{"cutovers": {"release_gate_at_rest": "2026-10-01"}}\n',
+                encoding="utf-8",
+            )
+            _create_item(
+                repo,
+                item_id="bk0001",
+                status="open",
+                work_kind="bug",
+                blocks_release="next",
+            )
+            ev_path = repo / ".aw" / "records" / "reviews" / "20260901-test.review.md"
+            ev_path.parent.mkdir(parents=True, exist_ok=True)
+            ev_path.write_text("# Review\n", encoding="utf-8")
+
+            subprocess.run(
+                ["git", "-C", str(repo), "add", "."], check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "initial"],
+                check=True,
+                capture_output=True,
+            )
+
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "--evidence",
+                        ".aw/records/reviews/20260901-test.review.md",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 0)
+            subprocess.run(
+                ["git", "-C", str(repo), "add", "."], check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "close bk0001"],
+                check=True,
+                capture_output=True,
+            )
+
+            findings = check_engine.check_release_gate_consistency(repo, at_rest=True)
+            self.assertEqual(findings, [])
+
+    def test_positional_batch_refusal_all_or_nothing(self) -> None:
+        """Batch positional close refuses before changes if any record close is illegitimate."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _setup_repo(Path(tmp))
+            p1 = _create_item(
+                repo,
+                item_id="bk0001",
+                status="open",
+                work_kind="bug",
+                blocks_release="next",
+            )
+            p2 = _create_item(
+                repo,
+                item_id="bk0002",
+                status="open",
+                work_kind="bug",
+                blocks_release="next",
+            )
+            bytes1 = p1.read_bytes()
+            bytes2 = p2.read_bytes()
+
+            # ev_path resolves for bk0001, but we pass nonexistent evidence for the batch
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = cli.main(
+                    [
+                        "backlog",
+                        "set",
+                        "done",
+                        "bk0001",
+                        "bk0002",
+                        "--evidence",
+                        ".aw/records/reviews/nonexistent.review.md",
+                        "--yes",
+                        "--no-commit",
+                        "--dir",
+                        str(repo),
+                    ]
+                )
+            self.assertEqual(rc, 1)
+            self.assertIn("refused", err.getvalue().lower())
+
+            # Both items must be unmoved and byte-identical
+            found1 = _find_item(repo, "bk0001")
+            found2 = _find_item(repo, "bk0002")
+            self.assertEqual(found1.parent.name, "open")
+            self.assertEqual(found2.parent.name, "open")
+            self.assertEqual(found1.read_bytes(), bytes1)
+            self.assertEqual(found2.read_bytes(), bytes2)
