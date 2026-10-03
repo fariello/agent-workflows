@@ -6,7 +6,7 @@
 - Scope: Add `next` to `agent_schema._PRESERVED_FIELDS` so no projection can remove a record's continuation command, extend `tests/test_agent_field_projection.py` with outcome-level coverage that drives real CLI commands and asserts on emitted records rather than on the constant's contents, and amend the `--fields` bullet in both user-facing documents that enumerate what a projection retains. Does NOT change what any command emits WITHOUT `--fields`, does NOT add `next` to any record that lacks it, does NOT change `validate_agent_record`, does NOT introduce per-kind or `complete`-conditional projection logic, and does NOT touch `run_analytics_cli._emit_query_agent`, whose deliberate no-context summary call this fix makes unnecessary as a paging workaround but which remains correct on its own semantic grounds.
 - Scope-Paths: agent_workflows/agent_schema.py, tests/test_agent_field_projection.py, docs/cli-agent-protocol.md, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: kkjrqr
@@ -17,9 +17,9 @@
 - Readiness: go-pending-approval
 - Author: opencode
 - Id: 6rcby1
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6rcby1 verified (set kkjrqr, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at lane HEAD 51c5a7bbf: _PRESERVED_FIELDS lacks next; the releases show / runs query / find strandings reproduce (next present unprojected, absent under --fields findings); render_summary call sites match F-15; Sections 11.1 and 11.4 MUSTs quoted correctly; d6u2hz open and committed; 8jeh4x owns the reachability failure. Fixed: in-process --agent placement and --dir fixture for E-01 (PR-001), Proposed-changes renumbering against E-ids (PR-002), d6u2hz staging contradiction (PR-003), reachability-failure owner and E-01-only count (PR-004), gate scope fence + conditional finalize (PR-005).
 
