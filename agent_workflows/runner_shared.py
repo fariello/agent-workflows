@@ -14762,6 +14762,12 @@ ON_CONFLICT_FORCE = "force"
 ON_CONFLICT_PROMPT = "prompt"
 ON_CONFLICT_ASK = "ask"
 
+#: Spec 2.1 declares 'ask' as an accepted alias of 'prompt'.
+#: ON_CONFLICT_CHOICES defines the accepted CLI choices (including 'ask'), while
+#: CANONICAL_ON_CONFLICT_CHOICES defines the resolved canonical vocabulary
+#: produced by resolve_on_conflict(); the two tuples differ on purpose.
+#: Note: Spec 2.1's '--action' is declared but not owned by RUN_POLICY_FLAGS because
+#: revsweep-01 ('76gsmv') registers it on each host with its per-type legality refusal.
 ON_CONFLICT_CHOICES = (
     ON_CONFLICT_DROP,
     ON_CONFLICT_REFUSE,
@@ -15072,8 +15078,8 @@ RUN_POLICY_FLAGS: tuple = (
             "What to do when artifacts in the selection are already being processed by another "
             "active runner. 'drop' (the default) removes the active artifacts from the queue and "
             "narrates what was dropped; 'refuse' refuses to run; 'force' dangerously forces "
-            "execution anyway; 'prompt' asks the user on a TTY (defaulting to 'drop' on empty "
-            "input or non-interactive runs)"
+            "execution anyway; 'prompt' (or 'ask', an accepted alias) asks the user on a TTY "
+            "(defaulting to 'drop' on empty input or non-interactive runs)"
         ),
         choices=ON_CONFLICT_CHOICES,
     ),

@@ -1,5 +1,5 @@
 - Id: n5gsea
-- Status: graduated
+- Status: done
 - Graduated-To: n5gsea
 - Set: n5gsea
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: The shipped --on-conflict accepts a fifth value 'ask' that spec 25kzda 2.1 does not declare, a spec-versus-code divergence the deleted bidirectional guard never covered
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 1dkj1n executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-n5gsea-01-1dkj1n-decide-whether-on-conflict-s-undeclared-ask-value-is-a-decla.ipd.md); evidence .aw/records/plans/executed/20261002-n5gsea-01-1dkj1n-decide-whether-on-conflict-s-undeclared-ask-value-is-a-decla.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: 1dkj1n
 - 2026-10-01 created (aw backlog): Found while measuring rcp8c4: with the bidirectional flag-surface guard deleted, an actual spec-versus-code divergence now ships undetected
 
