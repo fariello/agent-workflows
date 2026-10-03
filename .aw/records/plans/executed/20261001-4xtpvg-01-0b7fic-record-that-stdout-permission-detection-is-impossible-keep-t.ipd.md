@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/lane_containment.py, tests/test_permission_bound_disabled.py, .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md, .aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md
 - Item-Dependencies: none
 - Readiness: go-pending-approval
-- Status: approved
+- Status: executed
 - Work-Kind: followup
 - Priority: medium
 - From-Backlog: 4xtpvg
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0b7fic
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0b7fic verified (set 4xtpvg, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/research/20261001-4xtpvg-00-7so8uz-permission-ask-observability.assessment.md: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-02 executed (antigravity gemini-3.8-flash): implemented E-01..E-06, validated V-01..V-06. Note: corpora unreachable under worktree isolation, so figures cited from research 7so8uz (dated 2026-10-01 at HEAD ce55ef615) and not re-measured.
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed
