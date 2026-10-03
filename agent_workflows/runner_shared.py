@@ -17560,9 +17560,10 @@ def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
 #: to the vocabulary later, which is how a conservative gate quietly stops gating. One accepted value
 #: cannot do that: a new status is refused until someone deliberately admits it here.
 #:
-#: DELIBERATELY NOT `EXECUTION_SUCCESS_STATES`. That set (`oc_runipd.py:274`) includes
-#: `substantially-complete` for DEPENDENCY-EDGE purposes and is out of scope (spec Section 4). This
-#: predicate simply does not consult it; nothing about it is changed here.
+#: DELIBERATELY NOT `EXECUTION_SUCCESS_STATES`. That set (`runner_shared.EXECUTION_SUCCESS_STATES`,
+#: which both hosts re-export) is `{"executed"}` (narrowed by commit `6b94a4d9d`, `statusvocab`,
+#: 2026-09-25, which removed legacy `substantially-complete`) and is the DEPENDENCY bar (spec Section 4).
+#: This predicate simply does not consult it; nothing about it is changed here.
 SET_RETIREMENT_DONE_STATUS = "executed"
 
 
@@ -20202,7 +20203,9 @@ def enforce_spec_edit_ack_gate(
 #
 # ---- THE THREE-WAY OUTCOME, WHICH REPLACES ONE `else` --------------------------------------------
 #
-# The pre-`pgq326` dispatch branch (`oc_runipd.py:6993-7031`) wrote ONE status on ANY failure:
+# The pre-`pgq326` dispatch branch (commit `394238996^`, in `oc_runipd.run_queue`'s
+# `if runnable.get("action") == "orchestrate":` block after the `_set_children_all_executed` /
+# `finalize_orchestrator` test) wrote ONE status on ANY failure:
 #
 #     else:
 #         runnable["status"] = "dependency-blocked"
@@ -22947,8 +22950,8 @@ def verdict_refusal_text(raw: Any, mapping: VerdictMapping) -> tuple[str, str, s
 # into the single token `unverified`.
 #
 # THE THREE FACTS, measured at execution inside `execute_item_core`'s `v_outcome_file` block, all three
-# still live on this tree (previously duplicated per host at `oc_runipd.py:6645/6647/6649` and
-# `agy_runipd.py:3696/3698/3700`, unified into `runner_shared.execute_item_core` by commit `70a2059f`):
+# still live on this tree (previously duplicated per host and unified into
+# `runner_shared.execute_item_core`'s `v_outcome_file` block by commit `70a2059f`, 2026-09-18):
 #
 #   1. THE VERDICT WAS WRITTEN BUT COULD NOT BE READ (unparseable outcome JSON). NOT NAMED HERE: it is
 #      sibling `1bfppy`'s, which routes it through `map_verdict`'s fail-closed arm and records
@@ -26799,7 +26802,7 @@ class HostLabels(NamedTuple):
     report_title: str
 
     #: The name of the shell tool this host's agent actually has, e.g. `"run_command"` on
-    #: Antigravity (mapped at `agy_runipd.py:503`), or None where the host names no tool. Consumed by
+    #: Antigravity (mapped in `agy_runipd._AGY_TOOL_PREFIX_KIND`), or None where the host names no tool. Consumed by
     #: `build_verifier_prompt`, whose Antigravity copy told the agent to run tests "using
     #: `run_command`" - a tool an OpenCode agent does not have, so this cannot be a shared literal.
     shell_tool: str | None
@@ -27186,14 +27189,15 @@ ACTION_IMPLEMENTED = frozenset(("review", "plan"))
 #:
 #: WHY THIS IS A THIRD SET AND NOT `EXECUTION_SUCCESS_STATES`, which is what the plan's E-02 proposed
 #: and what the dependency sites use. The two answer DIFFERENT QUESTIONS and are not interchangeable
-#: here. `EXECUTION_SUCCESS_STATES` = {`executed`, `substantially-complete`} is the DEPENDENCY bar:
-#: "may a dependent of this item now run?", for which `substantially-complete` legitimately counts.
-#: This is the REPORTING bar: "did the run succeed?", for which `substantially-complete` deliberately
-#: does NOT, and that is a pinned contract rather than an accident. MEASURED: substituting
-#: `EXECUTION_SUCCESS_STATES` at the exit-code site makes
+#: here. `EXECUTION_SUCCESS_STATES` is `{"executed"}` (narrowed from `{"executed", "substantially-complete"}`
+#: by commit `6b94a4d9d`, `statusvocab`, 2026-09-25) and is the DEPENDENCY bar: "may a dependent of this
+#: item now run?". This is the REPORTING bar: "did the run succeed?", where `EXECUTE_REPORTING_SUCCESS_STATES`
+#: is `SUCCESS_STATES - {"reviewed"}` = `{"executed", "approved"}`. The two sets still differ (by `approved`)
+#: and are still not interchangeable. HISTORICAL (pre-`6b94a4d9d`): under the legacy two-member set, substituting
+#: `EXECUTION_SUCCESS_STATES` at the exit-code site would have made
 #: `tests/test_rununify_run_queue.py::TheExitCodeReflectsTheRealOutcome::
 #: test_the_exit_code_reads_SUCCESS_STATES_not_EXECUTION_SUCCESS_STATES` FAIL with `0 == 0`, because
-#: that test exists precisely to pin that a `substantially-complete` item still exits NONZERO. So the
+#: that test existed precisely to pin that a `substantially-complete` item still exits NONZERO. So the
 #: dependency bar would have SILENTLY WIDENED the reporting bar while narrowing it for `reviewed` -
 #: fixing one silent success by introducing another.
 #:
@@ -28234,8 +28238,9 @@ def build_verifier_prompt(
 
     `labels.shell_tool` names the shell tool THAT HOST'S AGENT ACTUALLY HAS. The Antigravity
     copy told the agent to run tests "using `run_command`", which is an Antigravity tool
-    (mapped at `agy_runipd.py:503`) and names nothing an OpenCode agent can call, so this could
-    not be a shared literal. Where a host names no tool the clause is simply omitted.
+    (mapped in `agy_runipd._AGY_TOOL_PREFIX_KIND`'s `"run_command"` key) and names nothing an
+    OpenCode agent can call, so this could not be a shared literal. Where a host names no tool the
+    clause is simply omitted.
 
     THE SAFETY GAP, fixed here rather than deferred (plan `tx6q0h` F-13): the Antigravity copy
     of this prompt contained NO push prohibition at all while instructing the agent to commit,
@@ -31373,7 +31378,7 @@ def outcome_precedence_disposition(
 
       1. A plan in `executed/` is `executed`. The directory is the harder-to-forge signal, because
          `aw ipd finalize` is what moves a plan there.
-      2. A RECORDED `executed` is DOWNGRADED to `substantially-complete`. This is the
+      2. A RECORDED `executed` is DOWNGRADED to `fail-gate`. This is the
          ANTI-FABRICATION RULE, not an inconvenience: an agent writing `disposition: executed` into
          its own outcome file is making a SELF-CLAIM, and this repository does not treat a self-claim
          as completion authority. Do not remove it to make a case report better.
@@ -31792,8 +31797,8 @@ def reconcile_interrupted(
         established, so consulting it there would re-open the hole the gate closes. The outcome
         consultation is therefore on the non-indeterminate path only.
       * THE SELF-CLAIM DOWNGRADE, inside the shared precedence helper: a recorded `executed` becomes
-        `substantially-complete`. The measured case needs NO relaxation of this, because its outcome
-        file already says `substantially-complete`.
+        `fail-gate` (canonical form since `6b94a4d9d`). The measured case needs NO relaxation of this,
+        because its outcome file already says `substantially-complete` (which normalizes to `fail-gate`).
 
     IT CONSULTS THE OUTCOME FILE FOR EXECUTE-ACTION ITEMS ONLY. A `review` or `orchestrate` turn does
     not write one (plan finding F-12), so reading it for them would be reading evidence that does not
@@ -31803,13 +31808,15 @@ def reconcile_interrupted(
     RECOVERY CHANGES WHAT A RESUME DOES, NOT ONLY WHAT THE RECORD SAYS, and that was a maintainer
     decision rather than an inference (`fduoj4` OQ-03, answered 2026-09-10). `run_queue` calls
     `requeue_interrupted` on the line after this function, and that flips every still-`interrupted`
-    item back to `queued`; a step recovered to `substantially-complete` leaves that set, so it is NOT
-    retried. `substantially-complete` is also in `EXECUTION_SUCCESS_STATES`, which `edge_satisfied`
-    reads for a non-review item, so recovery can release a dependent that was waiting. Both effects
-    are intended: work proven to have finished is not redone, and dependents waiting on it may
-    proceed. The conservative alternative (record the provenance but leave the status `interrupted`
-    for requeue purposes) was DECLINED, so the status field and the provenance field must not
-    disagree.
+    item back to `queued`; a step recovered to `fail-gate` (canonical form of legacy
+    `substantially-complete` since `6b94a4d9d`) leaves that set, so it is NOT retried. An `executed:`
+    edge is answered from the plan's terminal directory ON DISK and not from in-run status (see
+    `runner_shared.edge_satisfied`'s `executed:` branch, where the in-run shortcut was removed on
+    maintainer ruling 2026-09-19). Both effects were intended by the maintainer at the time, but the
+    second effect no longer occurs because a `fail-gate` item's plan remains in `pending/` so an
+    `executed:` edge on it is unmet on disk. Work proven to have finished is not redone. The
+    conservative alternative (record the provenance but leave the status `interrupted` for requeue
+    purposes) was DECLINED, so the status field and the provenance field must not disagree.
 
     `save_state` IS INJECTED, following the maintainer's `818uru` OQ-02 wrapper ruling rather than
     inventing a new mechanism for it. The shared `save_state` needs `write_report`, which is class (c)
@@ -39288,8 +39295,9 @@ def announce_run_order(
 # spends anything and AGAIN when it ends. Nothing here refuses a run or gates an edit.
 #
 # Everything in this block is defined ONCE and IMPORTED by `agy_runipd` (the `as <same-name>`
-# re-export form documented at `agy_runipd.py:84-88`), for the reason that module records: a second
-# copy in the other driver is precisely how `Heartbeat` and `_read_deps` came to disagree.
+# re-export form documented in `agy_runipd`'s note "The `as <same-name>` form marks these as an
+# intentional RE-EXPORT"), for the reason that module records: a second copy in the other driver is
+# precisely how `Heartbeat` and `_read_deps` came to disagree.
 
 
 def queue_entry_type(item: "Mapping[str, Any]") -> str:
@@ -39333,7 +39341,8 @@ def queue_plan_path(repo: Path, item: "Mapping[str, Any]") -> Path | None:
     WHY THIS EXISTS, because it is a defect fix and not a convenience. `spec_impacts_for_queue`
     documents its input as carrying `"path"` or `"plan_path"`, and that is what every test hand-built.
     But a REAL runner queue entry carries NEITHER: both drivers freeze the plan location under
-    `"configured_file"` (`oc_runipd.py:2979`, `agy_runipd.py:2094`) and nothing ever assigns `"path"`.
+    `"configured_file"` (written by `runner_shared.initialize_run_core`'s queue append, the shared
+    builder both hosts call) and nothing ever assigns `"path"`.
     So the pre-run spec announcement read an empty path from every item, computed an empty impact set,
     and printed NOTHING - on BOTH hosts, for every real run, while a green suite asserted otherwise
     because its fixtures supplied the key production never writes. Measured 2026-09-14 by driving both
