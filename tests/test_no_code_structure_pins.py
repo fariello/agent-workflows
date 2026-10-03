@@ -93,6 +93,13 @@ ALLOWLIST: tuple[AllowlistEntry, ...] = (
             "its own scope and known hole."
         ),
     ),
+    AllowlistEntry(
+        path="tests/test_runner_shared.py",
+        reason=(
+            "find_dead_codefined_symbols sweeps runner modules for dead def-or-class symbols "
+            "in runner_shared that neither host reaches (plan vbhat9 E-02/E-03)."
+        ),
+    ),
 )
 
 
