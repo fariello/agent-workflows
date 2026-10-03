@@ -125,6 +125,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: NOT AN OBLIGATION THIS PLAN CREATES OR DISCHARGES. Six of the seven checkers have no production caller at all (F-09), so wiring them is a net-new feature with its own design question (what refuses, where, and with what operator message), not a loose end left by restoring test coverage. Backlog item `mflqqf` asks for coverage of the shipped boundaries and does not ask for them to be enforced anywhere new, so filing a carrier here would invent scope the item never had.
 - The packaging boundary half of backlog item `mflqqf` is Order 02 of this Set and is not touched here.
   - Carrier: d0lg63
+  - Carrier-Evidence: .aw/records/plans/executed/20261002-mflqqf-02-d0lg63-restore-the-packaging-boundary-coverage-the-wheel-guard-does.ipd.md
 
 ## Scope check
 
