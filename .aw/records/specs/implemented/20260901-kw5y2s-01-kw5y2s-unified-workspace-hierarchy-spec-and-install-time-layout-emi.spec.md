@@ -1,7 +1,8 @@
 # Spec: Unified Workspace Hierarchy Specification and Machine-Readable Install-Time Layout Emission
 
 - Date: 2026-09-01
-- Status: approved
+- Status: implemented
+- Graduated-To: wslayout
 - Id: kw5y2s
 - Author: antigravity
 - Scope: Consolidate workspace directory definitions into a unified Python layout model and emit machine-readable layout.json during repository installation for non-Python tools.
@@ -10,6 +11,8 @@ EVERY DATED REGION IN THIS SPEC IS A POINT-IN-TIME SNAPSHOT, NOT A STANDING CLAI
 
 ## Workflow history
 
+- 2026-10-03 implemented (aw specs): Implemented by the wslayout Set (all six plans executed): agent_workflows/layout.py is the canonical layout model (Sections 3-5), the eleven-class record vocabulary is closed in BOTH artifact_types.ARTIFACT_TYPES and record_producers.RecordClass (Section 3.2), engine.emit_layout_artifacts writes .aw/system/layout.json + layout.schema.json and back-fills .aw/.gitignore (Sections 2.3/6.1), and aw layout plus check.system-layout-missing/-drift ship the Section 6.2 surface. Re-measured at the executing HEAD per backlog jd01a0 E-01.
+- 2026-10-03 implementing (aw specs): wslayout Set fully executed (all six plans, Orders 00-05, under .aw/records/plans/executed/; orchestrator rh5tt6 carries - From-Spec: kw5y2s); advancing from approved to implementing ahead of the implemented transition, per backlog jd01a0 and the precedent of spec 20260810-1447-01.
 - 2026-10-01 note (aw specs): AMENDED 2026-09-29 (plan xx5b7a, backlog ddon4j): corrected four stale sites that presented shipped work as pending - Section 3.2's claim that aw check reviews fails with unknown artifact type reviews (it succeeds; shipped in adf3c03d, Set wslayout Order 02 zvk796), the vocabulary table's fourth column, which marked backlog, roadmaps, other and reviews as present in only one source vocabulary when all eleven rows are now in both (adf3c03d and 0c7405db), Section 1.2's fragmentation examples, which named the same two now-harmonized discrepancies, and Section 5.1's acquisition clauses; added a point-in-time snapshot convention to the preamble because this spec had none. Status unchanged at approved; no normative requirement, Section 3.4, or the Section 4.1 schema touched.
 - 2026-09-04 approved (aw set, --by-human): status set to approved
 - 2026-09-04 reviewed (aw set): Reviewed updated wslayout spec (API terminology corrections verified against codebase; no blocking findings)
