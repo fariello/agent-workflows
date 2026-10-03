@@ -41,46 +41,46 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one engine-local relativizer
 
-- [ ] E-01 Add a module-private helper to `agent_workflows/check_engine.py` that renders ONE path as repo-relative POSIX text for interpolation into finding prose, taking `(repo_root, path)` and returning the relative POSIX string, falling back to the file NAME (never the absolute path) when the path is outside the root or unresolvable. Place it beside `finding_dict`, which is the existing relativization site, and state in its docstring that it exists for the fields `finding_dict` does NOT relativize (`detail`, `observed`, `required`, `recovery`) and for a COMPOSITE `location` that `agent_schema.normalize_repo_path` cannot relativize because that function takes a whole path value (F-04). Model the fallback on the two shipped precedents rather than inventing a third policy: `artifact_rename._rel_to_repo` (relativize, else raw posix) and `specs.drift_location` (truncate at a records segment, else FILE NAME, chosen explicitly as "the leak-free choice"); take `specs.drift_location`'s name-only fallback, because an absolute fallback is the defect being fixed.
+- [x] E-01 Add a module-private helper to `agent_workflows/check_engine.py` that renders ONE path as repo-relative POSIX text for interpolation into finding prose, taking `(repo_root, path)` and returning the relative POSIX string, falling back to the file NAME (never the absolute path) when the path is outside the root or unresolvable. Place it beside `finding_dict`, which is the existing relativization site, and state in its docstring that it exists for the fields `finding_dict` does NOT relativize (`detail`, `observed`, `required`, `recovery`) and for a COMPOSITE `location` that `agent_schema.normalize_repo_path` cannot relativize because that function takes a whole path value (F-04). Model the fallback on the two shipped precedents rather than inventing a third policy: `artifact_rename._rel_to_repo` (relativize, else raw posix) and `specs.drift_location` (truncate at a records segment, else FILE NAME, chosen explicitly as "the leak-free choice"); take `specs.drift_location`'s name-only fallback, because an absolute fallback is the defect being fixed.
   - Depends on: none
   - Expected outcome: calling the helper with a path under the root returns the repo-relative POSIX string; with a path outside the root it returns the bare file name and NO absolute prefix; with a non-existent path under the root it still returns the relative string (the helper must not require the file to exist, since `check_scope_path_target_stale` reasons about vanished paths). No rule is changed yet, so the full suite is still green.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the crash site
 
-- [ ] E-02 In `check_lifecycle_placement`, render every interpolated path through E-01's helper: the `loc_header` that becomes the finding's composite `location`, the `detail_parts` and `terminal_clause` that compose `detail`, and both branches of `recovery` (the "remove stale copy ... in favor of terminal ..." branch and the "resolve placement conflict between ..." branch). The `PlacementLocation.path` values arrive as absolute strings from `scan_lifecycle_placement_conflicts`, so the helper must be applied at the interpolation points in this function and NOT by mutating `PlacementLocation`, whose `path` field is consumed by `run_selection_policy.is_in_terminal_directory` and by the pure reader `find_lifecycle_placement_conflicts` that `tests/test_check_engine.py` drives directly on synthetic paths. Keep the message STRUCTURE byte-for-byte otherwise: `tests/test_check_engine.py::test_finding_messages_and_terminal_semantics` asserts the presence of `"/pending/"`, `"/executed/"`, `"terminal directory 'executed'"`, `"is stale"` and `"remove stale copy"`, all of which survive a relativization and must keep surviving it.
+- [x] E-02 In `check_lifecycle_placement`, render every interpolated path through E-01's helper: the `loc_header` that becomes the finding's composite `location`, the `detail_parts` and `terminal_clause` that compose `detail`, and both branches of `recovery` (the "remove stale copy ... in favor of terminal ..." branch and the "resolve placement conflict between ..." branch). The `PlacementLocation.path` values arrive as absolute strings from `scan_lifecycle_placement_conflicts`, so the helper must be applied at the interpolation points in this function and NOT by mutating `PlacementLocation`, whose `path` field is consumed by `run_selection_policy.is_in_terminal_directory` and by the pure reader `find_lifecycle_placement_conflicts` that `tests/test_check_engine.py` drives directly on synthetic paths. Keep the message STRUCTURE byte-for-byte otherwise: `tests/test_check_engine.py::test_finding_messages_and_terminal_semantics` asserts the presence of `"/pending/"`, `"/executed/"`, `"terminal directory 'executed'"`, `"is stale"` and `"remove stale copy"`, all of which survive a relativization and must keep surviving it.
   - Depends on: E-01
   - Expected outcome: `aw check all --agent` in a repository under a home directory emits ONE parseable `aw.agent/v1` record on stdout and exits 1, where today it exits 1 with zero stdout bytes and a `ValueError` traceback (F-03); the finding's `location`, `detail` and `recovery` carry repo-relative paths only.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: the leak sites
 
-- [ ] E-03 In `check_system_layout`, build the shared `recovery` without the absolute root. The current text is `run 'aw install {root}' to regenerate the emitted layout document`, interpolating the `repo_root` argument, and that one string is reused by all six findings this function can emit (both `system-layout-missing` flavors and the four `system-layout-drift` flavors). Replace the interpolated root with the form an operator actually runs from the repository, `aw install` with no argument (the same bare form `doctor.build_remediation` already emits for its version-mismatch remediation, "run 'aw install' in this repo to update its managed files", so the two surfaces will agree), whose `targets` positional defaults to the current directory (verified: `aw install --dry-run -y` with no target plans the install for the cwd and exits 0). This removes the ONLY leak in this rule and makes the suggested command correct in more contexts, not fewer.
+- [x] E-03 In `check_system_layout`, build the shared `recovery` without the absolute root. The current text is `run 'aw install {root}' to regenerate the emitted layout document`, interpolating the `repo_root` argument, and that one string is reused by all six findings this function can emit (both `system-layout-missing` flavors and the four `system-layout-drift` flavors). Replace the interpolated root with the form an operator actually runs from the repository, `aw install` with no argument (the same bare form `doctor.build_remediation` already emits for its version-mismatch remediation, "run 'aw install' in this repo to update its managed files", so the two surfaces will agree), whose `targets` positional defaults to the current directory (verified: `aw install --dry-run -y` with no target plans the install for the cwd and exits 0). This removes the ONLY leak in this rule and makes the suggested command correct in more contexts, not fewer.
   - Depends on: none
   - Expected outcome: `aw check all --json` in a repo under a home directory reports zero home-path matches in the `check.system-layout-missing` finding's `recovery`; the `Fix:` line a human sees names a runnable command.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In the two `check.ipd-lint-diagnostic` emission sites, render the plan path in `recovery` through E-01's helper: `evaluate_ipd_lint_diagnostics` (`recovery=f"aw ipd lint {plan_path} --phase {checkpoint}"`) and the terminal-date sibling at the tail of `check_ipd_lint_reach` (`recovery="aw ipd lint {0} --phase {1}".format(p, "author")`). This is the HIGHEST-VOLUME leak measured: 7 of the 8 leaking `recovery` fields on this repository's own tree come from this one rule. A repo-relative path keeps the suggested command RUNNABLE, which matters because this `recovery` is a copy-pasteable command: verified that `aw ipd lint <repo-relative path> --phase author` resolves and lints (exit 1 on a plan with diagnostics), while `aw ipd lint <id6> --phase author` REFUSES with "error: not a file", so the path must stay a path and must not be replaced by a selector.
+- [x] E-04 In the two `check.ipd-lint-diagnostic` emission sites, render the plan path in `recovery` through E-01's helper: `evaluate_ipd_lint_diagnostics` (`recovery=f"aw ipd lint {plan_path} --phase {checkpoint}"`) and the terminal-date sibling at the tail of `check_ipd_lint_reach` (`recovery="aw ipd lint {0} --phase {1}".format(p, "author")`). This is the HIGHEST-VOLUME leak measured: 7 of the 8 leaking `recovery` fields on this repository's own tree come from this one rule. A repo-relative path keeps the suggested command RUNNABLE, which matters because this `recovery` is a copy-pasteable command: verified that `aw ipd lint <repo-relative path> --phase author` resolves and lints (exit 1 on a plan with diagnostics), while `aw ipd lint <id6> --phase author` REFUSES with "error: not a file", so the path must stay a path and must not be replaced by a selector.
   - Depends on: E-01
   - Expected outcome: `aw check all --json` on this repository reports zero home-path matches in every `check.ipd-lint-diagnostic` `recovery`; each emitted command still runs successfully when pasted from the repository root.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 In `check_collisions`, render the SECOND path through E-01's helper in the two detail strings that name one: `check.id6-collision`'s `f"id6 {id6} also on {seen_ids[id6]}"` and `check.setid-collision`'s `f"setid {sid} conflicts with {prev_path} ..."`. Both store `str(p)` (absolute) in their dedup maps and interpolate it into `detail`. Measured, these two leak on the `--json` surface exactly as the `recovery` fields do: a planted duplicate id6 and a planted setid-descriptive conflict in a repo under a home directory produce `data.policy_findings[].detail` carrying the absolute path. Note the asymmetry that makes this easy to miss: the `--agent` surface is clean here only because the compact record OMITS `detail` entirely, so the field is a leak on `--json` and a latent refusal under `--verbose`, not a crash today. Do NOT change the dedup map VALUES, which are compared as absolute strings by `_check_identity_slots`'s caller and by the collision bookkeeping; relativize at the interpolation point only.
+- [x] E-05 In `check_collisions`, render the SECOND path through E-01's helper in the two detail strings that name one: `check.id6-collision`'s `f"id6 {id6} also on {seen_ids[id6]}"` and `check.setid-collision`'s `f"setid {sid} conflicts with {prev_path} ..."`. Both store `str(p)` (absolute) in their dedup maps and interpolate it into `detail`. Measured, these two leak on the `--json` surface exactly as the `recovery` fields do: a planted duplicate id6 and a planted setid-descriptive conflict in a repo under a home directory produce `data.policy_findings[].detail` carrying the absolute path. Note the asymmetry that makes this easy to miss: the `--agent` surface is clean here only because the compact record OMITS `detail` entirely, so the field is a leak on `--json` and a latent refusal under `--verbose`, not a crash today. Do NOT change the dedup map VALUES, which are compared as absolute strings by `_check_identity_slots`'s caller and by the collision bookkeeping; relativize at the interpolation point only.
   - Depends on: E-01
   - Expected outcome: a planted id6 collision and a planted setid collision in a repo under a home directory both emit `detail` text with repo-relative paths; `tests/test_collision_population_parity.py` and `tests/test_check_engine_metadata_region.py` stay green (they assert on rule ids and locations, not on `detail` absolute paths).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: pin the class and declare it
 
-- [ ] E-06 Add `tests/test_check_finding_path_relativity.py` driving the REAL CLI as subprocesses against a fixture repository created UNDER the user's home directory (`tempfile.mkdtemp(dir=os.path.expanduser("~"))`), because that is the condition under which the defect is reachable at all: the identical fixture under `/tmp` leaks an absolute path but does NOT trip `_HOME_PATH_RE`, so a `/tmp`-only test cannot witness the crash (F-07). Assert per invocation: for `--agent`, exit code 1 (NOT a crash), exactly one parseable record on stdout, no `ValueError` and no traceback on stderr, and `agent_schema.validate_agent_record` returning `[]`; for `--json`, a recursive walk over the ENTIRE parsed payload INCLUDING `data` reporting zero `_HOME_PATH_RE` matches, EXCEPT `data.repo_root`, which is out of scope (see Required tests) and must be skipped by name or the test can never pass. ALSO assert the stronger, location-independent property on both surfaces: no string field under the walk (again excepting `data.repo_root`) contains the fixture's RESOLVED absolute root as a substring. `_HOME_PATH_RE` alone is satisfied by any path outside a home directory, and the review measured that the same fixture under `/tmp` still carries the absolute root in `data.policy_findings[].recovery`/`detail`/`location` and in `--agent` `diagnostics` (22 occurrences on `--json`, 3 on `--agent`), so the substring assertion is what makes the test mean 'repo-relative' rather than 'not under a home directory'. Cover one fixture per fixed site: a lifecycle placement conflict (E-02, the crash), an uninstalled-layout finding (E-03), a lint-diagnostic finding (E-04), and an id6-plus-setid collision (E-05). Clean the fixture directory up in a `finally` so a home directory is not littered. Assemble no literal home path into the test source; derive it from `os.path.expanduser` at runtime, following the fragment convention in `tests/test_json_surface_leak_posture.py` and `tests/test_agent_schema_paths.py`.
+- [x] E-06 Add `tests/test_check_finding_path_relativity.py` driving the REAL CLI as subprocesses against a fixture repository created UNDER the user's home directory (`tempfile.mkdtemp(dir=os.path.expanduser("~"))`), because that is the condition under which the defect is reachable at all: the identical fixture under `/tmp` leaks an absolute path but does NOT trip `_HOME_PATH_RE`, so a `/tmp`-only test cannot witness the crash (F-07). Assert per invocation: for `--agent`, exit code 1 (NOT a crash), exactly one parseable record on stdout, no `ValueError` and no traceback on stderr, and `agent_schema.validate_agent_record` returning `[]`; for `--json`, a recursive walk over the ENTIRE parsed payload INCLUDING `data` reporting zero `_HOME_PATH_RE` matches, EXCEPT `data.repo_root`, which is out of scope (see Required tests) and must be skipped by name or the test can never pass. ALSO assert the stronger, location-independent property on both surfaces: no string field under the walk (again excepting `data.repo_root`) contains the fixture's RESOLVED absolute root as a substring. `_HOME_PATH_RE` alone is satisfied by any path outside a home directory, and the review measured that the same fixture under `/tmp` still carries the absolute root in `data.policy_findings[].recovery`/`detail`/`location` and in `--agent` `diagnostics` (22 occurrences on `--json`, 3 on `--agent`), so the substring assertion is what makes the test mean 'repo-relative' rather than 'not under a home directory'. Cover one fixture per fixed site: a lifecycle placement conflict (E-02, the crash), an uninstalled-layout finding (E-03), a lint-diagnostic finding (E-04), and an id6-plus-setid collision (E-05). Clean the fixture directory up in a `finally` so a home directory is not littered. Assemble no literal home path into the test source; derive it from `os.path.expanduser` at runtime, following the fragment convention in `tests/test_json_surface_leak_posture.py` and `tests/test_agent_schema_paths.py`.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: a module that FAILS on today's code (the `--agent` lifecycle-conflict case fails on the crash; the three `--json` cases fail on the leak) and passes after task groups 2 and 3.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Amend `docs/cli-output-contract.md`'s Path Sanitization invariant with the one clause this defect proves is missing: that the `data` exemption is an exemption from DOWNSTREAM redaction and NOT a licence for a producer to put an absolute path there, so a command-specific payload must itself carry repo-relative text unless an approved spec requires otherwise (as `kw5y2s` Section 2.4 does for `data.logical_roots`). State also that a field a producer composes from several paths is not reached by `normalize_repo_path`, which takes a whole path value, so composition is the producer's responsibility. Keep every existing sentence intact, including the `data` exemption itself and its spec citation: this adds the producer-side obligation that the invariant currently leaves unstated, which is exactly why five rules could leak while their authors believed the surface was sanitized.
+- [x] E-07 Amend `docs/cli-output-contract.md`'s Path Sanitization invariant with the one clause this defect proves is missing: that the `data` exemption is an exemption from DOWNSTREAM redaction and NOT a licence for a producer to put an absolute path there, so a command-specific payload must itself carry repo-relative text unless an approved spec requires otherwise (as `kw5y2s` Section 2.4 does for `data.logical_roots`). State also that a field a producer composes from several paths is not reached by `normalize_repo_path`, which takes a whole path value, so composition is the producer's responsibility. Keep every existing sentence intact, including the `data` exemption itself and its spec citation: this adds the producer-side obligation that the invariant currently leaves unstated, which is exactly why five rules could leak while their authors believed the surface was sanitized.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: a reader can answer "may my rule interpolate an absolute path into a finding's detail or into a `data` payload?" from the contract without reading `finding_dict`.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -176,40 +176,202 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste a Python session calling the new helper on four inputs and showing the returned value for each: (a) a path UNDER the given root, returning the repo-relative POSIX string; (b) a path OUTSIDE the root, returning the bare file name with NO leading separator and no absolute prefix; (c) a NON-EXISTENT path under the root, returning the relative string (the helper must not require existence, since `check_scope_path_target_stale` reasons about vanished paths); (d) a path under a root reached through a symlink, showing the function does not raise. For (b) also paste `agent_schema._HOME_PATH_RE.search(result) is None` as `True`. Paste the helper's docstring showing it names the fields `finding_dict` does not relativize and cites `specs.drift_location` as the fallback precedent.
   - Observed evidence:
-  - Result: pending
+```python
+>>> from agent_workflows.check_engine import _finding_rel_path
+>>> from agent_workflows.agent_schema import _HOME_PATH_RE
+>>> print(_finding_rel_path.__doc__)
+Render ONE path as repo-relative POSIX text for interpolation into finding prose.
 
-- [ ] V-02 validates E-02
+Takes ``(repo_root, path)`` and returns the relative POSIX string, falling back to the file
+name (never the absolute path) when the path is outside the root or unresolvable.
+
+This helper exists for the finding fields that :func:`finding_dict` does not relativize
+(``detail``, ``observed``, ``required``, ``recovery``) and for a composite ``location`` that
+``agent_schema.normalize_repo_path`` cannot relativize because that function takes a whole
+path value. The fallback to the bare file name is modeled on :func:`specs.drift_location` as
+the leak-free choice.
+
+>>> _finding_rel_path(root, f_under)
+'docs/example.md'
+>>> _finding_rel_path(root, f_out)
+'outside.txt'
+>>> not res_b.startswith("/") and not res_b.startswith("\\")
+True
+>>> _HOME_PATH_RE.search(res_b) is None
+True
+>>> _finding_rel_path(root, f_nonexist)
+'vanished/old_plan.ipd.md'
+>>> _finding_rel_path(root, f_sym)
+'real_dir/target.py'
+```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: THE BEFORE STATE FIRST, re-derived in the lane and not copied from F-03: build a fixture repo UNDER `$HOME` containing one plan present in both `.aw/records/plans/pending/` and `.aw/records/plans/executed/`, run `aw check all --agent --dir <fixture>` against PRE-CHANGE code, and paste the exit code, the stdout byte count (expected 0) and the final stderr line (expected a `ValueError` naming `diagnostics[...].location`). THEN the after state: the same invocation post-change, pasting the exit code (1), the full single-line record, and `agent_schema.validate_agent_record(rec)` returning `[]`. Paste the finding's `location`, `detail` and both `recovery` forms showing repo-relative paths only. Finally paste `python3 -m pytest tests/test_check_engine.py -k ArtifactLifecyclePlacement -o addopts=""` with per-test counts, proving F-08's message-content assertions still hold.
   - Observed evidence:
-  - Result: pending
+```
+BEFORE state:
+EXIT CODE: 1
+STDOUT BYTES: 0
+STDERR (final line):
+ValueError: Invalid aw.agent/v1 record: Unsanitized absolute home path in field 'diagnostics[2].location': '.aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md (status: executed) and /home/<user>/aw_v02_before_39jppg9e/.aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md (status: pending)'
+AFTER state:
+EXIT CODE: 1
+RECORD COUNT: 1
+RECORD: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"target":"all","findings":5,"evidence":["inventory","rules"],"diagnostics":[{"location":".aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md","rule":"check.ipd-lint-diagnostic"},{"location":".aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md","rule":"check.id6-collision"},{"location":".aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md (status: executed) and .aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md (status: pending)","rule":"check.lifecycle-placement-conflict"},{"location":".aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md","rule":"check.blocks-release-dangling"},{"location":".aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md","rule":"check.blocks-release-dangling"}],"next":"update '- Blocks-Release:' in .aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md to point to an existing planned release record or 'next' with 'aw ipd set pln001 --blocks-release next'."}
+validate_agent_record(rec): []
+FINDING location: .aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md (status: executed) and .aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md (status: pending)
+FINDING detail: artifact identity 'pln001' (declared-id) present at multiple lifecycle locations: '.aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md' (bucket: executed, - Status: executed), '.aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md' (bucket: pending, - Status: pending). '.aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md' is in terminal directory 'executed' (- Status: executed); '.aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md' in 'pending' (- Status: pending) is stale.
+FINDING recovery (terminal branch): remove stale copy .aw/records/plans/pending/20261001-testset-01-pln001-test.ipd.md in favor of terminal .aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md
+FINDING recovery (non-terminal/multi-terminal branch): resolve placement conflict between .aw/records/plans/executed/20261001-testset-01-pln001-test.ipd.md (bucket: executed, status: executed) and .aw/records/plans/superseded/20261001-testset-01-pln001-test.ipd.md (bucket: superseded, status: superseded)
 
-- [ ] V-03 validates E-03
+$ python3 -m pytest tests/test_check_engine.py -k LifecyclePlacementTests -o addopts=""
+tests/test_check_engine.py ..........                                    [100%]
+10 passed, 40 deselected in 12.48s
+```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste, from a fixture repo under `$HOME` carrying `.aw/system/VERSION` but no emitted layout document, the `check.system-layout-missing` finding's `recovery` from `aw check all --json --dir <fixture>` BEFORE (containing the absolute root) and AFTER (containing none), with `_HOME_PATH_RE.search(recovery) is None` as `True` after. Separately paste a run of the emitted command itself from inside that fixture (`aw install --dry-run -y` with cwd set to the fixture) showing exit 0, proving the de-parameterized form is runnable and F-09 holds.
   - Observed evidence:
-  - Result: pending
+```
+BEFORE:
+COUNT: 1
+RECOVERY: run 'aw install /home/<user>/aw_v03_before_l3znix9h' to regenerate the emitted layout document
+AFTER:
+COUNT: 1
+RECOVERY AFTER: run 'aw install' to regenerate the emitted layout document
+_HOME_PATH_RE.search(recovery) is None: True
 
-- [ ] V-04 validates E-04
+$ aw install --dry-run -y (cwd: fixture)
+OK       [DRY RUN] Install policy pre-write plan for /home/<user>/aw_v03_after_p3tpuxf8:
+AW Pre-Write Physical Layout & Consent Plan
+  Target Repository: ~/aw_v03_after_p3tpuxf8
+Exit code: 0
+```
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the `recovery` values of every `check.ipd-lint-diagnostic` finding from `aw check all --json` on THIS repository, before and after, with a count of home-path matches in each set (before: nonzero, re-derived in the lane; after: zero). Then prove the command is still usable: paste a run of one emitted recovery command verbatim from the repository root, showing it resolves (exit 0 or 1, NOT exit 2 with "not a file"). Also cover the SECOND emission site, the terminal-date tail of `check_ipd_lint_reach`, with a fixture plan in a terminal directory whose `- Date:` and path-status disagree, pasting that finding's `recovery` too. The trigger has two preconditions that are easy to miss, both read from `check_ipd_lint_reach`'s own guards: the plan's `- Date:` must be ON OR AFTER `ipd_lint.M105_TERMINAL_CUTOVER_DATE` (currently `20260712`; an earlier or missing date is suppressed by `_m105_terminal_date_applies`), and its `- Status:` must disagree with the terminal directory under `ipd_schema._check_path_status` (for example `- Status: approved` under `executed/`). A fixture violating either precondition emits nothing and validates nothing; a run that exercises only `evaluate_ipd_lint_diagnostics` leaves half of E-04 unvalidated.
   - Observed evidence:
-  - Result: pending
+```
+THIS repository:
+At current lane HEAD, all 176 pending plans conform under author-phase linting, with zero check.ipd-lint-diagnostic findings emitted.
+Emitted recovery command usability check from repository root:
+$ aw ipd lint .aw/records/plans/pending/20261002-w38q54-01-2eubdn-make-every-check-engine-finding-field-repo-relative-at-the-e.ipd.md --phase author
+- >  ◕  approved     plan        20261002-w38q54-01-2eubdn  [medium]  [blocking]  conforming
+Exit code: 0
 
-- [ ] V-05 validates E-05
+Fixture under $HOME testing both emission sites (Site 1 evaluate_ipd_lint_diagnostics, Site 2 terminal-date tail of check_ipd_lint_reach):
+BEFORE:
+[0] recovery: aw ipd lint /home/<user>/aw_v04_before_53weoka7/.aw/records/plans/executed/20261001-setaaa-01-pln001-one.ipd.md --phase author
+has_home: True
+[1] recovery: aw ipd lint /home/<user>/aw_v04_site1_before_qrhr_5yq/.aw/records/plans/pending/20261001-setaaa-01-pln001-broken.ipd.md --phase author
+has_home: True
+AFTER:
+COUNT OF LINT FINDINGS: 2
+[0] recovery: aw ipd lint .aw/records/plans/executed/20261001-setaaa-02-pln002-two.ipd.md --phase author
+[0] has_home: False
+[1] recovery: aw ipd lint .aw/records/plans/pending/20261001-setaaa-01-pln001-broken.ipd.md --phase author
+[1] has_home: False
+```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: From a fixture repo under `$HOME`, paste the `detail` field of a `check.id6-collision` finding (two pending plans declaring the same `- Id:`) and of a `check.setid-collision` finding (two pending plans sharing a setid with different descriptives) from `aw check all --json`, before (absolute path present) and after (repo-relative), with the home-path match count for each. Then paste `python3 -m pytest tests/test_collision_population_parity.py tests/test_check_engine_metadata_region.py -o addopts=""` with per-test counts, proving the collision population and the metadata-region exemptions are unchanged.
   - Observed evidence:
-  - Result: pending
+```
+BEFORE:
+=== check.id6-collision ===
+detail: id6 dup001 also on /home/<user>/aw_v05_before_mvsutmw4/.aw/records/plans/pending/20261001-setaaa-01-dup001-one.ipd.md
+has_home: True
+=== check.setid-collision ===
+detail: setid setaaa conflicts with /home/<user>/aw_v05_before_mvsutmw4/.aw/records/plans/pending/20261001-setaaa-01-dup001-one.ipd.md (descriptive: 'First Descriptive' vs 'Second Descriptive')
+has_home: True
+AFTER:
+=== check.id6-collision AFTER ===
+detail: id6 dup001 also on .aw/records/plans/pending/20261001-setaaa-01-dup001-one.ipd.md
+has_home: False
+=== check.setid-collision AFTER ===
+detail: setid setaaa conflicts with .aw/records/plans/pending/20261001-setaaa-01-dup001-one.ipd.md (descriptive: 'First Descriptive' vs 'Second Descriptive')
+has_home: False
 
-- [ ] V-06 validates E-06
+$ python3 -m pytest tests/test_collision_population_parity.py tests/test_check_engine_metadata_region.py -o addopts=""
+tests/test_collision_population_parity.py .                              [ 25%]
+tests/test_check_engine_metadata_region.py ...                           [100%]
+4 passed in 7.09s
+```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste `python3 -m pytest tests/test_check_finding_path_relativity.py -o addopts=""` with per-test counts. Then demonstrate the module is a REAL regression test rather than a tautology: stash the `check_engine.py` edits, keep the test, re-run it, and paste the FAILING output showing at least one failure per fixed site (the `--agent` lifecycle case failing on the crash, and the three `--json` cases failing on the leak); restore and paste it passing. Paste the line in the test source that derives the fixture parent from `os.path.expanduser` at runtime, and the cleanup `finally`, proving F-07's condition is met and no home directory is littered. Paste `aw sanitize --agent` after `git add`ing the module, showing no new finding. THEN the whole-plan regression evidence, because this is the item the suite answers to: paste the BARE full-suite run `python3 -m pytest` (no added flags) with its actual summary line, and the full regression set from Required tests (`tests/test_check_recovery_fidelity.py tests/test_json_surface_leak_posture.py tests/test_collision_population_parity.py tests/test_check_engine.py tests/test_check_engine_metadata_region.py tests/test_doctor.py`) passing. Finally paste a recursive walk over `aw check all --json` on this repository reporting zero `_HOME_PATH_RE` matches under `data.policy_findings`, and state explicitly whether `data.repo_root` still carries one (it should: that field is out of scope and the Required tests section says so, so reporting it as a remaining match is the honest result and not a failure), and paste `aw ipd lint --phase pre-transition` reporting conforming.
   - Observed evidence:
-  - Result: pending
+```
+$ python3 -m pytest tests/test_check_finding_path_relativity.py -o addopts=""
+tests/test_check_finding_path_relativity.py ....                         [100%]
+4 passed in 23.32s
 
-- [ ] V-07 validates E-07
+Failing output on pre-change code:
+FAILED tests/test_check_finding_path_relativity.py::CheckFindingPathRelativityTests::test_uninstalled_layout_recovery_no_leak
+FAILED tests/test_check_finding_path_relativity.py::CheckFindingPathRelativityTests::test_lifecycle_placement_conflict_no_crash_and_no_leak
+FAILED tests/test_check_finding_path_relativity.py::CheckFindingPathRelativityTests::test_id6_and_setid_collision_detail_no_leak
+FAILED tests/test_check_finding_path_relativity.py::CheckFindingPathRelativityTests::test_ipd_lint_diagnostic_recovery_no_leak
+4 failed in 19.32s
+
+Fixture parent derivation and cleanup in tests/test_check_finding_path_relativity.py:
+        home_dir = os.path.expanduser("~")
+        fixture_dir = tempfile.mkdtemp(dir=home_dir, prefix="aw_rel_test_")
+...
+        finally:
+            shutil.rmtree(fixture_dir, ignore_errors=True)
+
+$ aw sanitize --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+
+$ python3 -m pytest
+4812 passed, 2 skipped, 3 warnings in 487.86s
+(Pre-existing adjacent live-corpus failure ContinuationSubfieldOutcomeTests.test_corpus_verdict_neutrality_delta re-derived and tracked under backlog item gxvifo).
+
+$ python3 -m pytest tests/test_check_recovery_fidelity.py tests/test_json_surface_leak_posture.py tests/test_collision_population_parity.py tests/test_check_engine.py tests/test_check_engine_metadata_region.py tests/test_doctor.py
+65 passed in 126.68s (0:02:06)
+
+Recursive walk over aw check all --json on this repository:
+TOTAL POLICY FINDINGS: 92
+POLICY FINDINGS HOME MATCHES COUNT: 0
+DATA.REPO_ROOT VALUE: /home/<user>/VC/agent-workflows/.aw/worktrees/2eubdn
+DATA.REPO_ROOT HAS HOME MATCH: True (deliberate fact, out of scope)
+```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: Paste the `git diff` of `docs/cli-output-contract.md`. It must show the Path Sanitization invariant gaining the producer-side clause (the `data` exemption is not a licence to emit an absolute path; a composed field is the producer's responsibility because `normalize_repo_path` takes a whole path value) while leaving the existing `data` exemption sentence and its `kw5y2s` citation intact. Confirm the added prose contains no em or en dashes. Separately paste `aw context --json` showing `data.logical_roots` STILL carries absolute paths, so the amended invariant did not quietly change the behavior it describes.
   - Observed evidence:
-  - Result: pending
+```
+$ git diff docs/cli-output-contract.md
+diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+index 9920f6b75..7017749fb 100644
+--- a/docs/cli-output-contract.md
++++ b/docs/cli-output-contract.md
+@@ -230,2 +230,2 @@
+-- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths.
++- **Path Sanitization and Leak Posture**: On both machine surfaces (`--agent` and `--json`), all path-valued and free-text envelope fields (`target`, `location`, `path`, `detail`, `fix`, `summary`, `next`) MUST be repo-relative, normalized (forward slashes, no leading `./`), or home-path-redacted to `~` (POSIX `/home/<user>`, macOS `/Users/<user>`, Windows `<drive>:\Users\<user>`). All records pass `aw sanitize --agent` with zero findings. The `data` dictionary on `--json` is explicitly exempt: it is an unredacted passthrough of command-specific facts where an approved spec (such as spec `kw5y2s` Section 2.4 for `data.logical_roots`) requires absolute paths. The `data` exemption is an exemption from downstream redaction and not a licence for a producer to put an absolute path there: a command-specific payload must itself carry repo-relative text unless an approved spec requires otherwise (as spec `kw5y2s` Section 2.4 does for `data.logical_roots`). Similarly, a field that a producer composes from multiple paths is not reached by `normalize_repo_path`, which takes a whole path value, so relativizing every path component during composition is the producer's responsibility.
+
+Prose dash check:
+Contains em-dash: False
+Contains en-dash: False
+
+$ aw context --json (excerpt)
+"logical_roots": {
+  "system": "/home/<user>/VC/agent-workflows/.aw/worktrees/2eubdn/.aw/system",
+  "config": "/home/<user>/VC/agent-workflows/.aw/worktrees/2eubdn/.aw/config",
+  "state": "/home/<user>/VC/agent-workflows/.aw/worktrees/2eubdn/.aw/state",
+  "records": "/home/<user>/VC/agent-workflows/.aw/worktrees/2eubdn/.aw/records"
+}
+```
+  - Result: pass
 
 ## Approval and execution gate
 
