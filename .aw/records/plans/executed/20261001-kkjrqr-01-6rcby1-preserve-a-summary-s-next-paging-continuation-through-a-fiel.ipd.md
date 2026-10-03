@@ -6,7 +6,7 @@
 - Scope: Add `next` to `agent_schema._PRESERVED_FIELDS` so no projection can remove a record's continuation command, extend `tests/test_agent_field_projection.py` with outcome-level coverage that drives real CLI commands and asserts on emitted records rather than on the constant's contents, and amend the `--fields` bullet in both user-facing documents that enumerate what a projection retains. Does NOT change what any command emits WITHOUT `--fields`, does NOT add `next` to any record that lacks it, does NOT change `validate_agent_record`, does NOT introduce per-kind or `complete`-conditional projection logic, and does NOT touch `run_analytics_cli._emit_query_agent`, whose deliberate no-context summary call this fix makes unnecessary as a paging workaround but which remains correct on its own semantic grounds.
 - Scope-Paths: agent_workflows/agent_schema.py, tests/test_agent_field_projection.py, docs/cli-agent-protocol.md, docs/cli-output-contract.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: bug
 - Priority: medium
 - From-Backlog: kkjrqr
@@ -17,9 +17,9 @@
 - Readiness: go-pending-approval
 - Author: opencode
 - Id: 6rcby1
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6rcby1 verified (set kkjrqr, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005. Re-verified at lane HEAD 51c5a7bbf: _PRESERVED_FIELDS lacks next; the releases show / runs query / find strandings reproduce (next present unprojected, absent under --fields findings); render_summary call sites match F-15; Sections 11.1 and 11.4 MUSTs quoted correctly; d6u2hz open and committed; 8jeh4x owns the reachability failure. Fixed: in-process --agent placement and --dir fixture for E-01 (PR-001), Proposed-changes renumbering against E-ids (PR-002), d6u2hz staging contradiction (PR-003), reachability-failure owner and E-01-only count (PR-004), gate scope fence + conditional finalize (PR-005).
 
@@ -40,37 +40,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the stranding at the outcome level, then close it
 
-- [ ] E-01 Extend `tests/test_agent_field_projection.py` with a failing test that pins the stranding ON EMITTED RECORDS FROM REAL CLI COMMANDS, which is what the backlog item explicitly requires ("the test must assert on emitted records from a real bounded query rather than on the constant's contents, per P16"). Drive at least two shipped commands through `cli.main` with `--agent` and then with `--agent --fields findings`, capturing stdout each time. TWO INVOCATION DETAILS MEASURED AT REVIEW decide whether the test exercises anything at all. (i) PLACE `--agent`/`--fields` AFTER THE SUBCOMMAND (`cli.main(["releases", "show", "zzzzzz", "--dir", tmp, "--agent"])`): in-process, `cli.main(["--agent", "releases", ...])` and `cli.main(["releases", "--agent", "show", ...])` both fell back to HUMAN output (an empty stdout with a stderr sentence for `releases show`, a `CANNOT-RUN` text line for `runs query`), so a test written that way would parse zero records and could pass vacuously or fail for the wrong reason. Assert that exactly one `aw.agent/v1` record was parsed before comparing `next`. (ii) PASS `--dir <tmp git repo>` so the command reads a fixture rather than the live tree; at review, `releases show zzzzzz --dir <tmp> --agent` emitted `next: "aw releases list"` and `runs query bogusview --dir <tmp> --agent` emitted `next: "aw runs query schema"`, and the `--fields findings` variant of the first emitted the same record with `next` absent. and assert that whenever the UNPROJECTED record carries a non-null `next`, the PROJECTED record carries the same value. Choose commands whose refusal is deterministic and whose `next` is a FIXED STRING rather than live-tree state: `aw releases show zzzzzz` (a `cannot-run` error whose `next` is exactly `aw releases list`) and `aw runs query bogusview` (whose `next` is exactly `aw runs query schema`) both qualify, and both were measured stable at authoring (F-03). DO NOT use `aw check plans` even though it is the most dramatic instance, because its `next` derives from whichever diagnostic sorts first in the live corpus (F-14). ASSERT ON THE VALUE, NOT MERELY ON PRESENCE, so a future change that preserves the key while blanking it fails too. Follow the file's existing style: `unittest`-free plain `pytest` functions with `OutputContext`/`OutputMode` imported from `agent_workflows.renderers`.
+- [x] E-01 Extend `tests/test_agent_field_projection.py` with a failing test that pins the stranding ON EMITTED RECORDS FROM REAL CLI COMMANDS, which is what the backlog item explicitly requires ("the test must assert on emitted records from a real bounded query rather than on the constant's contents, per P16"). Drive at least two shipped commands through `cli.main` with `--agent` and then with `--agent --fields findings`, capturing stdout each time. TWO INVOCATION DETAILS MEASURED AT REVIEW decide whether the test exercises anything at all. (i) PLACE `--agent`/`--fields` AFTER THE SUBCOMMAND (`cli.main(["releases", "show", "zzzzzz", "--dir", tmp, "--agent"])`): in-process, `cli.main(["--agent", "releases", ...])` and `cli.main(["releases", "--agent", "show", ...])` both fell back to HUMAN output (an empty stdout with a stderr sentence for `releases show`, a `CANNOT-RUN` text line for `runs query`), so a test written that way would parse zero records and could pass vacuously or fail for the wrong reason. Assert that exactly one `aw.agent/v1` record was parsed before comparing `next`. (ii) PASS `--dir <tmp git repo>` so the command reads a fixture rather than the live tree; at review, `releases show zzzzzz --dir <tmp> --agent` emitted `next: "aw releases list"` and `runs query bogusview --dir <tmp> --agent` emitted `next: "aw runs query schema"`, and the `--fields findings` variant of the first emitted the same record with `next` absent. and assert that whenever the UNPROJECTED record carries a non-null `next`, the PROJECTED record carries the same value. Choose commands whose refusal is deterministic and whose `next` is a FIXED STRING rather than live-tree state: `aw releases show zzzzzz` (a `cannot-run` error whose `next` is exactly `aw releases list`) and `aw runs query bogusview` (whose `next` is exactly `aw runs query schema`) both qualify, and both were measured stable at authoring (F-03). DO NOT use `aw check plans` even though it is the most dramatic instance, because its `next` derives from whichever diagnostic sorts first in the live corpus (F-14). ASSERT ON THE VALUE, NOT MERELY ON PRESENCE, so a future change that preserves the key while blanking it fails too. Follow the file's existing style: `unittest`-free plain `pytest` functions with `OutputContext`/`OutputMode` imported from `agent_workflows.renderers`.
   - Depends on: none
   - Expected outcome: `python3 -m pytest tests/test_agent_field_projection.py -o addopts=""` FAILS at this HEAD on both new CLI assertions, the `releases show` one showing `aw releases list` expected and absent and the `runs query` one showing `aw runs query schema` expected and absent. The FOUR pre-existing tests in the file must still pass unchanged, since this plan adds coverage rather than altering `gygujf`'s contract.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add a renderer-level assertion to the same file reproducing the backlog item's own measurement on the `summary` kind, which is a DIFFERENT TEST SURFACE from E-01's and must be pinned independently: `AgentRenderer().render_summary('runs query', total=5, emitted=2, omitted=3, outcome='clean', exit_code=0, next_cmd='aw runs query --offset 2', complete=False, context=ctx)` with `ctx.fields=['cmd']` must emit a record retaining `next` with that exact value. WHY THIS IS NOT REDUNDANT WITH E-01: no shipped command reaches `render_summary` WITH a context today, because `run_analytics_cli._emit_query_agent` deliberately passes none, so the `summary` instance the item actually filed is unreachable through any CLI surface and E-01 cannot cover it (F-15). Assert on the value, not on presence.
+- [x] E-02 Add a renderer-level assertion to the same file reproducing the backlog item's own measurement on the `summary` kind, which is a DIFFERENT TEST SURFACE from E-01's and must be pinned independently: `AgentRenderer().render_summary('runs query', total=5, emitted=2, omitted=3, outcome='clean', exit_code=0, next_cmd='aw runs query --offset 2', complete=False, context=ctx)` with `ctx.fields=['cmd']` must emit a record retaining `next` with that exact value. WHY THIS IS NOT REDUNDANT WITH E-01: no shipped command reaches `render_summary` WITH a context today, because `run_analytics_cli._emit_query_agent` deliberately passes none, so the `summary` instance the item actually filed is unreachable through any CLI surface and E-01 cannot cover it (F-15). Assert on the value, not on presence.
   - Depends on: none
   - Expected outcome: The new renderer assertion FAILS at this HEAD showing `aw runs query --offset 2` expected and the projected record lacking the key, and it fails independently of E-01's two CLI assertions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `"next"` to `agent_schema._PRESERVED_FIELDS`, which is a one-name change to the existing union expression, and REWRITE THE CONSTANT'S COMMENT so it no longer misdescribes itself. The comment currently says the set "includes every field validate_agent_record consults" and enumerates why each member is there; after this change that sentence is FALSE, because `next` is the first member the validator does not consult (F-02). The comment must state the set's actual, now-broader contract: a projection may not remove a field that the record's VALIDITY requires (the `gygujf` members) OR that the record's USABILITY requires and the caller cannot reconstruct (`next`). Say explicitly that `next` is in the second category and give the reason, which is the one a future reader will otherwise delete it for: a record reporting `complete: false` without `next` tells a caller its answer is partial while withholding the only continuation it has, and `docs/cli-output-contract.md` Sections 11.1 and 11.4 state MUSTs that a projected record would otherwise violate. PRESERVE `_MANDATORY_FIELDS` EXACTLY, for the same reason `gygujf` did: it is the seven-field envelope two shipped documents enumerate, and `run_analytics_cli` names it in prose. Change no other executable line: the `if not fields: return dict(record)` early return stays, the comprehension stays, and every rule in `validate_agent_record` stays. ADD NO CONDITIONAL. A `complete`-keyed variant is refuted by measurement, not merely rejected by preference (F-05, OQ-01), and the flat kind-independent union is the shape `gygujf` chose deliberately (its OQ-02).
+- [x] E-03 Add `"next"` to `agent_schema._PRESERVED_FIELDS`, which is a one-name change to the existing union expression, and REWRITE THE CONSTANT'S COMMENT so it no longer misdescribes itself. The comment currently says the set "includes every field validate_agent_record consults" and enumerates why each member is there; after this change that sentence is FALSE, because `next` is the first member the validator does not consult (F-02). The comment must state the set's actual, now-broader contract: a projection may not remove a field that the record's VALIDITY requires (the `gygujf` members) OR that the record's USABILITY requires and the caller cannot reconstruct (`next`). Say explicitly that `next` is in the second category and give the reason, which is the one a future reader will otherwise delete it for: a record reporting `complete: false` without `next` tells a caller its answer is partial while withholding the only continuation it has, and `docs/cli-output-contract.md` Sections 11.1 and 11.4 state MUSTs that a projected record would otherwise violate. PRESERVE `_MANDATORY_FIELDS` EXACTLY, for the same reason `gygujf` did: it is the seven-field envelope two shipped documents enumerate, and `run_analytics_cli` names it in prose. Change no other executable line: the `if not fields: return dict(record)` early return stays, the comprehension stays, and every rule in `validate_agent_record` stays. ADD NO CONDITIONAL. A `complete`-keyed variant is refuted by measurement, not merely rejected by preference (F-05, OQ-01), and the flat kind-independent union is the shape `gygujf` chose deliberately (its OQ-02).
   - Depends on: E-01, E-02
   - Expected outcome: `'next' in agent_schema._PRESERVED_FIELDS` is `True`; the set holds exactly twelve names; `_MANDATORY_FIELDS` is textually unchanged and still holds exactly seven; every E-01 and E-02 assertion passes; no rule in `validate_agent_record` is modified; the constant's comment no longer claims the set equals the validator's consulted fields.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: reconcile the two documents that enumerate the preserved set
 
-- [ ] E-04 Amend the `--fields` bullet in `docs/cli-agent-protocol.md` under `## Token control`, which currently names the envelope plus "a summary's `total`, `emitted`, and `omitted` ... and a preview result's `applied`" and justifies each by VALIDITY. That justification does not cover `next`, so adding the name without extending the reason would leave a reader unable to tell why it is there. The bullet must now also name `next` and give its distinct reason: it is retained because a caller cannot reconstruct it, not because the validator demands it. REUSE THE REASON THIS DOCUMENT ALREADY GIVES two sections earlier under `## Stream truncation is honest`, where `next` is defined as "a ready-to-run command that would fetch the rest", and under `## Recommended consumption pattern` item 6, "If `complete` is `false`, follow `next` to fetch the remainder": that instruction is precisely what a dropped `next` makes impossible, so the document already contains the argument and must not invent a second one. Write no em or en dashes: this is user-facing prose. Touch no other paragraph, and in particular do not amend the example records, which are unprojected and remain accurate.
+- [x] E-04 Amend the `--fields` bullet in `docs/cli-agent-protocol.md` under `## Token control`, which currently names the envelope plus "a summary's `total`, `emitted`, and `omitted` ... and a preview result's `applied`" and justifies each by VALIDITY. That justification does not cover `next`, so adding the name without extending the reason would leave a reader unable to tell why it is there. The bullet must now also name `next` and give its distinct reason: it is retained because a caller cannot reconstruct it, not because the validator demands it. REUSE THE REASON THIS DOCUMENT ALREADY GIVES two sections earlier under `## Stream truncation is honest`, where `next` is defined as "a ready-to-run command that would fetch the rest", and under `## Recommended consumption pattern` item 6, "If `complete` is `false`, follow `next` to fetch the remainder": that instruction is precisely what a dropped `next` makes impossible, so the document already contains the argument and must not invent a second one. Write no em or en dashes: this is user-facing prose. Touch no other paragraph, and in particular do not amend the example records, which are unprojected and remain accurate.
   - Depends on: E-03
   - Expected outcome: The `## Token control` `--fields` bullet names `next` among the retained fields and states the not-reconstructible reason, cross-consistent with item 6 of `## Recommended consumption pattern`; no other paragraph in the file changes; the file gains no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Amend the `**--fields <list>**` bullet in `docs/cli-output-contract.md` under `## 6. Token Control and Escape Hatches`, which makes the same enumeration and the same validity-only claim. Same change, same reason, and ONE ADDITION this document owes that the protocol reference does not: this file is where the two violated MUSTs live, in Section 11.1 ("`next`: the suggested broadening or fallback command" on an empty result) and Section 11.4 (a `cannot-run` record carries "a `next` recovery command"). State that a projection preserves `next` so those requirements hold under `--fields` too, which makes the document internally consistent rather than leaving a reader to discover that Section 6 silently exempted Sections 11.1 and 11.4. Write no em or en dashes. Touch no other bullet; the `--limit` bullet beside it is already correct and the Section 11 MUSTs themselves need no edit, since this plan makes the implementation match what they already say.
+- [x] E-05 Amend the `**--fields <list>**` bullet in `docs/cli-output-contract.md` under `## 6. Token Control and Escape Hatches`, which makes the same enumeration and the same validity-only claim. Same change, same reason, and ONE ADDITION this document owes that the protocol reference does not: this file is where the two violated MUSTs live, in Section 11.1 ("`next`: the suggested broadening or fallback command" on an empty result) and Section 11.4 (a `cannot-run` record carries "a `next` recovery command"). State that a projection preserves `next` so those requirements hold under `--fields` too, which makes the document internally consistent rather than leaving a reader to discover that Section 6 silently exempted Sections 11.1 and 11.4. Write no em or en dashes. Touch no other bullet; the `--limit` bullet beside it is already correct and the Section 11 MUSTs themselves need no edit, since this plan makes the implementation match what they already say.
   - Depends on: E-04
   - Expected outcome: The Section 6 `--fields` bullet names `next` and reconciles itself with the Section 11.1 and 11.4 MUSTs by reference; Sections 11.1 and 11.4 are UNCHANGED; no other bullet changes; the file gains no em or en dash.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Verify, as the LAST act before commit, the three things a green suite cannot catch, each of which is a specific way this plan could ship a false claim. FIRST, THE TOKEN COST THIS PLAN ACCEPTS, measured rather than asserted: re-run the byte-delta measurement F-06 records for a projected record that carries a non-null `next` and for one whose `next` is `null`, and confirm the shape of the result (a real cost only where `next` is non-null, and a 12-byte `"next":null` cost where it is). Report the numbers you measure rather than restating F-06's, since they move with the command sampled. If any sampled record now EXCEEDS 1200 bytes under projection where it did not before, STOP and report it: F-07 measures today's worst case at 309 bytes against that budget, so a breach would mean the sample changed and the plan's cost argument needs re-deciding, not papering over. SECOND, CONFIRM `run_analytics_cli` IS UNTOUCHED and that its 12-line comment above `renderer.render_summary` is now PARTLY STALE: that comment's load-bearing claim is "the summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`", which E-03 falsifies. Do NOT edit it in this plan (it is a fifth file, a prose-only change, and the no-context call stays correct for its own stated reason about engine counts versus stream counts); its carrier `d6u2hz` was ALREADY FILED during authoring, so CONFIRM it is still `open` and still describes the comment accurately rather than filing a duplicate. This is the same disposition `gygujf` took toward the same comment via `cm80ge`, which is now `done`. THIRD, RE-DERIVE THE SUITE BASELINE IN THE LANE rather than trusting F-08's numbers, and confirm the two failures it records are still present and still not yours, by running each in isolation and by naming the open backlog items that already own them (`6bolin`/`md2o3y` for the `89xjll` spec failure, `8jeh4x` for the reachability perturbation failure). A THIRD failure appearing is this plan's until a targeted run plus a commit predating the lane proves otherwise.
+- [x] E-06 Verify, as the LAST act before commit, the three things a green suite cannot catch, each of which is a specific way this plan could ship a false claim. FIRST, THE TOKEN COST THIS PLAN ACCEPTS, measured rather than asserted: re-run the byte-delta measurement F-06 records for a projected record that carries a non-null `next` and for one whose `next` is `null`, and confirm the shape of the result (a real cost only where `next` is non-null, and a 12-byte `"next":null` cost where it is). Report the numbers you measure rather than restating F-06's, since they move with the command sampled. If any sampled record now EXCEEDS 1200 bytes under projection where it did not before, STOP and report it: F-07 measures today's worst case at 309 bytes against that budget, so a breach would mean the sample changed and the plan's cost argument needs re-deciding, not papering over. SECOND, CONFIRM `run_analytics_cli` IS UNTOUCHED and that its 12-line comment above `renderer.render_summary` is now PARTLY STALE: that comment's load-bearing claim is "the summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`", which E-03 falsifies. Do NOT edit it in this plan (it is a fifth file, a prose-only change, and the no-context call stays correct for its own stated reason about engine counts versus stream counts); its carrier `d6u2hz` was ALREADY FILED during authoring, so CONFIRM it is still `open` and still describes the comment accurately rather than filing a duplicate. This is the same disposition `gygujf` took toward the same comment via `cm80ge`, which is now `done`. THIRD, RE-DERIVE THE SUITE BASELINE IN THE LANE rather than trusting F-08's numbers, and confirm the two failures it records are still present and still not yours, by running each in isolation and by naming the open backlog items that already own them (`6bolin`/`md2o3y` for the `89xjll` spec failure, `8jeh4x` for the reachability perturbation failure). A THIRD failure appearing is this plan's until a targeted run plus a commit predating the lane proves otherwise.
   - Depends on: E-05
   - Expected outcome: The byte cost is re-measured and reported with no projected sample exceeding 1200 bytes; `run_analytics_cli.py` is confirmed unmodified and its stale comment is confirmed still carried by the already-filed `d6u2hz` rather than edited or re-filed; the lane's own baseline is re-derived, the two pre-existing failures are confirmed unchanged and attributed to their existing items, and the passed count rises by exactly the tests E-01 and E-02 add.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -171,35 +171,412 @@ ONE INTERNAL INCONSISTENCY IS BEING CLOSED RATHER THAN CREATED, and it is worth 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the committed diff of the CLI-level assertions E-01 adds to `tests/test_agent_field_projection.py`. Paste the output of `python3 -m pytest tests/test_agent_field_projection.py -o addopts=""` run on the tree BEFORE E-03, which must FAIL, and paste enough of each failure to show expected-versus-actual for BOTH new CLI assertions: the `releases show` one naming `aw releases list` and the `runs query` one naming `aw runs query schema`. A red run showing only one of the two is NOT sufficient. CONFIRM IN THE SAME OUTPUT that the four pre-existing tests still PASS, since this plan extends `gygujf`'s contract and must not weaken it (F-13); a run where an old test also fails means E-01 altered something it should not have. QUOTE the assertion lines and confirm each compares the `next` VALUE rather than merely testing `'next' in record`, because a presence-only assertion would pass against a future change that preserves the key while blanking it. CONFIRM NO ASSERTION READS `_PRESERVED_FIELDS`, `inspect`, `ast`, or the source text of any production module: the backlog item requires outcome-level testing and P16 forbids code-pinning tests, so a test asserting on the constant's contents is a FAILED validation even if it is green. CONFIRM `aw check plans` is NOT pinned, since its `next` derives from live-corpus diagnostic ordering (F-14) and would make the suite fail on another party's commit. Paste the records BOTH commands emit with and without `--fields` so a reader can see the expected value really is the fixed string the assertion names.
   - Observed evidence:
-  - Result: pending
+    Committed diff of CLI-level assertions in `tests/test_agent_field_projection.py`:
+    ```python
+    def test_cli_projection_releases_show_retains_next(tmp_path, capsys):
+        """E-01: aw releases show preserves non-null next across --fields projection."""
+        tmp = str(tmp_path)
+        # 1. Unprojected run
+        capsys.readouterr()
+        cli.main(["releases", "show", "zzzzzz", "--dir", tmp, "--agent"])
+        out_unproj, _ = capsys.readouterr()
+        lines_unproj = [line for line in out_unproj.strip().splitlines() if line.strip()]
+        assert len(lines_unproj) == 1, f"Expected exactly 1 record, got: {lines_unproj}"
+        rec_unproj = json.loads(lines_unproj[0])
+        assert rec_unproj.get("schema") == "aw.agent/v1"
+        assert rec_unproj.get("next") == "aw releases list"
 
-- [ ] V-02 validates E-02
+        # 2. Projected run with --fields findings
+        cli.main(
+            [
+                "releases",
+                "show",
+                "zzzzzz",
+                "--dir",
+                tmp,
+                "--agent",
+                "--fields",
+                "findings",
+            ]
+        )
+        out_proj, _ = capsys.readouterr()
+        lines_proj = [line for line in out_proj.strip().splitlines() if line.strip()]
+        assert len(lines_proj) == 1, f"Expected exactly 1 record, got: {lines_proj}"
+        rec_proj = json.loads(lines_proj[0])
+        assert rec_proj.get("schema") == "aw.agent/v1"
+        assert rec_proj.get("next") == rec_unproj.get("next")
+        assert rec_proj.get("next") == "aw releases list"
+
+
+    def test_cli_projection_runs_query_retains_next(tmp_path, capsys):
+        """E-01: aw runs query preserves non-null next across --fields projection."""
+        tmp = str(tmp_path)
+        # 1. Unprojected run
+        capsys.readouterr()
+        cli.main(["runs", "query", "bogusview", "--dir", tmp, "--agent"])
+        out_unproj, _ = capsys.readouterr()
+        lines_unproj = [line for line in out_unproj.strip().splitlines() if line.strip()]
+        assert len(lines_unproj) == 1, f"Expected exactly 1 record, got: {lines_unproj}"
+        rec_unproj = json.loads(lines_unproj[0])
+        assert rec_unproj.get("schema") == "aw.agent/v1"
+        assert rec_unproj.get("next") == "aw runs query schema"
+
+        # 2. Projected run with --fields findings
+        cli.main(
+            [
+                "runs",
+                "query",
+                "bogusview",
+                "--dir",
+                tmp,
+                "--agent",
+                "--fields",
+                "findings",
+            ]
+        )
+        out_proj, _ = capsys.readouterr()
+        lines_proj = [line for line in out_proj.strip().splitlines() if line.strip()]
+        assert len(lines_proj) == 1, f"Expected exactly 1 record, got: {lines_proj}"
+        rec_proj = json.loads(lines_proj[0])
+        assert rec_proj.get("schema") == "aw.agent/v1"
+        assert rec_proj.get("next") == rec_unproj.get("next")
+        assert rec_proj.get("next") == "aw runs query schema"
+    ```
+
+    Pre-E-03 test output (`python3 -m pytest tests/test_agent_field_projection.py -o addopts=""`):
+    ```
+    =================================== FAILURES ===================================
+    ________________ test_cli_projection_releases_show_retains_next ________________
+    ...
+    >       assert rec_proj.get("next") == rec_unproj.get("next")
+    E       AssertionError: assert None == 'aw releases list'
+    E        +  where None = <built-in method get of dict object at 0x7306bbb43fc0>('next')
+    E        +    where <built-in method get of dict object at 0x7306bbb43fc0> = {'cmd': 'releases show', 'complete': False, 'exit': 2, 'findings': 0, ...}.get
+    E        +  and   'aw releases list' = <built-in method get of dict object at 0x7306bbf97d00>('next')
+    E        +    where <built-in method get of dict object at 0x7306bbf97d00> = {'cmd': 'releases show', 'complete': False, 'exit': 2, 'findings': 0, ...}.get
+    ...
+    _________________ test_cli_projection_runs_query_retains_next __________________
+    ...
+    >       assert rec_proj.get("next") == rec_unproj.get("next")
+    E       AssertionError: assert None == 'aw runs query schema'
+    E        +  where None = <built-in method get of dict object at 0x7306bb99a980>('next')
+    E        +    where <built-in method get of dict object at 0x7306bb99a980> = {'cmd': 'runs query', 'complete': False, 'exit': 2, 'findings': 0, ...}.get
+    E        +  and   'aw runs query schema' = <built-in method get of dict object at 0x7306bba5c9c0>('next')
+    E        +    where <built-in method get of dict object at 0x7306bba5c9c0> = {'cmd': 'runs query', 'complete': False, 'exit': 2, 'findings': 0, ...}.get
+    ...
+    =========================== short test summary info ============================
+    FAILED tests/test_agent_field_projection.py::test_cli_projection_releases_show_retains_next
+    FAILED tests/test_agent_field_projection.py::test_cli_projection_runs_query_retains_next
+    FAILED tests/test_agent_field_projection.py::test_summary_field_projection_retains_next_continuation
+    ========================= 3 failed, 4 passed in 2.36s ==========================
+    ```
+    The 4 pre-existing tests passed (`test_summary_field_projection_retains_required_count_fields`, `test_result_preview_projection_retains_applied`, `test_derived_property_required_fields_preserved_under_projection`, `test_projection_anti_overreach_and_combinatorial_sweep`).
+    Assertion lines compared exact values:
+    - `assert rec_proj.get("next") == rec_unproj.get("next")`
+    - `assert rec_proj.get("next") == "aw releases list"`
+    - `assert rec_proj.get("next") == "aw runs query schema"`
+    No assertion reads `_PRESERVED_FIELDS`, `inspect`, `ast`, or production module text. `aw check plans` is not pinned.
+    Emitted records:
+    `releases show zzzzzz --dir <tmp> --agent`:
+    - Unprojected: `{"schema":"aw.agent/v1","kind":"error","cmd":"releases show","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw releases list"}`
+    - Projected (`--fields findings` pre-fix): `{"schema":"aw.agent/v1","kind":"error","cmd":"releases show","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0}`
+    - Projected (`--fields findings` post-fix): `{"schema":"aw.agent/v1","kind":"error","cmd":"releases show","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw releases list"}`
+    `runs query bogusview --dir <tmp> --agent`:
+    - Unprojected: `{"schema":"aw.agent/v1","kind":"error","cmd":"runs query","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw runs query schema"}`
+    - Projected (`--fields findings` pre-fix): `{"schema":"aw.agent/v1","kind":"error","cmd":"runs query","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0}`
+    - Projected (`--fields findings` post-fix): `{"schema":"aw.agent/v1","kind":"error","cmd":"runs query","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw runs query schema"}`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the committed diff of the renderer-level assertion E-02 adds, and paste its output run BEFORE E-03 showing it FAILS with `aw runs query --offset 2` expected and the projected record lacking `next`. Run it IN ISOLATION (by node id) and paste that run, so its redness is established independently of E-01's two CLI assertions rather than inferred from a file-level red. CONFIRM it asserts on the VALUE and not on presence. CONFIRM IT IS NOT REDUNDANT with E-01 by demonstrating the reason F-15 records: show that `run_analytics_cli._emit_query_agent` calls `renderer.render_summary` with NO context argument, so no shipped command reaches the projected-summary path and E-01's CLI assertions cannot cover it. If you find that a shipped command DOES reach `render_summary` with a context, say so plainly: that would make F-15 wrong and would mean this surface should have been covered by a CLI assertion instead, which is a finding worth reporting rather than quietly collapsing the two items.
   - Observed evidence:
-  - Result: pending
+    Committed diff of renderer assertion in `tests/test_agent_field_projection.py`:
+    ```python
+    def test_summary_field_projection_retains_next_continuation():
+        """E-02: render_summary with fields projection retains non-null next continuation command."""
+        ctx = OutputContext(
+            mode=OutputMode.AGENT,
+            stdout=io.StringIO(),
+            stderr=io.StringIO(),
+            fields=["cmd"],
+        )
+        rendered = AgentRenderer().render_summary(
+            "runs query",
+            total=5,
+            emitted=2,
+            omitted=3,
+            outcome="clean",
+            exit_code=0,
+            next_cmd="aw runs query --offset 2",
+            complete=False,
+            context=ctx,
+        )
+        data = json.loads(rendered)
+        assert is_valid_agent_record(data)
+        assert data.get("next") == "aw runs query --offset 2"
+    ```
 
-- [ ] V-03 validates E-03
+    Isolated run BEFORE E-03 (`python3 -m pytest tests/test_agent_field_projection.py::test_summary_field_projection_retains_next_continuation -o addopts=""`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=4112463359
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collecting 1 item                                                              collected 1 item
+
+    tests/test_agent_field_projection.py F                                   [100%]
+
+    =================================== FAILURES ===================================
+    ___________ test_summary_field_projection_retains_next_continuation ____________
+
+        def test_summary_field_projection_retains_next_continuation():
+            """E-02: render_summary with fields projection retains non-null next continuation command."""
+            ctx = OutputContext(
+                mode=OutputMode.AGENT,
+                stdout=io.StringIO(),
+                stderr=io.StringIO(),
+                fields=["cmd"],
+            )
+            rendered = AgentRenderer().render_summary(
+                "runs query",
+                total=5,
+                emitted=2,
+                omitted=3,
+                outcome="clean",
+                exit_code=0,
+                next_cmd="aw runs query --offset 2",
+                complete=False,
+                context=ctx,
+            )
+            data = json.loads(rendered)
+            assert is_valid_agent_record(data)
+    >       assert data.get("next") == "aw runs query --offset 2"
+    E       AssertionError: assert None == 'aw runs query --offset 2'
+    E        +  where None = <built-in method get of dict object at 0x7b53072d11c0>('next')
+    E        +    where <built-in method get of dict object at 0x7b53072d11c0> = {'cmd': 'runs query', 'complete': False, 'emitted': 2, 'exit': 0, ...}.get
+
+    tests/test_agent_field_projection.py:353: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_agent_field_projection.py::test_summary_field_projection_retains_next_continuation
+    ============================== 1 failed in 0.84s ===============================
+    ```
+    Asserts on the exact value: `assert data.get("next") == "aw runs query --offset 2"`.
+    Non-redundancy confirmed: `agent_workflows/run_analytics_cli.py` lines 268-278:
+    ```python
+        parts.append(
+            renderer.render_summary(
+                "runs query",
+                total=total,
+                emitted=result.emitted,
+                omitted=max(0, total - result.emitted),
+                outcome=result.outcome,
+                exit_code=result.exit_code,
+                next_cmd=result.next_command or None,
+                complete=result.complete,
+            )
+        )
+    ```
+    `render_summary` is called with no `context=` argument, confirming F-15 that no shipped command reaches projected summary rendering in production CLI today.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the committed diff of `agent_workflows/agent_schema.py`. It must show exactly one name added to `_PRESERVED_FIELDS` plus comment text, and NOTHING else: confirm by inspection that `_MANDATORY_FIELDS` is textually unchanged and still holds seven names, that `filter_record_fields`'s early return and comprehension are unchanged, and that no rule inside `validate_agent_record` moved. Paste `python3 -m pytest tests/test_agent_field_projection.py -o addopts=""` now fully GREEN. Paste the LIVE PROBE on all four commands F-03 measured stranded (`aw check plans`, `aw find zzzzzz`, `aw releases show zzzzzz`, `aw runs query bogusview`), each run `--agent --fields findings`, showing for each the emitted record with a non-null `next` and `is_valid_agent_record` true; a probe covering fewer than four is incomplete, because two of them are the `complete: true` cases that refute candidate (b) and they are the ones an executor is most likely to skip. Paste the NO-CHANGE-WITHOUT-FIELDS result: a corpus spanning all four kinds rendered through `render_jsonl_record` with no `fields`, byte-identical before and after, including the four `*.agent.golden` shapes. Paste the EXHAUSTIVE SWEEP result with the projection count swept, showing zero invalid, zero added keys, zero altered values, and ZERO strandings against the 2 measured before. QUOTE the new comment text and confirm it no longer claims the set equals the validator's consulted fields, that it gives `next`'s distinct non-reconstructible reason, and that it names the Section 11.1 and 11.4 MUSTs; a diff that adds the name without correcting the comment leaves the next reader a documented reason to delete it (F-02, OQ-02) and is a FAILED validation.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `agent_workflows/agent_schema.py`:
+    ```diff
+    diff --git a/agent_workflows/agent_schema.py b/agent_workflows/agent_schema.py
+    index a5d3e098a..e02e1ce9a 100644
+    --- a/agent_workflows/agent_schema.py
+    +++ b/agent_workflows/agent_schema.py
+    @@ -395,17 +395,24 @@ def assert_valid_agent_record(record: Dict[str, Any]) -> None:
 
-- [ ] V-04 validates E-04
+     _MANDATORY_FIELDS = {"schema", "kind", "cmd", "exit", "outcome", "complete", "verified"}
+
+    -# Fields that a projection must not remove in order for the resulting record to remain valid
+    -# across all kinds. This is a kind-independent superset of _MANDATORY_FIELDS that additionally
+    -# includes every field validate_agent_record consults:
+    -# - 'applied': preview exemption for result records with complete=False
+    -# - 'total', 'emitted', 'omitted': required accounting fields for summary records
+    +# Fields that a projection must not remove across any record kind. This is a kind-independent
+    +# superset of _MANDATORY_FIELDS that preserves fields required for two distinct reasons:
+    +# 1. Record validity (fields validate_agent_record consults):
+    +#    - 'applied': preview exemption for result records with complete=False
+    +#    - 'total', 'emitted', 'omitted': required accounting fields for summary records
+    +# 2. Record usability that the caller cannot reconstruct:
+    +#    - 'next': paging continuation or recovery command. Dropping 'next' from a record reporting
+    +#      complete=False tells the caller its answer is partial while withholding the command to
+    +#      fetch the remainder. Furthermore, docs/cli-output-contract.md Sections 11.1 and 11.4
+    +#      state MUST requirements for empty results and cannot-run error records to carry 'next',
+    +#      which a projected record would otherwise violate.
+     #
+     # Preserving a flat union rather than a per-kind mapping avoids a second structure to keep
+    -# in sync with the validator, and failing closed (retaining a field the validator might consult)
+    -# prevents crashes at runtime. For records that do not carry these optional/kind-specific fields,
+    -# filtering is a no-op because only present keys are considered.
+    -_PRESERVED_FIELDS = _MANDATORY_FIELDS | {"applied", "total", "emitted", "omitted"}
+    +# in sync with the validator, and failing closed (retaining a field the validator might consult
+    +# or that the caller cannot reconstruct) prevents broken continuation and runtime crashes.
+    +# For records that do not carry these optional/kind-specific fields, filtering is a no-op
+    +# because only present keys are considered.
+    +_PRESERVED_FIELDS = _MANDATORY_FIELDS | {"applied", "total", "emitted", "omitted", "next"}
+    ```
+    Confirmed: `_MANDATORY_FIELDS` unchanged (7 fields: schema, kind, cmd, exit, outcome, complete, verified); `filter_record_fields` early return and comprehension unchanged; no rules in `validate_agent_record` moved.
+
+    Post-E-03 test output:
+    ```
+    $ python3 -m pytest tests/test_agent_field_projection.py -o addopts=""
+    ============================== 7 passed in 2.57s ===============================
+    ```
+
+    Live probe on 4 commands (`--agent --fields findings`):
+    ```
+    COMMAND: check plans --agent --fields findings
+    EXIT: 1
+    RECORD: {"schema":"aw.agent/v1","kind":"result","cmd":"check","outcome":"findings","exit":1,"verified":true,"complete":true,"findings":76,"next":"cite evidence it was discharged by finished work: add `- Carrier-Evidence: .aw/records/backlog/done/20261001-vf3mw2-01-vf3mw2-partition-unknown-key-is-unreachable-dead-field.backlog.md`"}
+    is_valid_agent_record: True, complete: True, next: 'cite evidence it was discharged by finished work: add `- Carrier-Evidence: .aw/records/backlog/done/20261001-vf3mw2-01-vf3mw2-partition-unknown-key-is-unreachable-dead-field.backlog.md`'
+    ---
+    COMMAND: find zzzzzz --agent --fields findings
+    EXIT: 0
+    RECORD: {"schema":"aw.agent/v1","kind":"result","cmd":"find","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"next":"aw find"}
+    is_valid_agent_record: True, complete: True, next: 'aw find'
+    ---
+    COMMAND: releases show zzzzzz --agent --fields findings
+    EXIT: 2
+    RECORD: {"schema":"aw.agent/v1","kind":"error","cmd":"releases show","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw releases list"}
+    is_valid_agent_record: True, complete: False, next: 'aw releases list'
+    ---
+    COMMAND: runs query bogusview --agent --fields findings
+    EXIT: 2
+    RECORD: {"schema":"aw.agent/v1","kind":"error","cmd":"runs query","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw runs query schema"}
+    is_valid_agent_record: True, complete: False, next: 'aw runs query schema'
+    ```
+
+    No-change-without-fields probe:
+    Tested 14 records across all four kinds (including the 4 `*.agent.golden` fixtures: `read_clean`, `error_cannot_run`, `check_findings`, `mutation_preview`): `byte-identical=True`.
+
+    Exhaustive sweep over all key subsets:
+    Swept 186 projections across 14 records: `invalid=0, added_keys=0, altered_values=0, strandings=0`.
+
+    Quoted new comment text:
+    > Fields that a projection must not remove across any record kind. This is a kind-independent
+    > superset of _MANDATORY_FIELDS that preserves fields required for two distinct reasons:
+    > 1. Record validity (fields validate_agent_record consults):
+    >    - 'applied': preview exemption for result records with complete=False
+    >    - 'total', 'emitted', 'omitted': required accounting fields for summary records
+    > 2. Record usability that the caller cannot reconstruct:
+    >    - 'next': paging continuation or recovery command. Dropping 'next' from a record reporting
+    >      complete=False tells the caller its answer is partial while withholding the command to
+    >      fetch the remainder. Furthermore, docs/cli-output-contract.md Sections 11.1 and 11.4
+    >      state MUST requirements for empty results and cannot-run error records to carry 'next',
+    >      which a projected record would otherwise violate.
+    The comment no longer claims the set equals the validator's consulted fields, states the usability reason, and cites Sections 11.1 and 11.4 MUSTs.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the committed diff of `docs/cli-agent-protocol.md`. Confirm the `## Token control` `--fields` bullet now names `next` among the retained fields and states the not-reconstructible reason. QUOTE the bullet in full and confirm its reason is CONSISTENT with item 6 of `## Recommended consumption pattern` ("If `complete` is `false`, follow `next` to fetch the remainder") and with `## Stream truncation is honest`, rather than inventing a second rationale. Confirm by diff that no other paragraph changed and that the example records are untouched, since they are unprojected and already correct (F-10). Run `rg -n '[\u2013\u2014]' docs/cli-agent-protocol.md` (or an equivalent em/en dash scan) and paste the result showing NO hits, since this is user-facing prose under the execution contract.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `docs/cli-agent-protocol.md`:
+    ```diff
+    diff --git a/docs/cli-agent-protocol.md b/docs/cli-agent-protocol.md
+    index 193b0dfb2..41334c9c6 100644
+    --- a/docs/cli-agent-protocol.md
+    +++ b/docs/cli-agent-protocol.md
+    @@ -67,8 +67,11 @@ Two escape hatches tune the token cost:
+       (`schema`, `kind`, `cmd`, `exit`, `outcome`, `verified`, `complete`) is always retained. A projection
+       additionally retains whatever the record kind requires to remain valid, including a summary's `total`,
+       `emitted`, and `omitted` (so `emitted + omitted == total` remains verifiable to distinguish a bounded
+    -  answer from a complete one) and a preview result's `applied`. A projection never yields a record that
+    -  fails validation, so `--fields` is safe to pass on any command.
+    +  answer from a complete one) and a preview result's `applied`. A projection also preserves `next`
+    +  whenever present: a continuation command cannot be reconstructed by the caller, so dropping it would
+    +  leave a truncated record (`complete: false`) without the ready-to-run command needed to follow `next`
+    +  and fetch the remainder. A projection never yields a record that fails validation, so `--fields` is safe
+    +  to pass on any command.
+    ```
 
-- [ ] V-05 validates E-05
+    Quoted amended bullet:
+    `- --fields <a,b,c>: project each record down to the requested fields. The mandatory envelope (schema, kind, cmd, exit, outcome, verified, complete) is always retained. A projection additionally retains whatever the record kind requires to remain valid, including a summary's total, emitted, and omitted (so emitted + omitted == total remains verifiable to distinguish a bounded answer from a complete one) and a preview result's applied. A projection also preserves next whenever present: a continuation command cannot be reconstructed by the caller, so dropping it would leave a truncated record (complete: false) without the ready-to-run command needed to follow next and fetch the remainder. A projection never yields a record that fails validation, so --fields is safe to pass on any command.`
+    Reason matches item 6 of `## Recommended consumption pattern` and `## Stream truncation is honest`. Example records and all other paragraphs untouched.
+    Dash scan:
+    `rg -n '[\u2013\u2014]' docs/cli-agent-protocol.md` -> 0 hits (exit code 1).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the committed diff of `docs/cli-output-contract.md`. Confirm the Section 6 `**--fields <list>**` bullet names `next` and reconciles itself by reference with the Section 11.1 and 11.4 MUSTs. QUOTE the amended bullet and ALSO quote Sections 11.1 and 11.4 from the committed file to demonstrate they are UNCHANGED: this plan makes the implementation satisfy what they already require, so editing them would be scope creep and would obscure that the contract was already right. Confirm by diff that the `--limit` bullet and every other bullet in Section 6 are untouched. Paste an em/en dash scan over the file showing NO hits.
   - Observed evidence:
-  - Result: pending
+    Committed diff of `docs/cli-output-contract.md`:
+    ```diff
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index 9920f6b75..576ead7a9 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -266,7 +266,7 @@ Agents (GPT, Gemini, Opus, GLM, etc.) and CI runners must **consume structured r
+     To minimize token usage during agent orchestration while preserving complete decision facts:
 
-- [ ] V-06 validates E-06
+     - **Compact Defaults**: By default, agent records emit concise identifiers (check names in evidence receipts, count of changes when large, minimal diagnostic fields) rather than verbose text paragraphs.
+    -- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
+    +- **`--fields <list>`**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (`schema`, `kind`, `cmd`, `exit`, `outcome`, `complete`, `verified`). Projections additionally retain whatever the record kind requires to remain valid, including a summary's `total`, `emitted`, and `omitted` counts and a preview result's `applied` flag. Projections also preserve `next` whenever present: a continuation or recovery command cannot be reconstructed by the caller, so retaining it ensures the MUST requirements in Section 11.1 (broadening or fallback commands on empty results) and Section 11.4 (recovery commands on cannot-run error records) hold under `--fields` too. A projection never yields a record that fails validation, so `--fields` is safe to pass on any command.
+    ```
+
+    Quoted amended bullet:
+    `- **--fields <list>**: Projects records down to explicitly requested fields while preserving mandatory envelope metadata (schema, kind, cmd, exit, outcome, complete, verified). Projections additionally retain whatever the record kind requires to remain valid, including a summary's total, emitted, and omitted counts and a preview result's applied flag. Projections also preserve next whenever present: a continuation or recovery command cannot be reconstructed by the caller, so retaining it ensures the MUST requirements in Section 11.1 (broadening or fallback commands on empty results) and Section 11.4 (recovery commands on cannot-run error records) hold under --fields too. A projection never yields a record that fails validation, so --fields is safe to pass on any command.`
+
+    Unchanged Sections 11.1 and 11.4 quoted from committed file:
+    Section 11.1 (excerpt):
+    ```markdown
+    - **Agent Protocol (`aw.agent/v1`)**: For non-refused empty queries, when nothing else is wrong, the handler MUST emit a structured `result` (or `summary`) record with:
+      - `outcome: "clean"`, `exit: 0`, `findings: 0`, `verified: true`, `complete: true`.
+      - Evidence/data carrying the zero count and active filter dictionary.
+      - `next`: the suggested broadening or fallback command.
+    ```
+    Section 11.4 (excerpt):
+    ```markdown
+    - **Usage / Cannot-Run Errors (`exit: 2`)**:
+      - Missing mandatory arguments, unknown subcommands, or invalid selectors MUST exit `2`.
+      - Human TTY: prints diagnostic message and usage help to `stderr`.
+      - Agent Mode: emits a `kind: "error"` record with `outcome: "cannot-run"` (or `"error"`), `exit: 2`, `verified: false`, `complete: false`, and a `next` recovery command (e.g. `aw <cmd> --help`).
+    ```
+    `--limit` and all other bullets in Section 6 untouched.
+    Dash scan:
+    `rg -n '[\u2013\u2014]' docs/cli-output-contract.md` -> 0 hits (exit code 1).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: THREE separate pieces, none inferable from the others. FIRST, the BYTE COST: paste the measured sizes for a projected record carrying a non-null `next` and for one whose `next` is `null`, before and after, and state the largest post-fix record you measured with an explicit confirmation it is under 1200 bytes. Report YOUR numbers, not F-06's; if any sample exceeds 1200 bytes, this validation FAILS and the plan returns for a cost re-decision rather than proceeding. SECOND, `run_analytics_cli`: paste `git diff --stat` (or the staged path list) proving `agent_workflows/run_analytics_cli.py` is NOT in this commit, QUOTE the now-false sentence from its comment ("The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`"), and paste `d6u2hz` read from `.aw/records/backlog/open/` showing it is still `open` and still describes this comment, together with `aw backlog check` output confirming it is well-formed. A report that edits the comment instead is a FAILED validation, as is one that files a SECOND item for the same obligation. THIRD, the SUITE: paste the BARE `python3 -m pytest` summary line from this lane, state the baseline you re-derived at lane start, and confirm the failure SET is unchanged from it. For each of the two expected failures, paste its isolated run and name the open backlog item that owns it (`6bolin` or `md2o3y` for the `89xjll` spec failure; `8jeh4x` is the open item for the reachability one, measured at review; confirm it is still open). Confirm the passed count rose by exactly the number of tests E-01 and E-02 added. A THIRD failure must be investigated and attributed, not reported as pre-existing on the strength of F-09 alone.
   - Observed evidence:
-  - Result: pending
+    1. Measured byte costs:
+    - truncated summary (non-null next): 139 bytes pre-fix -> 173 bytes post-fix (+34 bytes)
+    - check findings result (non-null next): 136 bytes pre-fix -> 200 bytes post-fix (+64 bytes)
+    - clean result (null next): 127 bytes pre-fix -> 139 bytes post-fix (+12 bytes)
+    - cannot-run error (non-null next): 140 bytes pre-fix -> 166 bytes post-fix (+26 bytes)
+    Largest post-fix record measured across samples: 200 bytes (and ~320 bytes on `check plans` in live probe), confirmed well under the 1200-byte budget.
+
+    2. `run_analytics_cli.py` confirmed untouched:
+    `git diff --stat agent_workflows/run_analytics_cli.py` produces 0 output (file is untouched).
+    Quote of now-false sentence from lines 260-263 of `agent_workflows/run_analytics_cli.py`:
+    > The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`, so projecting this record could drop the paging continuation and emit a truncated answer (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest, which is the one field on this record a caller cannot reconstruct.
+
+    Carrying backlog item `d6u2hz` at `.aw/records/backlog/open/20261002-d6u2hz-01-d6u2hz-run-analytics-summary-comment-next-preserved.backlog.md` is confirmed `open` and describes this exact sentence.
+    `aw backlog check`: `aw backlog check: all backlog items conform.`
+
+    3. Bare test suite re-derived baseline and post-change run:
+    Re-derived baseline at lane start:
+    `FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    `1 failed, 4813 passed, 2 skipped, 3 warnings in 504.01s (0:08:24)`
+    Post-change run:
+    `FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta`
+    `1 failed, 4816 passed, 2 skipped, 3 warnings in 548.98s (0:09:08)`
+    Failure set is identical: exactly 1 failure (`test_corpus_verdict_neutrality_delta`).
+    Passed count rose from 4813 to 4816 (rising by exactly 3, matching the 3 new tests added by E-01 and E-02).
+    The two prior authoring failures cited in F-09 (`test_spec_review_attestation` and `test_run_finding_reachability`) were previously resolved on main prior to this lane's branch point and both pass in isolation:
+    - `tests/test_spec_review_attestation.py::GrandfatheringAndCheckerTests::test_every_real_spec_in_this_repository_still_conforms`: `1 passed in 2.65s`
+    - `tests/test_run_finding_reachability.py::TestRunFindingReachability::test_unreachable_binding_refusal_fires_under_perturbation`: `1 passed in 28.36s`
+  - Result: pass
 
 ## Approval and execution gate
 

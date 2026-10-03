@@ -395,17 +395,30 @@ def assert_valid_agent_record(record: Dict[str, Any]) -> None:
 
 _MANDATORY_FIELDS = {"schema", "kind", "cmd", "exit", "outcome", "complete", "verified"}
 
-# Fields that a projection must not remove in order for the resulting record to remain valid
-# across all kinds. This is a kind-independent superset of _MANDATORY_FIELDS that additionally
-# includes every field validate_agent_record consults:
-# - 'applied': preview exemption for result records with complete=False
-# - 'total', 'emitted', 'omitted': required accounting fields for summary records
+# Fields that a projection must not remove across any record kind. This is a kind-independent
+# superset of _MANDATORY_FIELDS that preserves fields required for two distinct reasons:
+# 1. Record validity (fields validate_agent_record consults):
+#    - 'applied': preview exemption for result records with complete=False
+#    - 'total', 'emitted', 'omitted': required accounting fields for summary records
+# 2. Record usability that the caller cannot reconstruct:
+#    - 'next': paging continuation or recovery command. Dropping 'next' from a record reporting
+#      complete=False tells the caller its answer is partial while withholding the command to
+#      fetch the remainder. Furthermore, docs/cli-output-contract.md Sections 11.1 and 11.4
+#      state MUST requirements for empty results and cannot-run error records to carry 'next',
+#      which a projected record would otherwise violate.
 #
 # Preserving a flat union rather than a per-kind mapping avoids a second structure to keep
-# in sync with the validator, and failing closed (retaining a field the validator might consult)
-# prevents crashes at runtime. For records that do not carry these optional/kind-specific fields,
-# filtering is a no-op because only present keys are considered.
-_PRESERVED_FIELDS = _MANDATORY_FIELDS | {"applied", "total", "emitted", "omitted"}
+# in sync with the validator, and failing closed (retaining a field the validator might consult
+# or that the caller cannot reconstruct) prevents broken continuation and runtime crashes.
+# For records that do not carry these optional/kind-specific fields, filtering is a no-op
+# because only present keys are considered.
+_PRESERVED_FIELDS = _MANDATORY_FIELDS | {
+    "applied",
+    "total",
+    "emitted",
+    "omitted",
+    "next",
+}
 
 
 def filter_record_fields(
