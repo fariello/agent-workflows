@@ -1,5 +1,5 @@
 - Id: rgl2d4
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: dirsilent
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: The other ~35 resolve_verb_repo_root callers fall back silently for a non-surveyable --dir: specs check and backlog check report conformance having examined ZERO artifacts at a project subdirectory
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): status -> graduated
 - 2026-09-30 created (aw backlog): Filed while authoring plan lmyeas (from backlog 5gmi12), which scoped this but deliberately converted only the two verbs that already guard.
 
 MEASURED in lane 5gmi12 at HEAD 950ae59ff while authoring IPD lmyeas (its F-03 and F-09), from a cwd OUTSIDE any AW project, fixtures under a temp dir, via 'python3 -m agent_workflows' with PYTHONPATH=<lane> and AW_NO_REEXEC=1.

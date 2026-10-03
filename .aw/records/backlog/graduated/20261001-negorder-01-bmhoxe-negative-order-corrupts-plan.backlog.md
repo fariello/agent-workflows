@@ -1,5 +1,5 @@
 - Id: bmhoxe
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: negorder
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: aw group/rename plans accept a negative --order and corrupt the plan: a duplicate - Order: line plus a filename outside the NN grammar
 
 ## Workflow history
+- 2026-10-02 graduated (aw backlog): status -> graduated
 - 2026-10-01 created (aw backlog): Measured while authoring plan xvi55d (from backlog oev4h7); see the body for the full reproduction and cause
 
 MEASURED AT HEAD ee1f2eff2 while authoring plan xvi55d (from backlog oev4h7), in a throwaway git repo driving the real CLI with PYTHONPATH pinned to the lane under test (ccbe60: a bare -m agent_workflows from a lane imports the MAIN checkout, so an unpinned measurement tests the wrong source; the resolved agent_workflows.__file__ was printed and verified to point into the lane before any measurement was taken).
