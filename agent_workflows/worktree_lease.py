@@ -198,9 +198,10 @@ class LaneState(NamedTuple):
     #
     # THREE-VALUED SOURCE, COLLAPSED IN THE SAFE DIRECTION. `lane_work_has_landed` returns
     # `True`/`False`/`None`, `None` meaning the question could not be answered (the branch is gone, the
-    # target does not resolve, or git failed). A `NamedTuple` boolean cannot express that, so `None`
-    # maps to `False`: an UNANSWERABLE lane is never treated as recovered, because this field widens
-    # `reclaimable`, and a false True there is what would authorize destroying unproven work.
+    # target does not resolve, an anchor cannot be established, or git failed). A `NamedTuple` boolean
+    # cannot express that, so `None` maps to `False`: an UNANSWERABLE lane is never treated as recovered,
+    # because this field widens `reclaimable`, and a false True there is what would authorize destroying
+    # unproven work.
     merged_into_target: bool = False
 
     @property
@@ -323,8 +324,10 @@ def lane_merged_into_target(repo_root: Path, branch: str) -> bool:
     DELEGATES to `runner_shared.lane_work_has_landed`, which is the repository's ONE landing predicate
     (`git merge-base --is-ancestor <branch> <target>`), so no second definition of "merged" exists
     (spec `7ckptx` R6.1). The TARGET is that function's own `LANE_INTEGRATION_TARGET_FALLBACK`
-    (`HEAD`), which is the honest default: both drivers merge a verified lane into whatever the shared
-    checkout has checked out, so `HEAD` is the branch the merge would actually land on. A fork using
+    (`HEAD`), which is the honest default because the target is now checkout-anchored through the
+    git common dir (backlog `cjrjtu`), not because the caller is assumed to be in the main tree:
+    both drivers merge a verified lane into whatever the shared checkout has checked out, so `HEAD`
+    resolved against the checkout is the branch the merge would actually land on. A fork using
     `master` or `trunk` is therefore correct with no configuration, and hardcoding `"main"` would be
     the one wrong answer.
 
