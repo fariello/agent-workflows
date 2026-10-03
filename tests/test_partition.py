@@ -343,24 +343,24 @@ def plan_fixture_repo(tmp_path: Path) -> Path:
 
 def test_collect_candidates_selection_filters(plan_fixture_repo: Path) -> None:
     # 1. Terminal plans excluded
-    candidates, _ = part.collect(plan_fixture_repo, artifact_type="plans")
+    candidates = part.collect(plan_fixture_repo, artifact_type="plans")
     cand_ids = {it.id for it in candidates}
     assert "pln004" not in cand_ids
 
     # 2. Selectors filter
-    candidates_sel, _ = part.collect(
+    candidates_sel = part.collect(
         plan_fixture_repo, artifact_type="plans", selectors=["set2"]
     )
     assert [it.id for it in candidates_sel] == ["pln003"]
 
     # 3. Status filter
-    candidates_app, _ = part.collect(
+    candidates_app = part.collect(
         plan_fixture_repo, artifact_type="plans", statuses=["approved"]
     )
     assert {it.id for it in candidates_app} == {"pln001", "pln002"}
 
     # 4. Priority filter & invalid priority error
-    candidates_pri, _ = part.collect(
+    candidates_pri = part.collect(
         plan_fixture_repo, artifact_type="plans", priorities=["high"]
     )
     assert [it.id for it in candidates_pri] == ["pln001"]
@@ -374,13 +374,13 @@ def test_collect_candidates_selection_filters(plan_fixture_repo: Path) -> None:
             plan_fixture_repo, artifact_type="plans", stdin_ids=["pln001", "unknown99"]
         )
 
-    candidates_stdin, _ = part.collect(
+    candidates_stdin = part.collect(
         plan_fixture_repo, artifact_type="plans", stdin_ids=["pln001"]
     )
     assert [it.id for it in candidates_stdin] == ["pln001"]
 
     # 6. --max keeps prerequisites before dependents
-    candidates_max, _ = part.collect(
+    candidates_max = part.collect(
         plan_fixture_repo, artifact_type="plans", statuses=["approved"], max_count=1
     )
     assert len(candidates_max) == 1
@@ -503,7 +503,10 @@ def test_cli_partition_json_shape(
     assert "commands" in payload
     assert "split_components" in payload
     assert "cycles" in payload
-    assert "unknown" in payload
+    # 0hz005: "unknown" key removed because it was unconditionally [], dead weight;
+    # collect refuses an unknown selector with ValueError instead.
+    assert "unknown" not in payload
+    assert set(payload.keys()) == {"shards", "commands", "split_components", "cycles"}
     assert len(payload["shards"]) == 2
     assert len(payload["commands"]) == 2
 
@@ -767,6 +770,8 @@ def test_cli_partition_agent_mode(
     assert record["complete"] is True
     assert len(record["shards"]) == 2
     assert len(record["commands"]) == 2
+    # 0hz005: "unknown" key removed from agent record payload; ensure absence
+    assert "unknown" not in record
     assert "Partitioned 2 items across 2 shard(s)" in captured.err
 
 
