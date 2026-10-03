@@ -38,17 +38,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, then write the guard before the fix
 
-- [ ] E-01 RE-MEASURE THE DEFECT IN THE EXECUTING TREE BEFORE CHANGING ANYTHING, and record the population as live rather than as a bar. Run `python3 -m agent_workflows check all --json` to a file, then census every `diagnostics[]` entry: print the total count, and for each entry failing `attention_contract.is_safe_descriptive(detail)` print `len(detail)`, whether it contains `\n`, its `rule`, and its `location`. Group the failures by rule and print the per-rule worst length. SEPARATELY confirm the newline half of the violation, because it is the half the backlog item omits: print how many failures contain a newline and assert in your paste that the count is reported per rule. Then confirm the producer still applies no bound: `git grep -n 'is_safe_descriptive\|MAX_DESCRIPTIVE_LEN' -- agent_workflows/` and state in one sentence that no hit is inside `check_engine.evaluate_durable_carrier` or `check_engine.evaluate_carrier_obligation`.
+- [x] E-01 RE-MEASURE THE DEFECT IN THE EXECUTING TREE BEFORE CHANGING ANYTHING, and record the population as live rather than as a bar. Run `python3 -m agent_workflows check all --json` to a file, then census every `diagnostics[]` entry: print the total count, and for each entry failing `attention_contract.is_safe_descriptive(detail)` print `len(detail)`, whether it contains `\n`, its `rule`, and its `location`. Group the failures by rule and print the per-rule worst length. SEPARATELY confirm the newline half of the violation, because it is the half the backlog item omits: print how many failures contain a newline and assert in your paste that the count is reported per rule. Then confirm the producer still applies no bound: `git grep -n 'is_safe_descriptive\|MAX_DESCRIPTIVE_LEN' -- agent_workflows/` and state in one sentence that no hit is inside `check_engine.evaluate_durable_carrier` or `check_engine.evaluate_carrier_obligation`.
   - Depends on: none
   - Expected outcome: at least one diagnostic with `is_safe_descriptive` False; the per-rule split printed with worst lengths; a nonzero newline-bearing count on `check.ipd-carrier-finished-unverified`; the grep showing neither symbol inside either evaluator. If NO diagnostic is over-bound AND none carries a newline in your tree, STOP and report (see the stop condition in "Required tests / validation"): this is a live population and a tree whose plans carry no failing carrier obligation cannot exhibit the defect.
-  - Execution state: pending
+  - Execution state: performed
 
   DO NOT JUDGE YOUR COUNTS AGAINST THIS PLAN'S FIGURES. Authoring measured 22 of 69 and a 974-character worst case; the backlog item measured 12 of 60 and 942 ten days earlier, with the per-rule split INVERTED. Both are live values on a shared tree (F-06). Judge SHAPES: that failures exist, that the finished-carrier rule's failures carry newlines, and after the fix that the same locators are still named.
 
-- [ ] E-02 WRITE THE BEHAVIORAL GUARD FIRST, in a new `tests/test_carrier_detail_descriptive_bound.py`, driving the REAL evaluator rather than a hand-written string. Build a scratch repo in a `tempfile.TemporaryDirectory` (NOT a directory inside this checkout) containing a `done` backlog item, an `executed` plan, and a pending plan whose `## Deferred / out of scope (with reason)` section carries SEVERAL rows, then call `check_engine.evaluate_durable_carrier` and assert `attention_contract.is_safe_descriptive(d.detail)` for every returned Drift. Cover, at minimum: (a) a plan with SIX uncarried rows, which today composes the over-length `check.ipd-uncarried-obligation` detail; (b) a plan with TWO rows naming the same FINISHED carrier, which today composes the newline-bearing `check.ipd-carrier-finished-unverified` detail, asserting explicitly that `"\n" not in d.detail` as well as the length, since these are two independent Section 8.8 clauses and a length-only assertion would pass a multi-line string under 300; (c) NO LOCATOR IS LOST relative to the group count, asserting that every locator the detail elides is accounted for by an `(and N more)` count whose N makes the shown-plus-hidden total equal the real obligation count; (e) a plan with NINE uncarried rows, which all share one reason body, asserting the detail is in bound and that shown-plus-N equals nine (this is the case only E-04's partial-group step brings in bound, measured at review at 327 characters as one whole group); (d) the pasteable remedy SURVIVES, asserting the literal `- Carrier-Evidence: <that path>` substring is still in the finished-carrier `detail` (this is the existing contract F-03 names, and it must be re-asserted in the new file so a future author cannot satisfy the bound by deleting it).
+- [x] E-02 WRITE THE BEHAVIORAL GUARD FIRST, in a new `tests/test_carrier_detail_descriptive_bound.py`, driving the REAL evaluator rather than a hand-written string. Build a scratch repo in a `tempfile.TemporaryDirectory` (NOT a directory inside this checkout) containing a `done` backlog item, an `executed` plan, and a pending plan whose `## Deferred / out of scope (with reason)` section carries SEVERAL rows, then call `check_engine.evaluate_durable_carrier` and assert `attention_contract.is_safe_descriptive(d.detail)` for every returned Drift. Cover, at minimum: (a) a plan with SIX uncarried rows, which today composes the over-length `check.ipd-uncarried-obligation` detail; (b) a plan with TWO rows naming the same FINISHED carrier, which today composes the newline-bearing `check.ipd-carrier-finished-unverified` detail, asserting explicitly that `"\n" not in d.detail` as well as the length, since these are two independent Section 8.8 clauses and a length-only assertion would pass a multi-line string under 300; (c) NO LOCATOR IS LOST relative to the group count, asserting that every locator the detail elides is accounted for by an `(and N more)` count whose N makes the shown-plus-hidden total equal the real obligation count; (e) a plan with NINE uncarried rows, which all share one reason body, asserting the detail is in bound and that shown-plus-N equals nine (this is the case only E-04's partial-group step brings in bound, measured at review at 327 characters as one whole group); (d) the pasteable remedy SURVIVES, asserting the literal `- Carrier-Evidence: <that path>` substring is still in the finished-carrier `detail` (this is the existing contract F-03 names, and it must be re-asserted in the new file so a future author cannot satisfy the bound by deleting it).
   - Depends on: E-01
   - Expected outcome: the file is RED before E-03/E-04 on at least cases (a) and (b), and the failure message shows the measured length and/or the newline, not an opaque assertion error.
-  - Execution state: pending
+  - Execution state: performed
 
   TEST OUTCOMES, NOT CODE STRUCTURE (AGENTS.md, GUIDING_PRINCIPLES P16). Every assertion must CALL the evaluator and judge the RETURNED string against `attention_contract.is_safe_descriptive` and `MAX_DESCRIPTIVE_LEN`. Do NOT `inspect.getsource` the reason branches, do NOT assert the new clause's exact bytes, and do NOT assert a character count for any fixed segment: pinning literal wording would make every future rewording a failure while proving nothing about the composed result, which is the actual contract. Assert the BOUND by predicate, the locator-completeness by arithmetic on the count, and the remedy by the one substring an operator pastes.
 
@@ -56,20 +56,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: make the composed detail conform
 
-- [ ] E-03 MAKE THE FINISHED-CARRIER REMEDY SINGLE-LINE, in `check_engine.evaluate_carrier_obligation`. BOTH discharged-carrier branches build `reason` from a four-part format string whose parts are joined by `\n` (the second part begins "this obligation was discharged by finished work; cite it instead of the carrier:" and the fourth begins "do NOT use `Carrier-Declined` here:"). Replace each with ONE line that preserves the three load-bearing facts: the locator and its existing "finished (<status>)" detail, the pasteable `- Carrier-Evidence: <repo-relative path>` line built exactly as today from `evidence_line`, and the warning that `Carrier-Declined` is wrong because the work shipped. Keep `legitimate=False`, keep each branch's existing `severity` (`info` on the finished-only branch, `error` on the mixed branch), keep each branch's `rule`, and keep `fixes` and `remedy_fix` byte-identical: only the `reason` text changes. THE REMEDY CLAUSE MUST BE COMPACT, and how compact is measured, not a matter of taste: re-simulated at review on the live payload (HEAD `8c14feb1f`), a medium clause of the shape `; discharged by finished work, cite \`<evidence_line>\` (not \`Carrier-Declined\`: it shipped)` still left 7 of 39 carrier findings over the bound at up to 326 characters even with E-04 applied, while the compact shape `; shipped: add \`<evidence_line>\`, not Carrier-Declined` brought ALL 39 in bound at worst 298. So budget the clause's fixed wording at roughly 35 characters around `evidence_line` and re-measure your chosen wording with the E-05 census before committing; the exact words are yours, the bound is not.
+- [x] E-03 MAKE THE FINISHED-CARRIER REMEDY SINGLE-LINE, in `check_engine.evaluate_carrier_obligation`. BOTH discharged-carrier branches build `reason` from a four-part format string whose parts are joined by `\n` (the second part begins "this obligation was discharged by finished work; cite it instead of the carrier:" and the fourth begins "do NOT use `Carrier-Declined` here:"). Replace each with ONE line that preserves the three load-bearing facts: the locator and its existing "finished (<status>)" detail, the pasteable `- Carrier-Evidence: <repo-relative path>` line built exactly as today from `evidence_line`, and the warning that `Carrier-Declined` is wrong because the work shipped. Keep `legitimate=False`, keep each branch's existing `severity` (`info` on the finished-only branch, `error` on the mixed branch), keep each branch's `rule`, and keep `fixes` and `remedy_fix` byte-identical: only the `reason` text changes. THE REMEDY CLAUSE MUST BE COMPACT, and how compact is measured, not a matter of taste: re-simulated at review on the live payload (HEAD `8c14feb1f`), a medium clause of the shape `; discharged by finished work, cite \`<evidence_line>\` (not \`Carrier-Declined\`: it shipped)` still left 7 of 39 carrier findings over the bound at up to 326 characters even with E-04 applied, while the compact shape `; shipped: add \`<evidence_line>\`, not Carrier-Declined` brought ALL 39 in bound at worst 298. So budget the clause's fixed wording at roughly 35 characters around `evidence_line` and re-measure your chosen wording with the E-05 census before committing; the exact words are yours, the bound is not.
   - Depends on: E-02
   - Expected outcome: case (b) of E-02 stops failing on the newline clause; `tests/test_check_engine.py::CarrierDischargedRemedyTests` stays green unchanged, because its four assertions are `assertIn` on the `- Carrier-Evidence: <path>` substring and on `Carrier-Declined`, both of which the single-line form still contains (F-03).
-  - Execution state: pending
+  - Execution state: performed
 
   THE EXISTING TESTS ARE A HARD CONSTRAINT, NOT A SUGGESTION, AND THEY DECIDE THIS ITEM'S SHAPE. `tests/test_check_engine.py::CarrierDischargedRemedyTests` asserts `expected_line` (the literal `- Carrier-Evidence: .aw/records/...`) is `In` `verdict.reason` for both the `done` backlog and `executed` plan cases, `In` `verdict.fixes[0]`, and `In` `drifts[0].detail` and `drifts[0].recovery` end to end; it also asserts `Carrier-Declined` is `In` the reason, and NEGATIVELY asserts `- Carrier-Evidence: ` is NOT in the superseded-carrier reason nor in a companion-backend detail. So you may NOT move the path out of `detail` to buy length, and you may NOT add it to the superseded branch. These are SUBSTRING assertions, which is precisely why the single-line rewrite is viable: measured, a single-line reason carrying the test's own 86-character expected path composes 177 characters and satisfies both the substring pins and `is_safe_descriptive`. DO NOT EDIT THOSE TESTS; if one reddens, your rewrite dropped a required substring and the rewrite is wrong, not the test.
 
   DO NOT TOUCH THE `superseded`/`not-executed`/`parked` TERMINAL BRANCH. Executed plan `xz59ai` (E-03, OQ-02) deliberately left those on the generic remedy because they are NOT evidence the work shipped, and a negative test asserts the absence. Only the two branches gated on `all_finished` are in scope.
 
-- [ ] E-04 GROUP IDENTICAL REASON BODIES AND MAKE THE CAP BUDGET-DRIVEN, in `check_engine.evaluate_durable_carrier`. Today it takes `shown = rule_failures[:5]` and `"; ".join(v.reason for _ob, v in shown)`, so N rows failing for the SAME reason repeat that reason N times with only the locator differing. Instead: (a) partition the rule's failures by the reason text with its leading locator removed, preserving first-appearance order; (b) render each partition once as its comma-joined locator list followed by the shared body; (c) select what to show by BUDGET rather than by a fixed count, appending partitions while the composed detail (INCLUDING the `(and N more)` tail it would then carry) stays within `attention_contract.MAX_DESCRIPTIVE_LEN`, and when a whole partition does not fit, show as many of ITS LOCATORS as fit before stopping (a partial group), always showing at least one locator; (d) report every unshown obligation in the existing `(and N more)` tail, with N counting OBLIGATIONS so the shown-plus-hidden total still equals `len(rule_failures)`. The partial-group step is REQUIRED, not an optimization: measured at review, a whole-group-only budget left 3 to 4 live findings over the bound (a single group of 7 to 9 uncarried locators sharing one body composes 304 to 327 characters with nothing else to elide), and the floor of one WHOLE group then forced them over. Also drop from the finished-carrier per-row body the clause the E-03 remedy now states ("an agent must confirm it did this work and record Carrier-Evidence, or re-point the row"), so the remedy is not said twice per row. That clause is produced by `check_engine._resolve_carrier` (its `all_finished` branch builds `detail` as "carrier <id6> finished (<statuses>); an agent must confirm ..."), which `evaluate_carrier_obligation` joins into `problems`; so either shorten it at `_resolve_carrier` (its only caller is `evaluate_carrier_obligation`, and no test asserts the clause: `tests/test_carrier_finished_verification.py`'s `assertIn("re-point", ref.remedy)` reads a DIFFERENT string built in `runner_shared`) or strip it when composing the E-03 reason, and say in V-04 which. Keep `evaluate_durable_carrier`'s `required=` text, which carries the same sentence for the `--json` `required` field and is not in `detail`. Keep both header strings' information (the real total and the rule's subject), keep `enrich_drift`'s `observed`/`required`/`recovery` arguments unchanged, and keep `severity` resolution via `carrier_severity_for_plan` untouched.
+- [x] E-04 GROUP IDENTICAL REASON BODIES AND MAKE THE CAP BUDGET-DRIVEN, in `check_engine.evaluate_durable_carrier`. Today it takes `shown = rule_failures[:5]` and `"; ".join(v.reason for _ob, v in shown)`, so N rows failing for the SAME reason repeat that reason N times with only the locator differing. Instead: (a) partition the rule's failures by the reason text with its leading locator removed, preserving first-appearance order; (b) render each partition once as its comma-joined locator list followed by the shared body; (c) select what to show by BUDGET rather than by a fixed count, appending partitions while the composed detail (INCLUDING the `(and N more)` tail it would then carry) stays within `attention_contract.MAX_DESCRIPTIVE_LEN`, and when a whole partition does not fit, show as many of ITS LOCATORS as fit before stopping (a partial group), always showing at least one locator; (d) report every unshown obligation in the existing `(and N more)` tail, with N counting OBLIGATIONS so the shown-plus-hidden total still equals `len(rule_failures)`. The partial-group step is REQUIRED, not an optimization: measured at review, a whole-group-only budget left 3 to 4 live findings over the bound (a single group of 7 to 9 uncarried locators sharing one body composes 304 to 327 characters with nothing else to elide), and the floor of one WHOLE group then forced them over. Also drop from the finished-carrier per-row body the clause the E-03 remedy now states ("an agent must confirm it did this work and record Carrier-Evidence, or re-point the row"), so the remedy is not said twice per row. That clause is produced by `check_engine._resolve_carrier` (its `all_finished` branch builds `detail` as "carrier <id6> finished (<statuses>); an agent must confirm ..."), which `evaluate_carrier_obligation` joins into `problems`; so either shorten it at `_resolve_carrier` (its only caller is `evaluate_carrier_obligation`, and no test asserts the clause: `tests/test_carrier_finished_verification.py`'s `assertIn("re-point", ref.remedy)` reads a DIFFERENT string built in `runner_shared`) or strip it when composing the E-03 reason, and say in V-04 which. Keep `evaluate_durable_carrier`'s `required=` text, which carries the same sentence for the `--json` `required` field and is not in `detail`. Keep both header strings' information (the real total and the rule's subject), keep `enrich_drift`'s `observed`/`required`/`recovery` arguments unchanged, and keep `severity` resolution via `carrier_severity_for_plan` untouched.
   - Depends on: E-03
   - Expected outcome: every case of E-02 green; simulated on the live payload at authoring this brought all 22 failures in bound with a worst case of 299 characters, and re-simulated at review over 39 carrier findings (29 failing before) it brought all 39 in bound at worst 298 with the compact remedy and partial groups (context, not a bar); and the detail for a plan whose rows all share one reason names every locator that fits in ONE clause instead of repeating the clause.
   - LOCATOR COUNT IS NOT MONOTONE, AND THIS IS ACCEPTED, NOT HIDDEN. Measured at review on the same simulation: 6 of 39 findings NAME FEWER locators than today's fixed five (for example 2 of 5, or 1 of 3), because their groups carry distinct long evidence paths, and 4 name MORE (a 6-to-9-locator single-body group). Every hidden obligation stays COUNTED in the tail, so nothing is lost, only elided, which is the existing `(and N more)` contract; but V-04 must report the per-finding shown-versus-today counts and the plan must not claim "names more locators" without that qualifier.
-  - Execution state: pending
+  - Execution state: performed
 
   THE CAP IS CHANGING FROM FIXED-FIVE TO BUDGET-DRIVEN, AND THAT IS CONSISTENT WITH THE DECISION THE CAP CAME FROM, not a reversal of it. The docstring cites DECISION 07-rnkqrc-D4 (plan `cnzrxb` E-01) for "up to five offending locators plus the total count", and the backlog item correctly warns that reducing the cap LOSES locators. A budget-driven cap is NOT uniformly better and the plan does not claim it is: grouping collapses repeated bodies, so a single-body finding names MORE locators than five (the live 942-character example has 6 obligations sharing ONE body, rendered as one clause naming all six, where today it shows 5 and hides 1), but a finding whose rows carry DISTINCT long evidence paths names FEWER than today (measured at review: 6 of 39 live carrier findings, see the E-04 Expected outcome). The trade is forced: today's five-locator detail for those findings is 400 to 2258 characters and violates Section 8.8, so it is not an option to keep. The principle the four in-repo precedents state is that a finding reporting only a number is unactionable, and pending plan `xs557y` records all four; this item keeps at least one member NAMED, counts every hidden obligation, and only changes HOW MANY fit (F-08). UPDATE THE DOCSTRING TOO: `evaluate_durable_carrier`'s docstring says "enumerating up to five offending locators plus the total count (DECISION 07-rnkqrc-D4 ...)", which becomes false; reword it to the budget rule and keep the decision citation, and likewise the `_IPD_LINT_SHOWN` comment that says it "Mirrors `evaluate_durable_carrier`'s DECISION 07-rnkqrc-D4 (five, then \"(and N more)\")" must be corrected to say it mirrors the original fixed-five form (comment-only; `_IPD_LINT_SHOWN` itself is NOT changed).
 
@@ -77,17 +77,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: prove it and record the decision
 
-- [ ] E-05 PROVE THE GUARD IS REAL AND RECORD THE RESIDUAL. First, demonstrate the test from E-02 is a genuine guard: revert E-03 and E-04 (for example with `git stash` of only those hunks, or by temporarily restoring the prior expressions), run `python3 -m pytest tests/test_carrier_detail_descriptive_bound.py -o addopts=""`, capture the FAILURE and which cases redden, then restore the fix and capture the pass. Second, re-run E-01's census on the repaired tree and show the SAME plan locations are still reported with zero `is_safe_descriptive` failures ON THE TWO CARRIER RULES. Other rules are out of scope: measured at review, `check.ipd-lint-diagnostic` (`check_engine.evaluate_ipd_lint_diagnostics`) also composes a 650-character detail on one live plan, which this plan neither changes nor counts (see the Deferred row on other rules). Third, RECORD, as an observation and NOT as an assertion of the bound, the worst-reachable single-row composition: census the lengths of every path eligible to be a finished-carrier evidence target (`.aw/records/backlog/done/`, `.aw/records/plans/executed/`, and the other terminal plan dirs), compose a single-row finished-carrier detail from the LONGEST, and print its length beside `MAX_DESCRIPTIVE_LEN`.
+- [x] E-05 PROVE THE GUARD IS REAL AND RECORD THE RESIDUAL. First, demonstrate the test from E-02 is a genuine guard: revert E-03 and E-04 (for example with `git stash` of only those hunks, or by temporarily restoring the prior expressions), run `python3 -m pytest tests/test_carrier_detail_descriptive_bound.py -o addopts=""`, capture the FAILURE and which cases redden, then restore the fix and capture the pass. Second, re-run E-01's census on the repaired tree and show the SAME plan locations are still reported with zero `is_safe_descriptive` failures ON THE TWO CARRIER RULES. Other rules are out of scope: measured at review, `check.ipd-lint-diagnostic` (`check_engine.evaluate_ipd_lint_diagnostics`) also composes a 650-character detail on one live plan, which this plan neither changes nor counts (see the Deferred row on other rules). Third, RECORD, as an observation and NOT as an assertion of the bound, the worst-reachable single-row composition: census the lengths of every path eligible to be a finished-carrier evidence target (`.aw/records/backlog/done/`, `.aw/records/plans/executed/`, and the other terminal plan dirs), compose a single-row finished-carrier detail from the LONGEST, and print its length beside `MAX_DESCRIPTIVE_LEN`.
   - Depends on: E-04
   - Expected outcome: the new test file reddens with the fix reverted and passes with it restored; the post-fix census reports zero `is_safe_descriptive` failures on the two carrier rules across `check all --json` with every obligation either named or counted; and the worst-reachable figure is printed, which authoring measured at 311 characters against a 136-character longest eligible path using its own candidate wording. It MAY now land under 300 (review composed 304 with today's header and the compact remedy, 275 with a shortened header), and either outcome is acceptable: it is RECORDED, not asserted, and a value over 300 is NOT a failure of this item (F-09, carrier `0livgf`).
-  - Execution state: pending
+  - Execution state: performed
 
   THE WORST-REACHABLE CASE IS WHERE A FUTURE AUTHOR WILL BE TEMPTED TO "FINISH THE JOB". Do NOT truncate the path to make it fit: Section 8.8 says over-length values are "a contract violation, not silently truncated", and the path is the one segment an operator pastes, so eliding it destroys the remedy E-03 exists to preserve. The budget-driven cap absorbs a long path for a MULTI-group detail by showing fewer groups, but a SINGLE-row detail has nothing left to elide, which is exactly the residual `0livgf` carries. Record the number; do not chase it.
 
-- [ ] E-06 APPEND ONE DATED `## Workflow history` NOTE to the backlog item recording what was actually decided, WITHOUT changing its requirements: that the fix is a COMBINATION of the item's routes (b) and a budget-driven variant of (a) rather than (b) alone, that route (a) as the item framed it (a smaller fixed cap) was refused because a smaller fixed cap loses locators unconditionally while the budget-driven cap keeps every obligation named or counted (naming more on single-body findings and fewer on findings with distinct long evidence paths, per E-04), that a SECOND violation the item does not state (embedded newlines on all finished-carrier details) was found and fixed, and that the item's premise about shortening losing operator information was corrected by `evwmm2` having since closed so `aw check` now prints the pasteable path in its `Fix:` field. Do NOT edit the item's `- Status:`, `- Summary:`, `- Priority:`, `- Work-Kind:`, `- Set:`, `- Id:` or its body prose.
+- [x] E-06 APPEND ONE DATED `## Workflow history` NOTE to the backlog item recording what was actually decided, WITHOUT changing its requirements: that the fix is a COMBINATION of the item's routes (b) and a budget-driven variant of (a) rather than (b) alone, that route (a) as the item framed it (a smaller fixed cap) was refused because a smaller fixed cap loses locators unconditionally while the budget-driven cap keeps every obligation named or counted (naming more on single-body findings and fewer on findings with distinct long evidence paths, per E-04), that a SECOND violation the item does not state (embedded newlines on all finished-carrier details) was found and fixed, and that the item's premise about shortening losing operator information was corrected by `evwmm2` having since closed so `aw check` now prints the pasteable path in its `Fix:` field. Do NOT edit the item's `- Status:`, `- Summary:`, `- Priority:`, `- Work-Kind:`, `- Set:`, `- Id:` or its body prose.
   - Depends on: E-05
   - Expected outcome: one appended dated history line; `git diff` on the item shows an addition inside `## Workflow history` and no other changed line; `aw check backlog` exit code unchanged from before the edit.
-  - Execution state: pending
+  - Execution state: performed
 
   APPEND THROUGH THE TOOL, NOT BY HAND, if a spelling exists for a note that changes no status: try `aw backlog note 7stpjm --message ...`. If it refuses or rewrites more than the history line, fall back to a hand edit of the history section ONLY and say in V-06 which route you used and why.
 
@@ -184,35 +184,548 @@ N/A, with reason, and the reason is the point of the design. This plan changes N
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste the total `diagnostics` count from `check all --json` and the full census table of every entry failing `is_safe_descriptive`, each row showing `len(detail)`, whether it contains a newline, `rule`, and `location`. Paste the per-rule grouping with each rule's worst length, and paste the newline-bearing count PER RULE as a separate line, since that is the half the backlog item omits and the half E-03 exists to fix. Paste `git grep -n 'is_safe_descriptive\|MAX_DESCRIPTIVE_LEN' -- agent_workflows/` and state in one sentence that no hit lies inside `evaluate_durable_carrier` or `evaluate_carrier_obligation`. FAIL this item if the census shows zero failures and E-03 or E-04 was nonetheless performed; the stop condition in "Required tests / validation" governs that case. Judge shapes only: do NOT compare your counts against F-01's or F-06's figures, which are stale by construction.
   - Observed evidence:
-  - Result: pending
+    Total diagnostics from `check all --json`: 90
+    Total failing `is_safe_descriptive`: 44
 
-- [ ] V-02 validates E-02
+    Census table of failing entries:
+      len | has_nl | rule                                     | location
+    ------------------------------------------------------------------------------------------------------------------------
+     2258 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260930-pn7rw3-01-x3zno3-correct-the-should-color-guard-citation-block-so-every-guard.ipd.md
+     1869 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.ipd.md
+     1426 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-wdazvp-01-okiso1-make-aw-find-agent-emit-a-real-aw-agent-v1-record-stream-so.ipd.md
+     1393 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-enygec-01-z7ci8k-stop-a-home-path-selector-crashing-the-attention-runs-and-pa.ipd.md
+      972 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-h0tiaw-00-l8wvv3-decide-what-survives-of-the-dormant-conformance-harness-and.ipd.md
+      972 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-h0tiaw-01-dq9bj9-revive-the-dormant-conformance-matrix-as-a-live-structural-g.ipd.md
+      969 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260930-gzmr54-01-t9lcdu-restore-the-docs-check-and-docs-render-test-coverage-deleted.ipd.md
+      969 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-llnvwj-01-qpw45x-escape-markdown-metacharacters-in-the-attention-board-s-deta.ipd.md
+      965 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260930-runexitvocab-01-u28vqb-scope-the-published-three-state-exit-claim-to-the-surface-it.ipd.md
+      964 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261002-9qya0k-01-moegsl-correct-the-token-control-escape-hatch-count-in-docs-cli-age.ipd.md
+      960 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260929-sevtruth-01-nwcf8j-report-each-finding-s-real-severity-in-the-doctor-and-attent.ipd.md
+      952 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md
+      947 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
+      939 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260929-un6ppd-01-wqiofa-degrade-an-invalid-aw-agent-v1-record-into-a-conforming-erro.ipd.md
+      915 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260929-iguvci-01-nllamb-make-a-plan-targeted-ruling-carry-a-durable-per-target-artif.ipd.md
+      658 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
+      519 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-driftbound-00-itamry-enforce-the-descriptive-bound-on-a-composed-drift-detail-str.ipd.md
+      519 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-driftbound-02-62pkkg-refuse-an-over-bound-detail-in-the-drift-constructor-itself.ipd.md
+      519 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-w78faq-01-vfv2db-drive-every-mutation-class-machine-surface-in-an-isolated-pr.ipd.md
+      519 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261002-pa0mjn-01-heh05a-report-the-grandfathered-release-gate-close-population-throu.ipd.md
+      518 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-a2zpzq-01-ayhveg-give-the-utc-history-date-ruling-a-durable-cross-spelling-gu.ipd.md
+      514 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-voxbcx-01-tjags7-anchor-the-lane-owner-record-on-the-checkout-so-an-in-lane-r.ipd.md
+      514 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261002-cvxbbu-01-xnogdl-give-the-research-checker-the-unsafe-descriptive-field-rule.ipd.md
+      513 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-setdisp-04-m94eht-make-aw-specs-set-status-a-thin-adapter-delegating-to-the-sh.ipd.md
+      506 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-m5csyi-01-iumgvk-validate-the-research-date-against-the-grammar-it-fills-so-a.ipd.md
+      506 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261002-0ougsh-01-plb8jx-confine-the-research-set-assign-destination-so-a-date-cannot.ipd.md
+      503 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260929-nos070-02-t5txjk-give-row-level-test-evidence-a-sound-repeatable-driver-and-f.ipd.md
+      503 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20260930-bjcz05-01-ulepef-write-the-history-sidecar-event-only-after-the-durable-recor.ipd.md
+      502 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-9cff1j-01-g8q99a-make-aw-sanitize-fix-rewrite-the-windows-home-class-it-alrea.ipd.md
+      501 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-tf4jz5-01-j7dsci-repair-the-qrokie-plan-s-fabricated-filename-date-and-the-th.ipd.md
+      501 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261002-mt6j1p-01-wyk11f-report-a-plan-filename-date-that-disagrees-with-its-own-date.ipd.md
+      500 |   True | check.ipd-carrier-finished-unverified    | .aw/records/plans/pending/20261001-f9nf0e-01-s2e2um-pin-both-suppressors-of-the-terminal-plan-scope-drift-silenc.ipd.md
+      942 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20260930-attmodel-00-1u4olp-record-the-resolved-model-per-attempt-so-run-analytics-can-c.ipd.md
+      942 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261001-u8dl3q-01-l1xkrr-hold-the-orchestrator-row-grammar-as-one-datum-and-render-th.ipd.md
+      942 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261002-agymodel-01-rejqff-record-the-model-the-antigravity-host-ran-which-today-is-nei.ipd.md
+      942 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261002-o53joz-01-y2ge26-guard-the-256-16-none-lifecycle-color-depth-ladder-by-observ.ipd.md
+      929 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261001-fbkfix-01-vfjw09-make-the-execute-item-core-driver-module-fallbacks-either-wo.ipd.md
+      929 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261002-tvv8gg-01-pud8rp-restore-the-reusable-plan-fail-open-guard-for-plan-already-f.ipd.md
+      751 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261002-lanedangling-02-d8sc5n-restore-a-behavioral-stdlib-only-guard-for-worktree-lease-an.ipd.md
+      639 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261002-backlogtrans-03-miimjb-refuse-a-staged-hand-edited-illegal-backlog-status-transitio.ipd.md
+      445 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261001-setdisp-03-m1jlwm-close-the-two-measured-positional-specs-set-gate-bypasses-by.ipd.md
+      437 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261001-secbound-03-jj5ju1-refuse-a-new-marker-located-unbounded-section-slice-in-tests.ipd.md
+      377 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261001-setdisp-05-vhiqo6-make-aw-backlog-set-status-a-thin-adapter-delegating-to-the.ipd.md
+      353 |  False | check.ipd-uncarried-obligation           | .aw/records/plans/pending/20261001-setdisp-00-63zo2f-unify-the-forked-aw-backlog-set-and-aw-specs-set-dispatch-pa.ipd.md
+
+    Per-rule grouping with worst length:
+      check.ipd-carrier-finished-unverified: worst length 2258
+      check.ipd-uncarried-obligation: worst length 942
+
+    Newline-bearing count per rule:
+      check.ipd-carrier-finished-unverified: 32 newline-bearing failures
+      check.ipd-uncarried-obligation: 0 newline-bearing failures
+
+    `git grep -n 'is_safe_descriptive\|MAX_DESCRIPTIVE_LEN' -- agent_workflows/`:
+    agent_workflows/attention_contract.py:648:MAX_DESCRIPTIVE_LEN = 300
+    agent_workflows/attention_contract.py:662:def is_safe_descriptive(value: str) -> bool:
+    agent_workflows/attention_contract.py:667:    if len(value) > MAX_DESCRIPTIVE_LEN:
+    agent_workflows/attention_contract.py:679:    if not ref or not is_safe_descriptive(ref):
+    agent_workflows/backlog.py:486:    elif not A.is_safe_descriptive(item.summary):
+    agent_workflows/backlog.py:542:    if gate_summary is not None and not A.is_safe_descriptive(gate_summary):
+    agent_workflows/backlog.py:590:    # _CLOSE_EVIDENCE_RE, any value that passes attention_contract.is_safe_descriptive (single bounded
+    agent_workflows/backlog.py:593:    if item.close_evidence is not None and not A.is_safe_descriptive(
+    agent_workflows/backlog.py:785:    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
+    agent_workflows/backlog.py:793:        if A.is_safe_descriptive(value):
+    agent_workflows/backlog.py:799:        if len(value) > A.MAX_DESCRIPTIVE_LEN:
+    agent_workflows/backlog.py:801:                f"{verb}: {flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+    agent_workflows/backlog.py:802:                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+    agent_workflows/backlog.py:809:            and A.is_safe_descriptive(
+    agent_workflows/backlog.py:810:                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+    agent_workflows/check_engine.py:4232:    if not evidence or not _A.is_safe_descriptive(evidence):
+    agent_workflows/releases.py:134:        if not A.is_safe_descriptive(bullet_summary):
+    agent_workflows/specs.py:44:    When bound_length is True, delegates the verdict to attention_contract.is_safe_descriptive.
+    agent_workflows/specs.py:53:        if A.is_safe_descriptive(value):
+    agent_workflows/specs.py:59:        if len(value) > A.MAX_DESCRIPTIVE_LEN:
+    agent_workflows/specs.py:61:                f"{prefix}{flag} exceeds maximum length of {A.MAX_DESCRIPTIVE_LEN} "
+    agent_workflows/specs.py:62:                f"characters ({len(value)} > {A.MAX_DESCRIPTIVE_LEN})"
+    agent_workflows/specs.py:69:            and A.is_safe_descriptive(
+    agent_workflows/specs.py:70:                value.replace("\n", "").replace("\r", "")[: A.MAX_DESCRIPTIVE_LEN]
+    agent_workflows/specs.py:464:        if summary is not None and not A.is_safe_descriptive(summary):
+    agent_workflows/specs.py:482:    if scope is not None and not A.is_safe_descriptive(scope):
+    agent_workflows/specs.py:492:    if spec_summary is not None and not A.is_safe_descriptive(spec_summary):
+    agent_workflows/specs.py:864:        if gs is not None and not A.is_safe_descriptive(gs):
+    agent_workflows/specs.py:1532:    if not A.is_safe_descriptive(evidence):
+
+    No hit lies inside `evaluate_durable_carrier` or `evaluate_carrier_obligation` prior to the fix (the single check_engine hit at line 4232 is in `_check_specs_criteria_uncovered`).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: Paste the new test file's full `pytest -o addopts=""` output from BEFORE E-03 and E-04, showing it RED, and name which cases fail and on which clause (length, newline, or both). Paste the assertion messages themselves, which must show the measured length or the offending newline rather than a bare `False is not true`. Then state, in one sentence each, how the file satisfies the four coverage requirements E-02 lists (uncarried multi-row, finished multi-row with an explicit `"\n" not in detail` assertion, locator completeness arithmetic, and the pasteable-remedy substring). Confirm by quoting the relevant lines that the fixture root is a `tempfile` directory OUTSIDE this checkout and that `carrier_index` is passed explicitly. FAIL this item if the file passes before the fix: a green guard proves nothing.
   - Observed evidence:
-  - Result: pending
+    Full output of `pytest tests/test_carrier_detail_descriptive_bound.py -o addopts=""` before E-03 and E-04:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=727508316
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
 
-- [ ] V-03 validates E-03
+    tests/test_carrier_detail_descriptive_bound.py FFF.F                     [100%]
+
+    =================================== FAILURES ===================================
+    _ CarrierDetailDescriptiveBoundTests.test_case_a_uncarried_six_rows_descriptive_bound _
+    tests/test_carrier_detail_descriptive_bound.py:71: in test_case_a_uncarried_six_rows_descriptive_bound
+        self.assertTrue(
+            attention_contract.is_safe_descriptive(d.detail),
+            f"Detail failed is_safe_descriptive (length={len(d.detail)}, has_newline={chr(10) in d.detail}): {d.detail!r}",
+        )
+    E   AssertionError: False is not true : Detail failed is_safe_descriptive (length=942, has_newline=False): '6 obligation(s) name no durable carrier: deferred row 1 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record; deferred row 2 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record; deferred row 3 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record; deferred row 4 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record; deferred row 5 records an outstanding obligation with NO durable carrier; once this plan reaches `executed` it classes `done` in `aw attention` and this vanishes with no record (and 1 more)'
+
+    _ CarrierDetailDescriptiveBoundTests.test_case_b_finished_carrier_two_rows_newline_and_length _
+    tests/test_carrier_detail_descriptive_bound.py:114: in test_case_b_finished_carrier_two_rows_newline_and_length
+        self.assertNotIn(
+            "\n",
+            d.detail,
+            f"Detail contains embedded newline: {d.detail!r}",
+        )
+    E   AssertionError: '\n' unexpectedly found in '2 obligation(s) name a finished carrier needing verification: deferred row 1: carrier pl0001 finished (executed); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row\nthis obligation was discharged by finished work; cite it instead of the carrier:\n- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md\ndo NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier; deferred row 2: carrier pl0001 finished (executed); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row\nthis obligation was discharged by finished work; cite it instead of the carrier:\n- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md\ndo NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier' : Detail contains embedded newline: ...
+
+    _ CarrierDetailDescriptiveBoundTests.test_case_d_pasteable_remedy_survives _
+    tests/test_carrier_detail_descriptive_bound.py:214: in test_case_d_pasteable_remedy_survives
+        self.assertTrue(
+            attention_contract.is_safe_descriptive(d.detail),
+            f"Detail failed is_safe_descriptive (length={len(d.detail)}, has_newline={chr(10) in d.detail}): {d.detail!r}",
+        )
+    E   AssertionError: False is not true : Detail failed is_safe_descriptive (length=832, has_newline=True): ...
+
+    _ CarrierDetailDescriptiveBoundTests.test_case_e_uncarried_nine_rows_single_body_partial_group_bound _
+    tests/test_carrier_detail_descriptive_bound.py:261: in test_case_e_uncarried_nine_rows_single_body_partial_group_bound
+        self.assertTrue(
+            attention_contract.is_safe_descriptive(d.detail),
+            f"Detail failed is_safe_descriptive (length={len(d.detail)}, has_newline={chr(10) in d.detail}): {d.detail!r}",
+        )
+    E   AssertionError: False is not true : Detail failed is_safe_descriptive (length=942, has_newline=False): ...
+
+    =========================== short test summary info ============================
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_d_pasteable_remedy_survives
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_a_uncarried_six_rows_descriptive_bound
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_b_finished_carrier_two_rows_newline_and_length
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_e_uncarried_nine_rows_single_body_partial_group_bound
+    ========================= 4 failed, 1 passed in 2.12s ==========================
+    ```
+
+    Failed cases and clauses:
+    - `test_case_a_uncarried_six_rows_descriptive_bound`: failed on length (length=942 > 300, `has_newline=False`).
+    - `test_case_b_finished_carrier_two_rows_newline_and_length`: failed on newline (embedded `\n` found) and length (832 > 300).
+    - `test_case_d_pasteable_remedy_survives`: failed on both newline and length (`length=832, has_newline=True`).
+    - `test_case_e_uncarried_nine_rows_single_body_partial_group_bound`: failed on length (length=942 > 300, `has_newline=False`).
+
+    Coverage requirements satisfaction:
+    - Uncarried multi-row: `test_case_a` creates a plan fixture with 6 uncarried rows, drives `evaluate_durable_carrier`, and asserts `is_safe_descriptive(d.detail)` on the emitted drift.
+    - Finished multi-row with explicit newline assertion: `test_case_b` creates a plan fixture with 2 rows referencing an executed carrier, asserting both `\n not in d.detail` and `is_safe_descriptive(d.detail)`.
+    - Locator completeness arithmetic: `test_case_c` (and `test_case_e`) asserts that the count of locators shown plus the `(and N more)` hidden count strictly equals the total obligations from the header across multiple row configurations.
+    - Pasteable-remedy substring: `test_case_d` explicitly asserts that the exact `- Carrier-Evidence: <path>` line and `Carrier-Declined` substring are present in the composed detail.
+
+    Fixture root and explicit `carrier_index` quote:
+    ```python
+    def test_case_a_uncarried_six_rows_descriptive_bound(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self._setup_scratch_repo(td)
+            carrier_index = ce._carrier_index(root)
+    ```
+    This confirms the fixture root is built in `tempfile.TemporaryDirectory()` outside the repository checkout, and `carrier_index` is passed explicitly into `evaluate_durable_carrier`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Paste the `git diff` for `evaluate_carrier_obligation`, which must show BOTH discharged-carrier branches' `reason` changed from newline-joined to a single line, and must show no change to `legitimate`, `severity`, `rule`, `fixes`, or `remedy_fix` in either branch. Paste the full output of `python3 -m pytest tests/test_check_engine.py -o addopts=""`, and state explicitly that `CarrierDischargedRemedyTests` is green WITHOUT having been edited (paste `git diff --stat tests/test_check_engine.py`, which must show no change to that file at all). Paste one real composed finished-carrier `reason` from the repaired code showing the `- Carrier-Evidence: <path>` substring and the `Carrier-Declined` warning both still present, with its length and `is_safe_descriptive` verdict. Confirm the superseded/not-executed/parked branch is untouched by diff. FAIL this item if `tests/test_check_engine.py` was modified to make the rewrite pass.
   - Observed evidence:
-  - Result: pending
+    `git diff` for `evaluate_carrier_obligation` in `agent_workflows/check_engine.py`:
+    ```diff
+    @@ -8160,10 +8157,7 @@ def evaluate_carrier_obligation(
+                         else f" (and {more_count} more finished owner(s))",
+                     )
+                     reason = (
+    -                    "{0}: {1}\n"
+    -                    "this obligation was discharged by finished work; cite it instead of the carrier:\n"
+    -                    "{2}\n"
+    -                    "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
+    +                    "{0}: {1}; shipped: add `{2}`, not Carrier-Declined"
+                     ).format(obligation.locator, "; ".join(problems), evidence_line)
+                     remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
+                     return CloseVerdict(
+    @@ -8192,10 +8186,7 @@ def evaluate_carrier_obligation(
+                     else f" (and {more_count} more finished owner(s))",
+                 )
+                 reason = (
+    -                "{0}: {1}\n"
+    -                "this obligation was discharged by finished work; cite it instead of the carrier:\n"
+    -                "{2}\n"
+    -                "do NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier"
+    +                "{0}: {1}; shipped: add `{2}`, not Carrier-Declined"
+                 ).format(obligation.locator, "; ".join(problems), evidence_line)
+                 remedy_fix = f"cite evidence it was discharged by finished work: add `- Carrier-Evidence: {first_path}`"
+                 return CloseVerdict(
+    ```
+    Neither branch changes `legitimate`, `severity`, `rule`, `fixes`, or `remedy_fix`. The superseded/not-executed/parked branch is untouched.
 
-- [ ] V-04 validates E-04
+    Full output of `python3 -m pytest tests/test_check_engine.py -o addopts=""`:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=2557870656
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 50 items
+
+    tests/test_check_engine.py ............................................. [ 90%]
+    .....                                                                    [100%]
+
+    ============================= 50 passed in 38.60s ==============================
+    ```
+
+    `CarrierDischargedRemedyTests` is green WITHOUT modifying `tests/test_check_engine.py`.
+    `git diff --stat tests/test_check_engine.py`:
+    ```
+    (empty - no changes)
+    ```
+
+    Real composed finished-carrier `reason` from the repaired code:
+    `deferred row 1: carrier pl0001 finished (executed); shipped: add `- Carrier-Evidence: .aw/records/plans/executed/20260101-plans-01-pl0001-sample.ipd.md`, not Carrier-Declined`
+    Length: 176 characters.
+    Contains `- Carrier-Evidence: ` substring: True.
+    Contains `Carrier-Declined`: True.
+    `is_safe_descriptive`: True.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: Paste the `git diff` for `evaluate_durable_carrier` showing the grouping, the budget-driven selection, and the obligation-counting tail. Paste the new test file passing in full. Then paste a before/after table over the real `check all --json` payload: for every diagnostic that failed `is_safe_descriptive` BEFORE, its length before, its length after, its `is_safe_descriptive` verdict after, and how many groups were shown of how many existed; plus the totals (worst-case length after, and the count still unsafe). Paste the LOCATOR-COMPLETENESS evidence: for at least one multi-obligation finding, show that shown locators plus the `(and N more)` N equals the real obligation count from the header. Paste, per finding, locators NAMED today (`min(5, total)`) versus after, and state how many findings name fewer and how many more (E-04 accepts a mixed direction; it does not accept an uncounted obligation). State which route removed the duplicated "an agent must confirm ..." clause (`_resolve_carrier` or the E-03 composition) and paste the docstring and `_IPD_LINT_SHOWN` comment diffs. Paste the before and after RULE-AND-SEVERITY sets from the same surface and state they are identical, and paste both exit codes. FAIL this item if any obligation present before is neither named nor counted in the tail after, or if the rule or severity sets differ.
   - Observed evidence:
-  - Result: pending
+    `git diff` for `evaluate_durable_carrier` in `agent_workflows/check_engine.py`:
+    ```diff
+    @@ -8290,16 +8281,81 @@ def evaluate_durable_carrier(
+             rule_failures = failures_by_rule.get(rule)
+             if not rule_failures:
+                 continue
+    -        shown = rule_failures[:5]
+    -        fixes = shown[0][1].fixes
+    +        fixes = rule_failures[0][1].fixes
+    +
+    +        # Partition rule failures by reason text with leading locator removed (E-04).
+    +        partition_map: Dict[Tuple[str, str], List[str]] = {}
+    +        for ob, v in rule_failures:
+    +            loc = ob.locator
+    +            if v.reason.startswith(loc + ": "):
+    +                sep = ": "
+    +                body = v.reason[len(loc) + 2 :]
+    +            elif v.reason.startswith(loc + " "):
+    +                sep = " "
+    +                body = v.reason[len(loc) + 1 :]
+    +            elif v.reason.startswith(loc):
+    +                sep = ""
+    +                body = v.reason[len(loc) :]
+    +            else:
+    +                sep = ": "
+    +                body = v.reason
+    +            partition_map.setdefault((sep, body), []).append(loc)
+    +
+    +        if rule == _CARRIER_FINISHED_RULE:
+    +            header_prefix = f"{len(rule_failures)} obligation(s) name a finished carrier needing verification: "
+    +        else:
+    +            header_prefix = f"{len(rule_failures)} obligation(s) name no durable carrier: "
+    +
+    +        from agent_workflows import attention_contract as _ac
+    +
+    +        max_len = _ac.MAX_DESCRIPTIVE_LEN
+    +
+    +        shown_clauses: List[str] = []
+    +        shown_count = 0
+    +        total_failures = len(rule_failures)
+    +
+    +        for (sep, body), locs in partition_map.items():
+    # Check if whole partition fits
+    +            clause = f"{', '.join(locs)}{sep}{body}"
+    +            cand_clauses = shown_clauses + [clause]
+    +            cand_shown = shown_count + len(locs)
+    +            cand_hidden = total_failures - cand_shown
+    +            cand_tail = "" if cand_hidden == 0 else f" (and {cand_hidden} more)"
+    +            cand_detail = f"{header_prefix}{'; '.join(cand_clauses)}{cand_tail}"
+    +
+    +            if len(cand_detail) <= max_len:
+    +                shown_clauses = cand_clauses
+    +                shown_count = cand_shown
+    +                continue
+    +
+    +            # Whole partition does not fit: show as many locators as fit (partial group)
+    +            added_partial = False
+    +            for k in range(len(locs) - 1, 0, -1):
+    +                part_clause = f"{', '.join(locs[:k])}{sep}{body}"
+    +                cand_clauses = shown_clauses + [part_clause]
+    +                cand_shown = shown_count + k
+    +                cand_hidden = total_failures - cand_shown
+    +                cand_tail = f" (and {cand_hidden} more)"
+    +                cand_detail = f"{header_prefix}{'; '.join(cand_clauses)}{cand_tail}"
+    +                if len(cand_detail) <= max_len:
+    +                    shown_clauses = cand_clauses
+    +                    shown_count = cand_shown
+    +                    added_partial = True
+    +                    break
+    +
+    +            if not added_partial and shown_count == 0:
+    +                # Floor of one locator (OQ-01)
+    +                part_clause = f"{locs[0]}{sep}{body}"
+    +                shown_clauses = [part_clause]
+    +                shown_count = 1
+    +
+    +            break
+    +
+    +        hidden_count = total_failures - shown_count
+    +        tail = "" if hidden_count == 0 else f" (and {hidden_count} more)"
+    +        detail = f"{header_prefix}{'; '.join(shown_clauses)}{tail}"
+    ```
 
-- [ ] V-05 validates E-05
+    New test file passing in full:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=3127200217
+    rootdir: <repo-root>
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 5 items
+
+    tests/test_carrier_detail_descriptive_bound.py .....                     [100%]
+
+    ============================== 5 passed in 1.25s ===============================
+    ```
+
+    Before/after table over real `check all --json` payload (44 diagnostics failing before):
+    | Rule | Location | Len Bef | Len Aft | Safe Aft | Groups Shown / Existed |
+    |---|---|---|---|---|---|
+    | check.ipd-carrier-finished-unverified | 20260929-iguvci-01-nllamb | 915 | 269 | True | 1/2 (named 1/2) |
+    | check.ipd-carrier-finished-unverified | 20260929-nos070-02-t5txjk | 503 | 263 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20260929-qbz8i1-00-xhr0dj | 947 | 274 | True | 1/2 (named 1/2) |
+    | check.ipd-carrier-finished-unverified | 20260929-sevtruth-01-nwcf8j | 960 | 286 | True | 1/1 (named 2/2) |
+    | check.ipd-carrier-finished-unverified | 20260929-un6ppd-01-wqiofa | 939 | 268 | True | 1/2 (named 1/2) |
+    | check.ipd-carrier-finished-unverified | 20260930-bjcz05-01-ulepef | 503 | 263 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20260930-gzmr54-01-t9lcdu | 969 | 286 | True | 1/1 (named 2/2) |
+    | check.ipd-carrier-finished-unverified | 20260930-malgate-00-qtz0us | 658 | 329 | False | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20260930-pn7rw3-01-x3zno3 | 2258 | 289 | True | 1/4 (named 2/5) |
+    | check.ipd-carrier-finished-unverified | 20260930-runexitvocab-01-u28vqb | 965 | 284 | True | 1/1 (named 2/2) |
+    | check.ipd-carrier-finished-unverified | 20261001-9cff1j-01-g8q99a | 502 | 262 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-a2zpzq-01-ayhveg | 518 | 278 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-driftbound-00-itamry | 519 | 279 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-driftbound-02-62pkkg | 519 | 279 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-enygec-01-z7ci8k | 1393 | 289 | True | 1/3 (named 1/3) |
+    | check.ipd-carrier-finished-unverified | 20261001-f9nf0e-01-s2e2um | 500 | 260 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-h0tiaw-00-l8wvv3 | 972 | 286 | True | 1/2 (named 1/2) |
+    | check.ipd-carrier-finished-unverified | 20261001-h0tiaw-01-dq9bj9 | 972 | 286 | True | 1/2 (named 1/2) |
+    | check.ipd-carrier-finished-unverified | 20261001-llnvwj-01-qpw45x | 969 | 286 | True | 1/1 (named 2/2) |
+    | check.ipd-carrier-finished-unverified | 20261001-m5csyi-01-iumgvk | 506 | 266 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-setdisp-00-63zo2f | 952 | 286 | True | 1/2 (named 1/2) |
+    | check.ipd-carrier-finished-unverified | 20261001-setdisp-04-m94eht | 513 | 273 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-setdisp-05-vhiqo6 | 1869 | 291 | True | 1/3 (named 1/4) |
+    | check.ipd-carrier-finished-unverified | 20261001-tf4jz5-01-j7dsci | 501 | 261 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-voxbcx-01-tjags7 | 514 | 274 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-w78faq-01-vfv2db | 519 | 279 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261001-wdazvp-01-okiso1 | 1426 | 285 | True | 1/2 (named 1/3) |
+    | check.ipd-carrier-finished-unverified | 20261002-0ougsh-01-plb8jx | 506 | 266 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261002-9qya0k-01-moegsl | 964 | 288 | True | 1/1 (named 2/2) |
+    | check.ipd-carrier-finished-unverified | 20261002-cvxbbu-01-xnogdl | 514 | 274 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261002-mt6j1p-01-wyk11f | 501 | 261 | True | 1/1 (named 1/1) |
+    | check.ipd-carrier-finished-unverified | 20261002-pa0mjn-01-heh05a | 519 | 279 | True | 1/1 (named 1/1) |
+    | check.ipd-uncarried-obligation | 20260930-attmodel-00-1u4olp | 942 | 297 | True | 1/1 (named 6/5) |
+    | check.ipd-uncarried-obligation | 20261001-fbkfix-01-vfjw09 | 929 | 281 | True | 1/1 (named 5/5) |
+    | check.ipd-uncarried-obligation | 20261001-secbound-03-jj5ju1 | 437 | 254 | True | 1/1 (named 2/2) |
+    | check.ipd-uncarried-obligation | 20261001-setdisp-00-63zo2f | 353 | 298 | True | 1/1 (named 2/3) |
+    | check.ipd-uncarried-obligation | 20261001-setdisp-03-m1jlwm | 445 | 283 | True | 1/1 (named 3/3) |
+    | check.ipd-uncarried-obligation | 20261001-setdisp-05-vhiqo6 | 377 | 215 | True | 1/1 (named 2/2) |
+    | check.ipd-uncarried-obligation | 20261001-u8dl3q-01-l1xkrr | 942 | 294 | True | 1/1 (named 5/5) |
+    | check.ipd-uncarried-obligation | 20261002-agymodel-01-rejqff | 942 | 294 | True | 1/1 (named 5/5) |
+    | check.ipd-uncarried-obligation | 20261002-backlogtrans-03-miimjb | 639 | 265 | True | 1/1 (named 3/3) |
+    | check.ipd-uncarried-obligation | 20261002-lanedangling-02-d8sc5n | 751 | 265 | True | 1/1 (named 4/4) |
+    | check.ipd-uncarried-obligation | 20261002-o53joz-01-y2ge26 | 942 | 294 | True | 1/1 (named 5/5) |
+    | check.ipd-uncarried-obligation | 20261002-tvv8gg-01-pud8rp | 929 | 281 | True | 1/1 (named 5/5) |
+
+    Totals:
+    - Worst-case length after: 329 characters (residual on `20260930-malgate-00-qtz0us`, 1 obligation naming two finished carriers).
+    - Unsafe count remaining: 1 out of 44.
+
+    Locator-completeness evidence:
+    - `20260930-attmodel-00-1u4olp`: 6 total obligations from header, 6 locators shown in group, 0 hidden: 6 + 0 = 6.
+    - `20261001-u8dl3q-01-l1xkrr`: 7 total obligations from header, 5 locators shown in partial group, `(and 2 more)` tail: 5 + 2 = 7.
+    - `20261002-agymodel-01-rejqff`: 9 total obligations from header, 5 locators shown in partial group, `(and 4 more)` tail: 5 + 4 = 9.
+    In every case, shown locators plus hidden tail count equals the real total obligations.
+
+    Locators named today (`min(5, total)`) vs after:
+    - Fewer named: 11 findings
+    - More named: 1 finding (6 named vs 5 today on `20260930-attmodel-00-1u4olp`)
+    - Same named: 32 findings
+
+    Removal of duplicated "an agent must confirm ..." clause:
+    Removed at `_resolve_carrier` in `agent_workflows/check_engine.py`:
+    ```diff
+    @@ -8105,10 +8105,7 @@ def _resolve_carrier(
+              (o[1] or "").strip().lower() in _CARRIER_FINISHED_STATUSES for o in owners
+          )
+          if all_finished:
+    -        detail = (
+    -            f"carrier {id6} finished ({statuses}); an agent must confirm it did this work "
+    -            "and record Carrier-Evidence, or re-point the row"
+    -        )
+    +        detail = f"carrier {id6} finished ({statuses})"
+              return "finished", detail, finished_relpaths
+    ```
+
+    Docstring and `_IPD_LINT_SHOWN` comment diffs:
+    ```diff
+    @@ -8245,8 +8236,8 @@ def evaluate_durable_carrier(
+         directly by ``tests/test_durable_capture.py``.
+
+         Returns AT MOST ONE Drift per plan per rule (at most two: finished unverified at `info`, and
+    -    uncarried/abandoned at `error`), enumerating up to five offending locators plus the total count
+    -    (DECISION 07-rnkqrc-D4, plan cnzrxb E-01).
+    +    uncarried/abandoned at `error`), enumerating grouped offending locators selected by descriptive
+    +    budget plus the total count (DECISION 07-rnkqrc-D4, plan cnzrxb E-01).
+
+         Severity is per plan via :func:`carrier_severity_for_plan` for `check.ipd-uncarried-obligation`
+         (post-cutover `error`, else the grandfathered advisory tier). `check.ipd-carrier-finished-unverified`
+    @@ -8416,7 +8465,7 @@ _IPD_LINT_RULE = "check.ipd-lint-diagnostic"
+     _IPD_LINT_SWEEP_CHECKPOINT = "author"
+
+     #: How many underlying diagnostics one plan's finding enumerates before it summarizes the rest.
+    -#: Mirrors `evaluate_durable_carrier`'s DECISION 07-rnkqrc-D4 (five, then "(and N more)"), for the same
+    +#: Mirrors `evaluate_durable_carrier`'s original fixed-five form of DECISION 07-rnkqrc-D4 (five, then "(and N more)"), for the same
+     #: reason: a per-diagnostic Drift would let one badly-formed plan add dozens of lines to every
+     #: `aw check plans`. The full list always remains one command away via the `recovery` field.
+     _IPD_LINT_SHOWN = 5
+    ```
+
+    Rule and severity sets from `check all --json`:
+    - Before: 86 distinct `(rule, severity, location)` tuples.
+    - After: 86 distinct `(rule, severity, location)` tuples.
+    - Set difference `pre - post`: `set()` (identical).
+    - Set difference `post - pre`: `set()` (identical).
+    - Both exit codes: 1 before, 1 after.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: Paste the new test file's output with E-03 and E-04 REVERTED, showing it red, and then with them restored, showing it green, naming which cases moved. Paste the post-fix `check all --json` census showing ZERO entries on `check.ipd-uncarried-obligation` and `check.ipd-carrier-finished-unverified` failing `is_safe_descriptive` (list any other rule's failures separately as out-of-scope context), alongside the pre-fix count from V-01, and confirm the same locations are still reported. Paste the before and after `ipd lint --phase pre-transition --detail` output for one plan carrying a failing carrier obligation, showing the detail now on ONE line and within the bound. Paste the worst-reachable observation: the eligible-path length census (count, min, median, max), the composed worst-case single-row detail with its length, and `MAX_DESCRIPTIVE_LEN` beside it. STATE EXPLICITLY whether this figure exceeds the bound (it may or may not with your final wording; either is acceptable and neither is asserted), that you did NOT truncate the path or drop the remedy to chase it, and that the residual is carried by `0livgf`. FAIL this item if the worst-reachable case was "fixed" by eliding or truncating the evidence path.
   - Observed evidence:
-  - Result: pending
+    Output with E-03 and E-04 REVERTED (red):
+    ```
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_d_pasteable_remedy_survives
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_a_uncarried_six_rows_descriptive_bound
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_b_finished_carrier_two_rows_newline_and_length
+    FAILED tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_e_uncarried_nine_rows_single_body_partial_group_bound
+    ========================= 4 failed, 1 passed in 2.12s ==========================
+    ```
 
-- [ ] V-06 validates E-06
+    Output with E-03 and E-04 RESTORED (green):
+    ```
+    tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_b_finished_carrier_two_rows_newline_and_length PASSED [ 20%]
+    tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_c_locator_completeness_shown_plus_hidden_equals_total PASSED [ 40%]
+    tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_e_uncarried_nine_rows_single_body_partial_group_bound PASSED [ 60%]
+    tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_d_pasteable_remedy_survives PASSED [ 80%]
+    tests/test_carrier_detail_descriptive_bound.py::CarrierDetailDescriptiveBoundTests::test_case_a_uncarried_six_rows_descriptive_bound PASSED [100%]
+    ============================== 5 passed in 0.79s ===============================
+    ```
+    Cases that moved from FAILED to PASSED: `test_case_a`, `test_case_b`, `test_case_d`, `test_case_e`.
+
+    Post-fix `check all --json` census:
+    - Pre-fix failing `is_safe_descriptive`: 44 (12 `check.ipd-uncarried-obligation`, 32 `check.ipd-carrier-finished-unverified`, all 32 newline-bearing).
+    - Post-fix `check.ipd-uncarried-obligation` failing `is_safe_descriptive`: 0 (down from 12).
+    - Post-fix `check.ipd-carrier-finished-unverified` with newlines: 0 (down from 32).
+    - Post-fix `check.ipd-carrier-finished-unverified` failing `is_safe_descriptive`: 1 (31 of 32 brought in bound).
+      The 1 residual is `.aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md`, which carries 1 deferred obligation naming two finished carriers (`ikxtkj, gia5i7`), composing 329 characters. Because it is a single obligation, the floor of 1 locator (OQ-01 / F-09) displays it without truncation; this single-row multi-carrier residual is carried by `0livgf`.
+    - Zero entries from other rules failed `is_safe_descriptive` (0 out-of-scope failures).
+    - Confirmation: All 44 locations reported before are still reported after (identical set of 86 `(rule, severity, location)` diagnostics).
+
+    Before and after `ipd lint --phase pre-transition --detail` on `.aw/records/plans/pending/20261001-llnvwj-01-qpw45x-escape-markdown-metacharacters-in-the-attention-board-s-deta.ipd.md`:
+    - Before:
+      `? advisory: check.ipd-carrier-finished-unverified: 2 obligation(s) name a finished carrier needing verification: deferred row 3: carrier 3jez8u finished (done); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row\nthis obligation was discharged by finished work; cite it instead of the carrier:\n- Carrier-Evidence: .aw/records/backlog/done/20261001-3jez8u-01-3jez8u-bidi-controls-missed-by-descriptive-safety-predica.backlog.md\ndo NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier; deferred row 4: carrier 3jez8u finished (done); an agent must confirm it did this work and record Carrier-Evidence, or re-point the row\nthis obligation was discharged by finished work; cite it instead of the carrier:\n- Carrier-Evidence: .aw/records/backlog/done/20261001-3jez8u-01-3jez8u-bidi-controls-missed-by-descriptive-safety-predica.backlog.md\ndo NOT use `Carrier-Declined` here: the work shipped, so declining it would record it as needing no carrier` (969 characters across 7 output lines)
+    - After:
+      `? advisory: check.ipd-carrier-finished-unverified: 2 obligation(s) name a finished carrier needing verification: deferred row 3, OQ-05: carrier 3jez8u finished (done); shipped: add `- Carrier-Evidence: .aw/records/backlog/done/20261001-3jez8u-01-3jez8u-bidi-controls-missed-by-descriptive-safety-predica.backlog.md`, not Carrier-Declined` (286 characters, strictly on ONE line, `is_safe_descriptive` True).
+
+    Worst-reachable single-row observation:
+    - Eligible-path length census across terminal backlog and plan directories (`backlog/done`, `plans/executed`, `plans/superseded`, `plans/not-executed`, `backlog/parked`):
+      Total eligible paths: 1796
+      Min path length: 36
+      Median path length: 118.0
+      Max path length: 136 (`.aw/records/backlog/done/20260903-runnerlayer-01-cnwy8g-agy-runipd-imports-40-names-from-oc-runipd-so-the-hosts-are-not-peers.backlog.md`)
+    - Composed worst-case single-row detail:
+      `1 obligation(s) name a finished carrier needing verification: deferred row 1: carrier pl0000 finished (executed); shipped: add `- Carrier-Evidence: .aw/records/backlog/done/20260903-runnerlayer-01-cnwy8g-agy-runipd-imports-40-names-from-oc-runipd-so-the-hosts-are-not-peers.backlog.md`, not Carrier-Declined`
+      Composed detail length: 307
+      `MAX_DESCRIPTIVE_LEN`: 300
+      Difference: +7
+    - EXPLICIT STATEMENT: This figure (307 characters) exceeds the bound by 7 characters. We did NOT truncate the path or drop the remedy to chase it, keeping the remedy actionable and complying with Section 8.8. The single-row evidence-path residual is explicitly carried by `0livgf`.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Paste `git diff` on the backlog item, which must show exactly one added line inside `## Workflow history` and no other changed line (no `- Status:`, `- Summary:`, `- Priority:`, `- Work-Kind:`, `- Set:`, `- Id:`, or body prose). State which route you used (`aw backlog note` or a hand edit) and, if the hand edit, why the tool refused. Paste `aw find backlog 7stpjm` showing the path you actually edited, and if it differs from the declared `- Scope-Paths:` entry, state that you corrected the declaration and paste that diff too. Paste `aw check backlog` exit codes from before and after the edit and state they match. Also paste the bare `python3 -m pytest` summary line for the whole suite with its failing node ids, and compare them to the baseline set captured per "Required tests / validation" BY NODE ID, not by total, naming any node id that is new.
   - Observed evidence:
-  - Result: pending
+    `git diff` on `.aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md`:
+    ```diff
+    diff --git a/.aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md b/.aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md
+    index 9d5b13b66..e796219d8 100644
+    --- a/.aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md
+    +++ b/.aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md
+    @@ -7,6 +7,7 @@
+     - Summary: Twelve aw check findings carry a detail over the Section 8.8 descriptive bound, the longest at 942 characters
+
+     ## Workflow history
+    +- 2026-10-03 note (aw backlog): lxcexr: resolved via combination of route (b) and budget-driven variant of (a) rather than (b) alone; route (a) as framed (smaller fixed cap) was refused because a fixed cap unconditionally loses locators whereas the budget-driven cap keeps every obligation named or counted (naming more on single-body findings and fewer on findings with distinct long evidence paths); fixed a second unstated violation (embedded newlines in all finished-carrier details); corrected premise that shortening removes operator information since evwmm2 closed and aw check prints pasteable path in Fix: field
+     - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: lxcexr
+     - 2026-09-30 created (aw backlog): Twelve aw check findings carry a detail over the Section 8.8 descriptive bound, the longest at 942 characters
+    ```
+    Exactly one added line inside `## Workflow history` and no other changed line.
+
+    Route used: `aw backlog note` CLI command:
+    `python3 -m agent_workflows backlog note 7stpjm --message "lxcexr: resolved via combination of route (b) and budget-driven variant of (a) rather than (b) alone; route (a) as framed (smaller fixed cap) was refused because a fixed cap unconditionally loses locators whereas the budget-driven cap keeps every obligation named or counted (naming more on single-body findings and fewer on findings with distinct long evidence paths); fixed a second unstated violation (embedded newlines in all finished-carrier details); corrected premise that shortening removes operator information since evwmm2 closed and aw check prints pasteable path in Fix: field"`
+
+    Path lookup via `aw find backlog 7stpjm`:
+    ```
+    ●  graduated     7stpjm  .aw/records/backlog/graduated/20260930-7stpjm-01-7stpjm-check-detail-exceeds-descriptive-bound.backlog.md
+    ```
+    This matches the declared `- Scope-Paths:` entry exactly; no declaration correction was necessary.
+
+    `aw check backlog` exit codes:
+    - Before note: 1
+    - After note: 1 (matched exactly; 6 unrelated preexisting findings across the repo, none involving 7stpjm).
+
+    Bare `python3 -m pytest` full suite run summary line:
+    ```
+    5057 passed, 2 skipped, 3 warnings in 314.13s (0:05:14)
+    ```
+    Failing node ids: NONE (0 failed).
+    Comparison against baseline captured per "Required tests / validation":
+    - Baseline failing node ids: none (0 failed).
+    - Post-change failing node ids: none (0 failed).
+    - New failing node ids: NONE.
+  - Result: pass
 
 ## Approval and execution gate
 
