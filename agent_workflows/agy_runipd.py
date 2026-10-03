@@ -1557,10 +1557,13 @@ def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
 #
 # EACH WRAPPER KEEPS THE ORIGINAL NAME AND SIGNATURE, so every call site in this module and in the
 # peer driver is untouched and both hosts run ONE implementation.
-# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts that structurally (a single delegating
-# statement naming `runner_shared.<same name>`), which is a STRONGER claim than the object identity it
-# replaces for these four: identity cannot hold when each host must bind its own `run_checked`, while
-# the structural check additionally forbids a wrapper that grew a body.
+# The structural single-statement assertion previously in `tests/test_runner_backlog_close.py` was
+# deleted in commit 19313eed and will not be restored (GUIDING_PRINCIPLES P16 and maintainer rulings).
+# Instead, `tests/test_runner_delegation_and_host_independence.py` guards delegation by OUTCOME:
+# proving each wrapper resolves `runner_shared.<same name>` at call time, forwards its return value
+# unchanged, and injects this host's own `run_checked` rather than the peer's. A behavioral guard
+# cannot catch a wrapper that grew an extra harmless statement, but it does catch every shape where
+# delegation ceases to delegate.
 #
 # `process_backlog_close` ALSO TAKES ITS TWO CLOSERS INJECTED, and that is not symmetry for its own
 # sake: four in-tree tests patch `oc_runipd.close_backlog_item` to spy on the argv the gated setter
