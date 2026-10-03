@@ -977,6 +977,27 @@ def finding_dict(
     }
 
 
+def _finding_rel_path(repo_root: Path, path: Path | str) -> str:
+    """Render ONE path as repo-relative POSIX text for interpolation into finding prose.
+
+    Takes ``(repo_root, path)`` and returns the relative POSIX string, falling back to the file
+    name (never the absolute path) when the path is outside the root or unresolvable.
+
+    This helper exists for the finding fields that :func:`finding_dict` does not relativize
+    (``detail``, ``observed``, ``required``, ``recovery``) and for a composite ``location`` that
+    ``agent_schema.normalize_repo_path`` cannot relativize because that function takes a whole
+    path value. The fallback to the bare file name is modeled on :func:`specs.drift_location` as
+    the leak-free choice.
+    """
+    p = Path(path)
+    try:
+        resolved_root = Path(repo_root).resolve()
+        resolved_p = p.resolve() if p.is_absolute() else (resolved_root / p).resolve()
+        return resolved_p.relative_to(resolved_root).as_posix()
+    except (ValueError, OSError, RuntimeError):
+        return p.name
+
+
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 # The type->facet map is defined ONCE in the naming authority (IPD o6b8l3). check_names only checks
 # clustered-facet types, so `comms` (no clustered check today) is intentionally omitted here.
@@ -1841,7 +1862,7 @@ def check_collisions(
                         _core.Drift(
                             str(p),
                             "check.id6-collision",
-                            f"id6 {id6} also on {seen_ids[id6]}",
+                            f"id6 {id6} also on {_finding_rel_path(repo_root, seen_ids[id6])}",
                         )
                     )
                 else:
@@ -1866,7 +1887,7 @@ def check_collisions(
                             _core.Drift(
                                 str(p),
                                 "check.setid-collision",
-                                f"setid {sid} conflicts with {prev_path} (descriptive: {prev_desc!r} vs {desc!r})",
+                                f"setid {sid} conflicts with {_finding_rel_path(repo_root, prev_path)} (descriptive: {prev_desc!r} vs {desc!r})",
                             )
                         )
                 else:
@@ -2091,29 +2112,30 @@ def check_lifecycle_placement(
             term = terminal_locs[0]
             stales = non_terminal_locs
             stale_str = ", ".join(
-                f"'{s.path}' in '{s.bucket}' (- Status: {s.status or 'unknown'})"
+                f"'{_finding_rel_path(repo_root, s.path)}' in '{s.bucket}' (- Status: {s.status or 'unknown'})"
                 for s in stales
             )
             terminal_clause = (
-                f"'{term.path}' is in terminal directory '{term.bucket}' "
+                f"'{_finding_rel_path(repo_root, term.path)}' is in terminal directory '{term.bucket}' "
                 f"(- Status: {term.status or 'unknown'}); {stale_str} is stale."
             )
             recovery = (
-                f"remove stale copy {', '.join(s.path for s in stales)} "
-                f"in favor of terminal {term.path}"
+                f"remove stale copy {', '.join(_finding_rel_path(repo_root, s.path) for s in stales)} "
+                f"in favor of terminal {_finding_rel_path(repo_root, term.path)}"
             )
         else:
             loc_summary = " and ".join(
-                f"{loc.path} (bucket: {loc.bucket}, status: {loc.status or 'unknown'})"
+                f"{_finding_rel_path(repo_root, loc.path)} (bucket: {loc.bucket}, status: {loc.status or 'unknown'})"
                 for loc in locations
             )
             recovery = f"resolve placement conflict between {loc_summary}"
 
         loc_header = " and ".join(
-            f"{loc.path} (status: {loc.status or 'unknown'})" for loc in locations
+            f"{_finding_rel_path(repo_root, loc.path)} (status: {loc.status or 'unknown'})"
+            for loc in locations
         )
         detail_parts = [
-            f"'{loc.path}' (bucket: {loc.bucket}, - Status: {loc.status or 'unknown'})"
+            f"'{_finding_rel_path(repo_root, loc.path)}' (bucket: {loc.bucket}, - Status: {loc.status or 'unknown'})"
             for loc in locations
         ]
         detail = (
@@ -3647,7 +3669,7 @@ def check_system_layout(repo_root: Path) -> List[_core.Drift]:
 
     json_rel = _engine.AW_LAYOUT_JSON_PATH
     schema_rel = _engine.AW_LAYOUT_SCHEMA_PATH
-    recovery = f"run 'aw install {root}' to regenerate the emitted layout document"
+    recovery = "run 'aw install' to regenerate the emitted layout document"
 
     doc, err = load_emitted_layout(root)
     if doc is None and err == "absent":
@@ -8444,7 +8466,7 @@ def evaluate_ipd_lint_diagnostics(
                 "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
                 "committed unnoticed"
             ),
-            recovery=f"aw ipd lint {plan_path} --phase {checkpoint}",
+            recovery=f"aw ipd lint {_finding_rel_path(repo_root, plan_path)} --phase {checkpoint}",
         )
     )
     return drift
@@ -8551,7 +8573,9 @@ def check_ipd_lint_reach(
                     "`aw ipd lint` enforces, so a defect the per-file verb refuses cannot sit "
                     "committed unnoticed"
                 ),
-                recovery="aw ipd lint {0} --phase {1}".format(p, "author"),
+                recovery="aw ipd lint {0} --phase {1}".format(
+                    _finding_rel_path(repo_root, p), "author"
+                ),
             )
         )
     return drift
