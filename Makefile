@@ -3,7 +3,12 @@
 # Makefile), so `/verify` can find and run the self-tests here - the framework dogfooding
 # its own evidence layer.
 
-.PHONY: install-dev test test-all test-serial version version-file
+.PHONY: install-dev test test-all test-serial typecheck version version-file
+
+# Run the configured narrowed static type gate over agent_workflows/.
+# CI-only gate in default posture; see CONTRIBUTING.md for details.
+typecheck:
+	python3 -m mypy agent_workflows
 
 # Install everything needed to work on and test this repo (guarantees pytest-xdist is
 # present so the suite ALWAYS runs in parallel). Run this once after cloning.
@@ -19,14 +24,14 @@ install-dev:
 # pytest and pytest-xdist are TEST-ONLY dependencies (the `test` extra in pyproject.toml):
 # not imported at runtime and not shipped in the wheel.
 # FAST default run for routine use (e.g. after every IPD): inherits pyproject addopts
-# (`-n auto --dist=worksteal -m 'not slow'`), so it parallelizes AND skips the heavy
-# subprocess/install/conformance tests marked `slow`. ~24s vs ~2m41s for the full suite.
+# (`-n auto --dist=worksteal -m 'not slow and not livecorpus'`), so it parallelizes AND skips the heavy
+# subprocess/install/conformance tests marked `slow` and live records tests marked `livecorpus`. ~24s vs ~2m41s for the full suite.
 test:
 	python3 -m pytest tests/
 
 # FULL suite including the `slow` subprocess/integration tests (CI runs the fast
 # suite plus an advisory slow step). Use for release-review or before shipping.
-# `-m ""` clears the default `not slow` filter; still parallel.
+# `-m ""` clears the default `not slow and not livecorpus` filter (including `slow` and `livecorpus`); still parallel.
 test-all:
 	python3 -m pytest tests/ -m ''
 

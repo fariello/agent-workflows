@@ -1,0 +1,374 @@
+# IPD: Correct the stale aw find wtiso count in the one live guidance site, and refuse the three dated records
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: Four records cite `aw find plans wtiso` returning THREE plans as the authoritative answer for the artifacts-not-references contract. At HEAD the answer is EIGHT, and eight is CORRECT: commit `ecdd348f` (2026-09-19, `fix(selectors): read to the end of the metadata block, not a 4096-byte cap`) replaced a hard 4096-byte header cap with a structural bound, making visible five `- Set: wtiso` bullets that sit past byte 4096. The contract never changed; only the read window did. THE ITEM'S OWN FOUR-RECORD TARGET LIST DECAYED BETWEEN FILING AND AUTHORING, and that is this plan's central finding. Every one of the four paths it names is now WRONG: plan `826o13` is no longer in `pending/` but in `executed/`, where `AGENTS.md` forbids changing what it records; both backlog items are no longer `open`/`graduated` but `done`; and the review record was never at the path given. Worse for the remedy it proposes, only ONE of the four sites is a live present-tense claim a reader could act on. The other three are DATED HISTORY (a `## Workflow history` line, a review's `WHAT WAS RUN` ledger, an executed plan's evidence), and rewriting a measurement a dated record says it took would replace a true statement about the past with a false one.
+- Scope: Correct the ONE live site and refuse the other three, with the evidence that decides each. IN: the `## Guardrails any implementation inherits from 826o13` block in backlog `59t9x5`, whose present-tense "returns 3 records while a filename glob returns 12" is guidance a future implementer is told to preserve. The resolved count is re-measured (8); the glob figure is NOT replaced by a new integer but by a property, because review measured it to be SELF-REFERENTIAL (this plan's own filename contains `wtiso`, so it counts itself: 15 at authoring, 16 at review, 17 once this review's record lands). The correction names `ecdd348f` so the change does not read as a behavior regression. ALSO IN, added at review: the SECOND bullet of the same block, stale from the same commit in three respects (no 4096-byte header bound survives, the count is 291 not nine, and the named example `25kzda` is no longer an instance). OUT, with reasons in Findings and Deferred: the executed plan `826o13` (immutable, and it ALREADY self-corrects at E-01's execution note, naming eight, the offsets, and this very item), the review record's four dated count statements across rounds 1 and 3 (accounts of commands actually run and of a decision's basis), and backlog `f8m2z2`'s graduated-history line (dated, and its body's only `wtiso` claim is the EXCLUSION property, which re-measures TRUE). No product code is touched; `selectors.py` is READ for E-03's evidence, is not in `- Scope-Paths:`, and must not be edited.
+- Scope-Paths: .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: kx9md1
+- Set: kx9md1
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: d7jpo3
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: d7jpo3 verified (set kx9md1, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-29 reviewed (aw set): status set to reviewed
+
+- 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 FIXED, OQ-02 left OPEN as the maintainer's call. Every finding re-measured at HEAD `3199f621`: the defect, the causal offset table, the exclusion contract and the executed plan's self-correction all reproduce exactly. THE PLAN'S OWN PRESCRIPTION CARRIED ITS OWN DEFECT CLASS: the glob figure is self-referential (this plan's filename contains `wtiso`, so it counts itself, 15 -> 16 between authoring and review), so E-02 now requires a non-rotting property and V-02 fails a bare integer swap. Also found the SECOND bullet of the same guardrail block stale from the same commit in three respects, added as new E-03/V-03. Corrected F-04's enumeration (four count statements across two rounds, not one in round 3) and F-06's mention count. Findings and three `D-*` decisions in `.aw/records/reviews/20260929-kx9md1-01-d7jpo3-...review.md`. One incident disclosed there: a review probe of `aw backlog note` wrote a line to `59t9x5` and was reverted immediately; the tree is clean.
+- 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `kx9md1`. The item's `## Where` list was re-resolved rather than trusted, and all four paths had moved: `826o13` is in `executed/` (immutable per `AGENTS.md`), `59t9x5` and `f8m2z2` are both in `done/`, and the review was never at the cited path. Each of the four sites was then read to decide whether it is a LIVE claim or DATED HISTORY, which reduced the item's four-record sweep to one record and three reasoned refusals. Both numbers in the surviving site were re-measured (3 -> 8 resolved, 12 -> 15 filename hits), the causal table in the item was reproduced offset by offset, and the contract itself was confirmed still TRUE (zero `wtisoland`/`wtisodebt` in the result). GATE NOTE: item `kx9md1` carries NO `- Blocks-Release:`, so this plan inherits none.
+
+## Goal
+
+Make the one record that tells a future implementer what `aw find plans wtiso` returns tell them the truth, and attribute the change to `ecdd348f` so it reads as a corrected read window rather than a regressed contract.
+
+Equally: record why the other three records must NOT be edited. The item asks for a four-record sweep. Three of those records state what a dated act MEASURED, and one of them is in `executed/`, where the repository's execution contract forbids changing what a plan records. A sweep would convert three true historical statements into false ones and breach an immutability rule, while appearing to complete the item more fully.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: re-measure, then correct the one live site
+
+- [x] E-01 RE-MEASURE BOTH NUMBERS AND THE CONTRACT ITSELF BEFORE EDITING ANYTHING, because this plan exists precisely because a transcribed corpus count rotted. Run all four and record raw output. (a) `aw find plans wtiso` and COUNT the rows (authoring and review measurement: EIGHT). (b) `find .aw/records -iname '*wtiso*'` and count. **READ F-09 BEFORE TRUSTING THIS NUMBER: it is SELF-REFERENTIAL.** This plan's own filename contains `wtiso`, so this plan is counted; authoring measured 15, review measured 16 (the sixteenth being this plan), and this review's own record makes 17. So do NOT expect to reproduce any earlier figure, and do NOT treat the divergence as corpus growth. Record BOTH the raw count and the count excluding the artifacts of this very work (`... | grep -v kx9md1 | grep -v d7jpo3`), and state which you are using and why. (c) CONFIRM THE CONTRACT STILL HOLDS, which is the property the record exists to protect and which must not be conflated with the count: `aw find plans wtiso | grep -c 'wtisoland\|wtisodebt'` must be ZERO, so the sentence's CLAIM survives and only its arithmetic changes. (d) REPRODUCE THE CAUSAL TABLE from the item by printing the byte offset of the `- Set: wtiso` bullet in each of the eight members, confirming that the three the records name are exactly the three under 4096 (authoring and review measurement: 2507, 2954, 3894 visible; 4177, 4241, 5153, 5581, 7281 not). IF (a) HAS MOVED AGAIN, use the new number and say so; if (c) FAILS, STOP and report a genuine behavior change with its own carrier, because that would be a defect in `selectors.py` and not a records correction.
+  - Depends on: none
+  - Expected outcome: five raw measurements recorded: the resolved count, the filename-glob count BOTH raw and net of this work's own artifacts, a zero exclusion count, and the eight offsets with their visible/invisible verdict against 4096.
+  - Execution state: performed
+
+- [x] E-02 CORRECT THE FIRST GUARDRAIL BULLET AND ATTRIBUTE THE CHANGE TO `ecdd348f`, WRITING THE GLOB FIGURE SO IT CANNOT ROT AGAIN. The target is the `## Guardrails any implementation inherits from 826o13` block in `.aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md`, whose bullet currently reads that `aw find plans wtiso` "returns 3 records while a filename glob returns 12 (`wtisoland`, `wtisodebt`, unrelated docs)". Correct `3` to the E-01(a) measurement. **DO NOT WRITE A BARE NEW GLOB COUNT IN PLACE OF THE 12.** F-09 measures that figure to be SELF-REFERENTIAL: it counts this plan and this plan's review record, so any integer written here is stale the moment it is committed and would recreate, in the corrected line, the exact defect this plan exists to remove. Write the PROPERTY instead - that a filename glob returns strictly MORE files than the resolver, including records of the different Sets `wtisoland` and `wtisodebt` plus unrelated docs - and if a figure is given at all, mark it explicitly as a dated sample (for example "16 at 2026-09-29, a count that grows with the corpus and includes records merely named after this work"). A reviewer must be able to see that no future reader can be misled by arithmetic. CHANGE NOTHING ELSE IN THE BULLET: keep the artifacts-not-references claim, keep naming `wtisoland` and `wtisodebt`, and keep the "do not regress it while optimizing" instruction, because all three re-measure TRUE and are the reason the bullet exists. The attribution must name `ecdd348f` and say in one clause that the resolver's read window widened rather than its matching rules changing, so a later reader does not chase a phantom regression. DO NOT touch this item's front matter (`- Status: done`, `- Blocks-Release: next`, `- Graduated-To: findonce`), and DO NOT touch its `## Workflow history`: E-04 owns the history record, and the four dated entries already there are another party's account of dated acts.
+  - Depends on: E-01
+  - Expected outcome: `git diff` on that one file shows the resolved count corrected to the E-01 measurement, the glob figure replaced by a non-rotting property (with any number explicitly dated and caveated), and an `ecdd348f` attribution clause added, with the claim, the two excluded Set names, and the instruction all intact, and no front-matter or history line altered.
+  - Execution state: performed
+
+- [x] E-03 CORRECT THE SECOND GUARDRAIL BULLET IN THE SAME BLOCK, which F-10 measures to be stale from the SAME commit. It reads "Nine records carry a declared identity ABSENT from their bounded 4096-byte header, including `25kzda`, a spec this repository cites constantly. Any read-avoidance scheme must still find them." Three things in it are now wrong: there is no longer a 4096-byte HEADER BOUND at all (`ecdd348f` made 4096 a read QUANTUM under a structural end-of-metadata bound, which `selectors.py`'s own comment states as "THE CHUNK IS A READ QUANTUM, NOT A CAP, AND THAT DISTINCTION IS THE WHOLE BUG FIX"); the count is not nine (291 records carry an identity bullet past byte 4096 at review, worst offset 39224); and `25kzda`, the named example, carries `- Id:` at byte 209 and so is not an instance. REWRITE THE BULLET TO PRESERVE ITS SURVIVING REQUIREMENT, which is the part that still matters and must not be lost: a read-avoidance scheme must still find a declared identity wherever it sits in the metadata block, and it may not reintroduce a fixed byte cap. Follow E-02's anti-rot rule here too: do not write a bare `291`, state the property and mark any figure as a dated sample. This item exists as a SEPARATE E-item rather than folded into E-02 because it is a different claim about a different fact needing its own evidence, but it edits the same file and the same block, and leaving it uncorrected would make the block internally inconsistent on one screen.
+  - Depends on: E-01
+  - Expected outcome: `git diff` shows the second bullet no longer asserting a "bounded 4096-byte header" or a nine-record count, still requiring that declared identities be found wherever they sit and that no fixed cap return, with any figure dated; no other bullet, front-matter field or history line altered.
+  - Execution state: performed
+
+- [x] E-04 RECORD THE CORRECTION IN THAT ITEM'S HISTORY WITH `aw backlog note`, NOT BY HAND, AND DO NOT USE `aw backlog set`. The verb's positional argument is documented as a PATH (`aw backlog note --help`: `positional arguments: path`), and it ALSO accepts a bare id6, which review verified by running `aw backlog note 59t9x5 --message ...` and observing it resolve and append (that probe was reverted immediately; see the review record). Either spelling works, so prefer the explicit path this plan already declares in `- Scope-Paths:` and do not be surprised by the help text. The verb records history only: it never changes a status or moves a file, which review also confirmed by inspecting the resulting diff (a single added line under `## Workflow history`, nothing else touched). THIS DISTINCTION IS LOAD-BEARING AND THE README STATES IT: a same-status `set` is "a transition call doing an annotation's job, and history is what suffers", and this item is `done`, so a `set done` would re-transition a closed item carrying `- Blocks-Release: next` and re-run the close-legitimacy gate for an edit that changes no status. The message must name `ecdd348f` as the cause, state the corrected resolved count, say that the glob figure was replaced by a property rather than a new number and WHY (it counts records named after this work), say that the CONTRACT was re-verified TRUE rather than merely the count updated, note that the second guardrail bullet was corrected too, and name this plan `d7jpo3` as the carrier so the edit is attributable.
+  - Depends on: E-02, E-03
+  - Expected outcome: one new dated `## Workflow history` record on `59t9x5` naming `ecdd348f`, the corrected resolved count, the reason the glob number became a property, the contract re-verification, both bullets, and `d7jpo3`; `- Status:` still reads `done` and the file has not moved.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- A PLAN IN `executed/` IS IMMUTABLE AS TO WHAT IT RECORDS. `AGENTS.md`'s execution contract: "Never change what a plan already in `.aw/records/plans/executed/` RECORDS (its steps, evidence, results, or status): close a post-execution gap with a new corrective IPD, not an in-place edit." It grants exactly one exception, a dated `## Workflow history` line pointing at later work. `.aw/records/plans/README.md` states the same boundary from the naming side: for a plan in a terminal directory "the plan BODY and workflow history stay immutable; only the name/grouping is mutable via the stable `Id`".
+- BACKLOG HISTORY IS APPEND-ONLY AND `note` IS THE ANNOTATION VERB. `.aw/records/backlog/README.md`: history is recorded inline, "newest record first, and prior records are kept", and `aw backlog note` "records a history record to a backlog item (no status change)". The same README warns that a same-status `set` is "a transition call doing an annotation's job, and history is what suffers".
+- A REVIEW FILE HOLDS MULTIPLE APPENDED `## Round <N>` SECTIONS AND ONLY THE LAST IS CURRENT. `.aw/records/reviews/README.md`: rounds are "appended in order. The LAST round in the file is the CURRENT one", and "Only the current round's findings are live", because otherwise "a High raised in round 1 and fixed in round 2 would block forever". Each round is an account of one dated review act.
+- THE IN-REPO PRECEDENT FOR A STALE-POINTER SWEEP DISTINGUISHES A LIVE CLAIM FROM HISTORY, AND REFUSED THE HISTORY HALF ON THE SAME GROUND THIS PLAN DOES. Executed plan `2iye0e` (`wtisoptr`) retired stale `wtiso` ownership claims; its OQ-02 resolved NOT to touch two test-prose sites because one "says 'Plan `2c122z` E-06 DEPENDS on this', a statement about what a retired plan's E-06 depended on, which retirement does not falsify: it is history", and rewriting it "would replace a true historical statement with a vaguer one". That is this plan's F-04 argument, already accepted once in this repository.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+All measured 2026-09-29 in this lane worktree at HEAD `71307371`.
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **EVERY ONE OF THE FOUR PATHS IN THE ITEM'S `## Where` LIST IS NOW WRONG, so a plan that trusted the list would have edited nothing and reported four missing files.** The item names `826o13` under `plans/pending/`; it is in `plans/executed/`. It names `59t9x5` under `backlog/open/`; it is in `backlog/done/`. It names `f8m2z2` under `backlog/graduated/`; it is in `backlog/done/`. It names the review under `.aw/records/reviews/20260910-findtier-...`, which is the one path that resolves, though the item's own `## Where` gives it a truncated name. THE ITEM ALSO MISSTATES THE TEST SURFACE IT USES TO ARGUE LOW PRIORITY: it says `tests/test_cli_find.py` carries a `_SyntheticCorpus` with tight counts and a `RealRepoContractTests` with corpus-independent properties. That file is now 122 lines, contains NEITHER class, and contains ZERO occurrences of `wtiso`; commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests") deleted 688 lines of it. The conclusion the item draws from that surface (no test depends on the stale number) is nonetheless TRUE, and F-02 establishes it on current evidence. | `find .aw/records -name '*826o13*' -o -name '*59t9x5*' -o -name '*f8m2z2*'` returns the executed plan, the review, and both items under `done/`; `wc -l tests/test_cli_find.py` = 122; `grep -c wtiso tests/test_cli_find.py` = 0; `git show --stat 19313eed` lists `tests/test_cli_find.py | 688 ----` |
+| F-02 | **NO TEST PINS THE `wtiso` COUNT, so this is a records-only correction with no suite consequence.** Five files under `tests/` mention `wtiso` and none asserts a resolved count over the live corpus: `tests/test_agy_runipd_cli.py` and `tests/test_run_selection_policy.py` use it as a synthetic `setid` string in constructed queue fixtures; `tests/test_oc_runipd.py` and `tests/test_host_sandbox_profile.py` likewise; `tests/fixtures/derive_plan_status_baseline.json` maps the eight real member PATHS to dispositions, which is a per-path baseline unaffected by a resolver count. NOTABLY, one test docstring already records the CORRECTED number in prose: `tests/test_run_selection_policy.py::test_a_run_that_acted_on_nothing_still_gets_a_summary_naming_every_artifact` says "`aw oc run wtiso` matched 8 plans", and its assertion is explicitly on the property rather than the number ("the counts must SUM to the number matched, which is the property worth asserting rather than any individual number"). | `grep -rln wtiso tests/` returns those five files; each match inspected; the docstring quoted verbatim |
+| F-03 | **ONLY ONE OF THE FOUR SITES IS A LIVE PRESENT-TENSE CLAIM, and it is the only one this plan edits.** In `59t9x5`, the stale numbers sit under the heading `## Guardrails any implementation inherits from 826o13`, in a bullet whose own final clause is an instruction to a future implementer: "do not regress it while optimizing". That is prescriptive guidance addressed to work not yet done, so a reader acting on it would carry a false number into a new plan. It is also the site with TWO stale numbers rather than one: the glob figure is 12 in the record and 16 at HEAD, and the item's `## Where` does not mention that second staleness at all. | the heading and bullet quoted; `find .aw/records -iname '*wtiso*' \| wc -l` = 16 (see F-09: this number COUNTS THIS PLAN and its review record) |
+| F-09 | **THE GLOB NUMBER THIS PLAN PRESCRIBES IS SELF-REFERENTIAL, AND THE PLAN ITSELF ALREADY MOVED IT FROM 15 TO 16.** This plan's own filename is `20260929-kx9md1-01-d7jpo3-correct-the-stale-aw-find-**wtiso**-count-...ipd.md`, so it MATCHES `-iname '*wtiso*'` and is counted by the very measurement E-01(b) takes. Authoring measured 15; at review HEAD `3199f621` the answer is 16, and the sixteenth file IS THIS PLAN, committed by `d42f31e0` between authoring and review. The review record this review writes will carry `wtiso` in its filename too, making 17 before the executor runs. So E-01(b) as authored instructs the executor to measure a number that their own artifacts perturb, and V-01 asks them to "state any divergence" from a figure that is guaranteed to diverge for a reason that has nothing to do with the corpus. THIS IS THE PLAN'S OWN DEFECT CLASS, reproduced inside the plan: a records file pinning a live corpus count. The remedy is NOT a bigger number; it is to write a number that cannot rot, or to state the exclusion, and E-02 is now required to do so. | `ls .aw/records/plans/pending/*kx9md1*` shows `wtiso` in the filename; `find .aw/records -iname '*wtiso*' \| wc -l` = 16; the same excluding this plan = 15; `git log --diff-filter=A --oneline -- '.aw/records/plans/pending/*kx9md1*'` = `d42f31e0` |
+| F-10 | **THE SECOND GUARDRAIL BULLET IN THE SAME BLOCK IS STALE FROM THE SAME COMMIT, AND THIS PLAN DOES NOT TOUCH IT.** Directly beneath the bullet E-02 corrects, the same `## Guardrails any implementation inherits from 826o13` block reads: "Nine records carry a declared identity ABSENT from their bounded 4096-byte header, including `25kzda`, a spec this repository cites constantly. Any read-avoidance scheme must still find them." BOTH of its load-bearing parts are now wrong, and `ecdd348f` is why in both cases. (a) There is no longer a "bounded 4096-byte header": `selectors.py` renamed the constant `_HEADER_CHUNK_BYTES` and its comment states "THE CHUNK IS A READ QUANTUM, NOT A CAP, AND THAT DISTINCTION IS THE WHOLE BUG FIX", with a structural `_METADATA_END_RE` bound and a `_HEADER_MAX_BYTES = 262144` backstop. (b) The count is not nine: 291 records under `.aw/records/` carry `- Set:`/`- Id:`/`- Status:` past byte 4096 today, worst offset 39224. And `25kzda`, the example it names, resolves fine and carries `- Id:` at byte 209, so it is no longer even an instance. This is the SAME defect, in the SAME block, on the SAME screen, caused by the SAME commit - so an executor who corrects one bullet and leaves the one below it makes the block internally inconsistent and leaves the next reader misled by the adjacent line. | the bullet quoted; `grep -n 4096 agent_workflows/selectors.py` showing `_HEADER_CHUNK_BYTES`/`_HEADER_MAX_BYTES` and the quantum-not-cap comment; a scan of `.aw/records/**/*.md` counting identity bullets past 4096 -> 291, worst 39224; `- Id:` offset in the `25kzda` spec = 209 |
+| F-04 | **THE OTHER THREE SITES ARE DATED ACCOUNTS OF WHAT A PAST ACT MEASURED, and editing them would make a true record false.** (i) `f8m2z2`'s only count-bearing `wtiso` text is inside its `- 2026-09-08 graduated (aw set):` history line, which reports what the graduating agent measured that day; its BODY's `wtiso` text (three occurrences) asserts only the EXCLUSION property and carries no count, so the body needs no edit either. Re-read in place at review and confirmed. (ii) The review's count sits in a `WHAT WAS RUN` ledger, introduced by "since a review's worth is in what it executed rather than reasoned", listing `aw find plans wtiso` -> 3 among commands actually run; a `WHAT THE PLAN GOT RIGHT` paragraph reports "17 filename hits for `wtiso` against 3 correctly resolved" as that day's re-measurement. Current findings being live is a statement about which findings a gate reads, not a licence to rewrite what a round says it ran. **CORRECTED AT REVIEW: the review has FOUR `wtiso` sites spread over TWO rounds, not one site in round 3.** The plan attributed both the ledger and the re-measurement paragraph to round 3; measured by line offset against the `## Round` headings (round 1 at line 10, round 2 at 111, round 3 at 147), the `WHAT WAS RUN` ledger and the `WHAT THE PLAN GOT RIGHT` paragraph the plan quotes are in ROUND 1 (lines 25 and 33), while round 3 carries its own separate ledger line (165) and a `D-7` DECISIONS ROW (192) whose `Alternatives considered` cell argues "`aw find plans wtiso` returning 3 where a glob returns 17 is exactly the property a future optimizer would break first". The refusal is UNAFFECTED and if anything stronger: a Decisions row is an even more clearly dated account (it records the basis on which a reviewer decided), and there are now four such statements rather than one. But the plan's enumeration was wrong, and an executor checking the refusal against the file would not have found what the plan describes where it says it is. (iii) `826o13`'s occurrences are its Concern, F-6, E-01's specified cases and V-01's evidence, all being the authored-then-executed record of a plan in `executed/`. | each site read in place; the `WHAT WAS RUN` and `WHAT THE PLAN GOT RIGHT` headings quoted; `grep -n wtiso <review>` returning lines 25, 33, 165, 192 against `grep -n '^## Round'` returning 10, 111, 147; `.aw/records/reviews/README.md` on round currency |
+| F-05 | **THE EXECUTED PLAN ALREADY CARRIES THE CORRECTION, IN ITS OWN VOICE, so editing it would add nothing and breach immutability to do it.** `826o13`'s E-01 execution note states: "ONE AUTHORED NUMBER WAS STALE AND THE PIN WAS WRITTEN AROUND IT RATHER THAN AGAINST IT ... The plan requires `aw find plans wtiso` to return THREE plans; at HEAD it returns EIGHT, and EIGHT IS CORRECT", then names `ecdd348f`, lists the five offsets and the three, records that `selectors.py` was NOT touched, and ends "Recorded as DECISION 03-826o13-D1 and filed as backlog `kx9md1`". So the executed record already names the cause, the correct number, the offsets, and THIS ITEM. A reader who reaches the plan's stale Concern and F-6 meets the correction in the same document at the item those very sections govern. | the execution note quoted verbatim from the plan |
+| F-06 | **THE CONTRACT THE RECORDS EXIST TO PROTECT IS STILL TRUE, which is what makes this a count correction rather than a defect report.** `aw find plans wtiso` returns 8 rows and ZERO of them is a `wtisoland` or `wtisodebt` record, so the artifacts-not-references property the bullet asserts holds exactly as written. The eight are the complete `- Set: wtiso` membership (2 executed, 6 superseded). Re-measured independently at review HEAD `3199f621`: 8 rows, exclusion count 0. The neighbouring claim in the same family also re-measures true and STRONGER than filed: `f8m2z2`'s body says `y6mfgo` resolves to 1 record while 6 plans mention it; today it resolves to 1 while 12 plans mention it (the plan wrote 10, measured at authoring; it has since grown, which is itself a small illustration of why a mention count does not belong in a pin), so the property is intact and only the uncited-as-a-contract mention count grew. | `aw find plans wtiso \| grep -c 'wtisoland\|wtisodebt'` = 0; the eight rows with their dispositions; `aw find plans y6mfgo \| wc -l` = 1 against `grep -rl y6mfgo .aw/records/plans/ \| wc -l` = 12 |
+| F-07 | **THE CAUSAL TABLE IN THE ITEM REPRODUCES EXACTLY, which is what identifies the cause rather than merely correlating with it.** Printing the byte offset of the `- Set: wtiso` bullet in each member: `8zgybk` 2507, `1o4eif` 2954, `qcqhj7` 3894, all under 4096 and all three the records name; `7p9n2v` 4177, `bl9q3d` 4241, `58ha43` 5153, `rchpms` 5581, `2c122z` 7281, all past 4096 and all five absent from the records. Every offset matches the item's table. `ecdd348f` is present in history with the message the item quotes. | per-file `find(b'- Set: wtiso')` offsets; `git log --oneline -1 ecdd348f` = `fix(selectors): read to the end of the metadata block, not a 4096-byte cap` |
+| F-08 | **THE ITEM'S ONE BINDING PROHIBITION IS CORRECT AND IS INHERITED WHOLE.** It says twice, in capitals, that this is not a regression and must not be fixed in the code, and that `selectors.py` must not change. `selectors.py` is absent from this plan's `- Scope-Paths:` for that reason, and the single declared path is a records file, so a scope reconciliation at finalize would refuse any product edit. The executed plan that discovered the staleness reached the same conclusion under its own execution contract: "a red test means either the test is wrong or something changed under you: fix the TEST, or STOP and report a genuine behavior change with its own carrier." | the item's `## Recommended fix`; this plan's `- Scope-Paths:`; `826o13`'s gate prose quoted |
+
+## Proposed changes (ordered, validatable)
+
+1. Re-measure the resolved count, the glob count (raw and net of this work's own artifacts, per F-09), the exclusion property and the eight offsets (E-01). No file changes.
+2. `.aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md`, FIRST guardrail bullet: correct the resolved count, replace the glob integer with a non-rotting property, and attribute the change to `ecdd348f`, leaving the claim, the two excluded Set names and the instruction intact (E-02).
+3. The same block's SECOND guardrail bullet: drop the "bounded 4096-byte header" premise and the nine-record count, both stale from the same commit, while preserving the surviving requirement that a declared identity be findable wherever it sits and that no fixed cap return (E-03).
+4. The same file's `## Workflow history`: one appended record via `aw backlog note` (E-04).
+
+## Deferred / out of scope (with reason)
+
+- EDITING THE EXECUTED PLAN `826o13`. Refused on two independent grounds, either sufficient. FIRST, `AGENTS.md` forbids it: a plan in `executed/` may not have what it records changed, and the remedy it names for a post-execution gap is a new corrective IPD, which is what this plan is. SECOND, it would be pointless: F-05 shows the plan already states, in its own E-01 execution note, that the answer is eight, why (`ecdd348f`), which five offsets moved, that `selectors.py` was not touched, and that the residue was filed as `kx9md1`. The stale Concern and F-6 are the authored record of what the author believed on 2026-09-08, and the execution note is the record of what execution found; both being present IS the audit trail working.
+  - Carrier-Declined: Nothing durable is owed. The permitted exception (a dated `## Workflow history` line pointing at later work) is not worth spending here either, because the correction is already IN the document at the point of discovery, and a history line saying "see `kx9md1`" would point at an item whose content the plan already contains.
+- EDITING THE REVIEW RECORD'S COUNT STATEMENTS (four of them, across rounds 1 and 3; the enumeration is corrected in F-04 and the refusal is unchanged). Refused because each is an account of what a dated act ran or decided: the `WHAT WAS RUN` blocks are prefaced by the reviewer's own statement that a review's worth is in what it executed, and round 3's `D-7` row records the basis on which a decision was taken. `aw find plans wtiso` DID return 3 on those days, under the then-current 4096-byte cap. Changing the 3 to an 8 would assert that the reviewer ran a command and got a result they did not get, which is a worse defect than the stale number and is the "authority impersonation" class the repository guards against elsewhere; rewriting a `Basis`/`Alternatives considered` cell is worse still, since it would misrepresent why a decision was made. The review README's rounds design exists precisely so a superseded measurement can stay in the file without being live.
+  - Carrier-Declined: A dated review round is closed by construction; no later act can be owed against it. A future reader who needs the current number gets it from `aw find plans wtiso` in one command, and from the corrected guardrail this plan ships.
+- EDITING `f8m2z2`. Refused on two counts. Its only count-bearing `wtiso` text is inside a dated `- 2026-09-08 graduated (aw set):` history line, and the backlog README states prior history records are KEPT; correcting a number inside one would falsify a dated act, exactly as with the review. Its BODY's `wtiso` text makes no count claim at all: it asserts the EXCLUSION property ("a `wtiso` query correctly EXCLUDES the different Set `wtisoland`"), which F-06 re-measured TRUE. So the body needs no correction and the history may not have one.
+  - Carrier-Declined: Nothing survives to be owed. If a later author wants the historical numbers annotated as superseded, `aw backlog note` can add a dated record without touching the old one; that is a small independent act needing no reservation, and this plan records the judgement rather than leaving an open question.
+- TOUCHING `agent_workflows/selectors.py`. The item forbids it in capitals and is right: eight is the correct answer and the 4096-byte cap was the defect, fixed in `ecdd348f`. Not in `- Scope-Paths:`.
+  - Carrier-Declined: There is no work here to carry. The code is correct.
+- A GUARD AGAINST A FUTURE TRANSCRIBED CORPUS COUNT ROTTING. This defect class (a records file pinning a live corpus number) is real and recurring, but a mechanism to detect it is a different plan with a different surface, and the adjacent design work is already carried: pending plan `mvcwsd` (`lcnotice`) ships a diagnostic for live-corpus reads in the TEST suite and explicitly refuses the enforcement half on measurement.
+  - Carrier-Declined: No obligation is created by this plan. `mvcwsd` owns the test-suite half by its own scope, and a records-prose equivalent has no observed second instance to justify it (designing for a hypothetical need, GUIDING_PRINCIPLES P6). The honest statement of the class belongs in this plan's record, where it now is.
+
+## Scope check
+
+- Over-scope: none. One declared path, edited by three items: `.aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md` (E-02 the first guardrail bullet, E-03 the second, E-04 one appended history record via `aw backlog note`). E-01 changes no file. No product module, no test, no spec. `agent_workflows/selectors.py` is READ by E-03 for its evidence and is deliberately NOT in `- Scope-Paths:`, so a finalize reconciliation would refuse any edit to it.
+- Under-scope, stated plainly because it is three quarters of the item's target list: this plan corrects ONE of the four records the item names. The other three are refused on the reasons in Deferred, and a reviewer who disagrees should say which dated record they want rewritten and on what authority, since that is the question the refusal turns on. Also unaddressed: the item's own `## Where` paths and its `tests/test_cli_find.py` description are themselves stale (F-01), and this plan does not edit the item, because `- Status:` and requirements on a graduating item are not a plan's to change; the correction lives in this plan's Findings, which the item's graduation history will point at.
+- Under-scope, ADDED AT REVIEW: the item's scope was "the stale `wtiso` count", and review found a SECOND stale claim in the same guardrail block from the same commit (F-10). E-03 now corrects it, which is a deliberate widening BEYOND the source item's literal text, on the ground that leaving an adjacent, identically-caused falsehood on the same screen would defeat the plan's own purpose. That widening is declared here rather than discovered at finalize, and it needs no new `- Scope-Paths:` entry because it edits the one file already declared.
+
+## Required tests / validation
+
+THIS PLAN CHANGES NO CODE AND NO TEST, so there is no new test surface. The BARE full suite is still required by the execution contract, as `python3 -m pytest` with no added flags (no `-n0`, no extra `-q`, no `-p no:randomly`), because the edited file lives under `.aw/records/` and several tests assert properties over that live tree. RE-DERIVE the baseline in the lane rather than transcribing one, and compare failure sets by NODE ID rather than by total.
+
+`aw backlog check` is the targeted validation, because the edited artifact is a backlog record and that verb validates the tree fail-closed (valid enums, status-mirrors-directory, gate present-and-valid iff blocked, unique id6, nonempty summary). It must conform AFTER the edit, and the item's `- Status: done` with `- Blocks-Release: next` must be unchanged, which is the specific thing an accidental `aw backlog set` would break. `aw check release-gates` is also required for that reason: the item carries a release gate, and this plan must leave the gate exactly as it found it.
+
+`aw ipd lint` on this plan must report conforming, and `aw sanitize --agent` must be clean since a records edit is public artifact text.
+
+Every validation below asserts on OUTCOMES (raw command output, `git diff`, exit codes, tree state). No `V-*` may be marked from memory, and none may be marked without the actual pasted output its `Required evidence` names.
+
+## Spec / documentation sync
+
+NO `.spec.md` FILE IS AMENDED and `- Scope-Paths:` declares none, so the run-end spec-edit reconciliation should report no declared and no actual spec edits. Checked rather than assumed: the immutability rule this plan turns on lives in `AGENTS.md`'s execution contract and in `.aw/records/plans/README.md`, the backlog history and `note`-versus-`set` rules live in `.aw/records/backlog/README.md`, and the round-currency rule lives in `.aw/records/reviews/README.md`. All four are cited and none is edited.
+
+No user-facing document changes, so the em-dash prohibition on user-facing prose has no subject here beyond ordinary care in the record text this plan writes.
+
+## Open questions
+
+### OQ-01: Should a dated history line carrying a superseded measurement ever be corrected in place?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE as NO, and the answer is what reduces this plan from four records to one. Three independent sources agree. `.aw/records/backlog/README.md` states prior history records are KEPT and gives `note` as the append verb, so the sanctioned way to correct the past is to add to it. `.aw/records/reviews/README.md` builds the same principle into the rounds design: a superseded measurement stays in the file and the LAST round is what is live, which only works if earlier rounds are not rewritten. `AGENTS.md` states it as a prohibition for the strongest case, an executed plan, and names the remedy (a new corrective IPD, not an in-place edit). Executed plan `2iye0e`'s OQ-02 already applied exactly this reasoning to exactly this kind of sweep, declining two stale-looking sites because a statement about what a retired plan depended on "is history" and rewriting it "would replace a true historical statement with a vaguer one". The distinction this plan therefore draws is LIVE GUIDANCE versus DATED ACCOUNT, not "old versus new": the corrected bullet in `59t9x5` is prescriptive text addressed to future work, which is why it is in scope while three older-looking numbers are not.
+
+### OQ-02: Is correcting one prose number worth a plan at all?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Carrier-Declined: NOTHING DURABLE IS OWED, because the question is answered by the disposition of THIS plan and cannot outlive it. Either the maintainer accepts the trade and it executes, or they decline and it is retired `not-executed` citing this question, which IS the durable record: F-01 through F-08 answer the item with measurements, including the two findings a later reader most needs (that the item's four paths have all moved, and that three of its four targets are dated history). Filing a carrier would create an item whose only content is "re-ask whether to execute a plan that is no longer pending".
+- Resolution or deferral rationale: RAISED because the item is `low`/`chore` and the deliverable is a small return for a plan, a review and a run. THE CASE FOR: the bullet is titled as guardrails "any implementation inherits", the source item `59t9x5` has already graduated into `findonce` and executed as `qfpnrm`, so the next `aw find` optimizer is a realistic reader, and the cost of them inheriting a false count is the cost already paid once, when `826o13`'s `Required tests` demanded a number that had moved and execution had to report the pin as unwritable rather than assert it. THE CASE AGAINST: no test depends on it (F-02), the code is correct (F-08), and the executed plan already states the truth at the point of discovery (F-05), so the residual harm is one misled reader of one bullet. A maintainer could reasonably close `kx9md1` as `done` citing F-05 instead of executing this. NOT marked blocking because the edit is one file, additive in meaning, and trivially revertible.
+- REVIEW NOTE (2026-09-29, left UNRESOLVED because this is the maintainer's call and no repository evidence decides it): the review did NOT answer this question, and deliberately so; a reviewer resolving it would be substituting its judgement for a maintainer's on cost-versus-value, which the workflow reserves to the human. What review DID do is change the inputs, in the direction of the CASE FOR, so the question is worth re-reading before answering. The plan now corrects TWO stale claims rather than one, because the adjacent guardrail bullet is stale from the same commit and in three separate respects (F-10), so the "small return" is now a block of guidance made coherent rather than a single integer. And the work surfaced a defect class worth more than its instance: the glob figure is SELF-REFERENTIAL (F-09), which means the naive correction would have re-created the defect, and E-02/E-03 now carry an anti-rot rule a later author can reuse. Against that, the case AGAINST is untouched and still sound. A maintainer may still reasonably decline.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste raw output for all five measurements with the commands that produced them: (a) `aw find plans wtiso` in full with a row count (authoring and review: 8); (b) `find .aw/records -iname '*wtiso*' | wc -l` BOTH raw and net of this work's own artifacts, with a sentence saying which is used and why (authoring 15, review 16, and the review record makes 17 - per F-09 this figure counts this plan and its review, so a divergence here is EXPECTED and is NOT corpus drift); (c) `aw find plans wtiso | grep -c 'wtisoland\|wtisodebt'` showing ZERO, which is the CONTRACT rather than the count and is the one result that could turn this plan into a defect report; (d) the eight `- Set: wtiso` byte offsets with a visible/invisible verdict against 4096, matching the item's table (authoring and review: 2507/2954/3894 visible, 4177/4241/5153/5581/7281 not). STATE ANY DIVERGENCE FROM THE RECORDED FIGURES EXPLICITLY rather than silently using the new one, AND say for each whether the cause is real corpus growth or this work's own self-reference: conflating those two is exactly the confusion F-09 records. If (c) is NONZERO, do NOT proceed to E-02: stop and report a genuine `selectors.py` behavior change with its own carrier, per F-08.
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Measurement (a): `aw find plans wtiso`
+    ```
+    ✓  executed      8zgybk  wtiso           .aw/records/plans/executed/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md
+    ✓  executed      1o4eif  wtiso           .aw/records/plans/executed/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md
+    ↪  superseded    bl9q3d  wtiso           .aw/records/plans/superseded/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md
+    ↪  superseded    qcqhj7  wtiso           .aw/records/plans/superseded/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md
+    ↪  superseded    rchpms  wtiso           .aw/records/plans/superseded/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md
+    ↪  superseded    7p9n2v  wtiso           .aw/records/plans/superseded/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md
+    ↪  superseded    58ha43  wtiso           .aw/records/plans/superseded/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md
+    ↪  superseded    2c122z  wtiso           .aw/records/plans/superseded/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md
+    ```
+    Row count: 8 rows. Exactly matches authoring and review measurements.
+
+    Measurement (b): `find .aw/records -iname '*wtiso*'`
+    Raw output:
+    ```
+    .aw/records/research/20260828-wtiso-00-x03wgn-worktree-isolation-state-model.gpt56.research-report.md
+    .aw/records/reviews/20260830-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches.review.md
+    .aw/records/reviews/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.review.md
+    .aw/records/reviews/20260929-kx9md1-01-d7jpo3-correct-the-stale-aw-find-wtiso-count-in-the-one-live-guidance-site.review.md
+    .aw/records/reviews/20260930-malgate-02-38pxaz-delete-the-five-unowned-raising-predicates-in-wtiso-gate-and.review.md
+    .aw/records/backlog/done/20260908-wtisoreloc-01-e820ka-relocate-control-state-decision.backlog.md
+    .aw/records/backlog/done/20260905-wtisodebt-01-ol8iyx-wtiso-retirement-debt-no-relocation-successor-and-stale-pointers.backlog.md
+    .aw/records/plans/executed/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.ipd.md
+    .aw/records/plans/executed/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md
+    .aw/records/plans/executed/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md
+    .aw/records/plans/superseded/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md
+    .aw/records/plans/superseded/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md
+    .aw/records/plans/superseded/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md
+    .aw/records/plans/superseded/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md
+    .aw/records/plans/superseded/20260829-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches-stack-conflict-res.ipd.md
+    .aw/records/plans/superseded/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md
+    .aw/records/plans/superseded/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md
+    .aw/records/plans/pending/20260929-kx9md1-01-d7jpo3-correct-the-stale-aw-find-wtiso-count-in-the-one-live-guidance-site.ipd.md
+    .aw/records/plans/pending/20260930-malgate-02-38pxaz-delete-the-five-unowned-raising-predicates-in-wtiso-gate-and.ipd.md
+    ```
+    Raw count: 19.
+    Net count: `find .aw/records -iname '*wtiso*' | grep -v kx9md1 | grep -v d7jpo3 | wc -l` -> 17.
+    Divergence note: Authoring measured 15; review measured 16 (15 + this plan); review record added the 17th file. Raw count is 19 due to corpus growth on 2026-09-30 when set `malgate` item `38pxaz` added a plan and a review referencing `wtiso` in their filenames (`20260930-malgate-02-38pxaz-delete-the-five-unowned-raising-predicates-in-wtiso-gate-and.ipd.md` and `.review.md`). Net of `kx9md1`/`d7jpo3`, the count is 17. We use both to demonstrate F-09: glob counts grow with corpus additions and self-reference.
+
+    Measurement (c): `aw find plans wtiso | grep -c 'wtisoland\|wtisodebt'`
+    Raw output: `0`
+    Exit code: 1 (grep found 0 matching lines). The contract holds strictly: 0 rows returned contain `wtisoland` or `wtisodebt`.
+
+    Measurement (d): Byte offsets of `- Set: wtiso` bullet in each of the eight members:
+    ```
+    8zgybk: offset 2507 -> visible (<4096) (.aw/records/plans/executed/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md)
+    1o4eif: offset 2954 -> visible (<4096) (.aw/records/plans/executed/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md)
+    bl9q3d: offset 4241 -> invisible (>=4096) (.aw/records/plans/superseded/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md)
+    qcqhj7: offset 3894 -> visible (<4096) (.aw/records/plans/superseded/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md)
+    rchpms: offset 5581 -> invisible (>=4096) (.aw/records/plans/superseded/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md)
+    7p9n2v: offset 4177 -> invisible (>=4096) (.aw/records/plans/superseded/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md)
+    58ha43: offset 5153 -> invisible (>=4096) (.aw/records/plans/superseded/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md)
+    2c122z: offset 7281 -> invisible (>=4096) (.aw/records/plans/superseded/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md)
+    ```
+    Visible under 4096: 2507, 2954, 3894. Invisible at or past 4096: 4177, 4241, 5153, 5581, 7281. Reproduces the causal table byte for byte.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste `git diff -- .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md`. The diff must show the FIRST guardrail bullet's resolved count corrected to the E-01(a) measurement and an `ecdd348f` attribution clause added. PROVE THE GLOB FIGURE CANNOT ROT, which is this item's distinctive requirement and the one a careless executor will miss: quote the post-edit text and show that it states a PROPERTY (a glob returns strictly more, including other Sets and unrelated docs) rather than a bare integer, and that any number present is explicitly marked as a dated sample. A diff that simply replaces `12` with `16` FAILS V-02, because F-09 measures that integer to be self-referential and already wrong. PROVE THE THREE PRESERVED ELEMENTS EXPLICITLY: quote the post-edit bullet showing it still asserts artifacts-not-references, still names BOTH `wtisoland` and `wtisodebt`, and still carries the "do not regress it while optimizing" instruction. PROVE THE UNTOUCHED FRONT MATTER by pasting the item's first lines showing `- Status: done`, `- Blocks-Release: next` and `- Graduated-To: findonce` unchanged. Confirm the diff contains no change to any pre-existing `## Workflow history` line (E-04's appended record is the only history change permitted, and V-04 covers it). Then paste `aw backlog check` conforming and `aw check release-gates` showing the item's gate intact.
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    `git diff -- .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md` (hunk for first bullet):
+    ```diff
+    @@ -49,11 +50,8 @@ rather than making the two readers agree.
+
+     ## Guardrails any implementation inherits from 826o13
+
+    -- `aw find` returns matching ARTIFACTS, never references: `aw find plans wtiso` returns 3 records while a
+    -  filename glob returns 12 (`wtisoland`, `wtisodebt`, unrelated docs). 826o13's E-01 pins this; do not
+    -  regress it while optimizing.
+    +- `aw find` returns matching ARTIFACTS, never references: `aw find plans wtiso` returns 8 records (corrected from 3 by commit `ecdd348f`, which widened the resolver's read window to the structural end of metadata rather than changing matching rules) while a filename glob returns strictly more files (including records of the different Sets `wtisoland` and `wtisodebt`, plus unrelated docs; sampled at 16 on 2026-09-29, a count that grows with the corpus and includes records merely named after this work). 826o13's E-01 pins this; do not regress it while optimizing.
+    ```
+    Quoted post-edit bullet text:
+    `- `aw find` returns matching ARTIFACTS, never references: `aw find plans wtiso` returns 8 records (corrected from 3 by commit `ecdd348f`, which widened the resolver's read window to the structural end of metadata rather than changing matching rules) while a filename glob returns strictly more files (including records of the different Sets `wtisoland` and `wtisodebt`, plus unrelated docs; sampled at 16 on 2026-09-29, a count that grows with the corpus and includes records merely named after this work). 826o13's E-01 pins this; do not regress it while optimizing.`
+
+    Proof the glob figure cannot rot:
+    The post-edit text states the property: "while a filename glob returns strictly more files (including records of the different Sets `wtisoland` and `wtisodebt`, plus unrelated docs; sampled at 16 on 2026-09-29, a count that grows with the corpus and includes records merely named after this work)". No bare integer is written as a static count; the number 16 is explicitly marked as a dated sample ("sampled at 16 on 2026-09-29, a count that grows with the corpus and includes records merely named after this work").
+
+    Proof of the three preserved elements:
+    1. Matching artifacts never references: "`aw find` returns matching ARTIFACTS, never references:"
+    2. Both Set names: "`wtisoland` and `wtisodebt`"
+    3. Optimization guardrail: "826o13's E-01 pins this; do not regress it while optimizing."
+
+    Proof of untouched front matter:
+    ```markdown
+    - Id: 59t9x5
+    - Status: done
+    - Graduated-To: findonce
+    - Blocks-Release: next
+    - Set: 59t9x5
+    - Priority: medium
+    - Work-Kind: bug
+    - Summary: aw find opens every record twice: the display layer re-reads the 616 records the resolver just read, costing ~128ms of a ~530ms command an operator waits on
+    ```
+    `- Status: done`, `- Blocks-Release: next`, and `- Graduated-To: findonce` are completely untouched. Pre-existing `## Workflow history` lines are untouched.
+
+    `aw backlog check`:
+    ```
+    aw backlog check: all backlog items conform.
+    ```
+
+    `aw check release-gates`:
+    ```
+    AW check  release-gates                                                  2502 ms
+    ✓ CONFORMS  550 release-gates checked
+
+    Evidence
+      backlog  337   specs  20   plans  192   releases  1
+      errors  0   warnings  0
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the same file's `git diff` hunk for the SECOND guardrail bullet and quote the post-edit text. Confirm by inspection that it no longer claims a "bounded 4096-byte header" and no longer asserts a nine-record count, that it STILL requires a read-avoidance scheme to find a declared identity wherever it sits in the metadata block and to introduce no fixed byte cap, and that any figure is marked as a dated sample rather than written as a bare integer. PASTE THE EVIDENCE THE REWRITE RESTS ON so the new text is measured and not asserted: the `grep -n 4096 agent_workflows/selectors.py` lines showing `_HEADER_CHUNK_BYTES`/`_HEADER_MAX_BYTES` and the quantum-not-cap comment, the current count of records carrying an identity bullet past byte 4096, and the `- Id:` byte offset in the `25kzda` spec showing the named example is no longer an instance. Confirm `agent_workflows/selectors.py` was READ ONLY and not modified (`git status --short` must not list it).
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    `git diff -- .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md` (hunk for second bullet):
+    ```diff
+    -- Nine records carry a declared identity ABSENT from their bounded 4096-byte header, including `25kzda`,
+    -  a spec this repository cites constantly. Any read-avoidance scheme must still find them.
+    +- Records can carry a declared identity past the initial 4096-byte read quantum (many records carry `- Set:`, `- Id:`, or `- Status:` past byte 4096; sampled at 291 on 2026-09-29 with worst offset 39224, growing with the corpus). Commit `ecdd348f` replaced the hard 4096-byte header cap with a structural end-of-metadata bound so that 4096 is a read quantum rather than a cap. Any read-avoidance scheme must still find declared identities wherever they sit in the metadata block, and may not reintroduce a fixed byte cap.
+    ```
+    Quoted post-edit bullet text:
+    `- Records can carry a declared identity past the initial 4096-byte read quantum (many records carry `- Set:`, `- Id:`, or `- Status:` past byte 4096; sampled at 291 on 2026-09-29 with worst offset 39224, growing with the corpus). Commit `ecdd348f` replaced the hard 4096-byte header cap with a structural end-of-metadata bound so that 4096 is a read quantum rather than a cap. Any read-avoidance scheme must still find declared identities wherever they sit in the metadata block, and may not reintroduce a fixed byte cap.`
+
+    Inspection confirmation:
+    - No longer claims a "bounded 4096-byte header": explains 4096 is a read quantum under structural end-of-metadata bound.
+    - No longer asserts a nine-record count: states the property and dates the sample (291 at 2026-09-29).
+    - Omits `25kzda` as an example.
+    - Preserves requirement: "Any read-avoidance scheme must still find declared identities wherever they sit in the metadata block, and may not reintroduce a fixed byte cap."
+
+    Supporting evidence in `agent_workflows/selectors.py`:
+    `grep -n 4096 agent_workflows/selectors.py`:
+    ```
+    390:    at byte 602 - two orders of magnitude inside `_HEADER_CHUNK_BYTES` (4096). The window is also
+    542:# This was `_HEADER_BYTES = 4096` used as a HARD CAP: one 4096-byte read, and any bullet past
+    544:# 72 plans carry `- Set:`/`- Id:`/`- Status:` past byte 4096, the worst at 9769, because a long
+    561:_HEADER_CHUNK_BYTES = 4096
+    954:#     4096-byte CAP, so a `- Id:` bullet sitting past it was invisible and its OWNER resolved as
+    ```
+    Lines 541, 561, 565, 567 in `agent_workflows/selectors.py`:
+    `# THE CHUNK IS A READ QUANTUM, NOT A CAP, AND THAT DISTINCTION IS THE WHOLE BUG FIX.`
+    `_HEADER_CHUNK_BYTES = 4096`
+    `_HEADER_MAX_BYTES = 262144`
+    `_METADATA_END_RE = re.compile(r"(?m)^#{2,}\s")`
+
+    Current count of records carrying an identity bullet (`- Set:`, `- Id:`, `- Status:`) past byte 4096:
+    Measured 383 records across `.aw/records/**/*.md` (291 at 2026-09-29 review), worst offset 39224 in `.aw/records/reviews/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.review.md`.
+
+    `- Id:` byte offset in the `25kzda` spec (`.aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md`):
+    209 bytes from start of file (well within initial 4096 chunk, so not an instance).
+
+    Read-only confirmation for `selectors.py`:
+    `git status --short` output does NOT list `agent_workflows/selectors.py`. It is read-only and unmodified.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the `aw backlog note` invocation and its output, then the resulting new `## Workflow history` record, showing it names `ecdd348f`, the corrected resolved count, the reason the glob figure became a property, the contract re-verification, both corrected bullets, and this plan `d7jpo3`. PROVE NO TRANSITION HAPPENED, which is the specific hazard E-04 names: paste `git status --short` showing the file MODIFIED IN PLACE under `backlog/done/` and not renamed or moved, and paste the front-matter `- Status: done` line again after the note. CONFIRM THE VERB: state affirmatively that `aw backlog set` was NOT used and that the prior history records are all still present with their original text (a `git diff` on the history block showing only additions is sufficient and is the strongest form of this).
+  - Observed evidence: PASS. Detailed evidence recorded below:
+    Invocation:
+    ```
+    aw backlog note .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md --message "Guardrails updated by d7jpo3: ecdd348f widened the resolver read window to structural end of metadata; corrected resolved count to 8; replaced rottable glob count with non-rotting property because filename globs count records named after this work; re-verified artifacts-not-references contract true (0 matches for wtisoland/wtisodebt); corrected second guardrail bullet to reflect 4096 as read quantum rather than cap under ecdd348f and preserved requirement that read-avoidance must find declared identities wherever they sit."
+    ```
+    Output:
+    ```
+    aw backlog note: appended a history record to .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md
+    ```
+
+    Resulting new `## Workflow history` record:
+    ```markdown
+    - 2026-10-01 note (aw backlog): Guardrails updated by d7jpo3: ecdd348f widened the resolver read window to structural end of metadata; corrected resolved count to 8; replaced rottable glob count with non-rotting property because filename globs count records named after this work; re-verified artifacts-not-references contract true (0 matches for wtisoland/wtisodebt); corrected second guardrail bullet to reflect 4096 as read quantum rather than cap under ecdd348f and preserved requirement that read-avoidance must find declared identities wherever they sit.
+    ```
+    The entry explicitly names `ecdd348f`, the corrected resolved count (8), the property reason for the glob figure, the contract re-verification (0 matches for wtisoland/wtisodebt), both corrected bullets, and plan `d7jpo3`.
+
+    Proof no transition happened:
+    `git status --short`:
+    ```
+     M .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md
+    ```
+    File was modified in place under `backlog/done/` and not moved or renamed.
+    Front matter status after note:
+    ```markdown
+    - Status: done
+    ```
+
+    Confirmation of verb:
+    Affirmatively confirmed: `aw backlog set` was NOT used; `aw backlog note` was used.
+    `git diff` on the history block confirms only additions (one prepended line) with zero modifications or deletions to prior history entries:
+    ```diff
+    @@ -8,6 +8,7 @@
+     - Summary: aw find opens every record twice: the display layer re-reads the 616 records the resolver just read, costing ~128ms of a ~530ms command an operator waits on
+
+     ## Workflow history
+    +- 2026-10-01 note (aw backlog): Guardrails updated by d7jpo3: ecdd348f widened the resolver read window to structural end of metadata; corrected resolved count to 8; replaced rottable glob count with non-rotting property because filename globs count records named after this work; re-verified artifacts-not-references contract true (0 matches for wtisoland/wtisodebt); corrected second guardrail bullet to reflect 4096 as read quantum rather than cap under ecdd348f and preserved requirement that read-avoidance must find declared identities wherever they sit.
+     - 2026-09-26 set (aw backlog): closed by aw oc run: IPD qfpnrm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-findonce-01-qfpnrm-make-aw-find-read-each-matched-record-once-instead-of-rescan.ipd.md); evidence .aw/records/plans/executed/20260925-findonce-01-qfpnrm-make-aw-find-read-each-matched-record-once-instead-of-rescan.ipd.md
+     - 2026-09-25 graduated (aw set): graduated into findonce plan qfpnrm (re-measured: 1509 opens for 754 plans)
+     - 2026-09-12 open (aw set): Reclassified chore -> bug and GATED on the maintainer's ruling of 2026-09-12. Basis: provably redundant work is a DEFECT, not merely an inefficiency; measured 1240 opens end to end against 620 needed, i.e. every record opened about twice. THIS IS A PRECEDENT THAT WIDENS THE GATE, recorded here because it decides more than this item: a performance defect with CORRECT OUTPUT now counts as a bug and therefore blocks a release, so known inefficiencies are release blockers. It bears directly on qmgn12 OQ-02 (whether a defect filed as chore escapes the bug gate) and answers it in the direction of closing that leak. NOTE the Work-Kind field was edited by hand because 'aw backlog set' has no --work-kind setter, unlike 'aw ipd set'; filed as its own gap.
+    ```
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review`. It requires `/plan-review` and then explicit human approval before execution; the `- Readiness:` field is deliberately ABSENT, because it is an output of review and writing one here would forge the attestation the auto-approve predicate reads first.
+
+READ OQ-02 BEFORE EXECUTING. It is non-blocking and the plan is executable as written, but it asks whether this correction earns a plan, and a maintainer may reasonably prefer to close `kx9md1` as `done` citing F-05 (the executed plan already carries the correction in its own voice). If that is the answer, retire this plan `not-executed` citing OQ-02; do NOT file it `executed`, which would claim work that was deliberately declined. Review left the question OPEN on purpose and added a note recording that its inputs changed (the plan now fixes two stale claims, not one, and it surfaced a reusable anti-rot rule), without answering it.
+
+DO NOT SWEEP THE OTHER THREE RECORDS, and treat this as the plan's load-bearing prohibition. The item this plan graduates from asks for a four-record correction. Three of the four are refused on reasons recorded in Deferred and OQ-01: `826o13` is in `executed/` where `AGENTS.md` forbids changing what it records (and it already states the correction itself), and the review's rounds and `f8m2z2`'s history line are dated accounts of what a past act measured or decided, where a "correction" would assert that an agent ran a command and got a result it did not get. An executor who "completes the item more fully" by editing them would breach an immutability rule and falsify several dated records, while appearing more thorough.
+
+DO NOT TOUCH `agent_workflows/selectors.py`. Eight is the CORRECT answer and the old 4096-byte cap was the defect, already fixed in `ecdd348f`. The item states this prohibition in capitals twice. If V-01(c) shows the exclusion property failing, that is a genuine behavior change: STOP and report it with its own carrier rather than adjusting either the code or this plan's numbers.
+
+USE `aw backlog note`, NEVER `aw backlog set`. The target item is `done` and carries `- Blocks-Release: next`. A same-status `set` would re-transition a closed release-gated item to do an annotation's job, which the backlog README names as the case where "history is what suffers", and it would re-run the close-legitimacy gate for an edit that changes no status. The verb's positional argument is documented as a PATH and also accepts a bare id6; both were verified at review, so use the declared path and do not treat the help text as a contradiction.
+
+DO NOT SWEEP THE OTHER THREE RECORDS EVEN THOUGH REVIEW FOUND MORE SITES IN THEM THAN THE PLAN LISTED. F-04 now records that the `826o13` review carries FOUR `wtiso` count statements across TWO rounds rather than the one the plan described, including a `D-7` Decisions row. That changes the enumeration and NOT the refusal: every one of them is a dated account of what a reviewer ran or decided, so the reasons in Deferred and OQ-01 apply to all four exactly as they applied to one. Finding more history does not create a licence to rewrite it.
+
+MEASURE, DO NOT TRANSCRIBE. Every number in Findings is a live population taken 2026-09-29, re-measured at review HEAD `3199f621`, and this plan exists precisely because such a number was transcribed once and rotted. E-01 re-derives the ones that decide anything, and V-01 requires any divergence be stated rather than absorbed.
+
+THE GLOB COUNT IS SELF-REFERENTIAL AND YOU MUST NOT WRITE A BARE INTEGER FOR IT. This is the plan's subtlest trap and it was found only at review (F-09). This plan's own filename contains `wtiso`, so this plan is itself counted by `find .aw/records -iname '*wtiso*'`; the figure moved from 15 to 16 between authoring and review for that reason alone, and this review's record makes 17. An executor who dutifully measures the number and writes it into the corrected bullet will have committed a fresh instance of the very defect the bullet is being corrected for, and the next reader will be misled again. E-02 therefore requires a PROPERTY, and V-02 FAILS a diff that merely swaps `12` for a new integer. Treat any count of files-named-after-a-thing as unpinnable.
+
+Executing agent: this is a SHARED CHECKOUT and the file you are editing is another party's record. Commit only the one path in `- Scope-Paths:`, through `aw commit <plan> -- .aw/records/backlog/done/20260912-59t9x5-01-59t9x5-find-display-layer-double-read.backlog.md`, never `git add -A` and never push. Verify the staged set with `git diff --cached --name-only` before committing and unstage anything that is not yours with `git restore --staged <path>`. Run `aw sanitize --agent` before treating the edit as shareable. Do not mark any `V-*` verified without pasting the actual output its `Required evidence` demands. Do not move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` reports conforming and every `V-*` carries observed evidence; use the tooled transition and do not hand-edit `- Status:`.
+
+Backlog handoff: this plan carries `- From-Backlog: kx9md1` and that item carries no `- Blocks-Release:`, so none is inherited and none may be invented. Note that the item this plan EDITS (`59t9x5`) does carry `- Blocks-Release: next`; that gate belongs to that item and is not inherited here, and it must be left exactly as found. The source item `kx9md1` moves to `graduated` (not `done`) on authoring, since the design is handed off while no edit is made yet.

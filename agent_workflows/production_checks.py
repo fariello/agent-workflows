@@ -24,8 +24,19 @@ from agent_workflows import specs as _specs
 _PLAN_ID_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
 _ITEM_DEPS_RE = re.compile(r"(?m)^-[ \t]*Item-Dependencies:[ \t]*(.*?)[ \t]*$")
 _SCOPE_PATHS_RE = re.compile(r"(?m)^-[ \t]*Scope-Paths:[ \t]*(.*?)[ \t]*$")
-_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*(\S+)[ \t]*$")
+_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 _TERMINAL_DISPOSITIONS = frozenset(("executed", "superseded", "not-executed"))
+
+
+def _read_from_backlog(text: str) -> str | None:
+    """The plan's `- From-Backlog:` id6, or None when absent, sentinel, or malformed (plan okp2o4)."""
+    m = _ITEM_FROM_BACKLOG_RE.search(text)
+    if not m:
+        return None
+    cls = _lint.S.classify_source_link(m.group(1))
+    if cls.verdict == _lint.S.SOURCE_LINK_USABLE:
+        return cls.id6
+    return None
 
 
 def _extract_plan_id(path: Path, text: str) -> str:
@@ -165,8 +176,7 @@ def _check_ipd_conformance(
         if from_val != expected_origin_id6:
             diags.append(("check.from-spec", "missing or invalid From-Spec field"))
     elif expected_origin_field == "From-Backlog":
-        m_from = _ITEM_FROM_BACKLOG_RE.search(text)
-        from_val = m_from.group(1).strip() if m_from else ""
+        from_val = _read_from_backlog(text) or ""
         if from_val != expected_origin_id6:
             diags.append(
                 ("check.from-backlog", "missing or invalid From-Backlog field")
@@ -326,8 +336,7 @@ def backlog_graduate_count(
     for p, text in _ce._iter_plan_ipds(repo):
         p_id = _extract_plan_id(p, text)
         disp = _ce._plan_disposition(repo, p)
-        m_from = _ITEM_FROM_BACKLOG_RE.search(text)
-        from_bkl = m_from.group(1).strip() if m_from else None
+        from_bkl = _read_from_backlog(text)
 
         if p_id in baseline_ids:
             if disp not in _TERMINAL_DISPOSITIONS and from_bkl == item_id6:
@@ -338,16 +347,12 @@ def backlog_graduate_count(
     new_linked_plans = [
         (p_id, p)
         for (p_id, p, text) in new_plans
-        if (
-            _ITEM_FROM_BACKLOG_RE.search(text) is not None
-            and _ITEM_FROM_BACKLOG_RE.search(text).group(1).strip() == item_id6
-        )
+        if _read_from_backlog(text) == item_id6
     ]
 
     has_unlinked_new_plan = False
     for p_id, p, text in new_plans:
-        m_from = _ITEM_FROM_BACKLOG_RE.search(text)
-        if not m_from or m_from.group(1).strip() != item_id6:
+        if _read_from_backlog(text) != item_id6:
             has_unlinked_new_plan = True
 
     count = len(new_linked_plans)

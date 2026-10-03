@@ -29,12 +29,14 @@ Stdlib unittest only.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from agent_workflows import leak_sanitizer as ls
 from agent_workflows import run_analytics as ingest
+from tests.support import REPO_ROOT
 from agent_workflows import run_analytics_privacy as privacy
 from agent_workflows import run_analytics_schema as schema
 from agent_workflows import run_analytics_sources as sources
@@ -983,13 +985,13 @@ class PrivacyBoundaryTests(unittest.TestCase):
             self.assertNotIn(forbidden, serialized)
 
         # Shipped detector reports clean over projected facts
-        ruleset = ls.build_ruleset(Path.cwd())
+        ruleset = ls.build_ruleset(REPO_ROOT)
         findings = ls.scan_text(serialized, "projected-facts.json", ruleset)
         self.assertEqual([f.rule for f in findings], [])
 
     def test_privacy_detector_control_and_projector_invariants(self):
         # CONTROL: detector flags raw repo field
-        ruleset = ls.build_ruleset(Path.cwd())
+        ruleset = ls.build_ruleset(REPO_ROOT)
         control = ls.scan_text(
             json.dumps({"repo": _ABS_HOME}), "raw-state.json", ruleset
         )
@@ -1012,6 +1014,46 @@ class PrivacyBoundaryTests(unittest.TestCase):
             {"run_id": "run-20260908T100000Z-1234"},
         )
         self.assertIs(metric_facts["cost_is_estimate"], False)
+
+    def test_ruleset_construction_is_location_independent_across_working_directories(
+        self,
+    ):
+        """E-04: ruleset carries committed allowlist regardless of ambient working directory."""
+        repo_allow = ls.load_repo_allowlist(REPO_ROOT)["allow_line_substrings"]
+        self.assertTrue(
+            repo_allow,
+            "committed allowlist must define at least one allow_line_substring entry",
+        )
+        allowlisted_token = repo_allow[0]
+
+        # Construct input carrying both a detectable leak and an allowlisted token.
+        mixed_input = f"{_ABS_HOME} references {allowlisted_token}\n"
+
+        # Negative control: verify mixed input genuinely triggers detector rules when un-allowlisted
+        with tempfile.TemporaryDirectory() as foreign_dir:
+            foreign_ruleset = ls.build_ruleset(Path(foreign_dir))
+            control = ls.scan_text(mixed_input, "control.txt", foreign_ruleset)
+            self.assertTrue(
+                control,
+                "mixed input must genuinely contain a detectable leak when un-allowlisted",
+            )
+            self.assertEqual({f.severity for f in control}, {"fail"})
+
+        # Positive test: ruleset derived from REPO_ROOT carries committed allowlist
+        # even when process working directory is changed to an allowlist-less directory
+        old_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as foreign_dir:
+            os.chdir(foreign_dir)
+            self.addCleanup(os.chdir, old_cwd)
+            try:
+                ruleset = ls.build_ruleset(REPO_ROOT)
+                findings = ls.scan_text(mixed_input, "mixed.txt", ruleset)
+                self.assertEqual([f.rule for f in findings], [])
+            finally:
+                os.chdir(old_cwd)
+
+        # Confirm cwd is restored
+        self.assertEqual(Path.cwd(), old_cwd)
 
 
 class CacheHandoffTests(unittest.TestCase):
@@ -1069,7 +1111,7 @@ class CacheHandoffTests(unittest.TestCase):
         stored = cache.entry_path(root_id, run.name, self.repo).read_text(
             encoding="utf-8"
         )
-        ruleset = ls.build_ruleset(Path.cwd())
+        ruleset = ls.build_ruleset(REPO_ROOT)
         self.assertEqual(ls.scan_text(stored, "entry.json", ruleset), [])
 
         # Non-terminal run not cached as stable

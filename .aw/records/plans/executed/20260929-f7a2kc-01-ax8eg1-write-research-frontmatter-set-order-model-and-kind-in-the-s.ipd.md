@@ -1,0 +1,584 @@
+# IPD: Write research frontmatter set order model and kind in the same transaction that renames the file
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `aw research set-assign` / `aw group research` and `aw research mv` / `aw rename research` RENAME THE FILE AND NEVER OPEN IT, so the record's own frontmatter keeps describing the set, order, model and kind it no longer has. RE-REPRODUCED AT AUTHORING against this lane's own source in a throwaway git repo, driving the real CLI in-process, so this is the user-facing behavior and not an internal-call artifact. A regroup printed the violation IT JUST CREATED, in its own output, and did not fix it: `renamed ...20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md -> ...20260929-newsetid-01-k7m2xq-a-demo-doc.notes.md` followed by `reference/202609/20260929-newsetid-01-k7m2xq-a-demo-doc.notes.md: name-frontmatter-mismatch: set oldsetid != name newsetid`, exit 0. The file's block still read `set: oldsetid` / `order: 03`. A following `aw research mv <id6> --model sonnet5high --apply` put `sonnet5high` in the FILENAME and left `model:` empty.
+  A REPAIR VERB CORRUPTS WHAT IT REPAIRS, which is what makes this worth fixing rather than documenting. `aw group research ... --set <new>` is the documented way to regroup a record set, so following the documented verb produces records that fail the toolkit's own `--check`, with no warning that a hand repair is owed. The failure surfaces later, detached from the verb that caused it.
+  FOUR FIELDS DRIFT, NOT THE THREE THE BACKLOG ITEM NAMES (F-04). The item names `set`, `order` and `model`. `kind` drifts too, by the same mechanism and in the same function: measured here, `aw research mv <id6> --kind findings --slug new-slug --apply` renamed the file to `...-new-slug.sonnet5high.findings.md` while the block still read `kind: notes`. `research_refs.plan_mv` computes `new_kind` through `R.normalize_kind` exactly as it computes `new_model` through `R.normalize_model`, and discards both.
+  THE DAMAGE IS WORSE THAN A LINT VIOLATION, AND THIS IS THE FINDING THAT MOST CHANGES WHAT GETS BUILT (F-05). `research_index.run_index` REFUSES TO WRITE over drifted input ("Refuse to write over invalid input; report and exit nonzero"), and `research_refs._apply_renames` calls that regeneration inside a bare `except Exception: pass`. So the regroup's own index refresh FAILS SILENTLY and the INDEX is left pointing at the PRE-RENAME PATH. Measured end to end: with a good INDEX generated first, one regroup left `INDEX.json` naming `reference/202609/20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md`, a path that NO LONGER EXISTS on disk, while the verb exited 0. The spec calls the frontmatter "the source of truth" and requires the manifest be generated from it, so the verb breaks both halves at once.
+  AND THE TWO CHEAPEST GATES DO NOT CATCH IT, so nothing stops it reaching a commit (F-06, F-07). `aw check research` reports CONFORMS on a tree whose `set:` disagrees with its name: `check_content` runs the research drift check ONLY under `include_retired`, which `aw check research` does not pass (measured: `check_content(repo,'research',include_retired=False)` -> `[]`, `include_retired=True` -> `[('name-frontmatter-mismatch','set oldsetid != name newsetid')]`). And `aw research index --check` catches the `set` drift ONLY: `research_index._doc_entry` compares just `id` and `set` against the parsed name, and takes `order` and `kind` FROM THE FILENAME while taking `model` FROM THE FRONTMATTER, so a record with `order: 03` under an `-01-` name and an empty `model:` under a `.sonnet5high.` name is reported `index --check: clean`. Stale `order`, `model` and `kind` are therefore INVISIBLE to every gate in the repository today.
+- Scope: Make every research rename transaction leave the moved file's frontmatter AGREEING WITH ITS NEW NAME, by deriving `set`, `order`, `model` and `kind` from the DESTINATION FILENAME (the one authority that is correct by construction after a rename) and writing them through the existing in-repo writer `research_cmd.update_frontmatter_fields`. ONE EXCEPTION, CORRECTED AT REVIEW (PR-001): `model` is written ONLY when the destination name CARRIES a model facet, because unlike the other three that facet is OPTIONAL IN THE NAME and MANDATORY IN THE FRONTMATTER (spec Section 4.4), so writing an empty value from a facet-less name would ERASE recorded provenance rather than reconcile it. Covers both verbs and both spellings, since all four dispatch to the two planners plus the one applier in `research_refs`. Preview must announce the metadata write as the generic backend's preview already does. Add the regression coverage these verbs have none of. EXCLUDES: the absent-`--order` renumber owned by `4y4xo5`/`ao0v8x` (this plan must not change WHICH order a rename targets, only that the frontmatter records the order the name actually got), widening the `--check` gates found in F-06/F-07, `artifact_rename.py` and `plans_refs.py` (already correct, deliberately byte-unchanged), `research_archive.apply_moves` (already writes frontmatter), and back-filling already-drifted records in this repository's tree.
+- Scope-Paths: agent_workflows/research_refs.py, tests/test_research_rename_frontmatter.py, tests/test_group_verb_policy.py, .aw/records/backlog/open/20261001-4f7nlh-01-4f7nlh-rollbackfailuresemanticstests-test-two-process-loc.backlog.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: f7a2kc
+- Blocks-Release: next
+- Set: f7a2kc
+- Order: 1
+- Highest E allocated: 06
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: ax8eg1
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: ax8eg1 verified (set f7a2kc, attempt 1). [Scope reconciliation - widened-scope .aw/records/backlog/open/20261001-4f7nlh-01-4f7nlh-rollbackfailuresemanticstests-test-two-process-loc.backlog.md: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_group_verb_policy.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run)]
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER), PR-002 (HIGH), PR-003, PR-004, PR-005, PR-006 all FIXED, zero deferred, zero open. THE REVIEW'S SUBSTANCE IS PR-001: the plan's prescribed E-03 mechanism was a DATA-LOSS DEFECT WORSE THAN THE ONE IT FIXES. Its instruction to write `model` as the empty string from a facet-less destination name was built as a prototype at review and measured to ERASE a populated `model: sonnet5high` on a record in exactly the shape spec `agents-artifact-organization` Section 4.4 sanctions (facet optional in the NAME, mandatory in the FRONTMATTER), so the plan would have violated the section it cites as its own justification, unrecoverably, on a regrouping verb. Corrected to a CONDITIONAL write (omit the key when `parsed.model` is falsy, which suffices because `update_frontmatter_fields` rewrites only keys it is given), and the correction was measured to preserve every other property the plan claims while forfeiting nothing (`R.normalize_model` rejects `-`/`''`/`none`, so no CLI path can request a clear). PR-002 added the guard that would have caught it, with a failing-first contrast against the UNCONDITIONAL shape rather than against HEAD, since at HEAD no frontmatter is written and `model:` survives a rename by accident. PR-003 stopped E-04 reintroducing the preview/apply divergence in mirror image. All sixteen authored findings reproduced at this HEAD, including the plan's own corrections of its backlog item (F-05's silently-broken INDEX and F-07's partly-false `--check` claim). Baseline `3246 passed, 2 skipped`. The E-03 prototype was REVERTED; no source file is modified. Findings recorded in `.aw/records/reviews/20260929-f7a2kc-01-ax8eg1-...review.md` with four `### Decisions` rows.
+
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `f7a2kc`. THE ITEM RE-REPRODUCES AT THIS HEAD and its diagnosis is correct, but authoring corrected or extended it in five measured ways rather than transcribing it. (1) ITS LINE OFFSETS HAVE DRIFTED: it cites `research_refs._apply_renames` at `:244`, `plan_set_assign` at `:159` and `plan_mv` at `:192`; the code is now at `:287`, `:180` and `:224`, so every citation in this plan is by SYMBOL with the offset appended, per `IPD-C801`. (2) A FOURTH FIELD DRIFTS, `kind`, which the item does not mention (F-04); it is discarded on the same line of the same planner as `model`, so leaving it out would have shipped a fix that still emits a mismatch through one flag. (3) THE ITEM'S HARM CLAIM IS TOO WEAK AND ITS `--check` CLAIM IS PARTLY WRONG (F-05, F-07): it says the corruption "is exactly what `aw research index --check` fails on", but measured, `--check` reports CLEAN for stale `order`, `model` and `kind`, because `_doc_entry` compares only `id` and `set`. What the drift actually does is make `run_index` REFUSE TO WRITE, inside a bare `except Exception: pass` in the applier, so the INDEX is silently left naming a path that no longer exists. That is a worse and previously unrecorded consequence. (4) `aw check research` DOES NOT SEE IT AT ALL (F-06), measured through `check_engine.check_content` with and without `include_retired`. (5) ITS PROPOSED FIX SOURCE IS THE WRONG ONE FOR THIS TREE (F-08): it points at `artifact_rename._update_or_inject_set_metadata`, which handles `set`/`order` but has no `model` or `kind` facet and injects BULLET frontmatter as one of its two dialects; research is fenced YAML with four drifting keys, and this repository already has a fenced-YAML writer built for exactly this (`research_cmd.update_frontmatter_fields`, which rewrites first-block keys only and preserves the body byte-for-byte). This plan derives all four values from the DESTINATION NAME rather than from the requested flags, which is what also fixes the `set-assign` half where no flag carries `order` at all. Sequencing against sibling `4y4xo5` was checked and is SAFE IN EITHER ORDER, with a caveat recorded in OQ-02 and pinned by E-05.
+
+## Goal
+
+Stop a repair verb corrupting what it repairs: make a research rename or regroup leave the record's frontmatter describing the record it actually is, so the toolkit's own `--check` passes and the generated INDEX still resolves.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: pin the defect before changing it
+
+- [x] E-01 REPRODUCE THE DEFECT AS FAILING TESTS FIRST, so the fix is demonstrated rather than asserted. Create `tests/test_research_rename_frontmatter.py` and add two cases that assert the post-rename frontmatter AGREES WITH THE NEW NAME: (a) a regroup, `aw group research <id6> --set <new> --order 1 --apply`, asserting the moved file's block reads the NEW setid and the NEW two-digit order; (b) an `aw research mv <id6> --model sonnet5high --apply`, asserting `model: sonnet5high` is in the block. Both MUST FAIL at HEAD, where (a) leaves `set: oldsetid` / `order: 03` and (b) leaves `model:` empty.
+  ADD THE `kind` CASE IN THE SAME ITEM, because it is the field the backlog item missed and it shares the discard site with `model` (F-04): `aw research mv <id6> --kind findings --apply` must leave `kind: findings` in the block. At HEAD the name becomes `.findings.md` while the block still says `kind: notes`.
+  SEED RECORDS WITH THE FULL REQUIRED FRONTMATTER BLOCK or the record will not resolve or will be rejected as invalid: `research_contract.FRONTMATTER_FIELDS` is `id, created, set, order, topic, model, kind, status, outcome, summary, consumed-by`. TWO SEEDING DETAILS MEASURED AT AUTHORING, each of which costs a debugging round if guessed. FIRST, write `order` UNQUOTED (`order: 03`) and NOT `order: "03"`: `research_contract.parse_frontmatter` is a hand-rolled line splitter that does NOT strip quotes, so the quoted form parses as the 4-character string `"03"` and `validate_frontmatter` then rejects it against `_ORDER_RE = re.compile(r"\A\d{2}\Z")`. Measured: the quoted seed produced `frontmatter-invalid: order: order must be a two-digit string NN` instead of the defect under test. (The sibling plan `ao0v8x` instructs the opposite; it is wrong on this point, and its own tests assert on FILENAMES only, so the error would not surface there.) SECOND, the record must live under `.aw/records/research/` in the temp repo, which `--dir <repo>` then resolves through `research_contract.resolve_research_root`, and the repo needs a `git init` because the applier moves files with `git mv`.
+  DRIVE IT IN-PROCESS VIA `cli.main` UNDER `redirect_stdout`, NOT AS A SUBPROCESS. This is a deliberate correction of a measured hazard rather than a style preference: an editable install can make a subprocess `python3 -m agent_workflows` in a lane import the MAIN checkout, so a subprocess assertion can pass while the tree under test is unfixed (filed as `ccbe60`, and recorded in `ao0v8x`). `tests/test_group_verb_policy.py` already uses the in-process shape and is the model to copy.
+  WRITE A NEW TEST FILE RATHER THAN EXTENDING `tests/test_group_verb_policy.py`. That file is parameterized over every backend in `artifact_types.TYPE_BACKENDS` for setid-LENGTH policy only, its `_run_group` helper hardcodes the selector `zzzzzz` and passes no `--apply`, and no test in it has ever seeded a record. It is also the file the sibling plan `ao0v8x` edits, so putting this plan's cases there would create an avoidable conflict between two plans in flight.
+  - Depends on: none
+  - Expected outcome: Three new tests FAILING at HEAD, one per drifting entry point (regroup set+order, `mv --model`, `mv --kind`), each showing the frontmatter still describing the pre-rename record.
+  - Execution state: performed
+
+- [x] E-02 PIN THE SILENT INDEX BREAKAGE, because it is the consequence a human actually pays and no test in the repository covers it (F-05). Add a case that generates a good INDEX on a consistent tree (`aw index research --apply` path, i.e. `cli.main(["index","research",...])`), then regroups the record, then asserts the on-disk `INDEX.json` names a path THAT EXISTS. At HEAD this fails: measured at authoring, `INDEX.json` still named `reference/202609/20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md` after the rename, `os.path.exists` on it was `False`, and the verb exited 0.
+  ASSERT ON THE OBSERVABLE OUTCOME, NOT ON THE SWALLOWED EXCEPTION. Do not assert that `except Exception: pass` was reached, and do not assert on log text; assert that the INDEX entry resolves to a real file. That is the property a user depends on, it is what GUIDING_PRINCIPLES P16 requires, and it stays true if the fix is later restructured.
+  - Depends on: none
+  - Expected outcome: A fourth test FAILING at HEAD, showing the generated INDEX left naming a nonexistent path after a successful-looking regroup.
+  - Execution state: performed
+
+### Task group 2: write the frontmatter in the same transaction
+
+- [x] E-03 DERIVE THE FIELDS FROM THE DESTINATION NAME AND WRITE THEM IN `research_refs._apply_renames`. In the `apply` loop, after `_git_mv` moves `p.old_path` to `p.new_path`, parse the DESTINATION basename with `R.parse_name(p.new_path.name)` and write `set`, `order` and `kind` unconditionally, plus `model` ONLY WHEN THE DESTINATION NAME CARRIES A MODEL FACET, into the moved file's frontmatter, then report the write on stdout.
+  DERIVE FROM THE NAME, NOT FROM THE REQUESTED FLAGS, AND THIS IS THE LOAD-BEARING DESIGN CHOICE. The planners already fold every input into the new name: `plan_set_assign` computes `order=f"{start_order + i:02d}"` and `plan_mv` resolves `new_kind`/`new_model` through `R.normalize_kind`/`R.normalize_model`, and `R.format_name` assembles the result. So the destination name is the ONE value that is correct by construction for every path, including the `set-assign` case where NO flag carries the per-record order and the `mv` case where a flag was omitted and the old facet must be preserved. Deriving from flags would need the applier to re-derive per-record arithmetic the planner already did, and would reintroduce the same class of divergence between name and metadata that this plan removes. Verified at authoring that the name is sufficient: `R.parse_name` on the destination returns `set_id`, a two-digit `order` string, `model` (`None` when the facet is absent) and `kind`.
+  WRITE THROUGH `research_cmd.update_frontmatter_fields`, THE EXISTING IN-REPO WRITER, and do NOT reach for `artifact_rename._update_or_inject_set_metadata` as the backlog item suggests (F-08). The research writer is built for this exact shape: it rewrites named scalar keys inside the FIRST `---` block only, preserves every other line, the key order, the fences and the entire body byte-for-byte, and it is already the writer behind `aw research set-outcome`. Measured at authoring on a doc whose BODY contains the literal text `set:`, `order:` and `model:`: all four frontmatter keys were updated and the body line was untouched. The generic writer, by contrast, has no `model` or `kind` facet at all and speaks a bullet dialect research does not use.
+  NEVER WRITE `model` FROM A NAME THAT CARRIES NO MODEL FACET; SKIP THE KEY INSTEAD. THIS IS A CORRECTION APPLIED AT REVIEW (PR-001) AND IT IS THE ONE PLACE WHERE "DERIVE FROM THE NAME" DOES NOT HOLD, so it is stated as an exception rather than folded into the rule above. An earlier draft of this item said to render the empty string when `R.parse_name` returns `model=None`, reasoning from `research_cmd.build_frontmatter`'s `model_str = model if model else ""`. THAT IS A CATEGORY ERROR: `build_frontmatter` is a CREATOR, where `model=None` means the author supplied no model and the empty string is a faithful rendering of that; the applier is an UPDATER, where a facet-less name means only that the name does not CARRY the model, and says nothing about whether the frontmatter legitimately RECORDS one. The `model` facet is OPTIONAL IN THE NAME AND MANDATORY IN THE FRONTMATTER, which breaks the "the name is authoritative for all four" premise for this ONE field: spec `agents-artifact-organization` Section 4.4 states that `<model>` is "present ONLY when authorship disambiguation matters, and always ALSO recorded in frontmatter (`model:`) so provenance is queryable even when omitted from the name", so a facet-less name beside a populated `model:` is the spec's SANCTIONED NORMAL CASE, not drift. MEASURED AT REVIEW against a record in exactly that shape (name `20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md`, frontmatter `model: sonnet5high`): the empty-string prototype produced `['set: newsetid','order: 01','model: ','kind: notes']`, DESTROYING the provenance the spec's own words require, and doing so under the banner of fixing a spec violation. This is strictly worse than the defect being fixed: the stale-`set` bug leaves a RECOVERABLE wrong value that the fixed verb can repair, whereas erasing `model:` DESTROYS INFORMATION THAT EXISTS NOWHERE ELSE, silently and unrecoverably, on a verb whose entire job is regrouping. The measured corrected shape omits the key from the `updates` dict when `parsed.model` is falsy: the same record then yielded `['set: newsetid','order: 01','model: sonnet5high','kind: notes']`, and because `update_frontmatter_fields` only rewrites keys it is GIVEN, an omitted key leaves the existing line untouched. Every other property held under the correction, re-measured at review: `mv --model sonnet5high` wrote `model: sonnet5high`, `mv --kind findings` wrote `kind: findings`, the regrouped INDEX entry resolved, and `aw research index --check` reported clean.
+  THE ASYMMETRY IS DELIBERATE AND MUST NOT BE "TIDIED" INTO CONSISTENCY. `set`, `order` and `kind` are MANDATORY IN THE NAME (`R.format_name` always emits all three), so for those the name genuinely is authoritative and an unconditional write is correct. `model` alone is optional in the name, so it alone gets the conditional. An executor who finds this inconsistent and unifies the four is reintroducing the erasure; the shape of the `updates` dict is load-bearing.
+  ACCEPT THE ONE GAP THIS LEAVES, rather than trying to close it here. Because the write is conditional, a rename cannot CLEAR a `model:` that is populated while the name has no facet, so such a record keeps its recorded model. That is the CORRECT outcome under Section 4.4 (the frontmatter is the provenance record; the name is an optional disambiguator), and in any case no CLI path can request it: measured at review, `R.normalize_model` rejects `-`, `''` and `none` alike, so `aw research mv --model` has no clearing sentinel and `plan_mv` preserves `parsed.model` when the flag is absent. There is therefore no reachable user intent this refusal frustrates.
+  WRITE AT THE DESTINATION, AFTER THE MOVE, WHICH IS THE ORDER THE GENERIC BACKEND ALREADY USES. `artifact_rename.run_group_generic` calls `_update_or_inject_set_metadata(dst, ...)` after its `_core.git_mv`, and this matters mechanically rather than stylistically: `git mv` stages the content as it was at the moment of the move, so a frontmatter edit written to the OLD path before the move lands in the working tree but NOT in the index, leaving a spurious `RM` and a staged file whose content is stale. Measured at authoring with a plain `git mv` after an unstaged edit: `git show :<dst>` returned the OLD content. The already-moved path must therefore be re-staged, or the edit must follow the move and be added; follow the generic backend and write after.
+  KEEP THE MOVED PATH IN THE RETURNED TOUCHED SET so the self-commit offer includes the frontmatter edit. The destination is already appended to `touched`; confirm the edit does not need a second entry, and do not commit from the backend (per the `selfcommit jgcm68` note in `_apply_renames`'s own docstring, the backend RETURNS its touched paths and the dispatch site owns the commit).
+  FAIL LOUD IF THE DESTINATION NAME DOES NOT PARSE, rather than silently skipping. A destination this module just built from `R.format_name` should always parse, so a parse failure is a real bug and must not be swallowed the way the index refresh is; print a warning naming the file and continue the remaining renames.
+  THE SHAPE WAS PROTOTYPED AND MEASURED, AT AUTHORING AND AGAIN AT REVIEW AFTER THE PR-001 CORRECTION (F-15, F-17), so treat this as a confirmed shape and not a sketch. Write after `_git_mv`, derive from `R.parse_name(p.new_path.name)`, and call `update_frontmatter_fields` with the CONDITIONAL dict:
+
+    updates = {"set": parsed.set_id, "order": parsed.order, "kind": parsed.kind}
+    if parsed.model:
+        updates["model"] = parsed.model
+
+  This produced agreeing frontmatter on all four fields, a preserved body, a clean `--check`, a resolvable INDEX, byte-identical repeat runs, AND a preserved `model:` on a facet-less name. Do NOT write the unconditional four-key dict an earlier draft specified; see the PR-001 paragraph above for the measured erasure it causes. `R.parse_name` returns `order` as a two-digit STRING, so pass it THROUGH; do not coerce it to `int` and re-format, which only adds a way to lose a leading zero. Write with `_core.atomic_write` (already aliased in this module as `_atomic_write`) and skip the write entirely when the rendered text is unchanged, which is what made the idempotence measurement byte-exact.
+  `_atomic_write` WILL NOT REFORMAT THE BODY, AND THAT IS WHY E-05's BYTE-IDENTICAL CLAIM IS ACHIEVABLE RATHER THAN OPTIMISTIC (F-18). `artifact_core.atomic_write` normally runs `normalize_artifact_markdown` over a `.md` write (stripping per-line trailing whitespace, forcing exactly one final newline), which would make a byte-comparison assertion fail on any record whose delivered formatting is not already normalized. It is SUPPRESSED here: `_is_verbatim_preserved` returns True for any path containing the `.aw/records/research` segment triple, so a research write passes through byte-for-byte. Verified at review. Do not "helpfully" bypass the helper to avoid a normalization that does not happen, and note the converse for fixtures: seed test records UNDER `.aw/records/research/` (E-01 already requires this for resolution) and the exemption applies to them too.
+  DO NOT "FIX" THE PRE-EXISTING STAGING QUIRK YOU WILL SEE IN FIXTURES (F-16). After a regroup, `git status` shows ` D <old>` and `?? <new>` rather than a staged `R`, because `artifact_core.git_mv` fell back to `shutil.move`. That is HEAD behavior measured with the prototype reverted, it is out of this fence, and adding a `git add` here would be an unrequested behavior change to a verb's staging contract. If it bothers the reviewer, it is a separate item.
+  - Depends on: E-01, E-02
+  - Expected outcome: After any research rename or regroup, the moved file's `set`, `order`, `model` and `kind` agree with its new name; E-01's three tests pass and E-02's INDEX test passes because the regeneration is no longer fed drifted input.
+  - Execution state: performed
+
+- [x] E-04 ANNOUNCE THE METADATA WRITE IN THE PREVIEW, so a dry run describes what `--apply` will do. `_apply_renames`'s preview branch prints only `--- would rename {old} -> {new} ---`; after E-03 it would understate the change. Add a metadata line in the same style, following the generic backend's existing precedent, which prints `--- would set metadata Set: {set_k} in {src_rel} ---` beside its own would-rename line.
+  THIS IS A KNOWN TRAP ON THE TWIN CODE PATH, not a speculative tidy-up: the sibling plan `ao0v8x` records that `e3hzyc` missed exactly this preview site on the plans backend, so a dry run advertised behavior the apply no longer performed. The direction is reversed here (the apply will do MORE than the preview says) but the failure mode is the same.
+  THE PREVIEW MUST NAME EXACTLY THE FIELDS THE APPLY WILL WRITE, INCLUDING THE CONDITIONAL `model` (PR-001). A preview that always announces four fields while the apply writes three on a facet-less destination is the SAME defect this item exists to close, merely in the other direction. Derive the announced field list from the same `R.parse_name` result and the same conditional the apply uses, so the two cannot diverge; the cheapest way to guarantee that is to compute the `updates` dict ONCE in a small shared helper both branches call, rather than duplicating the conditional in the preview. Note the preview branch runs BEFORE any move, so it must parse `p.new_path.name` (the planned destination, which exists as a value even though the file does not yet exist at that path) and must not try to READ the destination file.
+  - Depends on: E-03
+  - Expected outcome: A dry run (no `--apply`) lists both the rename and exactly the frontmatter fields it would write, omitting `model` when the destination name carries no model facet; the `--apply` run performs exactly what the preview described, field for field.
+  - Execution state: performed
+
+### Task group 3: prove it, including what must not break
+
+- [x] E-05 PIN THE CASES THE FIX MUST NOT BREAK, so writing frontmatter cannot silently damage a record. Add: (a) BODY PRESERVATION, a record whose BODY contains the literal lines `set:`, `order:`, `model:` and `kind:`, asserting the body is byte-identical after a regroup and only the first block changed; (b) IDEMPOTENCE, running the same regroup twice and asserting the second run leaves the file byte-unchanged; (c) NO OTHER FRONTMATTER KEY MUTATED, asserting `id`, `created`, `topic`, `status`, `outcome`, `summary` and `consumed-by` are byte-identical before and after, which is what proves the write is scoped and that the immutable `id6` is untouched.
+  ADD THE GATE-AGREEMENT CASE, which is the whole point of the fix: after a regroup, `aw research index --check` reports clean AND the generated `INDEX.json` entry's `set_id`, `order`, `model` and `kind` match the new name. This is the assertion that would have caught the original defect, and per F-07 it must check `order`, `model` and `kind` explicitly rather than trusting `--check`, because `--check` compares only `id` and `set`.
+  ADD THE SIBLING-INTERACTION CASE, so this plan's relationship with `4y4xo5` is falsifiable rather than asserted (OQ-02). Seed a record whose filename `NN` is `01` while its frontmatter says `order: 03`, run a regroup WITH an explicit `--order`, and assert the resulting frontmatter matches the RESULTING NAME. This holds whether or not `ao0v8x` has landed, because E-03 reads the destination name rather than either pre-existing value, and it is the test that fails if someone later reworks E-03 to read the old frontmatter.
+  ADD THE MODEL-PROVENANCE-PRESERVATION CASE, WHICH IS THE MOST IMPORTANT TEST IN THIS PLAN AND IS NOT OPTIONAL (PR-001, F-17). Seed a record in the spec-Section-4.4 shape: a name with NO model facet (`20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md`) beside a POPULATED `model: sonnet5high`. Regroup it, then assert the frontmatter STILL reads `model: sonnet5high`. Write this test BEFORE writing E-03's conditional, and confirm it FAILS against the unconditional four-key dict the earlier draft specified: measured at review, that shape wrote `model: ` and destroyed the provenance. This is the one guard standing between this fix and a silent, unrecoverable data loss on a verb whose job is regrouping, so an executor who cannot make it fail against the unconditional shape has not pinned it. Assert the same preservation for the `mv --slug` path (a rename that touches neither model nor kind must leave both alone).
+  - Depends on: E-03, E-04
+  - Expected outcome: Seven further tests passing, covering body preservation, idempotence, unrelated-key immutability, gate agreement on all four fields, model-provenance preservation on a facet-less name, and the tier-independence that keeps this plan compatible with `4y4xo5` in either order.
+  - Execution state: performed
+
+- [x] E-06 COVER THE SECOND SPELLING OF EACH VERB, because the fix covers them and nothing proves so. `aw group research` and `aw research set-assign` both dispatch to `research_refs.run_set_assign`, and `aw rename research` and `aw research mv` both dispatch to `research_refs.run_mv` (`artifact_types.TYPE_BACKENDS["research"]` maps `group` and `rename` to exactly those two functions). Add one case driving `cli.main(["research","set-assign",...])` and one driving `cli.main(["rename","research",...])`, each asserting the frontmatter agrees with the new name.
+  THIS IS A GUARD, NOT NEW PRODUCTION WORK: both cases fail at HEAD and pass after E-03 with no further source change, and they are what stops a later refactor that gives one spelling its own code path from silently regressing it.
+  - Depends on: E-03
+  - Expected outcome: Both alternate spellings proven fixed; each fails before E-03 and passes after, with no production change beyond E-03.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). This plan was authored against drifted offsets in its own backlog item, so it follows this strictly.
+- The suite is run BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`. Do not add `-n0`, a second `-q`, or `-p no:randomly` (AGENTS.md).
+- Tests must assert OBSERVABLE BEHAVIOR, never code structure: no `inspect`/`ast`/regex reads of production source, no symbol censuses (AGENTS.md, GUIDING_PRINCIPLES P16). Every test this plan adds drives a real verb through `cli.main` and asserts on resulting file contents, filenames and generated manifests.
+- Research frontmatter is a FENCED YAML block (`---`), unlike a plan's `- Key:` bullets, and its required keys are fixed and ordered (`research_contract.FRONTMATTER_FIELDS`). `order` is validated as a two-digit STRING (`_ORDER_RE = re.compile(r"\A\d{2}\Z")`).
+- `research_contract.parse_frontmatter` is a deliberately minimal hand-rolled reader, not a YAML library: it does NOT strip quotes, so `order: "03"` parses as `"03"` including the quote characters and then fails validation. Seed test fixtures unquoted.
+- A research rename must move files with `git mv` (`artifact_core.git_mv`, used via `research_refs._git_mv`), so a temp-repo fixture needs `git init` and any content edit must be sequenced correctly against the move to reach the index.
+- ILLUSTRATIVE RESEARCH-SHAPED FILENAMES IN PROSE ARE READ AS CITATIONS, AND THIS PLAN TRIPPED IT BEFORE FIXING ITSELF. `research_contract.iter_id6_citations` treats any token matching the research filename grammar as a citation, so an example name written in a plan or a test is reported by `aw research index --check` as a `dangling-citation`. Measured: the `f7a2kc` backlog item's own example names are reported exactly that way, and an earlier draft of THIS file using a made-up id6 produced seven such findings against itself. The sanctioned escape is the curated `research_contract.EXAMPLE_ID6S` allowlist (`k7m2xq`, `ab12cd`), which `iter_id6_citations` filters out; this plan uses `k7m2xq` throughout and re-measured zero findings. THE EXECUTOR INHERITS THIS: fixture names inside `tests/test_research_rename_frontmatter.py` are scanned too, so seed records with `k7m2xq`/`ab12cd` rather than inventing an id6, or add the new token to `EXAMPLE_ID6S` with a justification (which would widen this plan's fence, so prefer the existing tokens).
+- Commit through `aw commit <plan> -- <paths>`, never `git add -A`; verify the staged set, since this checkout is shared (AGENTS.md).
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | The defect reproduces at this HEAD through the real CLI: a regroup renames the file, leaves `set:`/`order:` describing the old record, and PRINTS the resulting mismatch in its own output, exit 0. | Throwaway git repo, `cli.main(["group","research","<id6>","--set","newsetid","--order","1","--apply","--dir",...])` -> `renamed ...-oldsetid-03-...` plus `name-frontmatter-mismatch: set oldsetid != name newsetid`; block still `set: oldsetid` / `order: 03`. |
+| F-02 | Root cause is that the applier never opens the moved file: `research_refs._apply_renames` (:287) performs the `git mv`, the citing-document rewrites and the index refresh, and does no frontmatter edit. Both planners return rename plans ONLY: `plan_set_assign` (:180) and `plan_mv` (:224) compute a new NAME and discard everything else. | Read of the three symbols; no frontmatter write exists on either path. |
+| F-03 | The real tree was damaged by these verbs and REPAIRED BY HAND, so this is not a laboratory defect. Commit `97155d38` says so in its own message: "REPAIRED FRONTMATTER THE TOOL LEFT STALE: `aw research set-assign` renames the FILE but never rewrites `set:`/`order:`, and `aw research mv --model` likewise leaves `model:` untouched". | `git show --stat 97155d38`; five `hostskill` docs repaired. |
+| F-04 | A FOURTH FIELD DRIFTS THAT THE BACKLOG ITEM DOES NOT NAME: `kind`. It is discarded in the same planner as `model`, so a fix covering only the item's three fields would still emit a mismatch through `--kind`. | `cli.main(["research","mv","<id6>","--kind","findings","--slug","new-slug","--apply",...])` -> name `...-new-slug.sonnet5high.findings.md`, block still `kind: notes`. |
+| F-05 | THE HARM IS WORSE THAN A LINT VIOLATION AND WAS UNRECORDED: the verb's own INDEX refresh SILENTLY FAILS and leaves the manifest naming a path that no longer exists. `research_index.run_index` refuses to write over drift ("Refuse to write over invalid input; report and exit nonzero") and `_apply_renames` calls it inside a bare `except Exception: pass`. | Good INDEX generated, then one regroup: `INDEX.json` still named `...20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md`, `os.path.exists` -> `False`, verb exit 0. |
+| F-06 | `aw check research` DOES NOT DETECT THE MISMATCH AT ALL. `check_engine.check_content` runs the research drift check only under `include_retired`, which that command does not pass. | `check_content(repo,'research',include_retired=False)` -> `[]`; `include_retired=True` -> `[('name-frontmatter-mismatch','set oldsetid != name newsetid')]`. `aw check research` reported `✓ CONFORMS  1 research checked` on the drifted tree. |
+| F-07 | THE BACKLOG ITEM'S `--check` CLAIM IS ONLY PARTLY TRUE, which changes what the tests must assert. `aw research index --check` detects the `set` drift but reports CLEAN for stale `order`, `model` and `kind`: `research_index._doc_entry` compares only `id` and `set` to the parsed name, takes `order` and `kind` FROM THE FILENAME, and takes `model` FROM THE FRONTMATTER. | `--check` on a tree with `order: 03` under an `-01-` name and empty `model:` under a `.sonnet5high.` name -> `index --check: clean`, rc 0. |
+| F-08 | THE ITEM'S PROPOSED FIX SOURCE IS THE WRONG WRITER FOR THIS TREE. `artifact_rename._update_or_inject_set_metadata` handles `set`/`order` only, has no `model` or `kind` facet, and speaks a bullet dialect; research needs four fenced-YAML keys. The right writer already exists: `research_cmd.update_frontmatter_fields` rewrites first-block keys only and preserves the body. | Read of both writers; measured that the research writer updated all four keys while leaving a body line containing literal `set:`/`order:`/`model:` untouched. |
+| F-09 | THE DESTINATION NAME IS A SUFFICIENT AND AUTHORITATIVE SOURCE for `set`, `order` and `kind`, which is what makes E-03's design work for both verbs including the `set-assign` case where no flag carries a per-record order. CORRECTED AT REVIEW: it is NOT authoritative for `model`, whose facet is optional in the name, so `model=None` is ambiguous between "no model" and "model not in the name" (F-17). | `R.parse_name("20260929-newsetid-01-k7m2xq-a-demo-doc.sonnet5high.notes.md")` -> `set_id='newsetid'`, `order='01'`, `model='sonnet5high'`, `kind='notes'`; a facet-less name yields `model=None`. `R.format_name` always emits date/set/order/id6/slug/kind and emits the model segment only `if name.model`. |
+| F-10 | THE WRITE MUST FOLLOW THE `git mv`, and this is mechanical rather than stylistic: `git mv` stages content as of the move, so an edit written to the old path before the move lands in the working tree but not the index. The generic backend already writes after its move. | Plain `git mv` after an unstaged edit: `git show :<dst>` returned the OLD content, `git status` showed `RM`. `artifact_rename.run_group_generic` calls `_update_or_inject_set_metadata(dst, ...)` after `_core.git_mv`. |
+| F-11 | `update_frontmatter_fields` SKIPS A KEY THAT IS ABSENT rather than injecting it, so a record missing `model:` entirely would stay missing it. This is LATENT, NOT LIVE: all 123 conformant research docs in this repository carry all four keys. | Measured on a synthetic doc with no `model:` line: no key injected. Corpus scan of `.aw/records/research/**/*.md`: 123 parseable docs, `missing key counts: {'set': 0, 'order': 0, 'model': 0, 'kind': 0}`. |
+| F-12 | Baseline is clean in this lane, so any failure after the change is attributable to it. THE ABSOLUTE COUNT DRIFTS AND IS NOT A BAR: re-derive it against your own clean-tree run. | `python3 -m pytest` -> `3246 passed, 2 skipped, 3 warnings in 52.82s`. |
+| F-13 | These verbs have NO frontmatter regression coverage to extend. The only `group` test file covers setid-LENGTH policy across backends, its helper hardcodes the selector `zzzzzz` and passes no `--apply`, and no test in it seeds a record. | `tests/test_group_verb_policy.py` read in full; `ls tests/ | grep -i research` yields archive/create/index files only, none covering rename frontmatter. |
+| F-14 | Both spellings of both verbs share one backend each, so one fix covers four entry points and two of them are untested by any plan in flight. | `artifact_types.TYPE_BACKENDS["research"]`: `"group": "research_refs.run_set_assign"`, `"rename": "research_refs.run_mv"`. |
+| F-15 | THE DESIGN WAS BUILT AND MEASURED AT AUTHORING, so E-03 is a confirmation rather than a sketch. A throwaway prototype of exactly the shape E-03 specifies (parse the destination name after the `git mv`, write the keys through `research_cmd.update_frontmatter_fields`) produced, in one regroup plus one `mv --model`: all four frontmatter fields agreeing with the new name, a body line containing literal `set:`/`order:`/`model:`/`kind:` text untouched, `aw research index --check` reporting `index --check: clean`, an `INDEX.json` entry whose path EXISTS on disk, and byte-identical output when the same regroup was repeated. RE-MEASURED AT REVIEW after the PR-001 correction, with the same result on all six properties plus preserved provenance (see F-17). The prototype was REVERTED; this plan commits no source change (`git diff --stat` empty for `agent_workflows/`). | Prototype run output: `set metadata set/order/model/kind in ...`, then `FM: ['set: newsetid','order: 01','model: sonnet5high','kind: notes']`, `BODY PRESERVED: True`, `research index --check rc= 0`, `INDEX path exists: True`, `IDEMPOTENT (byte-identical): True`. |
+| F-16 | A PRE-EXISTING STAGING QUIRK IS NOT THIS PLAN'S DEFECT AND MUST NOT BE MISREAD AS ONE. After any regroup in a fresh temp repo, `git status` shows the old path as ` D` (unstaged delete) and the new path as `??` (untracked), rather than a staged `R`. Measured AT UNFIXED HEAD with the prototype reverted, so it is unrelated to writing frontmatter: `artifact_core.git_mv` falls back to `shutil.move` when `git mv` fails, and a direct `git mv` on the moved file reports `fatal: not under version control`. The executor will see this in fixtures and should NOT chase it, and must NOT add a `git add` to "fix" it, which would be an out-of-fence behavior change. | ` D <old>` + `?? <new>` at HEAD with no prototype; `git mv` on the destination -> `fatal: not under version control`. |
+| F-18 | ADDED AT REVIEW (PR-004). THE BODY-PRESERVATION GUARANTEE SURVIVES THE WRITER ONLY BECAUSE THE RESEARCH TREE IS EXEMPT FROM MARKDOWN NORMALIZATION, which the plan relied on without stating and which an executor could reasonably doubt. `artifact_core.atomic_write` applies `normalize_artifact_markdown` to `.md` writes (trailing-whitespace strip, single final newline), which would defeat a byte-identical body assertion; `_is_verbatim_preserved` suppresses it for any path containing the `.aw/records/research` segments. So E-05's byte-comparison is achievable as written, and only because the fixtures live in that tree. | `artifact_core._VERBATIM_PRESERVED_SEGMENTS` contains `(".aw","records","research")`; `atomic_write` guards normalization with `if path.suffix.lower() == ".md" and not _is_verbatim_preserved(path)`. Measured: `_is_verbatim_preserved(Path('/x/.aw/records/research/reference/202609/a.md'))` -> `True`. |
+| F-17 | ADDED AT REVIEW (PR-001). THE PLAN'S ORIGINAL "WRITE ALL FOUR FIELDS FROM THE NAME" RULE DESTROYED PROVENANCE ON A SPEC-SANCTIONED RECORD SHAPE, so the prescribed fix was a data-loss defect worse than the one it repaired. `model` is OPTIONAL IN THE NAME and MANDATORY IN THE FRONTMATTER (spec Section 4.4: "present ONLY when authorship disambiguation matters, and always ALSO recorded in frontmatter (`model:`) so provenance is queryable even when omitted from the name"), so `parse_name` returning `model=None` means the NAME omits it, NOT that the record has no model. The corrected shape omits the key when `parsed.model` is falsy; `update_frontmatter_fields` only rewrites keys it is given, so the existing line survives. Every other property of F-15 re-held under the correction. The narrowness of the gap that remains was also measured: no CLI path can request a model be CLEARED, so the conditional frustrates no reachable user intent. | Record seeded with name `...-a-demo-doc.notes.md` (no facet) + `model: sonnet5high`. Unconditional prototype after regroup -> `['set: newsetid','order: 01','model: ','kind: notes']` (PROVENANCE ERASED). Conditional prototype, same record -> `['set: newsetid','order: 01','model: sonnet5high','kind: notes']`. Corpus scan: 123 conformant docs, 0 currently in the facet-less-plus-populated-model shape, so the erasure is LATENT IN THIS TREE and live for any consumer following Section 4.4. `R.normalize_model` rejects `-`, `''` and `none`, so `mv --model` has no clearing sentinel. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add `tests/test_research_rename_frontmatter.py` with failing cases for regroup `set`+`order`, `mv --model`, and `mv --kind` (E-01).
+2. Add a failing case proving the generated INDEX is left naming a nonexistent path after a regroup (E-02).
+3. In `research_refs._apply_renames`, parse the destination basename after the `git mv` and write `set`, `order` and `kind` through `research_cmd.update_frontmatter_fields`, plus `model` ONLY when the destination name carries a model facet (PR-001), reporting the write and warning loudly if the destination name does not parse (E-03).
+4. Announce the metadata write in the preview branch, matching the generic backend's existing precedent (E-04).
+5. Add the must-not-break guards: body preservation, idempotence, unrelated-key immutability, gate agreement on all four fields, model-provenance preservation on a facet-less name, and tier independence from `4y4xo5` (E-05).
+6. Add the second-spelling guards for `aw research set-assign` and `aw rename research` (E-06).
+
+## Deferred / out of scope (with reason)
+
+- THE ABSENT-`--order` RENUMBER in `aw group research` / `aw research set-assign` (a bare regroup renumbering every named record from zero). A different defect in the same function, already graduated and planned; this plan deliberately does not change WHICH order a rename targets, only that the frontmatter records the order the name actually received, so the two compose in either order (OQ-02).
+  - Carrier: 4y4xo5
+- `aw check research` NOT DETECTING name-vs-frontmatter drift at all, because `check_engine.check_content` gates the research drift check behind `include_retired` (F-06). Found while authoring, and genuinely separate work: it is a gate-coverage decision affecting every `aw check` consumer, not a defect in the rename verbs, and widening it here would both break this plan's fence and change the exit status of an unrelated command. Worth filing.
+  - Carrier-Declined: not this plan's defect; a change to which rules `aw check research` runs affects every consumer of that command and needs its own fence and its own measurement of what else starts failing.
+- `aw research index --check` COMPARING ONLY `id` AND `set`, so stale `order`, `model` and `kind` are invisible to it (F-07). Same reasoning: this plan removes the CAUSE, and E-05 asserts all four fields directly rather than trusting the gate, so no test here depends on the gate being widened. Tightening the gate would also immediately fail on any already-drifted record in a consumer's tree, which is a migration decision.
+  - Carrier-Declined: this plan asserts the four fields directly instead of relying on the gate; tightening the gate is a separate change with a migration consequence for already-drifted trees.
+- THE SWALLOWED INDEX REGENERATION (`except Exception: pass` around `run_index` in `_apply_renames`) as a general concern. This plan removes the drift that currently triggers it and E-02 pins the observable outcome, but it deliberately does NOT remove the bare except: any OTHER failure it hides is unmeasured here, and turning a silent failure into a loud one on a verb that has already moved files is a behavior change needing its own thought about partial-completion reporting.
+  - Carrier-Declined: unmeasured beyond the one cause this plan fixes; converting a swallowed failure into a loud one mid-transaction needs its own decision about how a half-completed rename reports.
+- BACK-FILLING already-drifted records in this repository's research tree. The tree currently looks clean because `97155d38` repaired it by hand (F-03), and a sweep would be a data migration over tracked records rather than a code fix. If any drifted record remains, it is repairable with the fixed verb once this lands.
+  - Carrier-Declined: no measured drift remains in this tree after the hand repair; a records migration is not a code defect and would need its own review of what it rewrites.
+- `update_frontmatter_fields` NOT INJECTING AN ABSENT KEY (F-11). Latent, not live: all 123 conformant research docs carry all four keys, so no record in this repository is affected. Injecting a key needs a canonical-position decision (the problem `research_archive._rewrite_status_in_text` had to solve for `status:`) and would widen the fence for no measured gain.
+  - Carrier-Declined: latent with a measured population of zero affected records; injection needs a canonical-position policy that no current record requires.
+
+## Scope check
+
+- Over-scope: none. The two declared paths are the module holding the defect and a new test file dedicated to it. `agent_workflows/research_cmd.py` is deliberately NOT in scope: E-03 CALLS `update_frontmatter_fields` and must not modify it.
+- Under-scope: the fix does not widen either gate that failed to catch this (F-06, F-07), so after this plan a hand-edited or legacy-drifted record can still pass `aw check research` and can still pass `aw research index --check` on `order`/`model`/`kind`. That is accepted deliberately: this plan removes the TOOL that creates the drift, and E-05 asserts the four fields directly rather than depending on a gate. A reviewer who wants the gates tightened in the same pass should say so, accepting that it changes the exit status of two commands for every already-drifted tree.
+
+## Required tests / validation
+
+- The thirteen new cases in `tests/test_research_rename_frontmatter.py`, which is the sum of the four E-item outcomes (3 from E-01, 1 from E-02, 7 from E-05, 2 from E-06) and is stated here so the arithmetic is checkable rather than asserted: regroup `set`+`order`, `mv --model`, `mv --kind`, INDEX-resolves-after-regroup, body preservation, idempotence, unrelated-key immutability, gate agreement on all four fields, model-provenance preservation on a facet-less name, model-and-kind preservation through `mv --slug`, tier independence, and the two alternate spellings. TREAT THE COUNT AS A DERIVED FIGURE, NOT A BAR: if your decomposition splits or merges a case, say so and reconcile the number, rather than padding to hit thirteen.
+- FAILING-FIRST CONTRAST IS MANDATORY, not optional: run the new tests against UNFIXED source and paste the failure count, then against the fixed tree and paste the pass count. The four E-01/E-02 cases and both E-06 spelling cases must FAIL before and PASS after. A fix whose tests were never seen to fail has not been demonstrated.
+- THE MODEL-PROVENANCE CASE NEEDS A DIFFERENT CONTRAST, because it does not fail at HEAD: at HEAD no frontmatter is written at all, so a `model:` survives a rename by accident. It must be seen FAILING against the UNCONDITIONAL four-key write (the shape an earlier draft of E-03 prescribed) and PASSING against the conditional one. Run it that way and paste both, per V-05.
+- Bare `python3 -m pytest` before and after, with both summary lines pasted. MEASURE YOUR OWN BASELINE ON A CLEAN TREE AND COMPARE AGAINST THAT, not against F-12's `3246`, which drifts with every intervening commit. The bar is ZERO FAILURES and a passed-count delta of exactly the new cases.
+- Negative proof that the fence held: `git diff --stat` shows no change to `agent_workflows/artifact_rename.py`, `agent_workflows/plans_refs.py`, `agent_workflows/research_cmd.py`, `agent_workflows/research_index.py` or `agent_workflows/research_archive.py`.
+- `aw sanitize --agent` clean (no maintainer/machine identifiers in anything authored).
+
+## Spec / documentation sync
+
+No spec amendment is required and no `.spec.md` file is in `Scope-Paths`, but that conclusion rests on reading the spec that governs these verbs rather than on a grep miss, and the spec is what makes this a defect rather than a preference.
+- `agents-artifact-organization` Section 5.8 titles the frontmatter schema "authored/tool-written; the source of truth" and annotates the very fields that drift: `set: aw-delivery        # cohort key (assignable later)` and `order: 02               # read/execute order within the set`. A verb that reassigns the cohort key in the name and leaves the source of truth describing the old cohort contradicts that section directly.
+- The same spec's Section 4.4, titled "`<kind>` (mandatory) and `<model>` (optional authorship facet)", requires that `<model>` be "present ONLY when authorship disambiguation matters, and always ALSO recorded in frontmatter (`model:`) so provenance is queryable even when omitted from the name". `aw research mv --model` putting the token in the name and leaving `model:` empty violates this in as many words, and F-03 shows it happened to five real records. (CITATION CORRECTED AT REVIEW: an earlier draft attributed this sentence to Section 5.4, which is the enumerated-vocabularies section; the quoted sentence is the last line of Section 4.4.)
+- THAT SAME SECTION ALSO CONSTRAINS THE FIX, WHICH IS WHY IT IS QUOTED IN FULL RATHER THAN CLIPPED. Read whole, it makes the name/frontmatter relationship ASYMMETRIC for `model` alone: the frontmatter is the complete provenance record and the name is an OPTIONAL disambiguator, so "reconcile the frontmatter to the name" is the right rule for the mandatory components and the WRONG rule for this one. An earlier draft clipped the sentence to its second clause and prescribed writing an empty `model:` from a facet-less name, which would have made this plan violate the same section it cites (PR-001, F-17). E-03's conditional is what keeps the fix on the right side of it.
+- Requirement F2 states the manifest "is tool-GENERATED from structured in-file frontmatter", and F4 requires the generator detect "name-vs-frontmatter mismatch" so "the FS and the index cannot silently diverge". F-05 is exactly that silent divergence: the refusal-to-write fires as designed, and the applier swallows it.
+- Section 5.6 specifies WHAT the verbs do ("rename the target files to a set's `YYYYMMDD-<set-id>` and assign `NN`; update name-based references repo-wide"). It does not license leaving the frontmatter stale, and Section 5.8 forbids it.
+So the behavior change is a DEFECT FIX toward contracts already written. No user-facing documentation changes: the only new output is the metadata line E-04 adds to the preview, which mirrors wording the generic backend already prints.
+IF THE EXECUTOR FINDS a spec or README sentence asserting that a rename deliberately leaves frontmatter alone, that discovery changes this section: stop, add the file to `Scope-Paths`, amend it in the same change, and say why here, per the plan-may-amend-a-spec rule.
+
+## Open questions
+
+### OQ-01: Should the four values be derived from the destination FILENAME or from the requested CLI flags?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, the destination FILENAME, FOR THREE OF THE FOUR FIELDS. The flags are insufficient on both paths: `set-assign` has no flag carrying a per-record order (the planner computes it as `f"{start_order + i:02d}"` across the named records), and `mv` omits whichever facets the caller did not pass, whose correct values are the OLD ones the planner already folded in. The destination name is the single value that is correct by construction for `set`, `order` and `kind`, and it is what `R.format_name` just assembled from exactly those inputs. Deriving from the name also makes the fix immune to the sibling `4y4xo5` change, which alters WHICH order the name gets but not that the name is authoritative.
+  AMENDED AT REVIEW (PR-001): THE ANSWER IS NOT UNIFORM ACROSS THE FOUR FIELDS, AND THE ORIGINAL RESOLUTION WAS WRONG TO TREAT IT AS SUCH. `model` is the exception, and the amendment is the whole reason this question mattered. Its facet is OPTIONAL in the name while `model:` is REQUIRED in the frontmatter (spec Section 4.4), so `R.parse_name` returning `model=None` is AMBIGUOUS: it distinguishes a name without a model segment, not a record without a model. The original resolution read that `None` as authoritative absence and prescribed writing an empty string, which MEASURABLY ERASED a populated `model:` on a facet-less name (F-17). The corrected resolution: the name is authoritative for the three MANDATORY name components, and for `model` the name is authoritative only POSITIVELY (a facet present means write it) and never negatively (a facet absent means leave the frontmatter alone). This is not a flags-versus-name reversal; the flags remain insufficient for the reasons above. It is a narrowing of what "the name is authoritative" can mean for an optional component.
+
+### OQ-02: Does this plan conflict with `4y4xo5`/`ao0v8x`, which fixes a different defect in the same function?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: NO CONFLICT, AND THEY ARE SAFE IN EITHER ORDER, but the reasoning matters and is pinned by a test rather than asserted. `ao0v8x` changes `research_refs.plan_set_assign`/`run_set_assign` so an absent `--order` preserves each record's filename `NN` instead of renumbering from zero; this plan changes `research_refs._apply_renames` so the frontmatter records whatever the destination name ended up being. Different functions, and E-03 reads the name AFTER the planner has decided it, so this plan is correct under either behavior. THE ONE REAL INTERACTION IS IN `ao0v8x`'s REASONING, NOT ITS CODE: its OQ-01 resolves to read the filename `NN` rather than the frontmatter `order:` precisely BECAUSE this defect leaves `order:` stale, and its own Deferred section records that it "DEPENDS on that defect still being live". Landing this plan first does not break that: filename-first resolution stays correct once the two agree, and it remains the tier its tier-disagreement test pins. What WOULD break is a future rework of `ao0v8x` to read frontmatter first on the theory that it is now trustworthy, which would reintroduce a dependency on write ordering; E-05's tier-independence case is written to fail if E-03 is ever reworked to read the old frontmatter. The two plans touch DISJOINT test files by deliberate choice (E-01), so they can execute in parallel lanes without conflict. This plan declares no `Item-Dependencies` because neither ordering requires the other.
+
+### OQ-03: Should this plan also close the two gate gaps it found (F-06, F-07)?
+
+- Blocking: no
+- Status: resolved
+- Owner: author
+- Resolution or deferral rationale: NO, deferred with reasons recorded above. Both are real and both were measured here, but each is a change to a SHARED gate rather than to the rename verbs: widening `aw check research` changes what that command reports for every consumer, and tightening `aw research index --check` to compare `order`/`model`/`kind` would immediately fail any already-drifted record in any consumer tree, which is a migration decision rather than a bug fix. Critically, NO TEST IN THIS PLAN DEPENDS ON EITHER GATE: E-05 asserts the four fields directly against the generated INDEX and the file itself, so the plan is fully validatable without them. Both are recorded in the Deferred section with `Carrier-Declined` reasons so a reviewer can convert either into an item.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: The pytest output for the three new cases run against UNFIXED source, pasted verbatim, showing them FAILING with the actual observed frontmatter values (`set: oldsetid` and `order: 03` where the new name says otherwise; an empty `model:` under a `.sonnet5high.` name; `kind: notes` under a `.findings.` name). A pass here is a FAILURE of this validation: a test that does not fail at HEAD does not pin this defect. Also state explicitly that the seeded fixture used an UNQUOTED `order:` value, and that the suite did not report `frontmatter-invalid`, which is the symptom of getting that wrong.
+  - Observed evidence: PASS. Failing-first contrast observed against unfixed source: all 3 tests failed at HEAD demonstrating the defect across set+order, model, and kind. Seeded fixtures used unquoted order: values (e.g., `order: 03`), and the suite did not report frontmatter-invalid.
+    Verbatim pytest failure output against unfixed source (`python3 -m pytest tests/test_research_rename_frontmatter.py -k "test_regroup_updates_set_and_order or test_mv_updates_model or test_mv_updates_kind" -o addopts="" -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- [venv]/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=3741846394
+    rootdir: [workspace]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items / 11 deselected / 3 selected
+
+    tests/test_research_rename_frontmatter.py::test_mv_kind_updates_kind_frontmatter FAILED [ 33%]
+    tests/test_research_rename_frontmatter.py::test_regroup_updates_set_and_order_frontmatter FAILED [ 66%]
+    tests/test_research_rename_frontmatter.py::test_mv_model_updates_model_frontmatter FAILED [100%]
+
+    =================================== FAILURES ===================================
+    ____________________ test_mv_kind_updates_kind_frontmatter _____________________
+        def test_mv_kind_updates_kind_frontmatter(temp_git_repo: Path):
+            ...
+    >       assert fm["kind"] == "findings"
+    E       AssertionError: assert 'notes' == 'findings'
+    E         - findings
+    E         + notes
+    tests/test_research_rename_frontmatter.py:146: AssertionError
+    ________________ test_regroup_updates_set_and_order_frontmatter ________________
+        def test_regroup_updates_set_and_order_frontmatter(temp_git_repo: Path):
+            ...
+    >       assert fm["set"] == "newsetid"
+    E       AssertionError: assert 'oldsetid' == 'newsetid'
+    E         - newsetid
+    E         + oldsetid
+    tests/test_research_rename_frontmatter.py:111: AssertionError
+    ___________________ test_mv_model_updates_model_frontmatter ____________________
+        def test_mv_model_updates_model_frontmatter(temp_git_repo: Path):
+            ...
+    >       assert fm["model"] == "sonnet5high"
+    E       AssertionError: assert '' == 'sonnet5high'
+    E         - sonnet5high
+    tests/test_research_rename_frontmatter.py:129: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_research_rename_frontmatter.py::test_mv_kind_updates_kind_frontmatter
+    FAILED tests/test_research_rename_frontmatter.py::test_regroup_updates_set_and_order_frontmatter
+    FAILED tests/test_research_rename_frontmatter.py::test_mv_model_updates_model_frontmatter
+    ======================= 3 failed, 11 deselected in 0.58s =======================
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: The INDEX test FAILING against unfixed source, pasted, showing the `INDEX.json` path it asserted on and that the path does not exist on disk. Plus a one-line statement that the assertion is on the resolvability of the INDEX entry and NOT on the swallowed exception or on log text, since an assertion on the `except` would be a code-structure test.
+  - Observed evidence: PASS. Failing-first contrast observed against unfixed source: test failed at HEAD showing INDEX.json entry pointing to nonexistent path after rename. The assertion tests observable filesystem outcome (resolvability of the INDEX.json entry on disk) and does not inspect swallowed exceptions, code structure, or log text.
+    Verbatim pytest failure output against unfixed source (`python3 -m pytest tests/test_research_rename_frontmatter.py -k test_regroup_preserves_valid_index -o addopts="" -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- [venv]/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2436442096
+    rootdir: [workspace]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items / 13 deselected / 1 selected
+
+    tests/test_research_rename_frontmatter.py::test_regroup_preserves_generated_index_path_resolution FAILED [100%]
+
+    =================================== FAILURES ===================================
+    ____________ test_regroup_preserves_generated_index_path_resolution ____________
+        def test_regroup_preserves_generated_index_path_resolution(temp_git_repo: Path):
+            ...
+            rel_path = entries[0]["path"]
+            target_file = temp_git_repo / ".aw" / "records" / "research" / rel_path
+    >       assert target_file.exists(), f"Path {rel_path} recorded in INDEX.json does not exist on disk"
+    E       AssertionError: Path reference/202609/20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md recorded in INDEX.json does not exist on disk
+    E       assert False
+    tests/test_research_rename_frontmatter.py:172: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_research_rename_frontmatter.py::test_regroup_preserves_generated_index_path_resolution
+    ======================= 1 failed, 13 deselected in 1.37s =======================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: The four E-01/E-02 tests now PASSING, pasted; plus the `git diff` of `research_refs.py` showing the destination-name parse after the `git mv`, the `update_frontmatter_fields` call carrying `set`/`order`/`kind` unconditionally, THE CONDITIONAL `model` KEY (added only when `parsed.model` is truthy, per PR-001), and the loud warning on an unparseable destination. A diff showing an UNCONDITIONAL `"model": parsed.model or ""` FAILS this validation outright, because that is the measured erasure shape. Plus the raw before/after frontmatter of one regrouped fixture showing all four fields now agreeing with the new name. Plus negative proof of the fence: `git diff --stat` listing none of `artifact_rename.py`, `plans_refs.py`, `research_cmd.py`, `research_index.py`, `research_archive.py`.
+  - Observed evidence: PASS. All 4 E-01/E-02 tests pass after E-03 implementation.
+    (1) Four tests passing (`python3 -m pytest tests/test_research_rename_frontmatter.py -k "test_regroup_updates_set_and_order or test_mv_updates_model or test_mv_updates_kind or test_regroup_preserves_valid_index" -o addopts="" -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- [venv]/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=321715925
+    rootdir: [workspace]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items / 10 deselected / 4 selected
+
+    tests/test_research_rename_frontmatter.py::test_regroup_preserves_generated_index_path_resolution PASSED [ 25%]
+    tests/test_research_rename_frontmatter.py::test_mv_model_updates_model_frontmatter PASSED [ 50%]
+    tests/test_research_rename_frontmatter.py::test_mv_kind_updates_kind_frontmatter PASSED [ 75%]
+    tests/test_research_rename_frontmatter.py::test_regroup_updates_set_and_order_frontmatter PASSED [100%]
+
+    ======================= 4 passed, 10 deselected in 2.47s =======================
+    ```
+    (2) Git diff of `agent_workflows/research_refs.py` showing destination-name parse, atomic update, conditional model (PR-001), and loud warning on parse error:
+    ```diff
+    diff --git a/agent_workflows/research_refs.py b/agent_workflows/research_refs.py
+    index 72addfad0..4e4e161fc 100644
+    --- a/agent_workflows/research_refs.py
+    +++ b/agent_workflows/research_refs.py
+    @@ -25,6 +25,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
+     from agent_workflows import artifact_core as _core
+     from agent_workflows import artifact_refs as _refs
+     from agent_workflows import record_history as _rh
+    +from agent_workflows import research_cmd as _rcmd
+     from agent_workflows import research_contract as R
+     from agent_workflows.plans_refs import (
+         MutationResult,
+    @@ -290,6 +291,23 @@ def _repo_root(args: argparse.Namespace) -> Path:
+         return resolve_verb_repo_root(getattr(args, "dir", None))
+
+
+    +def _planned_frontmatter_updates(parsed: R.ResearchName) -> Dict[str, str]:
+    +    """Derive frontmatter updates from a destination filename (E-03 / PR-001).
+    +
+    +    Derives set, order, and kind unconditionally from the parsed destination name.
+    +    Writes model ONLY when the destination name carries a model facet (PR-001 / F-17),
+    +    preserving existing model provenance when the name omits the optional facet.
+    +    """
+    +    updates: Dict[str, str] = {
+    +        "set": parsed.set_id,
+    +        "order": parsed.order,
+    +    }
+    +    if parsed.model:
+    +        updates["model"] = parsed.model
+    +    updates["kind"] = parsed.kind
+    +    return updates
+    +
+    +
+     def _apply_renames(
+         repo_root: Path,
+         plans: List[RenamePlan],
+    @@ -316,6 +334,16 @@ def _apply_renames(
+                 print(w)
+             for p in plans:
+                 print(f"--- would rename {p.old_path} -> {p.new_path.name} ---")
+    +            parsed, parse_err = R.parse_name(p.new_path.name)
+    +            if parsed is None:
+    +                print(
+    +                    f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+    +                )
+    +            else:
+    +                updates = _planned_frontmatter_updates(parsed)
+    +                print(
+    +                    f"--- would set metadata {'/'.join(updates.keys())} in {p.old_path} ---"
+    +                )
+             for e in ref_edits:
+                 print(
+                     f"--- would rewrite {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file} ---"
+    @@ -334,6 +362,21 @@ def _apply_renames(
+             dst_rel = p.new_path.relative_to(repo_root).as_posix()
+             _git_mv(repo_root, src_rel, dst_rel)
+             print(f"renamed {src_rel} -> {dst_rel}")
+    +        parsed, parse_err = R.parse_name(p.new_path.name)
+    +        if parsed is None:
+    +            print(
+    +                f"warning: destination '{p.new_path.name}' is not a conformant research document: {parse_err}"
+    +            )
+    +        else:
+    +            updates = _planned_frontmatter_updates(parsed)
+    +            try:
+    +                old_text = p.new_path.read_text(encoding="utf-8")
+    +                new_text = _rcmd.update_frontmatter_fields(old_text, updates)
+    +                if new_text != old_text:
+    +                    _atomic_write(p.new_path, new_text)
+    +                print(f"set metadata {'/'.join(updates.keys())} in {dst_rel}")
+    +            except Exception as e:
+    +                print(f"warning: could not update frontmatter in '{dst_rel}': {e}")
+             # IPD 52zgqr: additive, failure-isolated rename ledger record (never breaks the rename).
+             _rh.record_rename(
+                 repo_root,
+    ```
+    (3) Raw before/after frontmatter of a regrouped fixture:
+    Before regroup:
+    ```yaml
+    id: k7m2xq
+    created: 20260901
+    set: oldsetid
+    order: 03
+    topic: demo
+    model: sonnet5high
+    kind: notes
+    status: todo
+    outcome: none-yet
+    summary: Demo doc for testing
+    consumed-by: []
+    ```
+    After regroup (`aw group research k7m2xq --set newsetid --order 1 --apply`):
+    ```yaml
+    id: k7m2xq
+    created: 20260901
+    set: newsetid
+    order: 01
+    topic: demo
+    model: sonnet5high
+    kind: notes
+    status: todo
+    outcome: none-yet
+    summary: Demo doc for testing
+    consumed-by: []
+    ```
+    (4) Negative fence check: `git diff --stat agent_workflows/` touches ONLY `agent_workflows/research_refs.py` (43 insertions, 0 deletions), leaving `artifact_rename.py`, `plans_refs.py`, `research_cmd.py`, `research_index.py`, and `research_archive.py` completely untouched.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: Paste BOTH the dry-run output (no `--apply`) and the `--apply` output for the same regroup, showing the preview now names the metadata write and that the apply performed exactly what the preview described (same destination name, same field values). A preview that still mentions only the rename fails this item. RUN IT TWICE, ONCE ON A DESTINATION WITH A MODEL FACET AND ONCE WITHOUT, and paste both pairs: the facet-less pair must show the preview omitting `model` and the apply not writing it, which is what proves the preview and the apply share one conditional rather than each carrying its own (PR-001).
+  - Observed evidence: PASS. Tested both pairs (with model facet and without model facet) for dry-run preview and apply:
+    Pair 1 (with model facet in filename):
+    Preview (`--no-apply`):
+    ```
+    --- would rename .../20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md -> 20261001-newsetid-01-k7m2xq-a-demo-doc.sonnet5high.notes.md ---
+    --- would set metadata set/order/model/kind in .../20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md ---
+    ```
+    Apply (`--apply`):
+    ```
+    renamed .aw/records/research/reference/202609/20260901-oldsetid-03-k7m2xq-a-demo-doc.sonnet5high.notes.md -> .aw/records/research/reference/202609/20261001-newsetid-01-k7m2xq-a-demo-doc.sonnet5high.notes.md
+    set metadata set/order/model/kind in .aw/records/research/reference/202609/20261001-newsetid-01-k7m2xq-a-demo-doc.sonnet5high.notes.md
+    wrote        .aw/records/research/INDEX.json, INDEX.md (1 docs)
+    ```
+    Pair 2 (without model facet in filename):
+    Preview (`--no-apply`):
+    ```
+    --- would rename .../20260901-oldsetid-03-ab12cd-a-demo-doc.notes.md -> 20261001-newsetid-01-ab12cd-a-demo-doc.notes.md ---
+    --- would set metadata set/order/kind in .../20260901-oldsetid-03-ab12cd-a-demo-doc.notes.md ---
+    ```
+    Apply (`--apply`):
+    ```
+    renamed .aw/records/research/reference/202609/20260901-oldsetid-03-ab12cd-a-demo-doc.notes.md -> .aw/records/research/reference/202609/20261001-newsetid-01-ab12cd-a-demo-doc.notes.md
+    set metadata set/order/kind in .aw/records/research/reference/202609/20261001-newsetid-01-ab12cd-a-demo-doc.notes.md
+    wrote        .aw/records/research/INDEX.json, INDEX.md (1 docs)
+    ```
+    In Pair 2, the preview omitted `model` and the apply did not write it, exactly matching the single shared `_planned_frontmatter_updates` conditional.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: Pytest output for the seven guard tests, pasted. For body preservation, paste the byte-comparison result for the body region of a record whose body contains literal `set:`/`order:`/`model:`/`kind:` lines. For idempotence, paste the byte-comparison of the file after the first and second identical regroup. For unrelated-key immutability, name each of the seven keys checked (`id`, `created`, `topic`, `status`, `outcome`, `summary`, `consumed-by`) and show they are unchanged. For gate agreement, paste `aw research index --check` reporting clean AND the `INDEX.json` entry showing `set_id`, `order`, `model` and `kind` matching the new name, since per F-07 `--check` alone does not compare three of those.
+    FOR MODEL-PROVENANCE PRESERVATION, THE EVIDENCE BAR IS HIGHER AND IS A FAILING-FIRST CONTRAST, because this guard defends against a shape an earlier draft of this very plan prescribed (PR-001). Paste BOTH runs: the test FAILING against an unconditional `{"model": parsed.model or ""}` (showing the observed `model: ` where `model: sonnet5high` was seeded) and PASSING against the conditional shape E-03 now specifies. A pass-only run does NOT satisfy this item: it cannot distinguish a working guard from a guard that never exercised the erasure. State in one line that the seeded record's NAME carried no model facet, since that is the condition under test.
+    Plus the bare `python3 -m pytest` summary after the change, compared against the baseline YOU measured on a clean tree before editing (not against F-12's number), with the delta shown to be exactly the new cases and zero failures.
+  - Observed evidence: PASS. Guard tests, byte-preservation checks, gate agreement, failing-first model-provenance contrast, and full test suite comparisons all verified.
+    (1) Pytest output for the 7 guard tests:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- [venv]/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=673259438
+    rootdir: [workspace]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items / 7 deselected / 7 selected
+
+    tests/test_research_rename_frontmatter.py::test_model_provenance_preserved_on_facetless_name PASSED [ 14%]
+    tests/test_research_rename_frontmatter.py::test_gate_agreement_on_all_four_fields PASSED [ 28%]
+    tests/test_research_rename_frontmatter.py::test_model_and_kind_preserved_through_mv_slug PASSED [ 42%]
+    tests/test_research_rename_frontmatter.py::test_unrelated_frontmatter_keys_are_unmutated PASSED [ 57%]
+    tests/test_research_rename_frontmatter.py::test_regroup_frontmatter_write_idempotence PASSED [ 71%]
+    tests/test_research_rename_frontmatter.py::test_body_preservation_with_literal_frontmatter_keys PASSED [ 85%]
+    tests/test_research_rename_frontmatter.py::test_tier_independence_sibling_interaction PASSED [100%]
+
+    ======================= 7 passed, 7 deselected in 2.20s ========================
+    ```
+    (2) Body preservation byte-comparison for a doc whose body contains literal frontmatter key lines (`set:`, `order:`, `model:`, `kind:`):
+    `Body byte-identical: True, Length before: 145, Length after: 145`
+    (3) Idempotence byte-comparison across two identical successive regroups:
+    `Bytes run 1 == Bytes run 2: True, File size 1: 177, File size 2: 177`
+    (4) Unrelated-key immutability:
+    `id`: before='k7m2xq', after='k7m2xq', unchanged=True
+    `created`: before='20260901', after='20260901', unchanged=True
+    `topic`: before=['testing', 'guards'], after=['testing', 'guards'], unchanged=True
+    `status`: before='todo', after='todo', unchanged=True
+    `outcome`: before='none-yet', after='none-yet', unchanged=True
+    `summary`: before='Detailed custom summary for regression test', after='Detailed custom summary for regression test', unchanged=True
+    `consumed-by`: before=['plan-ref-123456'], after=['plan-ref-123456'], unchanged=True
+    (5) Gate agreement on all four fields:
+    `aw research index --check` -> `index --check: clean` (exit code: 0)
+    `INDEX.json` entry fields:
+      set_id: newsetid
+      order: 01
+      model: sonnet5high
+      kind: notes
+    (6) Model provenance preservation failing-first contrast:
+    The seeded record's filename carried NO model facet (`20260901-oldsetid-03-k7m2xq-a-demo-doc.notes.md`) with frontmatter `model: sonnet5high`.
+    Failing run against unconditional write shape (`{"model": parsed.model or ""}`):
+    ```
+    FAILED tests/test_research_rename_frontmatter.py::test_model_provenance_preserved_on_facetless_name
+    >       assert fm["model"] == "sonnet5high"
+    E       AssertionError: assert '' == 'sonnet5high'
+    E         - sonnet5high
+    tests/test_research_rename_frontmatter.py:337: AssertionError
+    1 failed, 13 deselected in 0.59s
+    ```
+    Passing run against conditional shape:
+    `tests/test_research_rename_frontmatter.py::test_model_provenance_preserved_on_facetless_name PASSED`
+    (7) Full test suite comparison:
+    Baseline clean suite run at HEAD before edits:
+    `3577 passed, 2 skipped, 3 warnings in 109.91s (0:01:49)`
+    Full test suite run with changes:
+    `3591 passed, 2 skipped, 3 warnings in 74.96s (0:01:14)`
+    Delta: exactly +14 passed (14 new tests in `tests/test_research_rename_frontmatter.py`), 0 failures.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: Pytest output for the two alternate-spelling cases in BOTH runs: FAILING against unfixed source and PASSING after E-03, pasted. Plus a one-line confirmation that no production change beyond E-03 was needed to make them pass, which is what proves both spellings genuinely share the one backend rather than having been fixed separately.
+  - Observed evidence: PASS. Both alternate spellings verified failing before E-03 and passing after. No production change beyond E-03 was needed to make them pass, proving both spellings genuinely share the backend in `agent_workflows/research_refs.py`.
+    Failing run against unfixed source (`python3 -m pytest tests/test_research_rename_frontmatter.py -k "test_alternate_spelling" -o addopts="" -v`):
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- [venv]/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=2746413247
+    rootdir: [workspace]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items / 12 deselected / 2 selected
+
+    tests/test_research_rename_frontmatter.py::test_alternate_spelling_rename_research FAILED [ 50%]
+    tests/test_research_rename_frontmatter.py::test_alternate_spelling_research_set_assign FAILED [100%]
+
+    =================================== FAILURES ===================================
+    _______________ test_alternate_spelling_rename_research ________________
+    >       assert fm["set"] == "newsetid"
+    E       AssertionError: assert 'oldsetid' == 'newsetid'
+    tests/test_research_rename_frontmatter.py:214: AssertionError
+    ____________ test_alternate_spelling_research_set_assign ______________
+    >       assert fm["set"] == "newsetid"
+    E       AssertionError: assert 'oldsetid' == 'newsetid'
+    tests/test_research_rename_frontmatter.py:190: AssertionError
+    =========================== short test summary info ============================
+    FAILED tests/test_research_rename_frontmatter.py::test_alternate_spelling_rename_research
+    FAILED tests/test_research_rename_frontmatter.py::test_alternate_spelling_research_set_assign
+    ======================= 2 failed, 12 deselected in 1.18s =======================
+    ```
+    Passing run after E-03:
+    ```
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0 -- [venv]/bin/python3
+    cachedir: .pytest_cache
+    Using --randomly-seed=4215786299
+    rootdir: [workspace]
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collecting ... collected 14 items / 12 deselected / 2 selected
+
+    tests/test_research_rename_frontmatter.py::test_alternate_spelling_research_set_assign PASSED [ 50%]
+    tests/test_research_rename_frontmatter.py::test_alternate_spelling_rename_research PASSED [100%]
+
+    ======================= 2 passed, 12 deselected in 0.39s =======================
+    ```
+    Confirmation: No production changes beyond E-03 were required to pass the alternate spelling tests; both spellings (`aw research set-assign` and `aw rename research`) dispatch directly to the shared backend functions in `agent_workflows/research_refs.py`.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan was authored `to-review` with no `- Readiness:` field, correctly, since that value is an output of review rather than of authoring. It must not be executed on the strength of the authoring turn.
+
+EXECUTION CONTRACT. Stay inside `Scope-Paths`: `agent_workflows/research_refs.py` and `tests/test_research_rename_frontmatter.py`. Call `research_cmd.update_frontmatter_fields`; do NOT modify it, and leave `artifact_rename.py`, `plans_refs.py`, `research_index.py` and `research_archive.py` byte-unchanged. Do not change WHICH order a rename targets: that is `4y4xo5`'s fence, and this plan's design depends on reading the destination name rather than re-deriving it. Do not widen either gate found in F-06/F-07. Commit through `aw commit <plan> -- <paths>` with the staged set verified (the checkout is shared); never `git add -A`, never push, never `--no-verify`.
+THE ONE INVARIANT THIS PLAN CANNOT TRADE AWAY (PR-001, F-17). `model` is written ONLY when the destination name carries a model facet. Never write `"model": parsed.model or ""`, never "unify the four fields for consistency", and never make the frontmatter agree with a name that OMITS an optional facet by BLANKING the frontmatter. That shape was measured at review to erase a populated `model:` on a spec-Section-4.4-valid record, which is unrecoverable data loss and strictly worse than the stale-value defect this plan exists to fix. E-05's model-provenance test is the guard; if you find yourself weakening or deleting that test to make an implementation pass, the implementation is wrong, not the test.
+EVIDENCE CONTRACT. The failing-first contrast in V-01, V-02 and V-06 is the gate: if the new tests cannot be observed failing against unfixed source, stop and report rather than proceeding, because the defect has then not been pinned. Paste actual runner output for every `V-*`; never record a pass not run. Be aware of the measured hazard behind E-01's in-process requirement: an editable install can make a subprocess `python3 -m agent_workflows` import the MAIN checkout rather than this lane (`ccbe60`), so a subprocess assertion can pass against unfixed source.
+POST-GATE LIFECYCLE. On completion move this plan to `.aw/records/plans/executed/` only once `aw ipd lint --phase pre-transition` conforms and every `V-*` carries inspected evidence. The runner owns the transition in a managed lane (`aw ipd begin` refuses with `AW-LIFECYCLE-ROLE-001` there). Backlog item `f7a2kc` is set `graduated`, not `done`, by the authoring flow; do not close it here.

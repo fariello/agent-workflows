@@ -33,3 +33,9 @@ JSONL); they exit 0 when clean and 2 on a usage error such as an unresolvable se
 
 To VALIDATE release records, use `aw check releases`. There is deliberately no `releases check`
 subcommand: a second validation entry point could drift from the canonical one.
+
+## Release succession and the 'next' sentinel
+
+Exactly one release record should carry `- Status: planned` at a time. The `next` sentinel resolves only in that state. When two or more records are planned, `next` is ambiguous; when zero are planned, `next` is unresolvable and every sentinel-gated record risks dangling.
+
+Therefore, shipping a release requires two coordinated actions in the same change: mark the outgoing record `shipped` via `aw set shipped <id6>` and create its successor record with `aw releases new --version <X.Y.Z> --summary ... --apply`. The tooling enforces this sequence: `aw set shipped` refuses if it would leave zero planned releases unless an explicit attested override is passed.

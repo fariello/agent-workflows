@@ -1,0 +1,632 @@
+# IPD: Measure every statusline box column in visible terminal columns so a variation selector cannot misalign the box
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: `render_stream.format_statusline_lines` computes every column width and every pad of its 4-line box with bare `len()`, which counts a zero-width code point as a terminal column. Spec `uonrjg` Section 9.4's fourth contract bullet forbids exactly this ("no use of `len(styled_text)` to compute a visible column"), and `term.visible_width` is the shared primitive the same section mandates be used instead. Measured at authoring HEAD `1c81481e`: a `setid` of `s⚠︎1` (U+26A0 U+FE0E) renders the box at distinct visible widths `{126, 127}` instead of one width, and the same one-column break reproduces through the `id6` cell, through a `setid`-only box, through an `id6`-only box, and with an NFD accent instead of a variation selector. It reproduces IDENTICALLY styled and unstyled, so it is not a styling artifact. A SECOND, DISTINCT Section 9.4 violation sits in the same column: `format_action_label` and `format_artifact_kind_label` truncate with `[:7]`, a code-point slice that SPLITS a grapheme, and `format_action_label("abcdef⚠︎gh")` returns `'Abcdef⚠'`, a bare U+26A0 whose variation selector was cut off. That breaks the section's FIRST bullet ("no broken variation selector in every UTF-8 mode"), which is a different bullet from the one the backlog item names.
+- Scope: Route every width computation and every pad in `format_statusline_lines` through `term.visible_width`, and make the two label truncators grapheme-safe via the existing `term.truncate_visible`. IN: the thirteen `len()`-based column-width computations, the twenty-two pad sites (eight `.ljust`/`.rjust` calls, twelve `:>{...}`/`:<{...}` alignment format specs, and the two colorized `pad_len` arithmetic sites), the `[:7]` slices in `format_action_label` and `format_artifact_kind_label`, and a new behavioral regression module. OUT: which columns exist, their order, their alignment, their minimum widths, the box-drawing characters, the ANSI palette, `format_activity_cell` (already correct), `render_run_summary_table` and `format_event_prefix` (other surfaces, one of which plan `4taj2e` owns), and the ambiguous-width half spec `uonrjg` Section 9.4 declines to guarantee.
+- Scope-Paths: agent_workflows/render_stream.py, tests/test_statusline_visible_width.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: l76ir6
+- Blocks-Release: next
+- Set: l76ir6
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: it6tpj
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: it6tpj verified (set l76ir6, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+
+- 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-601..PR-607, all FIXED, none DEFERRED or OPEN. Reviewed at HEAD `2aaf45e2` in a lane worktree; review record at `.aw/records/reviews/20260929-l76ir6-01-it6tpj-measure-every-statusline-box-column-in-visible-terminal-colu.review.md`. EVERY load-bearing claim reproduces: the site counts (27 `len(`, 8 `.ljust`/`.rjust`, 12 alignment specs) exactly; the defect in all five cell paths at `{126, 127}` in both styling modes with the ASCII control at `{127}`; the severed grapheme (`format_action_label` returns `'Abcdef\u26a0'` with the VS absent, `truncate_visible` keeps it); the deleted `tests/test_render_stream.py` (2,706 lines, commit `19313eed`) and the total coverage hole (no test mentions `format_statusline`); all ten box-drawing and bar characters East Asian Width `A`; `_pad_visible` private and left-aligning only; both Section 9.4 bullets verbatim; and `oc_runipd` passing all four free-text fields straight from the queue item. THE FIX WAS INDEPENDENTLY RE-DRIVEN IN MEMORY, not reasoned about: every broken case collapses to one width in both styling modes, the ASCII control stays byte-identical, 800 randomized renders show zero byte differences, all nine mapped labels are unchanged, and the bare suite reports `3246 passed, 2 skipped` both clean and with the fix staged. The Step 0 `sys.modules` gotcha was necessary exactly as recorded. TWO FINDINGS CHANGE THE TEST PLAN. E-04's ACTIVITY CASE WOULD HAVE BEEN VACUOUS (PR-601): `format_activity_cell` returns `("", 0)` for any value outside `lifecycle_style.ALL_STAGES`, so a free-text activity such as `"reading a file"` silently selects the NO-ACTIVITY `col4_w` branch and re-tests the same path as the other cases while appearing to cover a new one; the case now requires a real stage token plus an assertion that the branch is live, and a `recovering` canary was added because that glyph carries its own VS through the one already-correct path. THE SHIPPED BYTE-IDENTITY TEST CANNOT HAVE THE SHAPE THE PLAN DESCRIBES (PR-602): there is no pre-fix renderer left in the process to compare against once the fix lands, so the shipped assertion must be the invariant (`visible_width(line) == len(line)` for an unstyled ASCII box) while the pre-versus-post comparison is one-off execution evidence; left as written an executor would either fake it or embed a byte-pin. ALSO: the `{129, 130}` activity baseline is stage-dependent so the bar is now cardinality not absolute numbers (PR-603); F-12's account of sibling `4taj2e` was stale, since it is now `reviewed`/`go-pending-approval` and its byte-pin premise was already corrected by its own review (PR-604); and BOTH deferred carriers were FILED AT REVIEW rather than left as instructions to the executor, as backlog `iuad9l` (the statusline's total absence of coverage) and `45l00y` (the `_pad_visible` extraction question), because an obligation recorded only in a plan that is about to reach `executed/` is invisible to the attention view (PR-605). Plus conditional runner/executor finalize ownership (PR-606) and a what-is-being-approved paragraph (PR-607). No production file, test, or spec was modified by this review; probes were written under the gitignored `.aw/state/` and removed.
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `l76ir6`. GATE NOTE: item `l76ir6` carries `- Blocks-Release: next`, which this plan INHERITS; it is a `bug` and the every-live-bug-gates-the-release rule applies.
+  THE ITEM'S DIAGNOSIS IS CORRECT AND ITS PRESCRIBED FIX WAS MEASURED, NOT REASONED ABOUT. Staged in memory at HEAD `1c81481e` (out-of-tree pytest plugin, no tracked file edited), the converted function collapses every broken case to a single width and leaves 800 randomized ASCII-input renders BYTE-IDENTICAL, with a bare `python3 -m pytest` reporting `3246 passed, 2 skipped` both with and without the staged fix. See F-05, F-06, F-07.
+  THE ITEM'S ONE FALSIFIED CLAIM, and it makes the work EASIER rather than harder: it says the layout is "pinned byte-for-byte by `tests/test_render_stream.py::test_format_statusline_user_example_box_layout`" and cites that pin as its reason for deferring the fix. THAT TEST NO LONGER EXISTS. Commit `19313eed` ("trim test suite from 9,136 to under 2,000 tests") DELETED all 2,706 lines of `tests/test_render_stream.py`, and no test in the tree calls `format_statusline_lines` or `format_statusline` at all today. So the stated blocker is gone AND the surface is now entirely uncovered, which raises the priority rather than lowering it. See F-03, F-08.
+  THE ITEM UNDERCOUNTS THE WORK BY MISSING AN ENTIRE BUG CLASS. It names "the `col2_w`/`col3_w`/`col5_w`..`col10_w` computations and their `f"{...:>{w}s}"` pads". The width computations are 13 and the pads are 22, which is close enough; but the pads are NOT all f-string format specs. Eight are `.ljust`/`.rjust` CALLS, which no amount of editing a format spec reaches, and Python offers NO width-aware alignment spec at all, so every one of the twelve format-spec pads must be REWRITTEN as explicit concatenation rather than adjusted. An executor reading the item literally would fix the arithmetic and leave the pads broken. See F-02.
+  AND THE ITEM MISSES A SECOND, DIFFERENT SECTION 9.4 VIOLATION IN THE SAME COLUMN. `format_action_label`/`format_artifact_kind_label` truncate with `[:7]`, which splits a grapheme: `format_action_label("abcdef⚠︎gh")` returns a bare U+26A0 with the variation selector cut off. That violates Section 9.4's FIRST bullet, not the fourth one the item cites, and no width fix repairs it. E-03 fixes it with `term.truncate_visible`, which already exists for this. See F-04.
+  THE ITEM'S "REALISTIC EXPOSURE" CLAIM IS CORRECT AND IS NARROWER THAN THE TRUTH. It names the `setid`/`id6` cell as the realistic exposure. Verified: `oc_runipd` passes `setid=item.get("setid", "")` and `id6=item.get("id6", "")` straight from the queue item, so both are author-supplied free text reaching a padded column with no sanitization. `action` and `artifact_kind` reach the SAME column from `item.get("kind", ...)` and are equally free, which is what makes E-03's truncation defect reachable too. See F-09.
+
+## Goal
+
+Make the runner statusline box rectangular in VISIBLE TERMINAL COLUMNS for every input, not only for inputs whose code-point count happens to equal their column count, by routing all of `format_statusline_lines`'s width and padding arithmetic through `term.visible_width`, the one shared measurement spec `uonrjg` Section 9.4 mandates.
+
+Make the two label truncators that feed the same box grapheme-safe, so a variation selector can never be severed from its base character (Section 9.4's first bullet, a distinct defect from the width one).
+
+Close the coverage hole that let both ship and that currently leaves the whole surface untested: no test in the tree calls `format_statusline_lines` at all, so a box that misaligns by a column passes the entire suite silently.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: fix the measurement
+
+- [x] E-01 CONVERT ALL THIRTEEN COLUMN-WIDTH COMPUTATIONS IN `render_stream.format_statusline_lines` TO `_T.visible_width`. `render_stream` already binds `from agent_workflows import term as _T` at module scope and already calls `_T.visible_width` in `format_activity_cell`, so this adds no import and introduces no new helper. LOCATE THE SITES BY CONTENT, NOT BY THE LINE NUMBERS IN THIS PLAN, which expire; `grep -n "len(" agent_workflows/render_stream.py` narrowed to this function's body is the durable locator and F-02 enumerates the exact set.
+  THE THIRTEEN, BY THE COLUMN THEY DECIDE. `col2_w`'s two summands (`len(hdr2_left) + len(hdr2_right) + 1` and `len(val2_left) + len(val2_right) + 1`); all FOUR `col3_w` branches (the `setid`-and-`id6` branch's `len(hdr3_left) + len(hdr3_right) + 1` and `len(val3) + 2`, the `setid`-only branch's `len(setid) + 8`, the `id6`-only branch's `len(id6) + 8`, and the neither branch's `len(val3) + 2`); both `col4_w` branches (`len(art_str) + 2` in each, and `len(act_str) + 2` in the no-activity branch, noting `activity_w` is ALREADY a visible width and must be left alone); and the five token/spend columns `col5_w`, `col7_w`, `col8_w`, `col9_w`, `col10_w` (`len(cost_str)`, `len(tot_str)`, `len(in_str)`, `len(out_str)`, `len(cache_str)`).
+  DO NOT CHANGE ANY MINIMUM WIDTH. Every one of these is a `max(<floor>, ...)` and the floors (27, 31, 9, 7, 6, 8) are the pinned layout. Convert only the MEASURED operand; leaving the floors intact is what keeps the common case byte-identical (F-07).
+  DO NOT TOUCH `col1_w` OR `col6_w`, which are hardcoded constants (9 and 5) measuring nothing, and do NOT touch `format_activity_cell`, which plan `qdd5jq` already converted and which returns its own visible width alongside its text for precisely this reason.
+  - Depends on: none
+  - Expected outcome: no `len(`-based COLUMN WIDTH computation remains in `format_statusline_lines`; every column floor is unchanged; `activity_w` is still consumed unmodified.
+  - Execution state: performed
+
+- [x] E-02 REWRITE ALL TWENTY-TWO PAD SITES AS EXPLICIT VISIBLE-WIDTH PADDING, which is a rewrite and not an adjustment, because PYTHON HAS NO WIDTH-AWARE ALIGNMENT SPEC. This is the half backlog item `l76ir6` describes as "their `f"{...:>{w}s}"` pads" and the half an executor is most likely to get wrong: `str.ljust`, `str.rjust` and the `:>{w}s`/`:<{w}s` format specs ALL count code points, so there is no operand to convert inside them. Each must become `" " * max(0, w - _T.visible_width(text))` concatenated on the correct side (F-02).
+  THE TWENTY-TWO, BY FORM. (a) TWELVE ALIGNMENT FORMAT SPECS: `h2`, `v2`, `h3` (the `setid`-and-`id6` branch), `v3`, `h4`, `v4`, `v5`, `v7`, `v8`, `v9`, `v10`, and `h1`. (b) EIGHT `.ljust`/`.rjust` CALLS: `h3`'s three remaining branches (`" set: {setid} "`, `" id6: {id6} "`, `" -"`) and the five static header labels `h5`, `h7`, `h8`, `h9`, `h10`. (c) TWO COLORIZED `pad_len` SITES in the styled path, which recompute `col2_w - len(hdr2_left) - len(hdr2_right)` and its `val2` twin.
+  THE STATIC-LABEL AND CONSTANT SITES ARE PART OF THE SWEEP DELIBERATELY, even though `" Spend "`, `" Total "`, `"   In "`, `"    Out "`, `" Cache "`, `" -"` and `'Time'` are pure ASCII today and cannot misalign. Converting them is what makes the rule "every pad in this function is visible-width" TRUE AND CHECKABLE by grep, rather than "every pad except the seven an editor must remember are safe". If an executor judges a static-literal conversion to be noise, it MUST say so in V-02's evidence and justify the exception rather than silently skipping it; a mixed function is how this defect returns.
+  ADD THE `max(0, ...)` GUARD AT EVERY SITE, including the two `pad_len` sites which currently compute unguarded differences. `visible_width(s) <= len(s)` always, so converting a SUBTRAHEND can only widen a pad and no current site can go negative; the guard is for the next editor, and `" " * -1` being `""` rather than an error is exactly why an unguarded site fails silently.
+  DO NOT INTRODUCE A NEW PUBLIC HELPER AND DO NOT REACH FOR `term._pad_visible`, which is private to `term` and left-aligns only. Authoring measured inline concatenation as sufficient for all twenty-two sites, including the right-aligned majority `_pad_visible` cannot express (F-05).
+  - Depends on: E-01
+  - Expected outcome: no `.ljust`, no `.rjust`, and no `:>{...}`/`:<{...}` alignment spec remains in `format_statusline_lines`; every pad is `" " * max(0, w - _T.visible_width(...))`; the box renders at ONE visible width for a `setid` or `id6` carrying a variation selector, styled and unstyled.
+  - Execution state: performed
+
+- [x] E-03 MAKE `format_action_label` AND `format_artifact_kind_label` GRAPHEME-SAFE, replacing the code-point slice `[:7]` with `_T.truncate_visible(..., 7)`. THIS IS A DIFFERENT DEFECT FROM E-01/E-02 AND A DIFFERENT SPEC BULLET: not a width miscount but a SEVERED GRAPHEME, forbidden by Section 9.4's first bullet ("correct grapheme and no broken variation selector in every UTF-8 mode"). Measured: `format_action_label("abcdef⚠︎gh")` returns `'Abcdef⚠'`, a bare U+26A0 whose U+FE0E was sliced off, so the terminal is free to render the emoji presentation the variation selector existed to suppress. `term.truncate_visible` already exists, is ANSI-aware, and returns `'abcdef⚠︎'` for the same input (F-04).
+  PRESERVE THE `.capitalize()` AND THE FALLBACK SHAPE. Both functions are `MAP.get(key, source.strip()[:7].capitalize())`; only the slice changes. The mapped path (every known action and artifact kind) is unaffected, which is why this is a fallback-path fix and cannot move a normal cell.
+  NOTE THE INTERACTION THAT MAKES THIS NECESSARY RATHER THAN COSMETIC: after E-01 the `col4_w` computation measures these labels with `visible_width`, so a label whose variation selector was already severed measures CORRECTLY as the wrong text. The width fix cannot detect a grapheme that was destroyed before it arrived, which is why both must land together.
+  - Depends on: none
+  - Expected outcome: neither label function can return a base character whose variation selector was truncated away; the mapped path for every entry in `ACTION_DISPLAY_MAP` and `ARTIFACT_DISPLAY_MAP` is unchanged.
+  - Execution state: performed
+
+### Task group 2: close the coverage hole
+
+- [x] E-04 ADD `tests/test_statusline_visible_width.py` ASSERTING THE BOX IS RECTANGULAR IN VISIBLE COLUMNS. Assert the PROPERTY, not the fix's shape: render the 4-line box, measure every line with `term.visible_width`, and assert the resulting set has exactly ONE member. That single assertion covers all thirty-five measurement sites at once and cannot be satisfied by a cosmetic edit. This module is the FIRST test of this function in the tree (F-08), so it is also the regression floor for the surface generally.
+  COVER EVERY REACHABLE CELL SEPARATELY, because the four `col3_w` branches are distinct code paths and a test of one proves nothing about the others: (a) `setid` and `id6` both present, VS in `setid`; (b) both present, zero-width mark in `id6` (use the NFD form `cafe\u0301`, which is what a macOS filesystem returns, so the case is not hypothetical); (c) `setid` only; (d) `id6` only; (e) neither. Add (f) the countdown-plus-`progress_source` variant, which is the only path that reaches the two colorized `pad_len` sites, and (g) an `activity` variant, which selects the other `col4_w` branch.
+  THE ACTIVITY CASE MUST USE A TOKEN FROM `lifecycle_style.ALL_STAGES`, AND THIS IS A TRAP THAT SILENTLY VOIDS THE CASE (added at review, PR-601). `format_activity_cell` returns `("", 0)` for any value NOT in `ALL_STAGES`, so a natural-looking free-text activity such as `"reading a file"` yields `activity_w == 0` and takes the `col4_w` NO-ACTIVITY branch, i.e. case (g) would test the same code path as cases (a) through (e) while appearing to cover a different one. Measured at review: `format_activity_cell("reading a file", Palette(False))` returns `('', 0)` while `format_activity_cell("abandoned", ...)` returns `('∅ Abandone', 10)`. USE A REAL STAGE (`"abandoned"`, `"executing"`, `"recovering"`, or any of the twenty `ALL_STAGES` members) and ASSERT the case is live by checking the box width DIFFERS from the no-activity box, so a future vocabulary change cannot silently re-void the case. Review baselines with a stage token: `activity="abandoned"` measures `{129, 130}` before and `{130}` after; `activity="active"` measures `{127, 128}` before, so the absolute numbers are stage-dependent and the CARDINALITY is the bar, not the numbers.
+  ALSO ADD (h) `activity="recovering"` WITH ALL-ASCII setid/id6, which is the case that proves `format_activity_cell` must be left alone: its glyph `↩︎` is U+21A9 plus U+FE0E, so it puts a zero-width code point in the box through a path that carries its OWN width, and it measures a single `{130}` BEFORE any fix. If that case ever goes multi-width, `activity_w` was wrapped or the cell was broken, which is exactly the F-11 mistake this catches.
+  RUN EVERY CASE BOTH STYLED AND UNSTYLED (`Palette(True)` and `Palette(False)`), and in BOTH `use_unicode` modes. The styled path is where a naive fix regresses, since ANSI escape bytes are invisible columns too, and it is the path an operator on a TTY actually sees. Authoring measured the defect reproducing identically in both styling modes, so a test of one mode would have caught it; a test of both is what keeps a future ANSI change honest.
+  ADD THE BYTE-IDENTITY GUARD, which is what makes this safe to land rather than merely correct: assert that for ASCII-only inputs the output is unchanged by the conversion. Do it as a PROPERTY over a spread of inputs (a seeded parameter sweep over the setid/id6/action/artifact/tracker/countdown/activity combinations), comparing against the CURRENT renderer's own output captured in the same process, NOT against a stored blob. A hardcoded expected box would be a byte-pin that breaks on every unrelated column change, and this repository forbids code-pinning tests.
+  NOTE WHAT THE BYTE-IDENTITY SWEEP CAN AND CANNOT BE, since the naive reading is impossible (added at review, PR-602). Once E-01 through E-03 land there is no "current renderer" left in the process to compare against, so this property CANNOT be written as a pre-versus-post comparison inside the shipped test; that shape only exists for the one-off EXECUTION-TIME evidence V-02 demands via the in-memory staging. What the SHIPPED test asserts instead is the invariant the identity was evidence FOR: for an ASCII-only input the box's every line has `visible_width == len(line)` when unstyled, i.e. code-point count and column count agree, so no pad can have been mis-sized. State which of the two you wrote and do not claim the other. Review verified the one-off comparison holds at 800 renders with zero byte differences, and separately verified that E-03's truncator swap is byte-identical on ASCII (`truncate_visible(s, 7) == s[:7]` for every pure-ASCII length 1 through 12, and all nine `ACTION_DISPLAY_MAP` keys unchanged), so E-03 does not perturb the sweep.
+  ADD A GRAPHEME-INTEGRITY ASSERTION FOR E-03: assert that no output of `format_action_label`/`format_artifact_kind_label` contains a base character from `lifecycle_style.MULTI_CODEPOINT_GLYPHS` without its variation selector, driving it with an input whose VS sits exactly at the truncation boundary. Derive the glyphs from that constant rather than hardcoding U+FE0E, so the assertion follows the vocabulary.
+  MUTATION-CHECK THE WHOLE MODULE, since a regression test that cannot fail proves nothing. Neutralize E-01/E-02/E-03 and show the module FAILING; restore and show it green. STAGE THE MUTATION IN MEMORY, NEVER BY EDITING THE TRACKED FILE: `agent_workflows/render_stream.py` is a shared-checkout file and a `git checkout` restore after a suite run silently discards a co-worker's concurrent edit. Authoring used an out-of-tree pytest plugin that re-execs patched source as a module and rebinds the one function; that mechanism is verified to work here and is the recommended route (F-05).
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: a test module that FAILS on the pre-fix tree for every zero-width case in both styling modes and for the severed-grapheme case, passes after E-01 through E-03, and additionally asserts ASCII byte-identity as a property rather than a pinned blob.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- `term.visible_width` IS THE ONE SANCTIONED MEASUREMENT and using it is following precedent, not setting it. Spec `uonrjg` Section 9.4 requires "no use of `len(styled_text)` to compute a visible column" and permits "a shared display-width helper" while forbidding "per-renderer width guesses". `term.py` is that shared home (its own section comment says so) and `attention.py`, `cli.py`, `ipd_lint.py` and `render_stream.format_activity_cell` already consume it. So this plan removes a per-renderer guess rather than adding a helper.
+- `term.truncate_visible` IS THE SANCTIONED TRUNCATION, built in the same section for the same reason, and `tests/test_term.py` already exercises it across every limit. E-03 consumes it rather than hand-rolling a grapheme walk.
+- `render_stream` MAY IMPORT `term`, and already does: `from agent_workflows import term as _T` at module scope. No import barrier stands in the way.
+- ASSERT THE INVARIANT, NOT THE BYTES. This repository forbids code-pinning tests (`GUIDING_PRINCIPLES` P16) and forbids tests that read production source with `inspect`/`ast`/regex. So E-04 measures RENDERED OUTPUT and expresses byte-identity as a property over a generated spread rather than a stored expectation.
+- STAGE A MUTATION IN MEMORY, NOT BY EDITING A TRACKED FILE. This is a shared checkout; a `git checkout --` restore after a long suite run can discard a co-worker's concurrent edit. An out-of-tree pytest plugin on `PYTHONPATH` that re-execs patched source and rebinds the symbol works here and was used for every fix-side measurement in this plan. NOTE ONE GOTCHA measured during authoring: the re-exec'd module MUST be registered in `sys.modules` before `exec`, or `dataclasses` raises `AttributeError: 'NoneType' object has no attribute '__dict__'` when it resolves `cls.__module__` for this module's frozen dataclasses.
+- RUN THE SUITE BARE (`python3 -m pytest`). `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` and the slow/livecorpus deselection; adding `-n0` makes it several times slower, a second `-q` suppresses the summary line this plan requires be pasted, and `-p no:randomly` disables the order randomization.
+- WRITE SCRATCH PROBES UNDER `.aw/state/`, which `.aw/.gitignore` ignores (`/state/`). Authoring wrote its probes there and they never appeared in `git status`.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE DEFECT REPRODUCES ON EVERY CELL THE BACKLOG ITEM NAMES, AND IS A REAL MISALIGNMENT RATHER THAN A THEORETICAL ONE, at authoring HEAD `1c81481e`.** Rendering the statusline with `setid="s⚠︎1"` (U+26A0 U+FE0E) produces a box whose four lines are NOT all one visible width: the distinct-width set over the box lines is `{126, 127}`, one column short on the affected lines. It reproduces through FIVE distinct paths, i.e. all four `col3_w` branches plus the activity variant: `setid` VS `{126, 127}`; `id6` carrying the NFD sequence `cafe\u0301` `{126, 127}`; `setid`-only `{126, 127}`; `id6`-only `{126, 127}`; and with an `activity` cell present `{129, 130}`. Every case reproduces IDENTICALLY with `Palette(False)` and `Palette(True)`, so the defect is not a styling artifact, and the ASCII control renders at a single `{127}` confirming the box is otherwise rectangular. RE-MEASURED AT REVIEW at HEAD `2aaf45e2`: every one of those figures reproduces EXACTLY, in both styling modes, with one qualification the plan must carry (F-13): the `{129, 130}` activity figure holds only for an activity token that is a MEMBER of `lifecycle_style.ALL_STAGES`. The absolute number is also stage-dependent (`abandoned` gives `{129, 130}`, `active` gives `{127, 128}`), so the CARDINALITY is the bar and the numbers are context. | `format_statusline_lines` over each case; distinct `term.visible_width` over the four returned lines, tabulated for all five cases in both styling modes |
+| F-02 | **THE ITEM DESCRIBES THE PADS AS f-STRING SPECS, AND THAT MISDESCRIBES THE WORK: 8 OF THE 22 PADS ARE `.ljust`/`.rjust` CALLS, AND NONE OF THE 22 CAN BE FIXED BY CONVERTING AN OPERAND.** Measured over `inspect.getsource(format_statusline_lines)`, non-comment lines only: 13 column-width computations use `len()`, and 22 pad sites exist, comprising 12 alignment format specs (`:>{...}s` / `:<{...}s`), 8 `.ljust`/`.rjust` calls (`h3`'s three non-f-string branches and the five static header labels `h5`/`h7`/`h8`/`h9`/`h10`), and 2 colorized `pad_len` computations. THE CONSEQUENCE IS THE POINT: `str.ljust`, `str.rjust` and Python's alignment specs all count CODE POINTS and Python provides no width-aware alignment spec, so there is no `len()` inside them to replace. Each must be REWRITTEN as explicit `" " * max(0, w - visible_width(text))` concatenation. An executor who reads the item's "their `f"{...:>{w}s}"` pads" literally fixes the arithmetic, leaves all 22 pads code-point-based, and ships a still-broken box. | `grep`-classified enumeration over `inspect.getsource`: `len( in code (non-comment): 27`, `ljust/rjust: 8`, `align format specs :>{ / :<{: 12`; the 13-site and 22-site classified listings |
+| F-03 | **THE ITEM'S STATED REASON FOR DEFERRING THE FIX IS FALSIFIED: THE BYTE-PIN TEST IT NAMES DOES NOT EXIST.** The item's SCOPE NOTE says this is "deliberately NOT fixed in `qdd5jq`" because the layout is "pinned byte-for-byte by `tests/test_render_stream.py::test_format_statusline_user_example_box_layout`". That file is ABSENT at HEAD: commit `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests") deleted all 2,706 of its lines, and the named test was among its functions (confirmed by reading the pre-trim blob, which contains both `test_format_statusline_user_example_box_layout` and `test_format_statusline_exact_layout`). MATTERS TWICE: the obstacle the item cites is gone, so the fix is cheaper than filed; and the SAFETY the pin provided is also gone, so E-04 must supply its own byte-identity evidence rather than leaning on a pin that no longer guards anything. | `test -f tests/test_render_stream.py` -> NO; `git show 19313eed --stat` -> `tests/test_render_stream.py | 2706 -------`; `git show 19313eed^:tests/test_render_stream.py` listing both statusline layout tests |
+| F-04 | **A SECOND, DISTINCT SECTION 9.4 VIOLATION SITS IN THE SAME COLUMN AND THE ITEM DOES NOT MENTION IT: THE LABEL TRUNCATORS SEVER A GRAPHEME.** `format_action_label` and `format_artifact_kind_label` both fall back to `source.strip()[:7].capitalize()`, a CODE-POINT slice. Measured: `format_action_label("abcdef⚠︎gh")` returns `'Abcdef⚠'`, i.e. a bare U+26A0 with its U+FE0E cut off (`'\ufe0e' in out` is False), so the terminal may render the emoji presentation the variation selector existed to suppress. This breaks Section 9.4's FIRST bullet ("correct grapheme and no broken variation selector in every UTF-8 mode"), a DIFFERENT bullet from the fourth one the item cites, and no width conversion repairs it. `term.truncate_visible(inp, 7)` returns `'abcdef⚠︎'` with the grapheme intact, so the fix is to consume the primitive that already exists. Secondary effect of the same slice: a 7-code-point result carrying one zero-width mark measures 6 visible columns, so the label under-fills its cell even when the grapheme survives. | `format_action_label("abcdef\u26a0\ufe0egh")` -> `'Abcdef\u26a0'`, VS absent; `term.truncate_visible` on the same input -> VS present; the `(len, visible_width)` pairs `(7, 6)` for `'Ab⚠︎cde'` and for `'Caféxx'` |
+| F-05 | **THE PRESCRIBED FIX WAS STAGED IN MEMORY AND MEASURED BEFORE BEING PROPOSED, AND IT CORRECTS EVERY BROKEN CASE.** All 13 width computations converted to `_T.visible_width` and all 22 pads rewritten as explicit visible-width concatenation (patched source re-exec'd as a separate module and the one function rebound onto `render_stream`; no tracked file edited, `git status --short` empty before and after). Results, before -> after, in BOTH styling modes: `setid` VS `{126, 127}` -> `{127}`; `id6` NFD `{126, 127}` -> `{127}`; `setid`-only `{126, 127}` -> `{127}`; `id6`-only `{126, 127}` -> `{127}`; countdown-plus-`progress_source` with VS `{126, 127}` -> `{127}`; activity-present `{129, 130}` -> `{130}`. The ASCII control stays `{127}` and its four lines stay byte-identical. NOTE THE INITIAL ATTEMPT USED `term._pad_visible` FOR THREE SITES AND THAT WAS ABANDONED: it is private to `term` and left-aligns only, so it cannot express the right-aligned majority; inline concatenation was measured sufficient for all 22 and is what E-02 prescribes. | the staged-fix probe's before/after table across all cases and both styling modes; the rendered post-fix box; `git status --short` empty |
+| F-06 | **THE FIX IS CLEAN AGAINST THE WHOLE SUITE, MEASURED BOTH WAYS.** A bare `python3 -m pytest` on the clean tree at HEAD `1c81481e` reports `3246 passed, 2 skipped, 3 warnings in 52.57s`; the same bare run with the fix staged via the out-of-tree plugin reports `3246 passed, 2 skipped, 3 warnings in 46.76s`. Identical counts, zero failures, and the run was repeated after the `_pad_visible`-to-inline rewrite with the same counts. So no existing test depends on the `len()`-based measurement, which is unsurprising given F-08. | both bare runs, pasted summary lines, with and without `-p plug_stage` on `PYTHONPATH` |
+| F-07 | **THE CONVERSION IS A NO-OP ON ASCII INPUT, PROVEN OVER A SPREAD RATHER THAN ONE EXAMPLE.** A seeded sweep of 400 input combinations (varying `setid` across empty/short/long, `id6` across empty/short, every `action` and `artifact_kind` shape, `stall_remaining` including `None` and 0, `progress_source` present and absent, every `activity`, both `use_unicode` modes, and token/cost magnitudes from 0 to millions), each rendered in both styling modes for 800 total renders, produced ZERO byte differences between the pre-fix and staged-fix renderers. This is the evidence that makes the change safe rather than merely correct, and it is the property E-04 encodes as a test. | the identity sweep: `compared 800 ASCII-input renders; byte-differences: 0` |
+| F-08 | **THE COVERAGE HOLE IS TOTAL: NOTHING IN THE TEST TREE CALLS THIS FUNCTION AT ALL.** `grep -rln "format_statusline" tests/ agent_workflows/ tools/` returns exactly two files, both production (`agent_workflows/render_stream.py` and `agent_workflows/oc_runipd.py`), and no test file. Nor is there any `tests/test_render_stream.py` or statusline test module (`ls tests/ | grep -i "render\|status"` returns only unrelated status-vocabulary modules). So the statusline box has ZERO test coverage of any kind today, not merely zero width coverage, which is why a one-column break passes 3,246 tests silently. Meanwhile width-property tests DO exist for the sibling surfaces that kept theirs (`test_attention.py` asserting a single `visible_width` across body lines, `test_run_viewer.py` doing the same, `test_term.py` pinning `visible_width` and `truncate_visible` directly), which is exactly why those surfaces are correct and this one is not. E-04 adds the missing member of an established family. | `grep -rln "format_statusline" tests/ agent_workflows/ tools/` -> 2 production files, 0 tests; `ls tests/` containing no render/statusline module; the `visible_width` assertions in `test_attention.py`, `test_run_viewer.py`, `test_term.py` |
+| F-09 | **THE EXPOSURE IS UNSANITIZED FREE TEXT FROM THE QUEUE ITEM, WHICH CONFIRMS THE ITEM'S "REALISTIC EXPOSURE" CLAIM AND WIDENS IT BY TWO FIELDS.** `oc_runipd` constructs its `Statusline` with `setid=item.get("setid", "")` and `id6=item.get("id6", "")`, both straight from the queue item with no validation, exactly as the item says. The SAME construction also passes `action=statusline_action_for_item(item)` and `artifact_kind=item.get("kind", item.get("type", "ipd"))`, and `statusline_action_for_item` returns `str(item["action"])` unmodified when present. So four free-text fields reach this padded box, and the two label fields are the ones F-04's severed-grapheme defect acts on: an unmapped `action` or `kind` value takes the `[:7]` fallback. A setid is author-supplied text in a filename-derived identifier, so it is the likeliest carrier in practice. | `oc_runipd`'s `Statusline(...)` construction passing all four fields from `item`; `statusline_action_for_item` returning `str(act)` for any present `action`; `format_action_label`'s `MAP.get(key, ...)` fallback |
+| F-10 | **THE FIX IS BOUNDED AND MUST NOT BE OVERSOLD: THE BOX IS BUILT FROM AMBIGUOUS-WIDTH CHARACTERS AND THAT HALF IS UNFIXABLE HERE.** Measured `unicodedata.east_asian_width` over this box's own drawing set: `│`, `─`, `╭`, `╮`, `╰`, `╯`, `┬`, `┴` are ALL `A` (Ambiguous), as are the progress bar's `█` and `▍`. So on a terminal resolving Ambiguous to two columns the entire box scales regardless of this change. Spec `uonrjg` Section 9.4 declines that guarantee in as many words ("perfect alignment cannot be guaranteed across every terminal's ambiguous-width policy") and `term.visible_width`'s own docstring says it makes no attempt at it. This plan closes the DETERMINISTIC zero-width half only, which is the half Section 9.4's fourth bullet actually requires, and `use_unicode=False` remains the existing guarantee for width-constrained terminals. | `unicodedata.east_asian_width` over the box-drawing set and the bar blocks -> all `A`; spec `uonrjg` Section 9.4's four-bullet contract; `term.visible_width` docstring ("It does NOT attempt double-width or ambiguous-width resolution") |
+| F-11 | **THE ITEM'S ACCOUNT OF WHY `qdd5jq` DID NOT BITE IS CORRECT AND THE ACTIVITY CELL MUST BE LEFT ALONE.** `format_activity_cell` returns `(rendered, visible_width)` and its docstring states the reason ("THE WIDTH IS RETURNED RATHER THAN MEASURED BY THE CALLER"), and `format_statusline_lines` consumes that as `activity_w`, using it in `col4_w` and in the `h4` pad via `max(0, col4_w - 1 - activity_w)`. So the activity cell is ALREADY conforming and is already the only visible-width-correct part of this box, exactly as the item describes. CONSEQUENCE FOR E-01: `activity_w` must NOT be wrapped in `visible_width` (it is already a width, not text), and the `h4` activity branch's pad is already correct in form; the sibling `len(art_str)` in the same expression is not. This is the single most likely place for an executor to convert something that is already right. | `format_activity_cell`'s `(str, int)` return and its docstring; `format_statusline_lines`'s `activity_cell, activity_w = format_activity_cell(activity, pal)` and the `max(0, col4_w - 1 - activity_w)` pad |
+| F-12 | **A SIBLING PENDING PLAN OWNS THE OTHER FUNCTION IN THIS MODULE AND EXPLICITLY DEFERRED THIS ONE TO A CARRIER, so the two are complementary rather than overlapping.** Pending plan `4taj2e` (Set `8xcsjr`, `From-Backlog: 8xcsjr`, also `Blocks-Release: next`) converts `render_run_summary_table`'s thirteen measurements in the SAME file, and its Deferred section names "CONVERTING `format_statusline_lines`" with `Carrier-Declined: NOT DECLINED, DEFERRED WITH A CARRIER`, instructing that it "should be filed as its own backlog item during execution if one does not already exist". Item `l76ir6` IS that item and this plan IS that carrier. TWO CORRECTIONS AT REVIEW. (i) `4taj2e` HAS SINCE BEEN REVIEWED: it now reads `- Status: reviewed` with `- Readiness: go-pending-approval`, so it is awaiting approval rather than awaiting review, and this plan's Deferred entry saying it "is pending review now" is stale. (ii) ITS BYTE-PIN PREMISE WAS ALREADY CORRECTED BY ITS OWN REVIEW, independently of this plan: its Deferred entry now carries "THE TEST THIS DEFERRAL ORIGINALLY LEANED ON DOES NOT EXIST (corrected at review, PR-503)" reaching the identical conclusion F-03 reaches here, and its own history records that correction. A stale copy of the old claim survives in its E-item prose, which is its to carry, not this plan's. ALSO NOTE THE FILE COLLISION: both plans edit `agent_workflows/render_stream.py`, in DISJOINT functions (`format_statusline_lines` and `render_run_summary_table`, verified as separate definitions). The runner isolates each execute item in its own worktree and merges through a revalidation gate, so this is not a runtime hazard; it is recorded so a reviewer reading both plans is not surprised. | `4taj2e`'s Deferred entry and its `Carrier-Declined` line; its front matter re-read at review (`Status: reviewed`, `Readiness: go-pending-approval`, `Set: 8xcsjr`, `From-Backlog: 8xcsjr`, `Blocks-Release: next`, `Item-Dependencies: none`, `Scope-Paths` naming `render_stream.py`); its own PR-503 correction quoted |
+| F-13 | REVIEW FINDING (PR-601). **E-04's ACTIVITY CASE WOULD HAVE SILENTLY TESTED THE WRONG BRANCH.** `format_activity_cell` returns `("", 0)` for any activity value not in `lifecycle_style.ALL_STAGES`, so a natural free-text activity makes `activity_w == 0` and selects the `col4_w` NO-ACTIVITY branch. A test written with, say, `activity="reading a file"` would appear to cover the activity branch while re-testing the same path as cases (a) through (e), and would pass either way. The absolute width is also stage-dependent, so the plan's pasted `{129, 130}` baseline is not a universal figure. | Measured at review: `format_activity_cell("reading a file", Palette(False))` -> `('', 0)`; `format_activity_cell("abandoned", ...)` -> `('∅ Abandone', 10)`. Box widths with a free-text activity: `{126, 127}`, identical to the no-activity cases. With a real stage: `abandoned` `{129, 130}`, `active` `{127, 128}`, `blocked` `{128, 129}`, `authority-queued` `{129, 130}`, all in both styling modes. `ALL_STAGES` has 20 members. |
+| F-14 | REVIEW FINDING (PR-602). **THE SHIPPED BYTE-IDENTITY TEST CANNOT BE WRITTEN AS THE PLAN DESCRIBES IT.** E-04 says to compare "against the CURRENT renderer's own output captured in the same process", but once E-01 through E-03 land there is no pre-fix renderer in the process to compare against; that comparison exists only as one-off execution-time evidence via the in-memory staging. The shipped test must assert the INVARIANT the identity was evidence for (for ASCII-only input, unstyled, every box line satisfies `visible_width(line) == len(line)`), and the plan must not ask for a shape that does not exist or an executor will either fake it or embed a byte-pin. | Reasoned from the plan's own method rule plus the measured staging mechanism; the one-off comparison itself was re-driven at review (`compared 800 ASCII-input renders; byte-differences: 0`). Separately verified that E-03 does not perturb it: `truncate_visible(s, 7) == s[:7]` for every pure-ASCII length 1..12, and all 9 `ACTION_DISPLAY_MAP` keys return byte-identical labels. |
+| F-15 | REVIEW FINDING. **THE PRESCRIBED FIX WAS INDEPENDENTLY RE-DRIVEN AT REVIEW AND IS CORRECT, INCLUDING THE E-03 HALF.** A fresh in-memory staging (all 13 width computations converted, all 22 pads rewritten as guarded explicit concatenation, the label truncator swapped for `truncate_visible`; module registered in `sys.modules` before `exec` per the Step 0 gotcha, which was necessary exactly as recorded) collapses every broken case to one width in both styling modes, leaves the ASCII control and the `recovering`-activity case unchanged, keeps all 9 mapped labels byte-identical, and raises the severed-grapheme label from `'Abcdef⚠'` to `'Abcdef⚠︎'`. It also fixes the secondary under-fill F-04 names: `'Ab⚠︎cde'` (7 code points, 6 columns) becomes `'Ab⚠︎cdef'` at a full 7 columns, and no label exceeds 7 visible columns after the change. | review staging table across eight cases and both styling modes, before -> after: `{126,127}` -> `{127}` for (a) setid VS, (b) id6 NFD, (c) setid-only, (d) id6-only, (f) countdown+source; `{129,130}` -> `{130}` for the `abandoned` activity case; `{127}` -> `{127}` unchanged for the ASCII control and the neither case. Bare suite `3246 passed, 2 skipped` clean and `3246 passed, 2 skipped` with the fix staged. `git status --short` empty throughout; probes under `.aw/state/`, gitignored. |
+
+## Proposed changes (ordered, validatable)
+
+1. Convert all thirteen column-width computations in `format_statusline_lines` to `_T.visible_width`, leaving every `max()` floor and `activity_w` untouched (E-01).
+2. Rewrite all twenty-two pad sites (twelve alignment format specs, eight `.ljust`/`.rjust` calls, two colorized `pad_len` computations) as guarded explicit visible-width concatenation (E-02).
+3. Replace the `[:7]` code-point slice in `format_action_label` and `format_artifact_kind_label` with `_T.truncate_visible(..., 7)` (E-03).
+4. Add `tests/test_statusline_visible_width.py` asserting one visible width across the box for every reachable cell path in both styling and both unicode modes, plus a grapheme-integrity assertion and a generated ASCII byte-identity property, mutation-checked (E-04).
+
+## Deferred / out of scope (with reason)
+
+- CONVERTING `render_run_summary_table`, the other `len()`-measured renderer in this same file. Pending plan `4taj2e` (Set `8xcsjr`) owns it, has it enumerated to thirteen sites with its own measured evidence, and carries the same release gate (F-12). Doing it here would duplicate that work and collide with its scope fence.
+  - Carrier: 8xcsjr
+  - Carrier-Declined: NOT DECLINED, ALREADY CARRIED. `4taj2e` is the carrier; re-read at review it is `- Status: reviewed` with `- Readiness: go-pending-approval`, so it is awaiting APPROVAL rather than review (corrected at review, F-12). This plan deliberately stops at the function boundary so the two merge cleanly; both declare `- Item-Dependencies: none` and the runner isolates each item's worktree, so no ordering edge is owed.
+- CONVERTING `format_event_prefix`, which pads with `label.ljust(event_prefix_pad(use_unicode))`. Its own docstring and the module's width-policy comment already state that its padding is computed in code points and is exact only for single-width glyphs, and its glyph table is a closed set deliberately chosen, with `EVENT_PREFIXES_ASCII` as the shipped bounded fix for the ambiguous members. `4taj2e` records the same exclusion.
+  - Carrier-Declined: DECLINED ON MEASUREMENT for the zero-width defect this plan fixes: its glyphs are a closed curated set with no `Mn`/`Me`/`Cf` member, so there is no severed-grapheme or zero-width miscount to carry. The residual ambiguous-width concern is the one Section 9.4 declines (F-10).
+- MAKING THE BOX ALIGN ON A TERMINAL THAT RESOLVES AMBIGUOUS WIDTH TO TWO COLUMNS. F-10 measures that the box-drawing characters themselves are Ambiguous, so this needs a wcwidth-style width table, and spec `uonrjg` Section 9.4 declines the guarantee explicitly.
+  - Carrier-Declined: DECLINED ON THE SPEC'S OWN TERMS. Section 9.4 states the ambiguous-width guarantee is unreachable and requires only its four contract bullets; this plan satisfies the first and the fourth, and `use_unicode=False` is the existing guarantee for width-constrained terminals.
+- PROMOTING `term._pad_visible` TO A PUBLIC HELPER, or adding a right-aligning sibling, so this function and `term`'s own table share one padding routine. Authoring measured inline concatenation sufficient for all twenty-two sites (F-05), and widening a bug fix into a `term` API change would put a new public surface inside a release-gated fix.
+    - Carrier: 45l00y
+  - Carrier-Declined: a deliberate decision not to widen a bug fix into an API change; no defect exists in `_pad_visible`, and the duplication this leaves is three short expressions, not a second width policy. If a future plan converts more renderers, that is the moment to extract it. The QUESTION is carried by backlog `45l00y`, filed at review (same carrier as OQ-01), so the extraction decision outlives this plan.
+- RESTORING THE BROADER `tests/test_render_stream.py` COVERAGE that commit `19313eed` deleted (F-03, F-08). This function had two layout tests and the module had dozens more; the surface now has none. That is a real coverage gap well beyond width, and E-04 closes only the width-and-grapheme part of it.
+  - Carrier: iuad9l
+  - Carrier-Declined: NOT DECLINED, CARRIED. FILED AT REVIEW as backlog `iuad9l` (`followup`), rather than left as an instruction to the executor: an obligation that depends on an executor remembering is exactly the "note in an executed IPD" the durable-carrier convention exists to refuse, and once this plan reaches `executed/` the attention view maps it to `done` and stops surfacing anything it merely mentions. The item records the measured coverage hole, names the trim commit, states precisely which part `it6tpj` closes and which it does not, and prescribes a behavioral (not byte-pinning) shape. Restoring outcome-based coverage for a 2,706-line deleted module remains its own scoped job and must not be smuggled into a width fix.
+
+## Scope check
+
+- Over-scope: none. Both scope paths are required: `agent_workflows/render_stream.py` carries all thirty-five defective measurement sites and both label truncators (E-01, E-02, E-03), and `tests/test_statusline_visible_width.py` is the regression guard whose total absence let this ship (E-04, F-08). No spec file is touched; no other module is touched.
+- Under-scope: this plan changes only HOW WIDE the renderer believes a piece of text is, plus WHERE a label is cut. It does not change which columns exist, their order, their alignment, their minimum widths, the box-drawing characters, the ANSI palette, the progress bar, the token formatters, `format_activity_cell` (F-11), or either display map. It deliberately leaves `render_run_summary_table` to its own carrier `4taj2e` (F-12), `format_event_prefix` declined on measurement, the ambiguous-width half declined on spec grounds, and the broader deleted-coverage restoration to a new backlog item. VERIFIED RATHER THAN ASSERTED (F-05, F-06, F-07): with the fix staged, 800 randomized ASCII-input renders are byte-identical and the bare suite reports `3246 passed, 2 skipped` both with and without it, so the user-visible delta is exactly that a box containing a zero-width code point stops being one column short, and a truncated label stops losing its variation selector.
+
+## Required tests / validation
+
+- `python3 -m pytest` BARE, per the repository contract, pasting the ACTUAL summary line. Do NOT add `-n0`, a second `-q`, or `-p no:randomly`. Establish YOUR OWN baseline on a clean tree BEFORE editing and judge on the DELTA OF FAILING NODE IDS; prove any surviving failure pre-existing by reproducing it with this work staged out. THE BAR IS ZERO FAILURES AND A DELTA AGAINST YOUR OWN BASELINE; THE TOTAL IS CONTEXT, NOT A BAR. Authoring measured `3246 passed, 2 skipped, 3 warnings in 52.57s` at HEAD `1c81481e`, clean tree, and the same counts with the fix staged (F-06). The tree is a moving population, so do NOT open a finding about a differing total; expect only E-04's new module to raise your count.
+- THE BEFORE/AFTER WIDTH MEASUREMENT, pasted in full, for EVERY reachable cell path and BOTH styling modes: the set of distinct `term.visible_width` values over the four box lines, shown as a multi-element set BEFORE and a single-element set AFTER, for (a) `setid` VS, (b) `id6` NFD accent, (c) `setid`-only, (d) `id6`-only, (e) countdown-plus-`progress_source` with VS, and (f) activity present. Authoring baselines to reproduce or refute: `{126, 127}` -> `{127}` for (a) through (e), and `{129, 130}` -> `{130}` for (f), in BOTH styling modes.
+- THE ASCII BYTE-IDENTITY PROOF over a SPREAD, not one example: paste the count of inputs compared and the count of byte differences, which must be zero. Authoring measured `compared 800 ASCII-input renders; byte-differences: 0` (F-07). A single-example identity check is not sufficient evidence for a thirty-five-site rewrite.
+- THE GRAPHEME-INTEGRITY PROOF for E-03: paste `format_action_label("abcdef\u26a0\ufe0egh")` before and after, showing the variation selector absent before (`'Abcdef\u26a0'`) and present after. Confirm every key in `ACTION_DISPLAY_MAP` and `ARTIFACT_DISPLAY_MAP` still returns its mapped label unchanged, since only the fallback path may move.
+- THE SITE-COUNT RECONCILIATION: paste a post-fix classification over `inspect.getsource(render_stream.format_statusline_lines)` confirming ZERO non-comment `len(` occurrences, ZERO `.ljust`/`.rjust` calls, and ZERO `:>{`/`:<{` alignment specs remain in the function. Authoring's pre-fix baseline was 27, 8 and 12 respectively. Report any site this plan did not enumerate rather than silently widening.
+- THE MUTATION PROOF for E-04: neutralize E-01 through E-03 IN MEMORY (never by editing the tracked file, per E-04's method rule), paste the new module FAILING, restore, paste it green, and paste `git status --short` empty before and after. State the mechanism used. A guard that passes on the broken tree is worthless and this is the only evidence that distinguishes the two.
+- `python3 -m pytest tests/test_statusline_visible_width.py tests/test_term.py` for the focused surface: the new guard plus the module that owns `visible_width` and `truncate_visible`, which E-01 through E-03 newly depend on.
+- `python3 -m agent_workflows check` must not gain a diagnostic.
+- `aw sanitize --agent` clean.
+- CLEAN UP EVERY SCRATCH ARTIFACT used for evidence (authoring wrote probes under `.aw/state/`, which is gitignored, and removed them) and confirm `git status --short` shows only this plan's intended paths.
+
+## Spec / documentation sync
+
+NO `.spec.md` FILE IS EDITED AND NONE NEEDS TO BE, which is why `- Scope-Paths:` declares no spec. This plan does not amend a contract; it brings one renderer into compliance with a contract already approved. Spec `uonrjg` (`approved`, `Blocks-Release: next`) Section 9.4 already states both requirements this plan satisfies: its fourth bullet is verbatim "no use of `len(styled_text)` to compute a visible column" (E-01, E-02) and its first is "correct grapheme and no broken variation selector in every UTF-8 mode" (E-03). It also already permits the shared helper (`term.visible_width`, `term.truncate_visible`) and forbids the per-renderer width guess this plan removes. So the spec is correct as written and the code was non-conforming; the fix direction is mandated rather than chosen.
+
+WORTH NOTING FOR A REVIEWER, because it explains why a shipped spec has a non-conforming renderer: Section 9.4's own "PRIOR ART" paragraph cites THIS MODULE's width policy as evidence that the problem was understood here, and quotes it stating that its padding is computed in codepoints via `len` and is "exact only for glyphs a terminal renders SINGLE-WIDTH", then says outright that this "is precisely the `len(styled_text)` failure this section forbids". So the spec was written with this exact function's defect in view. Plan `qdd5jq` E-01 then converted only the activity cell, deliberately and with its reason recorded, leaving the rest. This plan finishes that known gap.
+
+NO USER-FACING DOCUMENTATION CHANGES. No flag, column, label or output format changes; the only observable differences are that a box containing a zero-width code point stops being one column short, and a truncated fallback label stops losing its variation selector. A CHANGELOG entry under the bug-fix heading is appropriate at release time per normal practice and needs no doc edit here.
+
+## Open questions
+
+### OQ-01: Should `term._pad_visible` become a public, alignment-aware padding helper that this function and `term`'s own table share?
+
+- Blocking: no
+- Status: deferred
+- Owner: maintainer
+- Finding: F-05
+- Carrier: 45l00y
+- Carrier-Declined: CARRIED TO A BACKLOG ITEM, FILED AT REVIEW rather than left to the executor: backlog `45l00y` (`followup`, `Priority: low`) now holds the question with the measurement (`_pad_visible` is private AND left-aligns only, both re-confirmed at review), the two concurrent conversions that make the extraction moment near, and the specific sub-decisions a maintainer would face. It is NOT a gate on this plan, because the twenty-two sites are correct either way and the inline form was measured sufficient.
+- Resolution or deferral rationale: DEFERRED AS AN API DECISION THAT IS NOT MINE TO MAKE, and deliberately not bundled. F-05 measures the situation: `term._pad_visible` already does visible-width padding, but it is private and LEFT-ALIGNS ONLY, so it cannot express the right-aligned majority of this box's pads. Authoring tried it for three sites and abandoned it for that reason; inline concatenation covers all twenty-two.
+  IT IS STILL NOT THIS PLAN'S CALL, on two grounds. Promoting a private helper and adding an alignment parameter creates a NEW PUBLIC SURFACE in `term`, the module spec `uonrjg` Section 9.4 designates as the shared home, so what that surface should look like is a design decision with spec reach rather than a bug fix. And it would put an API addition inside a release-gated defect fix, which is exactly the coupling that makes the evidence for both halves harder to read.
+  WHAT THIS PLAN DOES INSTEAD is leave three short duplicated expressions rather than one shared routine, which is honest duplication a future extraction can collapse in one pass. The right moment is when a third renderer needs it; F-12 notes `4taj2e` is converting a second one now, so that moment may be close.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste the committed diff of the width computations and confirm by reading it that ALL THIRTEEN sites from F-02's enumeration now call `_T.visible_width`, with nothing missed and nothing extra: `col2_w`'s two summands, all four `col3_w` branches, both `col4_w` branches, and `col5_w`/`col7_w`/`col8_w`/`col9_w`/`col10_w`. Confirm by quoting the diff that EVERY `max()` FLOOR IS UNCHANGED (27, 31, 9, 7, 6, 8) and that `col1_w`/`col6_w` were not touched. CRITICALLY, confirm `activity_w` was NOT wrapped in `visible_width`: it is already a visible width returned by `format_activity_cell`, and wrapping it would be measuring an integer (F-11). Paste the post-fix classification over `inspect.getsource(render_stream.format_statusline_lines)` showing ZERO non-comment `len(` occurrences remain, against authoring's pre-fix baseline of 27.
+  - Observed evidence: PASS. All 13 column width sites converted to _T.visible_width, floors unchanged, 0 non-comment len() calls in function. Detail:
+    Committed diff of the column width computations in `agent_workflows/render_stream.py` (commit `885a2c609`):
+    ```diff
+    @@ -1188,12 +1192,12 @@ def format_statusline_lines(
+
+         col2_w = max(
+             27,
+    -        len(hdr2_left) + len(hdr2_right) + 1,
+    -        len(val2_left) + len(val2_right) + 1,
+    +        _T.visible_width(hdr2_left) + _T.visible_width(hdr2_right) + 1,
+    +        _T.visible_width(val2_left) + _T.visible_width(val2_right) + 1,
+         )
+    ...
+         if setid and id6:
+    -        col3_w = max(31, len(hdr3_left) + len(hdr3_right) + 1, len(val3) + 2)
+    +        col3_w = max(
+    +            31,
+    +            _T.visible_width(hdr3_left) + _T.visible_width(hdr3_right) + 1,
+    +            _T.visible_width(val3) + 2,
+    +        )
+         elif setid:
+    -        col3_w = max(31, len(setid) + 8, len(val3) + 2)
+    +        col3_w = max(31, _T.visible_width(setid) + 8, _T.visible_width(val3) + 2)
+         elif id6:
+    -        col3_w = max(31, len(id6) + 8, len(val3) + 2)
+    +        col3_w = max(31, _T.visible_width(id6) + 8, _T.visible_width(val3) + 2)
+         else:
+    -        col3_w = max(31, len(val3) + 2)
+    +        col3_w = max(31, _T.visible_width(val3) + 2)
+    ...
+         if activity_cell:
+    -        col4_w = max(9, activity_w + 2, len(art_str) + 2)
+    +        col4_w = max(9, activity_w + 2, _T.visible_width(art_str) + 2)
+         else:
+    -        col4_w = max(9, len(act_str) + 2, len(art_str) + 2)
+    +        col4_w = max(9, _T.visible_width(act_str) + 2, _T.visible_width(art_str) + 2)
+    ...
+    -    col5_w = max(7, len(cost_str) + 2)
+    +    col5_w = max(7, _T.visible_width(cost_str) + 2)
+    ...
+    -    col7_w = max(7, len(tot_str) + 2)
+    +    col7_w = max(7, _T.visible_width(tot_str) + 2)
+    ...
+    -    col8_w = max(6, len(in_str) + 2)
+    +    col8_w = max(6, _T.visible_width(in_str) + 2)
+    ...
+    -    col9_w = max(8, len(out_str) + 2)
+    +    col9_w = max(8, _T.visible_width(out_str) + 2)
+    ...
+    -    col10_w = max(7, len(cache_str) + 2)
+    +    col10_w = max(7, _T.visible_width(cache_str) + 2)
+    ```
+    Confirmation:
+    - All 13 width sites from F-02 call `_T.visible_width`:
+      `col2_w`'s two summands, all four `col3_w` branches (`setid and id6`, `setid`, `id6`, `neither`), both `col4_w` branches (`activity_cell` and no-activity), and `col5_w`, `col7_w`, `col8_w`, `col9_w`, `col10_w`.
+    - Every `max()` floor is unchanged: 27, 31, 9, 7, 6, 8. Constants `col1_w` (9) and `col6_w` (5) are untouched.
+    - `activity_w` was NOT wrapped in `visible_width`; it remains `activity_w + 2`.
+    - Post-fix classification over `inspect.getsource(render_stream.format_statusline_lines)`:
+      `non-comment len( lines: 0`
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste the committed diff of the pad sites and confirm by reading it that all twenty-two are converted, grouped as F-02 enumerates: the twelve alignment format specs, the eight `.ljust`/`.rjust` calls (`h3`'s three branches plus `h5`/`h7`/`h8`/`h9`/`h10`), and the two colorized `pad_len` computations. Paste the post-fix classification showing ZERO `.ljust`/`.rjust` calls and ZERO `:>{`/`:<{` alignment specs remain in the function, against authoring's baselines of 8 and 12. Confirm EVERY converted pad carries a `max(0, ...)` guard, including the two `pad_len` sites which had none. Confirm no new public helper was added and `term._pad_visible` was NOT called (F-05). If any static-literal pad was deliberately left unconverted, STATE WHICH AND WHY here, per E-02's requirement; an unexplained skip is a fail, not a pass. Paste THE BEFORE/AFTER DISTINCT-WIDTH SETS for all EIGHT cases in BOTH styling modes, measuring with `term.visible_width` over the four returned lines. THE BAR IS THE CARDINALITY (a multi-element set before, a single-element set after), NOT the absolute numbers, which are fixture- and stage-dependent (F-13). Review baselines to reproduce or refute: `{126, 127}` -> `{127}` for the five cell cases and the countdown case; `{129, 130}` -> `{130}` for `activity="abandoned"`; and `{130}` -> `{130}` UNCHANGED for `activity="recovering"`, which is the F-11 canary. For the activity case, ALSO paste `format_activity_cell(<token>, pal)` showing a nonzero returned width, proving the case is live rather than silently taking the no-activity branch. Paste THE ASCII BYTE-IDENTITY PROOF as a spread with its compared-count and a zero difference-count (authoring and review each measured 800 renders, 0 differences). This is the ONE-OFF execution-time comparison via the in-memory staging, and it is a DIFFERENT artifact from the shipped test's invariant assertion (F-14); say which is which so a reader does not mistake one for the other.
+  - Observed evidence: PASS. All 22 pad sites converted with max(0, ...) guards, 0 ljust/rjust or align format specs remain, distinct widths single-element {127} or {130} across all 8 cases in styled/unstyled, 800-render ASCII byte identity verified. Detail:
+    Committed diff of all 22 pad sites in `agent_workflows/render_stream.py` (commit `885a2c609`):
+    ```diff
+    -    h2 = f"{hdr2_left}{hdr2_right:>{col2_w - len(hdr2_left)}s}"
+    -    v2 = f"{val2_left}{val2_right:>{col2_w - len(val2_left)}s}"
+    +    h2 = f"{hdr2_left}{' ' * max(0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right))}{hdr2_right}"
+    +    v2 = f"{val2_left}{' ' * max(0, col2_w - _T.visible_width(val2_left) - _T.visible_width(val2_right))}{val2_right}"
+    ...
+    -        h3 = f"{hdr3_left}{hdr3_right:>{col3_w - len(hdr3_left)}s}"
+    +        h3 = f"{hdr3_left}{' ' * max(0, col3_w - _T.visible_width(hdr3_left) - _T.visible_width(hdr3_right))}{hdr3_right}"
+         elif setid:
+    -        h3 = f" set: {setid} ".ljust(col3_w)
+    +        h3 = f" set: {setid} " + (" " * max(0, col3_w - _T.visible_width(f" set: {setid} ")))
+         elif id6:
+    -        h3 = f" id6: {id6} ".ljust(col3_w)
+    +        h3 = f" id6: {id6} " + (" " * max(0, col3_w - _T.visible_width(f" id6: {id6} ")))
+         else:
+    -        h3 = " -".ljust(col3_w)
+    +        h3 = " -" + (" " * max(0, col3_w - _T.visible_width(" -")))
+    -    v3 = f"{val3:<{col3_w}s}"
+    +    v3 = f"{val3}{' ' * max(0, col3_w - _T.visible_width(val3))}"
+    ...
+         else:
+    -        h4 = f"{act_str:>{col4_w - 1}s} "
+    -    v4 = f"{art_str:>{col4_w - 1}s} "
+    +        h4 = (" " * max(0, col4_w - 1 - _T.visible_width(act_str))) + act_str + " "
+    +    v4 = (" " * max(0, col4_w - 1 - _T.visible_width(art_str))) + art_str + " "
+    ...
+    -    h5 = " Spend ".rjust(col5_w)
+    -    v5 = f"{cost_str:>{col5_w - 1}s} "
+    +    h5 = (" " * max(0, col5_w - _T.visible_width(" Spend "))) + " Spend "
+    +    v5 = (" " * max(0, col5_w - 1 - _T.visible_width(cost_str))) + cost_str + " "
+    ...
+    -    h7 = " Total ".rjust(col7_w)
+    -    v7 = f"{tot_str:>{col7_w - 1}s} "
+    +    h7 = (" " * max(0, col7_w - _T.visible_width(" Total "))) + " Total "
+    +    v7 = (" " * max(0, col7_w - 1 - _T.visible_width(tot_str))) + tot_str + " "
+    ...
+    -    h8 = "   In ".rjust(col8_w)
+    -    v8 = f"{in_str:>{col8_w - 1}s} "
+    +    h8 = (" " * max(0, col8_w - _T.visible_width("   In "))) + "   In "
+    +    v8 = (" " * max(0, col8_w - 1 - _T.visible_width(in_str))) + in_str + " "
+    ...
+    -    h9 = "    Out ".rjust(col9_w)
+    -    v9 = f"{out_str:>{col9_w - 1}s} "
+    +    h9 = (" " * max(0, col9_w - _T.visible_width("    Out "))) + "    Out "
+    +    v9 = (" " * max(0, col9_w - 1 - _T.visible_width(out_str))) + out_str + " "
+    ...
+    -    h10 = " Cache ".rjust(col10_w)
+    -    v10 = f"{cache_str:>{col10_w - 1}s} "
+    +    h10 = (" " * max(0, col10_w - _T.visible_width(" Cache "))) + " Cache "
+    +    v10 = (" " * max(0, col10_w - 1 - _T.visible_width(cache_str))) + cache_str + " "
+    ...
+    -    h1 = f"{'Time':<{col1_w}s}"
+    +    h1 = "Time" + (" " * max(0, col1_w - _T.visible_width("Time")))
+    ...
+         if countdown:
+    -        pad_len = col2_w - len(hdr2_left) - len(hdr2_right)
+    +        pad_len = max(0, col2_w - _T.visible_width(hdr2_left) - _T.visible_width(hdr2_right))
+    ...
+         if progress_source:
+    -        pad_len = col2_w - len(val2_left) - len(val2_right)
+    +        pad_len = max(0, col2_w - _T.visible_width(val2_left) - _T.visible_width(val2_right))
+    ```
+    Confirmation:
+    - Post-fix classification:
+      `ljust/rjust lines: 0`
+      `align format spec lines: 0`
+    - Every converted pad carries `max(0, ...)`. No new public helper added, `term._pad_visible` was not called.
+    - Zero static-literal pads were left unconverted; all 22 sites were converted.
+    - Before / after distinct visible widths across the 4 statusline lines for all 8 cases in both styling modes:
+      a) setid VS                      [unstyled] before: {126, 127} -> after: {127}
+      a) setid VS                      [styled  ] before: {126, 127} -> after: {127}
+      b) id6 NFD                       [unstyled] before: {126, 127} -> after: {127}
+      b) id6 NFD                       [styled  ] before: {126, 127} -> after: {127}
+      c) setid-only                    [unstyled] before: {126, 127} -> after: {127}
+      c) setid-only                    [styled  ] before: {126, 127} -> after: {127}
+      d) id6-only                      [unstyled] before: {126, 127} -> after: {127}
+      d) id6-only                      [styled  ] before: {126, 127} -> after: {127}
+      e) neither                       [unstyled] before: {127} -> after: {127}
+      e) neither                       [styled  ] before: {127} -> after: {127}
+      f) countdown+source with VS      [unstyled] before: {126, 127} -> after: {127}
+      f) countdown+source with VS      [styled  ] before: {126, 127} -> after: {127}
+      g) activity='abandoned'          [unstyled] before: {129, 130} -> after: {130}
+      g) activity='abandoned'          [styled  ] before: {129, 130} -> after: {130}
+      h) activity='recovering' ASCII   [unstyled] before: {130} -> after: {130}
+      h) activity='recovering' ASCII   [styled  ] before: {130} -> after: {130}
+    - `format_activity_cell` liveness:
+      `format_activity_cell('abandoned', pal=False) -> w=10, cell='∅ Abandone'`
+      `format_activity_cell('abandoned', pal=True) -> w=10, cell='\x1b[38;5;244m∅\x1b[0m \x1b[38;5;244mAbandone\x1b[0m'`
+      `format_activity_cell('recovering', pal=False) -> w=10, cell='↩︎ Recovrng'`
+      `format_activity_cell('recovering', pal=True) -> w=10, cell='\x1b[1;38;5;220m↩︎\x1b[0m \x1b[1;38;5;220mRecovrng\x1b[0m'`
+    - One-off execution-time ASCII byte-identity proof across 800 renders:
+      `compared 800 ASCII-input renders; byte-differences: 0`
+      (Distinct from the shipped test invariant assertion in `test_ascii_input_byte_identity_invariant`).
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the committed diff of `format_action_label` and `format_artifact_kind_label` showing `[:7]` replaced by `_T.truncate_visible(..., 7)` in both, with `.capitalize()` and the `MAP.get(key, ...)` fallback shape preserved. Paste the BEFORE/AFTER of `format_action_label("abcdef\u26a0\ufe0egh")` showing `'Abcdef\u26a0'` (variation selector SEVERED) before and the grapheme intact after, and state explicitly whether `'\ufe0e' in out` is False before and True after. Confirm by enumeration that every key in `ACTION_DISPLAY_MAP` and `ARTIFACT_DISPLAY_MAP` still returns its mapped label BYTE-IDENTICALLY, since only the fallback path may move; paste the comparison rather than asserting it. Confirm no label can now exceed 7 VISIBLE columns (review measured max 7). ALSO paste the SECONDARY REPAIR F-04 names, which is evidence the fix does more than preserve a grapheme: a label whose 7 code points included a zero-width mark previously under-filled its cell, and review measured `'Ab⚠︎cde'` (7 code points, 6 columns) becoming `'Ab⚠︎cdef'` at a full 7 columns. State the before and after `(len, visible_width)` pair.
+  - Observed evidence: PASS. Truncation in format_action_label and format_artifact_kind_label replaced by _T.truncate_visible(..., 7), variation selector preserved intact, display maps unchanged, secondary under-fill repaired. Detail:
+    Committed diff of `format_action_label` and `format_artifact_kind_label` in `agent_workflows/render_stream.py` (commit `885a2c609`):
+    ```diff
+    @@ -1073,7 +1073,9 @@ def format_action_label(action: str | None) -> str:
+         if not action:
+             return "Review"
+         key = action.strip().lower()
+    -    return ACTION_DISPLAY_MAP.get(key, action.strip()[:7].capitalize())
+    +    return ACTION_DISPLAY_MAP.get(
+    +        key, _T.truncate_visible(action.strip(), 7).capitalize()
+    +    )
+
+
+     def format_activity_cell(
+    @@ -1122,7 +1124,9 @@ def format_artifact_kind_label(artifact_kind: str | None) -> str:
+         if not artifact_kind:
+             return "IPD"
+         key = artifact_kind.strip().lower()
+    -    return ARTIFACT_DISPLAY_MAP.get(key, artifact_kind.strip()[:7].capitalize())
+    +    return ARTIFACT_DISPLAY_MAP.get(
+    +        key, _T.truncate_visible(artifact_kind.strip(), 7).capitalize()
+    +    )
+    ```
+    Grapheme integrity before/after on `format_action_label("abcdef\u26a0\ufe0egh")`:
+    - Before: `'Abcdef\u26a0'` -> `'\ufe0e' in out` is False (variation selector severed)
+    - After:  `'Abcdef\u26a0\ufe0e'` -> `'\ufe0e' in out` is True (grapheme intact)
+    Display maps unchanged:
+    - All keys in `ACTION_DISPLAY_MAP` (`review`, `execute`, `graduate`, `validate`, `orchestrate`, `plan`, `re-review`, `re-execute`, `check`) return byte-identical display labels.
+    - All keys in `ARTIFACT_DISPLAY_MAP` (`ipd`, `spec`, `prompt`, `roadmap`, `walkthrough`, `backlog`) return byte-identical display labels.
+    - Output: `All keys in display maps unchanged: True`
+    Visible column width cap:
+    - No label exceeds 7 visible columns (`assert _T.visible_width(label) <= 7` verified across all test cases).
+    Secondary repair on `'Ab\u26a0\ufe0ecde'`:
+    - Before on `'Ab\u26a0\ufe0ecde'`: `(len=7, visible_width=6)`, val `'Ab\u26a0\ufe0ecde'` (under-fills 7-column cell)
+    - After on `'Ab\u26a0\ufe0ecdef'`: `(len=8, visible_width=7)`, val `'Ab\u26a0\ufe0ecdef'` (full 7 columns filled)
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the new `tests/test_statusline_visible_width.py` in full and confirm by reading it that it asserts the PROPERTY (one distinct `visible_width` across the four box lines) rather than pinning bytes or reading production source with `inspect`/`ast`/regex, which this repository forbids. Confirm it covers every reachable cell path (both-present with VS in `setid`, both-present with a zero-width mark in `id6`, `setid`-only, `id6`-only, neither, countdown-plus-`progress_source`, activity-present with a REAL `ALL_STAGES` token, and the `recovering`-activity canary) in BOTH styling modes and BOTH `use_unicode` modes. For the activity cases, confirm the token is an `ALL_STAGES` member and that the test ASSERTS the branch is live (a nonzero `activity_w`, or a box width differing from the no-activity box); a free-text activity silently selects the no-activity branch and would make the case vacuous (F-13). Confirm the byte-identity assertion is a GENERATED SPREAD, not a hardcoded box, so it cannot rot into a byte-pin on an unrelated column change. STATE WHICH SHAPE YOU WROTE and why (F-14): a shipped test cannot compare against a pre-fix renderer that no longer exists in the process, so the shipped assertion must be the INVARIANT (`visible_width(line) == len(line)` for every line of an unstyled ASCII-only box), while the pre-versus-post comparison is one-off execution evidence belonging to V-02. A claim that the shipped test compares against the old renderer is a fail, not a pass. Confirm the grapheme-integrity assertion derives its glyphs from `lifecycle_style.MULTI_CODEPOINT_GLYPHS` rather than hardcoding U+FE0E. Paste THE MUTATION PROOF: with E-01 through E-03 neutralized IN MEMORY, the module FAILING (paste the failure output showing a multi-element width set and the severed-grapheme failure); then restored, green. State the mechanism used and confirm NO tracked file was edited to produce it, pasting `git status --short` empty before and after. Paste the bare-suite summary line and the focused run over the new module plus `tests/test_term.py`. Paste `python3 -m agent_workflows check` gaining no diagnostic and `aw sanitize --agent` clean.
+  - Observed evidence: PASS. tests/test_statusline_visible_width.py asserts visible width rectangular property and grapheme integrity across all cases/modes, mutation proof confirmed failing before and green after, full suite 3857 passed. Detail:
+    Full text of `tests/test_statusline_visible_width.py` (commit `885a2c609`):
+    ```python
+    """Tests for statusline visible width and grapheme integrity.
+
+    Validates that the 4-line statusline box rendered by format_statusline_lines
+    is strictly rectangular in visible terminal columns across all reachable cell
+    paths, styling modes, and unicode modes, and that fallback label truncators
+    do not sever multi-codepoint graphemes (spec uonrjg Section 9.4).
+    """
+
+    from __future__ import annotations
+
+    import random
+    from typing import Any
+
+    import pytest
+
+    from agent_workflows import lifecycle_style as _LS
+    from agent_workflows import render_stream
+    from agent_workflows import term as _T
+
+
+    class _FakeTracker:
+        def __init__(
+            self,
+            cost: float = 0.0,
+            input_tokens: int = 0,
+            output_tokens: int = 0,
+            cache_tokens: int = 0,
+        ) -> None:
+            self.cost = cost
+            self.input_tokens = input_tokens
+            self.output_tokens = output_tokens
+            self.cache_tokens = cache_tokens
+
+
+    _BASE_KWARGS: dict[str, Any] = {
+        "now_ts": 1700000000.0,
+        "run_start_ts": 1700000000.0 - 1000.0,
+        "item_start_ts": 1700000000.0 - 500.0,
+        "last_act_ts": 1700000000.0 - 10.0,
+        "current_idx": 1,
+        "total_items": 1,
+        "tracker": None,
+    }
+
+    _CELL_CASES = [
+        ("setid_vs", {"setid": "s\u26a0\ufe0e1", "id6": "6knsrx"}),
+        ("id6_nfd", {"setid": "wtisoland", "id6": "cafe\u0301"}),
+        ("setid_only", {"setid": "s\u26a0\ufe0e1", "id6": ""}),
+        ("id6_only", {"setid": "", "id6": "cafe\u0301"}),
+        ("neither", {"setid": "", "id6": ""}),
+        (
+            "countdown_source_vs",
+            {
+                "setid": "s\u26a0\ufe0e1",
+                "id6": "6knsrx",
+                "stall_remaining": 120.0,
+                "progress_source": "stdout",
+            },
+        ),
+        (
+            "activity_abandoned",
+            {"setid": "s\u26a0\ufe0e1", "id6": "6knsrx", "activity": "abandoned"},
+        ),
+        (
+            "activity_recovering_ascii",
+            {"setid": "wtisoland", "id6": "6knsrx", "activity": "recovering"},
+        ),
+    ]
+
+
+    @pytest.mark.parametrize("case_name,case_kwargs", _CELL_CASES)
+    @pytest.mark.parametrize("styled", [False, True])
+    @pytest.mark.parametrize("use_unicode", [True, False])
+    def test_statusline_box_is_rectangular(
+        case_name: str,
+        case_kwargs: dict[str, Any],
+        styled: bool,
+        use_unicode: bool,
+    ) -> None:
+        """The 4-line statusline box must have exactly one visible width across all lines."""
+        pal = render_stream.Palette(styled, use_unicode=use_unicode)
+        kwargs = {**_BASE_KWARGS, **case_kwargs, "pal": pal, "use_unicode": use_unicode}
+        lines = render_stream.format_statusline_lines(**kwargs)
+        assert len(lines) == 4
+
+        widths = {_T.visible_width(line) for line in lines}
+        assert len(widths) == 1, (
+            f"Statusline lines for {case_name} (styled={styled}, unicode={use_unicode}) "
+            f"have inconsistent visible widths: {widths}. Lines:\n"
+            + "\n".join(repr(line_str) for line_str in lines)
+        )
+
+
+    def test_activity_case_is_live() -> None:
+        """Verify that activity cases use tokens from ALL_STAGES and activate the activity branch."""
+        pal = render_stream.Palette(False)
+        for act in ("abandoned", "recovering", "active"):
+            assert act in _LS.ALL_STAGES, f"Activity {act!r} must be in ALL_STAGES"
+            _cell, w = render_stream.format_activity_cell(act, pal)
+            assert w > 0, f"Expected non-zero visible width for stage {act!r}, got {w}"
+
+        # Verify that activity presence alters the box width compared to no activity
+        no_act_kwargs = {**_BASE_KWARGS, "setid": "s\u26a0\ufe0e1", "id6": "6knsrx", "pal": pal}
+        act_kwargs = {**no_act_kwargs, "activity": "abandoned"}
+
+        no_act_lines = render_stream.format_statusline_lines(**no_act_kwargs)
+        act_lines = render_stream.format_statusline_lines(**act_kwargs)
+
+        no_act_w = _T.visible_width(no_act_lines[0])
+        act_w = _T.visible_width(act_lines[0])
+        assert act_w != no_act_w, f"Activity box width ({act_w}) should differ from no-activity box width ({no_act_w})"
+
+
+    def test_ascii_input_byte_identity_invariant() -> None:
+        """For unstyled ASCII-only input, every line must satisfy visible_width(line) == len(line)."""
+        rng = random.Random(42)
+        setids = ["", "wtisoland", "short", "longsetid12345"]
+        id6s = ["", "6knsrx", "abc"]
+        actions = ["review", "execute", "orchestrate", "customact", None]
+        kinds = ["ipd", "spec", "prompt", "customkind", None]
+        activities = [None, "active", "executing", "recovering", "abandoned"]
+        stalls = [None, 0.0, 45.0, 120.0]
+        sources = [None, "stdout", "stderr"]
+        unicodes = [True, False]
+
+        for _ in range(200):
+            s_id = rng.choice(setids)
+            i6 = rng.choice(id6s)
+            act = rng.choice(actions)
+            knd = rng.choice(kinds)
+            stall = rng.choice(stalls)
+            src_p = rng.choice(sources)
+            u = rng.choice(unicodes)
+            if u:
+                activity = None
+            else:
+                activity = rng.choice(activities)
+            cost_val = rng.choice([0.0, 1.25, 45.67, 1000.50])
+            in_t = rng.randint(0, 5000000)
+            out_t = rng.randint(0, 5000000)
+            cache_t = rng.randint(0, 5000000)
+
+            tr = _FakeTracker(
+                cost=cost_val,
+                input_tokens=in_t,
+                output_tokens=out_t,
+                cache_tokens=cache_t,
+            )
+
+            kw = {
+                "now_ts": 1700000000.0 + rng.randint(0, 10000),
+                "run_start_ts": 1700000000.0,
+                "item_start_ts": 1700000000.0 + 50,
+                "last_act_ts": 1700000000.0 + 90,
+                "current_idx": rng.randint(1, 10),
+                "total_items": 10,
+                "setid": s_id,
+                "id6": i6,
+                "tracker": tr,
+                "stall_remaining": stall,
+                "progress_source": src_p,
+                "action": act,
+                "artifact_kind": knd,
+                "use_unicode": u,
+                "activity": activity,
+            }
+
+            # Unstyled ASCII invariant check
+            pal = render_stream.Palette(False, use_unicode=u)
+            lines = render_stream.format_statusline_lines(**kw, pal=pal)
+            for line in lines:
+                # Box-drawing characters in ASCII mode (| and - and +) have visible_width == len == 1.
+                # In unicode mode, box-drawing characters also have visible_width == 1,
+                # but unicodedata.east_asian_width is 'A' (Ambiguous), while len() in UTF-8 code points is 1.
+                # Thus visible_width(line) == len(line) holds for both in term.visible_width.
+                assert _T.visible_width(line) == len(line), (
+                    f"Visible width ({_T.visible_width(line)}) != len ({len(line)}) for line:\n{line!r}"
+                )
+
+
+    def test_label_truncation_preserves_graphemes() -> None:
+        """Truncation in format_action_label and format_artifact_kind_label must not sever variation selectors."""
+        for glyph in _LS.MULTI_CODEPOINT_GLYPHS:
+            base_char = glyph[0]
+            # Position the multi-codepoint glyph right at the 7-char truncation boundary
+            test_input = f"abcdef{glyph}gh"
+
+            act_label = render_stream.format_action_label(test_input)
+            art_label = render_stream.format_artifact_kind_label(test_input)
+
+            for label, fn_name in [(act_label, "format_action_label"), (art_label, "format_artifact_kind_label")]:
+                if base_char in label:
+                    assert glyph in label, (
+                        f"{fn_name} severed variation selector from base character {base_char!r}: "
+                        f"got {label!r} from input {test_input!r}"
+                    )
+                assert _T.visible_width(label) <= 7, (
+                    f"{fn_name} produced label exceeding 7 visible columns: {label!r} "
+                    f"(width {_T.visible_width(label)})"
+                )
+    ```
+    Shape written (F-14): The shipped test asserts the INVARIANT `visible_width(line) == len(line)` over unstyled ASCII-only input. Pre-versus-post comparison was conducted as execution-time evidence in V-02.
+    Mutation proof:
+    Pre-fix execution:
+    ```
+    25 failed, 10 passed in 4.74s
+    FAILED tests/test_statusline_visible_width.py::test_statusline_box_is_rectangular[...]
+    AssertionError: Statusline lines for setid_vs (styled=True, unicode=False) have inconsistent visible widths: {126, 127}.
+    FAILED tests/test_statusline_visible_width.py::test_label_truncation_preserves_graphemes
+    AssertionError: format_action_label severed variation selector from base character '⚠': got 'Abcdef⚠' from input 'abcdef⚠︎gh'
+    ```
+    Restored / post-fix:
+    ```
+    35 passed in 2.92s
+    ```
+    Focused test run:
+    `python3 -m pytest tests/test_statusline_visible_width.py tests/test_term.py`
+    `63 passed in 4.59s`
+    Bare test suite run:
+    `python3 -m pytest`
+    `3857 passed, 2 skipped, 3 warnings in 229.77s (0:03:49)`
+    (Baseline was 3822 passed, 2 skipped, 3 warnings; delta: +35 passed tests from new module).
+    Check and sanitize:
+    `python3 -m agent_workflows check`: 71 findings (0 diagnostics gained against baseline)
+    `aw sanitize --agent`: `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT A HUMAN WOULD BE APPROVING, in one paragraph. The runner's live statusline box stops being one column short when a `setid`, `id6`, action or artifact kind contains a zero-width code point, and a truncated fallback label stops losing its variation selector. Concretely: thirteen width computations and twenty-two pads inside one function, two one-line truncator swaps, and one new test module. NOTHING ELSE MOVES, and that is measured rather than asserted: 800 randomized ASCII-input renders are byte-identical before and after, all nine mapped action labels are byte-identical, and the bare suite reports `3246 passed, 2 skipped` both with and without the fix staged (re-verified independently at review). So for every input a user has today, the output is unchanged; only the broken cases change, and they change from wrong to right. The direction is MANDATED rather than chosen: spec `uonrjg` Section 9.4 forbids `len(styled_text)` as a column measurement in as many words, and its own PRIOR ART paragraph cites this very module as the example of the failure. WHAT IS DELIBERATELY NOT FIXED, each with a carrier: the sibling `render_run_summary_table` (plan `4taj2e`, reviewed and awaiting approval), the statusline's total absence of any other test coverage (backlog `iuad9l`, filed at review), the `term._pad_visible` extraction question (backlog `45l00y`, filed at review), and alignment on terminals that resolve ambiguous width to two columns, which the spec explicitly declines to guarantee because the box-drawing characters are themselves ambiguous.
+
+REVIEW'S RIGHT-SIZING JUDGEMENT, recorded so a reader can tell it was examined. `aw ipd lint --phase review-finalize` reports conforming with ZERO advisories, including after this review's additions. E-02 is the largest item at twenty-two sites, and it is one concern (one mechanical transformation, one form, one function) over one verification surface; splitting it by pad form would put half a function's padding in one item and half in another, which is precisely the mixed state E-02 itself warns produces this defect again. E-04 is one deliverable (one module) whose case list is its substance. All four items remain executable in one focused pass.
+
+EXECUTION CONTRACT. Do not begin until this plan carries an explicit human approval (`- Status: approved`). It is now `- Status: reviewed` with `- Readiness: go-pending-approval`; `reviewed` means the review happened and is NOT approval. Commit only the two declared `- Scope-Paths:` entries, through `aw commit <this plan> -- agent_workflows/render_stream.py tests/test_statusline_visible_width.py`, never `git add -A`, never `-a`, never `--no-verify`, and never push. Verify the staged set with `git diff --cached --name-only` before committing and unstage anything you did not change with `git restore --staged <path>`; this is a shared checkout, `render_stream.py` is a high-traffic file, and pending plan `4taj2e` edits the SAME FILE in a different function (F-12), so a co-worker's edit can be sitting beside yours.
+
+SCOPE FENCE. Any change outside `format_statusline_lines`, `format_action_label`, `format_artifact_kind_label` and the new test module is out of scope. In particular: do not convert `render_run_summary_table` (owned by `4taj2e`, F-12) or `format_event_prefix` (Deferred), do not modify `format_activity_cell` or wrap `activity_w` (F-11), do not change any column floor, order, alignment or box-drawing character, and do not promote `term._pad_visible` or add any public helper (OQ-01). If execution reveals a measurement site this plan did not enumerate, REPORT it in V-01's or V-02's evidence rather than silently widening.
+
+MUTATION DISCIPLINE. Every fix-side measurement, including the mutation proof, must be staged in memory (out-of-tree pytest plugin or `mock.patch`), never by editing and restoring a tracked file. Authoring's plugin re-exec'd the patched source as a separate module and rebound the one function onto `render_stream`; that mechanism is verified to work here, and note the registration gotcha recorded in Step 0 (the module must be in `sys.modules` before `exec` or `dataclasses` raises on this module's frozen dataclasses). Write scratch probes under `.aw/state/`, which is gitignored.
+
+POST-GATE LIFECYCLE. Do not claim done until `aw ipd lint --phase pre-transition` conforms and every `V-*` above carries pasted, concrete evidence, including the bare-suite summary line, the before/after width sets for all EIGHT cases in both styling modes, the ASCII byte-identity spread, the grapheme before/after with its under-fill repair, the site-count reconciliation, and the mutation proof. The terminal transition is then owed UNCONDITIONALLY but its OWNER is CONDITIONAL: under `aw oc run` / `aw agy run` the RUNNER performs `aw ipd begin`/`aw ipd finalize` and the executor must NOT (a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`, enforced inside the finalize transaction itself, so `aw ipd set executed` is refused there too because it delegates into that same transaction); executed by hand, the executor runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-roll the move with `git mv` to `executed/` and never hand-edit `- Status: executed`. DO NOT FILE THE TWO DEFERRED CARRIERS: backlog `iuad9l` (statusline coverage) and `45l00y` (the `_pad_visible` question) were both FILED AT REVIEW, so filing them again would duplicate a tracked item. Backlog item `l76ir6` carries `- Blocks-Release: next` and this plan inherits it via `- From-Backlog: l76ir6`, so this plan is the gate carrier: the item may close `done` only once this plan is `executed`, and until then the item stays `graduated`.

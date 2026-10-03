@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from agent_workflows import run_analytics_query as query_mod
+from agent_workflows.project_context import resolve_verb_repo_root
 from agent_workflows.renderers import get_renderer
 from agent_workflows.result_types import (
     CommandResult,
@@ -173,7 +174,7 @@ def open_report(path: Path) -> LaunchOutcome:
 
 
 def _repo_root(args: argparse.Namespace) -> Path:
-    return Path(getattr(args, "dir", None) or ".")
+    return resolve_verb_repo_root(getattr(args, "dir", None))
 
 
 def _repo_rel(path: Path | str, repo: Path | str, *, _pathmod: Any = os.path) -> str:
@@ -254,25 +255,19 @@ def _emit_query_agent(result: query_mod.QueryResult, args: argparse.Namespace) -
     renderer = AgentRenderer()
     parts = [renderer.render_item(row, "runs query", ctx) for row in rows]
     total = max(result.total, result.emitted)
-    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, AND THIS WORKS AROUND A
-    # PRE-EXISTING DEFECT RATHER THAN INTRODUCING ONE.
+    # THE SUMMARY IS RENDERED WITHOUT THE FIELD PROJECTION, DELIBERATELY, TO PRESERVE PAGINATION.
     #
-    # Measured: `AgentRenderer.render_summary(..., context=ctx)` with `ctx.fields` set RAISES
-    # `ValueError: Invalid aw.agent/v1 record: Summary record missing required field 'total' ...`,
-    # because `filter_record_fields` preserves only `agent_schema._MANDATORY_FIELDS` (schema, kind,
-    # cmd, exit, outcome, verified, complete) while `validate_agent_record` ADDITIONALLY requires
-    # `total`, `emitted` and `omitted` on a summary. So the two contracts disagree, and any caller
-    # passing `--fields` to a summary crashes.
+    # The summary takes no field projection because `next` is not in `agent_schema._PRESERVED_FIELDS`,
+    # so projecting this record could drop the paging continuation and emit a truncated answer
+    # (`complete: false` with `omitted > 0`) that tells the caller nothing about how to get the rest,
+    # which is the one field on this record a caller cannot reconstruct.
     #
-    # This is NOT caused by this plan: the bug lives in `renderers.py` / `agent_schema.py`, neither of
-    # which is in this plan's `Scope-Paths`, and it was previously unreachable because no production
-    # caller passed `fields` to `render_summary`. It is REPORTED (see the execution report) and NOT
-    # fixed here, matching this plan's posture on adjacent pre-existing defects.
+    # The counts are NOT the reason: `_PRESERVED_FIELDS` retains `total`/`emitted`/`omitted` through
+    # any projection, so they are safe either way.
     #
-    # Projecting a summary's counts away would be wrong anyway: `emitted + omitted == total` is the
-    # invariant that lets a caller tell a bounded answer from a complete one, which is the entire
-    # point of the summary record. So the correct behavior is to keep them regardless of `--fields`,
-    # which is what passing no context does.
+    # History: a defect where passing `ctx` crashed with a missing required field under `--fields`
+    # previously forced this shape as well, but that defect was fixed in plan `gygujf` (backlog
+    # `3f4ayi`) and no longer applies here.
     parts.append(
         renderer.render_summary(
             "runs query",
@@ -500,6 +495,7 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
 
     from typing import Mapping
     from agent_workflows import run_analytics_pricing as pricing_mod
+    from agent_workflows import run_analytics_schema as schema_mod
     from agent_workflows import run_analytics_spa as spa_mod
     from agent_workflows import run_analytics_statistics as stats_mod
 
@@ -533,6 +529,7 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
         pass
 
     rows: list[dict[str, Any]] = []
+    attempt_population: list[dict[str, Any]] = []
     runs_dir = Path(repo) / ".aw" / "records" / "runs"
     if entries:
         for e in entries:
@@ -666,6 +663,21 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
                             ):
                                 phase_acc[pk]["cost"] += float(acost)
                                 phase_acc[pk]["has_c"] = True
+
+                            att_m, _ = schema_mod.resolve_attempt_model(
+                                att, s_data, role="execute"
+                            )
+                            attempt_population.append(
+                                {
+                                    "model": att_m,
+                                    "cost": (
+                                        float(acost)
+                                        if isinstance(acost, (int, float))
+                                        and not isinstance(acost, bool)
+                                        else None
+                                    ),
+                                }
+                            )
 
                             atoks = att.get("tokens")
                             if isinstance(atoks, Mapping):
@@ -1027,8 +1039,8 @@ def _render_report_html(repo: Path, *, generated_label: str) -> str:
     for r in underpowered.values():
         results.append(r)
 
-    # Model comparison refusal (under 80% coverage)
-    results.append(stats_mod.model_comparison([]))
+    # Model comparison (attempt-grain population, refuses below 80% coverage)
+    results.append(stats_mod.model_comparison(attempt_population))
 
     # Resource saturation refusal (0 telemetry runs)
     results.append(

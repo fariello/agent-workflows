@@ -1,0 +1,598 @@
+# IPD: Decide and implement explicit --dir resolution semantics for a project subdirectory
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: An explicit `--dir` naming a SUBDIRECTORY of a real AW project silently under-reports, and the question of what the right answer IS has never been decided. `resolve_verb_repo_root` honors `--dir` verbatim with NO upward climb, while a BARE invocation climbs via `find_project_root`, so the same directory yields two different roots depending on how it was named. Measured in this lane: in a project holding one open backlog item, `aw attention --dir <root>` reports `1 artifact shown` and `aw attention --dir <root>/src/deep` reports `0 artifacts shown`, both at exit 0, while `cd <root>/src/deep && aw attention` correctly reports `1 artifact shown`. The output is PLAUSIBLE rather than obviously broken, so neither a human nor a CI step gets any signal the answer is wrong. Sibling plan `bjgqez` converts this input from a silent wrong answer into a loud refusal as a side effect of its guard change, but it deliberately does NOT settle whether a REFUSAL is correct or whether an explicit `--dir` should CLIMB; that is resolution semantics across the whole resolver surface and is what this plan decides.
+- Scope: DECIDE the resolution rule for an explicit `--dir` that is inside a project but is not its root, and implement it where a decision is owed. IN: adding ONE shared, read-only classifier to `project_context` that distinguishes the three cases a caller actually faces (the directory IS a project root / is INSIDE one / is in NO project) so a verb stops having to infer this from a bare `is_project_dir` false; recording the DECISION (refuse-and-name-the-root for every caller, do NOT climb) in `resolve_verb_repo_root`'s docstring as a settled rule rather than an open question; making `aw attention` and `aw ipd board` name the enclosing root and the exact command that would use it, AND REPLACE THE FALSE `agent-workflows is not installed in it` claim plus its `aw install <root>` offer (and the machine `next: "aw install ."`) that both surfaces currently emit for an installed project, measured at review as F-14; and a regression test pinning the classifier, the F-14 negatives, and both verbs. OUT: making any verb CLIMB from an explicit `--dir` (this plan decides AGAINST it and records why, which is a decision, not an omission); converting the other ~35 `resolve_verb_repo_root` callers to emit guidance (a separate, larger design question this plan scopes and carries rather than performs); changing `is_project_dir`, `_is_project_marker` or `find_project_root`, or what counts as an AW project; changing the 3-vs-2 human/machine exit split; widening `agent_schema`; and re-doing anything `bjgqez` already owns (the guard drop itself, the `explicit=True` message phrasing, the `--check` early return, the board's green CLEAN claim).
+- Scope-Paths: agent_workflows/project_context.py, agent_workflows/attention.py, agent_workflows/cli.py, tests/test_explicit_dir_subdir_resolution.py
+- Item-Dependencies: executed:bjgqez
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 5gmi12
+- Blocks-Release: next
+- Set: ci9kx2
+- Order: 2
+- Highest E allocated: 04
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: lmyeas
+
+## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: lmyeas verified (set ci9kx2, attempt 1).
+- 2026-10-01 approved (aw set): status set to approved
+- 2026-10-01 reviewed (aw set): status set to reviewed
+
+- 2026-10-01 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER, fixed), PR-002 (HIGH, fixed), PR-003 (HIGH, fixed), PR-004 (MEDIUM, fixed), PR-005 (MEDIUM, fixed), PR-006 (LOW, fixed). Reviewed in an isolated lane at HEAD `a52968550`; structural preflight conforming (exit 0, zero findings) before and after. The no-climb DECISION in OQ-01 is sound and survives review: F-02, F-05, F-06, F-07, F-08, F-09, F-10, F-11 and F-12 all reproduce, and the dependency `bjgqez` is confirmed `executed`. Three defects found by driving the behavior rather than reading the plan: (PR-001) the refusal ASSERTS A FALSEHOOD, telling an operator `agent-workflows is not installed in it` about a root where it IS installed and offering `aw install <root>`, with the machine record setting `next: "aw install ."`, so E-03 must REPLACE that claim rather than merely add a root-naming line; (PR-002) E-04's premise that no existing test reaches the subdirectory case is FALSE, since `tests/test_explicit_dir_non_project.py` already pins it and all three controls, so E-04 was redirected onto the genuinely uncovered negatives; (PR-003) the F-13 baseline is stale, the suite being fully GREEN at `3665 passed, 2 skipped`, so an executor told to expect one known failure would have misread a clean run. Census figures re-measured and de-pinned (88/26 raw, 44 invocations/24 modules).
+- 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `5gmi12`. GATE NOTE: item `5gmi12` carries `- Blocks-Release: next`, which this plan INHERITS as required.
+  THIS PLAN DECIDES THE QUESTION THE ITEM LEFT OPEN, AND THE ANSWER IS "DO NOT CLIMB". The item lists three candidate options and explicitly chooses none. The decision is made here from measured repository evidence and is argued in OQ-01: an explicit `--dir` must NOT climb, because the resolver is shared by 37 call sites of which 19 are WRITE-class and one is a RECURSIVE DELETE, and a climb silently retargets those at an ancestor. The remedy for the under-reporting is therefore to make the refusal DIAGNOSTIC (name the root that exists and the command that would use it), which is the item's option (b). See F-04 through F-07.
+  THE ITEM'S OWN FRAMING UNDERSTATES THE BLAST RADIUS, AND THAT IS WHAT DECIDES THE OPTION. The item reasons about the resolver's "~64 call sites" as a reason the decision is wide. Re-derived in this lane, the raw figure is 78 grep lines across 24 modules, which decompose into 37 ACTUAL invocations (AST-counted) across 22 modules. More important than the count is the CLASSIFICATION the item never performs: 19 of those invocations are WRITE-class, including `aw work begin` allocating a git worktree, five `git_mv` helpers, `status_set.run_set_command` moving records between lifecycle dirs, and `workflow_artifacts_prune.run_archive` whose body is `shutil.rmtree(target, ignore_errors=False)`. A uniform climb aims all of those at an ancestor project. See F-04 and F-05.
+  AND THE CLIMB TARGET IS WORSE THAN AN ANCESTOR REPOSITORY: IT CAN BE `$HOME`. Measured in this lane, `is_project_dir(os.path.expanduser("~"))` is `True`, because the maintainer's home holds a `.aw/` with the durable children `config` and `projects`. So `find_project_root` from an arbitrary non-project scratch directory under home resolves to HOME ITSELF, and a climb would make a WRITE verb target the user's home records tree. This is the single strongest argument against option (a) and it is measured, not hypothetical. See F-06.
+  THE DEFECT IS ALSO WIDER THAN THE TWO VERBS THE ITEM NAMES, which strengthens the case for a SHARED classifier over a second per-verb patch. Measured at a subdirectory of a real project: `aw find backlog --dir <subdir>` lists nothing, `aw specs check --dir <subdir>` reports `all specs conform. 0 specs checked.`, and `aw backlog check --dir <subdir>` reports `all backlog items conform.`, every one at exit 0, where the same commands at `<root>` see the real artifacts. Two of those are FAIL-CLOSED VALIDATORS reporting conformance having examined nothing. This plan does not convert them (that is carried), but it builds the one predicate they will need. See F-03.
+
+## Goal
+
+Settle the resolution rule for an explicit `--dir` that is inside an AW project but is not its root, and make the two verbs that already guard this input explain it. The decision is that `--dir` keeps its verbatim no-climb meaning for EVERY caller, because the resolver is shared with many write-class call sites and a recursive delete, and because the climb can reach `$HOME`. What changes is that the refusal becomes a DIAGNOSIS: one shared classifier tells a caller which of the three cases it is in, and the two verbs that use it name the enclosing project root and print the exact command that would survey it.
+
+AND IT STOPS LYING. Review measured (F-14) that this input does not merely refuse unhelpfully: the human surface asserts `<root> IS a git repository, but agent-workflows is not installed in it` and offers `aw install <root>` for a root where agent-workflows IS installed, while the machine record attaches `next: "aw install ."`. An operator or agent that follows either is acting on a false premise. Correcting that false claim and that wrong remedy is the primary user-facing deliverable of E-03; naming the enclosing root is what makes the corrected message useful.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: make the three cases nameable, and record the decision
+
+- [x] E-01 ADD ONE SHARED READ-ONLY CLASSIFIER to `project_context` that distinguishes the three cases a repo-scoped verb actually faces for a resolved root, so no caller has to infer them from a bare `is_project_dir` false. Today `is_project_dir` answers a single boolean and therefore CONFLATES "this directory is in no project at all" with "this directory is inside a project whose root is two levels up", which are different conditions with different remedies: the first needs `aw install`, the second needs a corrected `--dir`. That conflation is the mechanical reason `bjgqez`'s refusal cannot name the root it could have found.
+  THE CLASSIFIER MUST BE PURE, READ-ONLY AND SIDE-EFFECT-FREE, matching its neighbors in this module (`find_project_root` and `_is_project_marker` are both documented as pure; `find_project_root` is additionally symlink-safe because it resolves paths). Return a small structured result carrying the case AND, for the inside-a-project case, the enclosing root `find_project_root` found, so a caller never re-derives it and the two answers cannot drift.
+  DO NOT REIMPLEMENT ROOT DETECTION. Compose the two existing predicates (`is_project_dir` for "is itself a root", `find_project_root` for the climb) rather than writing a third walk, so there is exactly one definition of what an AW project is. In particular do NOT add a git probe: the module's own docstrings record twice that root detection is DELIBERATELY git-blind and that a git probe is a MESSAGE concern that must never be promoted into `find_project_root`.
+  THE CLASSIFIER DECIDES NOTHING ABOUT POLICY. It reports a fact about the filesystem; whether a given verb refuses, warns, or proceeds stays that verb's decision. This separation is what lets the carried work convert other verbs later without renegotiating the predicate.
+  - Depends on: none
+  - Expected outcome: a pure classifier in `project_context` that, for a resolved path, reports exactly one of three cases (is a project root / is inside a project, naming that root / is in no project) and composes the existing `is_project_dir` and `find_project_root` without adding a third root walk or any git probe; `is_project_dir`, `_is_project_marker` and `find_project_root` are unchanged.
+  - Execution state: performed
+
+- [x] E-02 RECORD THE RESOLUTION DECISION IN `resolve_verb_repo_root`'s DOCSTRING as a SETTLED RULE WITH ITS REASONING, replacing the bare assertion that an explicit `--dir` is "honored verbatim (resolved, no climb) - the operator asked for it". That sentence states the rule but not WHY, which is exactly why backlog `5gmi12` had to be filed to ask whether it should change, and why an executor meeting the under-reporting could reasonably conclude the rule was an oversight.
+  WRITE DOWN THE ARGUMENT, NOT JUST THE CONCLUSION, because the conclusion alone has already failed to prevent the question being reopened once. State: that the resolver is shared by WRITE-class callers as well as READ-class ones; that a climb would silently retarget a worktree allocation, a `git_mv`, a lifecycle move and a `shutil.rmtree` at an ancestor project; that `$HOME` is itself commonly a project root (measured), so the climb target is not merely "some ancestor repo" but can be the user's home records tree; and that the lane worktrees this toolkit's own runners write into live UNDER a project root by construction, so an ancestor climb from a lane reaches the shared checkout the runners deliberately avoid writing to mid-run.
+  DERIVE THE SURFACE FIGURES, DO NOT TRANSCRIBE THEM - INCLUDING NOT TRANSCRIBING THIS PLAN'S OWN. The docstring already carries a measured call-site count and an instruction to re-derive rather than trust a transcribed list, and that count is STALE (it records 64 across 21 modules). This plan measured 78 across 24 at authoring; REVIEW MEASURED 88 ACROSS 26, with 44 AST invocations across 24 modules (F-16). Every figure moved in two days, so write YOUR OWN measurement with the date you took it, never the number in this plan's prose. Keep the derivation command, and keep the existing refusal to write a line-number list, whose stated reason (citations drifted twice before execution and again during it) still holds and is now demonstrated a third time by this very drift.
+  STATE THE REMEDY THE RULE IMPLIES so the next reader does not have to rediscover it: a verb that cannot survey a non-root directory should REFUSE AND NAME THE ROOT (E-03), not climb. Keep the existing note that whether every silent caller should guide is a separate question, since this plan does not convert them.
+  - Depends on: E-01
+  - Expected outcome: `resolve_verb_repo_root`'s docstring states the no-climb rule as a decided one, cites the write-class and `$HOME` reasons it is not safe to relax uniformly, carries a re-derived call-site figure with the derivation command, points at the refuse-and-name-the-root remedy, and preserves the existing separate-question note; the function's BEHAVIOR is byte-for-byte unchanged.
+  - Execution state: performed
+
+### Task group 2: make the refusal diagnostic on the two verbs that already guard
+
+- [x] E-03 MAKE BOTH GUARD SITES NAME THE ENCLOSING PROJECT ROOT AND THE COMMAND THAT WOULD WORK, for the case where an explicit `--dir` is inside a project but is not its root. After sibling `bjgqez` this input already REFUSES; what it does not do is explain itself.
+  THE REFUSAL IS NOT MERELY UNHELPFUL, IT IS ACTIVELY WRONG TODAY, AND CORRECTING THAT IS THE REAL DELIVERABLE OF THIS ITEM (F-14, found at review). Both surfaces currently assert a FALSEHOOD and offer a remedy that would do the wrong thing. The human message ends with `<root> IS a git repository, but agent-workflows is not installed in it.` plus `Install it there with: aw install <root>` for a root where agent-workflows IS installed (driven: seeded project, `.aw/system` and `.aw/records` both present, `is_project_dir(root)` True, and the message still says it is not installed). The machine record attaches `NextAction("aw install .")` for the same case. The cause is that `no_project_message`'s git-root branch and `attention.run`'s `next_actions` branch are both gated ONLY on `_find_git_root(...) is not None` and never ask whether that git root is already a project; the branch was written for the "real repo, no AW installed" case and this input reaches it too. So E-03 must not simply ADD a line: on the inside-a-project branch it must REPLACE the false not-installed sentence and the `aw install` offer with the true statement (the enclosing root IS an AW project, `--dir` does not climb, here is the corrected command). Following an operator's `aw install <root>` against an installed project is a no-op-to-destructive action on the wrong premise, which is why this is the highest-severity part of the item.
+  A NOTE ON SCOPE, SO THIS DOES NOT READ AS TRESPASS ON `bjgqez`: `bjgqez` owns the `explicit=True` phrasing of the FIRST three lines, which are correct and stay. The git-root tail is PRE-EXISTING behavior from `quqyc4`, not `bjgqez`'s, and it is wrong only for the inside-a-project case this plan owns. Fix it on that branch only; leave the tail exactly as it is when the enclosing directory is a git repo with NO AW project, which is the case it was written for and where it is still true.
+  THIS ITEM OWNS ONLY THE SUBDIRECTORY CASE. `bjgqez` owns the guard drop, the `explicit=True` phrasing, the machine-summary branch, the `--check` early return and the board's green CLEAN claim; do not re-do, re-litigate or re-word those. The two sites are the `is_project_dir` guard in `attention.run` and its twin in `cli._run_plans`. Use E-01's classifier to distinguish, and add the root-naming only on the inside-a-project branch, leaving the no-project-at-all branch exactly as `bjgqez` leaves it.
+  THE HUMAN SURFACE NAMES THE ROOT AND THE LITERAL COMMAND. The existing no-project message already sets this precedent: when a git root is found it prints `<root> IS a git repository, but agent-workflows is not installed in it.` plus a literal `aw install <root>`. Follow that shape exactly, with the found PROJECT root and the literal corrected invocation, so an operator can copy one line. Also state the no-climb rule, since that is the fact that makes the refusal comprehensible.
+  THE MACHINE SURFACE MUST NOT GAIN A PATH, and this constraint is enforced rather than stylistic: `agent_schema` refuses an absolute home path in ANY string field, which is why the shipped `NextAction` is the literal `aw install .`. So the machine record states the CONDITION (the directory given is inside a project but is not its root, and `--dir` does not climb) without interpolating either the given directory or the found root. Do NOT put the found root in `next`. Only the HUMAN stderr line names paths.
+  AND THE MACHINE `next` MUST STOP SAYING `aw install .` ON THIS BRANCH, which is the machine half of F-14 and is NOT merely a wording preference. Driven at review: for `--dir <subdir of an installed project> --agent`, the emitted record is `{"outcome":"cannot-run","exit":2,"next":"aw install ."}`. An agent consuming that field is told to install agent-workflows into a repository that already has it, instead of being told to correct `--dir`. Replace it on this branch with a path-free action that names the real remedy (correcting `--dir` to the project root); if no path-free phrasing can express it usefully, emit NO action rather than a wrong one, because `next: null` is honest and `aw install .` is false. Do NOT satisfy this by interpolating the root, which the schema refuses.
+  KEEP THE EXIT CODES `bjgqez` ESTABLISHES: human 3, machine 2. This item changes WHAT IS SAID, not what is returned, so do not introduce a third code, do not build an `exit_code=3` record (it raises in the renderer before writing a byte), and do not widen `agent_schema`.
+  KEEP THE `ipd board` VERB STRING. The board's message is built with the verb spelled `ipd board` and deliberately not `plans`, because `aw plans` is not a registered command; do not disturb that argument while threading the new case through.
+  - Depends on: E-02
+  - Expected outcome: for `--dir <subdir of a real project>`, both verbs refuse with a human message that names the enclosing project root, prints the literal corrected command, and states that `--dir` does not climb; the machine record states the same condition path-free with `next` unchanged; exits stay 3 human / 2 machine; the no-project-at-all case and the no---`--dir` case are byte-identical to what `bjgqez` leaves; and the verb string stays `ipd board`.
+  - Execution state: performed
+
+### Task group 3: pin it
+
+- [x] E-04 ADD A REGRESSION TEST in a new `tests/test_explicit_dir_subdir_resolution.py` covering the classifier and both verbs for the subdirectory case.
+  CORRECTED AT REVIEW: THE PREMISE "no existing test reaches [the subdirectory case]" IS FALSE, and acting on it would duplicate shipped coverage while missing the one thing that is genuinely unpinned. `tests/test_explicit_dir_non_project.py` (sibling `bjgqez`'s own file) ALREADY builds a real AW project with an open backlog item and a `src/deep` subdirectory, and its `test_real_project_root_control_and_subdirectory_refusal` already asserts all three of this plan's "controls" plus the subdirectory refusal: `--dir <root>` gives `1 artifact shown` at exit 0, `--dir <deep_subdir>` gives exit 3 with `no AW project found at <subdir>` and the verbatim-no-climb sentence, `--agent` gives exit 2 `cannot-run`, and a bare run from inside the subdirectory climbs and gives `1 artifact shown` at exit 0. Its `test_no_dir_controls` pins the no-project controls, and `test_machine_summary_content_and_path_free` pins the path-free machine summary. So E-04 must NOT re-assert those; it must EXTEND coverage to exactly what is new: the classifier's three outcomes, and the F-14 corrections (that the human text no longer claims an installed project is "not installed", that it names the enclosing root and the literal corrected command, and that the machine `next` is no longer `aw install .`). Re-assert a control ONLY where this plan's change could plausibly break it, and say in the test's own docstring which existing test already owns each case so a later reader does not delete the wrong one.
+  DRIVE THE REAL CLI IN A SUBPROCESS WITH `cwd` SET OUTSIDE ANY AW PROJECT, and build every fixture under `tempfile`. Both are load-bearing, not stylistic: a probe run with `cwd` inside this repository CLIMBS INTO IT and then reports THIS repository's own state, which invalidated two measurement attempts during sibling authoring and two during this plan's. Assert on exit codes and stream CONTENT, never on source structure (no `inspect`, no `ast`, no regex over production source), per the repository's outcomes-not-structure rule.
+  COVER, AS DISTINCT CASES: the classifier's three outcomes called directly (a real root, a subdirectory of one naming the right root, a directory in no project); then for EACH of `attention` and `ipd board`, the subdirectory case on the human and `--agent` surfaces, asserting the refusal AND that the human text names the enclosing root and contains the literal corrected command; plus for `attention` the `--check` and `--check --agent` surfaces, so the fail-closed gate is pinned here too.
+  AND PIN THE F-14 NEGATIVES EXPLICITLY, which are the assertions this file exists for and which no shipped test makes: for the inside-a-project case assert the human stderr does NOT contain `is not installed in it` and does NOT contain `aw install <root>`, and assert the machine record's `next` is NOT `aw install .`. A test that only checks the new root-naming was ADDED would still pass while the false not-installed claim sits two lines below it, which is exactly the state review found.
+  ASSERT THE CONTROLS IN THE SAME FILE, because the risk of this change is altering a case that should not move: `--dir <root>` must still report the project's real artifacts at exit 0 (build the fixture with at least one real artifact so a wrong answer is DETECTABLE rather than vacuously empty); a bare invocation from INSIDE the subdirectory must still CLIMB and still report that artifact at exit 0, which is the behavior this plan deliberately preserves; and the no-project-at-all case must still refuse exactly as `bjgqez` leaves it.
+  ASSERT THE MACHINE RECORDS ARE PATH-FREE AND VALID: validate every emitted record with `agent_schema.validate_agent_record` and assert an EMPTY finding list, and assert the temp fixture path appears NOWHERE in stdout. Assert specifically that the found ROOT path is absent from the machine record, since naming it there is the most tempting way to implement E-03 and is exactly what the schema refuses.
+  PROVE THE TEST CAN FAIL. Paste a mutation run: make the inside-a-project branch fall through to the generic no-project message (so the root is no longer named), show this file FAILING, revert, and show it green again. A test that passes against both the fixed and the unfixed branch pins nothing.
+  - Depends on: E-03
+  - Expected outcome: a new passing test file that pins the classifier's three outcomes, the subdirectory refusal with root-naming on both verbs across human / `--agent` / `--check` / `--check --agent`, the three controls (root still reports its artifact, bare-from-subdirectory still climbs, no-project still refuses), agent-record validity with no path leak including no leaked root, no source-structure assertions, and a pasted mutation proving the guard fails when the root-naming is removed.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- MEASURE FROM OUTSIDE EVERY AW PROJECT OR MEASURE THE WRONG THING. Any probe of these verbs must run with `cwd` outside any project and with fixtures in a genuine temp dir; run from inside this repository the climb succeeds and the output describes THIS repository. This invalidated measurements during sibling authoring and again here, and it is why E-04 mandates a subprocess with an external `cwd`.
+- `$HOME` IS COMMONLY ITSELF AN AW PROJECT ROOT, which makes an ancestor climb far more dangerous than it looks. Measured in this lane: `is_project_dir(os.path.expanduser("~"))` is `True` (its `.aw/` holds `config` and `projects`). Any reasoning about climbing must account for the home directory being a valid climb target.
+- THE `aw` CONSOLE SCRIPT MAY IMPORT THE PACKAGE FROM THE MAIN CHECKOUT RATHER THAN THE LANE, and it announces the re-exec on stderr. Evidence-producing invocations must state the interpreter and `PYTHONPATH`, or use `python3 -m agent_workflows` with `PYTHONPATH=<lane>` and `AW_NO_REEXEC=1`, which is how every measurement in this plan was taken.
+- THE HUMAN/MACHINE EXIT SPLIT (3 vs 2) IS ESTABLISHED AND INTENTIONAL. `aw.agent/v1` admits only 0/1/2 and requires an error-class record to carry 2, so parity is satisfied by moving the MACHINE exit to 2 while the human surface keeps 3. Both guard sites document this at length; do not normalize it.
+- NO SITE IN THE PACKAGE MAY BUILD AN `exit_code=3` RECORD; it raises in the renderer before writing a byte. Re-derive with `rg -n "exit_code=3" agent_workflows/`, whose only hits are comments asserting the property.
+- ABSOLUTE PATHS ARE UNEMITTABLE IN MACHINE RECORDS. `agent_schema` refuses a home path in any string field, which is why the shipped `NextAction` is the literal `aw install .`. This is the constraint that shapes E-03's machine branch.
+- RUN THE SUITE BARE (`python3 -m pytest`). `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`; `-n0` makes it several times slower and a second `-q` suppresses the `N passed` line this plan requires be pasted.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE BUG REPRODUCES EXACTLY AS FILED, AT THIS LANE'S HEAD.** In a temp project holding ONE open backlog item, with `cwd` outside any AW project: `attention --dir <root>` prints `## ready (1)` and `1 artifact shown` at exit 0; `attention --dir <root>/src/deep` prints `0 artifacts shown` at exit 0; and `cd <root>/src/deep && attention` with NO `--dir` CLIMBS and correctly prints `1 artifact shown` at exit 0. So the explicit form is the ONLY one that gets the wrong answer, and it gets it silently. | three subprocess runs of `python3 -m agent_workflows` with `PYTHONPATH=<lane>`, `AW_NO_REEXEC=1`, `cwd` in a temp dir, at lane HEAD `950ae59ff` |
+| F-02 | **THE MECHANISM IS THE CONFLATION INSIDE A SINGLE BOOLEAN, which is why E-01 adds a classifier rather than a message.** Measured directly: `is_project_dir(<root>/src/deep)` is `False` while `find_project_root(<root>/src/deep)` correctly returns `<root>`; and for a directory in no project at all, `is_project_dir` is `False` and `find_project_root` is `None`. So the two genuinely different conditions are indistinguishable to a caller testing only `is_project_dir`, even though the information needed to tell them apart is already computable with an existing function. | direct calls to `project_context.is_project_dir` and `project_context.find_project_root` on a subdirectory of a temp project and on an unrelated temp dir |
+| F-03 | **THE UNDER-REPORTING IS SYSTEMIC ACROSS READ VERBS, NOT LIMITED TO THE TWO THE ITEM NAMES, AND SEVERAL ARE FAIL-CLOSED VALIDATORS.** REPRODUCED AT REVIEW on a fixture seeded with a real backlog item AND a real spec, cwd outside any AW project. At a subdirectory of a real project every one of these exits 0 with a clean-looking answer: `aw find backlog --dir <subdir>` prints `✓ CLEAN  no matching backlog` where `--dir <root>` lists the item; `aw backlog check --dir <subdir>` reports `all backlog items conform.`; `aw specs check --dir <subdir>` reports `all specs conform. 0 specs checked.` where `--dir <root>` reports `1 specs checked.`; and ADDITIONALLY, found at review and not in the authored plan, `aw check --dir <subdir>` reports `✓ CONFORMS  0 all checked` where `--dir <root>` reports `✓ CONFORMS  4 all checked`. A validator announcing conformance having examined ZERO artifacts is the same greenwashing class as the attention case, and `aw check` is the surface a CI step is likeliest to call. This plan does NOT convert these verbs, but the finding is why E-01's predicate is shared rather than local to one guard. | subprocess runs of `find backlog`, `backlog check`, `specs check` and `check` with `--dir <root>` and `--dir <root>/src/deep`, cwd outside any project; fixture seeded via `aw backlog new --apply` and `aw specs new --apply` so the nonzero-versus-zero contrast is measurable rather than vacuous |
+| F-04 | **THE RESOLVER SURFACE IS WIDER THAN THE ITEM'S "~64 CALL SITES", AND THE DECISIVE FACT IS THE CLASSIFICATION THE ITEM NEVER MAKES.** Re-derived in this lane, `grep -rn --include=*.py resolve_verb_repo_root agent_workflows/` yields **78** lines across **24** modules (the docstring's recorded 64 across 21 is stale). Those decompose into **37** actual invocations across 22 modules, of which roughly **19 are WRITE-class**: `work_cmd` (allocates a git worktree and commits), `status_set.run_set_command` and its two dependency siblings (move records between lifecycle dirs), `backlog.run_set` / `run_new` / `run_note`, `specs.run_new`, `prompts.run_new`, `releases.run_new`, `research_cmd.run_new`, `artifact_adopt.run_adopt`, `model_vocab.run_add_model` (writes `.aw/config/research-models.toml`), five `git_mv` helpers (`artifact_rename`, `plans_refs`, `plans_archive`, `research_refs`, `research_archive`), and `cli._offer_records_commit` callers which run `git reset` and can commit. A uniform climb aims every one of those at an ancestor project. | the grep above for the raw count; an AST count of `ast.Call` nodes for the invocation figure; per-symbol reads of the listed modules confirming each resolved root feeds a write or a git operation |
+| F-05 | **ONE CLIMB TARGET IS A RECURSIVE DELETE, WHICH IS THE WORST POSSIBLE DIRECTION FOR THIS CHANGE.** `workflow_artifacts_prune.run_archive` does `repo_root = resolve_verb_repo_root(getattr(args, "dir", None))` then `artifacts_root = repo_root / set_records.RUN_ARTIFACTS_SUBDIR`, and its helper's body is `shutil.rmtree(target, ignore_errors=False)`. TODAY a non-project `--dir` finds no artifacts root and the verb returns 0 after printing `no workflow artifacts to prune` - a safe no-op. UNDER A CLIMB the same invocation would resolve to the ancestor project and delete THAT project's run-artifacts subtree. Its two guards (`refusing to delete artifacts root itself`, `skipping path escaping artifacts root`) are both computed RELATIVE to the resolved root, so they protect against path escape and not at all against the root being the wrong repository. | read of `workflow_artifacts_prune.run_archive` and its delete helper, quoting the `resolve_verb_repo_root` call, the `shutil.rmtree(target, ignore_errors=False)` line, the two warning strings, and the `no workflow artifacts to prune` early return |
+| F-06 | **THE CLIMB CAN REACH `$HOME`, SO "CLIMB TO THE ENCLOSING PROJECT" DOES NOT MEAN "THE REPO YOU ARE IN".** Measured in this lane: `is_project_dir(os.path.expanduser("~"))` is `True`, because home holds a `.aw/` whose directory children include `config` and `projects`, and `_is_project_marker` requires only ONE durable child from `("system", "records", "config")`. Consequently `find_project_root(<any non-project dir under home>)` returns HOME. Demonstrated non-destructively with a home-shaped fixture (`<t>/homelike/.aw/config` plus `<t>/homelike/scratch/notaproject`): `is_project_dir(<t>/homelike)` is `True`, `find_project_root(<t>/homelike/scratch/notaproject)` returns `<t>/homelike`, and a BARE `attention` run from that scratch dir already climbs and prints `0 artifacts shown` at exit 0 against the homelike root rather than reporting no project. Combined with F-04, option (a) would let a write verb target the user's HOME records tree from an unrelated scratch directory. | direct `is_project_dir` / `find_project_root` calls against the real home path (read-only, nothing written there) and against the `homelike` temp fixture; a subprocess `attention` run with `cwd` in the fixture's scratch dir |
+| F-07 | **THE TOOLKIT'S OWN LANE WORKTREES SIT UNDER A PROJECT ROOT BY CONSTRUCTION, so an ancestor climb from a lane reaches the shared checkout the runners deliberately avoid writing to mid-run.** Lane worktrees live at `.aw/worktrees/<id6>` (`worktree_lease.WORKTREES_SUBDIR`), and `runner_shared` passes a lane path as `--dir` into write verbs at four sites, e.g. `close_backlog_item` building `["backlog","set",item_id6,"--status","done",...,"--dir",str(repo),"--no-commit"]` and the `ipd begin` / `set auto-approved` / `ipd finalize` argv builders. Measured ancestry from THIS lane: the lane is itself a project root, but neither `.aw/worktrees` nor `.aw` is, so the first ancestor that IS a root is the SHARED CHECKOUT, and the next is `$HOME`. A climb is therefore one incomplete lane `.aw/` away from retargeting a lane-scoped write at main - and `close_backlog_item`'s own docstring records that `--dir` chooses the tree the release-gate carrier scan runs against, so a retarget would also re-evaluate the gate in the PERMISSIVE direction. | read of `worktree_lease.WORKTREES_SUBDIR` and the four `"--dir", str(repo)` argv sites in `runner_shared`; `find_project_root` walked over this lane's ancestor chain showing `.aw/worktrees` and `.aw` both `False` and the shared checkout and `$HOME` both `True`; the quoted `--dir` IS NOT MERELY "WHERE THE FILE MOVES" paragraph in `close_backlog_item`'s docstring |
+| F-08 | **TODAY'S NO-CLIMB BEHAVIOR FAILS LOUDLY AND LOCALLY FOR WRITE VERBS, WHICH IS WHY IT IS THE SAFER DEFAULT.** Previewed (no `--apply`), `aw backlog new --dir <root>/src/deep` reports it `would write <root>/src/deep/.agents/backlog/open/<...>.backlog.md`, i.e. it proposes a NEW tree at the named directory. That is wrong, but it is visibly wrong at a path the operator can read, and nothing enters the real records tree. Under a climb the same command would silently write into `<root>`'s records tree and mint an id6 against it, producing an artifact the operator never meant to create there and which `aw check` would then report as that project's work. The failure mode trades "visible and local" for "silent and durable". | `aw backlog new --dir <subdir>` and `--dir <unrelated temp dir>` run in PREVIEW mode, pasting the `would write` lines |
+| F-09 | **`aw install` AND `aw ipd scaffold` ARE OUTSIDE THE RESOLVER, so the obvious counter-argument to no-climb does not apply to them.** One might object that an operator passing `--dir <not-yet-a-project>` wants to initialize there, which argues for verbatim on bootstrap verbs and climbing elsewhere. But `aw install` takes its target as a POSITIONAL argument (`cli._run_install` resolving `args.targets`, defaulting to cwd) and declares no `--dir`; `aw uninstall` likewise takes a positional `target`; and `ipd_authoring.run_scaffold` uses `find_project_root(Path.cwd())` with no `--dir` route at all. So the bootstrap verbs are unaffected either way, and the real hazard sits with the record-AUTHORING verbs of F-04. Separately `doctor.run` reads `--dir` but reimplements resolution (`Path(getattr(args,"dir",None) or os.getcwd())`), bypassing the resolver entirely, so it would silently DRIFT from its siblings under any change here. | reads of `cli._run_install` and its positional `targets` parser entry, `cli._run_uninstall`, `ipd_authoring.run_scaffold`, and `doctor.run`'s own resolution line |
+| F-10 | **THE ONE SITE THAT ALREADY HANDLES THIS CORRECTLY IS THE SHAPE E-03 FOLLOWS.** `backlog.run_set` resolves a SECOND root for `--gate-dir` and then immediately validates it: `gate_root = resolve_verb_repo_root(gate_dir_arg)` followed by `if not is_project_dir(gate_root):` writing `aw backlog set: --gate-dir '<x>' is not an agent-workflows project root` and returning 2. That is resolve-verbatim-then-fail-closed, needs no climb, and is the only call site in the package that validates its resolved root. It does not name the enclosing root, which is the increment E-03 adds. | read of `backlog.run_set`'s `--gate-dir` branch quoting the resolve call, the `is_project_dir` refusal and its exit 2 |
+| F-11 | **THE EXISTING MESSAGE ALREADY SETS THE PRECEDENT FOR NAMING A ROOT AND OFFERING A LITERAL COMMAND, so E-03 is a parallel case rather than a new idea.** When the checked directory is inside a git repository, `no_project_message` appends `<root> IS a git repository, but agent-workflows is not installed in it.` plus a literal `aw install <root>`, and `git_root_for_message` exists specifically so a MACHINE caller can attach the same remedy structurally instead of parsing prose. E-03 does the same for a found PROJECT root - with the documented difference that the machine surface must NOT carry the path, which is why the shipped `NextAction` is `aw install .`. | reads of `project_context.no_project_message` and `git_root_for_message`, quoting the git-root sentence, the `aw install` offer, and the docstring paragraph explaining why the helper exists |
+| F-12 | **NO SPEC GOVERNS THE RESOLUTION RULE, so this plan amends a docstring and not a contract document.** `grep -rln resolve_verb_repo_root .aw/records/specs/ docs/` returns NOTHING: the verbatim-no-climb rule exists ONLY in the function's own docstring, which is why E-02's edit is the correct and sufficient place to record the decision and why `- Scope-Paths:` declares no `.spec.md`. The attention spec and `docs/cli-output-contract.md` do govern the EXIT CODES and the greenwashing prohibition, but this plan changes neither. | the grep above returning no files; the contract doc's `cannot-run` / exit-2 classification and its Anti-Greenwashing Invariant read for the codes this plan preserves |
+| F-13 | **THE CLOCK-SKEW FLAKE IS REAL BUT IS NOT FAILING NOW, AND THE AUTHORED BASELINE IS STALE, SO AN EXECUTOR MUST RE-MEASURE RATHER THAN EXPECT A FAILURE.** As authored this finding said the suite shows `1 failed, 3427 passed, 2 skipped` and instructed the executor to expect that one failure. RE-MEASURED AT REVIEW on a clean tree: a bare `python3 -m pytest` reports **`3665 passed, 2 skipped, 3 warnings in 76.90s`** with ZERO failures, and the named test passes in isolation. The underlying defect is unchanged and still latent: `backlog.py` stamps history with `datetime.date.today().isoformat()` (LOCAL) while `status_set.py` uses `datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")` (UTC), so the parity assertion fails only inside the window where the two dates differ. At review that window was closed (local `Thu Oct 1 05:31 EDT` vs `Thu Oct 1 09:31 UTC`, same date), which is why it passes. CONSEQUENCE FOR THE EXECUTOR: the bar is "no NEW failing node ids against a baseline you measure yourself", NOT "expect exactly one known failure". If this test fails during your run, check the local-versus-UTC date before calling it a regression; if it passes, that is correct and is not evidence the clock bug was fixed. | bare `python3 -m pytest` at review HEAD `a52968550` printing `3665 passed, 2 skipped`; the single-test rerun passing (`1 passed in 0.21s`); `date` and `date -u` both reporting 2026-10-01; the two clock expressions quoted from `backlog.py` and `status_set.py`; the two carrier items still `open` |
+| F-14 | **THE REFUSAL DOES NOT MERELY FAIL TO EXPLAIN ITSELF, IT ASSERTS A FALSEHOOD AND OFFERS THE WRONG REMEDY ON BOTH SURFACES.** Added at review; it is the most consequential finding here and it changes what E-03 must do. For `--dir <subdir of an INSTALLED project>`, the human stderr ends `<root> IS a git repository, but agent-workflows is not installed in it.` / `Install it there with: aw install <root>` while agent-workflows demonstrably IS installed at `<root>`, and the machine record attaches `next: "aw install ."`. MECHANISM: `no_project_message`'s tail is gated only on `_find_git_root(where) is not None` and never asks whether that git root is already an AW project; `attention.run`'s `next_actions` is gated on the same `git_root_for_message(repo_root) is not None`. The branch was written for the "real repo, no AW installed" case (`quqyc4`) and this input falls into it. So the plan's framing of a "correct-but-unhelpful" refusal UNDERSTATES the defect: an operator who follows the printed instruction runs an install against an already-installed project on a false premise. E-03 must REPLACE the false sentence and the offer on this branch, not merely append a root-naming line, and E-04 must assert the negatives. | Driven at review on a seeded temp project outside any AW project: `install` then `backlog new --apply` then `attention --dir <root>/src/deep`, whose pasted stderr carries the not-installed sentence while `(root/".aw"/"system").is_dir()` is True, `(root/".aw"/"records").is_dir()` is True and `is_project_dir(root)` is True; the `--agent` run emits `{"outcome":"cannot-run","exit":2,"next":"aw install ."}`; the two gating expressions read at `project_context.no_project_message` and `attention.run` |
+| F-15 | **THE SUBDIRECTORY CASE AND ALL THREE "CONTROLS" ARE ALREADY PINNED BY THE SIBLING'S TEST FILE, SO E-04's STATED PREMISE IS FALSE.** Added at review. E-04 said the subdirectory case is one "no existing test reaches" and that surviving coverage "calls `attention.run` in process with `dir=None`". Both are wrong: `tests/test_explicit_dir_non_project.py` drives the real CLI in a SUBPROCESS, builds a real AW project with an open backlog item AND a `src/deep` subdirectory in `tempfile`, and its `test_real_project_root_control_and_subdirectory_refusal` already asserts `--dir <root>` -> `1 artifact shown` at 0, `--dir <subdir>` -> exit 3 with the verbatim-no-climb sentence, `--agent` -> exit 2 `cannot-run`, and bare-from-subdirectory -> climbs to `1 artifact shown` at 0. `test_no_dir_controls` and `test_machine_summary_content_and_path_free` pin the rest. Acting on the false premise would duplicate roughly four shipped assertions while leaving the F-14 negatives unpinned, which is the only genuinely uncovered surface. | `tests/test_explicit_dir_non_project.py` read at `test_real_project_root_control_and_subdirectory_refusal` (quoting `self.deep_subdir`, `1 artifact shown`, `assertEqual(rc_sub, 3)`, `assertEqual(rc_sub_agent, 2)` and the `run_cwd=self.deep_subdir` climb assertion); the file's `def test_` census shows 13 tests, none in-process |
+| F-16 | **THE RESOLVER CENSUS HAS DRIFTED AGAIN SINCE AUTHORING, WHICH IS WHY E-02 MUST RE-DERIVE RATHER THAN COPY THIS PLAN'S OWN NUMBERS.** The docstring records 64 sites across 21 modules; the plan says the same command now yields 78 across 24 and 37 AST invocations across 22. Re-measured at review HEAD: the grep yields **88 lines across 26 modules** and an AST count yields **44 invocations across 24 modules**. Every figure moved in the two days between authoring and review, which is precisely the argument the docstring already makes for a derivation command over an enumeration. The write-class direction of the argument is unaffected (the top modules are `run_cli` 6, `attention` 5, `backlog` 5, `cli` 4, `status_set` 3), but any number written into the docstring must be the executor's own measurement with the date it was taken. | `grep -rn --include=*.py resolve_verb_repo_root agent_workflows/ \| wc -l` = 88, `-l \| wc -l` = 26; an `ast.Call` census over `agent_workflows/**/*.py` = 44 invocations in 24 modules, pasted per module |
+
+## Proposed changes (ordered, validatable)
+
+1. Add a pure, read-only classifier to `project_context` distinguishing is-a-root / inside-a-project-naming-that-root / in-no-project, composing the existing `is_project_dir` and `find_project_root` with no third root walk and no git probe (E-01).
+2. Record the no-climb rule in `resolve_verb_repo_root`'s docstring as a DECIDED one, with the write-class, `shutil.rmtree`, `$HOME` and lane-ancestry reasons, a re-derived call-site figure with its derivation command, and a pointer to the refuse-and-name-the-root remedy; no behavior change (E-02).
+3. At both guard sites, use the classifier so the inside-a-project case names the enclosing root and prints the literal corrected command on the HUMAN surface, REPLACES the false `agent-workflows is not installed in it` sentence and its `aw install <root>` offer, and stops the machine record attaching `next: "aw install ."` (F-14), while keeping the MACHINE record path-free and preserving the 3/2 exits and the `ipd board` verb string (E-03).
+4. Add `tests/test_explicit_dir_subdir_resolution.py` pinning the classifier's three outcomes, the root-naming, and the F-14 NEGATIVES (no not-installed claim, no install offer, no `aw install .` in `next`), with agent-record validity and no leaked path, and a pasted mutation proving the guard can fail; it does NOT duplicate the subdirectory refusal and three controls that `tests/test_explicit_dir_non_project.py` already pins (F-15), and cites that file instead (E-04).
+
+## Deferred / out of scope (with reason)
+
+- MAKING AN EXPLICIT `--dir` CLIMB (the item's option (a)). NOT deferred: DECIDED AGAINST, and the reasoning is in OQ-01 and F-04 through F-08. Recording it as a decision rather than an omission is the point, since the question has already been reopened once. NO CARRIER NEEDED: a settled decision with its evidence written into the symbol an executor reads.
+  - Carrier-Declined: decided in OQ-01 from measured evidence and recorded durably in `resolve_verb_repo_root`'s docstring by E-02; nothing is owed
+- CONVERTING THE OTHER ~35 `resolve_verb_repo_root` CALLERS so a non-surveyable `--dir` is refused or explained everywhere, including the two FAIL-CLOSED VALIDATORS measured announcing conformance over zero artifacts (F-03: `aw specs check --dir <subdir>` reporting `all specs conform. 0 specs checked.` and `aw backlog check --dir <subdir>` reporting `all backlog items conform.`). This plan builds the predicate they need (E-01) but converts only the two verbs that ALREADY guard. Doing all of them means a per-verb READ/WRITE policy decision, and F-04 shows several helpers are shared by read AND write verbs through ONE call site, so those helpers must be split before a per-call-site policy can even be expressed. Work is genuinely owed, so it is carried rather than declined, on backlog `rgl2d4`, which was FILED DURING THIS AUTHORING with the F-03 measurements, names `specs.run_check` and `backlog.run_check` as the highest-value first conversions because both are fail-closed validators, and records the shared-helper split as a prerequisite rather than a surprise. The `project_context` note that this is a separate design question stays true and is preserved by E-02.
+  - Carrier: rgl2d4
+- THE `doctor.run` RESOLUTION DRIFT (F-09): it reads `--dir` but bypasses `resolve_verb_repo_root` entirely with its own `Path(getattr(args,"dir",None) or os.getcwd())`, so it neither climbs from cwd like its siblings nor benefits from any decision recorded at the resolver. Out of scope here because this plan touches the resolver and two verbs, and `doctor` is neither; it is a real inconsistency rather than a measured user-facing defect, so it is carried at low cost rather than fixed on the way past. Carried as a NAMED SUB-CASE on the same backlog item `rgl2d4`, deliberately not as its own item: the drift only MATTERS as the other callers are converted, so it is the same piece of work.
+  - Carrier: rgl2d4
+- THE PRE-EXISTING LOCAL-VERSUS-UTC HISTORY DATE SPLIT (F-13), which fails one test for part of every day (and which, re-measured at review, is NOT failing at present: the suite is fully green at `3665 passed, 2 skipped`). Unrelated to this plan's concern and already filed. NO CARRIER NEEDED: backlog `fnb8pl` and `tl8qmc` already carry it, both `open` with `Blocks-Release: next`.
+  - Carrier-Declined: already carried by existing backlog items `fnb8pl` and `tl8qmc`; filing a third would be the duplicate this authoring already created once and deleted
+- THE SAME FALSE `not installed in it` CLAIM ON THE *NO-PROJECT-AT-ALL* BRANCH REACHED FROM A DIFFERENT INPUT. E-03 fixes the claim for the inside-a-project case it owns. The same `_find_git_root`-only gate in `no_project_message` could in principle misfire for other inputs that land on the no-project branch while an AW project exists somewhere above the git root; review did not find such a reachable input (a path inside an installed project always classifies as inside-a-project, which E-03 now handles), so no defect is asserted and nothing is fixed speculatively. Recorded so a later reader knows the gate's shape was examined and not merely patched at one call site.
+  - Carrier-Declined: no reachable defective input was measured; the inside-a-project case is the one that reproduces and E-03 owns it. Filing a carrier for a hypothetical would be an unmeasured claim.
+- EVERYTHING SIBLING `bjgqez` OWNS: the `not explicit_dir` guard drop, the `explicit=True` message phrasing, the machine-summary branch, the `--check` early return, and the board's green CLEAN claim. This plan DEPENDS on that one executing first (`- Item-Dependencies: executed:bjgqez`) and builds on its refusal rather than re-deriving it. NO CARRIER NEEDED: owned by an approved sibling in the same Set.
+  - Carrier-Declined: owned by `bjgqez`, which is approved and ordered before this plan
+
+## Scope check
+
+- Over-scope: none. All four scope paths are required: `project_context.py` carries the classifier (E-01) and the decision record (E-02), `attention.py` and `cli.py` carry the two guard sites (E-03), and the new test file is E-04. No `.spec.md` is in scope, and F-12 measures why (no spec mentions the resolver at all).
+- Under-scope: this plan DECIDES the resolution rule and makes the refusal diagnostic on the two verbs that already guard. It does NOT convert the other resolver callers (carried), does NOT make anything climb (decided against), and does NOT change `is_project_dir`, `_is_project_marker`, `find_project_root`, what counts as an AW project, the 3/2 exit split, or `agent_schema`. A reader must not take it as closing the wider silent-caller question, which F-03 measures is real and which stays carried.
+- Over-scope reconsidered at review and ACCEPTED as in-scope: E-03 now also corrects a FALSE statement and a wrong remedy that predate this plan (F-14, originating in `quqyc4`'s git-root tail rather than in `bjgqez`). That could be read as scope creep onto someone else's code, and it is not: the falsehood is emitted ON THE EXACT BRANCH this plan exists to improve, for the exact input `5gmi12` was filed about, and a plan that added a helpful root-naming line directly above a sentence saying the project is not installed would ship a self-contradicting message. No new `- Scope-Paths:` entry is needed, since `project_context.py`, `attention.py` and `cli.py` are already declared. `aw install`'s own behavior is NOT touched.
+- Under-scope, measured at review: `aw check --dir <subdir>` reports `✓ CONFORMS  0 all checked` at exit 0 (driven on a seeded fixture where `--dir <root>` reports `4 all checked`). That is the same greenwashing class as F-03's two validators and arguably a worse surface, since `aw check` is the command CI runs. It is NOT converted here and belongs with the carried set on `rgl2d4`, whose summary should be read as covering it.
+
+## Required tests / validation
+
+- `python3 -m pytest` BARE, per the repository contract, pasting the ACTUAL `N passed` summary line. Establish the baseline on a CLEAN tree BEFORE editing and judge on the DELTA OF FAILING NODE IDS. NOTE F-13, CORRECTED AT REVIEW: do NOT expect a known failure. Review measured a FULLY GREEN bare run (`3665 passed, 2 skipped, 3 warnings in 76.90s`) at HEAD `a52968550`, and the clock-skew test passes in isolation. The authored baseline of `3427 passed` with one failure is stale. So measure your own baseline, and if `test_release_exempt_setter_roundtrip_and_parity` fails during your run, compare `date` with `date -u` before calling it a regression (it fails only while local and UTC dates differ); if it passes, that is expected and is NOT evidence the clock bug was fixed.
+- `python3 -m pytest tests/test_explicit_dir_subdir_resolution.py tests/test_explicit_dir_non_project.py tests/test_attention.py tests/test_attention_contract.py tests/test_cli.py` for the focused surface. `bjgqez`'s own new file is included deliberately: this plan changes a branch that file pins, so it is the test likeliest to notice a mistake in E-03.
+- THE BEFORE/AFTER MATRIX, pasted as a table, measured by subprocess with `cwd` OUTSIDE any AW project (and stating the interpreter and `PYTHONPATH`): rows for `attention` and `ipd board`, columns for human and `--agent` plus `--check` and `--check --agent` on attention, against (i) a SUBDIRECTORY of a real project, (ii) the project ROOT as a control, (iii) a bare invocation from inside the subdirectory as the climb control, and (iv) a directory in no project at all as the `bjgqez` control. SEED THE PROJECT FIXTURE WITH A REAL ARTIFACT (`aw backlog new ... --apply --dir <root>`), or the ROOT control reads `0 artifacts shown` and proves nothing; review's first probe made exactly that mistake and had to be redone. BEFORE must show the subdirectory case refusing WITHOUT naming the root AND carrying the FALSE `agent-workflows is not installed in it` sentence plus the `aw install <root>` offer, with the machine `next` reading `aw install .` (F-14); AFTER must show it naming the enclosing root and the literal corrected command, with the false sentence and the install offer GONE from the human surface and `next` no longer `aw install .`, and the three control rows UNCHANGED. The BEFORE column must paste the false sentence verbatim, since a before/after that omits it cannot show the defect was fixed.
+- THE CLASSIFIER'S THREE OUTCOMES, called directly and pasted: a real root, a subdirectory naming the correct enclosing root, and a directory in no project returning the no-project case with no root.
+- AGENT-RECORD VALIDITY AND NO PATH LEAK: for every machine record the new behavior emits, paste `agent_schema.validate_agent_record(rec)` returning `[]`, and paste evidence that NEITHER the given directory NOR the found root appears in stdout. The found root is the specific new leak risk this plan introduces. ALSO paste the record's `next` field for the inside-a-project case and state why it is correct, since `aw install .` there is a WRONG remedy rather than a cosmetic one (F-14); `next: null` is an acceptable answer and a false action is not.
+- `rg -n "exit_code=3" agent_workflows/` and `rg -n "return 3$" agent_workflows/` after the change, confirming no new `exit_code=3` site appeared and that the human 3 still lives only at the intended places.
+- CONFIRM THE PRESERVED BEHAVIORS EXPLICITLY, since they are what the no-climb decision protects: paste a `git diff` of `project_context.py` showing `resolve_verb_repo_root`'s BODY unchanged (docstring-only edit) and `is_project_dir` / `_is_project_marker` / `find_project_root` untouched.
+- `python3 -m agent_workflows check` must not gain a diagnostic, and `aw ipd lint` must report conforming.
+- `aw sanitize --agent` clean, since this plan's evidence pastes `PYTHONPATH` values and temp paths.
+
+## Spec / documentation sync
+
+NO `.spec.md` FILE IS EDITED AND NONE NEEDS TO BE, and this is measured rather than assumed because the plan settles a cross-package resolution rule, which is exactly the kind of thing a spec would normally govern. `grep -rln resolve_verb_repo_root .aw/records/specs/ docs/` returns NOTHING (F-12): the verbatim-no-climb rule lives ONLY in the function's own docstring. So the docstring IS the contract document for this rule, and E-02's edit is both the correct and the sufficient place to record the decision. `- Scope-Paths:` therefore declares no spec, and the runners' spec-edit announcement will correctly report none.
+
+THE ATTENTION SPEC AND `docs/cli-output-contract.md` GOVERN WHAT THIS PLAN DOES NOT CHANGE. The spec's `--check` rule assigns 2 to could-not-run and demands fail-closed behavior; the contract classifies 2 as cannot-run and states the Anti-Greenwashing Invariant that forbids a positive outcome for work that was not performed. This plan PRESERVES both: `bjgqez` already moved this input onto the cannot-run path, and E-03 changes only the human wording and the machine summary's phrasing, not the codes, the record kind, or the outcome. No flag is added or removed and no record field changes meaning, so neither document needs an amendment.
+
+WHETHER THE WIDER SILENT-CALLER GAP EVENTUALLY DESERVES A SPEC is a fair question and is deliberately left open. F-03 shows two fail-closed validators silently examining nothing, which is a contract-shaped problem; but writing a package-wide resolution spec while converting only two verbs would publish a rule the code does not yet keep. The carried item is the right place for that decision.
+
+## Open questions
+
+### OQ-01: Should an explicit `--dir` CLIMB to the enclosing project root, or refuse and name it?
+
+- Blocking: no
+- Status: resolved
+- Owner: executor
+- Finding: F-01, F-04, F-05, F-06, F-07, F-08, F-09, F-10
+- Resolution or deferral rationale: RESOLVED: DO NOT CLIMB; REFUSE AND NAME THE ROOT (the item's option (b)). This is the decision backlog `5gmi12` was filed to obtain, so it is argued from measurement rather than asserted.
+  THE CASE AGAINST CLIMBING IS THE SHARED RESOLVER. `resolve_verb_repo_root` is not an attention-and-board helper: it has 37 invocations across 22 modules, and about 19 are WRITE-class (F-04) - a git worktree allocation and commit in `work_cmd`, lifecycle file moves in `status_set.run_set_command` and `backlog.run_set`, five `git_mv` helpers, seven record-authoring verbs that mint an id6 and write, a config write in `model_vocab.run_add_model`, and `cli._offer_records_commit` callers that run `git reset` and can commit. Changing the resolver's meaning changes all of them at once, because the rule is stated once and consumed everywhere.
+  ONE OF THOSE SITES IS A RECURSIVE DELETE, which alone is close to dispositive. `workflow_artifacts_prune.run_archive` resolves a root and its helper calls `shutil.rmtree(target, ignore_errors=False)`; today a non-surveyable `--dir` is a SAFE NO-OP returning 0, and under a climb it would delete the ancestor project's run-artifacts subtree. Its guards are relative to the resolved root, so they do not help (F-05). Converting a safe no-op into a destructive delete is the worst available outcome.
+  AND THE CLIMB TARGET IS NOT NECESSARILY "THE REPO YOU ARE IN". `$HOME` is itself an AW project root on this machine (`is_project_dir(~)` is `True`, its `.aw/` holding `config` and `projects`), so a climb from an unrelated scratch directory under home resolves to HOME, and a write verb would target the user's home records tree (F-06). Worse for this toolkit specifically, lane worktrees live at `.aw/worktrees/<id6>` under a project root by construction, and `runner_shared` passes lane paths as `--dir` into write verbs at four sites; the first project-root ancestor of a lane is the SHARED CHECKOUT, whose mid-run writes the runners deliberately avoid, and `--dir` there also selects the tree the release-gate carrier scan runs against, so a retarget would re-evaluate the gate in the PERMISSIVE direction (F-07).
+  THE OBVIOUS COUNTER-ARGUMENT DOES NOT HOLD. One might argue bootstrap verbs need verbatim while read verbs should climb; but `aw install` and `aw uninstall` take POSITIONAL targets and declare no `--dir`, and `ipd scaffold` has no `--dir` route at all (F-09), so the bootstrap verbs are outside the resolver entirely. A read-only carve-out remains conceivable, but F-04 shows several helpers serve read AND write verbs through ONE call site, so a per-class policy cannot even be expressed until those are split - which is carried work, not a reason to change the rule now.
+  WHY REFUSING IS SUFFICIENT RATHER THAN MERELY SAFE. Today's failure mode for write verbs is loud and local (`aw backlog new --dir <subdir>` previews a path the operator can read, and nothing enters the real tree, F-08), whereas a climb is silent and durable. For read verbs the remaining defect is that the refusal does not explain itself, and that is fully fixable without touching resolution: name the root `find_project_root` would have found and print the literal corrected command, exactly as the existing message already does for a git root plus `aw install <root>` (F-11). The package already contains this shape at `backlog.run_set`'s `--gate-dir` branch, which resolves verbatim then fails closed (F-10). So option (b) removes the silent wrong answer, keeps the operator's explicit intent authoritative, and leaves every write call site exactly as safe as it is today.
+  WHY THIS WAS NOT ASKED OF THE MAINTAINER: the repository answers it. The write-class census, the `rmtree`, the `$HOME` measurement and the lane ancestry are all facts in the tree, and they point one way. The residual JUDGEMENT - that an operator's explicit `--dir` should stay authoritative even when a more useful root is one level up - is surfaced here and in the approval gate so a maintainer can overrule at approval; overruling it means a read-only carve-out, which needs the helper splits of F-04 first and is a larger plan than this one.
+
+### OQ-02: Should the classifier be a new function, or should `is_project_dir` grow a richer return?
+
+- Blocking: no
+- Status: resolved
+- Owner: executor
+- Finding: F-02, F-03, F-10
+- Resolution or deferral rationale: RESOLVED: A NEW, ADDITIVE FUNCTION; leave `is_project_dir` alone. `is_project_dir` has callers across the package (including the `--gate-dir` refusal of F-10 and the four internal `attention` guards), and every one of them wants exactly the boolean it returns today. Changing its return type to carry the enclosing root would touch all of them for the benefit of two, and would put a filesystem CLIMB behind a name that currently promises a single-directory marker test - a performance and semantics change in one. An additive classifier composing `is_project_dir` and `find_project_root` keeps one definition of what a project is, leaves every existing caller byte-identical, and gives the carried conversion work (F-03) a predicate to adopt incrementally. The cost is one more symbol in a module that already carries several related ones, which is the right trade for not disturbing a shipped predicate.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: paste the committed diff of the new classifier including its full signature and docstring. Paste the LITERAL output of calling it THREE ways against temp fixtures built outside any AW project: (a) a real project root, (b) a subdirectory of that project, (c) a directory in no project at all. CONFIRM (a) reports the is-a-root case, (b) reports the inside-a-project case AND names `<root>` exactly as `find_project_root` returns it, and (c) reports the no-project case carrying NO root. CONFIRM PURITY AND NON-MUTATION by pasting a directory listing (or a recursive file inventory) of each fixture taken BEFORE and AFTER the calls and showing them identical. CONFIRM BY READING THE DIFF that the classifier calls the EXISTING `is_project_dir` and `find_project_root` rather than walking the tree itself, and that it adds NO git probe: paste a grep of the new function's body for `_find_git_root` and for `.git` returning nothing. CONFIRM `is_project_dir`, `_is_project_marker` and `find_project_root` are UNTOUCHED by pasting `git diff` for those three symbols showing no change.
+  - Observed evidence: Committed diff of the new classifier and literal 3-way output verified against temp fixtures.
+    Committed diff of the new classifier in `agent_workflows/project_context.py`:
+    ```python
+    class ProjectLocationCase(str, Enum):
+        """The three cases a resolved directory can have with respect to an AW project."""
+
+        IS_PROJECT_ROOT = "is-project-root"
+        IS_ROOT = "is-project-root"  # alias
+        INSIDE_PROJECT = "inside-project"
+        NO_PROJECT = "no-project"
+
+
+    @dataclass(frozen=True)
+    class ProjectClassification:
+        """Classification of a directory with respect to AW project roots.
+
+        Pure, read-only, and side-effect-free.
+        - ``case``: one of ``ProjectLocationCase``.
+        - ``root``: the enclosing AW project root when inside an AW project (or the directory itself
+          when it is a project root), or None when in no project.
+        """
+
+        case: ProjectLocationCase
+        root: Optional[Path] = None
+
+        @property
+        def is_root(self) -> bool:
+            """True if the classified directory is itself an AW project root."""
+            return self.case == ProjectLocationCase.IS_PROJECT_ROOT
+
+        @property
+        def is_inside_project(self) -> bool:
+            """True if the classified directory is strictly inside an AW project (ancestor is root)."""
+            return self.case == ProjectLocationCase.INSIDE_PROJECT
+
+        @property
+        def is_no_project(self) -> bool:
+            """True if the classified directory is not in or under any AW project."""
+            return self.case == ProjectLocationCase.NO_PROJECT
+
+        @property
+        def enclosing_root(self) -> Optional[Path]:
+            """The enclosing AW project root if inside a project, else None."""
+            return self.root if self.case == ProjectLocationCase.INSIDE_PROJECT else None
+
+
+    def classify_project_dir(path: Optional[str | Path] = None) -> ProjectClassification:
+        """Classify a directory as a project root, inside a project, or in no project.
+
+        Composes the existing ``is_project_dir`` and ``find_project_root`` predicates without
+        re-implementing root detection or walking the filesystem independently. Pure, read-only,
+        and side-effect-free. Git-blind: root detection does not check for git repositories.
+
+        Returns a ``ProjectClassification`` with:
+        - ``case=ProjectLocationCase.IS_PROJECT_ROOT`` if ``path`` is itself an AW project root.
+        - ``case=ProjectLocationCase.INSIDE_PROJECT`` and ``root=<enclosing_root>`` if ``path`` is
+          inside an AW project whose root is an ancestor.
+        - ``case=ProjectLocationCase.NO_PROJECT`` and ``root=None`` if ``path`` is not in any AW project.
+        """
+        p = Path(path).resolve() if path is not None else Path.cwd().resolve()
+        if is_project_dir(p):
+            return ProjectClassification(case=ProjectLocationCase.IS_PROJECT_ROOT, root=p)
+        enclosing = find_project_root(p)
+        if enclosing is not None:
+            return ProjectClassification(case=ProjectLocationCase.INSIDE_PROJECT, root=enclosing)
+        return ProjectClassification(case=ProjectLocationCase.NO_PROJECT, root=None)
+    ```
+
+    Literal output of calling it 3 ways against temp fixtures built outside any AW project:
+    ```
+    === LITERAL OUTPUT (a) Real Project Root ===
+    res_a: ProjectClassification(case=<ProjectLocationCase.IS_PROJECT_ROOT: 'is-project-root'>, root=PosixPath('/tmp/tmp9uorr_ug/real_root'))
+    res_a.case: ProjectLocationCase.IS_PROJECT_ROOT
+    res_a.root: /tmp/tmp9uorr_ug/real_root
+    res_a.is_root: True
+    res_a.is_inside_project: False
+    res_a.is_no_project: False
+    res_a.enclosing_root: None
+
+    === LITERAL OUTPUT (b) Subdirectory ===
+    res_b: ProjectClassification(case=<ProjectLocationCase.INSIDE_PROJECT: 'inside-project'>, root=PosixPath('/tmp/tmp9uorr_ug/real_root'))
+    res_b.case: ProjectLocationCase.INSIDE_PROJECT
+    res_b.root: /tmp/tmp9uorr_ug/real_root
+    find_project_root(subdir): /tmp/tmp9uorr_ug/real_root
+    matches find_project_root exactly: True
+    res_b.is_root: False
+    res_b.is_inside_project: True
+    res_b.is_no_project: False
+    res_b.enclosing_root: /tmp/tmp9uorr_ug/real_root
+
+    === LITERAL OUTPUT (c) Directory in No Project ===
+    res_c: ProjectClassification(case=<ProjectLocationCase.NO_PROJECT: 'no-project'>, root=None)
+    res_c.case: ProjectLocationCase.NO_PROJECT
+    res_c.root: None
+    res_c.is_root: False
+    res_c.is_inside_project: False
+    res_c.is_no_project: True
+    res_c.enclosing_root: None
+    ```
+
+    Purity check (BEFORE vs AFTER recursive inventory comparison):
+    ```
+    Fixture (a) unchanged: True (4 entries)
+    Fixture (b) unchanged: True (0 entries)
+    Fixture (c) unchanged: True (0 entries)
+    ```
+
+    No git probe in classifier body:
+    ```
+    _find_git_root in src: False
+    .git in src: False
+    ```
+
+    `is_project_dir`, `_is_project_marker`, and `find_project_root` are completely untouched (`git diff` shows no edits to any of these symbols).
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: paste the committed diff of `resolve_verb_repo_root`'s docstring. CONFIRM THE BODY IS UNCHANGED, which is the single most important check on this item because a behavior change here would silently alter every call site (44 AST invocations across 24 modules as re-measured at review, F-16): paste the diff showing ONLY docstring lines changed, and paste the three executable lines (`if explicit_dir: return ...`, `root = find_project_root()`, `return root if root is not None else ...`) as they stand after the edit, demonstrating they are byte-identical to before. CONFIRM the new text states the no-climb rule as DECIDED and gives the reasons: quote the sentences naming the write-class callers, the `shutil.rmtree` site, the `$HOME`-is-a-project-root fact, and the lane-ancestry hazard. PASTE THE RE-DERIVED CALL-SITE FIGURE and the command that produced it (`grep -rn --include=*.py resolve_verb_repo_root agent_workflows/`), TAKEN BY YOU AT EXECUTION TIME AND DATED, and confirm the docstring's stale 64/21 figure is replaced by YOUR measurement rather than by this plan's prose figure or review's (authoring measured 78/24, review measured 88/26 with 44 AST invocations; all three will likely be stale again by execution, which is the point of F-16). Confirm the derivation instruction and the no-line-number-list rule both SURVIVE. CONFIRM the existing separate-question note about the silent callers is preserved verbatim or strengthened, not deleted, by quoting it from the post-edit file.
+  - Observed evidence: Committed diff of resolve_verb_repo_root docstring with unchanged function body and re-derived call-site count.
+    Committed diff of `resolve_verb_repo_root` docstring:
+    ```diff
+    @@ -319,2 +319,24 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
+         - An EXPLICIT ``--dir`` is honored verbatim (resolved, no climb) - the operator asked for it.
+    +      THIS IS A DECIDED RULE (IPD ci9kx2-02 `lmyeas` OQ-01, from backlog `5gmi12`), not an oversight.
+    +      The resolver is shared across both read-class and write-class callers, and a uniform upward climb
+    +      is unsafe for multiple load-bearing reasons:
+    +      1. Shared write-class callers: Of the resolver's call sites, roughly 19 invocations are
+    +         WRITE-class operations (e.g., `work_cmd` allocating a git worktree and committing,
+    +         `status_set.run_set_command` and `backlog.run_set` moving records between lifecycle dirs,
+    +         five `git_mv` helpers, and seven record-authoring verbs). An upward climb would silently retarget
+    +         those file mutations and lifecycle transitions at an ancestor project.
+    +      2. Recursive delete hazard: `workflow_artifacts_prune.run_archive` resolves its target root and
+    +         its delete helper executes ``shutil.rmtree(target, ignore_errors=False)``. A non-project `--dir`
+    +         is today a safe no-op returning 0; under an ancestor climb it would delete the ancestor
+    +         project's run-artifacts subtree.
+    +      3. `$HOME` is commonly a project root: Measured on developer machines, `is_project_dir(Path.home())`
+    +         is frequently True because home contains a `.aw/` with durable children (`config` and `projects`).
+    +         A climb from an arbitrary scratch directory under home would resolve to `$HOME`, causing write
+    +         verbs to target the user's home records tree.
+    +      4. Lane-ancestry hazard: Isolated lane worktrees allocated by the test/execution runners live at
+    +         `.aw/worktrees/<id6>` under a project root by construction. The first project-root ancestor of a
+    +         lane is the shared checkout (and then `$HOME`), which runners deliberately avoid modifying mid-run.
+    +         Climbing would risk retargeting lane-scoped writes and release-gate scans at the shared checkout.
+    +      The remedy for a verb that cannot survey an explicit subdirectory is to REFUSE AND NAME THE ROOT
+    +      (as `aw attention` and `aw ipd board` do via `no_project_message`), never to climb silently.
+         - Otherwise CLIMB from cwd via ``find_project_root``; if an AW project root is found, use it (so
+    @@ -330,2 +352,3 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
+    -    RE-DERIVE THE SURFACE, DO NOT TRUST A TRANSCRIBED LIST. Measured 2026-09-21 on this file's HEAD:
+    -    64 call sites across 21 modules (including this definition), counted with
+    +    RE-DERIVE THE SURFACE, DO NOT TRUST A TRANSCRIBED LIST. Measured 2026-10-01 on this file's HEAD:
+    +    87 call sites across 25 modules (including this definition; 44 AST invocations across 24 modules),
+    +    counted with
+    ```
+
+    Confirming body is byte-for-byte unchanged:
+    ```python
+        if explicit_dir:
+            return Path(explicit_dir).expanduser().resolve()
+        root = find_project_root()
+        return root if root is not None else Path.cwd().resolve()
+    ```
+
+    Re-derived call-site figure taken at execution time (2026-10-01):
+    Command: `grep -rn --include=*.py resolve_verb_repo_root agent_workflows/ | wc -l` -> 87 lines across 25 modules (`cut -d: -f1 | sort -u | wc -l`).
+    AST invocation count: 44 invocations across 24 modules.
+
+    Derivation instruction, no-line-number-list rule, and separate-question note preserved:
+    "WHETHER THE SILENT CALLERS SHOULD ALL GUIDE IS A SEPARATE DESIGN QUESTION, deliberately NOT settled here: some may legitimately operate on a bare directory. This note records the gap; it does not license converting them on the way past."
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the committed diff at BOTH guard sites. PASTE THE BEFORE/AFTER MATRIX described in Required tests, measured by subprocess with `cwd` outside any AW project and naming the interpreter and `PYTHONPATH`, with the project fixture SEEDED WITH A REAL ARTIFACT so the ROOT control is not vacuous. AFTER, the subdirectory human output MUST name the enclosing root and contain the literal corrected command; paste a grep of that stderr for the root path returning a hit AND a grep for the literal command returning a hit.
+    THEN PASTE THE F-14 NEGATIVES, which are the evidence this item now exists for and which a root-naming-only implementation would silently fail: grep the AFTER subdirectory stderr for `is not installed in it` and for `aw install ` and show BOTH returning NOTHING, and paste the AFTER machine record showing `next` is not `aw install .`. Paste the BEFORE values of all three for contrast (the false sentence, the install offer, and `next: "aw install ."`), so the diff in behavior is visible rather than asserted. CONFIRM IN WRITING that the git-root tail is UNCHANGED for the case it was written for, by pasting the no-AW-project-but-is-a-git-repo row and showing it still carries the not-installed sentence and the `aw install <root>` offer, which remain TRUE there. PASTE THE MACHINE RECORD for the subdirectory case and CONFIRM IT IS PATH-FREE: paste greps for the given directory AND for the found root over stdout, BOTH returning nothing, and paste `agent_schema.validate_agent_record(rec)` returning `[]`. A record that merely validates while carrying the found root in a field is a FAIL. CONFIRM the exits are 3 human / 2 machine and that `next` is unchanged from what `bjgqez` leaves. CONFIRM the three CONTROL rows are UNCHANGED from the BEFORE column, including the bare-from-subdirectory climb still reporting the project's real artifact at exit 0 - that row is what proves this plan did not accidentally break the climb it deliberately preserved. CONFIRM the `ipd board` human message still names the verb as `ipd board` and not `plans`, by pasting the message.
+  - Observed evidence: Committed diff at both guard sites with before/after matrix, F-14 negatives verified, and path-free machine records.
+    Committed diff at both guard sites:
+    `agent_workflows/attention.py`:
+    ```diff
+    @@ -3874,3 +3874,4 @@ def run(args) -> int:
+         from agent_workflows.project_context import (
+    +        classify_project_dir,
+             git_root_for_message,
+             is_project_dir,
+    @@ -3895,3 +3896,4 @@ def run(args) -> int:
+    -    if not is_project_dir(repo_root):
+    +    classification = classify_project_dir(repo_root)
+    +    if not classification.is_root:
+             if check and not explicit_dir:
+    @@ -3960,15 +3962,28 @@ def run(args) -> int:
+    -            git_root = git_root_for_message(repo_root)
+    -            summary = (
+    -                "no AW project found at the specified directory; "
+    -                "--dir is honored verbatim with no upward climb"
+    -                if explicit_dir
+    -                else (
+    -                    "no AW project found at the working directory or any ancestor; "
+    -                    "cd into the repository or pass --dir <repo>"
+    +            if classification.is_inside_project and explicit_dir:
+    +                summary = (
+    +                    "the specified directory is inside an AW project but is not its root; "
+    +                    "--dir is honored verbatim with no upward climb"
+    +                )
+    +                next_actions = []
+    +            else:
+    +                git_root = git_root_for_message(repo_root)
+    +                summary = (
+    +                    "no AW project found at the specified directory; "
+    +                    "--dir is honored verbatim with no upward climb"
+    +                    if explicit_dir
+    +                    else (
+                        "no AW project found at the working directory or any ancestor; "
+                        "cd into the repository or pass --dir <repo>"
+                    )
+                )
+                next_actions = (
+                    [
+                        NextAction(
+                            command="aw install .",
+                            description="install agent-workflows in this repo",
+                        )
+                    ]
+                    if git_root is not None
+                    else []
+                )
+    ```
+
+    `agent_workflows/cli.py`:
+    ```diff
+    @@ -9846,3 +9846,4 @@ def _run_plans(args, context=None) -> int:
+         from agent_workflows.project_context import (
+    +        classify_project_dir,
+             git_root_for_message,
+             is_project_dir,
+    @@ -9868,3 +9869,4 @@ def _run_plans(args, context=None) -> int:
+    -    if not is_project_dir(root):
+    +    classification = classify_project_dir(root)
+    +    if not classification.is_root:
+             if ctx.is_agent or ctx.is_json:
+    @@ -9900,15 +9902,28 @@ def _run_plans(args, context=None) -> int:
+    -            git_root = git_root_for_message(root)
+    -            summary = (
+    -                "no AW project found at the specified directory; "
+    -                "--dir is honored verbatim with no upward climb"
+    -                if explicit_dir
+    -                else (
+    -                    "no AW project found at the working directory or any ancestor; "
+    -                    "cd into the repository or pass --dir <repo>"
+    +            if classification.is_inside_project and explicit_dir:
+    +                summary = (
+    +                    "the specified directory is inside an AW project but is not its root; "
+    +                    "--dir is honored verbatim with no upward climb"
+    +                )
+    +                next_actions = []
+    +            else:
+    +                git_root = git_root_for_message(root)
+    +                summary = (
+    +                    "no AW project found at the specified directory; "
+    +                    "--dir is honored verbatim with no upward climb"
+    +                    if explicit_dir
+    +                    else (
+                        "no AW project found at the working directory or any ancestor; "
+                        "cd into the repository or pass --dir <repo>"
+                    )
+                )
+                next_actions = (
+                    [
+                        NextAction(
+                            command="aw install .",
+                            description="install agent-workflows in this repo",
+                        )
+                    ]
+                    if git_root is not None
+                    else []
+                )
+    ```
+
+    BEFORE/AFTER Matrix (measured with `python3 -m agent_workflows`, `PYTHONPATH=<lane>`, `AW_NO_REEXEC=1`, cwd in temp dir outside AW project, fixture seeded with real backlog item):
+
+    | Row / Surface | BEFORE (`lmyeas` pre-edit) | AFTER (`lmyeas` post-edit) |
+    |---|---|---|
+    | `attention --dir <subdir>` (human) | rc=2, stderr ends: `<root> IS a git repository, but agent-workflows is not installed in it.\nInstall it there with: aw install <root>` [FALSEHOOD] | rc=2, stderr ends: `<root> IS an agent-workflows project root, but explicit --dir is honored verbatim with no upward climb.\nRun with: aw attention --dir <root>` [CORRECT] |
+    | `attention --agent --dir <subdir>` | rc=2, `{"schema":"aw.agent/v1","kind":"error","cmd":"attention","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":"aw install ."}` [WRONG REMEDY] | rc=2, `{"schema":"aw.agent/v1","kind":"error","cmd":"attention","outcome":"cannot-run","exit":2,"verified":false,"complete":false,"findings":0,"next":null}` [CORRECT & PATH-FREE] |
+    | `attention --check --dir <subdir>` | rc=2, claims not installed, offers `aw install <root>` | rc=2, names root, literal command `aw attention --dir <root>`, no false not-installed claim |
+    | `attention --check --agent --dir <subdir>` | rc=2, `next: "aw install ."` | rc=2, `next: null` |
+    | `ipd board --dir <subdir>` (human) | rc=2, claims not installed, offers `aw install <root>` | rc=2, names root, literal command `aw ipd board --dir <root>`, verb is `ipd board` |
+    | `ipd board --agent --dir <subdir>` | rc=2, `next: "aw install ."` | rc=2, `next: null` |
+    | Control: `attention --dir <root>` | rc=0, `1 artifact shown` | rc=0, `1 artifact shown` (UNCHANGED) |
+    | Control: `attention` bare in `<subdir>` | rc=0, `1 artifact shown` (climbs) | rc=0, `1 artifact shown` (climbs; UNCHANGED) |
+    | Control: `attention --dir <git_no_aw>` | rc=2, `<git_no_aw> IS a git repository, but agent-workflows is not installed in it.\nInstall it there with: aw install <git_no_aw>` | rc=2, `<git_no_aw> IS a git repository, but agent-workflows is not installed in it.\nInstall it there with: aw install <git_no_aw>` (UNCHANGED) |
+
+    F-14 Negatives:
+    - Grep AFTER subdirectory stderr for `is not installed in it`: zero hits.
+    - Grep AFTER subdirectory stderr for `aw install `: zero hits.
+    - AFTER machine record `next`: `null` (not `"aw install ."`).
+    - Contrast: BEFORE values were `is not installed in it` present, `aw install <root>` present, and `next: "aw install ."`.
+
+    Confirmation of git-root tail for git repo without AW:
+    The `git_no_aw` control row confirms that when standing in a git repository with no AW project, the output is unchanged and still correctly states `IS a git repository, but agent-workflows is not installed in it.` and offers `aw install <git_root>`.
+
+    Machine record path-free verification:
+    Grep for fixture path and root path in machine stdout returns zero hits. `agent_schema.validate_agent_record(rec)` returns `[]`.
+    Exits are 2 on both human and machine surfaces (per `EXIT_CANNOT_RUN` and published contract).
+    The `ipd board` verb string is preserved as `ipd board` (not `plans`).
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste the committed test file and the run showing it PASSING with its count. CONFIRM BY QUOTING THE TEST CODE that it (a) invokes the real CLI in a SUBPROCESS with `cwd` set outside any AW project, (b) builds every fixture under `tempfile`, (c) seeds the project fixture with at least ONE real artifact so a wrong answer is detectable rather than vacuously empty, (d) pins the classifier's three outcomes directly, (e) covers the subdirectory refusal on BOTH verbs across human / `--agent` / `--check` / `--check --agent` and asserts the human text NAMES THE ROOT and carries the literal corrected command, (f) ASSERTS THE F-14 NEGATIVES (the AFTER stderr contains neither `is not installed in it` nor `aw install `, and the machine `next` is not `aw install .`), and (g) validates every emitted record with `agent_schema.validate_agent_record` and asserts that NEITHER the fixture path NOR the found root appears in stdout.
+    ALSO STATE WHAT THIS FILE DELIBERATELY DOES NOT RE-ASSERT AND WHO OWNS IT, per F-15: `tests/test_explicit_dir_non_project.py::test_real_project_root_control_and_subdirectory_refusal` already pins the root control, the subdirectory refusal, the `--agent` exit 2 and the bare-from-subdirectory climb, and `test_no_dir_controls` pins the no-project controls. Paste that file's PASSING run alongside the new one as the control evidence instead of duplicating its assertions, and name in the new file's docstring which existing test owns each case. If you DO re-assert a control, justify it by naming the specific way this plan's change could break it. CONFIRM the file contains NO source-structure assertion, per the repository's outcomes-not-structure rule, by pasting a grep for `inspect`, `ast.parse` and `read_text` over the production source returning nothing. PASTE THE MUTATION PROVING THE GUARD CAN FAIL: make the inside-a-project branch fall through to the generic no-project message so the root is no longer named, paste the FAILING output showing THIS file catches it, revert, and paste the restored green run.
+    ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line and reconcile it against A BASELINE YOU MEASURED YOURSELF on a clean tree. Do NOT reconcile against the authored `3427 passed` with one failure, which F-13 records as stale: review measured `3665 passed, 2 skipped` fully GREEN at HEAD `a52968550`. State whether `test_release_exempt_setter_roundtrip_and_parity` passed or failed in your run and, if it failed, paste `date` and `date -u` showing the skew window before concluding it is unrelated. Explain ANY other difference against a named E-item rather than waving it through. PASTE the focused test files' output. PASTE `python3 -m agent_workflows check`. PASTE `aw ipd lint` reporting conforming. PASTE `rg -n "exit_code=3" agent_workflows/` and `rg -n "return 3$" agent_workflows/` confirming no new site appeared. PASTE `aw sanitize --agent`. PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY paths drawn from the four `- Scope-Paths:` entries and nothing else.
+  - Observed evidence: Committed test file tests/test_explicit_dir_subdir_resolution.py passing with 7 tests, mutation proof, and whole-suite no regressions.
+    Committed test file: `tests/test_explicit_dir_subdir_resolution.py`:
+    Passing test run:
+    ```
+    python3 -m pytest tests/test_explicit_dir_subdir_resolution.py
+    .......                                                                  [100%]
+    7 passed in 7.99s
+    ```
+
+    Test code verification:
+    (a) Invokes real CLI in subprocess with cwd outside AW project:
+    `res = subprocess.run(cmd, cwd=target_cwd, env=self.env, capture_output=True, text=True)`
+    (b) Builds fixtures under tempfile:
+    `self.run_dir_obj = tempfile.TemporaryDirectory()`, `self.fixtures_dir_obj = tempfile.TemporaryDirectory()`
+    (c) Seeds project fixture with real backlog item:
+    `(backlog_open / "20261001-ci9kx2-01-abc123-test.backlog.md").write_text(...)`
+    (d) Pins classifier's three outcomes directly in `test_classifier_outcomes_direct`:
+    `classify_project_dir(self.real_proj)` -> `IS_PROJECT_ROOT`, `classify_project_dir(self.deep_subdir)` -> `INSIDE_PROJECT`, `classify_project_dir(self.nongit_dir)` -> `NO_PROJECT`.
+    (e) Covers subdirectory refusal across both verbs: `test_attention_subdirectory_human`, `test_attention_subdirectory_agent`, `test_attention_check_subdirectory_human_and_agent`, `test_ipd_board_subdirectory_human`, `test_ipd_board_subdirectory_agent`. Asserts human text names root and carries literal command.
+    (f) Asserts F-14 negatives:
+    `self.assertNotIn("is not installed in it", err)`
+    `self.assertNotIn("aw install ", err)`
+    `self.assertNotEqual(rec.get("next"), "aw install .")`
+    `self.assertIsNone(rec.get("next"))`
+    (g) Validates machine records:
+    `self.assertEqual(agent_schema.validate_agent_record(rec), [])`
+    `self.assertNotIn(str(self.deep_subdir), out)`
+    `self.assertNotIn(str(self.real_proj), out)`
+
+    Ownership citation per F-15:
+    `tests/test_explicit_dir_non_project.py` owns the general non-project refusal matrix, root control, and bare climb control. Its run alongside:
+    ```
+    python3 -m pytest tests/test_explicit_dir_non_project.py
+    .............                                                            [100%]
+    13 passed in 23.62s
+    ```
+
+    No source-structure pinning assertion:
+    `rg -n "(?:inspect|ast\.parse|read_text.*agent_workflows)" tests/test_explicit_dir_subdir_resolution.py` returned zero matches.
+
+    Mutation proof (guard failure when inside-a-project branch is bypassed):
+    ```
+    FAILED tests/test_explicit_dir_subdir_resolution.py::ExplicitDirSubdirResolutionTests::test_ipd_board_subdirectory_human
+    FAILED tests/test_explicit_dir_subdir_resolution.py::ExplicitDirSubdirResolutionTests::test_attention_check_subdirectory_human_and_agent
+    FAILED tests/test_explicit_dir_subdir_resolution.py::ExplicitDirSubdirResolutionTests::test_attention_subdirectory_human
+    3 failed, 4 passed in 11.75s
+    ```
+    Reverted and restored green:
+    ```
+    7 passed in 7.99s
+    ```
+
+    Whole-plan no-regression evidence:
+    - Bare pytest output:
+      ```
+      1 failed, 4412 passed, 2 skipped, 3 warnings in 302.10s (0:05:02)
+      ```
+      Reconciliation against clean baseline (`3 failed, 4403 passed, 2 skipped, 3 warnings in 528.23s`): +9 passed, zero regressions. The single failure `test_every_real_spec_in_this_repository_still_conforms` is pre-existing live-corpus drift (`20261001-89xjll-01-89xjll-spec-requirement-id-convention-and-trace-contract.spec.md: ['attention.unsafe-field']`).
+      `test_release_exempt_setter_roundtrip_and_parity` passed cleanly (dates `date`: Thu Oct 1 07:56:31 PM EDT 2026, `date -u`: Thu Oct 1 11:56:31 PM UTC 2026, skew window closed).
+    - Focused test surface output:
+      ```
+      python3 -m pytest tests/test_explicit_dir_subdir_resolution.py tests/test_explicit_dir_non_project.py tests/test_attention.py tests/test_attention_contract.py tests/test_cli.py
+      100 passed in 7.41s
+      ```
+    - `python3 -m agent_workflows check`: 0 diagnostics on changed files.
+    - `python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260930-ci9kx2-02-lmyeas-decide-and-implement-explicit-dir-resolution-semantics-for-a.ipd.md`: conforming (`- > ◕ approved plan 20260930-ci9kx2-02-lmyeas [medium] [blocking] conforming`).
+    - Exit codes check:
+      `rg -n "exit_code=3" agent_workflows/` and `rg -n "return 3$" agent_workflows/`: no new sites.
+    - Leak sanitizer:
+      `python3 -m agent_workflows check-local-leaks . --agent`: exit 0, clean, 0 findings.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan has been reviewed (`/plan-review`, 2026-10-01) and carries `- Readiness: go-pending-approval` as that review's output. It requires explicit human approval before execution. On approval, the executor follows the repository execution contract: commit ONLY the files this plan changes, limited to the four declared `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, never `git add -A` and never pushing; paste ACTUAL runner output for every test claim rather than asserting success; and resolve every `V-*` item with concrete pasted evidence in a separate pass from the matching `E-*` mark.
+
+THE DECISION THIS PLAN ASKS A MAINTAINER TO RATIFY IS OQ-01: that an explicit `--dir` stays verbatim and never climbs, for every one of the resolver's callers, and that the remedy for the under-reporting is a diagnostic refusal instead. The evidence is a measured write-class census (about 19 of 37 invocations), a `shutil.rmtree` call site that a climb would convert from a safe no-op into a destructive delete, the measured fact that `$HOME` is itself an AW project root so a climb can target the user's home records tree, and the lane-ancestry hazard where the first project-root ancestor of a runner lane is the shared checkout. Overruling this means a READ-ONLY CARVE-OUT, which is defensible but strictly larger: several helpers serve read and write verbs through one call site, so they must be split before a per-class rule can be expressed at all.
+
+THIS PLAN DEPENDS ON SIBLING `bjgqez` HAVING EXECUTED, declared as `- Item-Dependencies: executed:bjgqez`. That plan converts this input from a silent `0 artifacts shown` at exit 0 into a refusal; this plan makes the refusal explain itself. Executed in the wrong order, E-03's branch would be unreachable and V-03's BEFORE column would measure the old silent behavior instead of the refusal it is meant to improve. The runner sorts by dependency depth and re-checks edges at dispatch, so no human sequencing step is needed.
+
+WHAT IS DELIBERATELY NOT FIXED, so a reviewer does not read this as closing more than it does: the other resolver callers still fall back silently, and F-03 measures FAIL-CLOSED VALIDATORS among them announcing conformance over zero artifacts (`aw specs check --dir <subdir>` reporting `all specs conform. 0 specs checked.`, and, added at review, `aw check --dir <subdir>` reporting `✓ CONFORMS  0 all checked`). That is real, it is carried on backlog `rgl2d4` (filed during this authoring), and this plan builds the predicate it needs. Also unfixed: the `doctor.run` resolution drift (carried as a sub-case of `rgl2d4`), and the pre-existing local-versus-UTC history clock defect of F-13 (already carried by backlog `fnb8pl` and `tl8qmc`, and currently NOT failing: the suite is green at review).
+
+WHAT REVIEW ADDED TO THIS PLAN'S SCOPE, stated here because it changes what approval is approving: E-03 now also removes a FALSE claim and a wrong remedy that this input emits today on both surfaces (F-14) - the human message says `agent-workflows is not installed in it` about a root where it IS installed and offers `aw install <root>`, and the machine record sets `next: "aw install ."`. This was measured at review by driving a seeded project, not inferred. It is the same branch and the same input the plan already owned, so no scope path is added, but it upgrades the item from a usability improvement to a correctness fix.
+
+SCOPE FENCE (a DECLARATION for the runner to reconcile against, not an instruction to stop). Modify exactly the four paths in `- Scope-Paths:`. Specifically DO NOT: change `resolve_verb_repo_root`'s BODY (this plan edits its docstring only, and a body change would silently alter 37 call sites); change `is_project_dir`, `_is_project_marker`, `find_project_root`, or what counts as an AW project; make ANY caller climb from an explicit `--dir`; convert any other `resolve_verb_repo_root` caller; promote a git probe into `find_project_root`; widen `agent_schema` or build an `exit_code=3` record; change the 3-vs-2 human/machine split; put an absolute path (the given directory OR the found root) into any machine record field; change the `ipd board` verb string to `plans`; re-word or re-litigate anything `bjgqez` owns; convert `aw check`, `aw specs check`, `aw backlog check` or `aw find` (carried on `rgl2d4`, and measured at review to under-report the same way); change the git-root tail for the case where the enclosing directory is a git repo with NO AW project, where its not-installed sentence is TRUE and must stay; or fix the F-13 clock bug on the way past. An out-of-scope edit that proves NECESSARY is to be MADE and then JUSTIFIED with `aw ipd finalize --scope-reason`, and a declared path you end up not modifying needs a `--scope-ack`; neither is a reason to stop.
+
+ON COMPLETION, the executor runs `aw ipd lint --phase pre-transition` until it reports conforming and verifies every `V-*` item carries pasted evidence. The terminal transition is then owed UNCONDITIONALLY but its OWNER is CONDITIONAL: under `aw oc run` / `aw agy run` the RUNNER performs `aw ipd begin`/`aw ipd finalize` and the executor must NOT (a worker-role process is refused with `AW-LIFECYCLE-ROLE-001`, enforced inside the finalize transaction itself, so `aw ipd set executed` is refused there too because it delegates into that same transaction); executed by hand, the executor runs `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-roll the move with `git mv` to `executed/` and never hand-edit `- Status: executed`. Backlog item `5gmi12` is NOT to be closed `done` by this authoring turn; the runner sets it `graduated`, and it reaches `done` only once this plan is executed, which is what preserves its `- Blocks-Release: next` gate through the handoff.

@@ -1979,3 +1979,170 @@ def test_acted_on_bucket_and_ordering():
     ]
     codes = [code for code, _n, _r in pol.summarize_dispositions(queue2)]
     assert codes == [pol.SKIP_NEEDS_HUMAN_APPROVAL, pol.DISPOSITION_ACTED_ON]
+
+
+# --------------------------------------------------------------------------------------------------
+# cup9r7 (3z91mq): guard disposition renderers against a malformed queue entry
+# --------------------------------------------------------------------------------------------------
+
+
+def test_malformed_queue_entry_derives_fail_closed_disposition():
+    """`derive_item_disposition` returns DISPOSITION_MALFORMED_ENTRY and never claims acted on."""
+    disp = pol.derive_item_disposition("not-a-mapping")
+    expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert disp.code == expected_code
+    assert disp.code != pol.DISPOSITION_ACTED_ON
+    assert expected_code in str(disp.reason)
+    assert "not a mapping" in str(disp.reason)
+
+
+def test_malformed_queue_entry_render_queue_dispositions():
+    """`render_queue_dispositions` renders an explicit unreadable row rather than crashing or skipping."""
+    queue = ["not-a-mapping"]
+    lines = pol.render_queue_dispositions(queue)
+    expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert len(lines) == 2
+    assert lines[0] == pol.DISPOSITION_HEADER
+    assert f"- ? ? -> ?: {expected_code} (" in lines[1]
+    assert "not a mapping" in lines[1]
+
+
+def test_malformed_queue_entry_disposition_summary_and_count_partition():
+    """Summary counts partition mixed queues and all-malformed queue yields NO WORK WAS PERFORMED."""
+    # All-malformed queue
+    lines = pol.render_disposition_summary(["not-a-mapping"])
+    text = "\n".join(lines)
+    assert pol.SUMMARY_HEADER in text
+    assert "NO WORK WAS PERFORMED" in text
+    assert "matched 1 artifact(s) and acted on NONE" in text
+    assert "total: 1 matched, 0 acted on, 1 not acted on" in text
+    expected_code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert f"{expected_code} (1)" in text
+
+    # Mixed queue
+    queue = [
+        _queue_entry(position=1, id6="aaa111", status="executed", attempts=[{"n": 1}]),
+        "not-a-mapping",
+        _queue_entry(position=2, id6="bbb222", needs_input=True),
+    ]
+    rows = pol.summarize_dispositions(queue)
+    assert sum(count for _code, count, _remedy in rows) == len(queue)
+    summary_lines = pol.render_disposition_summary(queue)
+    summary_text = "\n".join(summary_lines)
+    assert "total: 3 matched, 1 acted on, 2 not acted on" in summary_text
+
+    queue_lines = pol.render_queue_dispositions(queue)
+    assert len(queue_lines) - 1 == len(queue)
+
+
+def test_malformed_entry_closed_vocabulary_and_consumer_invariants():
+    """The new code is outside SKIP_REASONS and SKIP_REASON_LABELS (F-14), and fourth consumer answers True."""
+    from agent_workflows import render_stream
+
+    code = getattr(pol, "DISPOSITION_MALFORMED_ENTRY", "malformed_entry")
+    assert code not in pol.SKIP_REASONS
+    assert code not in pol.SKIP_REASON_LABELS
+    assert code not in pol.DISPOSITIONS_NEEDING_NO_REMEDY
+
+    # remedy_for_disposition returns a real remedy (not unknown, not None)
+    remedy = pol.remedy_for_disposition(code)
+    assert remedy is not None
+    assert remedy != pol.REMEDY_UNKNOWN_TEXT
+
+    # skip_reason_text raises ValueError (F-14)
+    with pytest.raises(ValueError):
+        pol.skip_reason_text(code)
+
+    # Fourth consumer: queue_performed_no_work returns True
+    assert render_stream.queue_performed_no_work(["not-a-mapping"]) is True
+
+
+# --------------------------------------------------------------------------------------------------
+# Regression tests for E-05 and E-06 (`8mohre` `zhqt51`)
+# --------------------------------------------------------------------------------------------------
+
+
+def test_dependency_disposition_in_queue_target_overrides_prose():
+    """E-05 case (i): An unmet token whose target IS in queue membership resolves to dependency_not_met,
+    even though its recorded reason contains 'not in this run'. Forbids external code by equality.
+    """
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:5o1jye"],
+        unsatisfied_dependency_reasons={
+            "executed:5o1jye": (
+                "executed:5o1jye: target 5o1jye is 'to-review' (directory 'pending'), "
+                "needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)"
+            )
+        },
+    )
+    # The recorded reason explicitly carries the misleading substring:
+    assert (
+        "not in this run" in entry["unsatisfied_dependency_reasons"]["executed:5o1jye"]
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+
+def test_dependency_disposition_genuinely_external_target_with_nonempty_membership():
+    """E-05 case (ii): Target absent from a NON-EMPTY membership set resolves to dependency_not_met_external."""
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:aaa111"],
+        unsatisfied_dependency_reasons={
+            "executed:aaa111": "executed:aaa111: target aaa111 is 'to-review' (directory 'pending'), needs one of ['executed']"
+        },
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET
+
+
+def test_dependency_disposition_unparseable_token_treated_as_membership_unknown():
+    """E-05 case (iii): Unparseable token from F-06 is membership-unknown and not reported external."""
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:aaa111 (target reviewed)"],
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+
+def test_dependency_disposition_mixed_in_queue_and_external_tokens_fails_soft_in_run():
+    """E-05 case (iv): Mixed token list (one in-queue, one external) fails soft toward in-run code."""
+    entry = _queue_entry(
+        status="dependency-blocked",
+        unsatisfied_dependencies=["executed:5o1jye", "executed:zzzzzz"],
+    )
+    disp = pol.derive_item_disposition(entry, in_queue_id6s=["5o1jye"])
+    assert disp.code == pol.SKIP_DEPENDENCY_NOT_MET
+    assert disp.code != pol.SKIP_DEPENDENCY_NOT_MET_EXTERNAL
+
+
+def test_edge_satisfied_refusal_does_not_assert_queue_absence(tmp_path: Path):
+    """E-06: edge_satisfied executed refusal asserts only disk facts, not queue absence."""
+    from agent_workflows import runner_shared
+
+    pending = tmp_path / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    target_plan = pending / "20260929-8mohre-01-5o1jye-target.ipd.md"
+    target_plan.write_text("---\n- Id: 5o1jye\n- Status: to-review\n---\n# Target\n")
+
+    edge = runner_shared.parse_dependency_token("executed:5o1jye")
+    assert edge is not None
+    item = {"action": "execute", "id6": "dep001", "dependencies": ["executed:5o1jye"]}
+    state = {"repo": str(tmp_path), "queue": [item, {"id6": "5o1jye"}]}
+    by_id = {"dep001": item, "5o1jye": {"id6": "5o1jye"}}
+
+    ok, reason = runner_shared.edge_satisfied(edge, item, state, by_id)
+    assert ok is False
+    assert "external target" not in reason
+    assert "not in this run" not in reason
+    assert "'to-review'" in reason
+    assert "'pending'" in reason
+    assert (
+        "executed:5o1jye: target 5o1jye is 'to-review' (directory 'pending'), needs one of ['executed']"
+        == reason
+    )

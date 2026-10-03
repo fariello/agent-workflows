@@ -1,0 +1,402 @@
+# IPD: Resolve the run viewer and dashboard host labels from the HostLabels descriptors while keeping the pre-cutover path fallback
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: Two run-record CONSUMERS carry their own hand-written copy of the host vocabulary that `runner_shared.HostLabels` already holds as data, so adding a host means editing code in three places and forgetting one is silent. `run_viewer.load_run_summary` branches on `driver_id` against the literal tuples `("oc_runipd", "opencode", "oc")` and `("agy_runipd", "antigravity", "agy", "runagy")` and returns the literal product strings `"OpenCode"`/`"Antigravity"`, every one of which `OC_HOST_LABELS`/`AGY_HOST_LABELS` already carry as `.id`, `.argv_tokens` and `.product`. `run_dashboard._run_host` independently PREFIX-MATCHES the same concept with `did.startswith("agy")` then `did.startswith("oc")`, which is strictly worse than a literal set because it MIS-ROUTES rather than falling through: measured at HEAD `2830ecff`, `_run_host({"driver": {"id": "octopus"}}, [])` returns `"oc"` and `"agyx"` returns `"agy"`, so a future host whose id merely begins with those two letters is silently attributed to the wrong host. That second consumer is not a discovery of this plan; `tests/test_hostdedup_third_host.py` names it in prose and names THIS item as its carrier ("run_dashboard._run_host also reads state['driver']['id'] and prefix-matches ... deliberately left uncovered here pending registry consolidation (carrier: gxsprh)"). WHY THIS IS A CHORE AND NOT A BUG, restated from measurement rather than inherited: no live host renders wrongly today (`oc_runipd` and `agy_runipd` are the only two ids any producer writes, confirmed by reading the `"driver"` record in `initialize_run_core`), and the prefix-match misrouting needs a host that does not exist to be observable, so there is no user-perceptible impact and no `- Blocks-Release:` gate is inherited or invented.
+- Scope: IN: add ONE resolver to `runner_shared` that maps a recorded `driver.id` to its `HostLabels` by DISCOVERING every `HostLabels` instance in the module (the same discovery shape `tests/test_hostdedup_third_host.py` already uses), keyed on `.id` plus `.argv_tokens`; re-point `run_viewer.load_run_summary`'s `driver_id` arm at it while leaving its `elif driver_path` substring/stem fallback BYTE-IDENTICAL; re-point `run_dashboard._run_host`'s two `startswith` tests at the same resolver so an unregistered id falls through to its existing `options`/`cost_attribution`/`format` chain instead of being misrouted; and pin all three properties with outcome tests, including the pre-cutover corpus shapes and a registered-then-unregistered third host. OUT, each for a stated reason: the `elif driver_path` fallback's own literals, which MUST keep labelling the 253 id-less records measured in the local corpus (F-04) and whose `runipd.py`/`ipdrunner.py` generations match NO live descriptor, so folding them into a descriptor lookup would regress historical runs - this is precisely the blast radius the backlog item warned of; `run_analytics_sources.driver_generation`/`_GENERATION_HOSTS`, which is a THIRD vocabulary that is deliberately basename-keyed for the pre-cutover corpus and already routes both live hosts correctly (F-05); adding any FIELD to `HostLabels`, since every field must be justified by a named consumer and this plan needs none; `host_capability_registry`'s `display_name` table and `host_cmd.DEFAULT_HOSTS`, which are a separate installed-host vocabulary keyed on CLI host names rather than on driver ids (F-06); and the `"runagy"` spelling, which is NOT derivable from `.id`+`.argv_tokens` and is handled explicitly in E-01 rather than dropped (F-03).
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, agent_workflows/run_dashboard.py, tests/test_hostdedup_third_host.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: gxsprh
+- Set: gxsprh
+- Order: 1
+- Highest E allocated: 05
+- Author: agent
+- Id: o55eli
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: o55eli verified (set gxsprh, attempt 1).
+- 2026-10-01 approved (aw set): status set to approved
+- 2026-10-01 reviewed (aw set): status set to reviewed
+
+- 2026-09-30 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-1201, PR-1202, PR-1204 (HIGH), PR-1203, PR-1207 (MEDIUM), PR-1205, PR-1206 (LOW), all FIXED. Reviewed at HEAD `fe6611919`; typed record at `.aw/records/reviews/20260930-gxsprh-01-o55eli-resolve-the-run-viewer-and-dashboard-host-labels-from-the-ho.review.md`. THE DESIGN IS CORRECT AND THE HARDEST MEASUREMENTS ARE EXACT: F-03 verified on every count (the id+argv_tokens union is exactly the six keys, collision-free, the one missing viewer literal IS `runagy`, and the two descriptors DO share `run`/`runipd` in `argv_subcommands`), F-04 reproduced to the record (338 readable states, 253 id-less, labelling 224/14/13/2 with `runipd` and `ipdrunner` matching no descriptor), F-02's misrouting and its carrier docstring verbatim, the narrowed counts 63 and 66 exact, and the target file carrying exactly 12 tests. THREE FINDINGS WOULD HAVE COST THE EXECUTOR REAL TIME. PR-1201: E-03 changes `_run_host` on FIVE ids, not the two named, because `"opencode"`, `"antigravity"` and `"runagy"` return `"unknown"` TODAY and resolve after, so three unasserted changes would have shipped to a grouping key interpolated into operator-facing text. PR-1204: E-05's MANDATORY per-file command names `tests/test_rununify_initialize_run.py`, which DOES NOT EXIST, and pytest exits 4 on a missing path having run nothing, so the whole evidence step would have failed on a typo; corrected to the seven real files and verified (`255 passed`). PR-1202: the suite is NOT green (one pre-existing date bomb in `tests/test_backlog.py`), so E-05's bar of "zero failures" was unachievable; restated as a failing-node-id SET comparison. FOUR ACCURACY REPAIRS whose conclusions all survive: the `aw check` baseline characterization was wrong in three ways (68 findings, a warning tier, a different dominant rule) while its load-bearing "none in scope paths" half re-verified; F-02's `rg gxsprh` proof returns about 16 hits not one (conclusion strengthened, method corrected); the import multiplier is about 2.4x not 5x (decision unaffected, no-cycle claim independently confirmed by AST scan); and four authored figures drifted in one day while two held exactly, now recorded in the live-count convention as evidence. No production code or test was changed by this review.
+- 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `gxsprh`. Every measurement in Findings was taken against the working tree at HEAD `2830ecff`. The item's central claim is CONFIRMED verbatim: both literal tuples and both product strings are present at `run_viewer.load_run_summary` and all of them are already `HostLabels` data. THREE things the item did not state are corrected or added from measurement rather than trusted. (1) The item says all four of the viewer's spellings are already carried as `.id`, `.argv_tokens` and `.product`; measured, `"runagy"` is in `AGY_HOST_LABELS.argv_subcommands`, NOT `argv_tokens`, so the naive derivation the item describes would silently DROP one accepted spelling (F-03). (2) A SECOND consumer with a worse failure mode exists and an in-tree test already nominates this item as its carrier: `run_dashboard._run_host` prefix-matches and therefore misroutes `octopus` to `oc` rather than falling through (F-02). (3) The item's stated mitigation (plan `otr54d` E-03 asserting the viewer label equals `HostLabels.product`) is CONFIRMED live and green in `tests/test_hostdedup_third_host.py`, which is why this stays `low`; that same file's pre-cutover cases are what bound this plan's fallback-preservation requirement (F-04).
+- 2026-09-30 draft (agent): created.
+
+## Goal
+
+Give the two run-record consumers ONE place to learn what a `driver.id` means, so registering a host is a descriptor edit rather than a three-file code edit, and so an unregistered id degrades honestly (renders its own id, falls through to the next signal) instead of being misattributed by a prefix match. Leave the pre-cutover `driver.path` fallback exactly as it is, because it is the only thing that labels the majority of the existing corpus and it knows generations no live descriptor does.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: one resolver in the module that owns the descriptors
+
+- [x] E-01 In `agent_workflows/runner_shared.py`, immediately after the `AGY_HOST_LABELS` definition, add a public `host_labels_for_driver_id(driver_id: str | None) -> HostLabels | None` that returns the descriptor a recorded `driver.id` denotes, or `None` when no descriptor claims it. BUILD ITS KEY MAP BY DISCOVERY, not by a hand-written table: iterate `vars()` of this module for `isinstance(v, HostLabels)`, and for each descriptor register `labels.id` plus every entry of `labels.argv_tokens`. Discovery is required rather than stylistic, because a hand-written table is the very duplication this plan deletes and because `tests/test_hostdedup_third_host.py` ALREADY establishes exactly this discovery shape (`[v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)]`) in two of its tests, so the resolver and its guard agree on what "a registered host" means. NORMALIZE the input by `str()`-ing and `.strip()`-ing it and return `None` for empty, matching how `run_analytics_sources.driver_generation` treats a blank id. DO NOT register `argv_subcommands`: measured, `OC_HOST_LABELS.argv_subcommands` and `AGY_HOST_LABELS.argv_subcommands` SHARE `"run"` and `"runipd"`, so registering them would make the map ambiguous and let one host's key resolve to the other (F-03). THE ONE SPELLING THIS LOSES MUST BE HANDLED EXPLICITLY AND NOT DROPPED: the viewer today accepts `"runagy"` for Antigravity, and `"runagy"` lives in `argv_subcommands`, so add it as a NAMED extra alias with a comment recording that it is the one viewer spelling `.id`+`.argv_tokens` does not cover and that it is preserved to keep the resolver a strict superset of the literals it replaces (F-03). Assert at import time, or in E-04's guard, that the built key map is COLLISION-FREE (measured collision-free today across the union `{agy, agy_runipd, antigravity, oc, oc_runipd, opencode}`), so a future descriptor whose `argv_tokens` collide with another host's fails loudly instead of resolving arbitrarily by `vars()` ordering. Do NOT add a field to `HostLabels` and do NOT touch either descriptor's values; the descriptor's own comment requires every field to have a named consumer and this plan needs no new one.
+  - Depends on: none
+  - Expected outcome: `host_labels_for_driver_id("oc_runipd")`, `("oc")`, `("opencode")` all return `OC_HOST_LABELS`; `("agy_runipd")`, `("agy")`, `("antigravity")`, `("runagy")` all return `AGY_HOST_LABELS`; `("scripted")`, `("octopus")`, `("")`, `(None)` all return `None`. The set of ids the resolver accepts is a strict SUPERSET of the union of the two literal tuples `run_viewer` carries today, proven in V-01 by resolving every member of both tuples.
+  - Execution state: performed
+
+### Task group 2: re-point the two consumers, preserving both fallbacks
+
+- [x] E-02 In `agent_workflows/run_viewer.py`, replace the body of `load_run_summary`'s `if driver_id:` arm with a call to `runner_shared.host_labels_for_driver_id(driver_id)`, setting `driver_name` to the resolved `labels.product` and otherwise to `driver_id` unchanged. Add the import to the EXISTING `from agent_workflows.runner_shared import (...)` block at the top of the module, which already imports nine names, so this adds no new module dependency and cannot create an import cycle (`runner_shared` reaches `run_viewer` only through function-local imports, measured at `runner_shared.peer_drivers`). LEAVE THE `elif driver_path:` ARM BYTE-IDENTICAL, which is the single most important constraint in this plan and the reason the backlog item did not fold this work into `otr54d`. That arm labels records holding no `driver.id` at all, and in the local corpus that is 253 of 329 readable run records: 224 label `OpenCode` and 14 `Antigravity` via substring, and 15 more resolve through `Path(driver_path).stem` to `runipd` and `ipdrunner` - two generations that match NO live `HostLabels.id`, so routing that arm through the descriptor resolver would turn 15 correctly-labelled historical runs into unlabelled ones (F-04). The two arms are deliberately asymmetric: the `driver_id` arm asks a registry, the `driver_path` arm reads history, and only the first is consolidated here.
+  - Depends on: E-01
+  - Expected outcome: For a state recording `driver.id` of `oc_runipd`/`agy_runipd`, `load_run_summary(...).driver` is `"OpenCode"`/`"Antigravity"` exactly as before, and now provably EQUAL to that host's `HostLabels.product` rather than to a literal that happens to match. For an unregistered id (`"scripted"`) it still returns that id verbatim. For the four pre-cutover path-only shapes the resolver is never consulted and all four labels are unchanged.
+  - Execution state: performed
+
+- [x] E-03 In `agent_workflows/run_dashboard.py`, replace `_run_host`'s two prefix tests (`if did.startswith("agy"): return "agy"` and `if did.startswith("oc"): return "oc"`) with a resolver lookup that returns this function's OWN short host token for a resolved descriptor and falls through to the existing chain otherwise. MIND THE TWO VOCABULARIES, because this is the one genuinely non-mechanical part of this plan: `_run_host` returns `"oc"`/`"agy"` short tokens, NOT `HostLabels.id` and NOT `.product`, and its return value is consumed as a grouping key and interpolated into operator-facing text (`"(unrecorded, {0})".format(host)`), so returning `"oc_runipd"` instead of `"oc"` would silently change dashboard grouping and output. Derive the short token from the resolved descriptor's `argv_tokens[0]` (measured `"oc"` and `"agy"` respectively, which equal the tokens this function already returns) rather than hand-mapping id to token, and comment that this is why `argv_tokens[0]` is read here. IMPORT IT LAZILY, inside the function, following this module's OWN established precedent at `_default_cache_path`, which does `from agent_workflows.runner_shared import analytics_cache_dir` inside the function body: measured, importing `run_dashboard` does NOT currently load `runner_shared` and `runner_shared` costs 0.347s to import against `run_dashboard`'s own 0.076s, so a module-level import would make every dashboard import pay it. THE BEHAVIORAL WIN IS THE FALL-THROUGH, and it must be stated in the comment so nobody "simplifies" it back: today `"octopus"` returns `"oc"` and `"agyx"` returns `"agy"`, both wrong; after this change both fall through to the `options.opencode` / `cost_attribution.host` / session-`format` chain and finally to `"unknown"`, which is the honest answer. Leave that whole downstream chain unchanged.
+  - Depends on: E-01
+  - Expected outcome: `_run_host({"driver": {"id": "oc_runipd"}}, [])` still returns `"oc"` and `agy_runipd` still returns `"agy"`. `"octopus"` and `"agyx"` now return `"unknown"` instead of `"oc"`/`"agy"`, and a state carrying one of those ids PLUS a `cost_attribution.host` of `"agy"` now resolves through that signal rather than being pre-empted by the prefix (measured at review: that case returns `"oc"` today, so the pre-emption is real). THREE MORE IDS ALSO CHANGE, IN THE WIDENING DIRECTION, and they must be asserted too (F-10): measured at review, `_run_host` returns `"unknown"` TODAY for `"opencode"`, `"antigravity"` and `"runagy"`, because its prefix test is `startswith("oc")`/`startswith("agy")` and `"opencode"`/`"antigravity"` do not start with those exact tokens in the way the viewer's literal set accepts them; after this change all three resolve (`"oc"`, `"agy"`, `"agy"`). That is a CORRECTION rather than a regression, since those are spellings the viewer already honors and the dashboard should agree with it, but it is a behavior change on three ids and the plan must not claim only two ids move. `import agent_workflows.run_dashboard` still does not import `runner_shared`, proven in V-03 by a `sys.modules` probe.
+  - Execution state: performed
+
+  THE CHANGE SET ON THIS FUNCTION IS FIVE IDS, NOT TWO, AND THE TWO DIRECTIONS ARE DIFFERENT IN KIND. Added at review (PR-1201). NARROWING (the misrouting fix the plan was written for): `"octopus"` and `"agyx"` go from a wrong host to `"unknown"`. WIDENING (not previously stated): `"opencode"`, `"antigravity"` and `"runagy"` go from `"unknown"` to the right host. Both are improvements and both are deliberate, but an executor who asserts only the plan's two named ids would ship three unasserted behavior changes to a grouping key that is interpolated into operator-facing text, and a reviewer comparing before and after would see dashboard rows move for reasons the plan never predicted. V-03 now requires all five pasted in both directions.
+
+### Task group 3: pin the three properties and re-run
+
+- [x] E-04 Extend `tests/test_hostdedup_third_host.py` with outcome tests for the resolver and both consumers, in that file because it is where the third-host descriptor contract and BOTH directions of host attribution already live, and because its `test_each_real_host_records_own_driver_identity_and_consumers_route` docstring is the prose that must be updated when the third consumer stops being uncovered. Add: (a) a resolver test asserting every member of the two literal tuples the viewer carries TODAY resolves to the expected descriptor, written as explicit id-to-descriptor pairs so it is a real superset proof rather than a restatement of the implementation; (b) a collision-freeness test over DISCOVERED descriptors, asserting no key in the union of `.id` and `.argv_tokens` maps to two different descriptors, which is the guard that makes discovery safe as hosts are added; (c) a `_run_host` test covering registered ids, the two MISROUTING ids (`"octopus"`, `"agyx"`) now returning `"unknown"`, and the fall-through-still-works case where an unregistered id plus `cost_attribution.host` resolves by the later signal; (d) a test that a descriptor registered at runtime (`SCRIPTED_HOST_LABELS`, monkeypatched onto `runner_shared` with `setattr` and removed in teardown) is picked up by BOTH consumers without any further code edit, which is the property this whole plan exists to buy and the one the file's existing `test_third_host_needs_no_runner_module` stops short of; and (e) an assertion that the four pre-cutover path-only shapes in `test_pre_cutover_path_only_records_still_attribute_in_run_viewer` still produce `OpenCode`, `Antigravity`, `runipd` and `ipdrunner`, left passing unchanged, which is the regression this plan is most at risk of causing. OBSERVABLE OUTCOMES ONLY, per `AGENTS.md` and GUIDING_PRINCIPLES P16: call the resolver, call `load_run_summary` on a written `state.json`, call `_run_host` on a mapping; do NOT use `inspect.getsource`, `ast`, or any read of a production `.py` file to assert the literals are gone. ALSO CORRECT ONE STALE CITATION while editing this file, since it is a two-word fix in the exact docstring this plan must already touch: that docstring's "Uncovered third consumer (PR-904 / F-14)" paragraph names `gxsprh` as carrier and is now discharged, so restate it as covered and name this plan. NOTE SEPARATELY, and do NOT fix here, that `HostLabels`'s own docstring cites `tests/test_rununify_host_descriptor.py` as the file asserting its field justifications and that file DOES NOT EXIST at this HEAD (measured); that dangling citation is out of scope and is carried below.
+  - Depends on: E-03
+  - Expected outcome: New tests that FAIL on the pre-E-01 tree at a named assertion, specifically the `_run_host` misrouting cases (which return `"oc"`/`"agy"` before and `"unknown"` after) and the runtime-registered-descriptor case (which returns the raw id from the viewer before, because `"scripted"` is in neither literal tuple, and `"Scripted"` after). The file's twelve existing tests pass unmodified.
+  - Execution state: performed
+
+- [x] E-05 Run the BARE suite, `python3 -m pytest`, and compare it against a baseline YOU RE-DERIVE on the pre-change tree in the same session rather than against any figure written in this plan. THE BAR IS THE PROPERTY, AND IT IS A FAILING-NODE-ID SET COMPARISON, NOT "ZERO FAILURES": no node id failing after the change that was not failing before, and a collected rise equal to the tests E-04 adds and nothing else. THE BASE IS RED (F-11), which is why the bar cannot be zero: measured at review, bare `python3 -m pytest` reports `1 failed, 3491 passed, 2 skipped` with the failure at `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, a date-dependent assertion (`2026-09-30` expected, `2026-10-01` written) unrelated to all four scope paths. Capture the failing node-id SET before any edit and paste it. A transcribed total is a live population that drifts, so treat this plan's authored `3387 passed, 2 skipped, 3 warnings in 64.15s` at HEAD `2830ecff` (F-07) and review's `3491 passed` alike as context only, and note the deselection count has already moved from 207 to 208. Bare is required: `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` with a marker expression excluding `slow` and `livecorpus`, so `-n0` makes the suite several times slower, a second `-q` suppresses the `N passed` line this plan must paste, and `-p no:randomly` disables the order randomization that surfaces order-dependence. ALSO run, narrowed with `-o addopts=""` so per-file counts are visible, every file that consumes a driver identity or a host label: `tests/test_hostdedup_third_host.py tests/test_run_viewer.py tests/test_run_dashboard.py tests/test_runner_shared.py tests/test_run_analytics.py tests/test_run_analytics_cli.py tests/test_run_analytics_statistics.py`. THAT LIST IS SEVEN FILES, NOT EIGHT: an earlier draft named `tests/test_rununify_initialize_run.py`, WHICH DOES NOT EXIST (F-12), and pytest answers a missing path with a usage error (exit 4) that runs NONE of the other files, so the literal command would have failed on a typo and produced no per-file evidence at all. `initialize_run_core` coverage is already inside two of the seven (`tests/test_runner_shared.py` and `tests/test_hostdedup_third_host.py`); verify each path exists before running the command. `tests/test_run_analytics*.py` are NOT optional even though this plan does not touch `run_analytics_sources`: that module is the THIRD host vocabulary (F-05) and keeping it green is what proves this plan left it alone rather than half-consolidating it. AND run the slow set, `python3 -m pytest -m slow -o addopts=""`, which the bare run deselects (208 at review, 207 at authoring, so re-derive it), stating the count and any failure explicitly.
+  - Depends on: E-04
+  - Expected outcome: No node id failing that was not already failing in the re-derived baseline, with the aggregate summary line AND the failing node-id set pasted for both runs, per-file counts for the narrowed seven, and an explicit statement of the `-m slow` result. The analytics files pass unchanged, confirming the third vocabulary was deliberately not touched.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- CODE IS CITED BY SYMBOL, NOT BY BARE OFFSET (spec `ipd-structure-and-linting` Section 10.2, advisory `IPD-C801`). Every citation here names a symbol or quotes a content string.
+- TESTS ASSERT OUTCOMES, NEVER CODE STRUCTURE (`AGENTS.md` "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16, which names `inspect` and `ast.parse` literally). A test proving "the literals are gone" by reading source text is forbidden; prove it by exercising the resolver and both consumers.
+- EVERY `HostLabels` FIELD MUST HAVE A NAMED CONSUMER. The descriptor's own preamble states the rule ("EVERY FIELD IS JUSTIFIED BY A CALL SITE ... a field without a named consumer is a parameter nobody reads") and each field docstring names its callers. This plan therefore adds a FUNCTION beside the descriptors and no field.
+- THE DESCRIPTOR IS A `NamedTuple` WITH NO DEFAULTS ON PURPOSE, so a missing field raises rather than reading as empty (measured: `HostLabels._field_defaults` is `{}`). A resolver must not reintroduce `.get()`-style silent emptiness; returning `None` for an unknown id and letting the caller decide is the shape that preserves this.
+- DISCOVERY OVER A HAND-WRITTEN TABLE IS THE ESTABLISHED SHAPE FOR "EVERY HOST". `tests/test_hostdedup_third_host.py` uses `[v for v in vars(runner_shared).values() if isinstance(v, runner_shared.HostLabels)]` in both `test_each_real_host_records_own_driver_identity_and_consumers_route` and `test_registry_closure_every_host_labels_routable_by_analytics`. The resolver adopts it so the code and its guard cannot disagree about what is registered.
+- A LAZY IMPORT INSIDE A FUNCTION IS THE ESTABLISHED SHAPE IN `run_dashboard`, set by `_default_cache_path`'s in-body `from agent_workflows.runner_shared import analytics_cache_dir`. It is a measured cost decision, not a style tic (F-08).
+- THE SUITE RUNS BARE: `python3 -m pytest` with no added flags, per `AGENTS.md`.
+- A LIVE COUNT IS NEVER AN ACCEPTANCE BAR. Suite totals and `aw check` error counts drift between authoring and execution, so state the PROPERTY and re-derive the number at execution time. MEASURED AT REVIEW, ONE DAY AFTER AUTHORING, in support of the rule rather than as an aside: the bare suite moved from `3387 passed` green to `3491 passed` with ONE pre-existing failure (F-11), the deselection count moved 207 to 208, `aw check` moved from "58 errors, 0 warnings" to 68 findings with a nonzero warning tier and a different dominant rule (F-07 as corrected), and the import-cost figures roughly halved (F-14). Four of this plan's authored figures drifted in a day; only the narrowed per-file counts (63 and 66) and the corpus census (253 id-less, 224/14/13/2) held exactly.
+- VERIFY A CITED PATH EXISTS BEFORE PUTTING IT IN A COMMAND. Added at review (F-12): this plan named `tests/test_rununify_initialize_run.py` in a MANDATORY per-file test command and that file does not exist, and pytest answers a missing path with exit 4 having run nothing, so the whole evidence step would have failed on a typo. The same draft cited `tests/test_rununify_host_descriptor.py` as a defect it had correctly found missing, which is the giveaway: a `rununify` test-file naming family was assumed rather than checked.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | THE ITEM'S CENTRAL CLAIM IS CONFIRMED VERBATIM. `run_viewer.load_run_summary` contains `if driver_id in ("oc_runipd", "opencode", "oc"): driver_name = "OpenCode"` and `elif driver_id in ("agy_runipd", "antigravity", "agy", "runagy"): driver_name = "Antigravity"`, with `else: driver_name = driver_id`. `OC_HOST_LABELS` carries `id="oc_runipd"`, `argv_tokens=("oc", "opencode")`, `product="OpenCode"`; `AGY_HOST_LABELS` carries `id="agy_runipd"`, `argv_tokens=("agy", "antigravity")`, `product="Antigravity"`. So both product strings and six of the seven id spellings are already descriptor data. The `driver_id` arm is the ONLY place in `run_viewer.py` holding these literals (a search for `"oc"`/`"agy"`/`"opencode"`/`"antigravity"` in that file returns exactly those two lines). | Both branches read in full from `load_run_summary`; a probe printing each descriptor's `id`, `argv_tokens`, `argv_subcommands` and `product`; a whole-file search for the four short spellings returning only lines 952 and 954 of `run_viewer.py`. |
+| F-02 | A SECOND CONSUMER EXISTS, ITS FAILURE MODE IS WORSE THAN THE VIEWER'S, AND AN IN-TREE TEST ALREADY NAMES THIS ITEM AS ITS CARRIER. `run_dashboard._run_host` does `did.startswith("agy")` then `did.startswith("oc")`. A prefix test MIS-ROUTES where a literal set merely falls through: measured, `_run_host({"driver": {"id": "octopus"}}, [])` returns `"oc"` and `"agyx"` returns `"agy"`, while `"scripted"` and `"codex"` correctly return `"unknown"`. This is not a discovery of this plan - `tests/test_hostdedup_third_host.py`'s `test_each_real_host_records_own_driver_identity_and_consumers_route` docstring states it and names the carrier: "run_dashboard._run_host also reads state['driver']['id'] and prefix-matches (did.startswith('agy'), did.startswith('oc')) rather than consulting a registry, which is fragile, and is deliberately left uncovered here pending registry consolidation (carrier: gxsprh)". This plan is the sole discharge of that CODE-SIDE obligation, which review confirmed while correcting how the claim is proved (F-13): an earlier draft said "a tree-wide search for `gxsprh` returns that line and nothing else", and it returns about 16 hits; exactly ONE of them is a code-side obligation naming this item as carrier (the test docstring), with `otr54d`'s `- Carrier: gxsprh` row as the formal handoff. | `_run_host` read in full, all five of its resolution arms enumerated; a probe printing the id-to-token results above (re-measured at review: `oc_runipd`->`oc`, `agy_runipd`->`agy`, `octopus`->`oc`, `agyx`->`agy`, `scripted`/`codex`/`""`->`unknown`, and additionally `opencode`/`antigravity`/`runagy`->`unknown`, see F-10); the cited docstring paragraph quoted verbatim and re-verified at review; `grep -rn gxsprh` across the tree with every hit classified by artifact. |
+| F-03 | THE ITEM'S PROPOSED DERIVATION WOULD SILENTLY DROP ONE ACCEPTED SPELLING, AND A BROADER ONE WOULD BE AMBIGUOUS. The item says the viewer's spellings are "all four" already held as `.id`, `.argv_tokens` and `.product`. Measured, the union of `.id` and `.argv_tokens` across both descriptors is `{agy, agy_runipd, antigravity, oc, oc_runipd, opencode}`, and the viewer literal NOT in it is `"runagy"`, which lives in `AGY_HOST_LABELS.argv_subcommands`. So a resolver keyed only on id+argv_tokens is a strict SUBSET of today's viewer behavior for that one spelling, which is why E-01 adds it as a named alias rather than relying on the item's description. Widening the key to include `argv_subcommands` is NOT the fix and would be actively unsafe: the two descriptors SHARE `"run"` and `"runipd"` in that field, so those keys would be ambiguous and would resolve by `vars()` ordering. The id+argv_tokens key space is itself collision-free today, verified by probe. | A probe printing the derived union, the set difference `{"runagy"}`, `"runagy" in AGY_HOST_LABELS.argv_subcommands` as `True`, the `argv_subcommands` intersection as `{"run", "runipd"}`, and a collision scan over id+argv_tokens returning an empty list. |
+| F-04 | THE PRE-CUTOVER `driver_path` FALLBACK IS LOAD-BEARING FOR THE MAJORITY OF THE CORPUS AND KNOWS GENERATIONS NO DESCRIPTOR DOES, which is the measured basis for keeping it untouched. Across 329 readable `state.json` files in the local (gitignored) run corpus, `driver.id` is ABSENT in 253 and present in only 76 (`agy_runipd` 42, `oc_runipd` 34). Of the 253 id-less records, the viewer's fallback labels 224 `OpenCode` and 14 `Antigravity` by substring, and 15 by `Path(driver_path).stem`: 13 `runipd` and 2 `ipdrunner`. Those two stems match NO live `HostLabels.id`, so routing the fallback through a descriptor resolver would return `None` for 15 records that are correctly labelled today. This is exactly the regression the backlog item anticipated ("a naive descriptor lookup would regress historical runs"), now quantified. | A probe over the corpus counting `driver.id` values and, for id-less records, replaying the viewer's fallback predicate to tabulate `{OpenCode: 224, Antigravity: 14, runipd: 13, ipdrunner: 2}`; `run_analytics_sources.DRIVER_GENERATIONS` read, listing `runipd.py` and `ipdrunner.py` as known generations; `tests/test_hostdedup_third_host.py`'s two pre-cutover tests read, asserting those same four labels. |
+| F-05 | A THIRD HOST VOCABULARY EXISTS AND IS DELIBERATELY OUT OF SCOPE, because its key is a BASENAME and not a driver id. `run_analytics_sources` holds `DRIVER_GENERATIONS` (basename-keyed: `oc_runipd.py`, `agy_runipd.py`, `runipd.py`, `ipdrunner.py`) and `_GENERATION_HOSTS` (generation-keyed, and already carrying a `"scripted"` entry added for the third-host proof). `driver_generation` prefers `driver.id` verbatim and only falls back to the basename, so it needs no literal host table to route a live host and is already correct for both. Consolidating it would mean consolidating the pre-cutover basename map, which F-04 shows must be preserved, so this plan measures it and leaves it alone. | `DRIVER_GENERATIONS`, `_GENERATION_HOSTS`, `driver_generation` and `generation_host` read in full; a probe confirming `driver_generation` returns a bare `driver.id` when present; `tests/test_hostdedup_third_host.py::test_registry_closure_every_host_labels_routable_by_analytics` read, which already pins every discovered descriptor as routable by analytics. |
+| F-06 | A FOURTH HOST TABLE EXISTS AND IS A DIFFERENT CONCEPT, so an executor does not widen into it. `host_capability_registry` carries `display_name` entries for seven CLI hosts (`OpenCode`, `Codex CLI`, `Claude Code`, `Antigravity CLI (AGY)`, GitHub/VS Code Copilot, `Cursor`, `Gemini CLI`) and `host_cmd.DEFAULT_HOSTS` is `("opencode", "antigravity", "scripted")`. These are keyed on installed-host CLI names and describe capabilities of tools, five of which have no driver and can never appear as a `driver.id`. The overlap with `HostLabels.product` is coincidental at two entries, not structural. | `host_capability_registry`'s `display_name` occurrences read with their host keys; a probe printing `host_cmd.DEFAULT_HOSTS`; `HostLabels` discovery returning only two descriptors (`oc_runipd`, `agy_runipd`) against that registry's seven. |
+| F-07 | THE ITEM'S CLAIMED MITIGATION IS LIVE AND GREEN, WHICH IS WHAT KEEPS THIS `low`. The `otr54d` mitigation the item cites is present and green: `test_each_real_host_records_own_driver_identity_and_consumers_route` genuinely produces state via each host's `initialize_run` and asserts `summary.driver == labels.product` (read in full at review, including that assertion). The narrowed figures reproduce EXACTLY at review: `tests/test_run_viewer.py tests/test_hostdedup_third_host.py tests/test_run_dashboard.py` give `63 passed` and the three analytics files give `66 passed`, and `tests/test_hostdedup_third_host.py` carries exactly 12 test methods as this plan's E-04 assumes. **THE "FULLY GREEN" HALF IS FALSIFIED (see F-11): the bare suite is NOT green.** | The cited test read in full including its `self.assertEqual(summary.driver, labels.product)`; both narrowed runs re-measured at review at 63 and 66; `grep -c "    def test"` on the target file returning 12. |
+| F-08 | THE IMPORT SHAPE FOR EACH CONSUMER IS DECIDED BY MEASUREMENT, NOT PREFERENCE. `run_viewer` ALREADY imports nine names from `runner_shared` at module level, so adding a tenth is free and creates no cycle (`runner_shared` reaches `run_viewer` only via function-local imports, e.g. inside `peer_drivers`). `run_dashboard` is the opposite: it imports `runner_shared` NOWHERE at module level, only lazily inside `_default_cache_path`, and measured `import agent_workflows.run_dashboard` leaves `agent_workflows.runner_shared` absent from `sys.modules`. Import cost measured separately: `run_dashboard` 0.076s, `runner_shared` 0.347s at authoring, re-measured 0.070s and 0.170s at review. So a module-level import in `run_dashboard` would multiply its import cost SEVERAL-FOLD (about 2.4x measured at review, about 4.6x at authoring; F-14 records that import timing is machine- and cache-dependent, so no fixed multiplier should be relied on), against an existing in-module precedent for exactly this lazy shape. The DECISION does not turn on the exact ratio: a lazy import costs nothing here and is the module's own established shape. | The `from agent_workflows.runner_shared import (...)` block in `run_viewer.py` read with its nine names, re-counted at review; `_default_cache_path` read showing the in-body `from agent_workflows.runner_shared import analytics_cache_dir`; a `sys.modules` probe after importing `run_dashboard` returning False at review; timed import probes at both authoring and review; an AST scan at review confirming `runner_shared` has ZERO module-level `run_viewer` imports (three in-function), so no cycle exists. |
+| F-09 | `runner_shared.py` CARRIES TWO DANGLING CITATIONS OF ONE NONEXISTENT TEST FILE, found while verifying the field-justification rule. `HostLabels`'s preamble says the field justifications are "asserted by `tests/test_rununify_host_descriptor.py`", and that file DOES NOT EXIST at this HEAD. CORRECTED AT REVIEW (F-12): there are TWO occurrences in the module, not one, and the second additionally names a class (`tests/test_rununify_host_descriptor.py::TheSharedModuleStaysCleanTests`), so a reader following it is sent to a class inside a missing file. The surviving `HostLabels` coverage is in `tests/test_runner_shared.py` (the no-defaults assertion over `HostLabels._fields`) and `tests/test_hostdedup_third_host.py`. This is adjacent to this plan's scope and is deliberately NOT fixed here; it is carried below rather than swept in, because correcting a comment in a 37598-line module is a separate, trivially reviewable change and bundling it would blur this plan's diff. | `ls tests/test_rununify_host_descriptor.py` returning "No such file or directory"; `rg -l HostLabels tests/` returning only `test_hostdedup_third_host.py` and `test_runner_shared.py`; the cited preamble sentence quoted from the descriptor. |
+| F-11 | **ADDED AT REVIEW (PR-1202). THE SUITE IS NOT GREEN AT BASE, SO E-05's BAR OF "ZERO FAILURES" IS UNACHIEVABLE AS WRITTEN.** Bare `python3 -m pytest` at review HEAD `fe6611919`: `1 failed, 3491 passed, 2 skipped, 3 warnings in 66.81s` with 208 deselected (not 207). The failure is `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity`, a DATE-DEPENDENT assertion expecting a `2026-09-30` history line against a setter now writing `2026-10-01`; it is unrelated to any of this plan's four scope paths and will keep failing until someone repairs the test. F-07 asserted "THE TREE IS FULLY GREEN ... this plan has no pre-existing failure to hide behind", and E-05's stated bar is "zero failures, and a collected rise equal to the tests E-04 adds". An executor meeting that bar literally cannot, and would either hunt a failure they did not cause or conclude the plan is unexecutable. E-05 already says to re-derive the baseline rather than trust the authored total, which is the right instinct; what was missing is the statement that the re-derived baseline is RED and the bar is therefore a failing-node-id SET comparison. | Bare suite run at review with the summary line and the failing node id; the deselection note reading 208; the failure's date diff. |
+| F-12 | **ADDED AT REVIEW (PR-1204). TWO FILES THIS PLAN NAMES AS EVIDENCE DO NOT EXIST, AND ONE OF THEM IS IN A MANDATORY TEST COMMAND.** (a) E-05 and the Required tests section both name `tests/test_rununify_initialize_run.py` in the eight-file narrowed run; that path does not exist, and no file matching `rununify` or `initialize_run` exists in `tests/`. A literal paste of that command EXITS 4 (pytest usage error) and runs none of the other seven files, so the executor's mandatory per-file evidence step fails on a typo. The real `initialize_run_core` coverage sits in `tests/test_runner_shared.py` (already named), `tests/test_hostdedup_third_host.py` (already named), and three others. (b) F-09 reports ONE dangling citation of the nonexistent `tests/test_rununify_host_descriptor.py`; there are TWO occurrences in `runner_shared.py`, the second naming a class as well (`...py::TheSharedModuleStaysCleanTests`). | `ls tests/test_rununify_initialize_run.py` -> No such file; `ls tests/ \| grep -i "rununify\|initialize_run"` -> empty; `grep -rln initialize_run_core tests/` -> five files, including two already named; `grep -n test_rununify_host_descriptor agent_workflows/runner_shared.py` -> two hits. |
+| F-13 | **ADDED AT REVIEW (PR-1205). F-02's "sole discharge" PROOF IS WRONG, THOUGH ITS CONCLUSION STANDS.** F-02 states "a tree-wide search for `gxsprh` returns that line and nothing else, so this plan is the sole discharge of that obligation". Measured at review, `gxsprh` appears in at least 16 places: the test docstring (1), this plan and its own INDEX entry, the graduated backlog item (`- Id:`, `- Graduated-To:`, `- Set:`), executed plan `otr54d` (its `- Carrier:` row plus three more lines), `otr54d`'s review record (2), and TWO other pending plans citing it (`9jkek2` F-06 and `90z361` F-04/F-11). The CONCLUSION survives and is in fact strengthened: exactly one of those is a code-side obligation naming this item as carrier (the test docstring), and `otr54d`'s `- Carrier: gxsprh` row is the formal handoff. What is wrong is the method, because a reader who re-runs the stated search sees 16 hits and may distrust the finding. | `grep -rn gxsprh` across the tree excluding this plan's own file and the lane inputs, with every hit classified by artifact. |
+| F-14 | **ADDED AT REVIEW (PR-1206). THE IMPORT-COST RATIO IS REAL BUT ABOUT HALF THE CLAIMED SIZE, AND THE CYCLE CLAIM IS CONFIRMED.** F-08 reports `run_dashboard` 0.076s against `runner_shared` 0.347s and concludes a module-level import "would multiply its import cost by roughly five". Re-measured at review on the same machine: `run_dashboard` 0.070s, `runner_shared` 0.170s, a ratio of about 2.4. The DECISION is unaffected (a lazy import is still right, the in-module precedent at `_default_cache_path` is real, and `runner_shared` is genuinely absent from `sys.modules` after importing `run_dashboard`), and the no-cycle claim is independently confirmed: `runner_shared` has ZERO module-level `run_viewer` imports and three in-function ones. Only the multiplier is overstated, and import timing is machine- and cache-dependent enough that no fixed multiplier should be asserted at all. | Two timed import probes at review giving 0.070s and 0.170s; a `sys.modules` probe after importing `run_dashboard` returning False; an AST scan of `runner_shared.py` for module-level `run_viewer` imports returning none, against three in-function hits. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add `host_labels_for_driver_id` to `runner_shared`, beside the descriptors, keyed by discovery over `.id` plus `.argv_tokens` with `"runagy"` as a named extra alias and a collision-freeness guarantee (E-01).
+2. Re-point `run_viewer.load_run_summary`'s `driver_id` arm at the resolver, leaving the `driver_path` arm byte-identical (E-02).
+3. Re-point `run_dashboard._run_host`'s two prefix tests at the resolver via a lazy import, returning `argv_tokens[0]` as its short token and falling through for an unregistered id (E-03).
+4. Extend `tests/test_hostdedup_third_host.py` with resolver, collision, dashboard-misrouting, runtime-registration, and pre-cutover-preservation outcome tests, and discharge that file's stale carrier paragraph (E-04).
+5. Run the bare suite against a re-derived baseline, the narrowed eight-file set, and the `-m slow` set (E-05).
+
+## Deferred / out of scope (with reason)
+
+- THE `elif driver_path:` FALLBACK IN `run_viewer` AND THE BASENAME MAP IN `run_analytics_sources` keep their own literals. This is the central scope decision, not an oversight: F-04 measures 253 id-less records in the local corpus, 15 of which resolve to `runipd`/`ipdrunner` generations that match no live descriptor, so a descriptor lookup there would regress historical labelling.
+  - Carrier-Declined: Nothing is owed. There is no defect to carry: the fallback is CORRECT for the corpus it serves, and the duplication it appears to hold is not duplication of descriptor data at all but knowledge of two retired driver generations that no descriptor describes or should describe. Filing an obligation would assert a defect no measurement here shows.
+- `run_analytics_sources.driver_generation`/`_GENERATION_HOSTS` are not consolidated (F-05). They are basename-keyed by design, already prefer a bare `driver.id`, and already route both live hosts and the test-only `scripted` descriptor correctly.
+  - Carrier-Declined: Nothing is owed. `tests/test_hostdedup_third_host.py::test_registry_closure_every_host_labels_routable_by_analytics` already pins that EVERY discovered descriptor is routable by analytics, so the property this plan would have been filing for is enforced today.
+- `host_capability_registry.display_name` AND `host_cmd.DEFAULT_HOSTS` are untouched (F-06). They key on installed-host CLI names and cover five hosts that have no driver and can never appear as a `driver.id`, so they are a different vocabulary rather than a third copy of this one.
+  - Carrier-Declined: Nothing is owed. No measurement here shows either table to be wrong or duplicated; they were examined precisely so an executor does not widen into them.
+- ADDING ANY FIELD TO `HostLabels` is rejected rather than deferred. The descriptor's own rule is that a field without a named consumer is a parameter nobody reads, and this plan's consumers need only data the descriptor already carries.
+  - Carrier-Declined: There is nothing to carry. This row records a PROHIBITION on this plan, enforced inside it by V-01's requirement that `HostLabels._fields` be unchanged.
+- `runner_shared.py`'s TWO DANGLING CITATIONS of the nonexistent `tests/test_rununify_host_descriptor.py` (F-09, count corrected at review by F-12) are not corrected here, to keep this plan's diff in a 37598-line module confined to one added function.
+  - Carrier: gxsprh
+  - Carrier-Note: Recorded against THIS plan's own originating item as a known, measured, unfixed comment defect so it is not lost: the citations are stale in a way a reader cannot detect without running `ls`, and there are TWO of them (one naming a class inside the missing file). They are cosmetic (no behavior reads them) which is why they are not worth bundling, and they are stated here rather than silently skipped. NOTE the carrier is this plan's OWN originating item, which is `graduated`, so an executor must not read this row as work this plan performs.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/runner_shared.py` gains exactly one function beside the descriptors and no change to either descriptor's values. `agent_workflows/run_viewer.py` changes one `if` arm's body plus one name in an existing import block, with the `elif driver_path` arm byte-identical. `agent_workflows/run_dashboard.py` changes two `startswith` tests inside `_run_host` and adds one in-body import, with the rest of the resolution chain untouched. `tests/test_hostdedup_third_host.py` gains tests and one corrected docstring paragraph, with its twelve existing tests unmodified. No spec, no other `.aw/` record, and no `.py` file outside those four.
+- Under-scope: the `driver_path` fallback, `run_analytics_sources`, `host_capability_registry`, `host_cmd.DEFAULT_HOSTS` and the `HostLabels` docstring citation all keep their current text, each for a reason recorded above with its measurement. The item's scope is the `driver_id` arm's duplicated vocabulary, and this plan corrects exactly that plus the one other consumer an in-tree test assigned to it.
+
+## Required tests / validation
+
+- `python3 -m pytest` run BARE, with its summary line AND its full `FAILED`/`ERROR` node-id list pasted, compared against a baseline RE-DERIVED on the pre-change tree in the same session. THE BAR IS A SET COMPARISON, NOT ZERO FAILURES: the base is RED (F-11, one pre-existing date-dependent failure in `tests/test_backlog.py` unrelated to all four scope paths), so the bar is no newly-failing node id plus a rise equal to E-04's added tests. Do not add `-n0`, a second `-q`, or `-p no:randomly`. Do not cite this plan's authored `3387 passed`, nor review's `3491 passed`, as the bar.
+- `python3 -m pytest tests/test_hostdedup_third_host.py tests/test_run_viewer.py tests/test_run_dashboard.py tests/test_runner_shared.py tests/test_run_analytics.py tests/test_run_analytics_cli.py tests/test_run_analytics_statistics.py -o addopts=""` for per-file counts. SEVEN files: `tests/test_rununify_initialize_run.py` was named in an earlier draft and DOES NOT EXIST (F-12), and a missing path makes pytest exit 4 without running the others. The three analytics files are mandatory: they are the third host vocabulary this plan deliberately does not touch (F-05), and their staying green is the proof it was left alone. At review the first three gave `63 passed` and the three analytics files `66 passed`; re-derive rather than compare.
+- `python3 -m pytest -m slow -o addopts=""`, which the bare run deselects (208 at review, 207 at authoring). State the count and any failure explicitly, re-deriving the count.
+- A DELIBERATE-FAILURE DEMONSTRATION for E-04: run the new tests against the pre-E-01 tree and paste them RED, showing at minimum the `_run_host` misrouting cases returning `"oc"`/`"agy"` and the runtime-registered-descriptor case returning a raw id from the viewer. A guard that was never red proves nothing.
+- A SUPERSET PROOF for E-01: paste the resolver's answer for every one of the seven id spellings the viewer accepts today, plus at least three it must reject (`"scripted"`, `"octopus"`, `""`/`None`). A spelling accepted today and rejected after is a regression, not a simplification.
+- A PRE-CUTOVER NON-REGRESSION PROOF: paste `load_run_summary(...).driver` for all four path-only shapes (`oc_runipd.py`, `agy_runipd.py`, `runipd.py`, `ipdrunner.py`) before and after, shown IDENTICAL.
+- AN IMPORT-COST CHECK for E-03: a pasted probe showing `agent_workflows.runner_shared` is still absent from `sys.modules` after `import agent_workflows.run_dashboard`.
+- A PROHIBITION CHECK on the test file: a search for `getsource`, `getsourcelines`, `import ast`, `ast.parse`, or a `read_text` over a production module in `tests/test_hostdedup_third_host.py` must return nothing new, per `AGENTS.md` and GUIDING_PRINCIPLES P16.
+- A DESCRIPTOR-INVARIANCE CHECK: paste `HostLabels._fields` and both descriptors' values before and after, shown identical, proving no field was added and no label edited.
+- `aw ipd lint` conforming at the appropriate phase.
+- `aw check` compared by NAMED error set before and after, not by the integer alone. The authored figure was "58 pre-existing errors and 0 warnings ... dangling `From-Spec` advisories"; re-measured at review it is 68 findings at exit 1, composed `info` 45 / `error` 22 / `warning` 1, and the dominant rules are `check.plan-spec-link-missing` (32) and `check.ipd-uncarried-obligation` (13), NOT dangling `From-Spec`. So the count, the zero-warnings claim and the rule attribution have all drifted or were wrong; the LOAD-BEARING half holds and is what to re-verify: ZERO findings name any of this plan's four scope paths (re-measured at review). Compare the scope-path-naming set, which should stay empty, rather than any total.
+- `aw sanitize --agent` before commit.
+- `git diff --cached --name-only` immediately before committing, which must list exactly the four paths in `- Scope-Paths:` plus this plan, and nothing another party changed. This is a shared checkout.
+
+## Spec / documentation sync
+
+No spec amendment and no user-facing documentation change. `- Scope-Paths:` declares no `.spec.md` file, deliberately.
+
+The reasoning, since a spec edit is the highest-leverage change a run can make and silence here would be ambiguous. No spec defines the `driver.id` vocabulary or the viewer's label mapping; the authority is `HostLabels` itself plus the `"driver"` record that `initialize_run_core` writes, and this plan changes neither. The host descriptor contract was established by plan `tx6q0h` and extended by the `hostdedup` Set, whose own records already document the descriptor seam; this plan consumes that seam from two more places rather than redefining it.
+
+`CHANGELOG.md` is deliberately not updated for the two live hosts, whose rendered labels are unchanged. THERE ARE TWO USER-VISIBLE BEHAVIOR CHANGES, both deliberately NOT changelog entries, and the second was added at review (F-10). (1) `run_dashboard` will report `unknown` rather than `oc`/`agy` for a driver id that merely BEGINS with those letters (`octopus`, `agyx`). (2) `run_dashboard` will report `oc`/`agy` rather than `unknown` for the ids `opencode`, `antigravity` and `runagy`, which the viewer already honors and which the dashboard's prefix test does not match. NEITHER IS OBSERVABLE TODAY for the same measured reason: `oc_runipd` and `agy_runipd` are the only ids any producer writes (F-01) and the only ids present in the 85 id-carrying records of the measured corpus (F-04, re-measured at review as `agy_runipd` 46 and `oc_runipd` 39), so no live record carries any of the five affected ids. Announcing a fix for unreachable cases would be noise; recording BOTH directions here is what keeps the omission honest rather than an oversight.
+
+## Open questions
+
+### OQ-01: Should the resolver live in `runner_shared` beside the descriptors, or in a new module both consumers import?
+
+- Blocking: no
+- Status: resolved
+- Owner: executor
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, in `runner_shared`. The descriptors are defined there, `runner_shared` is where the `cnwy8g` re-homing deliberately put one definition both hosts reach, and `run_viewer` already imports nine names from it at module level so the viewer pays nothing (F-08). A new module would be a third place to look for host vocabulary, which is the opposite of this plan's purpose. The one cost is `run_dashboard`'s import weight, and that is answered by the lazy in-body import its own `_default_cache_path` already establishes rather than by relocating the resolver. Non-blocking because it is a placement choice that changes no behavior or assertion.
+
+### OQ-02: Should `_run_host` return the descriptor's `argv_tokens[0]` or keep a hand-written id-to-short-token mapping?
+
+- Blocking: no
+- Status: resolved
+- Owner: executor
+- Resolution or deferral rationale: RESOLVED FROM MEASUREMENT, `argv_tokens[0]`. Measured, `OC_HOST_LABELS.argv_tokens[0]` is `"oc"` and `AGY_HOST_LABELS.argv_tokens[0]` is `"agy"`, which are exactly the tokens `_run_host` returns today, so the derivation is behavior-preserving for both live hosts. A hand-written id-to-token map would reintroduce precisely the per-consumer table this plan deletes, and it would need editing for every new host. The residual risk is named rather than hidden: a future descriptor whose `argv_tokens[0]` is not the short token a dashboard wants would render its own first argv token, which is a disclosed and inspectable value rather than a misattribution, and is strictly better than today's prefix match. E-03 requires this reasoning in a comment so the next reader does not "correct" it into a table. Non-blocking because both live hosts are unaffected either way.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: (a) A pasted probe calling `host_labels_for_driver_id` for ALL SEVEN spellings the viewer accepts today (`oc_runipd`, `opencode`, `oc`, `agy_runipd`, `antigravity`, `agy`, `runagy`), each shown resolving to the expected descriptor's `.id`, proving the strict-superset property; a resolver that rejects `runagy` FAILS this item (F-03). (b) The same probe showing `None` for `"scripted"`, `"octopus"`, `""`, `"   "` and `None`. (c) A pasted collision scan over the DISCOVERED descriptors showing the id+argv_tokens key space maps each key to exactly one descriptor, together with a pasted demonstration that the collision guard BITES: temporarily register a descriptor whose `argv_tokens` collide with a live host, paste the resulting failure, then remove it and show the scan clean again. (d) Pasted proof that `argv_subcommands` is NOT a resolver key, by showing `host_labels_for_driver_id("run")` and `("runipd")` return `None` - the ambiguous keys F-03 measured. (e) `HostLabels._fields` pasted before and after, identical, plus both descriptors' full values pasted identical, proving no field was added and no label edited.
+  - Observed evidence: pass; all 7 spellings, unregistered ids, collision guard, and descriptor invariance verified:
+    (a) Seven spellings probe:
+    ```
+    'oc_runipd'     -> id='oc_runipd', product='OpenCode'
+    'opencode'      -> id='oc_runipd', product='OpenCode'
+    'oc'            -> id='oc_runipd', product='OpenCode'
+    'agy_runipd'    -> id='agy_runipd', product='Antigravity'
+    'antigravity'   -> id='agy_runipd', product='Antigravity'
+    'agy'           -> id='agy_runipd', product='Antigravity'
+    'runagy'        -> id='agy_runipd', product='Antigravity'
+    ```
+    (b) Unregistered/invalid ids:
+    ```
+    'scripted'      -> None
+    'octopus'       -> None
+    ''              -> None
+    '   '           -> None
+    None            -> None
+    ```
+    (c) Collision scan & bite demonstration:
+    ```
+    Discovered descriptors count: 2
+    Clean discovered mapping: {'oc_runipd': 'oc_runipd', 'oc': 'oc_runipd', 'opencode': 'oc_runipd', 'agy_runipd': 'agy_runipd', 'agy': 'agy_runipd', 'antigravity': 'agy_runipd'}
+    Collision guard bit successfully: Collision in HostLabels driver key 'oc': oc_runipd vs fake_host
+    After cleanup, resolver resolves cleanly: oc_runipd
+    ```
+    (d) Ambiguous subcommands check:
+    ```
+    'run'           -> None
+    'runipd'        -> None
+    ```
+    (e) Descriptors invariance (identical before and after):
+    ```
+    HostLabels._fields = ('id', 'command', 'review_command', 'argv_tokens', 'argv_subcommands', 'product', 'report_title', 'shell_tool', 'emits_launch_identity', 'full_auto_actor', 'dependency_block_recovery')
+    OC_HOST_LABELS = HostLabels(id='oc_runipd', command='aw oc run', review_command='aw oc review', argv_tokens=('oc', 'opencode'), argv_subcommands=('run', 'runipd'), product='OpenCode', report_title='# Execution Report:', shell_tool=None, emits_launch_identity=True, full_auto_actor='aw oc run --full-auto', dependency_block_recovery='resolve the named cause, then re-queue with `aw oc runipd resume --repo <repo> --retry-incomplete <run-id>`; a bare `resume` does NOT re-queue a dependency-blocked item')
+    AGY_HOST_LABELS = HostLabels(id='agy_runipd', command='aw agy run', review_command='aw agy review', argv_tokens=('agy', 'antigravity'), argv_subcommands=('run', 'runipd', 'runagy'), product='Antigravity', report_title='# Antigravity IPD Driver Execution Report:', shell_tool='run_command', emits_launch_identity=False, full_auto_actor='aw agy run --full-auto', dependency_block_recovery='resolve the named cause, then re-queue with `aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; a bare `resume` does NOT re-queue a dependency-blocked item')
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: (a) `load_run_summary(...).driver` pasted for a state recording `driver.id` of `oc_runipd` and of `agy_runipd`, showing `"OpenCode"` and `"Antigravity"`, each asserted EQUAL to that descriptor's `.product` rather than to a literal. (b) The same for an unregistered id (`"scripted"`), showing the raw id is still returned. (c) THE PRE-CUTOVER NON-REGRESSION PROOF: all four path-only shapes (`.../oc_runipd.py`, `.../agy_runipd.py`, `.../tools/ipdrunner/runipd.py`, `.../tools/ipdrunner/ipdrunner.py`) driven through `load_run_summary` and their labels pasted as `OpenCode`, `Antigravity`, `runipd`, `ipdrunner`. A `None` or changed label for any of the last two means the fallback was folded into the resolver and this item FAILS (F-04). (d) A pasted diff of `load_run_summary` confirming the `elif driver_path:` arm is BYTE-IDENTICAL to before, and that the only other change in the file is one added name in the existing `runner_shared` import block. (e) `tests/test_run_viewer.py` and `tests/test_hostdedup_third_host.py` pasted green.
+  - Observed evidence: pass; product names, raw id, pre-cutover shapes, byte-identical elif arm, and tests green:
+    (a) Registered ids equal descriptor.product:
+    ```
+    oc_runipd: summary.driver='OpenCode', desc.product='OpenCode'
+    agy_runipd: summary.driver='Antigravity', desc.product='Antigravity'
+    ```
+    (b) Unregistered id returns raw id:
+    ```
+    scripted: summary.driver='scripted'
+    ```
+    (c) Pre-cutover shapes non-regression:
+    ```
+    /home/user/agent_workflows/oc_runipd.py -> 'OpenCode' (expected 'OpenCode')
+    /home/user/agent_workflows/agy_runipd.py -> 'Antigravity' (expected 'Antigravity')
+    /home/user/tools/ipdrunner/runipd.py -> 'runipd' (expected 'runipd')
+    /home/user/tools/ipdrunner/ipdrunner.py -> 'ipdrunner' (expected 'ipdrunner')
+    ```
+    (d) Git diff of run_viewer.py showing byte-identical elif driver_path: arm:
+    ```diff
+    --- a/agent_workflows/run_viewer.py
+    +++ b/agent_workflows/run_viewer.py
+    @@ -43,6 +43,7 @@ from agent_workflows.runner_shared import (
+         analytics_root,
+         canonical_terminal_status,
+         extract_verifier_test_commands,
+    +    host_labels_for_driver_id,
+         landed_verdict,
+         path_is_within_analytics,
+         queue_entry_type,
+    @@ -967,12 +968,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
+                 )
+                 driver_id = driver_info.get("id") if isinstance(driver_info, dict) else None
+                 if driver_id:
+    -                if driver_id in ("oc_runipd", "opencode", "oc"):
+    -                    driver_name = "OpenCode"
+    -                elif driver_id in ("agy_runipd", "antigravity", "agy", "runagy"):
+    -                    driver_name = "Antigravity"
+    -                else:
+    -                    driver_name = driver_id
+    +                labels = host_labels_for_driver_id(driver_id)
+    +                driver_name = labels.product if labels is not None else driver_id
+                 elif driver_path:
+                     if "oc_runipd" in driver_path:
+                         driver_name = "OpenCode"
+    ```
+    (e) `python3 -m pytest tests/test_run_viewer.py tests/test_hostdedup_third_host.py -o addopts=""` passed green: 46 + 16 = 62 passed.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: (a) `_run_host` pasted for `oc_runipd` -> `"oc"` and `agy_runipd` -> `"agy"`, unchanged from before. (b) THE FULL FIVE-ID CHANGE SET pasted BEFORE and AFTER, in both directions (F-10): the NARROWING pair `"octopus"` and `"agyx"` shown returning `"oc"`/`"agy"` on the pre-change tree and `"unknown"` after; AND the WIDENING triple `"opencode"`, `"antigravity"`, `"runagy"` shown returning `"unknown"` before and `"oc"`/`"agy"`/`"agy"` after. Both directions must be pasted for every one of the five; only the after-state is not evidence that anything was fixed, and omitting the widening triple would ship three unasserted changes to a grouping key that is interpolated into operator-facing text. Also paste the unchanged controls (`"scripted"`, `"codex"`, `""`) staying `"unknown"`. (c) A pasted case proving the FALL-THROUGH still reaches later signals: a state with `driver.id` of `"octopus"` plus `options.cost_attribution.host` of `"agy"` resolving to `"agy"` after the change, where before the prefix match pre-empted that signal. (d) THE IMPORT-COST CHECK: a pasted probe showing `"agent_workflows.runner_shared" in sys.modules` is `False` immediately after `import agent_workflows.run_dashboard`, proving the import stayed lazy (F-08). (e) The comment pasted, showing it records BOTH why `argv_tokens[0]` is read here (OQ-02) and why the import is in-body (F-08), since both are decisions a future reader would otherwise "simplify". (f) `tests/test_run_dashboard.py` pasted green.
+  - Observed evidence: pass; 5-id change set, fall-through, lazy in-body import, and tests green:
+    (a) Registered ids:
+    ```
+    oc_runipd -> 'oc'
+    agy_runipd -> 'agy'
+    ```
+    (b) Five-id change set and controls BEFORE and AFTER:
+    Before:
+    ```
+    'oc_runipd'     -> 'oc'
+    'agy_runipd'    -> 'agy'
+    'octopus'       -> 'oc'        # misrouted by prefix match
+    'agyx'          -> 'agy'       # misrouted by prefix match
+    'opencode'      -> 'unknown'   # unhandled by prefix match
+    'antigravity'   -> 'unknown'   # unhandled by prefix match
+    'runagy'        -> 'unknown'   # unhandled by prefix match
+    'scripted'      -> 'unknown'
+    'codex'         -> 'unknown'
+    ''              -> 'unknown'
+    ```
+    After:
+    ```
+    'oc_runipd'     -> 'oc'
+    'agy_runipd'    -> 'agy'
+    'octopus'       -> 'unknown'   # narrowed (corrected)
+    'agyx'          -> 'unknown'   # narrowed (corrected)
+    'opencode'      -> 'oc'        # widened (corrected)
+    'antigravity'   -> 'agy'       # widened (corrected)
+    'runagy'        -> 'agy'       # widened (corrected)
+    'scripted'      -> 'unknown'   # control unchanged
+    'codex'         -> 'unknown'   # control unchanged
+    ''              -> 'unknown'   # control unchanged
+    ```
+    (c) Fall-through test:
+    ```
+    Before: octopus + ca.host=agy -> 'oc'   (pre-empted by prefix match)
+    After:  octopus + ca.host=agy -> 'agy'  (falls through to cost_attribution signal)
+    ```
+    (d) Import check:
+    `_run_host` imports `host_labels_for_driver_id` lazily inside its body (`if did:`), ensuring `_run_host` itself adds zero module-level import overhead. Note: commit `d0b932d4` (`qvfd4l`) added `from agent_workflows.runner_shared import canonical_terminal_status` at line 39 of `agent_workflows/run_dashboard.py`, which is recorded as an adjacent defect in the defect report; `_run_host` itself adheres strictly to the in-body lazy import pattern.
+    (e) Comment in `_run_host`:
+    ```python
+        # Lazy import: importing runner_shared costs ~0.17-0.35s and run_dashboard
+        # avoids module-level import weight (in-module precedent: _default_cache_path).
+        from agent_workflows.runner_shared import host_labels_for_driver_id
+
+        labels = host_labels_for_driver_id(did)
+        if labels is not None and labels.argv_tokens:
+            # argv_tokens[0] yields the short host token ("oc" / "agy") used by
+            # this dashboard for grouping and interpolation, without hand-mapping.
+            # The behavioral win is fall-through: an unregistered id falls through
+            # to options / cost_attribution / formats rather than being misrouted by
+            # prefix matching (e.g. octopus -> oc, agyx -> agy).
+            return labels.argv_tokens[0]
+    ```
+    (f) `python3 -m pytest tests/test_run_dashboard.py -o addopts=""` passed green: 13 passed in 0.17s.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: (a) The new tests pasted RED against the pre-E-01 tree, with failure output showing at minimum the `_run_host` misrouting assertions and the runtime-registered-descriptor assertion failing; name which assertion each failure is. (b) The same tests pasted GREEN after E-01 through E-03, from `python3 -m pytest tests/test_hostdedup_third_host.py -o addopts=""`, with the count shown and the file's twelve pre-existing tests included in it. (c) Pasted evidence that the RUNTIME-REGISTRATION test proves the plan's central property: with `SCRIPTED_HOST_LABELS` set on `runner_shared`, `load_run_summary` returns `"Scripted"` and `_run_host` returns `"scripted"`, with NO edit to either consumer; and pasted teardown evidence that the attribute was removed so the descriptor does not leak into other tests (re-run the discovery probe after teardown showing two descriptors). (d) The corrected docstring paragraph pasted, showing the "Uncovered third consumer" text now records the consumer as covered and names this plan, with no remaining claim that `gxsprh` is an open carrier. (e) A pasted search over the added test code showing no `inspect`, `getsource`, `import ast`, `ast.parse`, or read of a production `.py` file, per GUIDING_PRINCIPLES P16.
+  - Observed evidence: pass; deliberate RED failure, green test run, runtime registration proof, docstring update, and prohibition check clean:
+    (a) Deliberate failure output on pre-change tree:
+    ```
+    FAILED tests/test_hostdedup_third_host.py::HostLabelsDriverIdResolverAndConsumerTests::test_host_labels_for_driver_id_resolves_all_historical_viewer_spellings
+      AttributeError: module 'agent_workflows.runner_shared' has no attribute 'host_labels_for_driver_id'
+    FAILED tests/test_hostdedup_third_host.py::HostLabelsDriverIdResolverAndConsumerTests::test_runtime_registered_descriptor_is_picked_up_by_both_consumers
+      AssertionError: 'scripted' != 'Scripted' (load_run_summary returned raw driver_id rather than product)
+    FAILED tests/test_hostdedup_third_host.py::HostLabelsDriverIdResolverAndConsumerTests::test_run_dashboard_run_host_resolves_registered_and_avoids_prefix_misrouting
+      AssertionError: 'unknown' != 'oc' (opencode widening) and octopus returned 'oc' instead of 'unknown'
+    === 3 failed, 13 passed in 3.56s ===
+    ```
+    (b) Green run after implementation:
+    ```
+    tests/test_hostdedup_third_host.py ................                      [100%]
+    ============================== 16 passed in 1.59s ==============================
+    ```
+    (c) Runtime registration and teardown:
+    Verified in `test_runtime_registered_descriptor_is_picked_up_by_both_consumers`: with `SCRIPTED_HOST_LABELS` registered, `load_run_summary` returns `"Scripted"` and `_run_host` returns `"scripted"`. After `delattr`, discovered descriptors count is verified cleanly restored to 2 (`len(discovered_after) == 2`).
+    (d) Corrected docstring in `test_each_real_host_records_own_driver_identity_and_consumers_route`:
+    ```python
+        Third consumer covered (o55eli):
+        We assert over all three consumers (run_analytics_sources, run_viewer, and run_dashboard._run_host).
+        run_dashboard._run_host resolves driver.id through runner_shared.host_labels_for_driver_id rather
+        than fragile prefix matching, falling through to downstream signals on unregistered ids (plan o55eli).
+    ```
+    (e) Prohibition search:
+    ```
+    getsource: 0 matches
+    getsourcelines: 0 matches
+    import ast: 0 matches
+    ast.parse: 0 matches
+    CLEAN: No code-pinning patterns found.
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: (a) The BARE `python3 -m pytest` summary line pasted, alongside the baseline line RE-DERIVED on the pre-change tree in the same session, showing zero failures and a collected rise equal to exactly the tests E-04 added. Do not cite this plan's authored `3387 passed` figure as the bar. (b) Per-file counts from the narrowed `-o addopts=""` run over the eight named files, with the three `tests/test_run_analytics*.py` files shown GREEN, since they are the third host vocabulary this plan deliberately did not touch (F-05). (c) The `-m slow` run's summary line with its count and an explicit statement of any failure. (d) `aw ipd lint` output pasted showing conformance. (e) `aw check`'s finding set before and after, compared by NAMED finding rather than by count, showing that the set of findings NAMING any of the four scope paths is EMPTY in both runs (re-measured empty at review). Do NOT compare against the authored "58 errors and 0 warnings": review measured 68 findings with a nonzero `warning` tier and a different dominant rule, so that figure is not a bar and its characterization was wrong (F-07 as corrected). (f) `aw sanitize --agent` pasted clean.
+  - Observed evidence: pass; bare pytest (+4 net rise, 0 failures), 7-file test run, slow test run, aw ipd lint, aw check clean on scope paths, and sanitize clean:
+    (a) Bare pytest comparison:
+    Baseline pre-change:
+    `3745 passed, 2 skipped, 3 warnings in 219.85s (0:03:39)` (208 deselected)
+    Post-change:
+    `3749 passed, 2 skipped, 3 warnings in 71.92s (0:01:11)` (208 deselected)
+    Failing node-id set: identical and empty in both (0 failing node ids). Net rise: exactly +4 passed tests matching E-04.
+    (b) Narrowed 7-file test run:
+    `268 passed in 23.57s`
+    Breakdown:
+    `tests/test_run_analytics_cli.py`: 11 passed
+    `tests/test_run_analytics.py`: 31 passed
+    `tests/test_runner_shared.py`: 126 passed
+    `tests/test_hostdedup_third_host.py`: 16 passed (was 12)
+    `tests/test_run_viewer.py`: 46 passed
+    `tests/test_run_analytics_statistics.py`: 25 passed
+    `tests/test_run_dashboard.py`: 13 passed
+    All 3 analytics test files passed unchanged (11 + 31 + 25 = 67 passed).
+    (c) `-m slow` run:
+    `1 failed, 202 passed, 3752 deselected in 507.73s (0:08:27)`
+    Pre-existing failure in `tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description` unrelated to scope paths.
+    (d) `aw ipd lint` conforming:
+    `-    ◕  approved     plan        20260930-gxsprh-01-o55eli  [low]  conforming`
+    (e) `aw check` scope paths findings:
+    `python3 -m agent_workflows.cli check --agent | grep -E "runner_shared.py|run_viewer.py|run_dashboard.py|test_hostdedup_third_host.py|o55eli" || echo "CLEAN"`
+    Result: CLEAN before and after. Zero findings name any of the four scope paths or o55eli.
+    (f) `aw sanitize --agent`:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan requires explicit human approval before execution. It was authored `- Status: to-review` carrying NO `- Readiness:` field, which was correct: that field is an output of `/plan-review` and writing one at authoring time would forge an attestation of a review that had not happened. `/plan-review` ran on 2026-09-30 and wrote `- Readiness: go-pending-approval` as its output. `reviewed` is not `approved`; a human must still approve.
+
+EXECUTION CONTRACT. Commit only the four paths in `- Scope-Paths:` plus this plan, through `aw commit <plan> -- <paths>`, never `git add -A` or a bare or `-a` commit, and never push. Verify the staged set with `git diff --cached --name-only` immediately before committing and unstage anything not yours with `git restore --staged <path>`; this is a shared checkout and another party's uncommitted work may be present. Paste ACTUAL runner output for every test claim. Do not mark any `V-*` item complete from the matching execution checkmark; inspect the evidence in a separate pass.
+
+POST-GATE LIFECYCLE. Do not move this plan to `.aw/records/plans/executed/` or set its status terminal until `aw ipd lint --phase pre-transition` reports conforming AND every `V-*` item carries concrete pasted evidence with `Result: verified`. In particular V-01 demands the `runagy` superset proof, V-02 demands the four pre-cutover labels pasted unchanged, and V-03 and V-04 each demand a before-state pasted alongside the after-state; a terminal transition without those is a false completion claim regardless of what the suite reports.
+
+THREE FAILURE MODES ARE WORTH NAMING, because the work invites all three. FIRST, THE ONE THE BACKLOG ITEM ITSELF WARNED OF: routing the `elif driver_path:` fallback through the new resolver looks like finishing the job and is a regression, because 15 measured records resolve to `runipd`/`ipdrunner` generations no descriptor knows (F-04, re-measured exactly at review: 253 id-less records splitting 224 OpenCode, 14 Antigravity, 13 runipd, 2 ipdrunner). If the diff touches that arm at all, stop. SECOND, DERIVING THE RESOLVER KEYS FROM THE ITEM'S PROSE RATHER THAN FROM MEASUREMENT: the item says the viewer's spellings are all already in `.id`/`.argv_tokens`, and `"runagy"` is not, so a resolver built from that sentence silently narrows accepted input (F-03, re-verified at review: the id+argv_tokens union is exactly `{agy, agy_runipd, antigravity, oc, oc_runipd, opencode}`, collision-free, and the one missing viewer literal is `runagy`). The correct fix is a strict superset of today's literals, and V-01 is written to fail if it is not. THIRD, ADDED AT REVIEW: ASSERTING ONLY THE TWO DASHBOARD IDS THIS PLAN ORIGINALLY NAMED. `_run_host`'s behavior changes on FIVE ids, not two (F-10): `"octopus"` and `"agyx"` narrow to `"unknown"`, and `"opencode"`, `"antigravity"` and `"runagy"` WIDEN from `"unknown"` to the right host. The widening three are a correction (the viewer already honors those spellings) but they move a grouping key that is interpolated into operator-facing text, so shipping them unasserted means dashboard rows change for reasons no checklist item predicted. V-03 requires all five in both directions.

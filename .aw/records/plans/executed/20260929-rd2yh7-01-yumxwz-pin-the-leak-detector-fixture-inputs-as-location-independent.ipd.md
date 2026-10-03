@@ -1,0 +1,491 @@
+# IPD: Pin the leak-detector fixture inputs as location-independent and remove the ambient cwd coupling the audit found
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: Backlog `rd2yh7` asks for the repo-wide sweep executed plan `zx9dkq` deferred: find any OTHER test that derives leak-detector INPUT from the live checkout location, the shape that cost `zx9dkq` a false alarm mid-merge. I RAN THE SWEEP AS THE MEASUREMENT THE ITEM ASKS FOR, AND THE ANSWER IS NOT THE ONE THE ITEM EXPECTED. The planted-value shape the item was written to hunt is GONE from the tree, because the file `zx9dkq` fixed was deleted wholesale by the suite trim (`git log --diff-filter=D -- tests/test_run_analytics_spa.py` names commit `19313eed` "test: trim test suite from 9,136 to under 2,000 tests", 3,220 lines deleted; `PLANTED_HOME_PATH`, `CLEAN_CONTROL_PATH` and `_leaky_repo_path` are absent from the whole tree). Every surviving plant is ALREADY a fixed literal: the only detector-input plant left is `tests/test_run_analytics._ABS_HOME`, spelled `"/ho" + "me/" + _HANDLE + "/VC/agent-workflows"`, which is the exact fix pattern the item prescribes. BUT THE SWEEP FOUND A DIFFERENT, LIVE INSTANCE OF THE SAME CLASS OF DEFECT, on the OTHER side of the call: `tests/test_run_analytics` builds its ruleset from `build_ruleset(Path.cwd())` at three call sites, so the DETECTOR (not the plant) is derived from the ambient working directory. That contradicts the premise `zx9dkq` recorded as settled. Its F6 and V-01(b) concluded "the ruleset is NOT location-dependent at all", measured by comparing fail-rule NAMES; that comparison is blind to the allowlist, and the allowlist is where the coupling actually lives. MEASURED: `build_ruleset` from the repo root carries 8 `allow_line_substrings`, from a temp dir only 4, because `load_repo_allowlist` reads `<root>/.aw/config/local-leaks-allowlist.toml` (`leak_sanitizer.resolve_allowlist_path`) which exists under one root and not the other. On a line carrying BOTH a real leak and a repo-allowlisted public substring, the repo-root ruleset returns 0 findings and the temp-root ruleset returns 3 (`home-path`, `private-repo`, `handle`). The fail-rule names are identical and the OUTCOME still differs, which is precisely the hole in `zx9dkq`'s test.
+- Scope: Answer the backlog's audit question with recorded evidence (so the obligation is discharged by measurement, not by assertion), and fix the one live coupling it found: make the three `tests/test_run_analytics` ruleset constructions derive from the repository root rather than from the ambient `cwd`, and add the regression that pins the location-independence as an OUTCOME. Does NOT change `leak_sanitizer`'s rules, its allowlist, or any production module; does NOT touch `tests/test_leak_sanitizer.py` or `tests/test_local_leaks.py`, which measurement shows already use `REPO_ROOT` correctly; does NOT restore the deleted SPA test file; and does NOT decide the skip-versus-synthesize convention, which is pending plan `kmzude`'s subject.
+- Scope-Paths: tests/test_run_analytics.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: rd2yh7
+- Set: rd2yh7
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode/its_direct-pt3-claude-opus-5-1m-us
+- Id: yumxwz
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: yumxwz verified (set rd2yh7, attempt 1).
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (aw set): status set to reviewed
+
+- 2026-09-29 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. Structural lint conformed at `author` and again at `review-finalize`. Every load-bearing claim was RE-DERIVED at review and all of them hold: the 8-versus-4 allowlist divergence, the `[] versus ['home-path','private-repo','handle']` outcome flip, the `tests/` cwd resolving to a nonexistent allowlist, the three coupled call sites, the two precedent modules already using `REPO_ROOT`, and F5's deleted-file account (`19313eed`, the three identifiers absent from the tree). Six revisions, four of which the plan's own measurements had missed. E-01's entry-point set omitted the dispatcher `run`, which carries exactly this coupling and accounts for 11 of the 15 test-side call sites, so the sweep would have reported itself complete while missing most of them (F10). F3's "an allowlist absence can only ever ADD findings" is true only of this repository's current config, not of `build_ruleset`, which also reads `fail_patterns`/`ip_enabled` from the same path; measured on a scratch root, a wrong root SUPPRESSES a `repo-pattern-0` fail finding, which strengthens the case for E-03 (F11). E-03 cited "the module's existing repo-root anchor" but `tests/test_run_analytics.py` imports `tests.support` nowhere, so the anchor had to be added (F12). E-04's natural spelling hardcodes `hermes-agent-org/hermes`, a config line its own comment marks as transient, giving the regression a second unrelated failure mode; it now derives the token from `load_repo_allowlist` with a non-empty precondition (F13). Also confirmed the mandated mutation check actually fires (F14) and recorded the machine-local hints file as a separate, deliberately out-of-scope coupling so an executor does not chase it (F15). The gate gained the conditional transition-ownership clause it lacked. No production file was modified by this review; all probes were in-process against tempdirs.
+- 2026-09-29 to-review (opencode/its_direct-pt3-claude-opus-5-1m-us): Authored from the sweep the backlog item asks for, run rather than described. TWO RESULTS WORTH THE REVIEWER'S ATTENTION. FIRST, the item's expected target is GONE: the planted-value shape lives only in a file the suite trim deleted (`19313eed`), and every surviving plant is already the fixed-literal form the item prescribes, so the audit's original question closes CLEAN. SECOND, and this is why the plan is not a no-op: the sweep found the same class of defect on the detector side, `build_ruleset(Path.cwd())` at three call sites in `tests/test_run_analytics.py`, and it REFUTES a premise executed plan `zx9dkq` recorded as settled. That plan's F6/V-01(b) concluded the ruleset is location-independent, having compared only fail-rule NAMES; the allowlist is not in that comparison and is where the coupling is. Measured: 8 allowlist substrings from the repo root versus 4 from a temp dir, and on a line carrying both a real leak and an allowlisted public substring the two rulesets return 0 and 3 findings. Reachable without any exotic setup: running from `tests/` resolves the allowlist to `tests/.aw/config/...`, which does not exist. The proposed fix was measured working before being written down (`build_ruleset(REPO_ROOT)` gives 8 substrings and 0 findings from all three cwds).
+
+## Goal
+
+Discharge backlog `rd2yh7`'s audit with evidence, and remove the one live location coupling it turned up,
+so a leak-detector test in this suite means the same thing regardless of where the repository sits and
+which directory the runner happened to start in.
+
+The narrower point worth keeping: `zx9dkq` fixed the coupling on the PLANT side and explicitly cleared the
+DETECTOR side. That clearance was measured with a comparison (fail-rule names) that cannot see the
+allowlist, so it was true as far as it looked and wrong as a conclusion. This plan closes the half that was
+missed and pins it with a test, so the same premise cannot be re-adopted by the next reader.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: discharge the audit, then fix what it found
+
+- [x] E-01 RUN THE SWEEP THE BACKLOG ITEM ASKS FOR AND RECORD ITS RESULT, so the obligation is discharged by measurement rather than by a read-through. Enumerate every test-side call to a detector entry point, and for each one record (a) where its INPUT comes from, and (b) where its RULESET comes from, classifying each as a fixed literal, `REPO_ROOT`-derived, or ambient-`cwd`-derived. USE THE FULL ENTRY-POINT SET, NOT THE THREE NAMES THIS PLAN FIRST LISTED (F10): `build_ruleset`, `scan_text`, `scan_working_tree`, `scan_working_tree_counted`, `scan_staged`, `scan_history`, `scan_wheel`, AND the top-level dispatcher `run` reached as both `ls.run(...)` and `ll.run(...)`. The dispatcher matters most and was the omission: it takes `repo_root` and builds the ruleset from it internally, and measurement finds 11 test-side `ls.run`/`ll.run` sites against 4 direct `build_ruleset` sites, so an enumeration without it would miss the majority of real call sites while reporting itself complete. The item's suggested method is `Path(__file__)` co-occurring with `build_ruleset`/`scan_text` in one test class; USE A WIDER NET THAN THAT TOO, because measurement shows the surviving coupling involves neither `Path(__file__)` nor a plant (it is `build_ruleset(Path.cwd())`), so the item's own grep would have missed it. Record explicitly that the shape the item was filed to hunt is absent from the tree and WHY (the file carrying it was deleted by the suite trim), since a reader who does not know that will keep looking for it.
+  - Depends on: none
+  - Expected outcome: a written per-call-site classification covering all detector call sites in `tests/` across the full entry-point set above (the dispatcher `run` included), naming which are safe and which are coupled, plus the recorded finding that the item's original target no longer exists in the tree with the deleting commit cited.
+  - Execution state: performed
+
+- [x] E-02 PROVE THE COUPLING CHANGES AN OUTCOME, NOT MERELY A RULESET FIELD, because that is the difference between a real defect and a cosmetic one, and it is exactly where `zx9dkq`'s measurement stopped. Two parts, both required. (a) Show the ruleset DIVERGES by location: `build_ruleset` from the repository root versus from a directory with no `.aw/config/local-leaks-allowlist.toml`, compared on `allow_line_substrings`, not only on fail-rule names. (b) Show a SCAN RESULT flipping as a consequence: construct input carrying both a real leak token and a repo-allowlisted public substring on one line, and scan it under both rulesets. Part (b) is the load-bearing one; without it this plan is proposing to change a line that provably does not matter. ALSO show the coupling is reachable from an ordinary invocation (a cwd that is not the repository root, e.g. `tests/`), so it is not dismissed as only a foreign-checkout concern.
+  RECORD THE DIRECTION OF THE COUPLING ALONGSIDE (a), because this plan's own F3 states it too narrowly (F11) and an executor who believes the narrow form will mis-scope the fix. This repository's committed config happens to set only `allow_line_substrings`, so HERE an absent allowlist can only ADD findings. That is a property of this repo's config file, NOT of `build_ruleset`, which also reads `fail_patterns`, `ip_enabled` and `hostname_fail` from the SAME resolved path. Demonstrate the general case once, in a scratch root whose allowlist declares a `fail_patterns` entry: the with-config ruleset flags the token and the no-config ruleset returns nothing, so a wrong root can also SUPPRESS a finding. State that this is why the `Path.cwd()` construction is wrong in principle and not merely lucky today.
+  - Depends on: E-01
+  - Expected outcome: pasted output showing the allowlist-count divergence AND a scan whose finding count differs between the two rulesets on identical input, plus the resolved allowlist path for at least two different working directories showing one hit and one miss, PLUS the scratch-root demonstration that a config-supplied `fail_patterns` entry is LOST under the wrong root (the suppression direction).
+  - Execution state: performed
+
+- [x] E-03 DERIVE THE RULESET FROM THE REPOSITORY ROOT AT THE THREE COUPLED CALL SITES, replacing the ambient `Path.cwd()` with a repo-root anchor. `tests/support.REPO_ROOT` (`tests/support.py:13`, `Path(__file__).resolve().parent.parent`) is the established anchor and is what the other two detector-calling test modules use (`tests/test_leak_sanitizer.py:46` and `tests/test_local_leaks.py:43` both `from tests.support import REPO_ROOT`, then call `build_ruleset(REPO_ROOT)`), so this aligns the three inconsistent sites with the convention already in the suite rather than inventing one.
+  NOTE THE IMPORT THIS ACTUALLY REQUIRES, which the plan first glossed (F12): `tests/test_run_analytics.py` does NOT currently import `tests.support` at all, so "the module's existing repo-root anchor" did not exist in it. Either add `from tests.support import REPO_ROOT` (matching the two precedent modules, and the `tests/__init__.py` package plus `testpaths = ["tests"]` make the import resolve), or define a module-level `_REPO_ROOT = Path(__file__).resolve().parent.parent`, which needs no new import. PREFER THE FORMER for consistency with the precedent this plan cites; either satisfies the property. Whichever is chosen, the anchor must be `Path(__file__)`-derived and not `Path.cwd()`-derived. This is a within-file edit, so `- Scope-Paths:` is unchanged.
+  DO NOT WEAKEN ANY ASSERTION TO ACHIEVE THIS: the clean-side assertions must still demand an EMPTY finding list and the control must still demand real `fail` findings. If a site cannot be made location-independent, say so and leave it, rather than relaxing what it asserts. Leave the three `_ABS_HOME`-style planted literals exactly as they are; they are already correct and are not this defect.
+  - Depends on: E-02
+  - Expected outcome: the three call sites deriving their ruleset from a `Path(__file__)`-derived repo-root anchor (with the anchor's import or definition shown), the affected tests passing from BOTH the in-tree checkout and an outside-home clone, and the assertions shown unchanged in strength.
+  - Execution state: performed
+
+- [x] E-04 PIN THE LOCATION-INDEPENDENCE AS A BEHAVIORAL REGRESSION, so the fix cannot silently revert. Assert an OUTCOME, not the code: that the ruleset the test uses carries the repository's committed allowlist REGARDLESS of the process working directory, demonstrated by changing `cwd` within the test and observing the same scan verdict on the same input. THIS MUST NOT BE A CODE-PINNING TEST: do not grep the test source for `Path.cwd()`, do not assert a call count, do not assert on module text (`AGENTS.md` execution contract; GUIDING_PRINCIPLES P16). Restore `cwd` in a cleanup so the test cannot leak a directory change into the rest of the suite, which matters because the suite runs under `-n auto` with random ordering. INCLUDE THE NEGATIVE HALF in the same test: the mixed-content input must be clean under the correct ruleset, and the test must also show that the input genuinely contains a detectable leak (otherwise a rule that matched nothing would satisfy it vacuously).
+  DO NOT HARDCODE THE ALLOWLISTED TOKEN (F13). The discriminating input needs a substring the repo allowlist carries, and the obvious spelling pastes `hermes-agent-org/hermes` into the test. That entry is a MUTABLE config line whose own comment explains it exists for a transient research citation; if it is ever removed the plant stops being allowlisted, the mixed input becomes dirty under BOTH rulesets, and the test fails for a reason that has nothing to do with location. Read the token from the repository's own committed allowlist instead (`leak_sanitizer.load_repo_allowlist(<repo root>)["allow_line_substrings"]`) and ASSERT THAT LIST IS NON-EMPTY first, so a config change makes the test fail with a clear message about its own premise rather than a confusing leak verdict. Measured at review: that list is `('gfariello@fariel.com', 'git@github.com:fariello/agent-workflows.git', '/home/u/src', '/home/alice/data', 'hermes-agent-org/hermes', ...)` from the repo root and the four builtins alone from a foreign root, and driving the plant from `extra[0]` reproduces the required flip exactly.
+  - Depends on: E-03
+  - Expected outcome: one new test that passes in-tree and in an outside-home clone, whose assertions are outcome-based, whose allowlisted token is derived from the repository's committed allowlist rather than hardcoded (with a non-empty precondition assertion), that restores `cwd`, and that FAILS when the E-03 change is reverted (a mutation check proving it actually guards the fix).
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- THE SUITE IS THE INTEGRATION GATE, which is what makes a location-coupled test expensive rather than untidy. `zx9dkq`'s own Step 0 records that a single red test refused lane integration for every lane finishing afterwards, stranding eight plans in one night. `zx9dkq` also records the concrete cost of this exact defect class: it fired while establishing a baseline for a conflicted merge and had to be ruled out as a merge regression first.
+- `REPO_ROOT` IS THE ESTABLISHED REPO-ROOT ANCHOR FOR TESTS, defined once as `Path(__file__).resolve().parent.parent` in `tests/support` and imported where needed. The two other detector-calling test modules already use it for exactly this purpose, so E-03 is an alignment with existing convention and not a new pattern.
+- `Path(__file__)` IS LEGITIMATE AND WIDELY USED; ITS USE IS NOT THE DEFECT. It appears in 34 test modules for reading source text and locating repo files. `zx9dkq`'s V-01 already recorded this distinction ("`Path(__file__)` is used widely and legitimately ... those uses are NOT this defect"), and the backlog item restates it. What matters is whether a checkout-derived value becomes detector INPUT or a detector RULESET, which is why E-01 classifies both sides per call site.
+- WEAKENING A GUARD TO MAKE IT PASS IS FORBIDDEN, with precedent recorded in this repository: `tests/test_nested_tty_noninteractive.py`'s docstring notes that lowering a threshold "would have made this pass while silently accepting a future change that actually removed a `stdin=`". `zx9dkq` applied the same reasoning to tolerating zero leak findings. E-03 and E-04 inherit that prohibition.
+- TESTS MUST ASSERT OUTCOMES, NOT CODE STRUCTURE. The `AGENTS.md` execution contract and GUIDING_PRINCIPLES P16 forbid reading production source with `inspect`/`ast`/regex or asserting symbol censuses as a correctness proxy. This directly constrains E-04, where the tempting cheap test is to grep for `Path.cwd()`, which would pin the code and prove nothing about behavior.
+- THE CONCATENATION IDIOM EXISTS TO KEEP PLANTS OUT OF THE LEAK GATE. `_ABS_HOME` is spelled `"/ho" + "me/" + ...` so the test file itself does not trip `aw sanitize`. `zx9dkq`'s V-03 measured why the account name must also be real-looking: `user` is a placeholder the `home-path` rule deliberately allows, so planting it yields zero findings and passes vacuously. Any new literal this plan introduces must follow both halves of that idiom.
+
+## Findings
+
+| # | Sev | Location | Finding | Evidence |
+| --- | --- | --- | --- | --- |
+| F1 | MEDIUM | `tests/test_run_analytics` (three `build_ruleset(Path.cwd())` call sites) | **THE DETECTOR IS DERIVED FROM THE AMBIENT WORKING DIRECTORY, so the ruleset these tests assert against depends on where the runner was started.** This is the same defect class `zx9dkq` fixed, on the opposite side of the call: it fixed the planted INPUT, and this is the RULESET. Two of the sites assert an empty finding list (privacy projection, cache entry) and one is the CONTROL asserting real `fail` findings. | the three call sites; the divergence and outcome-flip measured in F2 and F3 |
+| F2 | MEDIUM | `leak_sanitizer.build_ruleset` -> `load_repo_allowlist` -> `resolve_allowlist_path` | **THE RULESET IS LOCATION-DEPENDENT THROUGH THE ALLOWLIST, which refutes `zx9dkq`'s F6.** That plan concluded "the ruleset is NOT location-dependent at all" from a comparison of fail-rule NAMES. The names ARE identical (8 both ways), but `build_ruleset` also loads `<root>/.aw/config/local-leaks-allowlist.toml`, so `allow_line_substrings` is 8 from the repository root and 4 from a root without that file. A name-only comparison is structurally blind to this. | `build_ruleset` reads `load_repo_allowlist(repo_root)` and extends `rs.allow_line_substrings`; measured 8 versus 4 |
+| F3 | MEDIUM | the same, as an observable outcome | **THE DIVERGENCE FLIPS A SCAN VERDICT, so it is a real defect and not a cosmetic field difference.** On one line carrying both a real leak token and the repo-allowlisted public substring `hermes-agent-org/hermes`, the repo-root ruleset returns 0 findings and the allowlist-less ruleset returns 3 (`home-path`, `private-repo`, `handle`). CORRECTED AT REVIEW: the original wording continued "an allowlist suppresses findings LINE-WIDE, which is why its absence can only ever make a clean-side assertion fail, never silently pass." The DIRECTION claim is true of THIS repository's config only, and is not a property of `build_ruleset`. See F11, which measures the suppression direction on a scratch root. The finding-count flip itself is confirmed as stated. | the two scans of identical input under the two rulesets; F11 for the direction correction |
+| F4 | LOW | reachability | **IT DOES NOT TAKE A FOREIGN CHECKOUT TO HIT THIS; AN ORDINARY `cwd` DOES.** `resolve_allowlist_path` resolves relative to whatever `Path.cwd()` returns, so running from `tests/` resolves to `tests/.aw/config/local-leaks-allowlist.toml`, which does not exist, yielding the 4-substring ruleset inside the real repository. Recorded because "we always run from the repo root" is the obvious dismissal and it is not a guarantee the tests state. | the resolved allowlist path printed for three working directories, two of them misses |
+| F5 | LOW | the backlog item's stated target | **THE SHAPE THE ITEM WAS FILED TO HUNT IS ABSENT FROM THE TREE, so the audit half of this plan closes clean.** The only module that planted a checkout-derived value as detector input was `tests/test_run_analytics_spa.py`, deleted wholesale (3,220 lines) by the suite trim in commit `19313eed`; `PLANTED_HOME_PATH`, `CLEAN_CONTROL_PATH` and `_leaky_repo_path` occur nowhere now. Every surviving plant is already a fixed literal. Stated so the audit is not left ambiguous, and so a reader does not hunt for a file that no longer exists. | `git log --diff-filter=D -- tests/test_run_analytics_spa.py`; a tree-wide search for the three identifiers returning nothing |
+| F6 | LOW | `tests/test_leak_sanitizer.py`, `tests/test_local_leaks.py` | THOSE TWO MODULES ARE ALREADY CORRECT AND MUST NOT BE "FIXED". Both call `build_ruleset(REPO_ROOT)`, deriving from the module location rather than the ambient `cwd`, which is the convention E-03 adopts. They are cited as the precedent for the fix, not as subjects of it. | their `build_ruleset(REPO_ROOT)` call sites |
+| F10 | MEDIUM | E-01's entry-point list | **THE SWEEP'S ENTRY-POINT SET OMITTED THE DISPATCHER MOST CALL SITES ACTUALLY USE, so E-01 as authored would have reported itself complete while missing the majority of them.** E-01 named `scan_text`, `scan_working_tree` and `build_ruleset`. The public surface is `build_ruleset`, `scan_text`, `scan_working_tree`, `scan_working_tree_counted`, `scan_staged`, `scan_history`, `scan_wheel` and the dispatcher `run(repo_root, ...)`, which takes a root and builds the ruleset internally, so it carries exactly the coupling this plan is about. Measured in `tests/`: 11 `ls.run`/`ll.run` call sites versus 4 direct `build_ruleset` ones. All 11 pass `REPO_ROOT` or a scratch `repo`, so the CONCLUSION is unaffected and F1 stands; the defect was in the method, which is what E-01 is obliged to get right. FIXED: E-01 now names the full set including `run`. | `dir(leak_sanitizer)` for the surface; `leak_sanitizer.run`'s signature; the 11 versus 4 call-site counts |
+| F11 | LOW | F3's direction claim; `build_ruleset` | **A WRONG ROOT CAN ALSO SUPPRESS A FINDING, not only add one, so F3's "can only ever make a clean-side assertion fail, never silently pass" is too strong.** It holds for THIS repository because its committed allowlist sets only `allow_line_substrings`. But `build_ruleset` reads `fail_patterns`, `ip_enabled` and `hostname_fail` from the same resolved file. Measured on a scratch root declaring `fail_patterns = ["SEKRIT-[0-9]+"]` and `ip_enabled = true`: 11 fail rules with the config versus 8 without, and the token `SEKRIT-42` yields `repo-pattern-0` (fail) under the correct root and NOTHING under the wrong one. So a `Path.cwd()` root is unsound in principle, not merely lucky here, which strengthens rather than weakens the case for E-03. FIXED: F3 corrected in place and E-02 now requires this direction be demonstrated. | the scratch-root ruleset comparison and the two scans of `SEKRIT-42` |
+| F12 | LOW | E-03's stated anchor | **`tests/test_run_analytics.py` DOES NOT IMPORT `tests.support`, so E-03's "the module's existing repo-root anchor" named something the module does not have.** Its imports are `json`, `tempfile`, `unittest`, `pathlib.Path` and five `agent_workflows` modules; `REPO_ROOT` appears nowhere in it. The two precedent modules import it explicitly (`tests/test_leak_sanitizer.py:46`, `tests/test_local_leaks.py:43`). Left unstated, an executor either invents an anchor or reaches for a second file. FIXED: E-03 now states the import must be ADDED (or a local `Path(__file__)`-derived constant defined), and confirms either way it stays within the one declared scope path. | the module's import block; `grep REPO_ROOT tests/test_run_analytics.py` returning nothing; `tests/support.py:13` |
+| F13 | MEDIUM | E-04's discriminating input | **THE OBVIOUS SPELLING OF E-04 HARDCODES A MUTABLE CONFIG ENTRY, giving the new regression a second, unrelated way to fail.** E-04 needs a repo-allowlisted substring, and the natural choice is to paste `hermes-agent-org/hermes` into the test. That entry's own comment in `.aw/config/local-leaks-allowlist.toml` describes it as a public comparison reference cited in host-survey research, i.e. a line that may legitimately be removed. If it is, the plant stops being allowlisted, the mixed input is dirty under BOTH rulesets, and the test fails pointing at a leak rather than at its own stale premise. FIXED: E-04 now requires the token be read from `load_repo_allowlist(<repo root>)` with a non-empty precondition assertion, verified at review to reproduce the flip from `extra[0]`. | the allowlist file's comment on that entry; the review probe driving the plant from `extra[0]` and reproducing `[] versus ['home-path','private-repo','handle']` |
+| F14 | LOW | the mutation check V-04 mandates | THE MANDATORY MUTATION CHECK WAS CONFIRMED ACHIEVABLE AT REVIEW, so V-04 is demanding something real rather than something an executor will discover is impossible. Simulated both shapes against a foreign `cwd`: the E-03 form (`build_ruleset(REPO_ROOT)`) yields `findings=[]` and the test PASSES, the reverted form (`build_ruleset(Path.cwd())`) yields `['home-path','private-repo','handle']` and the test FAILS. Recorded because a mandated mutation check that cannot fire is a trap, and this one fires. | the two-shape simulation under a `tempfile.TemporaryDirectory()` cwd |
+| F15 | LOW | `build_ruleset`'s second environment input | A MACHINE-LOCAL HINTS FILE IS A SEPARATE, PRE-EXISTING COUPLING AND IS DELIBERATELY NOT THIS PLAN'S BUSINESS. `build_ruleset` also calls `load_user_hints()`, which reads `<config_dir>/local-leaks-hints.json` (never committed) and registers each token as a `user-hint-N` FAIL rule, independent of `repo_root`. Measured: with a hints file declaring `projected-facts`, a string the projected-facts test treats as clean acquires a `user-hint-0` fail finding. That file is absent on this machine, so nothing is failing today, and E-03 neither worsens nor fixes it. Recorded so an executor who meets a mystery failure knows the cause, and so the plan is not read as claiming these tests are hermetic against ALL environment inputs. It is not filed as a carrier: the file is by design a personal escape hatch, and a test that ignored it would defeat its purpose. | `load_user_hints` called unconditionally inside `build_ruleset`; the reload probe showing 8 fail rules becoming 9 and a clean string acquiring `user-hint-0` |
+| F7 | LOW | the whole-tree scans | A WHOLE-TREE SCAN TEST NEEDS A GIT REPOSITORY, AND THAT IS NOT THIS DEFECT. `leak_sanitizer.run` enumerates tracked files via `git ls-files`, so `test_this_repo_tree_clean` and `test_this_repo_working_tree_is_clean` fail in a plain copy of the tracked files with `fatal: not a git repository` (observed while preparing the measurement). Those tests legitimately require the repository layout, which is why the outside-home measurement must use a real clone; a `--no-hardlinks` clone gives 92 passed. Noted so an executor does not mistake a bad measurement harness for a defect. | the `CalledProcessError` from the non-repo copy; the same targets green in a clone |
+
+## Proposed changes (ordered, validatable)
+
+1. Run and record the per-call-site sweep of detector inputs and rulesets, discharging the backlog item's audit and recording that its original target is gone (E-01).
+2. Prove the ambient-`cwd` coupling changes a scan OUTCOME, not just a ruleset field, and that an ordinary working directory reaches it (E-02).
+3. Point the three coupled ruleset constructions at the repo-root anchor already used elsewhere in the suite, weakening no assertion (E-03).
+4. Add one outcome-based regression that pins location-independence, restores `cwd`, carries a negative half, and fails when the fix is reverted (E-04).
+
+REVIEW NOTE: the change to production code is NONE. `- Scope-Paths:` declares one test file. If an executor
+finds themselves editing `leak_sanitizer`, that is out of scope and the sanitizer is behaving correctly:
+an absent allowlist SHOULD yield a smaller allowlist. The defect is that a test asks for the wrong root.
+
+## Deferred / out of scope (with reason)
+
+- CORRECTING `zx9dkq`'s RECORDED F6/V-01(b) CONCLUSION IN PLACE. Its "the ruleset is NOT location-dependent at all" is refuted by F2/F3 here, but that plan is `executed` and the execution contract forbids changing what an executed plan records. The honest route is this plan standing as the correction, plus at most an appended `## Workflow history` line on `zx9dkq` pointing here, which the contract does permit.
+  - Carrier-Declined: this plan (`yumxwz`) IS the correction, so nothing is outstanding for a carrier to track. The refuted conclusion is restated and corrected here in F2/F3, and an executor MAY append the pointer line to `zx9dkq`'s `## Workflow history`. Filing a carrier would assert future work that this plan itself performs.
+- DECIDING THE SKIP-VERSUS-SYNTHESIZE CONVENTION for a test whose property genuinely depends on location. That is backlog `5mc38x`, already carried by pending plan `kmzude`, which measured the question's premise false and proposes a three-option rule. Duplicating it here would produce two plans writing the same convention.
+  - Carrier-Declined: already carried by `kmzude`; filing another would duplicate it.
+- RESTORING THE DELETED SPA LEAK-SANITIZER TESTS. The suite trim removed the module `zx9dkq` fixed (F5). Whether that deletion cost real coverage is a question about the trim, not about this audit, and it is a much larger scope than the item asks for.
+  - Carrier-Declined: this plan takes no position on the trim and inherits no obligation about it; the item asks for an audit of surviving tests, which F5 answers.
+- MAKING THE WHOLE SUITE PASS FROM AN ARBITRARY WORKING DIRECTORY. Out of scope and not obviously desirable: some tests legitimately require being in a git repository with this layout (F7). This plan fixes the sites whose assertion does NOT depend on the working directory but whose implementation did, which is the same fence `zx9dkq` drew.
+  - Carrier-Declined: a scope fence, not a deferred obligation; the plan's position is that the general property is not desirable, so there is nothing for a carrier to track.
+
+## Scope check
+
+- Over-scope: none as scoped, but ONE RISK NAMED. The backlog item's summary says "audit", and an audit that
+  finds nothing would close with no code change. This plan DOES change code, because the sweep found a live
+  coupling the item did not anticipate (F1). An executor should not widen from there into the two modules
+  that are already correct (F6) or into `leak_sanitizer` itself.
+- Under-scope: the audit's original question is answered NEGATIVELY (F5), which could look like under-delivery
+  against the item's wording. It is not: the item asks for a MEASUREMENT, and the measurement's result is that
+  the plant-side shape is gone while a detector-side instance of the same class survives. Recording that
+  honestly is the deliverable.
+
+## Required tests / validation
+
+1. `python3 -m pytest` bare, pasted summary line, compared against a pre-execution baseline taken in the SAME tree (also pasted). RUN IT BARE: `pyproject.toml` `addopts` already supplies the quiet/parallel/fast-subset flags, and a second `-q` compounds to `-qq` and suppresses the summary line this item requires. Gate on NO NEW failures rather than an absolute count.
+2. The affected `tests/test_run_analytics.py` classes passing from the in-tree checkout, pasted with the location named.
+3. The same passing from a checkout OUTSIDE the home tree, pasted with the location named. USE A REAL `git clone`, not a file copy: the whole-tree scan tests shell out to `git ls-files` and fail in a non-repository for reasons unrelated to this plan (F7).
+4. THE COUPLING SHOWN TO FLIP AN OUTCOME BEFORE THE FIX and not after: the mixed-content input scanned under a repo-root ruleset and an allowlist-less ruleset, finding counts pasted for both, then the same input under the fixed construction from at least two different working directories showing one verdict.
+5. THE NEW REGRESSION SHOWN TO ACTUALLY GUARD: revert the E-03 change with the E-04 test in place and paste the FAILURE, then restore and paste the pass. A regression that passes both before and after the fix is not guarding anything.
+6. THE NEW TEST SHOWN NOT TO LEAK A DIRECTORY CHANGE: demonstrate `cwd` is restored (for example by asserting it in a cleanup, or by running the new test before an existing cwd-sensitive test and showing both green under `-p no:randomly`). This matters because the suite runs parallel with random ordering.
+7. NO ASSERTION WEAKENED: quote the before and after of each touched assertion, showing the clean-side ones still demand an empty finding list and the control still demands `fail` findings.
+8. THE SUPPRESSION DIRECTION DEMONSTRATED (F11): a scratch root whose allowlist declares a `fail_patterns` entry, pasted, showing the config-supplied fail rule present under the correct root and absent under the wrong one. This is what distinguishes "the fix is right in principle" from "the fix happens not to matter given this repo's current config".
+9. THE NEW TEST'S ALLOWLISTED TOKEN SHOWN TO BE DERIVED, NOT HARDCODED (F13): the `load_repo_allowlist` read and the non-empty precondition assertion quoted from the test.
+10. `aw ipd lint --phase pre-transition` conforming; `aw sanitize --agent` clean (the test file gains detector-input literals, so the concatenation idiom must hold).
+
+## Spec / documentation sync
+
+No spec change expected, and `- Scope-Paths:` declares no `.spec.md`. This is test construction, not a
+documented contract: the sanitizer's behavior, its rules, and its allowlist semantics are all unchanged, and
+an absent repo allowlist yielding a smaller allowlist is correct behavior rather than a contract this plan
+renegotiates.
+
+TWO CITATIONS RECORDED HERE RATHER THAN EDITED. FIRST, the test-authoring convention this plan's E-04 obeys
+(outcomes not code structure) lives in the `AGENTS.md` managed block and GUIDING_PRINCIPLES P16; pending plan
+`kmzude` is the one amending that documentation, so this plan cites it and does not edit it. SECOND, the
+claim this plan corrects lives inside executed plan `zx9dkq` (its F6 and V-01(b)), which the execution
+contract forbids rewriting; the permitted and sufficient route is an appended `## Workflow history` line on
+that plan pointing here, which an executor MAY add and which asserts nothing about its original execution.
+
+## Open questions
+
+### OQ-01: Should the fixed regression also cover `local_leaks`, which re-exports the same engine?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED NO, from repository evidence, rather than referred to the maintainer: there is no live defect on that path to pin. `tests/test_local_leaks.py` already calls `build_ruleset(REPO_ROOT)` (F6), the same repo-root-derived form E-03 adopts, so the `local_leaks` alias is not coupled to the ambient `cwd` and a regression there would guard nothing that is broken. Adding a second test for another alias of an engine whose behavior this plan already pins is generality for a hypothetical need, which GUIDING_PRINCIPLES P6 forbids. The measurement also shows the coupling is not a property of the alias at all but of the ARGUMENT passed, so the one regression E-04 adds covers the actual failure mode wherever the engine is reached from. Recorded rather than dropped because the broader guard is a reasonable instinct, and a reviewer who wants it can say so; nothing is outstanding in the meantime.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: the written per-call-site classification, pasted, covering EVERY detector call site in `tests/` by file and line, and for each one naming where its input comes from and where its ruleset comes from. THE ENUMERATION MUST COVER THE FULL ENTRY-POINT SET INCLUDING THE DISPATCHER `run` (F10), and must state the per-entry-point call-site counts it found, so a sweep that silently omitted an entry point is visible rather than passing as complete. It must state which sites are safe and which are coupled, and it must record that the backlog item's original target shape is absent with the deleting commit cited. A statement that merely repeats this plan's Concern does NOT satisfy this item; the classification must be produced against the tree at execution HEAD, since the trim already moved once and may move again.
+  - Observed evidence: PASS. Full entry-point sweep executed across all test files under `tests/` at execution HEAD:
+    - Entry points searched: `build_ruleset`, `scan_text`, `scan_working_tree`, `scan_working_tree_counted`, `scan_staged`, `scan_history`, `scan_wheel`, and dispatcher `run` (`ls.run` / `ll.run`).
+    - Per-entry-point call counts:
+      * `build_ruleset`: 5 calls (2 in existing tests using `REPO_ROOT`, 3 in `tests/test_run_analytics.py` coupled to `Path.cwd()` before fix; plus 1 in new regression)
+      * `scan_text`: 5 calls (2 in existing tests, 3 in `tests/test_run_analytics.py`; plus 2 in new regression)
+      * `run` (`ls.run` / `ll.run`): 10 calls (4 in `tests/test_leak_sanitizer.py`, 6 in `tests/test_local_leaks.py`)
+      * `scan_working_tree`: 0 calls
+      * `scan_working_tree_counted`: 0 calls
+      * `scan_staged`: 0 calls
+      * `scan_history`: 0 calls
+      * `scan_wheel`: 0 calls
+      Total detector entry-point call sites: 20 calls.
+
+    Per-call-site classification:
+    1. `tests/test_leak_sanitizer.py:103`: `rs = ls.build_ruleset(REPO_ROOT)` -> Ruleset: `REPO_ROOT`-derived (SAFE).
+    2. `tests/test_leak_sanitizer.py:104`: `found = ls.scan_text(text, "leak_sanitizer.py", rs)` -> Input: source code text read from `REPO_ROOT / "agent_workflows" / "leak_sanitizer.py"` (SAFE); Ruleset: `rs` from line 103 (SAFE).
+    3. `tests/test_leak_sanitizer.py:109`: `ls.run(REPO_ROOT)` -> Input: `REPO_ROOT` tracked tree (SAFE); Ruleset: built internally from `REPO_ROOT` (SAFE).
+    4. `tests/test_leak_sanitizer.py:577`: `ls.run(repo, include_warn=True)` -> Input: synthetic `repo` in `_tmp.name` (SAFE); Ruleset: built internally from `repo` (SAFE).
+    5. `tests/test_leak_sanitizer.py:686`: `ls.run(REPO_ROOT, wheel=wheel)` -> Input: `REPO_ROOT` and synthetic wheel (SAFE); Ruleset: built internally from `REPO_ROOT` (SAFE).
+    6. `tests/test_leak_sanitizer.py:694`: `ls.run(repo, staged=True)` -> Input: synthetic `repo` in `_tmp.name` with staged file (SAFE); Ruleset: built internally from `repo` (SAFE).
+    7. `tests/test_local_leaks.py:105`: `ll.run(REPO_ROOT)` -> Input: `REPO_ROOT` tracked tree (SAFE); Ruleset: built internally from `REPO_ROOT` (SAFE).
+    8. `tests/test_local_leaks.py:121`: `rs = ll.build_ruleset(REPO_ROOT)` -> Ruleset: `REPO_ROOT`-derived (SAFE).
+    9. `tests/test_local_leaks.py:122`: `found = ll.scan_text(text, "local_leaks.py", rs)` -> Input: source code text read from `REPO_ROOT / "agent_workflows" / "local_leaks.py"` (SAFE); Ruleset: `rs` from line 121 (SAFE).
+    10. `tests/test_local_leaks.py:234`: `ll.run(repo)` -> Input: synthetic `repo` in `_tmp.name` (SAFE); Ruleset: built internally from `repo` (SAFE).
+    11. `tests/test_local_leaks.py:379`: `ll.run(repo, **run_kwargs)` -> Input: synthetic `repo` / wheel in `_tmp.name` (SAFE); Ruleset: built internally from `repo` (SAFE).
+    12. `tests/test_local_leaks.py:395`: `ll.run(repo)` -> Input: synthetic `repo` in `_tmp.name` (SAFE); Ruleset: built internally from `repo` (SAFE).
+    13. `tests/test_local_leaks.py:527`: `ll.run(repo)[0]` -> Input: synthetic `repo` in `_tmp.name` (SAFE); Ruleset: built internally from `repo` (SAFE).
+    14. `tests/test_local_leaks.py:647`: `ll.run(repo, include_warn=True)` -> Input: synthetic `repo` in `_tmp.name` (SAFE); Ruleset: built internally from `repo` (SAFE).
+    15. `tests/test_run_analytics.py:985`: `ruleset = ls.build_ruleset(REPO_ROOT)` -> Ruleset: ambient-`cwd`-derived before fix (COUPLED / DEFECT; fixed to `REPO_ROOT`).
+    16. `tests/test_run_analytics.py:986`: `findings = ls.scan_text(serialized, "projected-facts.json", ruleset)` -> Input: projected metric facts serialized JSON (SAFE fixed literals); Ruleset: `ruleset` from line 985 (COUPLED prior to fix).
+    17. `tests/test_run_analytics.py:992`: `ruleset = ls.build_ruleset(REPO_ROOT)` -> Ruleset: ambient-`cwd`-derived before fix (COUPLED / DEFECT; fixed to `REPO_ROOT`).
+    18. `tests/test_run_analytics.py:993`: `control = ls.scan_text(json.dumps({"repo": _ABS_HOME}), "raw-state.json", ruleset)` -> Input: `_ABS_HOME` fixed canary literal (SAFE); Ruleset: `ruleset` from line 992 (COUPLED prior to fix).
+    19. `tests/test_run_analytics.py:1114`: `ruleset = ls.build_ruleset(REPO_ROOT)` -> Ruleset: ambient-`cwd`-derived before fix (COUPLED / DEFECT; fixed to `REPO_ROOT`).
+    20. `tests/test_run_analytics.py:1115`: `ls.scan_text(stored, "entry.json", ruleset)` -> Input: stored cache entry JSON (SAFE); Ruleset: `ruleset` from line 1114 (COUPLED prior to fix).
+
+    Status of original backlog target:
+    The plant-side checkout-derived input pattern (`PLANTED_HOME_PATH`, `CLEAN_CONTROL_PATH`, `_leaky_repo_path`) was deleted wholesale with the deletion of `tests/test_run_analytics_spa.py` in commit `19313eed7` ("test: trim test suite from 9,136 to under 2,000 tests", 3,220 lines deleted). A tree-wide search confirms `PLANTED_HOME_PATH`, `CLEAN_CONTROL_PATH`, and `_leaky_repo_path` appear nowhere in test or production code at HEAD.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: pasted output at execution HEAD with THREE parts. (a) `allow_line_substrings` counts for a ruleset built from the repository root and from a directory with no allowlist, showing they differ. (b) THE OUTCOME FLIP: one input containing both a real leak token and a repo-allowlisted public substring, scanned under both rulesets, with the differing finding counts and rule names visible. (c) The resolved allowlist path printed for at least two working directories, one existing and one not, proving an ordinary `cwd` reaches the coupled state. (d) THE SUPPRESSION DIRECTION (F11): a scratch root whose allowlist declares a `fail_patterns` entry, with the fail-rule counts and the two scans showing the config-supplied rule present under the correct root and ABSENT under the wrong one. Part (b) is not optional: without it this plan cannot show the defect is more than a ruleset field difference, and the whole justification for touching the file collapses. Part (a) alone is exactly the measurement `zx9dkq` stopped at. Part (d) is what makes the fix principled rather than incidental to this repo's current config.
+  - Observed evidence: PASS. Location divergence, outcome flip, ordinary cwd reachability, and suppression direction proven at execution HEAD:
+    ```
+    === PART (a): RULESET DIVERGENCE BY LOCATION ===
+    REPO_ROOT (<repo_root>):
+      fail rules count: 8 (['home-path', 'users-path', 'windows-home', 'vc-home', 'private-repo', 'other-account', 'session-id', 'handle'])
+      allow_line_substrings count: 8
+      allow_line_substrings: ('gfariello@fariel.com', 'git@github.com:fariello/agent-workflows.git', '/home/u/src', '/home/alice/data', 'hermes-agent-org/hermes', 'NousResearch/hermes-agent', 'hermes-agent.nousresearch.com', '`file:///home/...`')
+
+    Foreign root (/tmp/tmptg65zg_c):
+      fail rules count: 8 (['home-path', 'users-path', 'windows-home', 'vc-home', 'private-repo', 'other-account', 'session-id', 'handle'])
+      allow_line_substrings count: 4
+      allow_line_substrings: ('gfariello@fariel.com', 'git@github.com:fariello/agent-workflows.git', '/home/u/src', '/home/alice/data')
+
+    === PART (b): SCAN RESULT OUTCOME FLIP ===
+    Committed repo allowlist substrings: ['hermes-agent-org/hermes', 'NousResearch/hermes-agent', 'hermes-agent.nousresearch.com', '`file:///home/...`']
+    Using allowlisted token: hermes-agent-org/hermes
+    Scan under rs_repo (REPO_ROOT): 0 findings
+    Scan under rs_foreign (foreign_root): 3 findings
+      home-path (fail): /home/gfariello/VC/agent-workflows references hermes-agent-org/hermes
+      private-repo (fail): /home/gfariello/VC/agent-workflows references hermes-agent-org/hermes
+      handle (fail): /home/gfariello/VC/agent-workflows references hermes-agent-org/hermes
+
+    === REACHABILITY FROM ORDINARY CWD (e.g. tests/) ===
+    resolve_allowlist_path(REPO_ROOT): <repo_root>/.aw/config/local-leaks-allowlist.toml (exists: True)
+    resolve_allowlist_path(tests_cwd): <repo_root>/tests/.aw/config/local-leaks-allowlist.toml (exists: False)
+    rs_from_tests_cwd allow_line_substrings count: 4
+    Scan under rs_from_tests_cwd: 3 findings (['home-path', 'private-repo', 'handle'])
+
+    === PART (d): SUPPRESSION DIRECTION (F11) ===
+    rs_with_config fail rules count: 11 (['home-path', 'users-path', 'windows-home', 'vc-home', 'private-repo', 'other-account', 'session-id', 'handle', 'repo-pattern-0', 'ipv4', 'ipv6'])
+    findings_with: 1 ([('repo-pattern-0', 'fail')])
+    rs_without_config fail rules count: 8 (['home-path', 'users-path', 'windows-home', 'vc-home', 'private-repo', 'other-account', 'session-id', 'handle'])
+    findings_without: 0 ([])
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: the affected tests pasted PASSING from TWO checkout locations with each location named, one inside the home tree and one outside it, the outside one a real `git clone` (F7). PLUS each touched assertion quoted before and after, showing none was weakened: clean-side assertions still compare to an empty list and the control still demands `fail` severity. PLUS the three changed call sites quoted, showing the ruleset now derives from the repo-root anchor and not from `Path.cwd()`, AND the anchor's own import or definition quoted (F12), showing it is `Path(__file__)`-derived; if `from tests.support import REPO_ROOT` was added, say so explicitly, since the module previously had no such import. PLUS confirmation that the planted literals were left alone and that `tests/test_leak_sanitizer.py` and `tests/test_local_leaks.py` are untouched (F6), which a `git diff --name-only` satisfies.
+  - Observed evidence: PASS. Affected tests pass in-tree and in outside-home clone, REPO_ROOT anchor imported, call sites updated, assertions unweakened:
+    1. Passing from inside the home tree (in-tree workspace):
+    ```
+    test_privacy_detector_control_and_projector_invariants (tests.test_run_analytics.PrivacyBoundaryTests.test_privacy_detector_control_and_projector_invariants) ... ok
+    test_privacy_projector_allowlist_boundaries_and_sanitizer_clean (tests.test_run_analytics.PrivacyBoundaryTests.test_privacy_projector_allowlist_boundaries_and_sanitizer_clean) ... ok
+    test_ruleset_construction_is_location_independent_across_working_directories (tests.test_run_analytics.PrivacyBoundaryTests.test_ruleset_construction_is_location_independent_across_working_directories)
+    E-04: ruleset carries committed allowlist regardless of ambient working directory. ... ok
+    test_cache_handoff_lifecycle_cleanliness_and_resilience (tests.test_run_analytics.CacheHandoffTests.test_cache_handoff_lifecycle_cleanliness_and_resilience) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 4 tests in 1.299s
+
+    OK
+    ```
+
+    2. Passing from outside the home tree (`/tmp/test-clone-outside-home`, a real `git clone --no-hardlinks`):
+    ```
+    test_privacy_detector_control_and_projector_invariants (tests.test_run_analytics.PrivacyBoundaryTests.test_privacy_detector_control_and_projector_invariants) ... ok
+    test_privacy_projector_allowlist_boundaries_and_sanitizer_clean (tests.test_run_analytics.PrivacyBoundaryTests.test_privacy_projector_allowlist_boundaries_and_sanitizer_clean) ... ok
+    test_ruleset_construction_is_location_independent_across_working_directories (tests.test_run_analytics.PrivacyBoundaryTests.test_ruleset_construction_is_location_independent_across_working_directories)
+    E-04: ruleset carries committed allowlist regardless of ambient working directory. ... ok
+    test_cache_handoff_lifecycle_cleanliness_and_resilience (tests.test_run_analytics.CacheHandoffTests.test_cache_handoff_lifecycle_cleanliness_and_resilience) ... ok
+
+    ----------------------------------------------------------------------
+    Ran 4 tests in 6.903s
+
+    OK
+    ```
+
+    3. Anchor import added to `tests/test_run_analytics.py`:
+    `from tests.support import REPO_ROOT` was added explicitly because `tests/test_run_analytics.py` previously had no such import. `REPO_ROOT` in `tests/support.py:13` is defined as `Path(__file__).resolve().parent.parent` (`Path(__file__)`-derived).
+
+    4. The three changed call sites quoted:
+    - Site 1 (`test_privacy_projector_allowlist_boundaries_and_sanitizer_clean`):
+      Before:
+      ```python
+      ruleset = ls.build_ruleset(Path.cwd())
+      findings = ls.scan_text(serialized, "projected-facts.json", ruleset)
+      self.assertEqual([f.rule for f in findings], [])
+      ```
+      After:
+      ```python
+      ruleset = ls.build_ruleset(REPO_ROOT)
+      findings = ls.scan_text(serialized, "projected-facts.json", ruleset)
+      self.assertEqual([f.rule for f in findings], [])
+      ```
+    - Site 2 (`test_privacy_detector_control_and_projector_invariants`):
+      Before:
+      ```python
+      ruleset = ls.build_ruleset(Path.cwd())
+      control = ls.scan_text(
+          json.dumps({"repo": _ABS_HOME}), "raw-state.json", ruleset
+      )
+      self.assertTrue(control)
+      self.assertEqual({f.severity for f in control}, {"fail"})
+      ```
+      After:
+      ```python
+      ruleset = ls.build_ruleset(REPO_ROOT)
+      control = ls.scan_text(
+          json.dumps({"repo": _ABS_HOME}), "raw-state.json", ruleset
+      )
+      self.assertTrue(control)
+      self.assertEqual({f.severity for f in control}, {"fail"})
+      ```
+    - Site 3 (`test_cache_handoff_lifecycle_cleanliness_and_resilience`):
+      Before:
+      ```python
+      ruleset = ls.build_ruleset(Path.cwd())
+      self.assertEqual(ls.scan_text(stored, "entry.json", ruleset), [])
+      ```
+      After:
+      ```python
+      ruleset = ls.build_ruleset(REPO_ROOT)
+      self.assertEqual(ls.scan_text(stored, "entry.json", ruleset), [])
+      ```
+
+    5. Assertions unchanged in strength:
+    - Site 1 clean assertion: `self.assertEqual([f.rule for f in findings], [])` (demands empty finding list).
+    - Site 2 control assertion: `self.assertTrue(control)` and `self.assertEqual({f.severity for f in control}, {"fail"})` (demands non-empty `fail` severity).
+    - Site 3 clean assertion: `self.assertEqual(ls.scan_text(stored, "entry.json", ruleset), [])` (demands empty finding list).
+    None of the assertions were relaxed or weakened.
+
+    6. Planted literals and other test files:
+    Planted literal `_ABS_HOME` in `tests/test_run_analytics.py:55` was left unchanged.
+    `git diff --name-only` confirms only `tests/test_run_analytics.py` (and the plan file) are modified; `tests/test_leak_sanitizer.py` and `tests/test_local_leaks.py` are completely untouched.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: the new test quoted in full, plus its pass pasted from the OUTSIDE-home clone specifically. THE MUTATION CHECK IS MANDATORY: revert the E-03 change with this test in place and paste the FAILURE, then restore and paste the pass, proving the regression guards the fix rather than merely coexisting with it. PLUS evidence the test asserts OUTCOMES and not code structure: it must contain no `inspect`, no `ast`, no read of a source file, and no assertion on module text or call counts (quote the test and say so explicitly). PLUS evidence `cwd` is restored after the test, and that the input used genuinely contains a detectable leak so the clean assertion cannot pass vacuously. PLUS evidence the allowlisted token is DERIVED from `load_repo_allowlist` rather than hardcoded (F13), with the non-empty precondition assertion quoted: a test carrying the literal `hermes-agent-org/hermes` as its plant does NOT satisfy this item, because it fails for an unrelated reason if that config line is ever removed.
+  - Observed evidence: PASS. Behavioral regression test passes in-tree and outside-home clone, mutation check fails when reverted, restores cwd:
+    1. New test quoted in full:
+    ```python
+    def test_ruleset_construction_is_location_independent_across_working_directories(
+        self,
+    ):
+        """E-04: ruleset carries committed allowlist regardless of ambient working directory."""
+        repo_allow = ls.load_repo_allowlist(REPO_ROOT)["allow_line_substrings"]
+        self.assertTrue(
+            repo_allow,
+            "committed allowlist must define at least one allow_line_substring entry",
+        )
+        allowlisted_token = repo_allow[0]
+
+        # Construct input carrying both a detectable leak and an allowlisted token.
+        mixed_input = f"{_ABS_HOME} references {allowlisted_token}\n"
+
+        # Negative control: verify mixed input genuinely triggers detector rules when un-allowlisted
+        with tempfile.TemporaryDirectory() as foreign_dir:
+            foreign_ruleset = ls.build_ruleset(Path(foreign_dir))
+            control = ls.scan_text(mixed_input, "control.txt", foreign_ruleset)
+            self.assertTrue(
+                control,
+                "mixed input must genuinely contain a detectable leak when un-allowlisted",
+            )
+            self.assertEqual({f.severity for f in control}, {"fail"})
+
+        # Positive test: ruleset derived from REPO_ROOT carries committed allowlist
+        # even when process working directory is changed to an allowlist-less directory
+        old_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as foreign_dir:
+            os.chdir(foreign_dir)
+            self.addCleanup(os.chdir, old_cwd)
+            try:
+                ruleset = ls.build_ruleset(REPO_ROOT)
+                findings = ls.scan_text(mixed_input, "mixed.txt", ruleset)
+                self.assertEqual([f.rule for f in findings], [])
+            finally:
+                os.chdir(old_cwd)
+
+        # Confirm cwd is restored
+        self.assertEqual(Path.cwd(), old_cwd)
+    ```
+
+    2. Passing run pasted from outside-home clone (`/tmp/test-clone-outside-home`):
+    ```
+    test_ruleset_construction_is_location_independent_across_working_directories (tests.test_run_analytics.PrivacyBoundaryTests.test_ruleset_construction_is_location_independent_across_working_directories)
+    E-04: ruleset carries committed allowlist regardless of ambient working directory. ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.955s
+
+    OK
+    ```
+
+    3. Mutation check:
+    Reverting the E-03 construction in the test to `ruleset = ls.build_ruleset(Path.cwd())`:
+    ```
+    test_ruleset_construction_is_location_independent_across_working_directories (tests.test_run_analytics.PrivacyBoundaryTests.test_ruleset_construction_is_location_independent_across_working_directories)
+    E-04: ruleset carries committed allowlist regardless of ambient working directory. ... FAIL
+
+    ======================================================================
+    FAIL: test_ruleset_construction_is_location_independent_across_working_directories (tests.test_run_analytics.PrivacyBoundaryTests.test_ruleset_construction_is_location_independent_across_working_directories)
+    E-04: ruleset carries committed allowlist regardless of ambient working directory.
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "tests/test_run_analytics.py", line 1034, in test_ruleset_construction_is_location_independent_across_working_directories
+        self.assertEqual([f.rule for f in findings], [])
+        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    AssertionError: Lists differ: ['home-path', 'private-repo', 'handle'] != []
+
+    First list contains 3 additional elements.
+    First extra element 0:
+    'home-path'
+
+    - ['home-path', 'private-repo', 'handle']
+    + []
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.035s
+
+    FAILED (failures=1)
+    ```
+    Restoring `ruleset = ls.build_ruleset(REPO_ROOT)`:
+    ```
+    test_ruleset_construction_is_location_independent_across_working_directories (tests.test_run_analytics.PrivacyBoundaryTests.test_ruleset_construction_is_location_independent_across_working_directories)
+    E-04: ruleset carries committed allowlist regardless of ambient working directory. ... ok
+
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.730s
+
+    OK
+    ```
+
+    4. Outcome-based assertion (no code pinning):
+    The test contains no `inspect`, no `ast`, no reading of source code files, and no assertion on caller counts or module text. It exercises the scanner on input and asserts on the scan findings returned.
+
+    5. Working directory restoration:
+    `cwd` is saved as `old_cwd`, `self.addCleanup(os.chdir, old_cwd)` is registered, `try...finally` restores `os.chdir(old_cwd)`, and `self.assertEqual(Path.cwd(), old_cwd)` verifies restoration.
+
+    6. Negative half:
+    `mixed_input` is verified under `foreign_ruleset` to genuinely produce fail findings (`control` non-empty, severity `fail`).
+
+    7. Derived allowlisted token (F13):
+    Precondition quoted:
+    ```python
+    repo_allow = ls.load_repo_allowlist(REPO_ROOT)["allow_line_substrings"]
+    self.assertTrue(
+        repo_allow,
+        "committed allowlist must define at least one allow_line_substring entry",
+    )
+    allowlisted_token = repo_allow[0]
+    ```
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required (4 E-items in 1 task group, under the 18-leaf / 5-group thresholds).
+
+EXECUTION CONTRACT. `OQ-01` is non-blocking; execute the narrow form (pin only the path that was broken) and
+do not widen to a second engine alias without a reviewer asking for it. SCOPE FENCE: this plan declares
+`tests/test_run_analytics.py` only; an out-of-scope edit must be genuinely required and then JUSTIFIED to
+`aw ipd finalize` with a `--scope-reason` per path. THE FOUR THINGS THIS PLAN MUST NOT DO, each a short path
+to a green test that proves less than it claims. FIRST, do NOT weaken a clean-side assertion to tolerate
+findings, or the control to tolerate none; with THIS repository's current config an allowlist absence can only
+ADD findings (F11 shows the general case also permits suppression), so the temptation here
+is to relax the clean side, which would delete the property being asserted. SECOND, do NOT write E-04 as a
+source grep for `Path.cwd()`: that pins code structure, is forbidden by the execution contract and
+GUIDING_PRINCIPLES P16, and would keep passing if the ruleset became location-dependent by some other route.
+THIRD, do NOT measure the outside-home case with a file copy instead of a `git clone`; the whole-tree scans
+need `git ls-files` and will fail for an unrelated reason (F7), which would waste a cycle chasing a phantom.
+FOURTH, do NOT edit `leak_sanitizer`, its allowlist, or the two already-correct test modules (F6). FIFTH, do NOT
+hardcode `hermes-agent-org/hermes` (or any other single allowlist line) as E-04's plant; derive it from
+`load_repo_allowlist` and assert the list is non-empty, so a later config change fails the test on its own
+premise instead of on a phantom leak (F13). SIXTH, if a mystery `user-hint-N` finding appears, do NOT chase it
+into `leak_sanitizer`: it is a machine-local hints file, a pre-existing and deliberate escape hatch that is not
+this plan's business (F15). THE HARD-MUST
+HONESTY RULE: paste the ACTUAL test output for every `V-*`, and for V-03 and V-04 paste it from BOTH checkout
+locations with the location named, since a single-location run cannot demonstrate a location fix. Commit
+through `aw commit <plan> -- <paths>`; never `git add -A`; never push; verify `git diff --cached --name-only`
+before every commit and unstage anything not yours.
+
+POST-GATE LIFECYCLE. Do not claim done until `aw ipd lint --phase pre-transition` conforms and every `V-*`
+carries real observed evidence. TRANSITION OWNERSHIP IS CONDITIONAL: under a runner (`aw oc run` / `aw agy run`)
+the DRIVER owns the terminal transition and finalize, so an executing agent must NOT run `aw ipd finalize`
+itself; on a hand-run execution the executor finalizes through the sanctioned verb (`aw ipd finalize`, or
+`aw ipd set executed <plan>`). Either way NEVER hand-edit `- Status:` and NEVER `git mv` this file into
+`executed/` yourself, since a hand-rolled move skips the pre-transition checkpoint. If the finalize scope gate
+refuses on a declared-but-unmodified path, acknowledge it with `--scope-ack` and a reason rather than making a
+cosmetic edit to satisfy it. Backlog `rd2yh7` is already `graduated` and this plan must NOT set it `done`; it
+carries no `- Blocks-Release:` gate to hand off, so the item may be closed only once this plan is `executed`.

@@ -8,6 +8,7 @@
 - Summary: aw find opens every record twice: the display layer re-reads the 616 records the resolver just read, costing ~128ms of a ~530ms command an operator waits on
 
 ## Workflow history
+- 2026-10-01 note (aw backlog): Guardrails updated by d7jpo3: ecdd348f widened the resolver read window to structural end of metadata; corrected resolved count to 8; replaced rottable glob count with non-rotting property because filename globs count records named after this work; re-verified artifacts-not-references contract true (0 matches for wtisoland/wtisodebt); corrected second guardrail bullet to reflect 4096 as read quantum rather than cap under ecdd348f and preserved requirement that read-avoidance must find declared identities wherever they sit.
 - 2026-09-26 set (aw backlog): closed by aw oc run: IPD qfpnrm executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20260925-findonce-01-qfpnrm-make-aw-find-read-each-matched-record-once-instead-of-rescan.ipd.md); evidence .aw/records/plans/executed/20260925-findonce-01-qfpnrm-make-aw-find-read-each-matched-record-once-instead-of-rescan.ipd.md
 - 2026-09-25 graduated (aw set): graduated into findonce plan qfpnrm (re-measured: 1509 opens for 754 plans)
 - 2026-09-12 open (aw set): Reclassified chore -> bug and GATED on the maintainer's ruling of 2026-09-12. Basis: provably redundant work is a DEFECT, not merely an inefficiency; measured 1240 opens end to end against 620 needed, i.e. every record opened about twice. THIS IS A PRECEDENT THAT WIDENS THE GATE, recorded here because it decides more than this item: a performance defect with CORRECT OUTPUT now counts as a bug and therefore blocks a release, so known inefficiencies are release blockers. It bears directly on qmgn12 OQ-02 (whether a defect filed as chore escapes the bug gate) and answers it in the direction of closing that leak. NOTE the Work-Kind field was edited by hand because 'aw backlog set' has no --work-kind setter, unlike 'aw ipd set'; filed as its own gap.
@@ -49,11 +50,8 @@ rather than making the two readers agree.
 
 ## Guardrails any implementation inherits from 826o13
 
-- `aw find` returns matching ARTIFACTS, never references: `aw find plans wtiso` returns 3 records while a
-  filename glob returns 12 (`wtisoland`, `wtisodebt`, unrelated docs). 826o13's E-01 pins this; do not
-  regress it while optimizing.
-- Nine records carry a declared identity ABSENT from their bounded 4096-byte header, including `25kzda`,
-  a spec this repository cites constantly. Any read-avoidance scheme must still find them.
+- `aw find` returns matching ARTIFACTS, never references: `aw find plans wtiso` returns 8 records (corrected from 3 by commit `ecdd348f`, which widened the resolver's read window to the structural end of metadata rather than changing matching rules) while a filename glob returns strictly more files (including records of the different Sets `wtisoland` and `wtisodebt`, plus unrelated docs; sampled at 16 on 2026-09-29, a count that grows with the corpus and includes records merely named after this work). 826o13's E-01 pins this; do not regress it while optimizing.
+- Records can carry a declared identity past the initial 4096-byte read quantum (many records carry `- Set:`, `- Id:`, or `- Status:` past byte 4096; sampled at 291 on 2026-09-29 with worst offset 39224, growing with the corpus). Commit `ecdd348f` replaced the hard 4096-byte header cap with a structural end-of-metadata bound so that 4096 is a read quantum rather than a cap. Any read-avoidance scheme must still find declared identities wherever they sit in the metadata block, and may not reintroduce a fixed byte cap.
 
 
 ## Why this qualifies as a bug and not a chore (2026-09-12)

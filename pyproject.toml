@@ -81,14 +81,48 @@ dependencies = ["filelock>=3"]
 # So it belongs in `test` (and `dev`), NOT in `dependencies`: shipping it as a runtime requirement
 # would contradict D139 and force a YAML parser on every consumer of the CLI, while leaving it
 # undeclared makes a clean checkout unable to run its own suite.
+# mypy IS IN THE TEST EXTRA AND DEV GROUP (plan m7fllj E-01 / E-07), NOT in runtime dependencies.
+# The gate buys static type checking over agent_workflows/ that catches an entire class of annotation
+# defects (e.g. g321ny Callable parameter keyword calls, F-03) and provably caught a live shipped defect
+# in runner_shared.build_verify_and_continue_notice (F-06) that the entire 3400+ test suite missed.
+# Per DECISIONS D138, dependency minimization is a principle, not a prohibition, and mypy earns its place here.
+#
+# FLOOR AND CEILING CONSTRAINTS:
+# 1) Floor >=1.18: mypy dropped Python 3.9 support at 1.20.0 (1.19.1 publishes Requires-Python: >=3.9,
+#    1.20.0 publishes >=3.10). The repository floor is requires-python = ">=3.9" with a CI leg on 3.9;
+#    a >=1.18 floor ensures resolution succeeds on Python 3.9 where a bare mypy would fail to install (F-07).
+# 2) Ceiling <3: a fail-closed CI gate with an unbounded checker delegates the repository CI verdict to whoever
+#    next publishes a release. F-08 measured mypy 2.0.0 changing config-file python_version behavior mid-series;
+#    capping at <3 prevents unexpected breakage while allowing point releases.
+#
+# ENVIRONMENT PIN FOR filelock (E-07):
+# This gate's clean baseline is reproducible only in the pinned environment, and a different resolved
+# filelock or a future mypy major may legitimately report a different set.
+# Specifically, F-13 measured platform_lock.py:429's preserve_lock_file keyword finding present under
+# filelock 3.29.7 and absent under filelock >=4.0. To keep the shipped runtime contract unchanged
+# (dependencies = ["filelock>=3"]), the >=4 floor is pinned in the test extra and dev group only.
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3", "PyYAML>=6"]
+test = [
+    "pytest>=8",
+    "pytest-xdist>=3",
+    "pytest-randomly>=3",
+    "PyYAML>=6",
+    "mypy>=1.18,<3",
+    "filelock>=4",
+]
 
 # PEP 735 dependency group so `pip install --group dev` (or `pip install -e . --group dev`)
 # always pulls the tools needed to work on this repo, guaranteeing pytest-xdist is present
 # and the suite runs in parallel. Mirrors the `test` extra; kept in sync with it.
 [dependency-groups]
-dev = ["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3", "PyYAML>=6"]
+dev = [
+    "pytest>=8",
+    "pytest-xdist>=3",
+    "pytest-randomly>=3",
+    "PyYAML>=6",
+    "mypy>=1.18,<3",
+    "filelock>=4",
+]
 
 [project.urls]
 Homepage = "https://github.com/fariello/agent-workflows"
@@ -162,10 +196,46 @@ markers = [
 #     root conftest.py auto-installs it as a last resort if it is somehow missing.
 #     `--dist=worksteal` lets idle workers steal queued tests so one straggler cannot
 #     stall the whole run.
-#  2) `-m "not slow"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
-#     The ~9 subprocess-heavy files are marked `slow` and excluded here; CI runs the
+#  2) `-m "not slow and not livecorpus"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
+#     The ~9 subprocess-heavy files are marked `slow` and live records tests are marked `livecorpus` and excluded here; CI runs the
 #     fast suite plus an advisory slow step; run the FULL suite for release-review
 #     with `make test-all` (which passes `-m ""`).
 # To force serial when debugging a test-isolation issue: `make test-serial`
 # (`python -m unittest discover -s tests -t .`).
 addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"
+
+# STATIC TYPE GATE CONFIGURATION (plan m7fllj E-02 / E-07)
+# Run via `make typecheck` or `python3 -m mypy agent_workflows`.
+#
+# This gate's clean baseline is reproducible only in the pinned environment (mypy 2.3.1, filelock >=4),
+# and a different resolved filelock or a future mypy major may legitimately report a different set.
+#
+# UN-NARROWED VS NARROWED MEASUREMENT (stamped at execution HEAD f1e9142c under mypy 2.3.1):
+# Bare/un-narrowed: 346 errors in 49 files (checked 185 source files).
+# Narrowed (with 10 noise codes disabled): 25 errors in 11 files (or 26 in 12 under filelock 3.x).
+# With E-04 live bug fix (runner_shared.py:27790) and E-05 24 triaged per-line ignores: clean exit (0 errors).
+# The disabled set comprises the Any-narrowing and annotation-completeness families (arg-type, attr-defined,
+# assignment, misc, union-attr, index, var-annotated, dict-item, list-item, has-type) rather than the wrong-call
+# family. Re-enabling any of them is a deliberate future project with its own baseline, not a tightening
+# someone should do casually.
+#
+# PROOF THE NARROWING PRESERVES THE GATE'S VALUE (F-03):
+# The g321ny defect shape (Callable positional-only parameter called with keyword argument) is still caught
+# under this narrowed configuration as error: Unexpected keyword argument [call-arg].
+#
+# TARGET VERSION:
+# python_version = "3.10" because modern mypy refuses a 3.9 target on the CLI and silently ignores it in
+# config files (F-08). 3.10 is the lowest honest target available.
+#
+# ignore_missing_imports = true as insurance against future optional imports; verified to suppress zero
+# findings on current baseline (F-02).
+#
+# warn_unused_ignores is deliberately omitted: enabling it would fight 33 pre-existing checker-less type ignores
+# across the codebase (F-09) and would turn environment-conditional suppressions into findings (F-13).
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+disable_error_code = [
+    "arg-type", "attr-defined", "assignment", "misc", "union-attr",
+    "index", "var-annotated", "dict-item", "list-item", "has-type",
+]

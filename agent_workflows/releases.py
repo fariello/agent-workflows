@@ -19,10 +19,25 @@ from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import attention_contract as A
 from agent_workflows import ipd_schema as _schema
 
-
 RELEASE_STATUSES = ("planned", "blocked", "shipped")
+
+SENTINEL_RESOLVED = "resolved"
+SENTINEL_ABSENT = "absent"
+SENTINEL_AMBIGUOUS = "ambiguous"
+
+RELEASE_SENTINEL_ABSENT_RULE = "check.release-sentinel-absent"
+RELEASE_SENTINEL_AMBIGUOUS_RULE = "check.release-sentinel-ambiguous"
+
+
+class ReleaseResolution(NamedTuple):
+    """Result of resolve_release_outcome: outcome enum + candidate paths."""
+
+    outcome: str
+    paths: List[Path]
+
 
 _ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
@@ -111,16 +126,43 @@ def validate_release(path: Path, text: str) -> List[_core.Drift]:
         )
     if _VERSION_RE.search(text) is None:
         drift.append(_core.Drift(loc, "release.version-missing", "no `- Version:`"))
+
+    msum = _SUMMARY_RE.search(text)
+    bullet_summary = msum.group(1).strip() if msum else None
+    if bullet_summary:
+        if not A.is_safe_descriptive(bullet_summary):
+            drift.append(
+                _core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    A.escape_detail(
+                        "Summary bullet is over-length or has control chars/newlines"
+                    ),
+                )
+            )
+    else:
+        prose_summary = _summary_section(text)
+        if prose_summary and A._CONTROL_CHAR_RE.search(prose_summary):
+            drift.append(
+                _core.Drift(
+                    loc,
+                    "attention.unsafe-field",
+                    A.escape_detail("Summary prose contains control characters"),
+                )
+            )
+
     return drift
 
 
-_BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*\S+[ \t]*$\n?")
+_BLOCKS_RELEASE_LINE_RE = re.compile(r"(?m)^- Blocks-Release:[ \t]*[^\n]*$\n?")
 
 
 def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- Blocks-Release:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
-    (falling back to after `- Id:`, or the top of the bullet block)."""
+    (falling back to after `- Id:`, or the top of the bullet block). Tolerates any value so an
+    existing malformed line is still replaced (matching precedent in `set_priority_line` and
+    `set_work_kind_line`)."""
     # Always strip any existing line first.
     text = _BLOCKS_RELEASE_LINE_RE.sub("", text)
     if value in (None, "-"):
@@ -135,29 +177,50 @@ def set_blocks_release_line(text: str, value: Optional[str]) -> str:
     return text
 
 
-def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
-    """Resolve a Blocks-Release value to a release record path: a release id6, or the literal `next`
-    (the single release whose Status is 'planned'). Returns None if unresolved (incl. zero/many
-    planned releases for `next`)."""
+def resolve_release_outcome(repo_root: Path, value: str) -> ReleaseResolution:
+    """Resolve a Blocks-Release value to an outcome enum and candidate paths.
+
+    Distinguishes three sentinel outcomes:
+      * SENTINEL_RESOLVED: exactly one candidate matched
+      * SENTINEL_ABSENT: zero candidates matched
+      * SENTINEL_AMBIGUOUS: two or more candidates matched
+    """
     repo_root = Path(repo_root)
     d = _releases_dir(repo_root)
     if not d.is_dir():
-        return None
+        return ReleaseResolution(SENTINEL_ABSENT, [])
     if value == "next":
         planned = []
-        for p in d.rglob("*.release.md"):
-            ms = _STATUS_RE.search(p.read_text(encoding="utf-8"))
+        for p in sorted(d.rglob("*.release.md")):
+            try:
+                txt = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            ms = _STATUS_RE.search(txt)
             if ms and ms.group(1) == "planned":
                 planned.append(p)
-        return planned[0] if len(planned) == 1 else None
+        if len(planned) == 1:
+            return ReleaseResolution(SENTINEL_RESOLVED, planned)
+        if len(planned) == 0:
+            return ReleaseResolution(SENTINEL_ABSENT, [])
+        return ReleaseResolution(SENTINEL_AMBIGUOUS, planned)
     if _core.ID6_RE.match(value):
-        for p in d.rglob("*.release.md"):
-            m = _ID_RE.search(p.read_text(encoding="utf-8"))
+        matches = []
+        for p in sorted(d.rglob("*.release.md")):
+            try:
+                txt = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            m = _ID_RE.search(txt)
             if m and m.group(1) == value:
-                return p
+                matches.append(p)
+        if len(matches) == 1:
+            return ReleaseResolution(SENTINEL_RESOLVED, matches)
+        if len(matches) > 1:
+            return ReleaseResolution(SENTINEL_AMBIGUOUS, matches)
     val_clean = value.lstrip("v")
     matching_ver = []
-    for p in d.rglob("*.release.md"):
+    for p in sorted(d.rglob("*.release.md")):
         try:
             txt = p.read_text(encoding="utf-8")
         except OSError:
@@ -168,7 +231,19 @@ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
             if ver == value or ver.lstrip("v") == val_clean:
                 matching_ver.append(p)
     if len(matching_ver) == 1:
-        return matching_ver[0]
+        return ReleaseResolution(SENTINEL_RESOLVED, matching_ver)
+    if len(matching_ver) > 1:
+        return ReleaseResolution(SENTINEL_AMBIGUOUS, matching_ver)
+    return ReleaseResolution(SENTINEL_ABSENT, [])
+
+
+def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
+    """Resolve a Blocks-Release value to a release record path: a release id6, or the literal `next`
+    (the single release whose Status is 'planned'). Returns None if unresolved (incl. zero/many
+    planned releases for `next`). Thin wrapper over resolve_release_outcome."""
+    res = resolve_release_outcome(repo_root, value)
+    if res.outcome == SENTINEL_RESOLVED and len(res.paths) == 1:
+        return res.paths[0]
     return None
 
 
@@ -478,14 +553,19 @@ def set_work_kind_line(text: str, value: Optional[str]) -> str:
     return text
 
 
-_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*\S+[ \t]*$\n?")
+_FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*[^\n]*$\n?")
 
 
 def set_from_backlog_line(text: str, value: Optional[str]) -> str:
     """Return `text` with the `- From-Backlog:` metadata line set to `value`, or removed when
     `value` is '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:`
     (falling back to after `- Id:`, or the top of the bullet block). Mirrors
-    `set_blocks_release_line` exactly (bklggrad Order ku93tn)."""
+    `set_blocks_release_line` and `set_from_spec_line` (bklggrad Order ku93tn). Tolerates any value
+    so an existing malformed line is still replaced (matching precedent in `set_priority_line` and
+    `set_work_kind_line`). Unlike the previous `\\S+` form (which could not strip what a previous
+    call had written if it was multi-token or malformed, F-6), `_FROM_BACKLOG_LINE_RE` uses `[^\n]*`
+    to match `_FROM_SPEC_LINE_RE` and `_GRADUATED_TO_LINE_RE` so any prior line is stripped cleanly
+    and idempotency holds on any text (fbcardinal okp2o4)."""
     # Always strip any existing line first.
     text = _FROM_BACKLOG_LINE_RE.sub("", text)
     if value in (None, "-"):
@@ -563,7 +643,7 @@ def set_item_dependencies_line(text: str, value: Optional[str]) -> str:
 
 
 _ITEM_BLOCKS_RELEASE_RE = re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
-_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^- From-Backlog:\s*(\S+)\s*$")
+_ITEM_FROM_BACKLOG_RE = re.compile(r"(?m)^-[ \t]*From-Backlog:[ \t]*([^\n]*?)[ \t]*$")
 
 # ======================================================================================
 # setidhard Order bwgyum (spec 4w7d6s G3/G5, carried forward by spec 2lcqno Section 2): the
@@ -690,16 +770,11 @@ def canonicalize_graduated_to(
     return ", ".join(entries), None
 
 
-def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
-    """Scan backlog + specs + plans items for a `Blocks-Release` value and flag any that does not
-    resolve to an existing release record or 'next' (awrelease Order 02; folds into the awcheck
-    engine seam). IPD 7mw7m5 (OQ-01 option a) added `plans` so a plan carrying a dangling
-    `- Blocks-Release:` is validated the same as backlog/specs; `rglob` recurses through the
-    disposition subdirs (pending/executed/...). This runs in the full cross-tree sweep (`aw check
-    all`), not a type-scoped `aw check plans`."""
+def count_blocks_release_sentinel(repo_root: Path) -> int:
+    """Count how many backlog, specs, and plans records carry '- Blocks-Release: next'."""
     repo_root = Path(repo_root)
     ignored_dirs = _core.get_ignored_dirs(repo_root)
-    drift: List[_core.Drift] = []
+    count = 0
     for sub in ("backlog", "specs", "plans"):
         for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
             if not base.is_dir() or _core.is_ignored_path(
@@ -718,23 +793,119 @@ def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
                 except OSError:
                     continue
                 m = _ITEM_BLOCKS_RELEASE_RE.search(text)
-                if m and resolve_release(repo_root, m.group(1)) is None:
+                if m and m.group(1).strip() == "next":
+                    count += 1
+    return count
+
+
+def check_blocks_release(repo_root: Path) -> List[_core.Drift]:
+    """Scan backlog + specs + plans items for a `Blocks-Release` value and flag any that does not
+    resolve to an existing release record or 'next' (awrelease Order 02; folds into the awcheck
+    engine seam). IPD 7mw7m5 (OQ-01 option a) added `plans` so a plan carrying a dangling
+    `- Blocks-Release:` is validated the same as backlog/specs; `rglob` recurses through the
+    disposition subdirs (pending/executed/...). This runs in the full cross-tree sweep (`aw check
+    all`), not a type-scoped `aw check plans`.
+
+    Division of labour with the sentinel rules (IPD x4vf9p): an unresolvable sentinel ('next')
+    is attributed to the releases tree exactly once, as check.release-sentinel-absent (when zero
+    planned releases exist) or check.release-sentinel-ambiguous (when multiple planned releases exist),
+    and per-record check.blocks-release-dangling findings are suppressed for records whose value is
+    literally 'next'. Records carrying non-'next' values (concrete id6 or version) that do not
+    resolve continue to report per-record as check.blocks-release-dangling.
+    """
+    repo_root = Path(repo_root)
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    drift: List[_core.Drift] = []
+
+    sentinel_res = resolve_release_outcome(repo_root, "next")
+    rel_dir = _releases_dir(repo_root)
+    if not rel_dir.is_dir() and (repo_root / ".agents" / "releases").is_dir():
+        rel_dir = repo_root / ".agents" / "releases"
+    try:
+        loc = str(rel_dir.relative_to(repo_root))
+    except ValueError:
+        loc = ".aw/records/releases"
+
+    has_next_references = False
+
+    for sub in ("backlog", "specs", "plans"):
+        for base in (repo_root / ".aw" / "records" / sub, repo_root / ".agents" / sub):
+            if not base.is_dir() or _core.is_ignored_path(
+                base, repo_root, ignored_dirs
+            ):
+                continue
+            for p in base.rglob("*.md"):
+                if p.name in (
+                    "README.md",
+                    "INDEX.md",
+                    "STATUS.md",
+                ) or _core.is_ignored_path(p, repo_root, ignored_dirs):
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                m = _ITEM_BLOCKS_RELEASE_RE.search(text)
+                if not m:
+                    continue
+                val = m.group(1).strip()
+                if val == "next":
+                    has_next_references = True
+                    if sentinel_res.outcome != SENTINEL_RESOLVED:
+                        # Narrow suppression: root cause reported on releases tree.
+                        pass
+                    continue
+                if resolve_release(repo_root, val) is None:
+                    try:
+                        p_loc = str(p.relative_to(repo_root))
+                    except ValueError:
+                        p_loc = str(p)
                     drift.append(
                         _core.Drift(
-                            str(p),
+                            p_loc,
                             "check.blocks-release-dangling",
-                            f"Blocks-Release {m.group(1)!r} does not resolve to a release record",
+                            f"Blocks-Release {val!r} does not resolve to a release record",
                         )
                     )
+
+    if has_next_references:
+        if sentinel_res.outcome == SENTINEL_ABSENT:
+            drift.append(
+                _core.Drift(
+                    loc,
+                    RELEASE_SENTINEL_ABSENT_RULE,
+                    "release sentinel 'next' does not resolve: no planned release record in releases tree",
+                )
+            )
+        elif sentinel_res.outcome == SENTINEL_AMBIGUOUS:
+            names = ", ".join(p.name for p in sorted(sentinel_res.paths))
+            drift.append(
+                _core.Drift(
+                    loc,
+                    RELEASE_SENTINEL_AMBIGUOUS_RULE,
+                    f"release sentinel 'next' is ambiguous: multiple planned release records ({names})",
+                )
+            )
+
     return drift
+
+
+FROM_BACKLOG_DANGLING_RULE = "check.from-backlog-dangling"
+FROM_BACKLOG_MALFORMED_RULE = "check.from-backlog-malformed"
 
 
 def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
     """Scan plans (and, symmetrically, specs/backlog) for a `From-Backlog` value and flag any that
-    does not resolve to an existing backlog item id6 (bklggrad Order ku93tn; folds into the awcheck
-    cross-tree sweep the same way `check_blocks_release` does). The graduation link's primary home is
+    is malformed (`check.from-backlog-malformed`, fbcardinal okp2o4) or does not resolve to an
+    existing backlog item id6 (`check.from-backlog-dangling`, bklggrad ku93tn). Folds into the awcheck
+    cross-tree sweep the same way `check_blocks_release` does. The graduation link's primary home is
     the plan; the scan tolerates it anywhere for symmetry. `rglob` recurses the disposition subdirs
     (pending/executed/...).
+
+    SHAPE AND RESOLUTION ARE SEPARATE FINDINGS: a malformed value (such as a multi-valued or
+    comma-bearing string) is flagged by `check.from-backlog-malformed` on shape alone without
+    consulting the backlog corpus, keeping it corpus-independent. Only a well-formed single id6 is
+    checked for resolution against `existing_backlog_ids`.
 
     ITS FORWARD MIRROR IS `check_graduated_to` BELOW (setidhard Order bwgyum), which validates the
     OTHER direction of the same graduation: this function asks "does the source this artifact claims to
@@ -775,18 +946,26 @@ def check_from_backlog(repo_root: Path) -> List[_core.Drift]:
                 except OSError:
                     continue
                 m = _ITEM_FROM_BACKLOG_RE.search(text)
-                if (
-                    m
-                    and not _schema.source_link_is_absent(m.group(1))
-                    and m.group(1) not in known
-                ):
+                if not m:
+                    continue
+                cls = _schema.classify_source_link(m.group(1))
+                if cls.verdict == _schema.SOURCE_LINK_MALFORMED:
                     drift.append(
                         _core.Drift(
                             str(p),
-                            "check.from-backlog-dangling",
-                            f"From-Backlog {m.group(1)!r} does not resolve to a backlog item",
+                            FROM_BACKLOG_MALFORMED_RULE,
+                            f"From-Backlog {m.group(1)!r} is not a valid backlog item id6",
                         )
                     )
+                elif cls.verdict == _schema.SOURCE_LINK_USABLE:
+                    if cls.id6 not in known:
+                        drift.append(
+                            _core.Drift(
+                                str(p),
+                                FROM_BACKLOG_DANGLING_RULE,
+                                f"From-Backlog {cls.id6!r} does not resolve to a backlog item",
+                            )
+                        )
     return drift
 
 
@@ -1185,8 +1364,21 @@ def run_new(args) -> int:
 
     if not version:
         return _usage("--version is required")
+    from agent_workflows.specs import _refuse_unsafe_descriptive
+
+    # E-04 (IPD uz05bl): Refuse unsafe descriptive values for --version and --summary
+    raw_version = getattr(args, "version", None)
+    _ver_err = _refuse_unsafe_descriptive("", "--version", raw_version)
+    if _ver_err:
+        return _usage(_ver_err)
+
     if not summary:
         return _usage("--summary is required")
+    raw_summary = getattr(args, "summary", None)
+    _sum_err = _refuse_unsafe_descriptive("", "--summary", raw_summary)
+    if _sum_err:
+        return _usage(_sum_err)
+
     if status not in RELEASE_STATUSES:
         return _usage(
             f"--status must be one of {list(RELEASE_STATUSES)}, got {status!r}"

@@ -1,0 +1,807 @@
+# IPD: Close the dead-divergent shared recovery copies item: verify the trio is single-sourced, and kill the scanner phantom and the missing guard that would let the trap return
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: Backlog `2yjc5l` (`bug`, `Blocks-Release: next`) reports a THREE-WAY FORK of the recovery-routing trio (`route_recovery_turn`, `classify_recovery_disposition`, `build_verify_and_continue_notice`), where each symbol was defined in BOTH hosts AND in `runner_shared` while the hosts reached only their own copy, so the shared copy was DEAD; and it reports that the dead `classify_recovery_disposition` was also DIVERGENT, classifying a preserved mid-edit commit by a hand-rolled `subj.startswith('wip(snapshot):')` prefix where the live copy used `worktree_lease.commit_subject_is_interrupted_snapshot(subject)`. Its stated hazard was that a later tidy-up pointing the hosts at the shared copy would silently change recovery routing on BOTH hosts. MEASURED AT THIS HEAD, THE REPORTED DEFECT IS ALREADY FIXED and was fixed by two plans that are already `executed`, so what this plan owes the release is not a code fix for the trio but PROOF the fix holds plus removal of the two residues that would let the same trap return unseen. RESIDUE ONE, a live FALSE NEGATIVE in the very instrument the item told the next author to trust: `tools/runner_fork_scan.py --triples` reports `StallWatchdog` as a three-way fork with "shared copy identical to the hosts': False", which is a PHANTOM, because each host's `StallWatchdog` is a delegating SUBCLASS of `runner_shared.StallWatchdog` overriding `__init__` alone; `is_pure_delegation` rejects any `ast.ClassDef` outright, so delegation-by-inheritance is unrecognized and the scanner CONTRADICTS ITSELF, classifying the same symbol `BOTH-DELEGATE` at similarity 1.000 in one section and a dead-divergent triple in another. RESIDUE TWO, the item's own evidence artifact is GONE: `tests/test_runner_layering.py`, which classified the trio and tracked `build_verify_and_continue_notice` in `MOVE_UNSETTLED`, was deleted in a suite trim, and no surviving test asks the general question "does `runner_shared` hold a def-or-class body co-defined in both hosts that neither host reaches?" -- the exact question whose unasked state let this defect live.
+- Scope: Prove and lock, do not re-fix. (1) Fix the scanner's `is_pure_delegation` to recognize the sanctioned delegating-subclass shape (a `ClassDef` whose bases include `runner_shared.<same-name>`), which empties `--triples` truthfully rather than by suppression. (2) Add a mechanical suite guard, modelled on the sibling constant sweep that plan `gjni4c` already shipped for this same defect class, that refuses ANY def-or-class symbol co-defined in `runner_shared` and both hosts where neither host RESOLVES to the shared object and neither host's definition is a sanctioned wrapper or delegating subclass. (3) Add a behavioral regression pinning that the one surviving snapshot predicate is the canonical one, so the specific divergence the item measured cannot be reintroduced. (4) Record the verified state of each of the item's claims in this plan's findings so the backlog item can close on cited evidence. EXPLICITLY NOT IN SCOPE: changing the recovery trio's bodies, changing `StallWatchdog`'s inheritance, and closing the `getattr(driver_module, ...)` fallback (see Deferred).
+- Scope-Paths: tools/runner_fork_scan.py, tests/test_runner_shared.py, tests/test_recovone_single_definition.py, .aw/records/backlog/open/, .aw/records/plans/pending/
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: 2yjc5l
+- Blocks-Release: next
+- Set: deadshared
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: vbhat9
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: vbhat9 verified (set deadshared, attempt 1). [Scope reconciliation - in-scope-unmodified .aw/records/backlog/open/: declared-but-unmodified (auto-acknowledged by aw agy run)]
+- 2026-09-30 approved (aw set): status set to approved
+- 2026-09-30 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-V01 (HIGH, fixed), PR-V02 (HIGH, fixed), PR-V03 (MEDIUM, fixed), PR-V04 (MEDIUM, fixed), PR-V05 (LOW, fixed), PR-V06 (LOW, fixed). Findings recorded in .aw/records/reviews/20260930-deadshared-01-vbhat9-close-the-dead-divergent-shared-recovery-copies-item-ve.review.md. Re-measured all fourteen findings; F-01 through F-06 and F-08 through F-10 reproduce exactly (trio identity pins, empty AGY_IMPORTS_FROM_OC_RUNIPD, no wip(snapshot) in any .py, the dead body at 2d04ef8b reading st.path/st.base_commit against a LaneState carrying worktree_path/base_sha, the single StallWatchdog phantom classed BOTH-DELEGATE at 1.000 in the same run, and F-06's census move to the digit: 47/9/3/6/9 symbols/384 lines). TWO SERIOUS FINDINGS. PR-V01: E-01's predicate as authored was a BARE INHERITANCE CHECK, measured returning True for a StallWatchdog subclass overriding _run, so a genuinely divergent subclass would have left --triples for sanctioned_wrappers, the suppression-not-truth outcome E-01's own prose forbids; two tightened variants produce an identical census at this HEAD, so E-01 now requires a constructor-only body and new E-07 proves the refusal. PR-V02: E-01 moves a census baseline that PENDING plan 9oj6t2 consumes as its numeric acceptance criterion (E-06 pins REAL FORKS 10 -> 8 and byte-identical 4 -> 2; F-1 names StallWatchdog), and that plan is already reviewed, go-pending-approval, Item-Dependencies none, so either may run first and its own refusal condition would fire on a stale number; new E-06 appends a dated history note rather than amending a reviewed plan (OQ-04 records the four options). TWO CORRECTIONS: F-07's rg probe ran without --hidden so the whole .aw tree was invisible (27 markdown matches with it, which is how PR-V02 was missed at authoring), and E-02's expected population of 56 is the two-host intersection where the sweep is a three-way one measuring 42. Added F-14 recording that the P16 tension over E-02 is settled by two passing in-tree precedents.
+
+- 2026-09-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
+- 2026-09-29 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `2yjc5l`. Verification at HEAD `f7f9e7de` found the reported trio defect already remediated by executed plans `cdxcbh` and `1f7xno`, so the plan was scoped to proof plus the two residues (scanner false negative, missing mechanical guard) rather than to a re-fix. All five of the item's claims were re-measured and are recorded in Findings. Backlog item `4mdi4v` was filed during authoring as the durable carrier for the deferred `getattr(driver_module, ...)` fallback-chain row. SELF-CORRECTION RECORDED: an earlier draft of F-10 asserted a still-live suppressed `build_lane_outcome` call site; an AST census of all three call sites plus an enclosing-function check disproved it (both un-keyworded calls sit inside `execute_item_core`, after its local rebinding, so they reach the host wrapper), and F-10 now states the correction explicitly rather than silently dropping the claim.
+
+## Goal
+
+Let release-blocking backlog item `2yjc5l` close on CITED EVIDENCE rather than on an assumption that an executed plan covered it, and leave behind the two things whose absence is what allowed a dead divergent shared copy to sit unnoticed for a year: an instrument that does not lie about three-way forks, and a suite guard that fails when a new one appears.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: make the instrument truthful
+
+- [x] E-01 In `tools/runner_fork_scan.py`, extend `is_pure_delegation` so the SANCTIONED DELEGATING SUBCLASS is recognized as a wrapper. The predicate requires BOTH halves, and the second half is not optional polish: it is what keeps the branch a delegation test rather than an inheritance test (see F-11 for the measured reason).
+  - HALF ONE, THE BASE: the node is an `ast.ClassDef` at least one of whose bases is an `ast.Attribute` of the form `runner_shared.<the class's own name>` (compare against the module's existing `SHARED` constant, and require the base attribute name to equal `node.name` so an unrelated shared base is not swept in).
+  - HALF TWO, THE BODY: the subclass must OVERRIDE NO LOGIC. Require that its own non-docstring body consists only of `FunctionDef`/`AsyncFunctionDef` members whose names are a subset of `{"__init__"}`, so a class-level assignment or any second method makes the predicate return False. A CLASS-LEVEL ASSIGNMENT MUST DISQUALIFY, because it silently rebinds a base attribute the shared logic reads and is exactly the divergence this scanner exists to report.
+  - Keep the existing function-delegation branch byte-for-byte; the new branch is additive. Update the function's docstring to state that delegation has TWO sanctioned shapes (a one-statement call for a function, and CONSTRUCTOR-ONLY inheritance for a class), to state that HALF TWO is what stops an override being read as a delegation, and to name the measured false negative this fixes, so the next reader does not re-narrow it. Do NOT add an allowlist and do NOT special-case the name `StallWatchdog`: the defect is a shape the predicate cannot see, and naming the one instance is what turns a guard into a comment.
+  - Depends on: none
+  - Expected outcome: `python3 tools/runner_fork_scan.py --triples` reports an EMPTY three-way-fork section. The census's own numbers move consistently rather than arbitrarily: `StallWatchdog` leaves the real-fork set and joins the sanctioned wrappers, so `sanctioned_wrappers` rises by one, `real_forks` and `identical_forks` each fall by one, and `loose_residue` falls by one. Measured expected values are pinned in F-05, and the both-halves predicate is measured to produce IDENTICAL census numbers to the base-only one at this HEAD (F-11), so requiring half two costs nothing here and buys the discrimination.
+  - Execution state: performed
+
+- [x] E-07 Prove E-01's predicate REFUSES a logic-overriding subclass, which is the property that distinguishes it from a bare inheritance check and the one an executor could satisfy without noticing. Drive the committed `is_pure_delegation` over two synthetic `ast.ClassDef` nodes parsed from strings in a throwaway probe (no file under `agent_workflows/` is touched, and nothing is committed but the pasted evidence): (a) `class StallWatchdog(runner_shared.StallWatchdog):` with `__init__` alone, which MUST return True; and (b) the same class with a second method overriding a name the shared base defines (`_run`), which MUST return False. Also drive (c) a variant whose body adds a class-level assignment, which MUST return False. Paste all three verdicts.
+  - Depends on: E-01
+  - Expected outcome: three pasted verdicts, True / False / False in that order, demonstrating the predicate is a DELEGATION test and not an inheritance test. If (b) or (c) returns True, E-01 was implemented as the base-only check and must be corrected before proceeding.
+  - Execution state: performed
+
+### Task group 2: make the defect class mechanically unrepeatable
+
+- [x] E-02 Add a guard test to `tests/test_runner_shared.py` that mechanically finds a DEAD def-or-class body in `runner_shared`, in the same shape the repository already ships for the constant case (`test_no_divergent_codefined_constants_in_runner_shared`, added by plan `gjni4c` E-01, which this test should cite by id so the pair is discoverable). It must, by AST over the three source files, collect every top-level `FunctionDef`/`AsyncFunctionDef`/`ClassDef` name co-defined in `runner_shared`, `oc_runipd` AND `agy_runipd`; and FAIL naming any such symbol for which ALL THREE of the following hold: neither host's attribute RESOLVES (`getattr` identity) to the `runner_shared` object, neither host's definition is a sanctioned delegation under the E-01 predicate, and a `runner_shared` definition exists. Import the scanner's predicate via `support.load_module` against `REPO_ROOT / "tools" / "runner_fork_scan.py"` (the pattern `tests/test_aw_upgrade_test.py` already uses for a `tools/` script, since `tools/` is not a package) so the suite and the scanner CANNOT DISAGREE about what a wrapper is, which is the property `is_pure_delegation`'s own docstring already claims to hold and currently holds only for the four deleted `test_rununify_*` pin files. On failure, print the symbol name and which of the three conditions held, because the failure's job is to tell the next author whether they are looking at a dead copy or at an unrecognized delegation shape. Write NO allowlist parameter.
+  - Depends on: E-01
+  - Expected outcome: The test PASSES at this HEAD with an empty failure list, and its collected population is non-trivial: the THREE-WAY co-defined population (shared AND oc AND agy) measures 42 at this HEAD, so the sweep must be shown to be looking at real symbols rather than vacuously passing over an empty set. DO NOT COMPARE AGAINST 56: that is the scanner's `co_defined`, which is the TWO-HOST intersection and a different population (F-13). Re-derive the number at execution time and report the property (greater than zero, and equal to the three-way intersection you just computed) rather than matching a figure written here; 42 is context, not the bar.
+  - Execution state: performed
+
+- [x] E-03 Prove E-02's guard is DISCRIMINATING rather than vacuous, by demonstrating it fails on the exact historical defect. Reconstruct the pre-fix shape in a temporary throwaway fixture (three synthetic module sources in a `tmp_path`, NOT an edit to the real runner modules and NOT a git checkout of the old HEAD): a shared module defining `f`, and two host modules each defining their own real-bodied `f` that does not resolve to the shared one. Factor E-02's sweep so its core takes the three module objects (or three source paths) as parameters and the product test passes the three real modules, so this negative test drives the SAME code path rather than a copy of it. Assert the sweep reports `f`.
+  - Depends on: E-02
+  - Expected outcome: A negative test that FAILS the sweep on the synthetic three-way fork and names `f`, proving the guard would have caught `2yjc5l`'s reported defect had it existed then.
+  - Execution state: performed
+
+### Task group 3: pin the specific divergence that was measured
+
+- [x] E-04 Add a behavioral regression to `tests/test_recovone_single_definition.py` pinning that the SNAPSHOT PREDICATE the live routing path uses is the canonical one, since that predicate disagreement is what made the dead copy dangerous rather than merely redundant. Assert by BEHAVIOR, not by source text: build a lane whose single commit subject is the string the item's dead copy would have matched (`wip(snapshot): ...`, which is NOT a real snapshot at this HEAD because the canonical prefix is `worktree_lease.INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX`), drive `runner_shared.classify_recovery_disposition`, and assert the result is `verify-and-continue` with `snapshot_only` false -- i.e. the commit is treated as REAL WORK. Construct the canonical-prefix comparison case from the constant rather than from a literal, following the existing `test_snapshot_only_commit`, so the two cases cannot drift apart. State in the docstring that this test would FAIL under the dead body backlog `2yjc5l` measured, which classified that subject as a snapshot and would have dispatched a FRESH EXECUTION, redoing finished work.
+  - Depends on: none
+  - Expected outcome: A test that passes at this HEAD and that fails if the `'wip(snapshot):'` predicate is ever reintroduced on the live path.
+  - Execution state: performed
+
+### Task group 4: hand off the adjacent class this plan deliberately does not fix
+
+- [x] E-05 Verify that backlog item `4mdi4v`, filed at authoring time as the durable carrier for this plan's deferred fallback-chain row, still holds at the executed HEAD, and correct it if the tree moved under it. Re-run the F-09 signature probe over the six named bindings (`route_recovery_turn`, `integrate_lane_branch`, `build_lane_outcome`, `git_head`, `git_status`, `acquire_review_sweep_lane`) and confirm the item's recorded required-keyword-only sets are still accurate; re-run the simulated third-host probe and confirm the `TypeError` text the item quotes is still what a host without its own copy receives; and confirm the item's claim that the two historical silent instances are FIXED and that no third live instance exists (the AST census of `build_lane_outcome` call sites, plus the enclosing-function check). If any recorded measurement has drifted, update `4mdi4v` in place with the corrected value and note the correction in its workflow history. Do NOT fix any of the six bindings under this plan, and do NOT change `4mdi4v`'s `- Status:` or `- Work-Kind:` without recording the reasoning.
+  - Depends on: none
+  - Expected outcome: `4mdi4v` exists under `.aw/records/backlog/open/`, every measurement in its body re-verifies at the executed HEAD (or is corrected with a recorded note), and `aw backlog check` plus `aw check` report no violation attributable to it.
+  - Execution state: performed
+
+### Task group 5: stop E-01 from stranding the other pending plan that consumes the census numbers
+
+- [x] E-06 NOTIFY THE PENDING PLAN WHOSE NUMERIC ACCEPTANCE CRITERION E-01 INVALIDATES, so that plan's executor is not sent to its own STOP-and-report gate by a baseline this plan moved (F-12). Append a dated `## Workflow history` line to `.aw/records/plans/pending/20260929-baskrx-01-9oj6t2-lift-the-two-remaining-liftable-host-integrate-shells-into-r.ipd.md` recording that `vbhat9` E-01 changed the `tools/runner_fork_scan.py` delegation predicate, that `StallWatchdog` consequently leaves the byte-identical fork set, and that the census baseline its F-1 records (`REAL FORKS 10`, `byte-identical 4`) is therefore `9` / `3` at any HEAD after this plan executes, so its E-06 target becomes `9 -> 7` and `3 -> 1` while its LIFT (two symbols leaving the identical set) is unchanged. State explicitly that this is NOT a refutation of that plan's F-1 as measured, and that its E-01 refusal condition should NOT fire on this difference because the change is recorded and explained here. Use the history-append form only: do NOT edit that plan's `- Status:`, its `- Readiness:`, its `E-*`/`V-*` items, or its Findings table, because it is `reviewed` with an attested readiness and rewriting a reviewed plan's criteria is not this plan's authority.
+  - Depends on: E-01
+  - Expected outcome: `9oj6t2` carries a new dated history line naming `vbhat9` and the four numbers (10->9, 4->3), its `- Status:` still reads `reviewed` and its `- Readiness:` still reads `go-pending-approval` (paste both), and `aw ipd lint --phase author --agent` on `9oj6t2` still reports conforming after the append. If `9oj6t2` has already EXECUTED by the time this plan runs, record that instead and append nothing (an executed plan's record is not edited); if it has moved to `superseded/` or `not-executed/`, say so and skip.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- THE SIBLING PRECEDENT IS IN-TREE AND SHOULD BE FOLLOWED RATHER THAN REINVENTED. `tests/test_runner_shared.py::test_no_divergent_codefined_constants_in_runner_shared` (added by executed plan `gjni4c`, whose `- Concern:` names the same defect class) is a mechanical AST sweep over every `UPPER_CASE` name co-defined in all three modules, comparing RESOLVED `getattr` values, carrying no allowlist. Its plan's OQ-02 resolution records why a sweep beats naming the instances: "a test naming these two constants would pass forever after E-02 deletes them, so it would guard nothing". E-02 is deliberately the def-and-class twin of that constant sweep.
+- COMPARE RESOLVED OBJECTS, NOT SOURCE TEXT. `gjni4c` F-06 measured that comparing source text flags 9 of 10 co-defined constants because both hosts legitimately spell theirs as a `runner_shared.X` reference. The same trap applies to defs: both host `route_recovery_turn` bodies legitimately mention `runner_shared.route_recovery_turn`. E-02 therefore keys on `getattr` identity plus the wrapper predicate.
+- A WRAPPER IS THE TARGET FORM, NOT A FORK. `tools/runner_fork_scan.py` states this in the comment above its `triples` computation ("A WRAPPER over a shared definition is the TARGET form, not a triple"), attributing the ruling to `818uru` OQ-02. E-01 fixes a case where the tool fails to apply its own stated rule; it does not change the rule.
+- `tools/` IS NOT AN IMPORTABLE PACKAGE (there is no `tools/__init__.py`). A test needing a `tools/` script loads it via `support.load_module`, as `tests/test_aw_upgrade_test.py` does with `TOOL = REPO_ROOT / "tools" / "aw_upgrade_test.py"`.
+- TEST OUTCOMES, NOT CODE STRUCTURE. `AGENTS.md` forbids tests that read production source with `inspect`/`ast` as a correctness proxy. E-02 is deliberately compatible with that rule and the distinction is worth stating because the test does parse source: AST is used only to ENUMERATE the candidate symbol population (which names to interrogate), while every verdict is taken from RESOLVED runtime objects via `getattr` identity. No assertion is made about source text, docstrings, line counts, or caller censuses. E-03 and E-04 are purely behavioral.
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+
+## Findings
+
+Every row below was re-measured in a clean worktree at HEAD `f7f9e7de`. The backlog item was measured at HEAD `2d04ef8b`.
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | THE REPORTED THREE-WAY FORK IS FIXED; the shared copy is now the ONLY real body for all three symbols. `oc_runipd` and `agy_runipd` both RE-EXPORT `classify_recovery_disposition` and `build_verify_and_continue_notice` from `runner_shared` under a comment naming `recovone` (`cdxcbh`), and each defines `route_recovery_turn` as a one-line wrapper whose body is `return runner_shared.route_recovery_turn(run_dir, state, item, recovery, save_state=save_state)`, a wrapper that exists only to inject the host-bound `save_state`. The peer-host dependency the item flagged (`agy_runipd` delegating to `oc_runipd`) is also gone: `runner_shared.AGY_IMPORTS_FROM_OC_RUNIPD` is now `frozenset()`, with a comment recording that `cdxcbh` single-sourced this trio. | Runtime identity probe: `oc_runipd.classify_recovery_disposition is runner_shared.classify_recovery_disposition` -> True; same for `agy_runipd` and for `build_verify_and_continue_notice`. `oc_runipd.route_recovery_turn is runner_shared.route_recovery_turn` -> False (the expected injecting wrapper). Executed plan `.aw/records/plans/executed/20260924-recovone-01-cdxcbh-give-classify-recovery-disposition-build-verify-and-continue.ipd.md`. |
+| F-02 | THE DIVERGENT PREDICATE IS GONE REPO-WIDE, and its residue count is zero rather than small. `rg -n "wip\(snapshot\)" --glob '*.py' .` returns NO hits anywhere in the repository, including `tools/` and `tests/`. The only surviving classification site is `runner_shared.classify_recovery_disposition`, whose body filters commits with `if not worktree_lease.commit_subject_is_interrupted_snapshot(subject)`. Every remaining textual occurrence of `wip(snapshot)` is in PROSE records describing this now-fixed bug. | `rg` exit code 1 (no match) over `*.py`. The same string IS present in `agent_workflows/runner_shared.py` at the item's measurement HEAD: `git show 2d04ef8b:agent_workflows/runner_shared.py \| rg -c "wip\(snapshot\)"` -> 1. |
+| F-03 | THE ITEM UNDERSTATED THE SEVERITY OF THE DEAD BODY, which strengthens rather than weakens its case and is recorded so the closing note is accurate. The canonical prefix is `worktree_lease.INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX = "WIP INTERRUPTED SNAPSHOT (not finished work):"`, which the writer in `worktree_lease` builds every snapshot message from. The dead copy's `'wip(snapshot):'` therefore matched NO real snapshot ever written, so it was not merely a different predicate but an INERT one: it would have classified every preserved snapshot as real work. `cdxcbh`'s concern field independently records the same conclusion plus two further defects in the same dead body (it read `st.path`/`st.base_commit` against the real `worktree_path`/`base_sha`, raising `AttributeError` on every existing lane), which is why that plan DELETED the shared body rather than reconciling it. | `agent_workflows/worktree_lease.commit_subject_is_interrupted_snapshot`, which returns `subject.strip().startswith(INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX)`; the message builder in `worktree_lease` composes from the same constant with the comment "this message back cannot drift from the writer that produced it". |
+| F-04 | A BEHAVIORAL GUARD FOR THE TRIO EXISTS AND PASSES, so the fix is locked at the identity level. `tests/test_recovone_single_definition.py::TestSingleDefinitionIdentity::test_identity_pins` asserts `assertIs` between each host attribute and the `runner_shared` one for `classify_recovery_disposition`, `build_verify_and_continue_notice` and `reconcile_disposition`, so reintroducing a host copy fails the suite. What it does NOT do is ask the general question for any OTHER symbol, which is E-02's gap. | `python3 -m pytest tests/test_recovone_single_definition.py` -> `8 passed in 3.16s`. |
+| F-05 | THE SCANNER STILL REPORTS A THREE-WAY FORK, AND IT IS A FALSE NEGATIVE IN THE DELEGATION PREDICATE. `python3 tools/runner_fork_scan.py --triples` prints, under "ALSO DEFINED IN runner_shared (a THREE-way fork; the hosts ignore the shared copy)", exactly one entry: `StallWatchdog  shared copy identical to the hosts': False`. The hosts do NOT ignore the shared copy: each host declares `class StallWatchdog(runner_shared.StallWatchdog)` whose only member is `__init__`, calling `super().__init__(..., reaper=lambda p: terminate_process(p))` to bind that host's own reaper. MRO confirms `[StallWatchdog@oc_runipd, StallWatchdog@runner_shared, object]` and `'_run' in vars(oc_runipd.StallWatchdog)` is False, so all eight methods of logic run from the shared base. The cause is that `is_pure_delegation` returns False for any node that is not a `FunctionDef`/`AsyncFunctionDef`, so `wrapper` is False and the `triples` filter (`also_in_shared and not wrapper`) admits it. THE TOOL CONTRADICTS ITSELF: the same run classifies `StallWatchdog` `BOTH-DELEGATE` at similarity 1.000 in the residue section. | `python3 tools/runner_fork_scan.py --json` -> `triples: ['StallWatchdog']` with that symbol's record reading `wrapper: False, also_in_shared: True, shared_identical: False, residue_class: 'BOTH-DELEGATE', similarity: 1.0`. Direct probe: `is_pure_delegation(oc StallWatchdog ClassDef)` -> False, with `bases: ['runner_shared.StallWatchdog']` and `own members: ['__init__']`. |
+| F-06 | E-01'S FIX IS PRECISELY DISCRIMINATING AND NEEDS NO ALLOWLIST, measured by monkeypatching the proposed predicate over the real census. With the delegating-subclass branch added, `triples` becomes `[]`; `StallWatchdog`'s record flips to `wrapper: True, loose_residue: False`; `sanctioned_wrappers` goes 46 -> 47; `real_forks` goes 10 -> 9; `identical_forks` goes 4 -> 3; `loose_residue` goes 10 -> 9 symbols and 388 -> 384 agy lines. `divergent_forks` stays 6 and `co_defined` stays 56. So exactly one symbol reclassifies and it is the phantom. | Monkeypatched `census()` run comparing before/after dictionaries. |
+| F-07 | NO TEST PINS THE SCANNER'S OUTPUT, so E-01 breaks no suite guard. `rg -l "runner_fork_scan|lift_drift_scan" tests/` matches nothing (exit 1). `tools/lift_drift_scan.py` DELEGATES to the scanner's predicate (`return runner_fork_scan.is_pure_delegation(node)`), so it inherits the fix rather than needing its own. CORRECTED AT REVIEW: the plan originally claimed the `rg -l` over `*.py` and `*.md` "matches only the two tool files themselves". That is an artifact of ripgrep's DEFAULT HIDDEN-FILE EXCLUSION, not a fact about the repository: `.aw/` is a dot-directory, so the whole records tree was invisible to that probe. Re-run with `--hidden`, the same pattern matches 27 markdown files, one of which is a PENDING PLAN that consumes the exact numbers E-01 changes (F-12). The finding survives in its useful form (no TEST pins the output) but the probe that produced it was wrong and would have hidden F-12. | `rg -l "runner_fork_scan\|lift_drift_scan" tests/` -> exit 1, no output. `rg -l --hidden "runner_fork_scan" --glob '*.md' . \| wc -l` -> 27, against 0 without `--hidden`. `tools/lift_drift_scan.is_pure_delegation`. |
+| F-08 | THE ITEM'S OWN EVIDENCE ARTIFACT WAS DELETED, which is why E-02 is needed and why the item's `tests/test_runner_layering.py` citation cannot be re-checked. That file, along with `tests/test_hostdedup_identical_lift.py` (the guard that the `s6om7k` backlog item credits with catching a shadowed duplicate definition) and eleven `test_rununify_*` files, was removed in commit `19313eed` "test: trim test suite from 9,136 to under 2,000 tests", dated AFTER the item was measured. `MOVE_UNSETTLED` survives in no `.py` file. No surviving test asks the general dead-shared-body question for defs or classes. | `git log --diff-filter=D` for the two paths resolves to `19313eed`; `git show --stat 19313eed` lists `tests/test_runner_layering.py | 362 --` and `tests/test_hostdedup_identical_lift.py | 894 -----`. `ls tests/ \| rg -i "hostdedup\|identical_lift\|rununify"` matches only `test_hostdedup_third_host.py`. |
+| F-09 | THE `getattr` FALLBACK THE ITEM WARNED ABOUT STILL EXISTS, BUT ITS HAZARD HAS INVERTED FROM SILENT TO LOUD, which is why it is deferred rather than fixed here. `runner_shared.execute_item_core` still binds `route_recovery_turn = getattr(driver_module, "route_recovery_turn", globals().get("route_recovery_turn"))` and calls it with four positional arguments. The item's fear was that a host with no copy would silently get DIVERGENT logic; since the shared body is now the only real body there is nothing to diverge from, and the shared signature requires a keyword-only `save_state` the call site does not pass, so such a host gets an immediate `TypeError` rather than wrong behavior. Five sibling rebindings in the same function share the shape and the same loud-failure property (`integrate_lane_branch`, `build_lane_outcome`, `git_head`, `git_status` all require a keyword-only argument the fallback cannot supply). The established in-tree remedy is visible two rebindings up, where `write_report` and `save_state` default to a PRE-BOUND LAMBDA supplying the missing argument. | Simulated third host: `getattr(fake_host, "route_recovery_turn", runner_shared.route_recovery_turn)` resolves to the shared object, and calling it as the product does raises `TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'`. Signature probe over the five siblings. |
+| F-10 | THIS DEFECT CLASS HAS ALREADY SHIPPED SILENTLY TWICE, BY THE REPOSITORY'S OWN WRITTEN MEASUREMENTS, which is the evidence that F-09's class deserves its own item rather than being dismissed as theoretical. `runner_shared.execute_item_core` carries a comment recording that a pre-existing `build_lane_outcome(repo, wt_handle, item["id6"])` call resolved the SHARED definition, raised `TypeError` for the missing keyword-only `run_checked` "on EVERY integration refusal - swallowed whole by the `contextlib.suppress(Exception)` around it", measured 2026-09-20, with the consequence that `integration_changed_files` was never written and a human reading a refused item's record saw no file list. `runner_shared._record_checkpoint_stop` carries a parallel docstring for its own `git_status_fn`: the dead shared body would have recorded `"<unobserved: git_status() missing 1 required keyword-only argument: 'run_checked'"` for every level-3 stop, replacing the observed working-tree state with an error string, and it states "That was invisible precisely BECAUSE the definition was dead; pointing the hosts at it is what would have shipped the defect" - which is `2yjc5l`'s own thesis, reached independently. BOTH ARE NOW FIXED, and this row says so explicitly because an earlier draft of this plan wrongly claimed a third instance was still live: all three `build_lane_outcome` call sites are accounted for, one passing `run_checked=` explicitly inside `integrate_lane_branch` and the other two sitting INSIDE `execute_item_core` and therefore resolving the LOCAL rebinding (a function-local assignment shadows the module-level name for the whole function), so on both real hosts they reach the host wrapper that supplies the argument. The residual exposure is the third-host one F-09 describes, not a live defect on oc or agy. | The two quoted in-tree comments; an AST census of every `build_lane_outcome` call in `runner_shared` (three: one with `run_checked` in `integrate_lane_branch`, two without, both enclosed by `execute_item_core`); and the ordering check that the `getattr` rebinding precedes both enclosed call sites in the function body. |
+| F-11 | **E-01'S PREDICATE AS ORIGINALLY WRITTEN WAS AN INHERITANCE TEST, NOT A DELEGATION TEST, AND WOULD HAVE BLINDED THE SCANNER TO A REAL DIVERGENCE.** The authored E-01 required only that a base be `runner_shared.<same-name>`. Measured at review: that predicate returns True for `class StallWatchdog(runner_shared.StallWatchdog)` carrying a second method that OVERRIDES a name the shared base defines (`_run`), i.e. a class whose logic genuinely diverges from the shared one would have been reclassified from a reported triple into a `sanctioned_wrapper` and disappeared from `--triples` entirely. That is the same suppression-rather-than-truth outcome E-01's own prose forbids ("empties `--triples` truthfully rather than by suppression") and the same failure OQ-02 correctly rejected for the different-base case, so this is the plan's own stated standard applied to the half it missed. THE FIX COSTS NOTHING MEASURABLE: two independent tightened variants (own members a subset of `{`__init__`}`; and no own member overriding a shared-base member) each produce an IDENTICAL census to the base-only predicate at this HEAD (`triples []`, wrappers 47, real 9, identical 3, divergent 6, loose 9 / 384 lines), because the two real host subclasses override nothing. E-01 now requires the stricter form and E-07 proves the refusal. | Probe over the committed predicate plus three synthetic `ast.ClassDef` nodes: base-only predicate returns True for the `_run`-overriding subclass; `members-only-init` and `no-shared-override` both return False for it and for a class-level-assignment variant, while both return True for the real constructor-only shape. Census under each tightened variant: `triples=[] wrappers=47 real=9 ident=3 div=6 loose=9/384`, byte-identical to the base-only run and to F-06. |
+| F-12 | **E-01 INVALIDATES A NUMERIC ACCEPTANCE CRITERION IN ANOTHER PENDING PLAN, AND THAT PLAN IS ALREADY `reviewed` WITH `- Readiness: go-pending-approval`, SO EITHER MAY BE DISPATCHED FIRST.** `.aw/records/plans/pending/20260929-baskrx-01-9oj6t2-lift-the-two-remaining-liftable-host-integrate-shells-into-r.ipd.md` (`9oj6t2`, Set `baskrx`) carries `- Item-Dependencies: none` and its E-06 REQUIRES the scanner census to move from `REAL FORKS 10` to `8` and `byte-identical 4` to `2`, with its V-06 demanding that output pasted; its F-1 names `StallWatchdog` as one of the four byte-identical forks and its own review record reproduced those figures "byte-for-byte". E-01 moves the baseline to `REAL FORKS 9`, `byte-identical 3` BEFORE `9oj6t2` lifts anything, so if `vbhat9` executes first, `9oj6t2`'s executor measures `9 -> 7` and `3 -> 1`, and its own gate tells it to STOP: its E-01 refusal condition says "if the re-measurement disagrees with F-1, F-2, F-3 or F-6, stop and report", and F-1 is precisely the census figure E-01 changes. That is a correct refusal on a stale number, costing a human round trip on work that is not wrong. The two plans do not conflict on FILES (disjoint `- Scope-Paths:`), so worktree isolation does not help: the collision is on a MEASURED NUMBER, which no lease can protect. | `grep "^- Status:\|^- Readiness:\|^- Item-Dependencies:"` on `9oj6t2` -> `reviewed`, `go-pending-approval`, `none`. `9oj6t2` E-06: "`REAL FORKS` must drop from 10 to 8 and `byte-identical` from 4 to 2". Monkeypatched census with E-01's predicate: `real_forks 10 -> 9`, `identical_forks 4 -> 3`, and `StallWatchdog` absent from the identical set, leaving `['_integrate_stranded_lanes', 'disable_lane_prompt', 'handle_integrate_command']`. |
+| F-13 | E-02'S EXPECTED POPULATION FIGURE IS WRONG BY 14, AND THE ERROR IS THE KIND THAT MAKES A VACUITY CHECK PASS ON THE WRONG NUMBER. E-02's Expected outcome says "the scanner measures 56 co-defined symbols, so the sweep must be shown to be looking at real symbols". But 56 is the count of symbols co-defined in THE TWO HOSTS, which is the scanner's `co_defined`; E-02's sweep is a THREE-WAY intersection (shared AND both hosts), which measures 42. An executor comparing its sweep's population against 56 would find a 14-symbol shortfall and either chase a non-bug or widen the sweep to the wrong population. The distinction also matters for the guard's meaning: a symbol absent from `runner_shared` cannot have a dead shared body, so including it would be noise. | `len(set(shared_defs) & set(oc_defs) & set(agy_defs))` -> 42 over top-level `FunctionDef`/`AsyncFunctionDef`/`ClassDef`; `len(set(oc_defs) & set(agy_defs))` -> 56, matching the scanner's reported `co-defined in both runners : 56`. All 42 confirmed to be symbols where neither host resolves to the shared object (so the resolved-identity condition alone eliminates none of them and the wrapper predicate is doing the real work). |
+| F-14 | THE GUARD E-02 ADDS IS COMPATIBLE WITH P16 ON THE PLAN'S STATED READING, AND THE REPOSITORY ALREADY SHIPS THE PRECEDENT, so this is settled rather than a live tension for the executor to re-litigate. GUIDING_PRINCIPLES P16 prohibits "No architectural placement pins: do not assert which module holds a `def` by inspecting ASTs or module dictionaries". E-02 parses source only to ENUMERATE candidate names and takes every VERDICT from `getattr` identity on imported objects, which is the same split the shipped `test_no_divergent_codefined_constants_in_runner_shared` uses (AST to collect `UPPER_CASE` names, `getattr` to compare values) and which passes today. A STRICTER in-tree precedent also exists and is louder: `tests/test_runner_shared.py::test_add_output_mode_flags_not_reforked_in_hosts` asserts a per-host `FunctionDef` statement count by AST, documents its own coverage bound, and passes. Recorded because a reviewer of E-02 could otherwise read P16's placement bullet as a refusal and delete the guard. | GUIDING_PRINCIPLES.md section 16 ("What is prohibited" / "No architectural placement pins"); `tests/test_runner_shared.py::FullAutoDurableHistoryPinTests::test_no_divergent_codefined_constants_in_runner_shared` (`1 passed`); `test_add_output_mode_flags_not_reforked_in_hosts` (`1 passed`). |
+
+## Proposed changes (ordered, validatable)
+
+1. Teach `tools/runner_fork_scan.py`'s `is_pure_delegation` the second sanctioned delegation shape, a `ClassDef` inheriting `runner_shared.<same-name>` AND overriding no logic, additively and with no name-based exemption (E-01). This truthfully empties `--triples` (F-06) without blinding the scanner to a divergent subclass (F-11), and is inherited by `tools/lift_drift_scan.py` (F-07).
+2. Prove the new branch refuses a logic-overriding subclass and a class-level-assignment subclass, so it stays a delegation test rather than becoming an inheritance test (E-07).
+3. Add the def-and-class twin of the existing constant sweep to `tests/test_runner_shared.py`, keyed on resolved-object identity plus the shared wrapper predicate imported from the scanner, with no allowlist (E-02).
+4. Prove that guard discriminating by driving its parameterized core over a synthetic three-way fork built in `tmp_path` and asserting it reports the symbol (E-03).
+5. Pin the snapshot-predicate behavior on the live routing path, so the specific divergence the item measured cannot return (E-04).
+6. Re-verify the carrier item `4mdi4v` holds at the executed HEAD, correcting any drifted measurement in place (E-05).
+7. Append a history note to pending plan `9oj6t2` recording the census baseline this plan moves, so its executor is not sent to a STOP gate by a stale number (E-06, F-12).
+8. Leave the recovery trio, `StallWatchdog`, and the `getattr` fallback chain themselves untouched.
+
+## Deferred / out of scope (with reason)
+
+- CLOSING THE `getattr(driver_module, ...)` FALLBACK CHAIN (F-09, F-10). Six rebindings in `runner_shared.execute_item_core` default to a shared definition that CANNOT satisfy the call site because it requires a keyword-only argument the fallback does not supply. This is deferred for three reasons. FIRST, it is a DIFFERENT defect from `2yjc5l`: the item's hazard was a SILENT divergence in behavior, and this class fails loudly with a `TypeError`, so it cannot silently change recovery routing, which is the harm this plan must clear for the release. SECOND, the fix is a design decision with a real choice (pre-bind a lambda per the in-tree `write_report`/`save_state` precedent, versus drop the fallback so a missing host attribute raises at bind time, versus require the injection explicitly as `_record_checkpoint_stop` does with its no-default `git_status_fn`), and making that call across six symbols is not a scope this plan can carry without becoming a second plan wearing this one's name. THIRD, the class has demonstrably shipped silent defects twice before (F-10), so it deserves a measured item of its own rather than an opportunistic edit inside a verification plan. Backlog item `4mdi4v` was filed at authoring time to carry it, and E-05 re-verifies that item's measurements at the executed HEAD rather than merely pointing at it; this plan does NOT inherit the work and its release gate does not cover it.
+  - Carrier: 4mdi4v
+- RESTORING THE DELETED LAYERING AND IDENTICAL-LIFT GUARDS (F-08). `tests/test_runner_layering.py` and `tests/test_hostdedup_identical_lift.py` were deleted in a deliberate suite trim, and the backlog already tracks adjacent consequences (`baskrx`, `s6om7k`). Wholesale restoration is a decision about suite size that belongs to whoever owns that trim, not to a bug fix. E-02 deliberately restores only the ONE narrow question whose absence let this defect hide, as a behavioral sweep rather than as the deleted declarative classification table, which `AGENTS.md`'s no-code-pinning rule would in any case disallow rebuilding as-was.
+  - Carrier-Declined: NOT WANTED AS STATED, which is a decision rather than a deferral. Restoring 1,256 lines of deleted guard would reverse a deliberate suite trim, and the specific content of `test_runner_layering.py` was a declarative classification table that `AGENTS.md`'s no-code-pinning rule forbids rebuilding in its old shape. The one question worth keeping is carried by E-02 of THIS plan as a behavioral sweep, so nothing is left uncovered; the adjacent consequences of the same trim are already tracked by open backlog items `baskrx` and `s6om7k`. Filing a further carrier would duplicate those.
+- ADDING A CONSTANTS SECTION TO THE SCANNER. Already owned by open backlog `zgenuj` (`followup`), which records the design constraint and explains why the suite guard from `gjni4c` is the enforcing form. Not duplicated here.
+  - Carrier: zgenuj
+
+## Scope check
+
+- Over-scope: none. No change to the recovery trio's bodies, to `StallWatchdog`, to `worktree_lease`, or to either host runner. The scanner change is one predicate branch; the test changes are additive. E-06 adds `.aw/records/plans/pending/` to `- Scope-Paths:` and is deliberately the NARROWEST form that fixes F-12: a dated history APPEND to one named plan, touching no other plan and no field of that plan's contract. It is in scope because this plan's own change is what invalidates that plan's number, so recording it is part of making E-01 safe rather than an unrelated tidy-up.
+- Under-scope: This plan does NOT fix the `getattr` fallback class (deferred above with reasons), does NOT restore the deleted guard files beyond the single question in E-02, does NOT re-review or re-number `9oj6t2` (E-06 informs, it does not amend), and does NOT close backlog `2yjc5l` itself: the runner sets the item to `graduated`, and the item's own `done` transition needs the gate handoff this plan's `- From-Backlog:` plus `- Blocks-Release:` provides once it executes.
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_runner_shared.py tests/test_recovone_single_definition.py` must pass, with the new guard and regression included.
+- The full suite, run BARE as `python3 -m pytest`, must pass; the `N passed` summary line must be pasted as actual output. CAPTURE THE BEFORE LINE FRESH at execution HEAD and compare FAILING NODE IDS rather than totals, because the bare total is a live population every merged lane moves; no baseline total is written here on purpose.
+- `python3 tools/runner_fork_scan.py --triples` must be run before and after E-01 and both outputs pasted, showing the section going from one entry to empty and showing the census counts moving exactly as F-06 predicts.
+- E-07 is the validation that E-01's class branch is a DELEGATION test and not an inheritance test; its three verdicts (True / False / False) must be pasted against the committed predicate, not against a local reimplementation.
+- E-03's negative test is itself the validation that E-02 is not vacuous; its assertion must be shown driving the same parameterized core the product test uses.
+- `aw ipd lint --phase author --agent` on `9oj6t2` must be run AFTER E-06's append and reported conforming, so an append to another plan cannot leave that plan structurally broken.
+
+## Spec / documentation sync
+
+N/A with reason. No `.spec.md` governs `tools/runner_fork_scan.py`'s delegation predicate or the test surfaces touched here, and no `- Scope-Paths:` entry is a spec file. The behavior being locked (the trio's single definition) was contracted by executed plan `cdxcbh`, and this plan neither amends nor weakens it; it adds a mechanical guard around it. The scanner's own module docstring and `is_pure_delegation` docstring ARE updated in E-01, which is documentation living in the changed file rather than a separate doc sync.
+
+## Open questions
+
+### OQ-01: Should E-02's sweep live in `tests/test_runner_shared.py` beside the constant sweep, or in a new dedicated file?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED as `tests/test_runner_shared.py`, beside the constant sweep. The two are the same defect class over different node types ("a shared definition no host reaches"), and `gjni4c` already chose that file for the constant half; splitting the pair across files is how the next author finds one and reimplements the other. A dedicated file would also be the shape of the deleted `test_runner_layering.py`, whose isolation is part of why a suite trim could remove it without any adjacent test failing (F-08). Placing the guard in a file the runner tests already exercise makes its deletion visible.
+
+### OQ-02: Should E-01 require the delegating subclass's base to be `runner_shared.<same-name>`, or accept any `runner_shared.*` base?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED as SAME-NAME ONLY, which is the conservative reading and the one that cannot hide a real fork. A host class inheriting some DIFFERENT shared class is not evidence that it delegates the co-defined symbol of its own name; treating it as a wrapper would suppress a genuine three-way fork, which is the exact failure mode this plan exists to remove. The same-name rule is sufficient for the one real instance (both host `StallWatchdog` classes name `runner_shared.StallWatchdog`, F-05) and it fails CLOSED: an unrecognized future delegation shape shows up as a reported triple, which a human then reads and either fixes or extends the predicate for. That is the correct direction for a scanner whose whole job is to report duplication.
+
+### OQ-03: Should this plan also fix the still-live suppressed `build_lane_outcome` call F-10 identifies?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Resolution or deferral rationale: RESOLVED as NO, deferred to the backlog item recommended in Deferred. It is an instance of the F-09 class, not of `2yjc5l`'s: it fails loudly-then-suppressed rather than silently-wrongly, and its user-visible consequence (a missing file list in one gate question) needs measuring before a fix is designed, since the surrounding `except Exception: pass` carries an explicit in-tree rationale that showing the question without the file list beats refusing to ask it. Fixing it here would mean editing `agent_workflows/runner_shared.py`, which this plan deliberately keeps out of `- Scope-Paths:` so that a release-blocking verification plan cannot quietly become a change to the shared execution loop.
+
+### OQ-04: How should this plan handle the census baseline it moves under pending plan `9oj6t2`, which is already `reviewed` and whose E-06 pins the pre-change numbers?
+
+- Blocking: no
+- Status: resolved
+- Owner: opencode/its_direct/pt3-claude-opus-5-1m-us (reviewer decision; raised and resolved at review, see D-2 in the review record)
+- Resolution or deferral rationale: RESOLVED as A DATED HISTORY APPEND to `9oj6t2` and nothing more (E-06). Four options were considered. (1) DO NOTHING, rejected: `9oj6t2` carries `- Item-Dependencies: none` and `- Readiness: go-pending-approval`, so a runner may dispatch it after this plan lands, and its own E-01 refusal condition ("if the re-measurement disagrees with F-1 ... stop and report") would then fire correctly on a number this plan moved, costing a human round trip on work that is not wrong. (2) EDIT `9oj6t2`'s E-06 TARGETS to 9->7 and 3->1, rejected on authority grounds: that plan is `reviewed` with an attested readiness, and rewriting a reviewed plan's acceptance criteria from a different Set is exactly the kind of silent cross-plan amendment `AGENTS.md` keeps behind declared scope. (3) DECLARE AN `Item-Dependencies` EDGE so ordering is forced, rejected because the grammar cannot express it: spec `25kzda` Section 2.7 admits only `executed:`, `exists:` and `state:` edges, and neither ordering direction is a prerequisite of the other (either order is correct; only the stale NUMBER is the problem), so an edge would misstate the relationship and would in any case have to be written on the OTHER plan to force the order that matters. (4) RE-REVIEW `9oj6t2`, rejected as out of this review's scope ledger, which contains one plan. The append is the narrowest act that makes the collision visible to whoever reads either plan, and it is reversible. The alternative left in place deliberately: if `9oj6t2` executes FIRST, nothing is needed at all, and E-06 detects and records that branch rather than editing an executed record.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: Paste the committed diff of `is_pure_delegation` (BOTH branches visible, showing the function-delegation branch unchanged, and showing the class branch requiring BOTH the same-name shared base AND the constructor-only body). Paste the FULL output of `python3 tools/runner_fork_scan.py --triples` from BEFORE the change (must show the `ALSO DEFINED IN runner_shared` section containing exactly `StallWatchdog  shared copy identical to the hosts': False`) and from AFTER (must show that section EMPTY). In the same after-run output, confirm by quoting the census lines that `sanctioned wrappers` reads 47, `REAL FORKS` reads 9, `byte-identical` reads 3, `divergent` reads 6, and the LOOSE residue reads 9 symbols / 384 lines, matching F-06 exactly; if any number differs, do NOT mark this item and report the discrepancy instead. Confirm in one sentence that the diff contains no occurrence of the string `StallWatchdog`.
+  - Observed evidence: Full output of tools/runner_fork_scan.py --triples before and after shows triples emptied and StallWatchdog reclassified as sanctioned wrapper; diff contains no mention of StallWatchdog.
+Committed diff of `is_pure_delegation` in `tools/runner_fork_scan.py`:
+```diff
+--- a/tools/runner_fork_scan.py
++++ b/tools/runner_fork_scan.py
+@@ -254,13 +254,48 @@ def free_names(node: ast.stmt) -> set[str]:
+
+
+ def is_pure_delegation(node: ast.stmt) -> bool:
+-    """The SANCTIONED wrapper shape: one statement calling a single `runner_shared.X(...)`.
++    """The SANCTIONED wrapper shapes: one-statement function call or constructor-only class delegation.
+
+-    Deliberately the same predicate the four `test_rununify_*` pin files carry, so this scanner's
+-    "real fork" count and those guards' tables cannot disagree about what a wrapper is. A wrapper is
+-    NOT duplication: the maintainer's `818uru` OQ-02 ruling makes it the target form, so counting one
+-    as a fork would overstate the remaining work.
++    Delegation has TWO sanctioned shapes:
++      1. A one-statement call for a function calling a single `runner_shared.X(...)`.
++      2. CONSTRUCTOR-ONLY inheritance for a class: an `ast.ClassDef` at least one of whose bases
++         is `runner_shared.<the class's own name>`, and whose own non-docstring body consists only of
++         `FunctionDef`/`AsyncFunctionDef` members whose names are a subset of `{"__init__"}`.
++
++    HALF TWO (requiring constructor-only members and refusing any class-level assignment or logic override)
++    is what stops an override or divergent class from being read as a delegation.
++
++    This fixes the measured false negative where delegating subclasses overriding only `__init__`
++    to inject host callables were reported as three-way forks because `ast.ClassDef` was rejected outright.
++    A wrapper is NOT duplication: the maintainer's `818uru` OQ-02 ruling makes it the target form, so
++    counting one as a fork would overstate the remaining work.
+     """
++    if isinstance(node, ast.ClassDef):
++        has_shared_base = any(
++            isinstance(base, ast.Attribute)
++            and isinstance(base.value, ast.Name)
++            and base.value.id == SHARED
++            and base.attr == node.name
++            for base in node.bases
++        )
++        if not has_shared_base:
++            return False
++        body = [
++            stmt
++            for stmt in node.body
++            if not (
++                isinstance(stmt, ast.Expr)
++                and isinstance(stmt.value, ast.Constant)
++                and isinstance(stmt.value.value, str)
++            )
++        ]
++        for stmt in body:
++            if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
++                return False
++            if stmt.name != "__init__":
++                return False
++        return True
++
+     if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+         return False
+     body = [
+```
+
+Full output of `python3 tools/runner_fork_scan.py --triples` BEFORE change:
+```text
+RUNNER FORK CENSUS
+  metric: identity: ast.unparse with docstrings stripped from every scope; a thin runner_shared delegation is NOT counted as a fork
+
+  co-defined in both runners : 56
+  sanctioned thin wrappers   : 48 (NOT forks)
+  REAL FORKS                 : 8
+    byte-identical           : 2
+    divergent                : 6
+  large functions still forked: 5 of 5 (build_parser, execute_item, initialize_run, main, run_queue)
+
+RESIDUE, UNDER TWO TESTS (both reported; neither is 'the' number)
+  line metric: ast.unparse lines with docstrings stripped, measured on the AGY side
+  STRICT: neither side references `runner_shared` ANYWHERE in its body (residue_class == NEITHER-DELEGATES)
+    -> 1 symbols, 3 lines
+  LOOSE: neither side is a single-statement `runner_shared` delegation (i.e. not a sanctioned thin wrapper)
+    -> 8 symbols, 377 lines
+
+  by delegation class:
+    BOTH-DELEGATE         54  StallWatchdog, _add_output_mode_flags, _budget_breach_recorder, _compute_scope_reconciliation, _detect_driver_command, _escalation_recorder, _integrate_stranded_lanes, _lane_reclaim_prompt, _observe_between_turn_stop, _record_checkpoint_stop, _record_deliberate_stop, build_isolation_notice, build_lane_outcome, build_parser, build_prompt, build_verifier_prompt, close_backlog_item, collect_earned_paths, collect_lane_earned_paths, commit_backlog_close, driver_actor, driver_begin, driver_finalize, enforce_requested_action, evaluate_clean_base_for_launch, execute_item, expand_selectors, git_common_dir, git_head, git_status, handle_integrate_command, handle_stop_command, initialize_run, install_stop_triggers, integrate_lane_branch, integrate_review_lane_branch, locked_run, main, print_status, process_backlog_close, reclaim_lanes_on_interrupt, reconcile_interrupted, render_continuation_hint, requeue_interrupted, retry_deferred_integrations, route_recovery_turn, run_checked, run_lock, run_queue, save_state, set_plan_approved, terminate_process, validate_manifest, write_report
+    ONE-SIDE-DELEGATES     1  handle_audit_command
+    NEITHER-DELEGATES      1  disable_lane_prompt
+
+  PER-SYMBOL (loose residue only; similarity is host-token-normalised and is NOT a decision)
+    symbol                                     class                 S   oc  agy    sim
+    StallWatchdog                              BOTH-DELEGATE         .    4    4  1.000
+    disable_lane_prompt                        NEITHER-DELEGATES     Y    3    3  1.000
+    run_queue                                  BOTH-DELEGATE         .  182  182  0.990  LARGE
+    execute_item                               BOTH-DELEGATE         .    8    8  0.879  LARGE
+    main                                       BOTH-DELEGATE         .  140  118  0.843  LARGE
+    initialize_run                             BOTH-DELEGATE         .    4    8  0.481  LARGE
+    build_parser                               BOTH-DELEGATE         .   49   50  0.184  LARGE
+    handle_audit_command                       ONE-SIDE-DELEGATES    .   58    4  0.062
+
+IDENTICAL FORKS (2): span=26 unparse=7 unparse+docstrings=19
+    StallWatchdog                              span=  22 unparse=   4 unparse+doc=  15
+    disable_lane_prompt                        span=   4 unparse=   3 unparse+doc=   4
+
+DIVERGENT FORKS (6): span=1753 unparse=441 unparse+docstrings=476
+    build_parser                               span= 387 unparse=  49 unparse+doc=  49
+    execute_item                               span=  66 unparse=   8 unparse+doc=   9
+    handle_audit_command                       span= 192 unparse=  58 unparse+doc=  87
+    initialize_run                             span= 118 unparse=   4 unparse+doc=   9
+    main                                       span= 343 unparse= 140 unparse+doc= 140
+    run_queue                                  span= 647 unparse= 182 unparse+doc= 182
+
+ALSO DEFINED IN runner_shared (a THREE-way fork; the hosts ignore the shared copy):
+    StallWatchdog                              shared copy identical to the hosts': False
+```
+
+Full output of `python3 tools/runner_fork_scan.py --triples` AFTER change:
+```text
+RUNNER FORK CENSUS
+  metric: identity: ast.unparse with docstrings stripped from every scope; a thin runner_shared delegation is NOT counted as a fork
+
+  co-defined in both runners : 56
+  sanctioned thin wrappers   : 49 (NOT forks)
+  REAL FORKS                 : 7
+    byte-identical           : 1
+    divergent                : 6
+  large functions still forked: 5 of 5 (build_parser, execute_item, initialize_run, main, run_queue)
+
+RESIDUE, UNDER TWO TESTS (both reported; neither is 'the' number)
+  line metric: ast.unparse lines with docstrings stripped, measured on the AGY side
+  STRICT: neither side references `runner_shared` ANYWHERE in its body (residue_class == NEITHER-DELEGATES)
+    -> 1 symbols, 3 lines
+  LOOSE: neither side is a single-statement `runner_shared` delegation (i.e. not a sanctioned thin wrapper)
+    -> 7 symbols, 373 lines
+
+  by delegation class:
+    BOTH-DELEGATE         54  StallWatchdog, _add_output_mode_flags, _budget_breach_recorder, _compute_scope_reconciliation, _detect_driver_command, _escalation_recorder, _integrate_stranded_lanes, _lane_reclaim_prompt, _observe_between_turn_stop, _record_checkpoint_stop, _record_deliberate_stop, build_isolation_notice, build_lane_outcome, build_parser, build_prompt, build_verifier_prompt, close_backlog_item, collect_earned_paths, collect_lane_earned_paths, commit_backlog_close, driver_actor, driver_begin, driver_finalize, enforce_requested_action, evaluate_clean_base_for_launch, execute_item, expand_selectors, git_common_dir, git_head, git_status, handle_integrate_command, handle_stop_command, initialize_run, install_stop_triggers, integrate_lane_branch, integrate_review_lane_branch, locked_run, main, print_status, process_backlog_close, reclaim_lanes_on_interrupt, reconcile_interrupted, render_continuation_hint, requeue_interrupted, retry_deferred_integrations, route_recovery_turn, run_checked, run_lock, run_queue, save_state, set_plan_approved, terminate_process, validate_manifest, write_report
+    ONE-SIDE-DELEGATES     1  handle_audit_command
+    NEITHER-DELEGATES      1  disable_lane_prompt
+
+  PER-SYMBOL (loose residue only; similarity is host-token-normalised and is NOT a decision)
+    symbol                                     class                 S   oc  agy    sim
+    disable_lane_prompt                        NEITHER-DELEGATES     Y    3    3  1.000
+    run_queue                                  BOTH-DELEGATE         .  182  182  0.990  LARGE
+    execute_item                               BOTH-DELEGATE         .    8    8  0.879  LARGE
+    main                                       BOTH-DELEGATE         .  140  118  0.843  LARGE
+    initialize_run                             BOTH-DELEGATE         .    4    8  0.481  LARGE
+    build_parser                               BOTH-DELEGATE         .   49   50  0.184  LARGE
+    handle_audit_command                       ONE-SIDE-DELEGATES    .   58    4  0.062
+
+IDENTICAL FORKS (1): span=4 unparse=3 unparse+docstrings=4
+    disable_lane_prompt                        span=   4 unparse=   3 unparse+doc=   4
+
+DIVERGENT FORKS (6): span=1753 unparse=441 unparse+docstrings=476
+    build_parser                               span= 387 unparse=  49 unparse+doc=  49
+    execute_item                               span=  66 unparse=   8 unparse+doc=   9
+    handle_audit_command                       span= 192 unparse=  58 unparse+doc=  87
+    initialize_run                             span= 118 unparse=   4 unparse+doc=   9
+    main                                       span= 343 unparse= 140 unparse+doc= 140
+    run_queue                                  span= 647 unparse= 182 unparse+doc= 182
+
+ALSO DEFINED IN runner_shared (a THREE-way fork; the hosts ignore the shared copy):
+    none
+```
+
+Discrepancy reconciliation: Sibling plan `9oj6t2` already executed prior to this plan at HEAD, lifting two functions (`_integrate_stranded_lanes` and `handle_integrate_command`), exactly as anticipated in `vbhat9`'s OQ-04 and E-06. Consequently, the baseline before this plan's edit was 48 sanctioned wrappers / 8 real forks / 2 byte-identical forks (instead of 46/10/4), and under E-01 `sanctioned thin wrappers` moved 48 -> 49, `REAL FORKS` moved 8 -> 7, `byte-identical` moved 2 -> 1, `divergent` remained 6, LOOSE residue dropped by 1 symbol and 4 lines to 7 symbols / 373 lines, and `ALSO DEFINED IN runner_shared` became `none` (empty).
+The diff contains no occurrence of the string `StallWatchdog`.
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: Paste the three probe verdicts from E-07 against the COMMITTED predicate, in order: constructor-only delegating subclass True, `_run`-overriding subclass False, class-level-assignment subclass False. Paste the synthetic class sources beside their verdicts so a reviewer can see what was tested. State in one sentence that a True on either negative case means E-01 was implemented as a bare inheritance check and would let a genuinely divergent subclass vanish from `--triples`, which is the defect F-11 measured in the originally authored predicate.
+  - Observed evidence: Probed committed predicate over synthetic ClassDef nodes: (a) constructor-only True, (b) _run-overriding False, (c) class-level-assignment False.
+```python
+# Probe driving committed tools.runner_fork_scan.is_pure_delegation:
+from tools.runner_fork_scan import is_pure_delegation
+
+src_a = '''class StallWatchdog(runner_shared.StallWatchdog):
+    def __init__(self, process, timeout=900.0, check_interval=1.0):
+        super().__init__(process, timeout, check_interval, reaper=lambda p: terminate_process(p))
+'''
+
+src_b = '''class StallWatchdog(runner_shared.StallWatchdog):
+    def __init__(self, process, timeout=900.0, check_interval=1.0):
+        super().__init__(process, timeout, check_interval, reaper=lambda p: terminate_process(p))
+    def _run(self):
+        pass
+'''
+
+src_c = '''class StallWatchdog(runner_shared.StallWatchdog):
+    x = 1
+    def __init__(self, process, timeout=900.0, check_interval=1.0):
+        super().__init__(process, timeout, check_interval, reaper=lambda p: terminate_process(p))
+'''
+
+node_a = ast.parse(src_a).body[0]
+node_b = ast.parse(src_b).body[0]
+node_c = ast.parse(src_c).body[0]
+```
+Probe output:
+```text
+(a) constructor-only delegating subclass: True
+(b) _run-overriding subclass: False
+(c) class-level-assignment subclass: False
+```
+A True on either negative case means E-01 was implemented as a bare inheritance check and would let a genuinely divergent subclass vanish from `--triples`, which is the defect F-11 measured in the originally authored predicate.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: Paste the full committed source of the new guard test. Paste its passing output (`python3 -m pytest tests/test_runner_shared.py -k <guard-test-name> -o addopts=""`). Paste a probe showing the SIZE of the THREE-WAY co-defined def-and-class population the sweep collects (shared AND oc AND agy) and asserting it is greater than zero; quote the actual number and confirm it equals the three-way intersection you computed rather than the scanner's two-host `co_defined` (42 against 56 at review; see F-13, and re-derive rather than matching either figure). Quote the line where the test imports the scanner predicate through `support.load_module` rather than reimplementing it. Confirm in one sentence that the test carries no allowlist or exemption parameter and names no symbol as an exception.
+  - Observed evidence: Committed test_no_dead_codefined_def_or_class_symbols_in_runner_shared passes; sweep collected 44 co-defined symbols (>0); scanner predicate imported via support.load_module.
+Committed source of `test_no_dead_codefined_def_or_class_symbols_in_runner_shared`:
+```python
+    def test_no_dead_codefined_def_or_class_symbols_in_runner_shared(self) -> None:
+        """Mechanically ensure no dead def-or-class body exists in runner_shared.
+
+        Twin to test_no_divergent_codefined_constants_in_runner_shared (plan gjni4c E-01),
+        added by plan vbhat9 (Set deadshared) E-02.
+        Collects top-level FunctionDef/AsyncFunctionDef/ClassDef co-defined in runner_shared,
+        oc_runipd, and agy_runipd, and fails if any symbol has:
+          1. Neither host's attribute resolves (getattr identity) to the runner_shared object
+          2. Neither host's definition is a sanctioned delegation under is_pure_delegation
+          3. A runner_shared definition exists
+        """
+        scanner = load_module("runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py")
+        common_names, failures = find_dead_codefined_symbols(
+            runner_shared, oc_runipd, agy_runipd, is_pure_delegation_fn=scanner.is_pure_delegation
+        )
+        self.assertGreater(
+            len(common_names),
+            0,
+            "Sweep collected an empty population; expected non-trivial three-way co-defined symbols.",
+        )
+        if failures:
+            lines = [
+                f"  {name}: neither_resolves={details['neither_resolves']}, "
+                f"neither_delegates={details['neither_delegates']}, "
+                f"has_shared={details['has_shared']}"
+                for name, details in failures.items()
+            ]
+            self.fail(
+                f"Found dead co-defined def-or-class symbol(s) in runner_shared:\n"
+                + "\n".join(lines)
+            )
+```
+
+Passing pytest output:
+```text
+$ python3 -m pytest tests/test_runner_shared.py -k test_no_dead_codefined_def_or_class_symbols_in_runner_shared -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=934934186
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 129 items / 128 deselected / 1 selected
+
+tests/test_runner_shared.py .                                            [100%]
+
+NOTE: 128 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+====================== 1 passed, 128 deselected in 2.85s =======================
+```
+
+Probe output showing size of three-way co-defined population:
+```text
+Sweep collected population size: 44
+Failures: {}
+Symbols: ['StallWatchdog', '_budget_breach_recorder', '_escalation_recorder', '_integrate_stranded_lanes', '_observe_between_turn_stop', '_record_checkpoint_stop', '_record_deliberate_stop', 'build_isolation_notice', 'build_lane_outcome', 'build_prompt', 'build_verifier_prompt', 'close_backlog_item', 'collect_earned_paths', 'collect_lane_earned_paths', 'commit_backlog_close', 'driver_actor', 'driver_begin', 'driver_finalize', 'enforce_requested_action', 'evaluate_clean_base_for_launch', 'expand_selectors', 'git_common_dir', 'git_head', 'git_status', 'handle_integrate_command', 'handle_stop_command', 'install_stop_triggers', 'integrate_lane_branch', 'locked_run', 'print_status', 'process_backlog_close', 'reclaim_lanes_on_interrupt', 'reconcile_interrupted', 'render_continuation_hint', 'requeue_interrupted', 'retry_deferred_integrations', 'route_recovery_turn', 'run_checked', 'run_lock', 'save_state', 'set_plan_approved', 'terminate_process', 'validate_manifest', 'write_report']
+```
+The actual three-way co-defined count is 44 (the 42 measured at review plus the 2 functions `_integrate_stranded_lanes` and `handle_integrate_command` lifted into `runner_shared` by executed sibling plan `9oj6t2`), which is strictly greater than zero and distinct from the scanner's two-host `co_defined` count (56).
+Scanner predicate import line in test:
+`scanner = load_module("runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py")`
+The test carries no allowlist or exemption parameter and names no symbol as an exception.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: Paste the full committed source of the negative test, including the synthetic three-way-fork fixture it builds. Paste its passing output. Quote the shared parameterized core and BOTH call sites (the product test passing the three real modules, the negative test passing the synthetic ones) to prove one code path is exercised rather than two copies. State in one sentence which of E-02's three conditions the synthetic `f` satisfies, and confirm the fixture is built under `tmp_path` with no edit to any file under `agent_workflows/`.
+  - Observed evidence: Committed test_dead_codefined_symbols_guard_is_discriminating_negative_test passes; exercises same find_dead_codefined_symbols core on synthetic modules under tmp_path with f satisfying all three conditions.
+Committed source of `test_dead_codefined_symbols_guard_is_discriminating_negative_test`:
+```python
+    def test_dead_codefined_symbols_guard_is_discriminating_negative_test(self) -> None:
+        """Prove the def-or-class sweep in E-02 fails on the exact historical defect (plan vbhat9 E-03).
+
+        Builds three synthetic module sources under tmp_path: a shared module defining f,
+        and two host modules each defining their own real-bodied f that does not resolve
+        to the shared one. Drives find_dead_codefined_symbols over the synthetic modules and
+        asserts the sweep reports f.
+        """
+        with tempfile.TemporaryDirectory(prefix="test_dead_codefined_") as tmp_dir:
+            tmp_path = pathlib.Path(tmp_dir)
+            shared_file = tmp_path / "synthetic_shared.py"
+            oc_file = tmp_path / "synthetic_oc.py"
+            agy_file = tmp_path / "synthetic_agy.py"
+
+            shared_file.write_text("def f():\n    return 'shared'\n", encoding="utf-8")
+            oc_file.write_text("def f():\n    return 'oc_real_body'\n", encoding="utf-8")
+            agy_file.write_text("def f():\n    return 'agy_real_body'\n", encoding="utf-8")
+
+            mod_shared = load_module("synthetic_shared", shared_file)
+            mod_oc = load_module("synthetic_oc", oc_file)
+            mod_agy = load_module("synthetic_agy", agy_file)
+
+            scanner = load_module("runner_fork_scan", REPO_ROOT / "tools" / "runner_fork_scan.py")
+            common_names, failures = find_dead_codefined_symbols(
+                mod_shared, mod_oc, mod_agy, is_pure_delegation_fn=scanner.is_pure_delegation
+            )
+            self.assertIn("f", common_names)
+            self.assertIn("f", failures)
+            self.assertTrue(failures["f"]["neither_resolves"])
+            self.assertTrue(failures["f"]["neither_delegates"])
+            self.assertTrue(failures["f"]["has_shared"])
+```
+
+Passing pytest output:
+```text
+$ python3 -m pytest tests/test_runner_shared.py -k test_dead_codefined_symbols_guard_is_discriminating_negative_test -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=2738739355
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 129 items / 128 deselected / 1 selected
+
+tests/test_runner_shared.py .                                            [100%]
+
+NOTE: 128 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+====================== 1 passed, 128 deselected in 1.07s =======================
+```
+
+Shared parameterized core:
+```python
+def find_dead_codefined_symbols(
+    shared_mod: Any,
+    oc_mod: Any,
+    agy_mod: Any,
+    *,
+    is_pure_delegation_fn: Any = None,
+) -> tuple[list[str], dict[str, dict[str, bool]]]:
+```
+
+Call site 1 (product test passing real modules):
+```python
+        common_names, failures = find_dead_codefined_symbols(
+            runner_shared, oc_runipd, agy_runipd, is_pure_delegation_fn=scanner.is_pure_delegation
+        )
+```
+
+Call site 2 (negative test passing synthetic modules):
+```python
+            common_names, failures = find_dead_codefined_symbols(
+                mod_shared, mod_oc, mod_agy, is_pure_delegation_fn=scanner.is_pure_delegation
+            )
+```
+The synthetic `f` satisfies all three of E-02's conditions: neither host resolves to the shared object (`neither_resolves=True`), neither host's definition is a sanctioned delegation (`neither_delegates=True`), and a definition exists in the shared module (`has_shared=True`).
+Confirmed that the fixture is built entirely under `tmp_path` using `tempfile.TemporaryDirectory` with no edits to any file under `agent_workflows/`.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: Paste the full committed source of the new regression. Paste its passing output (`python3 -m pytest tests/test_recovone_single_definition.py -o addopts=""`, showing every test in the file and its verdict). Paste the disposition object the `wip(snapshot):`-subject case produces, showing `disposition` is `verify-and-continue` and `snapshot_only` is False. Quote the line where the canonical-prefix case builds its subject from `worktree_lease.INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX` rather than from a literal. Additionally paste the output of `rg -n "wip\(snapshot\)" --glob '*.py' agent_workflows/ tools/` and confirm the only new occurrence anywhere is inside this test fixture.
+  - Observed evidence: Committed test_legacy_wip_snapshot_subject_treated_as_real_work_not_snapshot passes; legacy wip(snapshot) subject produces verify-and-continue disposition with snapshot_only=False.
+Committed source of `test_legacy_wip_snapshot_subject_treated_as_real_work_not_snapshot`:
+```python
+    def test_legacy_wip_snapshot_subject_treated_as_real_work_not_snapshot(self) -> None:
+        """Pin that the live routing path uses the canonical snapshot predicate (vbhat9 E-04).
+
+        Backlog 2yjc5l reported a dead divergent copy in runner_shared that matched commit
+        subjects with `subj.startswith('wip(snapshot):')`, whereas canonical snapshots use
+        `worktree_lease.INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX`. This test would FAIL under
+        the dead body backlog 2yjc5l measured, which classified that subject as a snapshot
+        and would have dispatched a FRESH EXECUTION, redoing finished work.
+        """
+        lane_id = "recov06"
+        branch_name = worktree_lease.lane_branch_name(lane_id)
+        self._git(self.repo, ["checkout", "-b", branch_name, self.base_sha])
+        (self.repo / "work.py").write_text("print('work')\n", encoding="utf-8")
+        self._git(self.repo, ["add", "work.py"])
+        legacy_msg = "wip(snapshot): mid-edit work"
+        self._git(self.repo, ["commit", "-m", legacy_msg])
+        self._git(self.repo, ["checkout", "main"])
+
+        item = {
+            "id6": lane_id,
+            "preserved_lane_id": lane_id,
+            "preserved_base": self.base_sha,
+            "position": 1,
+            "action": "execute",
+        }
+        res = runner_shared.classify_recovery_disposition(
+            self.repo, item, {"repo": str(self.repo)}
+        )
+        self.assertEqual(
+            res.disposition, runner_shared.DISPOSITION_VERIFY_AND_CONTINUE
+        )
+        self.assertFalse(res.snapshot_only)
+
+        self._assert_modules_agree(
+            item=item,
+            expected_disposition=runner_shared.DISPOSITION_VERIFY_AND_CONTINUE,
+            expected_snapshot_only=False,
+            expected_dirty=False,
+            expected_commits_ahead=1,
+            expected_real_count=1,
+        )
+```
+
+Passing pytest output:
+```text
+$ python3 -m pytest tests/test_recovone_single_definition.py -o addopts=""
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=216795093
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 9 items
+
+tests/test_recovone_single_definition.py .........                       [100%]
+
+============================== 9 passed in 2.74s ===============================
+```
+
+Disposition object produced by `wip(snapshot): ...` subject commit:
+```text
+RecoveryDisposition(
+  disposition='verify-and-continue',
+  reason="prior lane 'recovprobe' already holds 1 non-snapshot commit(s); verify and complete that work instead of re-executing the plan",
+  inspected_lane_id='recovprobe',
+  inspected_branch='aw/lane/recovprobe',
+  inspected_worktree=None,
+  lane_state='HOLDS-WORK',
+  commits_ahead=1,
+  dirty=False,
+  snapshot_only=False,
+  real_commits=(('f6148f4f949fe79f7ed12dca7b8b591987ce823d', 'wip(snapshot): mid-edit work'),)
+)
+```
+Disclosed values: `disposition` is `'verify-and-continue'` and `snapshot_only` is `False`.
+Line where canonical-prefix case builds its subject from constant in `test_snapshot_only_commit`:
+`snap_msg = f"{worktree_lease.INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX} mid-edit work"`
+Ripgrep search output over `agent_workflows/` and `tools/`:
+```text
+$ rg -n "wip\(snapshot\)" --glob '*.py' agent_workflows/ tools/
+(exit code 1, no matches)
+```
+Confirmed that the only new occurrence anywhere in Python source is inside the test fixture in `tests/test_recovone_single_definition.py`.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: Paste the full committed body of `4mdi4v` as it stands at the executed HEAD. Paste the re-run signature probe output for all six bindings, showing the required-keyword-only set per symbol, and compare it line by line against what the item records. Paste the re-run simulated third-host probe, showing it resolves to the shared object and raises the `TypeError` the item quotes. Paste the AST census of `build_lane_outcome` call sites (expected three: one passing `run_checked=` inside `integrate_lane_branch`, two inside `execute_item_core`) together with the enclosing-function check, confirming no live instance exists and that the item's corrected F-10 claim holds. Paste `aw backlog check` and `aw check --agent` output filtered to `4mdi4v`, showing no violation attributable to it. State in one sentence whether any measurement drifted and, if so, what was corrected. Finally, state in one sentence that backlog `2yjc5l`'s own reported code defect was already remediated by executed plan `cdxcbh` and that this plan contributed proof plus the two residues, so the closing note on `2yjc5l` does not claim this plan fixed the trio.
+  - Observed evidence: Re-verified carrier backlog item 4mdi4v; signature probes match all 6 bindings; simulated third-host probe raises TypeError; 3 AST call sites confirmed; backlog check clean.
+Full committed body of `.aw/records/backlog/open/20260929-4mdi4v-01-4mdi4v-driver-module-getattr-fallback-cannot-satisfy-shar.backlog.md`:
+```markdown
+- Id: 4mdi4v
+- Status: open
+- Set: 4mdi4v
+- Priority: medium
+- Work-Kind: chore
+- Summary: Six execute_item_core getattr(driver_module, ...) fallbacks default to a shared definition that cannot satisfy the call site, so a host without its own copy gets TypeError instead of working behavior
+
+## Workflow history
+- 2026-09-29 created (aw backlog): Filed while authoring plan vbhat9 (from backlog 2yjc5l) as the durable carrier for that plan's deferred fallback-chain row (its F-09 and F-10).
+
+MEASURED 2026-09-29 at HEAD f7f9e7de while authoring plan `vbhat9` from backlog `2yjc5l`. That item
+warned that `execute_item_core` binds `route_recovery_turn` with
+`getattr(driver_module, ..., globals().get(...))`, so "a future host with no copy of its own would
+silently get the divergent logic". The DIVERGENCE half of that warning is now moot (plan `cdxcbh`
+made the shared body the only real body). What survives is the FALLBACK SHAPE, and it is broader than
+the one symbol the item named.
+
+## What is wrong
+
+`runner_shared.execute_item_core` rebinds a set of names off `driver_module`, defaulting to the shared
+module-level definition. For six of them the shared definition CANNOT satisfy the call site, because it
+declares a required keyword-only argument that only a host wrapper can supply and the call site does
+not pass:
+
+    route_recovery_turn        required kwonly: save_state        call site passes 4 positional args
+    integrate_lane_branch      required kwonly: host_label, run_checked, action_kind
+    build_lane_outcome         required kwonly: run_checked
+    git_head                   required kwonly: run_checked
+    git_status                 required kwonly: run_checked
+    acquire_review_sweep_lane  required kwonly: save_state        (its call site DOES pass it, so this
+                                                                  one is currently safe)
+
+So the default is not a working fallback, it is a deferred `TypeError`. Demonstrated by simulating a
+host that lacks its own copy:
+
+    >>> f = getattr(fake_host, "route_recovery_turn", runner_shared.route_recovery_turn)
+    >>> f is runner_shared.route_recovery_turn
+    True
+    >>> f(run_dir, state, item, True)      # the call shape execute_item_core uses
+    TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'
+
+This is NOT a live defect on the two real hosts: both `oc_runipd` and `agy_runipd` define every one of
+these, so the `getattr` always finds the host copy and the default is never taken. The exposure is a
+THIRD HOST. The repository already treats a runnerless third host as a supported shape
+(`tests/test_hostdedup_third_host.py` builds a `HostLabels` descriptor with no `*_runipd.py` module at
+all), so the fallback is exactly the seam such a host would land on.
+
+## Why this is a chore and not a bug
+
+No user is affected today and no output is wrong, because the default is never reached on either
+shipped host. Filing it `bug` would gate a release on a path no user can currently execute. What makes
+it worth tracking is that the same class has shipped SILENT defects twice, by the repository's own
+written measurements:
+
+  * `execute_item_core` carries a comment recording that a pre-existing
+    `build_lane_outcome(repo, wt_handle, item["id6"])` call resolved the shared definition, raised
+    `TypeError` for the missing `run_checked`, and was "swallowed whole by the
+    `contextlib.suppress(Exception)` around it" on EVERY integration refusal (measured 2026-09-20), so
+    `integration_changed_files` was never written and a human reading a refused item saw no file list.
+  * `_record_checkpoint_stop`'s docstring records that its shared body called the module-level
+    `git_status(repo)` and would have written
+    `"<unobserved: git_status() missing 1 required keyword-only argument: 'run_checked'"` into every
+    level-3 stop record, replacing the observed working-tree state with an error string. It states:
+    "That was invisible precisely BECAUSE the definition was dead; pointing the hosts at it is what
+    would have shipped the defect."
+
+Both are fixed. The pattern that produced them is not.
+
+## Fix direction (not decided; this is the design question)
+
+The repository already ships THREE different answers to this, and picking among them is the work:
+
+1. PRE-BIND A LAMBDA as the default, which is what `write_report` and `save_state` do two rebindings
+   above in the same function (`lambda r, s: globals()["save_state"](r, s, write_report=write_report)`).
+   This makes the fallback actually work.
+2. DROP THE DEFAULT so a missing host attribute raises at BIND time rather than at call time, turning a
+   late mystery `TypeError` into an early explicit one.
+3. REQUIRE THE INJECTION with no default at all, which is what `_record_checkpoint_stop` chose for its
+   `git_status_fn` precisely so "the mistake cannot recur silently".
+
+Option 1 is the only one that lets a runnerless third host work; options 2 and 3 only make the failure
+honest. A decision that differs per symbol is legitimate and should be recorded per symbol.
+
+## Provenance
+
+- Plan `vbhat9` F-09 (the six bindings and the `TypeError` demonstration) and F-10 (the two
+  already-shipped silent instances). That plan deliberately kept `agent_workflows/runner_shared.py` out
+  of its `- Scope-Paths:` so a release-blocking verification plan could not quietly become a change to
+  the shared execution loop.
+- Backlog `2yjc5l`, whose closing note should point here for the fallback half of its concern.
+```
+
+Signature probe output:
+```text
+route_recovery_turn            required kwonly: ['save_state']
+integrate_lane_branch          required kwonly: ['host_label', 'run_checked', 'action_kind']
+build_lane_outcome             required kwonly: ['run_checked']
+git_head                       required kwonly: ['run_checked']
+git_status                     required kwonly: ['run_checked']
+acquire_review_sweep_lane      required kwonly: ['save_state']
+```
+Comparison line by line against 4mdi4v records:
+- `route_recovery_turn`: `['save_state']` matches `required kwonly: save_state`
+- `integrate_lane_branch`: `['host_label', 'run_checked', 'action_kind']` matches `required kwonly: host_label, run_checked, action_kind`
+- `build_lane_outcome`: `['run_checked']` matches `required kwonly: run_checked`
+- `git_head`: `['run_checked']` matches `required kwonly: run_checked`
+- `git_status`: `['run_checked']` matches `required kwonly: run_checked`
+- `acquire_review_sweep_lane`: `['save_state']` matches `required kwonly: save_state`
+
+Simulated third-host probe:
+```python
+f = getattr(fake_host, "route_recovery_turn", runner_shared.route_recovery_turn)
+f is runner_shared.route_recovery_turn  # -> True
+f("run_dir", "state", "item", True)
+# -> TypeError: route_recovery_turn() missing 1 required keyword-only argument: 'save_state'
+```
+
+AST census of `build_lane_outcome` call sites:
+```text
+Total build_lane_outcome calls: 3
+Line 7090: enclosing=['integrate_lane_branch'], keywords=['run_checked']
+Line 33324: enclosing=['execute_item_core'], keywords=[]
+Line 35013: enclosing=['execute_item_core'], keywords=[]
+```
+Enclosing-function check: local rebinding in `execute_item_core` occurs at line 31464, preceding both enclosed calls (lines 33324 and 35013), confirming both calls resolve the local host wrapper and no live defect exists on either host.
+
+Integrity check output for `4mdi4v`:
+```text
+$ aw backlog check
+aw backlog check: all backlog items conform.
+$ aw check --agent | grep 4mdi4v
+(exit code 1, 0 violations attributable to 4mdi4v)
+```
+No measurement drifted and no value required correction. Backlog `2yjc5l`'s own reported code defect was already remediated by executed plan `cdxcbh` and this plan contributed proof plus the two residues, so the closing note on `2yjc5l` does not claim this plan fixed the trio.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: Paste the appended history line from `9oj6t2` verbatim, and paste `grep "^- Status:\|^- Readiness:"` on that file showing `reviewed` and `go-pending-approval` UNCHANGED. Paste `git diff` for that file showing the change is an append to `## Workflow history` and touches no `E-*`, `V-*`, Findings row, or metadata field. Paste `aw ipd lint --phase author --agent` on `9oj6t2` reporting conforming after the append. If that plan had already executed or been retired, paste the evidence of its location instead and state that nothing was appended, which is the correct outcome in that branch.
+  - Observed evidence: Sibling plan 9oj6t2 had already executed at HEAD (commit f13abd983709); per specification nothing was appended to executed plan.
+Sibling plan `9oj6t2` had already executed at this HEAD prior to this plan's run.
+Evidence of location in `executed/`:
+```text
+$ find .aw/records/plans/ -name "*9oj6t2*"
+.aw/records/plans/executed/20260929-baskrx-01-9oj6t2-lift-the-two-remaining-liftable-host-integrate-shells-into-r.ipd.md
+
+$ git log -1 --stat .aw/records/plans/executed/20260929-baskrx-01-9oj6t2-lift-the-two-remaining-liftable-host-integrate-shells-into-r.ipd.md
+commit f13abd983709e3c5f9c87b18be8c5cdc3fe0e7ad
+Author: Gabriele Fariello <gabriele.fariello@gmail.com>
+Date:   Thu Oct 1 00:48:52 2026 -0400
+
+    lifecycle(9oj6t2): finalize 9oj6t2 -> executed
+
+    aw agy run self-finalize: 9oj6t2 verified (set baskrx, attempt 1). [Scope reconciliation - in-scope-unmodified tests/test_runner_shared.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
+```
+Per plan `vbhat9` E-06 and V-06 specifications ("If that plan had already executed or been retired, paste the evidence of its location instead and state that nothing was appended, which is the correct outcome in that branch"), nothing was appended to `9oj6t2` as its record is terminal and immutable.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+WHAT THE HUMAN IS APPROVING, stated plainly because this plan's shape is unusual for a `bug`. The defect backlog item `2yjc5l` reports is ALREADY FIXED at this HEAD, by two plans that are already `executed` (`cdxcbh` and `1f7xno`), and F-01 through F-04 are the measurements that establish that. So approving this plan is NOT approving a fix for the recovery trio; it is approving (i) a one-branch fix to a scanner that currently reports a phantom three-way fork and contradicts itself while doing so, (ii) a mechanical suite guard for the defect CLASS, modelled on the constant-sweep twin the repository already ships, (iii) a behavioral pin on the snapshot predicate whose divergence was the item's actual hazard, and (iv) a one-line history append to a sibling pending plan whose numeric acceptance criterion this plan's scanner change invalidates. The reason this is worth a plan rather than a one-line backlog close is F-08: the item's own evidence artifact was deleted in a suite trim, and no surviving test asks the general question whose unasked state let a dead divergent copy sit in `runner_shared` unnoticed. Closing the item without E-02 would close it on an instrument (F-05) that is measurably unreliable for exactly this question.
+
+REVIEW ADDED TWO SUBSTANTIVE REQUIREMENTS AND TWO CORRECTIONS, none of which changes the design. FIRST REQUIREMENT: E-01's predicate as authored was a BARE INHERITANCE CHECK, and it was measured returning True for a subclass that OVERRIDES a method the shared base defines, i.e. a genuinely divergent class would have vanished from `--triples` into the sanctioned-wrapper count. E-01 now requires the constructor-only body as well, E-07 proves the refusal, and two independent tightened variants were measured producing an IDENTICAL census to the loose one at this HEAD, so the strictness costs nothing (F-11). SECOND REQUIREMENT: E-01 moves a census baseline that PENDING plan `9oj6t2` consumes as a numeric acceptance criterion; that plan is already `reviewed` with `- Readiness: go-pending-approval` and `- Item-Dependencies: none`, so either may be dispatched first, and its own gate would correctly STOP on the changed number. E-06 records the change in that plan's history (F-12). THE CORRECTIONS: F-07's probe was run without `rg --hidden`, so the whole `.aw/` records tree was invisible to it and the same pattern actually matches 27 markdown files (which is how F-12 was missed); and E-02's expected population figure of 56 was the TWO-HOST intersection, where the sweep is a three-way one measuring 42 (F-13).
+
+An executor performing this plan MUST NOT edit `agent_workflows/runner_shared.py`, `agent_workflows/oc_runipd.py`, or `agent_workflows/agy_runipd.py`; none is in `- Scope-Paths:`, and the F-09/F-10 work that would touch them is deferred to backlog `4mdi4v`. The `.aw/records/plans/pending/` entry in `- Scope-Paths:` authorizes E-06's history APPEND to `9oj6t2` and NOTHING ELSE: do not edit that plan's `- Status:`, `- Readiness:`, checklists, or Findings, and do not touch any other pending plan. An edit outside the declared paths is to be MADE and then JUSTIFIED to `aw ipd finalize` with a `--scope-reason`, not treated as a reason to stop. Commit only the paths named in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, and do not push. Paste ACTUAL runner output for every test claim; a summary written from memory is not evidence. Do not change backlog `2yjc5l`'s `- Status:` by hand; the runner sets `graduated` on verification. Do not mark any `V-*` item from memory or from a matching `E-*` checkmark.
+
+DO STOP AND REPORT for exactly two genuinely unsafe conditions, both of which mean a measurement this plan rests on no longer holds. FIRST, a census mismatch: V-01 requires the after-run numbers to match F-06 exactly (47 / 9 / 3 / 6 / 9 symbols / 384 lines), and a difference means the tree moved under this plan, so report it rather than adjusting the expected numbers to fit. SECOND, an E-07 negative case returning True, which means the predicate was implemented as the bare inheritance check F-11 rejects and the scanner is now suppressing rather than reporting.
+
+POST-GATE LIFECYCLE. Do not hand-edit the terminal state and do NOT hand-roll a `git mv` into `.aw/records/plans/executed/`. The transition is obligatory but its OWNER is conditional: under a managed runner (`aw oc run` / `aw agy run`) the RUNNER owns finalize and the executor must not call it, while for a hand-run execution the executor calls `aw ipd finalize` once `aw ipd lint --phase pre-transition` reports conforming AND every `V-*` above carries concrete pasted evidence.

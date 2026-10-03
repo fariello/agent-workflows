@@ -2,8 +2,9 @@
 
 This document describes the hardened security boundaries of the execution runtime and host
 integration, and the runbooks that prove each one. The checkers live in
-`agent_workflows/security_hardening.py`; the threat-model tests are in
-`tests/test_security_hardening.py`.
+`agent_workflows/security_hardening.py`. The dedicated threat-model test suite was deleted on
+2026-09-24 (commit 19313eed), so the boundaries below are enforced in production by the checkers
+without dedicated test coverage (tracked in backlog item mflqqf).
 
 Leak and secret checks REUSE the repository's canonical tooling. There is no forked scanner:
 
@@ -35,12 +36,6 @@ Leak and secret checks REUSE the repository's canonical tooling. There is no for
    the human role can record approval; a role cannot synthesize its own consent).
 
 ## Runbooks (how to prove each boundary)
-
-Run the whole threat-model suite:
-
-```
-python3 -m pytest tests/test_security_hardening.py -q
-```
 
 Run the canonical leak scan over the tracked tree (exit 0 means clean):
 

@@ -1,0 +1,254 @@
+# IPD: Give the UTC history-date ruling a durable cross-spelling guard that covers every artifact family, not just backlog
+
+- Date: 2026-10-01
+- Kind: child
+- Concern: Spec `2vev8j` Section 4.4 rules that every history writer records UTC, and the repository violates it on TWO artifact families, not the one the eight filed items describe. Measured live in this lane inside the skew window (local `2026-10-01`, UTC `2026-10-02`): `aw backlog set <path> --status open` wrote `- 2026-10-01 same-status (aw backlog): m` while `aw backlog set open <id6>` wrote `- 2026-10-02 same-status (aw set): m`; AND `aw specs set <path> --status to-review` wrote `- 2026-10-01 to-review (aw specs): m` while `aw set to-review <id6>` wrote `- 2026-10-02 to-review (aw set): m`. The SPEC divergence is in none of the eight items and in no plan's `Scope-Paths`. Worse, the suite CANNOT see any of it: `tests/test_history_label_parity.py` and `tests/test_backlog.py` both substitute the date away before comparing, zero test in `tests/` calls `time.tzset()` or sets `TZ`, and both files measured `51 passed` at HEAD `0c8ba47ed` while the defect was live on two families. So the behavioral fix plan `5ivkdh` can land, be validated against a green suite, and silently regress with nothing to catch it.
+- Scope: IN: one timezone-parameterized differential guard that derives the history-writing surface from `command_surface.COMMAND_INVENTORY` rather than hand-listing it, drives every derived spelling under a timezone east AND west of UTC, and asserts the recorded history date equals the UTC date; plus removal of the date MASK from the two tests that hide this today. OUT, each with a reason recorded under "Deferred": the production clock fix itself (owned by `5ivkdh`, which this plan takes a hard dependency on); filename dates, which `DECISIONS.md` D55 rules LOCAL; the actor asymmetry; the dispatch unification; closing the seven sibling items.
+- Scope-Paths: tests/test_history_date_clock_parity.py, tests/test_history_label_parity.py, tests/test_backlog.py
+- Item-Dependencies: executed:5ivkdh
+- Status: to-review
+- From-Spec: 2vev8j
+- Work-Kind: bug
+- Priority: medium
+- From-Backlog: a2zpzq
+- Blocks-Release: next
+- Set: a2zpzq
+- Order: 1
+- Highest E allocated: 04
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: ayhveg
+
+## Workflow history
+- 2026-10-02 same-status (aw set): Record the From-Spec link to 2vev8j, whose Section 4.4 this plan enforces (closes the check.plan-spec-link-missing advisory).
+
+- 2026-10-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored from backlog `a2zpzq`. The clock question was RESOLVED from repository evidence (spec `2vev8j` 4.4, approved and human-attested, rules history dates UTC; `DECISIONS.md` D55 rules filename dates LOCAL), so no maintainer decision is required to proceed. Both the backlog AND the previously-unreported spec divergence were reproduced end to end in this lane at HEAD `0c8ba47ed` inside a live skew window; `tests/test_history_label_parity.py` plus `tests/test_backlog.py` measured `51 passed` at the same instant, which is the finding that motivates this plan.
+- 2026-10-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Make the UTC history-date ruling ENFORCED rather than merely implemented, by replacing the masks that
+hide clock skew with one derived, timezone-parameterized guard that fails whenever any history writer
+on any artifact family drifts back onto the local clock.
+
+This plan writes NO production code. It is the test half of a defect whose production half is
+`5ivkdh`, and it exists because that plan's own validation would otherwise rest on a suite that
+provably cannot observe the bug.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces. Accepted execution states: blocked, failed, pending, performed; terminal gate demands 'performed'.
+
+### Task group 1: make a skew window reachable from a test at all
+
+- [ ] E-01 Build the timezone-skew harness in a new `tests/test_history_date_clock_parity.py` and prove it can observe a skew window on demand, independent of the wall-clock hour the suite happens to run at. This is its own item because EVERY later item depends on it and because it is the part most likely to produce a FALSE GREEN: a guard that silently never enters a skew window passes forever while proving nothing.
+
+    USE A TIMEZONE PAIR, NOT ONE TIMEZONE, AND THE REASON IS ARITHMETIC. A single fixed offset only disagrees with UTC for part of the day, so a one-timezone guard is green for most of a day whatever the bug. `Pacific/Kiritimati` (UTC+14) and `Pacific/Honolulu` (UTC-10) bracket UTC in both directions and are 24 hours apart, so AT LEAST ONE of them is always inside a skew window. Assert that property as a PRECONDITION of the harness rather than assuming it: compute the local date under each and require that at least one differs from the UTC date, failing loudly if neither does, because that would mean the harness lost its ability to detect anything.
+
+    SET `TZ` FOR THE CODE UNDER TEST ONLY, AND RESTORE IT. Use `os.environ["TZ"]` plus `time.tzset()` inside a context manager with an unconditional restore in `finally`, since `tzset()` mutates PROCESS-GLOBAL state and the suite runs under `pytest-randomly` with `-n auto`, so a leaked `TZ` would corrupt unrelated tests nondeterministically and by test ORDER. Do NOT export `TZ` for the suite as a whole; that would hide the bug behind an environment variable, which is the exact anti-pattern the masks being removed here already represent.
+  - Depends on: none
+  - Expected outcome: `tests/test_history_date_clock_parity.py` holds a reusable timezone context manager plus a self-check case asserting that at least one of the two timezones is inside a skew window and that `TZ` is restored to its prior value after use; the file runs green; no production file is touched.
+  - Execution state: pending
+
+### Task group 2: derive the surface instead of hand-listing it
+
+- [ ] E-02 Derive the set of history-writing spellings from `command_surface.COMMAND_INVENTORY` rather than hard-coding a list, and assert the derivation is non-empty and covers every artifact family that has a typed setter. This item is the difference between a guard that catches THIS defect and one that catches the NEXT one: the measured failure mode of the eight filed items is that each names only the backlog pair, and the spec pair diverged identically while nobody was looking.
+
+    THE REGISTRY IS ALREADY AUTHORITATIVE AND MACHINE-READABLE. Measured in this lane: `command_surface.COMMAND_INVENTORY` holds 163 declarations, and filtering it yields `ipd set`, `backlog set`, `backlog note`, `specs set`, `specs note`, `prompts set` and the `spec set`/`spec note` aliases, each carrying a `command_class` and a `mutation_gate`. Deriving from it means a NEW typed setter added later is covered the day it is declared, with no edit to this test. Hand-listing reproduces, in the guard, the very omission that let the spec divergence survive.
+
+    ASSERT A NON-VACUITY FLOOR, NOT AN EXACT CENSUS. Require that the derived set contains AT LEAST the backlog and specs setters and that it is non-empty, so a filter bug that silently matches nothing fails the test. Do NOT assert an exact count: that is a census pin (GUIDING_PRINCIPLES P16) and it would turn every legitimate new command into a false failure.
+
+    SKIP, WITH A RECORDED REASON, ANY DERIVED SPELLING THAT WRITES NO HISTORY RECORD. `prompts set` routes to `status_set` and so is expected to be UTC already, while `config set` is not an artifact verb at all; the test must report which spellings it exercised and which it skipped and why, so a reader can tell a deliberate exclusion from a silent miss.
+  - Depends on: E-01
+  - Expected outcome: the test derives its target spellings from `COMMAND_INVENTORY`, asserts a non-vacuity floor including both the backlog and specs setters, exercises each derived history-writing spelling, and reports its exercised and skipped sets; no spelling is named by a hard-coded literal list.
+  - Execution state: pending
+
+### Task group 3: assert the ruling on every family
+
+- [ ] E-03 Assert, for every derived spelling under both timezones, that the history record's date equals the UTC date, and that the two spellings of one family agree with EACH OTHER. Two assertions rather than one, because they fail differently and a reviewer needs to tell them apart: agreement alone would be satisfied by both spellings being wrong in the same direction, and UTC-equality alone would not catch a family whose two spellings drift apart on some other axis.
+
+    ASSERT ON THE WRITTEN ARTIFACT, NEVER ON THE SOURCE. Read the date out of the `## Workflow history` record in the file the CLI actually wrote. Do NOT assert that any module calls `datetime.timezone.utc`: that is a code-structure pin, forbidden outright by GUIDING_PRINCIPLES P16 ("Never use `inspect.getsource` ... `ast.parse`, `read_text()`, or substring/regex searches against production code") and by `AGENTS.md`'s no-code-pinning rule, and `5ivkdh` E-06 already applies that ruling to this exact property.
+
+    COVER BOTH THE TRANSITION AND THE SAME-STATUS RECORD. The measured reproduction used a same-status write, which is the case the positional spelling deduplicates; a genuine transition exercises a different branch. Both write a dated record, so both are in scope for the clock.
+
+    DO NOT ASSERT ON THE FILENAME DATE. `DECISIONS.md` D55 rules human-facing filename prefixes LOCAL, so inside a skew window a correct artifact legitimately carries a local filename date and a UTC history date one day apart. Positively assert that composition on at least one family rather than leaving it implicit, so a future reader does not "fix" the apparent inconsistency and reverse D55.
+  - Depends on: E-02
+  - Expected outcome: every derived spelling records the UTC date under both timezones; the two spellings of the backlog family and of the specs family each agree with one another; one case positively asserts a LOCAL filename prefix beside a UTC history record in the same artifact; every case is individually named in the run output.
+  - Execution state: pending
+
+### Task group 4: remove the masks that hid this
+
+- [ ] E-04 Remove the date MASK from the two tests that currently hide the skew, keeping their ACTOR masks intact. `tests/test_history_label_parity.py`'s shared `_normalize_history_record` substitutes `- HIST_DATE ` for the date prefix, and `tests/test_backlog.py`'s cross-spelling parity case does the same; each carries a comment naming this defect as out of its own scope. Those masks are precisely why both files measured `51 passed` in this lane while the defect was live on two families, so leaving them in place would let this plan ship a guard while the older tests keep asserting a falsehood.
+
+    REMOVE ONLY THE DATE NORMALIZATION. The actor difference (`(aw backlog)` versus `(aw set)`) is deliberate and truthfully identifies the writer, as both comments state, and is owned elsewhere. Deleting the actor mask would make these tests fail for a reason this plan is not fixing, and would invite an executor to "fix" a correct behavior.
+
+    UPDATE EACH MASK'S COMMENT AND THE MODULE DOCSTRING IN THE SAME EDIT. `test_history_label_parity.py`'s docstring states that comparisons "normalize the date by shape (regex) and pass an explicit --message to prevent failure from date skew (fnb8pl)". Once the mask is gone that sentence is false, and a stale comment asserting a mask that no longer exists is worse than no comment: the next reader trusts it and re-adds the mask.
+  - Depends on: E-03
+  - Expected outcome: both files compare history dates LITERALLY while still normalizing the actor; each file's comment and docstring reflect the removal rather than still describing a mask; both files pass; the bare suite is green.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
+- OUTCOME TESTS ONLY (`AGENTS.md`, GUIDING_PRINCIPLES P16). This plan is ENTIRELY a test plan, which makes P16 its governing constraint rather than a footnote: the UTC property must be proven by the date in a written artifact, never by scanning `agent_workflows/*.py` for a `timezone.utc` token. P16's prohibition on `read_text()` and `ast.parse` against production code is unconditional and is not rescued by its narrow exception, which covers only artifacts that ARE text under test.
+- NO CENSUS PINS (GUIDING_PRINCIPLES P16, "No count or census pins"). E-02 therefore asserts a non-vacuity FLOOR over the derived command set rather than an exact count, since an exact count would fail on every legitimately added command.
+- Run the suite BARE: `python3 -m pytest`. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal` and deselects `slow`/`livecorpus`; `-n0` is forbidden here, a second `-q` suppresses the `N passed` line this plan requires pasted, and `-p no:randomly` would disable the order randomization that makes E-01's `TZ`-leak concern real. Use `-o addopts=""` only when a narrowed run needs per-test counts.
+- `-n auto` PLUS `pytest-randomly` IS WHY `tzset()` DISCIPLINE IS LOAD-BEARING, not pedantry: `time.tzset()` mutates process-global state shared by every test in a worker, and random ordering means a leak surfaces as an unrelated test failing on some runs and not others.
+- `aw` re-execs into the checkout's own package unless `AW_NO_REEXEC=1` is set; inside a lane worktree it prints a notice naming both paths. Set `AW_NO_REEXEC=1` on every `aw` invocation so the lane's own code runs and the notice does not pollute pasted evidence.
+- DERIVE A VALUE, NEVER RE-LIST IT (GUIDING_PRINCIPLES P8). This is E-02's whole justification: the eight filed items each hand-listed the backlog pair and all eight missed the spec pair, so a hand-listed guard would reproduce the omission it exists to prevent.
+- A release-blocking backlog item CANNOT be closed casually: `aw backlog set done` fails closed on an item carrying `- Blocks-Release:` unless the gate is HANDED OFF, SATISFIED with a resolvable in-tree citation, or explicitly DE-GATED. This plan closes nothing; the runner sets `a2zpzq` to `graduated` on the `From-Backlog` handoff.
+
+## Findings
+
+Established in this lane at HEAD `0c8ba47ed`, by driving the CLI inside a live skew window (machine local `2026-10-01`, UTC `2026-10-02`) rather than by reading code alone.
+
+| # | Severity | Evidence | Finding |
+|---|---|---|---|
+| F-01 | HIGH (THE DEFECT, MEASURED ON TWO FAMILIES) | Two `cli.main` calls per family on identical fixtures. BACKLOG: `backlog set <path> --status open` wrote `- 2026-10-01 same-status (aw backlog): m`; `backlog set open aa0001` wrote `- 2026-10-02 same-status (aw set): m`. SPECS: `specs set <path> --status to-review` wrote `- 2026-10-01 to-review (aw specs): m`; `set to-review bb0002` wrote `- 2026-10-02 to-review (aw set): m`. All four exited 0. | **THE DIVERGENCE IS NOT BACKLOG-ONLY.** Every one of the eight filed items names only `backlog.py` versus `status_set.py`, and the SPEC pair diverges identically. This is the finding that makes this plan additive rather than a duplicate: a fix validated only against the backlog pair leaves a second family silently broken. |
+| F-02 | HIGH (THE SUITE CANNOT SEE IT) | At the same instant as F-01, with the defect live on two families: `python3 -m pytest tests/test_history_label_parity.py tests/test_backlog.py -o addopts="" -q` reported `51 passed in 7.07s`. | **"TESTS PASS" IS WORTHLESS EVIDENCE FOR THIS DEFECT**, so `5ivkdh` cannot be validated on a green suite and this plan's guard must be demonstrated RED before the fix. The green is not luck: the two files substitute the date away before comparing. |
+| F-03 | HIGH (ZERO TIMEZONE COVERAGE EXISTS) | A search of `tests/*.py` for `tzset(` returns ZERO matches; a search for `TZ=` or `timezone.utc` matches five files, none of which exercises a setter (`test_comms_acks.py`, `test_comms_broker.py`, `test_comms_broker_registry.py`, `test_host_capability_registry.py`, `test_run_viewer.py`). | **NO TEST IN THE REPOSITORY CAN ENTER A SKEW WINDOW ON PURPOSE.** So the defect's visibility is left to the wall-clock hour CI happens to run at, which is why it survived eight filings. E-01 exists to build that capability, and it is a genuinely new test capability rather than an extension of an existing one. |
+| F-04 | HIGH (THE SURFACE IS DERIVABLE) | `command_surface.COMMAND_INVENTORY` holds 163 declarations; filtering for setter/note verbs yields `ipd set`, `backlog set`, `backlog note`, `specs set`, `specs note`, `prompts set`, plus the `spec set`/`spec note` aliases, each with a `command_class` and `mutation_gate`. | **THE GUARD CAN ENUMERATE ITS OWN TARGETS, so it covers a setter added AFTER it is written.** Given F-01, a hand-listed guard is not a neutral style choice: hand-listing is the measured cause of the spec family being missed eight times. |
+| F-05 | MEDIUM (ONLY TWO FAMILIES FORK) | Reading the dispatch per family: `backlog set` forks on `--status` (flag branch to `backlog_mod.run_set`, else `status_set.run_set_command`) and `specs set` forks the same way; `ipd set` and `prompts set` route UNCONDITIONALLY to `status_set.run_set_command`; `releases` has no `set` verb. | **THE BLAST RADIUS IS EXACTLY TWO FAMILIES, NOT ALL OF THEM**, which bounds this plan honestly and stops it claiming a sweep it did not make. It also predicts that `ipd set` and `prompts set` are ALREADY UTC, which E-02 verifies by driving them rather than assuming. |
+| F-06 | MEDIUM (THE SPLIT-ROLE TRAP) | `specs._today` is called from four sites; the `run_new` call feeds BOTH the `- Date:` front matter and, via a compact form, the spec FILENAME. `DECISIONS.md` D55 rules human-facing filename prefixes LOCAL. `tests/test_specs_date_containment.py::test_non_regression_omitted_date_defaults_today` computes `dt.date.today()` LOCALLY and globs for that compact prefix. | **A GUARD THAT ASSERTS "EVERY DATE IS UTC" WOULD DEMAND A D55 VIOLATION.** This is why E-03 asserts on the HISTORY RECORD only and positively asserts the local-filename/UTC-history composition. It is also why this plan must not touch `test_specs_date_containment.py`: that test is the tripwire catching a filename wrongly moved to UTC. |
+| F-07 | MEDIUM (THE PRODUCTION FIX IS ALREADY OWNED) | `.aw/records/plans/pending/20261001-7qvs1c-01-5ivkdh-...ipd.md` is `to-review`, `Blocks-Release: next`, `From-Backlog: 7qvs1c`, and declares `artifact_core.py`, `backlog.py`, `specs.py`, `status_set.py`, `releases.py`, `readiness_recheck.py` in `Scope-Paths`. Its E-01 adds the shared UTC helper; `artifact_core` has no such helper today (a probe of its namespace returns only `shard_for_date`). | **THIS PLAN MUST NOT REIMPLEMENT THE FIX**, so it declares NO production path and takes `Item-Dependencies: executed:5ivkdh`. Authoring the guard to run BEFORE that plan lands would make it red on arrival on two families, which is a broken queue item rather than a useful guard. |
+| F-08 | LOW (EIGHT DUPLICATE FILINGS) | Eight open, release-gated, `Work-Kind: bug` items describe this one defect: `a2zpzq`, `7qvs1c`, `fnb8pl`, `tl8qmc`, `jvw1kg`, `2wae2x`, `doe2fo`, `lq2w86`, `o8l2y2`. `- From-Backlog:` is single-valued (`releases._ITEM_FROM_BACKLOG_RE` matches one token, and its own comment contrasts this with the multi-valued `- Graduated-To:`), and `check_engine.evaluate_blocking_close`'s HANDOFF route resolves carriers for ONE item id6. | **ONE DEFECT GATES THE RELEASE EIGHT TIMES AND THE HANDOFF ROUTE CANNOT DISCHARGE MORE THAN ONE ITEM PER PLAN.** So the remaining items need either a per-item `--evidence` citation or an explicit de-gate, which is a maintainer call. This plan closes none of them and raises it under "Deferred". |
+| F-09 | N/A (STALENESS CORRECTION) | `tl8qmc` and `fnb8pl` both assert the parity test FAILS inside the skew window. Measured here INSIDE the skew window: it PASSES (F-02), because the date mask was added after those items were filed. | **THE TWO DIAGNOSTIC ITEMS ARE NOW STALE ON THEIR HEADLINE SYMPTOM**, and an implementer trusting them would look for a red test that no longer exists and might conclude the defect was fixed. Recorded so review does not re-derive it. |
+
+## Proposed changes (ordered, validatable)
+
+1. `tests/test_history_date_clock_parity.py`: the timezone context manager with guaranteed restore, plus the skew-window self-check (E-01).
+2. Same file: the `COMMAND_INVENTORY`-derived target set with a non-vacuity floor and a reported exercised/skipped split (E-02).
+3. Same file: the UTC-equality and cross-spelling agreement assertions over both timezones, plus the positive local-filename/UTC-history composition case (E-03).
+4. `tests/test_history_label_parity.py`: date mask removed, actor mask kept, docstring and comment corrected (E-04).
+5. `tests/test_backlog.py`: date mask removed from the cross-spelling parity case, actor mask kept, comment corrected (E-04).
+
+No production file is edited, and none is declared in `Scope-Paths`. That is deliberate per F-07.
+
+## Deferred / out of scope (with reason)
+
+- THE PRODUCTION CLOCK FIX IS NOT MADE HERE. `5ivkdh` owns it, declares the six production paths, and is already `to-review` with the same release gate. This plan is its enforcement half and depends on it.
+  - Carrier: 7qvs1c
+- FILENAME DATE PREFIXES ARE NOT ASSERTED AS UTC. `DECISIONS.md` D55 rules human-facing names LOCAL on an explicit UX rationale and is current. E-03 asserts the local filename beside the UTC history record rather than treating the difference as a defect.
+  - Carrier-Declined: not a defect; D55 is a deliberate, current ruling and the two clocks compose as written.
+- `tests/test_specs_date_containment.py` IS NOT EDITED. It is the tripwire that catches a spec filename wrongly moved to UTC (F-06). Editing it to accommodate a changed filename would reverse D55; it must pass UNCHANGED.
+  - Carrier-Declined: not a defect; the test is correct and is load-bearing for D55.
+- THE ACTOR ASYMMETRY IS NOT FIXED. `(aw backlog)` versus `(aw set)` truthfully identifies the writer, both existing masks say so deliberately, and E-04 keeps that mask.
+  - Carrier: fcnz1r
+- THE DISPATCH FORK IS NOT UNIFIED. The `setdisp` Set (children 00-05, pending) moves both `--status` spellings onto the shared engine, and its child `afdmn6` builds a cross-spelling differential harness for roughly forty axes. This plan is compatible in either order and deliberately does NOT depend on that Set: `afdmn6` normalizes the date by SHAPE (it is explicitly a tests-only harness for axes that already agree), so it does not assert the clock and does not subsume this guard. If `setdisp` lands first, the fork disappears and this guard still holds, because it asserts an OUTCOME per spelling rather than a code path.
+  - Carrier: fcnz1r
+- NO `aw check` RULE IS ADDED. A source-scanning rule was considered and rejected on measured grounds: a `date.today()` call site cannot be classified HISTORY versus FILENAME versus read-only age comparison from the call alone (F-06 shows one value serving two roles), which is the same false-positive problem that got backlog item `ku8szz` deferred rather than built. A rule scanning `agent_workflows/*.py` is also meaningless in a managed TARGET repository, which is the objection plan `76ic0k` records against exactly this mechanism.
+  - Carrier-Declined: not a defect; the outcome assertion in E-03 covers the property without a source scan, and a token-keyed rule would be mostly false positives.
+- THE SEVEN SIBLING ITEMS ARE NOT CLOSED. `7qvs1c`, `fnb8pl`, `tl8qmc`, `jvw1kg`, `2wae2x`, `doe2fo`, `lq2w86` and `o8l2y2` describe this same defect (F-08), and the single-valued `- From-Backlog:` field cannot hand off more than one item per carrier. This plan graduates only `a2zpzq`.
+  - Carrier: fnb8pl
+- THE TWO STALE ITEM DESCRIPTIONS ARE NOT REWRITTEN. `tl8qmc` and `fnb8pl` claim a test failure that no longer occurs (F-09). Editing another item's recorded diagnosis is a records change this plan has no mandate for, and the honest route is a note from whoever owns dedup.
+  - Carrier: fnb8pl
+
+## Scope check
+
+- Over-scope: none. Every declared path is edited by a numbered item: `tests/test_history_date_clock_parity.py` (E-01, E-02, E-03) and `tests/test_history_label_parity.py` plus `tests/test_backlog.py` (E-04). No production path is declared, which is itself the scope decision F-07 records.
+- Under-scope: E-02's derivation may surface a history-writing spelling outside the two families measured in F-01 (for example a typed setter added between authoring and execution). If it does, exercise it, and record the widening in the transition message; this note authorizes that, and the derived-surface design is what makes it cheap. E-04 may find a THIRD test masking a history date; same treatment, declaring the path at execution. The plan's own file needs no declaration (implicit lifecycle-artifact allowance, spec `ipd-structure-and-linting` Section 4.5).
+
+## Required tests / validation
+
+- The BARE suite: `python3 -m pytest`, with the `N passed` line pasted. Establish the baseline at the executing HEAD rather than trusting a number from this document: `5ivkdh` lands first and changes the tree, so a count copied from here would be stale. Compare FAILURE SETS BY NAME, not counts.
+- `tests/test_history_date_clock_parity.py` run alone with `-o addopts=""`, every case named, demonstrated RED AT BASE and GREEN after. "At base" means with `5ivkdh`'s production edits reverted or stashed: paste the failure showing a LOCAL date where UTC was required, for BOTH the backlog and the specs family. A guard never seen failing proves nothing, and per F-02 a green suite is not evidence here.
+- The new guard run a second time with the two timezones SWAPPED in the parameterization, confirming the result does not depend on which of the pair is tried first.
+- The new guard's skew-window self-check (E-01) demonstrated firing: temporarily narrow the timezone pair to UTC alone and paste the loud failure, proving the harness refuses to pass vacuously when no skew window exists. Restore the pair afterwards.
+- A `TZ`-leak check: run the new file together with `tests/test_specs_date_containment.py` in ONE process (`-o addopts=""`, no xdist) and paste the result, proving the context manager restored `TZ` and did not corrupt a neighbor that depends on the local clock.
+- The full suite run under an exported `TZ=Pacific/Kiritimati` and again under `TZ=Pacific/Honolulu`, both pasted. These bracket UTC in both directions so one run is always inside a skew window. This is a VALIDATION-TIME use of `TZ` to EXPOSE the defect, never a fix-time use to hide it.
+- `tests/test_specs_date_containment.py` run alone under both timezones, passing UNCHANGED, with `git diff --stat` for it showing no change (F-06).
+- `tests/test_history_label_parity.py`, `tests/test_backlog.py` and `tests/test_history_provenance.py` each run individually with results pasted, since E-04 edits the first two.
+- A manual end-to-end re-run of F-01's reproduction on BOTH families under a skew timezone: all four invocations must now record the SAME date, equal to the UTC date. Paste all four records.
+- `AW_NO_REEXEC=1 aw check`, `AW_NO_REEXEC=1 aw backlog check`, `AW_NO_REEXEC=1 aw specs check`, `AW_NO_REEXEC=1 aw attention --check` and `AW_NO_REEXEC=1 aw sanitize --agent`. `aw check` and `aw attention --check` exit 1 on PRE-EXISTING conditions unrelated to this plan, so the honest bar is an UNCHANGED FINDING SET: re-derive before and after and diff. Do not "fix" another plan's finding or another lane's state.
+- `AW_NO_REEXEC=1 aw ipd lint --phase pre-transition` on this plan, conforming.
+- Commit through `aw commit <plan> -- <paths>`, never `git add -A`, and never push. Verify the staged set against this plan's `Scope-Paths` before committing.
+
+## Spec / documentation sync
+
+No spec is amended and no `.spec.md` file appears in `Scope-Paths`. This plan ENFORCES spec `2vev8j`
+Section 4.4, which is already `approved` and human-attested, and respects `DECISIONS.md` D55, which is
+already current. It changes neither contract.
+
+No `CHANGELOG.md` entry. The user-visible behavior change (history dates becoming UTC everywhere) is
+`5ivkdh`'s to announce, and this plan adds test coverage only; a second entry for one change would
+misreport two changes to a reader.
+
+`DECISIONS.md` gets no new entry, for the same reason: the decision was already made in 4.4, and
+recording it again would create a second authority for one ruling.
+
+## Open questions
+
+### OQ-01: Which clock should an artifact's history date use, UTC or the machine's local time?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE rather than referred to the maintainer, because the repository has already ruled twice and the two rulings answer DIFFERENT questions. HISTORY DATES ARE UTC: spec `2vev8j` Section 4.4, titled "One timezone for every writer", states "Every writer, tool and human-facing helper alike, records UTC; local time is a RENDER-TIME concern only." That spec is `approved` and carries a human attestation. FILENAME DATES ARE LOCAL: `DECISIONS.md` D55 reverses the earlier UTC directive for human-facing names on an explicit UX rationale and is current. The sibling item `tl8qmc` asserts the question is still open and argues both sides; it is stale, having been filed without knowledge of 4.4, and it additionally treats the filename date as "part of the same question", which D55 settles the other way. This plan therefore enforces a ruling rather than making one.
+
+### OQ-02: Should this guard have been a source-scanning `aw check` rule instead of a test?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AGAINST A CHECK RULE, on three measured grounds, and recorded here because it is the first alternative a reviewer will propose. FIRST, THE CLASSIFICATION IS NOT DECIDABLE FROM THE CALL SITE: `date.today()` appears in history writers, in filename builders that D55 requires stay local, and in read-only age comparisons, and `specs.run_new` derives BOTH a filename and a history date from ONE value (F-06). A token-keyed rule would be mostly false positives, which is exactly why backlog item `ku8szz` was DEFERRED rather than built after an AST sweep found 258 token sites of which all 15 bare comparisons belonged to other vocabularies. SECOND, `aw check` RUNS AGAINST MANAGED TARGET REPOSITORIES (`--dir`), so a rule scanning `agent_workflows/*.py` is meaningless there and would impose this repository's internal policy on a codebase that never adopted it; plan `76ic0k` records this objection against this same mechanism. THIRD, A SOURCE-SCANNING TEST IS FORBIDDEN OUTRIGHT by GUIDING_PRINCIPLES P16, and `5ivkdh` E-06 already applies that ruling to this property. The outcome assertion in E-03 proves the same property from the written artifact, which is both permitted and strictly stronger evidence than a token's presence.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
+
+- [ ] V-01 validates E-01
+  - Required evidence: the timezone context manager's source quoted, showing `time.tzset()` called inside it and `TZ` restored in a `finally`. Plus the self-check case demonstrated FIRING: paste the loud failure produced when the timezone pair is temporarily narrowed to UTC alone, proving the harness refuses a vacuous pass, and state that the pair was restored. Plus the single-process co-run with `tests/test_specs_date_containment.py` pasted, proving no `TZ` leaked to a neighbor. Plus the local date computed under each of the two timezones printed alongside the UTC date, showing which one is inside the skew window at validation time.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: the test's pasted report of the spellings it DERIVED, the ones it EXERCISED, and the ones it SKIPPED with each skip reason, plus the command that produced it. The derivation code quoted, showing it reads `command_surface.COMMAND_INVENTORY` and contains no hard-coded list of command names. An explicit statement that the floor assertion names the backlog and specs setters and that no exact count is asserted (a census pin would violate P16). Plus the measured confirmation that `ipd set` and `prompts set` record the UTC date, which F-05 predicts and which must be verified by DRIVING them, not assumed.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: the guard pasted RED AT BASE (with `5ivkdh`'s production edits reverted or stashed) showing a LOCAL date where UTC was required on BOTH the backlog and the specs family, then pasted GREEN after, each run with `-o addopts=""` and every case named. The swapped-order run pasted. One artifact pasted in full showing a LOCAL compact filename prefix beside a UTC `## Workflow history` record, with the local and UTC dates printed alongside to prove the run was inside a skew window. The F-01 reproduction re-run on both families, all four records pasted and agreeing. A statement that no assertion reads production source for a `timezone.utc` token.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: the diff of both edited test files showing the DATE normalization removed and the ACTOR normalization retained, plus the corrected docstring and comments quoted (the stale sentence about normalizing "the date by shape" must be gone). Both files' results pasted individually, plus `tests/test_history_provenance.py`. The bare suite green with its `N passed` line, plus the two whole-suite runs under `TZ=Pacific/Kiritimati` and `TZ=Pacific/Honolulu`. `tests/test_specs_date_containment.py` passing under both timezones with `git diff --stat` showing it unchanged. The before-and-after finding sets for `aw check`, `aw backlog check`, `aw specs check` and `aw attention --check`, shown UNCHANGED.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+This plan is `to-review` and carries no `- Readiness:` field: that field is an OUTPUT of `/plan-review`
+and writing one here would forge a review that has not happened. It requires explicit human approval
+before execution.
+
+DO NOT EXECUTE THIS PLAN BEFORE `5ivkdh` IS EXECUTED. That is recorded as
+`Item-Dependencies: executed:5ivkdh` and the runner re-checks it at dispatch, but it is restated here
+because the consequence is specific: run early and the guard is RED ON ARRIVAL on two families, and an
+executor may then "fix" it by weakening the assertion, which destroys the only thing this plan
+delivers.
+
+DO NOT WEAKEN THE GUARD TO MAKE IT PASS. If the new file fails after `5ivkdh` lands, the correct
+conclusion is that a history writer remains on the local clock, and the fix belongs in production code
+under a corrective plan, not in this test. A guard that passes because it detects nothing is worse than
+no guard, because it reports safety that does not exist.
+
+Execution contract: commit ONLY the files this plan changed, limited to its `Scope-Paths`, through
+`aw commit <plan> -- <paths>`; never `git add -A`, never `-a`, never `--no-verify`, and never push.
+Verify the staged set with `git diff --cached --name-only` before each commit and unstage anything
+not this plan's with `git restore --staged <path>`; this is a shared checkout and another agent's
+uncommitted work must never enter a commit here.
+
+Validation is not optional and not inferable: every `V-*` item demands pasted output from a command
+actually run. In particular, a claim that this guard works is NOT acceptable on a green suite alone,
+because the suite was measured green at `51 passed` while the defect was live on two families (F-02).
+The guard MUST be demonstrated failing before the fix, and the skew-window self-check MUST be
+demonstrated firing.
+
+Post-gate lifecycle: on completion, run `aw ipd lint --phase pre-transition` to conforming, then move
+this plan to `.aw/records/plans/executed/` through the tooled lifecycle transition. Do not hand-edit
+the terminal state. Backlog item `a2zpzq` is handed off via `- From-Backlog:` and should reach
+`graduated`, not `done`: this plan carries its `- Blocks-Release: next` gate, and the gate is released
+only when this plan is `executed`.

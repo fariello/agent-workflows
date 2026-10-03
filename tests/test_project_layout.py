@@ -18,6 +18,7 @@ from agent_workflows.project_layout import (
     merge_config_policy,
 )
 from agent_workflows.project_schema import DeliveryMode, RecordsBackend
+from tests import support
 
 
 class TestProjectLayoutAndOwnership(unittest.TestCase):
@@ -471,11 +472,8 @@ class PhysicalPolicyMatrixTests(unittest.TestCase):
 
         self.assertIn(f"### {fixture_data['decision_number']}.", content)
 
-        d130_start = content.find(f"### {fixture_data['decision_number']}.")
-        self.assertNotEqual(d130_start, -1)
-        d130_end = content.find("### D131.", d130_start)
-        d130_text = (
-            content[d130_start:d130_end] if d130_end != -1 else content[d130_start:]
+        d130_text = support.section(
+            content, f"### {fixture_data['decision_number']}.", "### D131."
         )
 
         # Assert required architectural topics in D130 text

@@ -16,6 +16,8 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from tests import support
+
 # Distinctive anchor phrases for each of the five points in the feasibility rule:
 # 1. Choosing a mechanism defines a HOW question.
 # 2. Demonstration required for resolution.
@@ -37,6 +39,17 @@ PLAN_REVIEW_LONG_FILE = (
     WORKFLOWS_DIR / "plan-review-long" / "03-resolve-and-finalize.md"
 )
 SPEC_REVIEW_FILE = WORKFLOWS_DIR / "spec-review" / "spec-review.md"
+REVIEW_RUBRIC_FILE = WORKFLOWS_DIR / "plan-review-long" / "review-rubric.md"
+
+# Anchor phrases for the canonical no-error-added proof shape (IPD k6t24p, set findtier):
+# 1. Gate-consequence measurement function
+# 2. Rule spec severity assertion symbol
+# 3. Naming the exit-0 demand unsatisfiable
+NO_ERROR_ADDED_ANCHOR_PHRASES = [
+    "drift_exit_code",
+    "check_engine.rule_spec",
+    "unsatisfiable",
+]
 
 
 class TestPlanReviewFeasibilityRule(unittest.TestCase):
@@ -80,17 +93,7 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
 
         # Locate section 1 by heading boundaries
         start_heading = "## 1. Resolve open questions"
-        start_idx = content.find(start_heading)
-        self.assertNotEqual(
-            start_idx,
-            -1,
-            f"Missing heading '{start_heading}' in {PLAN_REVIEW_LONG_FILE}",
-        )
-
-        # The section runs to the next ## heading (or end of file)
-        next_heading = "\n## "
-        end_idx = content.find(next_heading, start_idx + len(start_heading))
-        section_1 = content[start_idx:end_idx] if end_idx != -1 else content[start_idx:]
+        section_1 = support.section(content, start_heading, "## ")
 
         # Assert subsection heading exists in section 1
         subheading = "### Resolving HOW questions: demonstrate, do not describe"
@@ -144,3 +147,44 @@ class TestPlanReviewFeasibilityRule(unittest.TestCase):
             f"spec-review.md duplicates the feasibility rule ({len(found_phrases)} phrases found: "
             f"{found_phrases}). It must reference the rule, not copy it.",
         )
+
+    def test_no_error_added_proof_shape_in_rubrics(self) -> None:
+        """Assert both single-file and long-form rubrics carry the canonical no-error-added proof shape.
+
+        Exemption from source-text-pin prohibition (GUIDING_PRINCIPLES P16):
+        This test is explicitly within P16's narrow exception ('only where the text or file
+        itself is the artifact under test') because the workflow bodies (plan-review.md and
+        review-rubric.md) are the exact artifacts under change by IPD k6t24p. The test reads
+        no code under agent_workflows/*.
+        """
+        # 1. Single-file rubric: check section G (Plan executability)
+        single_content = PLAN_REVIEW_FILE.read_text(encoding="utf-8")
+        single_start = single_content.find("### G. Plan executability")
+        self.assertNotEqual(
+            single_start,
+            -1,
+            f"Missing heading '### G. Plan executability' in {PLAN_REVIEW_FILE}",
+        )
+        single_section = single_content[single_start:]
+        for phrase in NO_ERROR_ADDED_ANCHOR_PHRASES:
+            self.assertIn(
+                phrase,
+                single_section,
+                f"Anchor phrase '{phrase}' not found in section G of {PLAN_REVIEW_FILE}",
+            )
+
+        # 2. Long-form rubric: check section A (Plan completeness)
+        long_content = REVIEW_RUBRIC_FILE.read_text(encoding="utf-8")
+        long_start = long_content.find("## A. Plan completeness")
+        self.assertNotEqual(
+            long_start,
+            -1,
+            f"Missing heading '## A. Plan completeness' in {REVIEW_RUBRIC_FILE}",
+        )
+        long_section = long_content[long_start:]
+        for phrase in NO_ERROR_ADDED_ANCHOR_PHRASES:
+            self.assertIn(
+                phrase,
+                long_section,
+                f"Anchor phrase '{phrase}' not found in section A of {REVIEW_RUBRIC_FILE}",
+            )

@@ -189,7 +189,7 @@ def _sid_token_to_string(token: str) -> str:
         if not advapi32.ConvertSidToStringSidW(psid, ctypes.byref(out)):
             raise ctypes.WinError(ctypes.get_last_error())
         try:
-            return out.value
+            return out.value  # type: ignore[return-value]  # platform-conditional: Windows ctypes LPWSTR.value is str after ConvertSidToStringSidW
         finally:
             kernel32.LocalFree(out)
     finally:
@@ -248,7 +248,7 @@ def _current_user_sid() -> str:  # pragma: no cover - Windows only
         if not advapi32.ConvertSidToStringSidW(psid, ctypes.byref(sid_str)):
             raise ctypes.WinError(ctypes.get_last_error())
         try:
-            return sid_str.value
+            return sid_str.value  # type: ignore[return-value]  # platform-conditional: Windows ctypes LPWSTR.value is str after ConvertSidToStringSidW
         finally:
             kernel32.LocalFree(sid_str)
     finally:

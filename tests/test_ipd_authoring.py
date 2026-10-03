@@ -556,5 +556,231 @@ class ScaffoldDurableCarrierGateTests(unittest.TestCase):
             self.assertIn("OQ-01", findings_edited[0].detail)
 
 
+class ScaffoldVocabularyIntroTests(unittest.TestCase):
+    """Scaffolded plans must state both closed vocabularies in their section intros (plan uh9jsk)."""
+
+    def test_scaffold_intros_state_closed_vocabularies_and_no_unaccepted_values(self):
+        expected_exec = set(S.EXEC_STATES)
+        expected_valid = set(S.VALIDATION_RESULTS)
+
+        for kind in ("child", "orchestrator"):
+            text = A.build_skeleton(
+                kind=kind,
+                title=f"Vocabulary Intro Test {kind}",
+                author="tester",
+                when="2026-10-01",
+                set_name="vocabprobe",
+                order=1 if kind == "child" else 0,
+                plan_id="vcb123",
+            )
+            # Locate intro lines in the scaffold by their section headings
+            lines = text.splitlines()
+            exec_intro = None
+            valid_intro = None
+            for i, line in enumerate(lines):
+                if line.startswith("## ") and line[3:].strip() == S.H_EXECUTION:
+                    for candidate in lines[i + 1 : i + 5]:
+                        if candidate.startswith("Execution-state rule:"):
+                            exec_intro = candidate
+                            break
+                elif line.startswith("## ") and line[3:].strip() in (
+                    S.H_VALIDATION_CHILD,
+                    S.H_VALIDATION_ORCH,
+                ):
+                    for candidate in lines[i + 1 : i + 5]:
+                        if candidate.startswith("Validation-state rule:"):
+                            valid_intro = candidate
+                            break
+
+            self.assertIsNotNone(
+                exec_intro, f"missing execution intro in {kind} scaffold"
+            )
+            self.assertIsNotNone(
+                valid_intro, f"missing validation intro in {kind} scaffold"
+            )
+
+            # Positive assertions: every member of the closed vocabulary is stated
+            for state in expected_exec:
+                self.assertIn(
+                    state,
+                    exec_intro,
+                    f"execution intro in {kind} missing member {state!r}",
+                )
+            for result in expected_valid:
+                self.assertIn(
+                    result,
+                    valid_intro,
+                    f"validation intro in {kind} missing member {result!r}",
+                )
+
+            # Terminal gate demand is stated
+            self.assertIn("'performed'", exec_intro)
+            self.assertIn("'pass'", valid_intro)
+
+            # Negative assertions: extract the rendered value list from each intro
+            # and verify NO token is outside the frozenset.
+            m_exec = re.search(r"Accepted execution states:\s*([^;]+);", exec_intro)
+            self.assertIsNotNone(
+                m_exec, f"could not locate execution states list in {kind} intro"
+            )
+            exec_tokens = {t.strip() for t in m_exec.group(1).split(",") if t.strip()}
+            unrecognized_exec = exec_tokens - expected_exec
+            self.assertEqual(
+                unrecognized_exec,
+                set(),
+                f"execution intro in {kind} advertises out-of-vocabulary value: {unrecognized_exec}",
+            )
+            self.assertEqual(
+                exec_tokens,
+                expected_exec,
+                f"execution intro in {kind} does not match EXEC_STATES",
+            )
+
+            m_valid = re.search(r"Accepted validation results:\s*([^;]+);", valid_intro)
+            self.assertIsNotNone(
+                m_valid, f"could not locate validation results list in {kind} intro"
+            )
+            valid_tokens = {t.strip() for t in m_valid.group(1).split(",") if t.strip()}
+            unrecognized_valid = valid_tokens - expected_valid
+            self.assertEqual(
+                unrecognized_valid,
+                set(),
+                f"validation intro in {kind} advertises out-of-vocabulary value: {unrecognized_valid}",
+            )
+            self.assertEqual(
+                valid_tokens,
+                expected_valid,
+                f"validation intro in {kind} does not match VALIDATION_RESULTS",
+            )
+
+
+class ConformingOrchestratorScaffoldTests(unittest.TestCase):
+    """Plan zojfn6: scaffolded orchestrator conforms to the typed row grammar and gates begin."""
+
+    def test_scaffolded_orchestrator_conforms_to_row_grammar(self):
+        text = A.build_skeleton(
+            kind="orchestrator",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=0,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        res = L.orchestrator_row_conformance(text)
+        self.assertTrue(res.applies)
+        self.assertTrue(res.conforming)
+        self.assertEqual(res.table_reason, "")
+        self.assertEqual(len(res.rows), 1)
+        row = res.rows[0]
+        self.assertEqual(row.ident, "E-01")
+        self.assertEqual(row.child_id6, "c0ch01")
+        self.assertEqual(row.status, "executed")
+        self.assertEqual(row.depends_on, "none")
+        self.assertTrue(row.conforming)
+
+    def test_child_skeleton_unaffected_and_row_rule_does_not_apply(self):
+        text = A.build_skeleton(
+            kind="child",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=1,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        res = L.orchestrator_row_conformance(text)
+        self.assertFalse(res.applies)
+        self.assertTrue(res.conforming)
+        self.assertIn("- [ ] E-01 TODO one observable action.", text)
+
+    def test_authoring_placeholders_resolved_reports_fresh_scaffolds_as_unresolved(
+        self,
+    ):
+        orch = A.build_skeleton(
+            kind="orchestrator",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=0,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        child = A.build_skeleton(
+            kind="child",
+            title="A title",
+            author="tester",
+            when="2026-10-01",
+            set_name="testset",
+            order=1,
+            plan_id="tmp1d6",
+            priority="medium",
+            work_kind="chore",
+        )
+        self.assertFalse(A.authoring_placeholders_resolved(orch))
+        self.assertFalse(A.authoring_placeholders_resolved(child))
+
+    def test_begin_and_pre_execution_gate_untyped_orchestrator(self):
+        from agent_workflows import ipd_lifecycle as LC
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "t@e.com"], cwd=root, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "T"], cwd=root, check=True)
+            (root / "init.txt").write_text("init\n")
+            subprocess.run(["git", "add", "init.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "init"], cwd=root, check=True)
+
+            fresh_text = A.build_skeleton(
+                kind="orchestrator",
+                title="Fresh Orch",
+                author="tester",
+                when="2026-10-01",
+                set_name="testset",
+                order=0,
+                plan_id="orc001",
+                priority="medium",
+                work_kind="chore",
+            )
+            p_fresh = root / "fresh.ipd.md"
+            p_fresh.write_text(fresh_text, encoding="utf-8")
+
+            untyped_text = fresh_text.replace(
+                "- [ ] E-01 CONFIRM c0ch01 REACHED executed",
+                "- [ ] E-01 TODO one observable action.",
+            )
+            p_untyped = root / "untyped.ipd.md"
+            p_untyped.write_text(untyped_text, encoding="utf-8")
+
+            # 1. begin on untyped orchestrator fails with IPD-S407 in findings
+            res_untyped = LC.begin(
+                root, p_untyped, "tester model=m", timestamp="2026-10-01T00:00:00Z"
+            )
+            self.assertEqual(res_untyped.exit_code, LC.EXIT_FINDINGS)
+            s407_findings = [f for f in res_untyped.findings if "IPD-S407" in f]
+            self.assertTrue(len(s407_findings) > 0, res_untyped.findings)
+
+            # 2. begin on freshly scaffolded orchestrator does NOT produce IPD-S407
+            res_fresh = LC.begin(
+                root, p_fresh, "tester model=m", timestamp="2026-10-01T00:00:00Z"
+            )
+            s407_fresh = [f for f in res_fresh.findings if "IPD-S407" in f]
+            self.assertEqual(len(s407_fresh), 0, res_fresh.findings)
+
+            # 3. pre-execution lint on untyped plan returns IPD-S407 diagnostic
+            res_lint = L.lint_file(p_untyped, checkpoint="pre-execution")
+            s407_diags = [d for d in res_lint.diagnostics if d.code == L.C_ORCH_ROW]
+            self.assertTrue(len(s407_diags) > 0)
+
+
 if __name__ == "__main__":
     unittest.main()

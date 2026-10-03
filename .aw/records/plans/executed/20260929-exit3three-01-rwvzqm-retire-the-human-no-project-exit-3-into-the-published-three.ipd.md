@@ -1,0 +1,714 @@
+# IPD: Retire the human no-project exit 3 into the published three-state classification
+
+- Date: 2026-09-29
+- Kind: child
+- Concern: THE `aw` CLI PUBLISHES A "UNIFORM THREE-STATE EXIT CLASSIFICATION" IN THREE DOCUMENTS AND ENFORCES IT IN CODE, AND THE HUMAN NO-PROJECT PATH OF TWO VERBS EXITS 3, WHICH IS NOT ONE OF THE THREE. `docs/cli-output-contract.md` Section 3 says "The CLI enforces a uniform three-state exit classification across all verbs" and then names 0, 1 and 2; `docs/cli-human-guide.md` says "Every `aw` command uses the same three-way exit classification"; `README.md` says "Exit codes are uniform: `0` clean, `1` findings, `2` cannot run". Measured at lane HEAD `4ae4de08`, `aw next` and `aw ipd board` (plus the `att`, `todo` and `attention` aliases, and bare `aw ipd`) exit **3** on the HUMAN surface when no AW project is found, while the `--agent` and `--json` surfaces of the same condition exit **2**. So a documented invariant is false as written, and the ONE condition has TWO codes depending only on who is reading. THIS IS THE RESIDUE OF A DELIBERATE, CORRECT DECISION AND NOT A NEW BUG: `rkn8ya` E-12 and `quqyc4` E-05 each fixed a real crash (an `exit_code=3` `CommandResult` is UNEMITTABLE, since `agent_schema.validate_agent_record` admits only 0/1/2) by moving the MACHINE surface to 2 and leaving the long-standing human 3 alone, because `cli.py` and `attention.py` were reached by different plans and neither had a mandate to change human behavior. Backlog `5x195l` closed on that fix and filed the leftover question as THIS item, in its own words: "the residual question the note raises, whether the HUMAN path should also drop 3 since 3 is outside the published three-state classification, is NOT settled here and is filed as c6vs7y". AUTHORING FOUND THE DRIFT IS WIDER THAN THE ITEM SAYS, in a way that decides the fix. `command_surface.COMMAND_INVENTORY`, the repository's own NORMATIVE per-leaf contract, declares `next` as `exit_contract=(0, 1, 2)` and `ipd board` as `exit_contract=(0, 2)`. NEITHER ADMITS 3. So the human 3 already violates the machine-readable declaration shipped beside it, not merely the prose, and `aw ipd board` returns a code its own declaration says it cannot return. NOTHING VALIDATES THAT DECLARATION AGAINST REALITY: `exit_contract` is read in exactly one place in the whole test tree (`tests/conformance_matrix.py`, and only to decide whether a `domain_failure` scenario is required), so no test would have caught this and none will catch the next one.
+- Scope: MAKE THE HUMAN NO-PROJECT SURFACE EXIT 2 LIKE ITS MACHINE SIBLING, SO ONE CONDITION HAS ONE CODE AND THE PUBLISHED THREE-STATE CLASSIFICATION IS TRUE AS WRITTEN. IN, four things. (1) Change the two human returns (`attention.run`'s no-project branch and `cli._run_plans`'s twin) from 3 to 2, taking the code from the shared `EXIT_CANNOT_RUN` constant rather than a fresh literal, and replacing the now-stale comments that assert "THE HUMAN PATH IS UNCHANGED at exit 3". (2) Pin the CROSS-SURFACE AGREEMENT behaviorally: every audience surface of this one condition answers 2, on both verbs and on the aliases. (3) Close the structural hole that let the drift ship by making `exit_contract` load-bearing for the two verbs, so a future divergence fails a test instead of sitting in a docstring. (4) Record the reversal in `DECISIONS.md` and `CHANGELOG.md`, because this is a BREAKING change to a shipped exit code and a reader who finds the two prior plans' comments must be able to see why their conclusion was later narrowed. OUT, each with a reason. WIDENING `agent_schema` TO ADMIT 3, which is the alternative fix and is rejected on the recorded ground of decision `03-quqyc4-D1` (it promotes 3 into two published contracts to serve one condition); this plan moves the SAME direction that decision chose, it does not reopen it. THE `--dir`-AT-A-NON-PROJECT CASE, owned by pending plan `bjgqez` (backlog `ci9kx2`), which reaches the same branch from a different guard and DECLARES in its own Scope that it does not change "the 3-vs-2 human/machine exit-code split"; that plan and this one are compatible in either order (see F-11). THE SEPARATE EXIT-CODE VOCABULARIES of the `aw run`/`aw runs` family and `run_evidence` (where 3 means "needs human input") and the `ipd execute-set` declaration: those are a DIFFERENT table that `run_evidence` itself records as disagreeing at 3 and 4, and folding them into the three-state classification is a much larger contract change with its own survey requirement. CONVERTING THE OTHER `resolve_verb_repo_root` CALLERS that fall back to cwd silently, which `project_context` explicitly declines to settle. THE `--check` NO-PROJECT EXIT 0, which is the fail-closed-valid answer `awretrofit` Order 06 chose on purpose and which `bjgqez` is already changing for the `--dir` case.
+- Scope-Paths: agent_workflows/attention.py, agent_workflows/cli.py, agent_workflows/project_context.py, agent_workflows/command_surface.py, tests/test_no_project_exit_is_cannot_run.py, tests/test_attention.py, tests/test_agent_surface_conformance.py, tests/test_explicit_dir_non_project.py, docs/cli-output-contract.md, DECISIONS.md, CHANGELOG.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: c6vs7y
+- Set: exit3three
+- Order: 1
+- Highest E allocated: 08
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: rwvzqm
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: rwvzqm verified (set exit3three, attempt 1). [Scope reconciliation - widened-scope tests/test_agent_surface_conformance.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); widened-scope tests/test_explicit_dir_non_project.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/command_surface.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
+- 2026-09-30 approved (aw set): status set to approved
+
+- 2026-09-30 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-1101, PR-1102, PR-1103, PR-1104, PR-1105 all fixed. Reviewed at HEAD `6c2a4870`. THE PLAN'S CASE IS SOUND AND ITS CENTRAL EVIDENCE ALL RE-MEASURES: the 12-row human/machine split reproduces exactly (all six spellings exit 3 human, 2 machine, in both a git and a non-git temporary directory, stdout empty and diagnostic on stderr throughout), the two `return 3` sites are the only ones in the package, `next`/`ipd board` really do declare `(0,1,2)`/`(0,2)`, the eight out-of-range run-family declarations are exactly eight, the three dead test citations exist and the file does not, F-03's four quotes and F-13's spec claim are verbatim, the `--check` control is exit 0, and the in-tree blast radius is one assertion. FIVE CORRECTIONS. PR-1101 is the substantive one: F-05 claimed `exit_contract` is read in exactly one test file and that nothing compares a declaration to an observed exit code, but it is read in FIVE, and `tests/test_run_cli_declarations.py` already implements precisely the pattern E-05 proposes to invent, including the negative `3 not in decl.exit_contract` form and the narrow `get_declaration` accessor; E-05 now extends that convention instead of starting a second one. PR-1102: F-04 mis-describes the aliases (they each carry their own `exit_contract`) and omits that bare `ipd` has NO declaration, which E-05's lookup would have crashed or silently skipped on. PR-1103: V-02 demands an empty `exit_code=3` grep that is unachievable, since all four hits are comments E-02 requires be KEPT, and one of them asserts the grep is empty, which was already false when written. PR-1104: F-14's `3246` is a drifted live count (3387 at review) used as a reconciliation bar. PR-1105: the `--dir` deferred row carried `5gmi12`, a different defect, where its own prose names `ci9kx2`.
+- 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from open backlog item `c6vs7y`, which carries NO `- Blocks-Release:` gate, so this plan correctly carries none either (AGENTS.md: inherit the item's gate "if it has one", do not invent one). The item's `- Work-Kind: chore` and `- Priority: medium` are inherited through `--from-backlog`.
+  THE ITEM'S BODY IS A ONE-LINE SUMMARY PLUS AN ARTIFACT. `c6vs7y` carries no prose body at all: line 11 of the item file is the bare string `.aw/state/tmp/quqyc4/body2.md`, a path that does not exist at this HEAD, so the intended body was never inlined by whatever authored it. The real statement of the question is therefore in the CLOSING NOTE OF ITS PARENT, done item `5x195l`, and in that item's AUDIT NOTE, both quoted in this plan's Concern and cited in F-01. An executor should read `5x195l` and NOT expect `c6vs7y` to explain itself. That missing body is a defect in the ITEM, not in this plan, and this plan does not edit the item (the production contract forbids changing its requirements).
+  EVERY CLAIM WAS MEASURED IN THIS LANE, NOT TRANSCRIBED. The human 3 and the machine 2 were driven on six spellings (`next`, `att`, `todo`, `attention`, `ipd`, `ipd board`) and all six agree (F-02). The baseline suite was run bare: `3246 passed, 2 skipped` (F-14).
+  WHAT AUTHORING FOUND THAT THE ITEM DOES NOT SAY, AND IT CHANGES THE FIX FROM COSMETIC TO SUBSTANTIVE. The item frames this as prose-versus-behavior drift, which invites the cheap resolution "amend the docs to mention 3". That resolution is WRONG, because the drift is also against MACHINE-READABLE declarations shipped in the package: `command_surface` declares `next` at `(0, 1, 2)` and `ipd board` at `(0, 2)`, and neither admits 3 (F-04). So the shipped code contradicts the shipped contract object, and documenting 3 would require editing that object to admit a fourth state in the very place the three-state rule is enumerated. Choosing 2 instead makes the code agree with a declaration that is ALREADY correct and needs no amendment.
+  AND THE HOLE THAT LET IT SHIP IS STILL OPEN, which is why this plan is not a two-line diff. `exit_contract` is declared for every one of the CLI's leaves and is READ IN EXACTLY ONE PLACE in the entire test tree, to pick a scenario (F-05). Nothing compares a declaration to an observed exit code. E-05 closes that for the two verbs this plan touches, deliberately NOT for all of them, because six other declarations legitimately admit codes outside 0/1/2 (F-06) and reconciling those is the separate survey this plan's Scope rules out.
+
+## Goal
+
+Make the no-AW-project condition answer `2` (cannot-run) on every audience surface of `aw next` and `aw ipd board`, so the "uniform three-state exit classification" published in three documents and declared in `command_surface` is true of the code; and make that agreement tamper-evident with a test that compares a verb's DECLARED `exit_contract` against its OBSERVED exit code, so the next divergence fails CI instead of surviving two plans and a backlog round trip.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: re-measure, then make the human surface agree
+
+- [x] E-01 RE-DRIVE THE FULL NO-PROJECT EXIT MATRIX AT THE EXECUTION BASE, before editing anything, because every number this plan changes must trace to a measurement taken at execution time rather than to this authoring pass. Use `python3 -m agent_workflows <verb>` (NOT the installed `aw` shim) with `cwd` set outside any AW project, so no installed-package shadowing and no ancestor `.aw/` can affect the result; note that this lane's own worktree is INSIDE an AW project, so a run from the repo will not reproduce the condition (F-10). Drive all SIX spellings that reach the two guard sites: `next`, `att`, `todo`, `attention`, `ipd`, and `ipd board`. For each, record the exit code, which stream carried the diagnostic, and whether STDOUT was EMPTY, on each of: the human default, `--agent`, and (where accepted) `--json`. Do this in TWO temporary directories, one a fresh `git init` and one a non-git directory, since the message and the machine `next` field differ between them and only the git one offers `aw install .`. Also record the `--check` and `--check --agent` rows as CONTROLS, which this plan does not change. Then read the DECLARED contracts by CALLING `command_surface.get_declaration(<name>)` for each of `next`, `att`, `todo`, `attention`, `ipd` and `ipd board`, printing the `exit_contract`, `command_class` and `canonical_command` of each, rather than quoting a line number; record that bare `ipd` returns None (measured at review) so E-05's lookup is written against that fact rather than discovering it. ALSO RE-DERIVE THE SUITE BASELINE HERE, before any edit: run `python3 -m pytest` BARE and record the `N passed` line with the HEAD commit, because V-07 reconciles against THIS number and the counts written in this plan have already drifted once (`3246` at authoring, `3387` at review, F-14). DO NOT EDIT ANY FILE IN THIS ITEM.
+  - Depends on: none
+  - Expected outcome: a written matrix whose every row carries an actual exit code and stream, produced by commands pasted into V-01, plus the printed declaration tuples for all six spellings (including the `None` for bare `ipd`) and the re-derived bare-suite baseline with its HEAD commit. Any row disagreeing with F-02 or F-04's CORRECTED values STOPS execution and is reported, because a divergence means the behavior or the declaration moved since authoring and the question this plan answers has changed. A suite count differing from F-14 is NOT such a divergence: that number is live and is expected to move (PR-1104).
+  - Execution state: performed
+
+- [x] E-02 CHANGE THE TWO HUMAN RETURNS FROM 3 TO 2, AND REWRITE THE COMMENTS THAT ASSERT THE OPPOSITE, in `attention.py`'s no-project branch (the `return 3` that follows the `sys.stderr.write(no_project_message("attention", repo_root) ...)` call) and in `cli._run_plans`'s twin (the `return 3` following `sys.stderr.write(no_project_message("ipd board", root) ...)`). TAKE THE VALUE FROM THE SHARED CONSTANT, not a fresh literal. `artifact_types.EXIT_CANNOT_RUN` is the canonical spelling (`artifact_types` carries the comment "shared exit-code convention (spec: 0 ok / 1 findings / 2 cannot-run)"), so a reader sees WHICH of the three states this is and a grep for the constant finds both sites. If importing it at either site would create a cycle, say so in the evidence and use the module's existing local alias instead, never a bare `2`. THE COMMENT REWRITE IS PART OF THE SAME CONCERN AND NOT SEPARABLE FROM IT, because both sites carry passages asserting exactly the behavior this item removes (`attention.py`: "THE HUMAN PATH IS UNCHANGED at exit 3", and `cli.py`: "it moved the MACHINE process exit to 2, leaving the HUMAN surface at 3"), so landing the return change without them leaves the file contradicting itself in the very passage a future reader will consult. Rewrite those passages to record that the human surface was LATER moved to 2 as well, naming backlog `c6vs7y` and this plan, while KEEPING the reasoning about why `exit_code=3` is unemittable, which is still true and still the reason no site may build one.
+  ONE SENTENCE IN THE `cli.py` COMMENT IS ALREADY FALSE AND MUST BE CORRECTED WHILE YOU ARE THERE, not preserved verbatim: it predicts that after its change `grep -n "exit_code=3" agent_workflows/*.py` "finds NO site", and measured at review that grep returns FOUR hits, all of them comments including that very sentence (PR-1103). Restate it as the property that actually holds, that no EXECUTABLE site constructs such a record, so the file stops asserting a check a reader cannot reproduce. This is the same class of defect as the stale test citations E-08 repairs: a comment naming evidence that does not hold. CHANGE NOTHING ELSE ON EITHER BRANCH. The stderr message, the empty stdout, the git-root install offer, and the machine branches all stay exactly as they are, because they are already correct and are pinned. Do not add an `exit_code=3` `CommandResult` anywhere, since the tree-wide property that no site builds one must still hold after this item.
+  - Depends on: E-01
+  - Expected outcome: `git diff agent_workflows/attention.py agent_workflows/cli.py` shows exactly two return-value changes, both spelled as a named constant, plus the two comment rewrites that no longer assert a human 3. `python3 -m agent_workflows next` from a non-project directory exits 2 with the same message on stderr and empty stdout.
+  - Execution state: performed
+
+- [x] E-08 CORRECT THE THREE CITATIONS OF THE DELETED TEST FILE, in `agent_workflows/attention.py`, `agent_workflows/cli.py` and `agent_workflows/project_context.py`. `tests/test_awretrofit_project_root_climb.py` NO LONGER EXISTS: it was deleted (452 lines) by commit `19313eed`, yet three live sites still cite it as the authority pinning a behavior (F-07). `attention.py` cites `NoProjectSubprocessMatrixTests` as the pin for the "no site builds an `exit_code=3` record" property and the same file for the human rc-3 assertion; `project_context.no_project_message`'s docstring cites it for `test_bare_git_ancestor_is_not_a_root`. Repoint each citation at a pin that ACTUALLY EXISTS after this plan: the exit-matrix citations at `tests/test_no_project_exit_is_cannot_run.py` (created by E-03), and the bare-git-ancestor citation at whatever live test covers it, VERIFIED BY RUNNING IT rather than assumed; if NO live test covers `test_bare_git_ancestor_is_not_a_root`'s property, say so plainly in the evidence and mark the citation as describing an UNPINNED rule instead of inventing a replacement, because a citation pointing at a second nonexistent test is worse than an honest note. THIS IS A SEPARATE ITEM FROM E-02 ON PURPOSE: it is a correctness fix to documentation that was ALREADY WRONG before this plan (the file was deleted by an unrelated test-trimming commit), it touches a third module E-02 does not, and one of its three sites concerns git-ancestor detection rather than exit codes. Folding it into E-02 would hide a pre-existing defect inside an unrelated behavior change.
+  - Depends on: E-03
+  - Expected outcome: `rg -n "test_awretrofit_project_root_climb" agent_workflows/` returns NOTHING, and `git diff agent_workflows/project_context.py` plus the citation lines of the other two files show each replaced by a path that exists on disk or by an explicit note that the rule is unpinned. No behavior change in this item.
+  - Execution state: performed
+
+### Task group 2: pin the agreement the change creates
+
+- [x] E-03 PIN THE CROSS-SURFACE AGREEMENT BY SUBPROCESS, in a new `tests/test_no_project_exit_is_cannot_run.py`, because the property this plan establishes is about a PROCESS EXIT CODE and an in-process `run()` return value is a weaker claim (a wrapper, a `SystemExit` translation, or a shim could still change the observed code). Run `[sys.executable, "-m", "agent_workflows", ...]` with `cwd` at a temporary directory, for all SIX spellings of E-01 on the human surface and on `--agent`, and assert EVERY ONE exits 2. Assert the two surfaces AGREE, as a derived comparison rather than two hardcoded numbers, so the test states the actual invariant ("one condition, one code") and would fail if a future change split them again in either direction. Assert the human surface still writes the guidance to STDERR and leaves STDOUT EXACTLY EMPTY, since that is the pipe-safety property and moving the exit code must not disturb it. Assert the machine record still validates through `agent_schema.validate_agent_record` returning `[]` and still carries `outcome: "cannot-run"`. Assert NO ABSOLUTE PATH LEAKS into the machine payload, by checking the temporary directory name and `/home/` are absent from stdout, since that sanitization is the other half of what the two prior plans fixed and a regression there would be invisible to an exit-code test. Cover BOTH the git and non-git temporary directory, and assert the `next` field is the literal `aw install .` in the git case and null in the non-git case. Set `PYTHONPATH` to the repository root and pass `NO_COLOR=1` in the child environment so the test does not depend on an installed `aw` or on terminal detection.
+  - Depends on: E-02
+  - Expected outcome: a new test file that FAILS against the pre-E-02 code (the human rows return 3) and passes after, demonstrated by pasting both runs in V-03. It must fail if either surface's code changes, if the human diagnostic moves to stdout, if stdout stops being empty, if the record stops validating, or if an absolute path appears in the payload.
+  - Execution state: performed
+
+- [x] E-04 UPDATE THE ONE LIVE TEST THAT ASSERTS THE OLD CODE, in `tests/test_attention.py::NoProjectAgentEnvelopeTests::test_no_project_agent_envelope`, whose final block asserts `self.assertEqual(rc_h, 3)` for the human surface. Change that assertion to 2 and NOTHING ELSE in the method: its `--agent` and `--format json` assertions, its path-leak assertions, and the unrelated `--arcive-state` alias assertion at the end are all still correct and must not be touched. ADD A SHORT COMMENT at the changed line recording that the 3 was retired by backlog `c6vs7y` and naming `tests/test_no_project_exit_is_cannot_run.py` as the file that now owns the full matrix, so a reader of this narrow assertion is not left thinking it is the whole pin. THIS ITEM IS DELIBERATELY SEPARATE FROM E-03 and must not be folded into it: E-03 writes a NEW pin that must be shown RED before the change, while this item EDITS AN EXISTING pin that is correctly green before the change and would be red after it. Conflating a "prove the fix" test with a "follow the fix" edit is how a plan ends up unable to demonstrate either. Do not delete this test or weaken any other assertion in it to make something pass.
+  - Depends on: E-02
+  - Expected outcome: `python3 -m pytest tests/test_attention.py -k NoProjectAgentEnvelope -o addopts=""` green after E-02, with a one-line diff to the human assertion plus a comment, and every other assertion in the method byte-identical.
+  - Execution state: performed
+
+- [x] E-05 CLOSE THE STRUCTURAL HOLE BY MAKING `exit_contract` LOAD-BEARING FOR THESE TWO VERBS, in `tests/test_no_project_exit_is_cannot_run.py`, because a real gap remains: nothing compares `next`'s or `ipd board`'s declaration to its runtime exit code (F-05).
+  FOLLOW THE SHIPPED PRECEDENT; DO NOT INVENT THIS PATTERN. `tests/test_run_cli_declarations.py::test_runs_resume_declared_exit_codes_are_reachable` ALREADY does exactly this for `runs resume` ("Drive the real CLI in a subprocess for each of 0, 2, 5, 7 and verify it is in decl.exit_contract", then `assert res_0.returncode == 0` / `assert 0 in decl.exit_contract`), and it also carries the negative form asserting `3 not in decl.exit_contract` (F-05b, measured at review; the earlier claim that `exit_contract` is read in only one test file was wrong, it is read in five). So the gap is per-verb COVERAGE, not an absent capability, and this item extends an existing convention rather than starting a second one. Reach the declaration through the NARROW accessor `command_surface.get_declaration("next")` and `get_declaration("ipd board")`, as that precedent does, instead of calling `get_all_declarations()` and filtering.
+  Assert the exit code observed in E-03 IS A MEMBER of that verb's declared `exit_contract`, and mirror the precedent's negative assertion by pinning `3 not in decl.exit_contract` for both verbs, which is the exact property this plan establishes.
+  NOTE TWO MEASURED FACTS ABOUT THE DECLARATIONS BEFORE WRITING THE LOOKUP. FIRST, the declaration key is the `command` field and the spellings are bare (`"next"`, `"ipd board"`), not `"aw next"`. SECOND, bare `ipd` has NO DECLARATION AT ALL (`get_declaration("ipd")` returns None), so a loop over E-01's six spellings will hit a None and must handle it deliberately rather than crashing or silently skipping; assert only the four spellings that HAVE declarations (`next`, `att`, `todo`, `attention`, plus `ipd board`) and record in the test that bare `ipd` is undeclared. The three aliases DO each carry their own `exit_contract=(0, 1, 2)` alongside `canonical_command="next"`, so they can be asserted directly (this corrects F-04). Derive the expectation from the declaration rather than writing 2 twice, so the test pins the AGREEMENT between declaration and behavior and not a number. ALSO assert, for these two verbs only, that their declared contract is a subset of `(0, 1, 2)`, which is the published three-state rule applied to the two leaves this plan is making conform. SCOPE THIS DELIBERATELY NARROWLY AND SAY SO IN THE TEST'S OWN DOCSTRING: six other declarations legitimately admit codes outside 0/1/2 (`ipd execute-set`, `run start`, `runs next`, `run record`, `runs resume`, `run cancel`, `runs status`, `run finalize`, measured in F-06), they belong to a DIFFERENT exit vocabulary that `run_evidence` itself records as disagreeing with this one, and a tree-wide subset assertion would fail on all of them immediately. Writing that limit into the docstring is the point: the next reader must not mistake a two-verb pin for a tree-wide guarantee. DO NOT read `command_surface.py` source text with `inspect`, `ast`, regex or substring search, and do not assert a count of declarations; call the accessor and use the returned objects (AGENTS.md "TEST OUTCOMES, NOT CODE STRUCTURE"; GUIDING_PRINCIPLES P16).
+  - Depends on: E-03
+  - Expected outcome: a test that passes after E-02 and that FAILS if either verb's runtime exit code leaves its declared `exit_contract`, or if either declaration is widened past `(0, 1, 2)`. It reuses `get_declaration` as the shipped precedent does, handles the undeclared bare `ipd` deliberately, and pins `3 not in decl.exit_contract`. Demonstrate the failure mode in V-05 by a temporary local mutation, not by reasoning about it.
+  - Execution state: performed
+
+### Task group 3: publish the contract and record the reversal
+
+- [x] E-06 MAKE THE PUBLISHED CONTRACT SAY WHAT THE CODE NOW DOES, in `docs/cli-output-contract.md` Section 3 only. The three-state enumeration itself is now TRUE and needs no change; what is missing is the statement that made it ambiguous in the first place. Add to Section 3 a short paragraph stating that a condition is classified by its NATURE and not by its AUDIENCE, so every audience surface of one condition returns the SAME code, and that "no AW project found at the working directory or any ancestor" is specifically a cannot-run and therefore 2 on the human, `--agent` and `--json` surfaces alike. STATE THE REASON, because it is the load-bearing half: `aw.agent/v1` admits only 0/1/2 and the Section 4 exit-parity rule requires the embedded `exit` to EQUAL the process exit code, so any condition reachable on a machine surface is confined to the three states, and letting the human surface differ would mean one condition with two codes. NAME THE CONSTANT (`artifact_types.EXIT_CANNOT_RUN`) and the declaration object (`command_surface.CommandDeclaration.exit_contract`) as the two places a reader can check a verb's contract, since the second is machine-readable and was already correct. DO NOT claim the three-state rule holds across the `aw run`/`aw runs` family: it does not (F-06), and asserting it would replace one false uniformity claim with another. Instead add ONE sentence acknowledging that the run-execution family carries a SEPARATE, wider exit vocabulary documented with those verbs, and that reconciling the two is out of this document's current scope. Write it as USER-FACING prose with NO em or en dashes (AGENTS.md). DO NOT edit `docs/cli-human-guide.md` or `README.md`: both already state the three-state rule correctly and are made TRUE by E-02 rather than needing amendment; touching them would be churn.
+  - Depends on: E-02
+  - Expected outcome: `git diff docs/cli-output-contract.md` shows one added paragraph in Section 3 stating the audience-invariance rule, naming the no-project condition as a 2, giving the parity reason, citing the two symbols, and acknowledging the run family's separate vocabulary, with no change to the three-state enumeration and no other section touched.
+  - Execution state: performed
+
+- [x] E-07 RECORD THE REVERSAL AS A DATED DECISION in `DECISIONS.md`, appended as the next `### D<NNN>` entry under the file's existing newest-at-the-bottom convention (`D156` is last at authoring; READ the file and take the next integer rather than assuming 157, since another agent may have appended one). Follow the file's own three-part shape: `- **Context:**` naming `rkn8ya` E-12, `quqyc4` E-05, decision `03-quqyc4-D1`, backlog `5x195l` and `c6vs7y`, and the measured split; `- **Decision:**` stating that the human no-project surface moves to 2 so one condition has one code, and that this NARROWS `03-quqyc4-D1` rather than overturning it (that decision rejected widening `agent_schema` to admit 3, and this plan moves further in the same direction by removing 3 from the two verbs entirely); `- **Applied:**` naming the files changed. RECORD THE REJECTED ALTERNATIVE and why, because the whole value of the entry is that the next reader does not reopen it: documenting 3 as a fourth state (rejected because it would require amending `command_surface`'s already-correct declarations for both verbs, would put a code into a published classification that `aw.agent/v1` can never emit, and would preserve one condition answering differently by audience). STATE THE BREAKING-CHANGE FACT PLAINLY: any external wrapper testing for exactly 3 to detect "no project" will stop matching, the in-tree blast radius was measured at zero (F-08), and a caller wanting to distinguish cannot-run REASONS should read the `--agent` record's summary and `next` fields rather than a process code, which is what the machine surface already provides. Then add ONE `CHANGELOG.md` line in the existing entry style under the pending 2.0.0 entry, describing the exit-code change as user-visible, with no em or en dashes.
+  - Depends on: E-02, E-06
+  - Expected outcome: `git diff DECISIONS.md CHANGELOG.md` shows one new `### D<NNN>` entry following the file's three-part shape with the rejected alternative and the breaking-change note, and exactly one new CHANGELOG line. The `D` number is the successor of whatever is last in the file at execution, verified by reading it.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- THE SHARED EXIT CONSTANTS EXIST AND ARE DUPLICATED, not centralized. `artifact_types` defines `EXIT_OK`, `EXIT_FINDINGS` and `EXIT_CANNOT_RUN` under the comment "shared exit-code convention (spec: 0 ok / 1 findings / 2 cannot-run)", and `ipd_lifecycle` and `run_analytics_cli` each re-declare their own copies. E-02 references the `artifact_types` spelling; consolidating the duplicates is NOT in scope and would touch three unrelated modules.
+- `command_surface.CommandDeclaration` IS THE NORMATIVE PER-LEAF CONTRACT, described in its own docstring as a "Normative contract declaration for a single CLI command or parser leaf", and `exit_contract` defaults to `(0, 1, 2)`. This is the machine-readable form of the three-state rule, which is why E-05 pins against it rather than against prose.
+- A COMMENT AT A GUARD SITE IS TREATED AS PART OF THE CONTRACT IN THIS REPOSITORY. Both no-project branches carry multi-paragraph comments recording WHY the code is what it is, including the prior plans and decisions. That is why E-02 treats rewriting them as part of the change rather than optional tidying: leaving them would make the file assert the opposite of its own behavior.
+- CITE CODE BY SYMBOL, NOT BY OFFSET. Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). This plan's F-table follows that rule, and it matters acutely here: `project_context.resolve_verb_repo_root`'s own docstring records that `quqyc4`'s line-number citations "drifted twice before execution and again during it (9 of 10 sampled lines no longer held the call)".
+- THE TEST SUITE IS RUN BARE. `python3 -m pytest` with no added flags; `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`. Narrowed runs in this plan's validation use `-o addopts=""` to clear the defaults rather than fighting them flag by flag (AGENTS.md).
+
+## Findings
+
+| Id | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE ITEM HAS NO BODY, AND THE REAL QUESTION IS IN ITS PARENT.** `c6vs7y`'s file ends with the bare line `.aw/state/tmp/quqyc4/body2.md`, a path absent at this HEAD, so the intended body was never inlined. The question is stated in done item `5x195l`'s closing history line ("whether the HUMAN path should also drop 3 since 3 is outside the published three-state classification, is NOT settled here and is filed as c6vs7y") and in its AUDIT NOTE ("A broader question worth deciding separately is whether the no-project condition should surface as exit 2 everywhere, retiring 3 entirely, since 3 is outside the published three-state classification"). | read of the two backlog item files; `ls .aw/state/tmp/quqyc4/` reports no such directory |
+| F-02 | **THE HUMAN/MACHINE SPLIT IS REAL AND UNIFORM ACROSS ALL SIX SPELLINGS.** Driven from a fresh `git init` temporary directory: `next`, `att`, `todo`, `attention`, `ipd` and `ipd board` each exit **3** on the human surface and **2** with `--agent`. The human surface writes the five-line guidance to STDERR and leaves STDOUT empty; the machine surface emits a valid one-line `aw.agent/v1` `error` record with `"outcome":"cannot-run","exit":2` and `"next":"aw install ."`. | a six-row loop over the spellings, human and `--agent`, run with `cwd` in a temporary `git init` directory at lane HEAD `4ae4de08`; all twelve codes recorded |
+| F-03 | **THREE DOCUMENTS PUBLISH THE THREE-STATE RULE AND ONE MODULE ENFORCES IT.** `docs/cli-output-contract.md` Section 3 opens "The CLI enforces a uniform three-state exit classification across all verbs" and enumerates 0/1/2; Section 4's parity rule requires the embedded `exit` to equal the process exit code "(`0`, `1`, `2`)". `docs/cli-human-guide.md` says "Every `aw` command uses the same three-way exit classification". `README.md` says "Exit codes are uniform: `0` clean, `1` findings, `2` cannot run". `agent_schema.validate_agent_record` rejects anything else with "Field 'exit' must be an integer in (0, 1, 2)". | reads of the four files, quoting the sentences |
+| F-04 | **THE DRIFT IS AGAINST A MACHINE-READABLE DECLARATION, NOT ONLY PROSE, WHICH IS WHY THE FIX IS TO CHANGE THE CODE AND NOT THE DOCS.** Printing the declarations at HEAD gives `next` -> `exit_contract=(0, 1, 2)` and `ipd board` -> `exit_contract=(0, 2)`. Neither admits 3, so `aw ipd board`'s human path returns a code its own shipped declaration says it cannot return. CORRECTED AT REVIEW on two points of detail that E-05's lookup depends on (PR-1102). The three aliases (`att`, `todo`, `attention`) DO each carry their own `exit_contract=(0, 1, 2)`, with `command_class="alias"` and `canonical_command="next"` beside it; they do not merely inherit. And bare `ipd` has NO DECLARATION AT ALL: the declaration keys are the `command` field, bare (`"next"`, `"ipd board"`), and `get_declaration("ipd")` returns None while `ipd board` resolves, so a lookup loop over all six spellings must handle the None deliberately. | `{d.command: d for d in command_surface.get_all_declarations()}` (163 declarations) printing `command_class`, `exit_contract` and `canonical_command` for each of the six spellings; measured at review HEAD `6c2a4870` |
+| F-05 | **NOTHING VALIDATES `exit_contract` AGAINST AN OBSERVED EXIT CODE FOR *THESE TWO VERBS*, WHICH IS WHY THIS SURVIVED TWO PLANS.** `tests/conformance_matrix.py` reads `exit_contract` only in `required_scenarios`, to decide whether a `domain_failure` scenario is required (`if 1 in decl.exit_contract and decl.command_class in ("read", "check", "bare")`). Neither `test_cli_conformance_matrix.py` nor `test_cli_quality_gates.py` mentions it. So nothing compares `next`'s or `ipd board`'s declaration to its runtime exit code, and nothing would catch the next divergence in them. | `rg -n exit_contract tests/` and reads of the conformance test files |
+| F-05b | **THE "EXACTLY ONE PLACE" CLAIM WAS WRONG, AND THE PATTERN E-05 PROPOSES IS ALREADY SHIPPED, SO E-05 MUST REUSE IT RATHER THAN INVENT IT** (review 2026-09-30, PR-1101). `exit_contract` is referenced in FIVE test files (12 hits), and one of them, `tests/test_run_cli_declarations.py`, does PRECISELY what E-05 describes as missing: `test_runs_resume_declared_exit_codes_are_reachable`'s own docstring reads "Drive the real CLI in a subprocess for each of 0, 2, 5, 7 and verify it is in decl.exit_contract", and its body asserts `res_0.returncode == 0` then `assert 0 in decl.exit_contract`, repeating for 2, 5 and 7. It also carries the NEGATIVE form E-05 wants (`test_...` asserting `3 not in decl.exit_contract` with the comment "Exit 3 is absent from exit_contract, and mechanically unreachable"). It reaches the declaration through the narrow accessor `command_surface.get_declaration("runs resume")`, not through `get_all_declarations()` plus a filter. CONSEQUENCE FOR E-05: the structural gap is real but NARROWER than stated (it is per-verb coverage, not an absent capability), and the item must follow this shipped precedent, including using `get_declaration(...)`, so the repository gains one convention instead of a second. | `rg -n exit_contract tests/` -> 12 hits in `test_workflow_artifacts_prune.py`, `conformance_matrix.py`, `test_run_cli_declarations.py`, `test_host_capability_extension.py`; read of `test_run_cli_declarations.py`; `command_surface.get_declaration` exists at module level beside `get_all_declarations` |
+| F-06 | **EIGHT OTHER DECLARATIONS LEGITIMATELY ADMIT CODES OUTSIDE 0/1/2, SO E-05 MUST NOT BE TREE-WIDE.** Enumerated at HEAD: `ipd execute-set` `(0,1,2,3)`, `run start` `(0,2,3,5,6)`, `runs next` `(0,3)`, `run record` `(0,2,3,5,6)`, `runs resume` `(0,3)`, `run cancel` `(0,5,6)`, `runs status` `(0,1,3,5)`, `run finalize` `(0,1,4,6)`. These belong to the run-execution vocabulary where 3 means "human input or explicit acknowledgement is required" (`run_cli.EXIT_BLOCKED`, `run_evidence.AGGREGATE_NEEDS_INPUT`, spec `25kzda`'s six-row table), and `run_evidence` itself carries a comment recording that the two tables disagree at 3 and 4. A tree-wide subset assertion would fail on all eight. | a loop over `get_all_declarations()` printing every declaration with a code outside `(0,1,2)`; reads of `run_cli`'s `EXIT_BLOCKED` and `run_evidence`'s `_CLASSIFICATION_EXITS` |
+| F-07 | **BOTH GUARD-SITE COMMENTS AND ONE DOCSTRING CITE A TEST FILE THAT NO LONGER EXISTS.** `attention.py` cites `tests/test_awretrofit_project_root_climb.py::NoProjectSubprocessMatrixTests` as the pin for the no-`exit_code=3` property and the same file for the human rc-3 assertion; `project_context.no_project_message` cites it for `test_bare_git_ancestor_is_not_a_root`. The file was deleted (452 lines) by commit `19313eed` "test: trim test suite from 9,136 to under 2,000 tests". The only LIVE assertion on the human 3 is now `tests/test_attention.py::NoProjectAgentEnvelopeTests::test_no_project_agent_envelope`. | `ls tests/test_awretrofit_project_root_climb.py` reporting no such file; `git show --stat 19313eed -- <that path>`; `rg -n test_awretrofit_project_root_climb agent_workflows/` returning three citation sites |
+| F-08 | **THE IN-TREE BLAST RADIUS OF THE CHANGE IS ZERO BESIDES THE ONE TEST.** No workflow, CI step, hook or script in `.aw/system/`, `.github/` or `scripts/` invokes `aw next`, `aw att`, `aw todo`, `aw attention` or `aw ipd board` and reads its exit code. The only in-tree consumer of the value 3 from these verbs is the single `assertEqual(rc_h, 3)` of F-07, which E-04 updates. | a grep over those trees for the five invocations intersected with exit-code reads, returning nothing; `rg -n "return 3$" agent_workflows/` returning exactly the two sites this plan changes |
+| F-09 | **THE ORIGINAL REQUIREMENT ASKED FOR "NON-ZERO", NOT FOR 3, SO CHANGING IT CONTRADICTS NO PRIOR DECISION.** Executed plan `uh295u` (awretrofit Order 06) E-03 specified "Keep the exit code sensible (non-zero 'nothing to do because no project', distinct from a clean project with nothing to show, which stays exit 0)". 3 was the executor's choice satisfying that, recorded in its V-evidence as "exit 3 (was: silent, exit 0)", not a requirement. 2 satisfies the same requirement and additionally satisfies the published classification. | read of `.aw/records/plans/executed/20260817-awretrofit-06-uh295u-cwd-climb-project-root.ipd.md`, E-03 text and its observed evidence |
+| F-10 | **THE CONDITION CANNOT BE REPRODUCED FROM INSIDE THIS LANE, SO EVERY MEASUREMENT MUST SET `cwd` ELSEWHERE.** The lane worktree lives under the repository's own `.aw/worktrees/`, so `find_project_root` succeeds from anywhere in it and the guard is never reached. All of this plan's measurements and E-03's subprocess tests therefore run with `cwd` at a `tempfile` directory. `aw` also re-execs to the lane's own package when invoked here, printing a notice, which is a further reason to drive `python3 -m agent_workflows` directly in evidence. | the re-exec notice observed on every `aw` invocation in this lane; the guard's own `not explicit_dir and not is_project_dir(repo_root)` precondition |
+| F-11 | **THIS PLAN AND PENDING PLAN `bjgqez` TOUCH THE SAME TWO BRANCHES AND ARE COMPATIBLE IN EITHER ORDER, BUT A MERGE CONFLICT IS LIKELY AND IS NORMAL.** `bjgqez` (Set `ci9kx2`, backlog `ci9kx2`, `Blocks-Release: next`) removes the `not explicit_dir` conjunct from both guards so `--dir <non-project>` reaches the same branch, and its Scope explicitly excludes "changing the 3-vs-2 human/machine exit-code split". So it changes WHEN the branch is reached and this plan changes WHAT the branch returns; neither depends on the other's outcome. If `bjgqez` executes first, its own V-evidence rows asserting "human exit 3" become stale and this plan's E-03 matrix supersedes them; if this plan executes first, `bjgqez`'s evidence must be taken at 2. `- Item-Dependencies:` is `none` because neither ordering blocks the other, and the runner isolates each in its own worktree and revalidates on merge. | reads of `bjgqez`'s `- Scope:`, `- Scope-Paths:` and F-04/F-12; the two guard sites shared by both plans |
+| F-12 | **THE `--check` SURFACE IS DELIBERATELY EXEMPT AND STAYS THAT WAY.** `aw next --check` from a non-project directory prints "aw attention --check: the view is valid." and exits **0**, and `--check --agent` emits `"outcome":"clean","exit":0`. That is the fail-closed-valid answer `uh295u` chose on purpose (its V-evidence names `test_check_on_markerless_is_valid` and the "PR-001 fail-closed nuance"), and the branch comment records that "`--check` stays fail-closed-valid (nothing to violate)". This plan does not change it, and E-01 records it as a CONTROL so a reviewer can see it was checked rather than overlooked. | `aw next --check` and `aw next --check --agent` driven in a temporary git directory, both exit 0; read of the `--check` sub-branch and of `uh295u`'s evidence |
+| F-13 | **NO SPEC GOVERNS THE THREE-STATE CLASSIFICATION, SO NO SPEC AMENDMENT IS OWED.** The only spec mentioning the classification is implemented spec `command-surface-redesign`, whose G6 and R4 require "documented exit codes (0 ok / 1 findings / 2 cannot-run)" and whose 2026-08-23 history note says "The 0/1/2 exit classification carries over unchanged". This plan makes the code AGREE with that requirement, so the spec needs no edit; `- Scope-Paths:` correctly lists no `.spec.md`. | `rg -l "three-state|Exit Code Semantics|exit classification" .aw/records/specs/` returning one file; reads of its G6, R4 and history note |
+| F-14 | **BASELINE SUITE, A LIVE NUMBER THAT HAS ALREADY DRIFTED ONCE, SO RE-DERIVE IT RATHER THAN COMPARING TO THIS ROW** (PR-1104). At authoring a bare `python3 -m pytest` in this lane reported `3246 passed, 2 skipped, 3 warnings in 57.85s` (lane HEAD `4ae4de08`). RE-MEASURED at review HEAD `6c2a4870`: `3387 passed, 2 skipped, 3 warnings`, +141 from unrelated work landing in between, with the same 207 deselected as `slow`/`livecorpus`. E-03 and E-05 add tests, so the AFTER total must exceed the baseline MEASURED AT THE EXECUTING HEAD by exactly the number added; V-07 must re-derive that baseline first and reconcile against it, never against a constant written here. | the pasted summary lines of the authoring run and of the review re-measurement |
+
+## Proposed changes (ordered, validatable)
+
+1. **Measure first (E-01).** Re-drive the twelve-row surface matrix plus the `--check` controls and print the two declared `exit_contract` tuples, so every later edit cites an execution-time number. No file changes.
+2. **Change the two human returns (E-02).** `3` becomes `EXIT_CANNOT_RUN` at `attention.run`'s no-project branch and `cli._run_plans`'s twin, and the two surrounding comment passages stop asserting a human 3.
+3. **Pin the agreement by subprocess (E-03).** A new `tests/test_no_project_exit_is_cannot_run.py` asserts all six spellings exit 2 on both surfaces, that the two surfaces agree by derivation, that stdout stays empty on the human path, that the record validates, and that no absolute path leaks.
+3a. **Repoint the three dead test citations (E-08).** The three live references to the deleted `tests/test_awretrofit_project_root_climb.py` are replaced by pins that exist, or by an honest note that a rule is unpinned. Separate from E-02 because the defect predates this plan and reaches a third module.
+4. **Follow the fix in the one live test (E-04).** `NoProjectAgentEnvelopeTests`' human assertion moves from 3 to 2, with a pointer comment; nothing else in the method changes.
+5. **Make the declaration load-bearing (E-05).** A test derives the expected code from `command_surface`'s declaration for these two verbs and asserts the observed code is a member, plus that these two declarations stay within `(0, 1, 2)`, with the narrow scope recorded in the docstring.
+6. **Publish the audience-invariance rule (E-06).** One paragraph in `docs/cli-output-contract.md` Section 3 states that a condition's code is a function of the condition and not the audience, names the no-project case as 2, gives the parity reason, and acknowledges the run family's separate vocabulary.
+7. **Record the reversal (E-07).** A new `DECISIONS.md` entry narrowing `03-quqyc4-D1`, with the rejected alternative and the breaking-change note, plus one `CHANGELOG.md` line.
+
+## Deferred / out of scope (with reason)
+
+- **Widening `agent_schema` to admit exit 3.** Rejected on the recorded ground of decision `03-quqyc4-D1`: it would promote 3 into two published contracts to serve a single condition. This plan moves in the SAME direction that decision chose and does not reopen it.
+  - Carrier-Declined: No obligation is left outstanding. This is a REJECTED ALTERNATIVE, not deferred work: after E-02 no site in the package builds an `exit_code=3` record and neither verb returns 3, so there is nothing left for a carrier to own. Filing one would assert that widening the schema remains a live option, which E-07 explicitly records as rejected.
+- **The `--dir <non-project>` case.** Owned by pending plan `bjgqez` (backlog `ci9kx2`, `Blocks-Release: next`), which reaches the same branch through a different guard and declares the exit-split unchanged. Compatible in either order (F-11). CARRIER CORRECTED AT REVIEW (PR-1105): this row previously named `5gmi12`, which is a DIFFERENT defect (`--dir` at a SUBDIRECTORY of a real project silently under-reporting), so the row's subject and its carrier disagreed. `aw check` validates only that a carrier RESOLVES, not that it owns the stated subject, so the mismatch passed every mechanical gate.
+  - Carrier: ci9kx2
+- **The `aw run` / `aw runs` / `run_evidence` exit vocabulary, and `ipd execute-set`'s declared `(0,1,2,3)`.** A separate table where 3 means "needs human input", which `run_evidence` itself records as disagreeing with the CLI table at 3 and 4. Reconciling the two is a much larger contract change needing its own survey (F-06). E-06 acknowledges the divergence rather than papering over it.
+  - Carrier: 858lhj
+- **A tree-wide `exit_contract`-versus-behavior conformance gate.** The obviously desirable generalization of E-05, deliberately not attempted: eight declarations legitimately sit outside 0/1/2 (F-06), and a general gate needs a live-executable invocation for every leaf, which the conformance harness explicitly does not have (it marks mutations and installers `covered_by="declaration"`). Filing that is a reasonable follow-up; guessing it inside this plan is not.
+  - Carrier: cn5np0
+- **The other `resolve_verb_repo_root` callers that fall back to cwd silently.** `project_context`'s own docstring records the gap and says "WHETHER THE SILENT CALLERS SHOULD ALL GUIDE IS A SEPARATE DESIGN QUESTION, deliberately NOT settled here".
+  - Carrier-Declined: No obligation is left outstanding by THIS plan, and the gap is already durably recorded twice over. It is written into `project_context.resolve_verb_repo_root`'s own docstring as an open design question with the reasoning, and backlog `5gmi12` owns the nearest live instance of it. This plan neither creates nor worsens the condition: it changes what ONE branch returns on TWO verbs that already guide correctly. Naming a carrier would assert that converting the silent callers is settled work awaiting an owner, which `project_context` explicitly says it is not ("some may legitimately operate on a bare directory").
+- **The `--check` no-project exit 0.** The fail-closed-valid answer chosen on purpose by `uh295u` (F-12), and already being changed for the `--dir` case by `bjgqez`.
+  - Carrier-Declined: No obligation is left outstanding. This is not a gap but a DELIBERATE, reasoned behavior that `uh295u` chose ("`--check` stays fail-closed-valid, nothing to violate") and that this plan preserves unchanged; F-12 records that it was checked rather than overlooked, and E-01 measures it as a control. Filing a carrier would assert the shipped behavior is defective, which no measurement here supports.
+- **Consolidating the duplicated `EXIT_*` constants** in `artifact_types`, `ipd_lifecycle` and `run_analytics_cli`. Real duplication, three unrelated modules, no bearing on this condition.
+  - Carrier: cn5np0
+- **Fixing `c6vs7y`'s missing body.** The production contract forbids modifying the item's requirements, and the real statement of the question is recoverable from `5x195l` (F-01).
+  - Carrier-Declined: No obligation is left outstanding once this plan executes, because the item's purpose is served: `c6vs7y` graduates into this plan, whose Concern and F-01 inline the question its body should have carried, with the citation to `5x195l` that makes it recoverable. A carrier would own repairing prose in an item that is about to leave the open set, which is churn rather than preservation.
+
+## Scope check
+
+- Over-scope: none. Every `- Scope-Paths:` entry is written by a named E-item: `attention.py` and `cli.py` by E-02 (the two returns and their comments) and E-08 (their dead test citations), `project_context.py` by E-08 (the stale docstring citation only), `command_surface.py` is listed because E-05 pins its declarations and an executor may find the `ipd board` declaration needs a comment recording that its `(0, 2)` is now genuinely true (a comment-only edit; if no edit proves necessary, V-05 must say so rather than manufacture one), `tests/test_no_project_exit_is_cannot_run.py` by E-03 and E-05, `tests/test_attention.py` by E-04, `docs/cli-output-contract.md` by E-06, and `DECISIONS.md` plus `CHANGELOG.md` by E-07.
+- Under-scope: this plan changes the exit code of ONE condition on TWO verbs, and publishes plus pins that change. It does NOT make the three-state rule true across the whole CLI: eight declarations still admit codes outside 0/1/2 (F-06) and E-06 says so in the document rather than concealing it, so a reader must not take this plan as delivering tree-wide uniformity. It does NOT add a general declaration-versus-behavior conformance gate; E-05 covers two leaves. It does NOT change the `--check` exit 0, the `--dir` guard, the machine surfaces, the message text, the install offer, or what counts as an AW project. It leaves the duplicated `EXIT_*` constants and the other silent `resolve_verb_repo_root` callers untouched.
+
+## Required tests / validation
+
+- `python3 -m pytest tests/test_no_project_exit_is_cannot_run.py -o addopts=""`, run BEFORE E-02 to demonstrate RED and after to demonstrate GREEN.
+- `python3 -m pytest tests/test_attention.py -k NoProjectAgentEnvelope -o addopts=""`, green after E-04.
+- A BARE `python3 -m pytest` whose `N passed` summary line is pasted and reconciled against the baseline RE-DERIVED AT THE EXECUTING HEAD in E-01, never against a count written in this plan (`3246` at authoring, `3387` at review; the number is live, F-14), with the difference accounted for by the tests E-03 and E-05 add and any other difference explained against a named E-item.
+- The BEFORE/AFTER surface matrix of E-01 and E-03, measured by subprocess with `cwd` outside any AW project (F-10), naming the interpreter and `PYTHONPATH`, in both a git and a non-git temporary directory.
+- `python3 -m agent_workflows check` and `aw ipd lint` reporting conforming.
+- `aw sanitize --agent`, since E-03 asserts on absolute-path absence and the evidence pasted into this plan quotes temporary paths.
+- `rg -n "return 3$" agent_workflows/` after the change, confirming the two human sites are gone, and `rg -n "exit_code=3" agent_workflows/` read as a COMMENT-ONLY census rather than as a required-empty result: it returns four comment hits at base and E-02 requires that reasoning be kept, so the bar is that no EXECUTABLE site constructs such a record (PR-1103).
+- `git diff --cached --name-only` immediately before each commit, which must list ONLY paths drawn from `- Scope-Paths:`.
+
+## Spec / documentation sync
+
+- **No spec amendment is owed, and the reason is recorded rather than assumed.** The only spec touching this classification is implemented spec `command-surface-redesign`, whose G6/R4 require "documented exit codes (0 ok / 1 findings / 2 cannot-run)" and whose own history note says the 0/1/2 classification "carries over unchanged" (F-13). This plan makes the code CONFORM to that requirement, so there is nothing to amend, and `- Scope-Paths:` correctly lists no `.spec.md`.
+- **`docs/cli-output-contract.md` is amended by E-06** with one paragraph in Section 3: audience-invariance, the no-project condition named as a 2, the parity reason, the two citable symbols, and an honest acknowledgement of the run family's separate vocabulary.
+- **`docs/cli-human-guide.md` and `README.md` are deliberately NOT edited.** Both already state the three-state rule correctly; E-02 makes them true. Editing them would be churn, and that decision is recorded here so a reviewer sees it was considered.
+- **`DECISIONS.md` and `CHANGELOG.md` are updated by E-07**, because this is a user-visible breaking change to a shipped exit code and a reader who finds the two prior plans' comments must be able to trace why their conclusion was later narrowed.
+
+## Open questions
+
+### OQ-01: Is changing a shipped human exit code from 3 to 2 acceptable, given it is breaking for any external wrapper that tests for exactly 3?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE, and surfaced at the approval gate rather than asked, because the repository answers it and the one judgement involved is visible in the diff. FOUR INDEPENDENT LINES POINT THE SAME WAY. (1) The ORIGINAL requirement asked for "non-zero", not for 3; 3 was an executor's choice, not a decision (F-09). (2) The machine-readable declaration for BOTH verbs already excludes 3, and `ipd board`'s excludes 1 as well, so the code contradicts a contract object shipped in the package (F-04). (3) Three documents publish the three-state rule as holding "across all verbs" and `agent_schema` enforces it (F-03). (4) The in-tree blast radius is ZERO besides one assertion (F-08). THE ONE JUDGEMENT EMBEDDED HERE is that correcting a published-contract violation is worth breaking a hypothetical external caller that keys on 3. It is worth it because a caller keying on 3 is keying on an UNDOCUMENTED code that no published document ever sanctioned, the replacement 2 is documented and is what the same caller already receives from the `--agent` surface of the same condition, and a caller needing to distinguish cannot-run reasons has a better channel in the machine record's `summary` and `next` fields. WHY NOT ASKED: the maintainer's recorded inclination already matches, in `5x195l`'s own audit note ("whether the no-project condition should surface as exit 2 everywhere, retiring 3 entirely"). A maintainer who disagrees can overrule at approval, and E-07 records the rejected alternative so the reversal is cheap.
+
+### OQ-02: Should the three-state classification be reconciled tree-wide, including the run-execution family that legitimately uses 3 for "needs human input"?
+
+- Blocking: no
+- Status: deferred
+- Owner: maintainer
+- Carrier: 858lhj
+- Trigger: a decision to reconcile the run-execution exit vocabulary with the CLI three-state classification, which requires either amending approved spec `25kzda`'s exit table or renumbering shipped `aw runs` codes. Revisit when a plan takes on that survey, or when a consumer reports being broken by the two tables disagreeing.
+- Resolution or deferral rationale: DEFERRED DELIBERATELY, and E-06 is written so the document does not lie about it in the meantime. Eight declarations admit codes outside 0/1/2 and belong to a wider vocabulary where 3 means "human input or explicit acknowledgement is required", which `run_evidence` itself documents as disagreeing with the CLI table at 3 and 4, and which spec `25kzda` fixes in a six-row table (F-06). Reconciling them would mean either amending an approved spec's exit table or renumbering shipped driver codes that `aw runs` consumers read, which is a contract change with a survey requirement this plan has no mandate for. So this plan fixes the ONE condition where the two tables do not actually conflict (no-project is unambiguously cannot-run on a read verb) and E-06 states plainly that the run family carries a separate vocabulary, rather than replacing one false uniformity claim with another. A follow-up may survey it; this plan does not guess it.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: PASTE the exact commands and their output for the full matrix: for each of `next`, `att`, `todo`, `attention`, `ipd`, `ipd board`, the human and `--agent` invocations (and `--json` where accepted), run as `python3 -m agent_workflows ...` with `cwd` at a temporary directory, in BOTH a fresh `git init` directory and a non-git directory. For every row state the exit code, which stream carried the diagnostic, and whether stdout was empty. PASTE the `--check` and `--check --agent` CONTROL rows. PASTE the printed `exit_contract`, `command_class` and `canonical_command` for ALL SIX spellings obtained by CALLING `command_surface.get_declaration(<name>)`, not by quoting a file, and show bare `ipd` returning None (measured at review) so E-05's lookup is written against that fact. PASTE the re-derived bare-suite baseline with its HEAD commit. NAME the interpreter and the lane HEAD commit. STATE EXPLICITLY whether every row agrees with F-02, F-04 and F-12; if any row disagrees, STOP and report rather than proceeding.
+  - Observed evidence: Measured full 12-row matrix at execution base. Baseline suite: 4060 passed, 2 skipped, 3 warnings in 202.48s at HEAD 7cb780655be59845e7cf2e8c6cacaae08f156994. All spellings conform to F-02, F-04, and F-12.
+    Interpreter: `<venv>/bin/python3` (Python 3.14.6)
+    Lane HEAD commit at launch: `7cb780655be59845e7cf2e8c6cacaae08f156994`
+    Bare-suite baseline at launch:
+    ```
+    4060 passed, 2 skipped, 3 warnings in 202.48s (0:03:22)
+    ```
+
+    Matrix driven outside any AW project before edits (re-driven using `measure_e01.py` with `PYTHONPATH` set to repo root and `NO_COLOR=1`):
+
+    === ENVIRONMENT: git init ===
+    - `python3 -m agent_workflows next`: exit 3, stderr (summary: Checked <tmp> and its parents; no AW project found.), stdout_empty: True
+    - `python3 -m agent_workflows next --agent`: exit 2, stdout: `{"schema":"aw.agent/v1",...,"outcome":"cannot-run","exit":2,"next":"aw install ."}`, stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows next --json`: exit 2 (unrecognized arguments: --json), stderr: usage/error, stdout_empty: True
+    - `python3 -m agent_workflows att`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows att --agent`: exit 2, stdout valid agent record (`next: "aw install ."`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows todo`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows todo --agent`: exit 2, stdout valid agent record (`next: "aw install ."`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows attention`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows attention --agent`: exit 2, stdout valid agent record (`next: "aw install ."`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows ipd`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows ipd --agent`: exit 2, stdout valid agent record (`next: "aw install ."`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows ipd board`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows ipd board --agent`: exit 2, stdout valid agent record (`next: "aw install ."`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows ipd board --json`: exit 2, stdout valid agent record, stderr: none, stdout_empty: False
+
+    --- CONTROLS in git init ---
+    - `python3 -m agent_workflows next --check`: exit 0, stdout_empty: True, stderr: none
+    - `python3 -m agent_workflows next --check --agent`: exit 0, stdout: `{"schema":"aw.agent/v1",...,"outcome":"clean","exit":0}`, stderr: none
+
+    === ENVIRONMENT: non-git ===
+    - `python3 -m agent_workflows next`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows next --agent`: exit 2, stdout: `{"schema":"aw.agent/v1",...,"outcome":"cannot-run","exit":2,"next":null}`, stderr: none
+    - `python3 -m agent_workflows next --json`: exit 2 (unrecognized arguments: --json), stderr: usage/error, stdout_empty: True
+    - `python3 -m agent_workflows att`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows att --agent`: exit 2, stdout valid agent record (`next: null`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows todo`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows todo --agent`: exit 2, stdout valid agent record (`next: null`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows attention`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows attention --agent`: exit 2, stdout valid agent record (`next: null`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows ipd`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows ipd --agent`: exit 2, stdout valid agent record (`next: null`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows ipd board`: exit 3, stderr, stdout_empty: True
+    - `python3 -m agent_workflows ipd board --agent`: exit 2, stdout valid agent record (`next: null`), stderr: none, stdout_empty: False
+    - `python3 -m agent_workflows ipd board --json`: exit 2, stdout valid agent record, stderr: none, stdout_empty: False
+
+    --- CONTROLS in non-git ---
+    - `python3 -m agent_workflows next --check`: exit 0, stdout_empty: True, stderr: none
+    - `python3 -m agent_workflows next --check --agent`: exit 0, stdout: `{"schema":"aw.agent/v1",...,"outcome":"clean","exit":0}`, stderr: none
+
+    === DECLARATIONS (via command_surface.get_declaration(<name>)) ===
+    - `next`: exit_contract=(0, 1, 2), command_class=read, canonical_command=None
+    - `att`: exit_contract=(0, 1, 2), command_class=read, canonical_command=next
+    - `todo`: exit_contract=(0, 1, 2), command_class=read, canonical_command=next
+    - `attention`: exit_contract=(0, 1, 2), command_class=read, canonical_command=next
+    - `ipd`: None (bare 'ipd' has no declaration)
+    - `ipd board`: exit_contract=(0, 2), command_class=read, canonical_command=None
+
+    Conformance check: Every measured row agrees exactly with F-02, F-04, and F-12.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: PASTE the committed `git diff` for `agent_workflows/attention.py` and `agent_workflows/cli.py`. The diff must show exactly TWO changed return values, each spelled as a NAMED CONSTANT and not the digit `2` (if a cycle forced a different spelling, say which and why). It must show the comment passages no longer asserting "THE HUMAN PATH IS UNCHANGED at exit 3" or "leaving the HUMAN surface at 3", and it must show the reasoning about `exit_code=3` being unemittable RETAINED. PASTE the message text produced after the change on the human surface, showing it is byte-identical to the before text from V-01 and still goes to STDERR with stdout empty. PASTE `rg -n "return 3$" agent_workflows/` showing the two sites gone. THEN, for `exit_code=3`, DO NOT EXPECT AN EMPTY GREP: measured at review, `rg -n "exit_code=3" agent_workflows/` returns FOUR hits at base and every one is INSIDE A COMMENT explaining why such a record is unemittable (two in `attention.py`, two in `cli.py`), so an empty result is not achievable and E-02 explicitly requires that reasoning be RETAINED (PR-1103). The `cli.py` comment even predicts "grep ... finds NO site", which was already false when written. So paste the grep and then state, hit by hit, that each is a comment and no EXECUTABLE site constructs an `exit_code=3` result; an empty grep would mean the required reasoning was deleted and is a FAILED V-02, not a pass. CONFIRM in one line that no machine branch, no message string and no `NextAction` was altered.
+  - Observed evidence: Verified git diff of attention.py and cli.py shows exactly 2 returns changed to EXIT_CANNOT_RUN, human exit 3 comments rewritten, unemittable reasoning preserved, stderr diagnostic identical, stdout empty, rg return 3 empty, rg exit_code=3 comments only.
+    `git diff agent_workflows/attention.py agent_workflows/cli.py`:
+    ```diff
+    diff --git a/agent_workflows/attention.py b/agent_workflows/attention.py
+    index dd0b769f3..be558c426 100644
+    --- a/agent_workflows/attention.py
+    +++ b/agent_workflows/attention.py
+    @@ -13,6 +13,7 @@ from dataclasses import dataclass
+     from datetime import datetime, timezone
+     from pathlib import Path
+     from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+    +from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+     from agent_workflows import attention_contract as A
+     from agent_workflows import ipd_schema as _schema
+     from agent_workflows import lifecycle_style as LS
+    @@ -3933,8 +3934,7 @@ def run(args) -> int:
+                 # the directory it checked, which is exactly what helps an operator standing in the wrong
+                 # one); the MACHINE summary states the condition and the remedies without the path.
+                 #
+    -            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract, recorded
+    -            # here because the number differs from the human path's on purpose (decision D1).
+    +            # THE MACHINE SURFACE CARRIES EXIT 2, NOT 3, and the reason is a hard contract.
+                 # `aw.agent/v1` admits ONLY 0/1/2 (`agent_schema.validate_agent_record`: "Field 'exit'
+                 # must be an integer in (0, 1, 2)"), and additionally requires an error-class record to
+                 # carry exit=2; `docs/cli-output-contract.md` Section 3 classifies precisely this case
+    @@ -3946,11 +3946,12 @@ def run(args) -> int:
+                 # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in
+                 # the package now builds an `exit_code=3` record. That property is pinned by
+                 # `tests/test_attention.py::NoProjectAgentEnvelopeTests` and
+    -            # `tests/test_agent_surface_conformance.py::test_attention_non_project_cwd`.)
+    +            # `tests/test_no_project_exit_is_cannot_run.py`.)
+                 #
+    -            # THE HUMAN PATH IS UNCHANGED at exit 3, so the shipped assertion in
+    -            # `tests/test_agent_surface_conformance.py::test_attention_non_project_cwd` (rc 3, prose on stderr, empty stdout)
+    -            # keeps passing and no operator-visible behavior regresses.
+    +            # THE HUMAN PATH WAS LATER MOVED TO EXIT 2 AS WELL by backlog `c6vs7y` (IPD `rwvzqm`),
+    +            # retiring the human exit 3 so one condition has one code and satisfies the published
+    +            # uniform three-state exit classification across all audience surfaces. Pinned by
+    +            # `tests/test_no_project_exit_is_cannot_run.py`.
+                 #
+                 # nogitmsg `quqyc4` E-04 ADDS THE INSTALL OFFER AS STRUCTURED DATA, not only as prose:
+                 # when cwd IS inside a git repository, the record carries a `NextAction` so an automated
+    @@ -3992,7 +3993,7 @@ def run(args) -> int:
+                 no_project_message("attention", repo_root, explicit=bool(explicit_dir))
+                 + "\n"
+             )
+    -        return 3
+    +        return EXIT_CANNOT_RUN
+
+         type_filters = parse_type_filters(getattr(args, "types", None))
+
+    diff --git a/agent_workflows/cli.py b/agent_workflows/cli.py
+    index 758daad26..1d2d3d91b 100644
+    --- a/agent_workflows/cli.py
+    +++ b/agent_workflows/cli.py
+    @@ -9734,6 +9734,7 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
+     def _run_plans(
+         args: argparse.Namespace, term: Term, context: Optional[Any] = None
+     ) -> int:
+    +    from agent_workflows.artifact_types import EXIT_CANNOT_RUN
+         from agent_workflows.project_context import (
+             git_root_for_message,
+             is_project_dir,
+    @@ -9774,11 +9775,13 @@ def _run_plans(
+                 # `docs/cli-output-contract.md` ("the embedded `exit` MUST equal the process exit code")
+                 # forbade emitting 2 beside a process exit of 3. Since that ruling, attcor `rkn8ya` E-12
+                 # fixed the SAME defect in `aw attention` by satisfying parity the OTHER way: it moved the
+    -            # MACHINE process exit to 2, leaving the HUMAN surface at 3. That shipped, and
+    -            # `tests/test_attention.py::NoProjectAgentEnvelopeTests` pins it. Widening the schema now
+    -            # would promote exit 3 into two published contracts at the moment its only other emitter
+    -            # was removed, and would leave two verbs answering one condition with different codes.
+    -            # After this change `grep -n "exit_code=3" agent_workflows/*.py` finds NO site, so the
+    +            # MACHINE process exit to 2, originally leaving the HUMAN surface at 3. The human surface
+    +            # was LATER moved to 2 as well by backlog `c6vs7y` (IPD `rwvzqm`), retiring the human exit 3
+    +            # so one condition has one code across all audience surfaces. That cross-surface agreement
+    +            # is pinned by `tests/test_no_project_exit_is_cannot_run.py`. Widening the schema would
+    +            # promote exit 3 into two published contracts at the moment its only other emitter was
+    +            # removed, and would leave verbs answering one condition with different codes. After this
+    +            # change no executable site in the package constructs an `exit_code=3` record, so the
+                 # schema and both contract docs need no amendment at all.
+                 #
+                 # THE SUMMARY IS SANITIZED for the same reason attention's is: `no_project_message`
+    @@ -9825,7 +9828,7 @@ def _run_plans(
+             sys.stderr.write(
+                 no_project_message("ipd board", root, explicit=bool(explicit_dir)) + "\n"
+             )
+    -        return 3
+    +        return EXIT_CANNOT_RUN
+
+         # Validate --status up front so a typo teaches the valid set instead of silently
+         # returning an empty board (assess-self-documentation S1). Handler-side (not argparse
+    ```
+
+    Both return values changed from 3 to `EXIT_CANNOT_RUN` (named constant from `agent_workflows.artifact_types`).
+    Comment passages no longer assert human exit 3; reasoning about `exit_code=3` being unemittable is retained.
+
+    Human message text after change:
+    `python3 -m agent_workflows next` in temp git dir:
+    Stderr:
+    ```
+    Checked /tmp/tmp_git and its parents; no AW project found.
+    To initialize an agent workflows workspace here, run:
+      aw install .
+    ```
+    Stdout: `""` (strictly empty).
+    Byte-identical to baseline.
+
+    `rg -n "return 3$" agent_workflows/`: returns 0 hits (empty).
+
+    `rg -n "exit_code=3" agent_workflows/`:
+    ```
+    agent_workflows/attention.py:3946:            # filed as backlog `5x195l`; nogitmsg `quqyc4` E-05 FIXED it the same way, so no site in the package now builds an `exit_code=3` record.
+    agent_workflows/attention.py:3973:            # exit_code=3 record cannot be validated by agent_schema
+    agent_workflows/cli.py:9784:            # change no executable site in the package constructs an `exit_code=3` record, so the
+    agent_workflows/cli.py:9810:            # exit_code=3 record cannot be validated by agent_schema
+    ```
+    All 4 hits are inside comments explaining why an `exit_code=3` record is unemittable. No executable site constructs an `exit_code=3` record.
+    Confirmed: no machine branch, no message string, and no `NextAction` was altered.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: PASTE the new test file's `python3 -m pytest tests/test_no_project_exit_is_cannot_run.py -o addopts=""` output run BEFORE E-02's change (by reverting the two returns locally, or by running the file against a stashed base) showing it FAILS on the human rows with the observed 3, and the same command AFTER showing it passes with its test count. That RED demonstration is mandatory: a test authored after a fix that was never seen failing proves nothing. PASTE the assertion that compares the two surfaces as a DERIVED equality rather than two literals. PASTE proof that stdout is EXACTLY empty on the human path and that the record returns `[]` from `agent_schema.validate_agent_record`. PASTE the absolute-path absence check for both the temporary directory name and `/home/`. PASTE the git and non-git rows showing `next` is the literal `aw install .` and null respectively. NAME the `PYTHONPATH` and environment the subprocesses ran under.
+  - Observed evidence: Verified test_no_project_exit_is_cannot_run.py failed 12 tests before E-02 (RED) and passed 13 tests after E-02 (GREEN), derived equality pinned, stdout empty, record validates, paths sanitized, install offer verified.
+    RED demonstration run against pre-E-02 code (with human return 3):
+    ```
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[next-git] - AssertionError: Surface disagreement for ('next',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[next-nongit] - AssertionError: Surface disagreement for ('next',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[att-git] - AssertionError: Surface disagreement for ('att',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[att-nongit] - AssertionError: Surface disagreement for ('att',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[todo-git] - AssertionError: Surface disagreement for ('todo',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[todo-nongit] - AssertionError: Surface disagreement for ('todo',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[attention-git] - AssertionError: Surface disagreement for ('attention',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[attention-nongit] - AssertionError: Surface disagreement for ('attention',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[ipd-git] - AssertionError: Surface disagreement for ('ipd',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[ipd-nongit] - AssertionError: Surface disagreement for ('ipd',): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[ipd-board-git] - AssertionError: Surface disagreement for ('ipd', 'board'): human returned 3, --agent returned 2
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_cross_surface_exit_and_payload[ipd-board-nongit] - AssertionError: Surface disagreement for ('ipd', 'board'): human returned 3, --agent returned 2
+    ============================== 12 failed, 1 passed in 39.57s ==============================
+    ```
+
+    GREEN run after E-02:
+    ```
+    ============================== 13 passed in 11.82s ==============================
+    ```
+
+    Derived comparison assertion in `test_no_project_exit_is_cannot_run.py`:
+    ```python
+    assert human_res.returncode == agent_res.returncode, (
+        f"Surface disagreement for {spelling}: human returned {human_res.returncode}, "
+        f"--agent returned {agent_res.returncode}"
+    )
+    ```
+
+    Stdout strictly empty and agent record validation:
+    ```python
+    assert human_res.stdout == "", f"Human surface for {spelling} must leave stdout empty"
+    assert "no AW project found" in human_res.stderr
+    assert validate_agent_record(rec) == []
+    ```
+
+    Sanitization (no directory path or /home/ leak):
+    ```python
+    assert str(target_dir) not in agent_res.stdout
+    assert "/home/" not in agent_res.stdout
+    ```
+
+    Install offer verification:
+    ```python
+    if is_git:
+        assert rec.get("next") == "aw install ."
+    else:
+        assert rec.get("next") is None
+    ```
+
+    Subprocess environment:
+    - `PYTHONPATH`: `<repo-root>`
+    - `NO_COLOR`: `"1"`
+    - Child invoked via `[sys.executable, "-m", "agent_workflows", *args]`
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: PASTE the `git diff` of `tests/test_attention.py`, which must be a ONE-LINE assertion change from 3 to 2 plus a comment, with every other assertion in `test_no_project_agent_envelope` byte-identical (state that explicitly, and confirm the `--arcive-state` alias assertion and the path-leak assertions are untouched). PASTE `python3 -m pytest tests/test_attention.py -k NoProjectAgentEnvelope -o addopts=""` green after the change, and PASTE the same command's FAILURE output taken after E-02 but before this edit, proving the old assertion genuinely went red and was not pre-emptively softened.
+  - Observed evidence: Verified test_attention.py NoProjectAgentEnvelope failed with AssertionError 2 != 3 before E-04 and passed 1 test after one-line assertion update to 2 with pointer comment.
+    `git diff tests/test_attention.py`:
+    ```diff
+    diff --git a/tests/test_attention.py b/tests/test_attention.py
+    index e3859d981..5681ae445 100644
+    --- a/tests/test_attention.py
+    +++ b/tests/test_attention.py
+    @@ -3067,7 +3067,9 @@ class NoProjectAgentEnvelopeTests(unittest.TestCase):
+             self.assertNotIn("/home/", out_j)
+
+             rc_h, out_h, err_h, _ = self._run_from_nowhere()
+    -        self.assertEqual(rc_h, 3)
+    +        # Human exit 3 was retired to 2 by backlog c6vs7y (IPD rwvzqm); full matrix owned by
+    +        # tests/test_no_project_exit_is_cannot_run.py.
+    +        self.assertEqual(rc_h, 2)
+             self.assertEqual(out_h, "")
+             self.assertIn("no AW project found", err_h)
+
+    ```
+    Every other assertion in `test_no_project_agent_envelope` is byte-identical: `--agent`, `--format json`, path-leak assertions (`/home/` check), and the `--arcive-state` alias assertion at the end are completely untouched.
+
+    Failure output after E-02 but before E-04 edit:
+    ```
+    FAIL: test_no_project_agent_envelope (tests.test_attention.NoProjectAgentEnvelopeTests.test_no_project_agent_envelope)
+    Traceback (most recent call last):
+      File ".../tests/test_attention.py", line 3070, in test_no_project_agent_envelope
+        self.assertEqual(rc_h, 3)
+        ~~~~~~~~~~~~~~~~^^^^^^^^^
+    AssertionError: 2 != 3
+    ```
+
+    Green output after E-04 edit:
+    ```
+    $ python3 -m pytest tests/test_attention.py -k NoProjectAgentEnvelope -o addopts=""
+    ============================== 1 passed in 2.94s ==============================
+    ```
+  - Result: pass
+
+- [x] V-08 validates E-08
+  - Required evidence: PASTE `rg -n "test_awretrofit_project_root_climb" agent_workflows/` AFTER the change, which must return NOTHING. PASTE the `git diff` of the three citation sites. For each replacement path, PASTE an `ls` proving the file EXISTS on disk, and for the exit-matrix citations PASTE a run of the named test showing it passes, so the citation names a pin that genuinely holds rather than a plausible filename. For `test_bare_git_ancestor_is_not_a_root`'s property specifically, STATE PLAINLY whether a live test covers it: paste the search you used, and if nothing covers it, paste the note you wrote instead and confirm you did NOT substitute a second nonexistent path. CONFIRM this item changed NO behavior, by pasting `git diff` showing only comment and docstring lines touched in `project_context.py` and only citation lines touched in the other two files.
+  - Observed evidence: Verified test_awretrofit_project_root_climb citations replaced across 3 files; rg returns 0 hits; replacement test exists and passes; bare-git ancestor documented as unpinned.
+    `rg -n "test_awretrofit_project_root_climb" agent_workflows/`: returns 0 hits (nothing).
+
+    `git diff agent_workflows/project_context.py`:
+    ```diff
+    diff --git a/agent_workflows/project_context.py b/agent_workflows/project_context.py
+    index 19515b749..1c0626311 100644
+    --- a/agent_workflows/project_context.py
+    +++ b/agent_workflows/project_context.py
+    @@ -378,9 +378,8 @@ def no_project_message(
+         PROBING FOR GIT HERE IS A MESSAGE CONCERN AND MUST NEVER BE PROMOTED INTO ``find_project_root``
+         (`quqyc4` E-02). Root detection is DELIBERATELY git-blind: a ``.aw/`` tree can exist without git,
+         and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
+    -    OQ-01), a rule locked by ``tests/test_awretrofit_project_root_climb.py``'s
+    -    ``test_bare_git_ancestor_is_not_a_root``. This function only decides what to SAY once that climb
+    -    has already failed; it never decides what counts as a project.
+    +    OQ-01), an unpinned rule (the test that formerly locked it was deleted). This function only decides
+    +    what to SAY once that climb has already failed; it never decides what counts as a project.
+         """
+
+         where = Path(start_dir) if start_dir is not None else Path.cwd()
+    ```
+
+    Search for live test covering `test_bare_git_ancestor_is_not_a_root`:
+    ```
+    $ rg -n "bare_git_ancestor" tests/
+    (returns 0 hits)
+    ```
+    No live test covers this property (the former test file `tests/test_awretrofit_project_root_climb.py` was deleted in commit `19313eed`). The docstring was honestly updated to state that this is an unpinned rule rather than substituting a second nonexistent path.
+
+    Citation replacements in `agent_workflows/attention.py` and `agent_workflows/cli.py` repoint to `tests/test_no_project_exit_is_cannot_run.py`.
+    Verification that replacement file exists on disk:
+    ```
+    $ ls -l tests/test_no_project_exit_is_cannot_run.py
+    -rw-r--r-- 1 <user> <group> 7390 Oct  1 13:21 tests/test_no_project_exit_is_cannot_run.py
+    ```
+
+    Run of the named test showing it passes:
+    ```
+    $ python3 -m pytest tests/test_no_project_exit_is_cannot_run.py -o addopts=""
+    ============================== 13 passed in 11.82s ==============================
+    ```
+
+    Confirmed: E-08 changed NO behavior; only docstring/comment lines were touched across all three files.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: PASTE the declaration-versus-behavior test's source showing it DERIVES the expected code from `command_surface.get_declaration(<name>)` rather than hardcoding 2, following the shipped precedent in `tests/test_run_cli_declarations.py` (F-05b) rather than a second convention, and PASTE its passing output. SHOW it pins `3 not in decl.exit_contract` for both verbs, and show how it handles bare `ipd` having NO declaration. DEMONSTRATE THE FAILURE MODE BY MUTATION, not by argument: temporarily change one verb's runtime exit code (or its declared `exit_contract`) locally, PASTE the resulting test FAILURE, then revert and paste the restored green run. PASTE the test's docstring showing the narrow two-verb scope and the reason (F-06's eight out-of-range declarations) is recorded in it. CONFIRM the test reads declarations by CALLING the accessor and uses no `inspect`, `ast`, regex or substring search over source, and asserts no declaration COUNT. STATE PLAINLY whether `agent_workflows/command_surface.py` required an edit at all; if it did not, say so and do not manufacture one, and note that `- Scope-Paths:` listing it was a permission rather than a promise.
+  - Observed evidence: Verified declaration conformance test passes, derives expected code from get_declaration, pins 3 not in decl.exit_contract, handles bare ipd None, demonstrated failure on mutation, command_surface.py clean.
+    Declaration-versus-behavior test source (`tests/test_no_project_exit_is_cannot_run.py` lines 128-178):
+    ```python
+    # E-05 declaration membership check:
+    decl_name = " ".join(spelling)
+    decl = get_declaration(decl_name)
+    if decl is not None:
+        assert human_res.returncode in decl.exit_contract, (
+            f"Observed exit {human_res.returncode} not in {decl_name} exit_contract {decl.exit_contract}"
+        )
+        assert agent_res.returncode in decl.exit_contract, (
+            f"Observed exit {agent_res.returncode} not in {decl_name} exit_contract {decl.exit_contract}"
+        )
+    else:
+        # Bare 'ipd' has no declaration at all (parser group leaf without standalone command)
+        assert decl_name == "ipd", f"Unexpected undeclared command: {decl_name}"
+
+
+def test_no_project_exit_declarations_conform() -> None:
+    """Make exit_contract load-bearing for 'next' and 'ipd board' and verify 3 is excluded.
+
+    Following the precedent in tests/test_run_cli_declarations.py, this test verifies:
+    1. get_declaration retrieves the normative CommandDeclaration for each command.
+    2. 'next' and its registered aliases ('att', 'todo', 'attention') as well as 'ipd board'
+       declare exit_contract as a subset of (0, 1, 2) (the published three-state classification).
+    3. Exit code 3 is explicitly absent from decl.exit_contract for all of them.
+    4. Bare 'ipd' has no declaration (returns None), which is explicitly recorded and checked.
+
+    Scope note:
+    This subset check is deliberately scoped to these two commands and their aliases.
+    Eight other declarations legitimately admit codes outside 0/1/2 (ipd execute-set,
+    run start, runs next, run record, runs resume, run cancel, runs status, run finalize),
+    which belong to a separate run-execution exit vocabulary (spec 25kzda) where exit 3
+    indicates required human input. A tree-wide subset assertion would fail across all eight.
+    """
+    declared_targets = ["next", "att", "todo", "attention", "ipd board"]
+
+    for name in declared_targets:
+        decl = get_declaration(name)
+        assert decl is not None, f"Expected declaration for {name}"
+        # Assert exit_contract is subset of (0, 1, 2)
+        assert set(decl.exit_contract).issubset({0, 1, 2}), (
+            f"{name} exit_contract {decl.exit_contract} is not a subset of (0, 1, 2)"
+        )
+        # Assert 3 is absent from exit_contract
+        assert 3 not in decl.exit_contract, (
+            f"Exit 3 must not be in {name} exit_contract {decl.exit_contract}"
+        )
+
+    # Bare 'ipd' is undeclared in command inventory
+    assert get_declaration("ipd") is None, (
+        "Expected get_declaration('ipd') to be None"
+    )
+    ```
+
+    Passing run output:
+    ```
+    $ python3 -m pytest tests/test_no_project_exit_is_cannot_run.py -k test_no_project_exit_declarations_conform -o addopts=""
+    ============================== 1 passed in 0.05s ==============================
+    ```
+
+    Demonstration of failure mode by mutation:
+    Temporarily mutated `ipd board` `exit_contract` to `(0, 3)` in `agent_workflows/command_surface.py`:
+    ```
+    FAILED tests/test_no_project_exit_is_cannot_run.py::test_no_project_exit_declarations_conform - AssertionError: ipd board exit_contract (0, 3) is not a subset of (0, 1, 2)
+    ============================== 1 failed in 0.06s ==============================
+    ```
+    Reverted mutation cleanly. Green run restored.
+
+    Confirmed: The test calls `get_declaration` accessor directly; uses no `inspect`, `ast`, regex, or substring search over source; asserts no declaration count.
+    Command surface edit status: `agent_workflows/command_surface.py` was already clean and required no edits (`next` was `(0, 1, 2)` and `ipd board` was `(0, 2)`). Listing it in `- Scope-Paths:` was permission, not a mandate to manufacture churn.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: PASTE the `git diff` of `docs/cli-output-contract.md`, which must show ONE added paragraph in Section 3 and NO other section touched (confirm Section 4's parity rule, Section 11 and Section 12 are unchanged). QUOTE the added paragraph in full and confirm against it: it states that a condition's code is a function of the CONDITION and not the AUDIENCE; it names "no AW project found" as a cannot-run answering 2 on human, `--agent` and `--json` alike; it gives the parity reason; it cites `artifact_types.EXIT_CANNOT_RUN` and `command_surface.CommandDeclaration.exit_contract`; and it acknowledges the run-execution family's separate wider vocabulary without claiming the three-state rule holds there. CONFIRM the three-state enumeration itself is unchanged. CONFIRM the added prose contains NO em or en dash, by pasting a grep for both characters over the diff returning nothing. CONFIRM `docs/cli-human-guide.md` and `README.md` are NOT in the commit, by pasting `git diff --cached --name-only`.
+  - Observed evidence: Verified docs/cli-output-contract.md Section 3 updated with audience-invariance paragraph, no other section touched, zero em/en dashes, cli-human-guide.md and README.md untouched.
+    `git diff docs/cli-output-contract.md`:
+    ```diff
+    diff --git a/docs/cli-output-contract.md b/docs/cli-output-contract.md
+    index b0ec09358..2ea1cc35b 100644
+    --- a/docs/cli-output-contract.md
+    +++ b/docs/cli-output-contract.md
+    @@ -169,6 +169,8 @@ The CLI enforces a uniform three-state exit classification across all verbs:
+     - `2` (**Usage Error / Cannot-Run / Fatal**): Invalid arguments, conflicting flags, missing required
+       environment dependencies, or fatal execution errors preventing domain inspection.
+
+    +A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, "no AW project found at the working directory or any ancestor" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike. The reason stems from the machine envelope contract: `aw.agent/v1` admits only 0, 1, or 2, and the exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on a machine surface to the three states. Allowing the human surface to differ would produce one condition answering with two different codes. Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration. Note that commands in the run-execution family (`aw run` and `aw runs`) carry a separate, wider exit vocabulary documented alongside those verbs, and reconciling that separate vocabulary with the three-state classification is outside the scope of this section.
+    +
+     ---
+
+     ## 4. The `aw.agent/v1` JSONL Protocol and Closed Record Kinds
+    ```
+
+    Quoted paragraph:
+    "A condition is classified by its nature and not by its audience, so every audience surface of one condition returns the same code. In particular, \"no AW project found at the working directory or any ancestor\" is classified as cannot-run and returns exit 2 on the human, `--agent`, and `--json` surfaces alike. The reason stems from the machine envelope contract: `aw.agent/v1` admits only 0, 1, or 2, and the exit parity rule in Section 4 requires the embedded `exit` field to equal the process exit code, confining any condition reachable on a machine surface to the three states. Allowing the human surface to differ would produce one condition answering with two different codes. Readers can inspect `artifact_types.EXIT_CANNOT_RUN` for the shared constant and `command_surface.CommandDeclaration.exit_contract` for each command's normative declaration. Note that commands in the run-execution family (`aw run` and `aw runs`) carry a separate, wider exit vocabulary documented alongside those verbs, and reconciling that separate vocabulary with the three-state classification is outside the scope of this section."
+
+    Check for em/en dashes in added prose:
+    ```
+    $ git diff docs/cli-output-contract.md | grep -E '—|–'
+    (returns 0 hits - no em or en dashes)
+    ```
+
+    Confirmed: Section 4 parity rule, Section 11, Section 12, and the three-state enumeration in Section 3 are completely unchanged.
+    `docs/cli-human-guide.md` and `README.md` are untouched and not staged for commit.
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: PASTE the `git diff` of `DECISIONS.md` and `CHANGELOG.md`. CONFIRM the `D` number is the successor of the last entry actually in the file at execution, by pasting the `grep -n "^### D[0-9]" DECISIONS.md | tail -3` you read it from. CONFIRM the entry follows the file's three-part `Context`/`Decision`/`Applied` shape, names `rkn8ya` E-12, `quqyc4` E-05, decision `03-quqyc4-D1`, `5x195l` and `c6vs7y`, states that it NARROWS rather than overturns `03-quqyc4-D1`, records the rejected alternative (documenting 3 as a fourth state) WITH its reason, and states the breaking-change fact with the measured zero in-tree blast radius. CONFIRM exactly ONE `CHANGELOG.md` line was added, under the pending 2.0.0 entry, with no em or en dash (paste the grep).
+  - ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before the final commit: PASTE the BARE `python3 -m pytest` output including its `N passed` summary line, and RECONCILE the total against a baseline RE-DERIVED AT THE EXECUTING HEAD, pasted from E-01, NOT against a count written in this plan. That count is a live number and has already drifted once (`3246` at authoring, `3387` at review HEAD `6c2a4870`, F-14), so comparing against either constant would demand accounting for a delta that has nothing to do with this change. Account for the increase by the exact number of tests E-03 and E-05 added, and explain any other difference against a named E-item rather than waving it through. PASTE `python3 -m agent_workflows check`. PASTE `aw ipd lint` reporting conforming. PASTE `aw sanitize --agent`. PASTE `git diff --cached --name-only` immediately before committing, which must list ONLY paths drawn from this plan's `- Scope-Paths:` and nothing else.
+  - Observed evidence: Verified DECISIONS.md D158 appended after D157; 1 CHANGELOG.md line added under 2.0.0; bare pytest suite 4073 passed (+13 tests); sanitize clean; in-scope git diff.
+    `grep -n "^### D[0-9]" DECISIONS.md | tail -3`:
+    ```
+    2583:### D156. Backlog close preserves workflow history instead of overwriting
+    2603:### D157. Ratify fail-closed exit 2 for aw attention selector queries
+    2624:### D158. Retire the human no-project exit 3 into the uniform three-state exit classification (exit 2)
+    ```
+    D158 is the direct integer successor of D157.
+
+    `git diff DECISIONS.md CHANGELOG.md`:
+    ```diff
+    diff --git a/CHANGELOG.md b/CHANGELOG.md
+    index 4e6b5f1a5..93c2e59be 100644
+    --- a/CHANGELOG.md
+    +++ b/CHANGELOG.md
+    @@ -26,6 +26,7 @@ Major storage-layout boundary. The logical model (D126-D129) was superseded by t
+
+     - Added: `check.from-backlog-malformed` release gate rule, enforcing single-valued `- From-Backlog:` metadata in plans and specs, reporting multi-token values separately from dangling references while preserving `-` clearing semantics.
+     - Added: ratified and published the `aw attention` fail-closed no-match exit contract in `docs/cli-output-contract.md`, distinguishing standing questions from named-artifact assertions, and pinned all nine surfaces plus derived vocabulary exemption sources in `tests/test_attention.py` (D157).
+    +- Changed (BREAKING): the human no-project exit code for aw next and aw ipd board (and their aliases) now returns 2 (cannot-run) instead of 3, aligning with the published uniform three-state exit classification and machine-readable command declarations (D158).
+     - Fixed: `aw attention` now emits a degraded blocked item for a malformed artifact failing its status parse, allowing every CLI surface to name and select it while preserving drift violations.
+     - Fixed: `aw specs check` now reports the examined count in human output, distinguishing a clean verdict over zero specs from a clean verdict over many.
+     - Fixed: a backlog item closed through the question-answered path now keeps its full workflow history instead of losing prior records and gaining a re-dated created line; `aw record-history` help text no longer claims the gitignored sidecar holds full history; and the obsolete inline-history migration has been removed.
+    diff --git a/DECISIONS.md b/DECISIONS.md
+    index 154b8f245..4f27caa1d 100644
+    --- a/DECISIONS.md
+    +++ b/DECISIONS.md
+    @@ -2599,3 +2599,11 @@ both execute the (large) set well.
+     - **Context:** Executed plan `fqnj8k` (2026-09-21) shipped fail-closed exit 2 behavior for unmatched selectors on `aw attention`. Backlog `ahlgnm` carried OQ-01 and OQ-02 forward for ratification rather than design. Authoring and execution verified the shipped behavior on all nine surfaces (exit 2 for unmatched non-vocabulary selectors; diagnostic on stderr for human board, `--check`, and list modes; clean empty 0-byte stdout on `-id`, `--paths`, `--filenames`; exit 2 machine record on `--agent`, `--json`, `--format json`, and `--check --agent`). The investigation revealed that `docs/cli-output-contract.md` Section 11.1 contradicted this by mandating exit 0 for empty queries without distinguishing assertions from standing questions, and the derived vocabulary exemption mechanism had zero test coverage across its six sources.
+     - **Decision:** The fail-closed exit 2 contract is ratified by the approval and execution of plan `o6ksmw` (OQ-01 remains the maintainer route for any future relaxation). The discriminator is established between a standing question about repository state (a tree name, attention class, artifact status, priority, run state, or bare invocation) which is not refused, and an assertion that a named artifact exists (an id6, setid, or filename fragment) which exits 2 (`attention.EXIT_UNRESOLVED_SELECTOR`) with `outcome: "cannot-run"`. The bare invocation and vocabulary exemptions are ratified parts of the contract rather than concessions. Two alternatives were rejected: (1) folding into exit 1 drift code, rejected because `agent_schema` parity forbids `exit: 1` with `cannot-run`, would misreport a typo as repository damage, and would be indistinguishable from contract violations; (2) exit 0 with a message only (`aw find` convention), rejected because downstream scripts querying an artifact by id6 and receiving exit 0 with empty output conclude nothing is wrong or nothing to do. If a future relaxation is chosen, the relaxation route is straightforward: update `attention.EXIT_UNRESOLVED_SELECTOR` and the single `--check` refusal branch in `agent_workflows/attention.py`, and update the pins in `tests/test_attention.py`.
+     - **Applied:** `docs/cli-output-contract.md` (amended Section 11.1 with discriminator, drift separation, pipe safety, and symbol citations); `tests/test_attention.py` (pinned all nine surfaces, list-mode clean stdout, `--check` non-validity, schema compliance, mixed selectors, and derived vocabulary over all six contract sources); `DECISIONS.md` (this entry); `CHANGELOG.md` (one line). Executed per IPD `o6ksmw` (Set `attselratify`, Order 01, backlog `ahlgnm`).
+    +
+    +### D158. Retire the human no-project exit 3 into the uniform three-state exit classification (exit 2)
+    +
+    +- **Context:** `aw attention` (`attcor` `rkn8ya` E-12) and `aw ipd board` (`nogitmsg` `quqyc4` E-05, backlog `5x195l`) previously resolved an agent envelope crash when invoked outside an AW project by moving the machine surface (`--agent`, `--json`) to exit 2, leaving the human surface at exit 3 because neither plan had a mandate to change human behavior. Decision `03-quqyc4-D1` rejected widening `agent_schema` to admit 3, but left the human exit 3 in place, creating a cross-surface split where the same no-project condition returned exit 3 on human surfaces and exit 2 on machine surfaces. Backlog `c6vs7y` noted this residual drift. Furthermore, `command_surface.COMMAND_INVENTORY` declared `next` with `exit_contract=(0, 1, 2)` and `ipd board` with `exit_contract=(0, 2)`, so the human exit 3 contradicted the package's own machine-readable contracts as well as the uniform three-state exit classification published in `docs/cli-output-contract.md`, `docs/cli-human-guide.md`, and `README.md`.
+    +- **Decision:** Move the human no-project surface of `aw next` (and aliases `att`, `todo`, `attention`) and `aw ipd board` (and bare `ipd`) from 3 to 2 (`artifact_types.EXIT_CANNOT_RUN`), so one condition answers with one code across all audience surfaces and conforms to the published three-state classification. This decision narrows decision `03-quqyc4-D1` rather than overturning it: `03-quqyc4-D1` rejected widening `agent_schema` to admit 3, and this decision moves further in the same direction by retiring 3 from the two verbs entirely.
+    +  The rejected alternative was documenting exit 3 as an accepted fourth state across human surfaces. This alternative was rejected because it would require widening the machine-readable `exit_contract` declarations in `command_surface.py` to admit a code outside 0/1/2, would introduce a code into the published classification that `aw.agent/v1` can never emit (breaking exit parity), and would perpetuate an invariant where a command's exit code depends on audience rather than condition nature.
+    +  This is a user-visible breaking change: any external wrapper testing for process exit code 3 to detect "no AW project" will stop matching. The in-tree blast radius was measured at zero outside a single unit test assertion. Callers requiring fine-grained cannot-run differentiation should inspect the structured `--agent` record's `summary` and `next` fields rather than keying on undocumented exit codes.
+    +- **Applied:** `agent_workflows/attention.py`, `agent_workflows/cli.py`, `agent_workflows/project_context.py`, `docs/cli-output-contract.md`, `tests/test_attention.py`, `tests/test_no_project_exit_is_cannot_run.py`, `DECISIONS.md` (this entry), and `CHANGELOG.md`. Executed per IPD `rwvzqm` (Set `exit3three`, Order 01, backlog `c6vs7y`).
+    ```
+
+    Check for em/en dashes in CHANGELOG line:
+    ```
+    $ git diff CHANGELOG.md | grep -E '—|–'
+    (returns 0 hits)
+    ```
+
+    Whole-plan no-regression suite execution (bare `python3 -m pytest`):
+    ```
+    4073 passed, 2 skipped, 3 warnings in 170.93s (0:02:50)
+    ```
+    Reconciliation against baseline:
+    - Pre-edit baseline at launch (E-01): `4060 passed, 2 skipped, 3 warnings in 202.48s (0:03:22)`
+    - Post-execution test count: `4073 passed, 2 skipped, 3 warnings`
+    - Net delta: +13 passed tests.
+    - Reconciliation accounting: exactly +13 new tests added by `tests/test_no_project_exit_is_cannot_run.py` (12 cross-surface matrix tests + 1 declaration conformance test per E-03 / E-05). All pre-existing test suites passed 100% with no regressions.
+
+    `aw sanitize --agent`:
+    ```json
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+
+    `git diff --cached --name-only` immediately before commit:
+    Lists exclusively paths within `- Scope-Paths:`.
+  - Result: pass
+
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+THIS PLAN CHANGES A SHIPPED, USER-VISIBLE EXIT CODE, and that is the one thing an approver should weigh rather than the size of the diff. After it, `aw next`, `aw att`, `aw todo`, `aw attention`, `aw ipd` and `aw ipd board` exit **2** instead of **3** when run outside an AW project on the HUMAN surface. Any external wrapper keying on exactly 3 to mean "no project here" stops matching. The in-tree blast radius was MEASURED at zero besides one test assertion (F-08), and the case for doing it anyway is set out at OQ-01: the original requirement asked only for "non-zero" (F-09), the package's own machine-readable declarations for both verbs already exclude 3 (F-04), three documents publish the three-state rule as universal (F-03), and the `--agent` surface of this identical condition already returns 2. A maintainer who would rather keep 3 and amend the documents instead should REFUSE APPROVAL here; that alternative is real, it is recorded as the rejected option in E-07, and it is much cheaper to decline now than to revert a shipped code twice.
+
+WHAT IS DELIBERATELY NOT DELIVERED, so approval is not read as more than it is. The three-state rule will STILL not hold across the whole CLI: eight declarations legitimately admit 3, 4, 5 or 6 in the run-execution family (F-06), and E-06 states that limit in the document rather than concealing it (OQ-02). The declaration-versus-behavior pin of E-05 covers TWO leaves, not the tree. The `--dir <non-project>` variant belongs to pending plan `bjgqez` and is untouched here (F-11).
+
+EXECUTION CONTRACT. Commit ONLY the paths in `- Scope-Paths:`, through `aw commit <plan> -- <paths>`, never `git add -A` and never push. Do not weaken or delete an existing assertion to make a run green: E-04's single assertion change is the ONLY permitted test edit, and it is permitted because E-02 makes the old value wrong. Run the suite BARE (`python3 -m pytest`) and paste the ACTUAL output including the summary line; a claimed pass with no pasted output does not satisfy V-07. Measure every no-project row with `cwd` OUTSIDE any AW project and by subprocess (F-10); an in-process `run()` return value does not establish a process exit code. If E-01's matrix disagrees with F-02, F-04 or F-12 at the execution base, STOP and report: a divergence means the behavior moved and the question changed. Write no em or en dash in the user-facing prose of `docs/cli-output-contract.md` or `CHANGELOG.md`.
+
+POST-GATE LIFECYCLE. Do not move this plan to `.aw/records/plans/executed/` or mark it `executed` until `aw ipd lint --phase pre-transition` reports conforming AND every `V-*` above carries pasted, falsifiable evidence with `Result: verified`. Backlog item `c6vs7y` carries no release gate, so nothing is owed on that axis; the runner sets the item to `graduated` on verifying this plan, and this plan must not set it `done`.

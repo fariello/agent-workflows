@@ -242,6 +242,48 @@ class TestClassifyRecoveryDispositionBehavior(_TempGitRepoTestCase):
             expected_real_count=1,
         )
 
+    def test_legacy_wip_snapshot_subject_treated_as_real_work_not_snapshot(
+        self,
+    ) -> None:
+        """Pin that the live routing path uses the canonical snapshot predicate (vbhat9 E-04).
+
+        Backlog 2yjc5l reported a dead divergent copy in runner_shared that matched commit
+        subjects with `subj.startswith('wip(snapshot):')`, whereas canonical snapshots use
+        `worktree_lease.INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX`. This test would FAIL under
+        the dead body backlog 2yjc5l measured, which classified that subject as a snapshot
+        and would have dispatched a FRESH EXECUTION, redoing finished work.
+        """
+        lane_id = "recov06"
+        branch_name = worktree_lease.lane_branch_name(lane_id)
+        self._git(self.repo, ["checkout", "-b", branch_name, self.base_sha])
+        (self.repo / "work.py").write_text("print('work')\n", encoding="utf-8")
+        self._git(self.repo, ["add", "work.py"])
+        legacy_msg = "wip(snapshot): mid-edit work"
+        self._git(self.repo, ["commit", "-m", legacy_msg])
+        self._git(self.repo, ["checkout", "main"])
+
+        item = {
+            "id6": lane_id,
+            "preserved_lane_id": lane_id,
+            "preserved_base": self.base_sha,
+            "position": 1,
+            "action": "execute",
+        }
+        res = runner_shared.classify_recovery_disposition(
+            self.repo, item, {"repo": str(self.repo)}
+        )
+        self.assertEqual(res.disposition, runner_shared.DISPOSITION_VERIFY_AND_CONTINUE)
+        self.assertFalse(res.snapshot_only)
+
+        self._assert_modules_agree(
+            item=item,
+            expected_disposition=runner_shared.DISPOSITION_VERIFY_AND_CONTINUE,
+            expected_snapshot_only=False,
+            expected_dirty=False,
+            expected_commits_ahead=1,
+            expected_real_count=1,
+        )
+
 
 class TestRouteRecoveryTurnBehavior(_TempGitRepoTestCase):
     """Proves route_recovery_turn handles save_state injection on both hosts."""

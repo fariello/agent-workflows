@@ -276,10 +276,37 @@ def commit_isolated(
     THE HONEST RESIDUE. Two writers can still clobber each other directly (that is ordinary
     concurrent editing, not this bug), and a hand-run ``git commit`` in the shared tree still stashes
     it. This removes OUR verbs as a cause of the loss; it does not police other tools.
+
+    DIRECTORY ARGUMENTS ARE REFUSED WITH TYPED OUTCOME (``ISO_ERROR``), naming the offending
+    directory without creating an isolated worktree. This guard is defense for a direct caller,
+    since ``offer_commit`` refuses a directory first.
     """
     rel = [str(p) for p in paths if str(p).strip()]
     if not rel:
         return IsolatedCommitResult(ISO_NOTHING, None, "no paths requested")
+
+    # Refuse directory arguments BEFORE creating an isolated worktree (E-03 / E-05).
+    # Sited before tempfile.mkdtemp / git worktree add so a refused call allocates nothing and
+    # needs no cleanup. Catches paths that are live directories on disk as well as paths that were
+    # directories whose contents were deleted or moved away (the emptied-directory shape).
+    # This guard is defense for a direct caller, since offer_commit refuses a directory first.
+    dir_paths = []
+    for p in rel:
+        target = repo_root / p
+        if target.is_dir():
+            dir_paths.append(p)
+        elif not target.exists():
+            rc, out, _err = _git(repo_root, ["ls-files", "-z", "--", p])
+            if rc == 0 and out:
+                tracked = [t for t in out.split("\0") if t]
+                if tracked and tracked != [p]:
+                    dir_paths.append(p)
+    if dir_paths:
+        return IsolatedCommitResult(
+            ISO_ERROR,
+            None,
+            f"refusing directory argument(s): {', '.join(dir_paths)}; name explicit file path(s) instead",
+        )
 
     rc, head, err = _git(repo_root, ["rev-parse", "HEAD"])
     if rc != 0:
@@ -504,6 +531,65 @@ class WorktreeCommit(NamedTuple):
 
 
 COORDINATOR_WORKTREE_PREFIX = "aw/coordinator/"
+ABANDONED_REF_PREFIX = "refs/aw/abandoned/coordinator/"
+RETENTION_WINDOW_SECONDS = (
+    14 * 86400
+)  # 14 days, matching git's default gc.pruneExpire (2.weeks)
+
+
+def abandoned_ref_name(sha: str) -> str:
+    """Return the canonical retained ref name for an abandoned coordinator commit."""
+    sha_str = str(sha).strip()
+    return f"{ABANDONED_REF_PREFIX}{sha_str[:12]}"
+
+
+def _prune_abandoned_coordinator_refs(
+    repo_root: Path,
+    *,
+    max_age_seconds: float = RETENTION_WINDOW_SECONDS,
+    now: Optional[float] = None,
+) -> None:
+    """Opportunistically prune retained abandoned refs older than max_age_seconds.
+
+    FAIL-SOFT: pruning is opportunistic housekeeping and must NEVER raise or fail a transition.
+
+    ASSUMPTION ON PRUNE KEY (F-15):
+    We use %(committerdate:unix) from git for-each-ref. %(committerdate:unix) is the timestamp
+    stored in the commit object itself, not the timestamp when the ref was created.
+    This is sound because a coordinator commit is created at retention time, so its committer
+    date IS its retention time. (The toolkit never backdates a commit; there are no
+    GIT_COMMITTER_DATE or GIT_AUTHOR_DATE assignments anywhere in agent_workflows or tests).
+    %(creatordate:unix) returns the same backdated value, and a refs/aw/* ref carries no reflog
+    (git reflog show <ref> is empty), so %(committerdate:unix) is the canonical timestamp
+    available in one call.
+    """
+    try:
+        rc, out, _err = _git(
+            repo_root,
+            [
+                "for-each-ref",
+                "--format=%(refname) %(committerdate:unix)",
+                f"{ABANDONED_REF_PREFIX}*",
+            ],
+        )
+        if rc != 0 or not out.strip():
+            return
+        current_time = time.time() if now is None else now
+        cutoff = current_time - max_age_seconds
+        for line in out.splitlines():
+            parts = line.strip().split()
+            if len(parts) < 2:
+                continue
+            refname, commit_time_str = parts[0], parts[1]
+            try:
+                commit_time = float(commit_time_str)
+            except ValueError:
+                continue
+            if commit_time < cutoff:
+                _git(repo_root, ["update-ref", "-d", refname])
+    except Exception:
+        # Never allow housekeeping to fail an invocation
+        pass
 
 
 @contextlib.contextmanager
@@ -536,13 +622,18 @@ def coordinator_worktree(
     ``ipd_lifecycle._finalize_transaction``, which mirrors the plan's CURRENT bytes so an executing
     agent's uncommitted evidence edits still ride the lifecycle commit, as they do today).
 
-    CLEANUP is unconditional and removes the worktree AND the branch. That is safe here BECAUSE the
-    caller has already landed (or deliberately abandoned) the commit: a landed commit is reachable
-    from the caller's branch and survives the branch deletion, while an unlanded one is intentionally
-    discarded. Do not use this helper to hold work across invocations.
+    CLEANUP is unconditional and removes the worktree AND the branch. When a commit was made inside
+    the worktree and not landed by the caller (an abandoned commit), it is RETAINED under
+    `refs/aw/abandoned/coordinator/<sha12>` before the branch is deleted, so the commit remains
+    reachable, gc-immune, and nameable rather than being discarded or left dangling. A landed commit
+    is already reachable from the caller's branch, and no ref is written. Do not use this helper to
+    hold work across invocations.
     """
     import shutil
     import tempfile
+
+    # Opportunistically bound retention by pruning refs older than the retention window.
+    _prune_abandoned_coordinator_refs(repo_root)
 
     rc, head, err = _git(repo_root, ["rev-parse", "HEAD"])
     if rc != 0:
@@ -573,6 +664,28 @@ def coordinator_worktree(
             shutil.rmtree(wt, ignore_errors=True)
         _git(repo_root, ["worktree", "prune"])
         if created_branch:
+            # Classification and retention MUST run before `branch -D`:
+            # The branch ref survives `worktree remove` and `worktree prune` and dies only at `branch -D`.
+            # After `branch -D`, `rev-parse <branch>` is rc 128 and the tip is unknowable.
+            try:
+                rc_tip, tip_out, _ = _git(repo_root, ["rev-parse", branch])
+                if rc_tip == 0:
+                    tip = tip_out.strip()
+                    if tip != base_sha:
+                        # Something was committed. Check whether it was landed by the caller.
+                        rc_anc, _, _ = _git(
+                            repo_root, ["merge-base", "--is-ancestor", tip, "HEAD"]
+                        )
+                        if rc_anc != 0:
+                            # ABANDONED: caller did NOT land it (is-ancestor != 0).
+                            # Retain the commit under refs/aw/abandoned/coordinator/<sha12> so it
+                            # stays reachable, gc-immune, and nameable.
+                            # FAIL-SOFT: writing the ref must not raise out of finally or prevent branch deletion.
+                            ref_name = abandoned_ref_name(tip)
+                            _git(repo_root, ["update-ref", ref_name, tip])
+            except Exception:
+                # Fail-soft: housekeeping must never mask an in-flight transaction exception.
+                pass
             _git(repo_root, ["branch", "-D", branch])
 
 

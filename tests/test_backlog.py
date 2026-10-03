@@ -20,6 +20,7 @@ from pathlib import Path
 from agent_workflows import attention as ATT
 from agent_workflows import attention_contract as A
 from agent_workflows import backlog as B
+from tests import support
 
 
 def _args(**kw):
@@ -137,7 +138,46 @@ class BacklogVerbTests(unittest.TestCase):
         # survive a clone. The transition record now LEADS and the `created` record it used to destroy
         # is still beneath it.
         self.assertIn("finished", text)
-        after = text.split("## Workflow history", 1)[1]
+        try:
+            after = support.section(text, "## Workflow history", "\n## ")
+        except support.SectionBoundError:
+            after = support.final_section(
+                text, "## Workflow history", next_marker="## "
+            )
+        inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
+        self.assertEqual(len(inline), 2, inline)
+        self.assertIn("finished", inline[0])
+        self.assertIn("created", inline[1])
+
+    def test_set_transitions_status_moves_file_and_appends_history_bounds_with_body(
+        self,
+    ):
+        """E-01: History extraction bounds at next section when item carries a body."""
+        _new(
+            self.repo,
+            body="## Suggested work\n\n- bound the guard\n- add a control test\n",
+        )
+        f = next((self.repo / ".agents/backlog/open").glob("*.md"))
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = B.run_set(
+                _args(
+                    dir=str(self.repo),
+                    path=str(f),
+                    status="done",
+                    gate_kind=None,
+                    gate_ref=None,
+                    message="finished",
+                    apply=True,
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertFalse((self.repo / ".agents/backlog/open" / f.name).exists())
+        moved = self.repo / ".agents/backlog/done" / f.name
+        self.assertTrue(moved.exists())
+        text = moved.read_text(encoding="utf-8")
+        self.assertIn("- Status: done", text)
+        self.assertIn("finished", text)
+        after = support.section(text, "## Workflow history", "\n## ")
         inline = [ln for ln in after.split("\n") if ln.startswith("- ")]
         self.assertEqual(len(inline), 2, inline)
         self.assertIn("finished", inline[0])
@@ -597,11 +637,14 @@ class BacklogNoteVerbTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _records(self, path: Path):
+        text = path.read_text(encoding="utf-8")
+        try:
+            sec = support.section(text, "## Workflow history", "\n## ")
+        except support.SectionBoundError:
+            sec = support.final_section(text, "## Workflow history", next_marker="## ")
         return [
             ln.strip()
-            for ln in path.read_text(encoding="utf-8")
-            .split("## Workflow history", 1)[1]
-            .split("\n")
+            for ln in sec.splitlines()
             if A.HISTORY_RECORD_RE.match(ln.strip())
         ]
 
@@ -931,12 +974,12 @@ class BacklogPreservationTests(unittest.TestCase):
             self.assertTrue(parked1.exists())
             self.assertTrue(parked2.exists())
 
-            meta1 = parked1.read_text(encoding="utf-8").split("\n## Workflow history")[
-                0
-            ]
-            meta2 = parked2.read_text(encoding="utf-8").split("\n## Workflow history")[
-                0
-            ]
+            t1 = parked1.read_text(encoding="utf-8")
+            t2 = parked2.read_text(encoding="utf-8")
+            self.assertIn("\n## Workflow history", t1)
+            self.assertIn("\n## Workflow history", t2)
+            meta1 = t1.split("\n## Workflow history")[0]
+            meta2 = t2.split("\n## Workflow history")[0]
 
             self.assertEqual(meta1, meta2)
             self.assertIn("- Blocks-Release: rel001", meta1)
@@ -1163,7 +1206,7 @@ class BacklogPreservationTests(unittest.TestCase):
             ]
             self.assertEqual(len(history_lines), 4)
             self.assertIn("question answered; close-on-answer", history_lines[0])
-            self.assertIn("set (aw backlog)", history_lines[0])
+            self.assertIn("done (aw backlog)", history_lines[0])
             self.assertEqual(history_lines[1:], original_records)
             self.assertNotIn("created (aw backlog): test item", text)
 
@@ -1336,6 +1379,8 @@ class BacklogPreservationTests(unittest.TestCase):
                 t1,
             )
 
+            self.assertIn("\n## Workflow history", t1)
+            self.assertIn("\n## Workflow history", t2)
             head1 = t1.split("\n## Workflow history")[0]
             head2 = t2.split("\n## Workflow history")[0]
             self.assertEqual(head1, head2)
@@ -1713,15 +1758,24 @@ class BacklogPreservationTests(unittest.TestCase):
             self.assertIn("- Release-Exempt-Ref: D42\n", res2_text)
             self.assertIn("exempted reason", res2_text)
 
-            norm1 = (
+            # Two asymmetries are normalized away here:
+            # 1. Actor: (aw backlog) vs (aw set) truthfully identifies the code path and is deliberate.
+            # 2. Date: backlog._reattach_history stamps the local clock while status_set stamps UTC.
+            #    This clock skew is live bug fnb8pl (out of scope for jbipfa), so dates are normalized by shape.
+            import re as _re
+
+            _DATE = _re.compile(r"^- \d{4}-\d{2}-\d{2} ", _re.MULTILINE)
+            norm1 = _DATE.sub(
+                "- HIST_DATE ",
                 res1_text.replace("bk0001", "bkXXXX")
                 .replace("Bug 1", "Bug X")
-                .replace("set (aw backlog)", "HIST_ACTOR")
+                .replace("same-status (aw backlog)", "HIST_ACTOR"),
             )
-            norm2 = (
+            norm2 = _DATE.sub(
+                "- HIST_DATE ",
                 res2_text.replace("bk0002", "bkXXXX")
                 .replace("Bug 2", "Bug X")
-                .replace("same-status (aw set)", "HIST_ACTOR")
+                .replace("same-status (aw set)", "HIST_ACTOR"),
             )
             self.assertEqual(norm1, norm2)
 

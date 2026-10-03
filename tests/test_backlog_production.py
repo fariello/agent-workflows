@@ -853,6 +853,14 @@ class TestBacklogProductionE08(unittest.TestCase):
                     )
                     self.assertEqual(len(grad_files), 0)
 
+                    # Item must end in done/ (the illegitimate state the agent achieved)
+                    done_files = list(
+                        repo.glob(
+                            ".aw/records/backlog/done/20260927-bkl201*.backlog.md"
+                        )
+                    )
+                    self.assertEqual(len(done_files), 1)
+
     def test_case5b_agent_sets_graduated_before_handoff_commit(self):
         """Case (5b): agent sets item graduated itself before writing plan:
         transition precedes handoff commit -> fails naming BACKLOG-GRADUATE-LEGITIMACY.
@@ -1010,6 +1018,161 @@ class TestBacklogProductionE08(unittest.TestCase):
                         )
                     )
                     self.assertEqual(len(grad_files), 0)
+
+    def test_case5d_legitimacy_discrimination_achieved_vs_refused_attempt(self):
+        """Case (5d): discrimination between an achieved illegitimate state and a blocked attempt.
+        Setter-bypassing achieved-done reaches fail-gate with BACKLOG-GRADUATE-LEGITIMACY.
+        Refused attempt reaches executed with no refusal (status_before is still open, handoff succeeds).
+        """
+        for host_label, mod in _HOSTS:
+            with self.subTest(host=host_label):
+                # 1. Contrasting case A: agent achieves done WITHOUT invoking CLI (setter-bypassing)
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_backlog_item(repo, id6="bk204a", status="open", gate="next")
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
+                    )
+
+                    run_id = f"run-{host_label}-achieved-done"
+                    cmd = [
+                        "start",
+                        "bk204a",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent_achieved(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target, id6="pl204a", backlog_id6="bk204a", gate="next"
+                        )
+                        # Achieves done WITHOUT invoking CLI (hand-written status plus relocation)
+                        bkl_file = list(
+                            target.glob(".aw/records/backlog/open/*bk204a*.backlog.md")
+                        )[0]
+                        bkl_text = bkl_file.read_text(encoding="utf-8").replace(
+                            "- Status: open", "- Status: done"
+                        )
+                        done_dir = target / ".aw/records" / "backlog" / "done"
+                        done_dir.mkdir(parents=True, exist_ok=True)
+                        bkl_file.unlink()
+                        (done_dir / bkl_file.name).write_text(
+                            bkl_text, encoding="utf-8"
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent_achieved):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "fail-gate")
+                    refusal = item.get("refusal") or {}
+                    self.assertEqual(refusal.get("code"), "BACKLOG-GRADUATE-LEGITIMACY")
+                    # Item remains in done/, not graduated/
+                    done_files = list(
+                        repo.glob(".aw/records/backlog/done/*bk204a*.backlog.md")
+                    )
+                    self.assertEqual(len(done_files), 1)
+                    grad_files = list(
+                        repo.glob(".aw/records/backlog/graduated/*bk204a*.backlog.md")
+                    )
+                    self.assertEqual(len(grad_files), 0)
+
+                # 2. Contrasting case B: agent attempts gated close via CLI, is refused, touches nothing else
+                with tempfile.TemporaryDirectory() as td:
+                    repo = _make_test_repo(Path(td))
+                    _write_backlog_item(repo, id6="bk204b", status="open", gate="next")
+                    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "add backlog"], cwd=repo, check=True
+                    )
+
+                    run_id = f"run-{host_label}-refused-attempt"
+                    cmd = [
+                        "start",
+                        "bk204b",
+                        "--action",
+                        "plan",
+                        "--repo",
+                        str(repo),
+                        "--run-id",
+                        run_id,
+                        "--no-isolate-worktree",
+                    ]
+                    args = mod.build_parser().parse_args(cmd)
+                    buf = io.StringIO()
+                    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(
+                        buf
+                    ):
+                        run_dir = mod.initialize_run(args)
+
+                    def fake_agent_refused(
+                        state, rdir, item, plan_path, prompt_path, attempt_no, **kwargs
+                    ):
+                        work_dir = kwargs.get("work_dir")
+                        target = Path(work_dir) if work_dir else Path(state["repo"])
+                        _write_conforming_plan(
+                            target, id6="pl204b", backlog_id6="bk204b", gate="next"
+                        )
+                        # Attempts gated close, which is refused by the CLI gate
+                        subprocess.run(
+                            [
+                                "python3",
+                                "-m",
+                                "agent_workflows",
+                                "backlog",
+                                "set",
+                                "done",
+                                "bk204b",
+                                "--no-commit",
+                            ],
+                            cwd=target,
+                        )
+                        return 0, "session", rdir / "log.txt", ["cmd"]
+
+                    with _patch_host_agent(mod, fake_agent_refused):
+                        with contextlib.redirect_stdout(
+                            buf
+                        ), contextlib.redirect_stderr(buf):
+                            mod.run_queue(run_dir, retry_incomplete=False)
+
+                    state = json.loads(
+                        (run_dir / "state.json").read_text(encoding="utf-8")
+                    )
+                    item = state["queue"][0]
+                    self.assertEqual(item["status"], "executed")
+                    self.assertIsNone(item.get("refusal"))
+                    # Item legitimately graduated by run's handoff
+                    grad_files = list(
+                        repo.glob(".aw/records/backlog/graduated/*bk204b*.backlog.md")
+                    )
+                    self.assertEqual(len(grad_files), 1)
+                    done_files = list(
+                        repo.glob(".aw/records/backlog/done/*bk204b*.backlog.md")
+                    )
+                    self.assertEqual(len(done_files), 0)
 
 
 class TestBacklogProductionE09(unittest.TestCase):

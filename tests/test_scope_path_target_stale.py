@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, check_engine, oc_runipd
+from agent_workflows import agy_runipd, artifact_core, check_engine, oc_runipd
 from tests import support
 from tests.test_oc_runipd import _CONFORMING_PLAN, _init_repo_with_conforming_plan
 
@@ -674,6 +674,187 @@ class ScopePathTargetStaleTests(unittest.TestCase):
             if item.get("status") == "fail-gate":
                 prompt_files = list(prompts_dir.glob("*wir001*"))
                 self.assertEqual(prompt_files, [])
+
+    def test_17_check_severity_plain_moved_info_and_exit_code_zero(self) -> None:
+        check_func = getattr(check_engine, "check_scope_path_target_stale", None)
+        self.assertIsNotNone(check_func)
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            spec_dir = repo / ".aw" / "records" / "specs" / "to-review"
+            spec_dir.mkdir(parents=True)
+            target_spec = spec_dir / "20260901-spc001-01-spc001-target.spec.md"
+            target_spec.write_text(
+                "# Spec: Target\n- Status: to-review\n- Id: spc001\n",
+                encoding="utf-8",
+            )
+            declared_path = (
+                ".aw/records/specs/approved/20260901-spc001-01-spc001-target.spec.md"
+            )
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            subj = pending / "20260902-subj-01-sub001-subj.ipd.md"
+            subj_text = (
+                f"# IPD: Subj\n- Status: approved\n- Id: sub001\n"
+                f"- Scope-Paths: {declared_path}\n"
+            )
+            subj.write_text(subj_text, encoding="utf-8")
+
+            findings = check_func(repo)
+            self.assertEqual(len(findings), 1)
+            f = findings[0]
+            self.assertEqual(f.rule, "check.scope-path-target-stale")
+            self.assertEqual(f.severity, "info")
+            self.assertIn("moved", f.detail)
+            self.assertEqual(artifact_core.drift_exit_code([f]), 0)
+
+    def test_18_check_severity_moved_terminal_error_and_exit_code_one(self) -> None:
+        check_func = getattr(check_engine, "check_scope_path_target_stale", None)
+        self.assertIsNotNone(check_func)
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+            exec_dir.mkdir(parents=True)
+            target_plan = exec_dir / "20260901-test-01-tst001-target.ipd.md"
+            target_plan.write_text(
+                "# IPD: Target\n- Status: executed\n- Id: tst001\n",
+                encoding="utf-8",
+            )
+            declared_path = (
+                ".aw/records/plans/pending/20260901-test-01-tst001-target.ipd.md"
+            )
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            subj = pending / "20260902-subj-01-sub001-subj.ipd.md"
+            subj_text = (
+                f"# IPD: Subj\n- Status: approved\n- Id: sub001\n"
+                f"- Scope-Paths: {declared_path}\n"
+            )
+            subj.write_text(subj_text, encoding="utf-8")
+
+            findings = check_func(repo)
+            self.assertEqual(len(findings), 1)
+            f = findings[0]
+            self.assertEqual(f.rule, "check.scope-path-target-stale")
+            self.assertEqual(f.severity, "error")
+            self.assertIn("moved-terminal", f.detail)
+            self.assertEqual(artifact_core.drift_exit_code([f]), 1)
+
+    def test_19_check_severity_vanished_error_and_exit_code_one(self) -> None:
+        check_func = getattr(check_engine, "check_scope_path_target_stale", None)
+        self.assertIsNotNone(check_func)
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            declared_path = (
+                ".aw/records/specs/approved/20260901-spc999-01-spc999-target.spec.md"
+            )
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            subj = pending / "20260902-subj-01-sub001-subj.ipd.md"
+            subj_text = (
+                f"# IPD: Subj\n- Status: approved\n- Id: sub001\n"
+                f"- Scope-Paths: {declared_path}\n"
+            )
+            subj.write_text(subj_text, encoding="utf-8")
+
+            findings = check_func(repo)
+            self.assertEqual(len(findings), 1)
+            f = findings[0]
+            self.assertEqual(f.rule, "check.scope-path-target-stale")
+            self.assertEqual(f.severity, "error")
+            self.assertIn("vanished", f.detail)
+            self.assertEqual(artifact_core.drift_exit_code([f]), 1)
+
+    def test_20_check_severity_mixed_tree_retains_exit_code_one(self) -> None:
+        check_func = getattr(check_engine, "check_scope_path_target_stale", None)
+        self.assertIsNotNone(check_func)
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            spec_dir = repo / ".aw" / "records" / "specs" / "to-review"
+            spec_dir.mkdir(parents=True)
+            target_spec = spec_dir / "20260901-spc001-01-spc001-target.spec.md"
+            target_spec.write_text(
+                "# Spec: Target\n- Status: to-review\n- Id: spc001\n",
+                encoding="utf-8",
+            )
+            decl_moved = (
+                ".aw/records/specs/approved/20260901-spc001-01-spc001-target.spec.md"
+            )
+
+            exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+            exec_dir.mkdir(parents=True)
+            target_plan = exec_dir / "20260901-test-01-tst001-target.ipd.md"
+            target_plan.write_text(
+                "# IPD: Target\n- Status: executed\n- Id: tst001\n",
+                encoding="utf-8",
+            )
+            decl_terminal = (
+                ".aw/records/plans/pending/20260901-test-01-tst001-target.ipd.md"
+            )
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            subj = pending / "20260902-subj-01-sub001-subj.ipd.md"
+            subj_text = (
+                f"# IPD: Subj\n- Status: approved\n- Id: sub001\n"
+                f"- Scope-Paths: {decl_moved}, {decl_terminal}\n"
+            )
+            subj.write_text(subj_text, encoding="utf-8")
+
+            findings = check_func(repo)
+            self.assertEqual(len(findings), 2)
+            severities = {f.severity for f in findings}
+            self.assertEqual(severities, {"info", "error"})
+            self.assertEqual(artifact_core.drift_exit_code(findings), 1)
+
+    def test_21_check_all_three_classifications_reported_count_and_detail(self) -> None:
+        check_func = getattr(check_engine, "check_scope_path_target_stale", None)
+        self.assertIsNotNone(check_func)
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            exec_dir = repo / ".aw" / "records" / "plans" / "executed"
+            exec_dir.mkdir(parents=True)
+            t1 = exec_dir / "20260901-test-01-tst001-target.ipd.md"
+            t1.write_text(
+                "# IPD: Target1\n- Status: executed\n- Id: tst001\n",
+                encoding="utf-8",
+            )
+            decl1 = ".aw/records/plans/pending/20260901-test-01-tst001-target.ipd.md"
+
+            spec_dir = repo / ".aw" / "records" / "specs" / "to-review"
+            spec_dir.mkdir(parents=True)
+            t2 = spec_dir / "20260901-spc001-01-spc001-target.spec.md"
+            t2.write_text(
+                "# Spec: Target2\n- Status: to-review\n- Id: spc001\n",
+                encoding="utf-8",
+            )
+            decl2 = (
+                ".aw/records/specs/approved/20260901-spc001-01-spc001-target.spec.md"
+            )
+
+            decl3 = (
+                ".aw/records/specs/approved/20260901-spc999-01-spc999-target.spec.md"
+            )
+
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            subj = pending / "20260902-subj-01-sub001-subj.ipd.md"
+            subj_text = (
+                f"# IPD: Subj\n- Status: approved\n- Id: sub001\n"
+                f"- Scope-Paths: {decl1}, {decl2}, {decl3}\n"
+            )
+            subj.write_text(subj_text, encoding="utf-8")
+
+            findings = check_func(repo)
+            self.assertEqual(len(findings), 3)
+            details = [f.detail for f in findings]
+            self.assertTrue(any("moved-terminal" in d for d in details))
+            self.assertTrue(
+                any("moved" in d and "moved-terminal" not in d for d in details)
+            )
+            self.assertTrue(any("vanished" in d for d in details))
 
 
 if __name__ == "__main__":

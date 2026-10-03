@@ -1,0 +1,479 @@
+# IPD: Correct the managed suite instruction's stale marker filter and the seven other sites repeating it
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: The managed `HOW TO RUN THE SUITE` instruction paragraph, whose single source is a string literal in `agent_workflows/engine.py` and which INSTALLS INTO EVERY MANAGED REPOSITORY, tells every agent that `pyproject.toml` `addopts` supplies `-m 'not slow'`. The actual configured value is `-m 'not slow and not livecorpus'`. A second marker category is deselected that the instruction never names, and `livecorpus` is precisely the category whose tests an agent authoring a plan can turn red, so an agent that does not know the category exists cannot reason about it. The backlog item asked whether any other text repeats the stale fragment; the answer is YES, SEVEN MORE live sites (`agent_workflows/runner_shared.py`, `pyproject.toml`'s own explanatory comment, TWO separate `Makefile` comment blocks, and three `tests/test_*.py` module-header comments found at review), so the single-site assumption in the item's framing is wrong by a factor of eight.
+- Scope: Correct the stale `-m 'not slow'` fragment to the configured `-m 'not slow and not livecorpus'` at every live-editable site, state the two deselected categories BY NAME so a future third category is a visible omission rather than a silent one, regenerate the managed `AGENTS.md` block from `engine.py` through the installer's own merge path rather than by hand, and add one regression test that fails when the managed instruction text stops naming the marker expression `addopts` actually configures. EXCLUDES changing `addopts` itself or any marker semantics (no test changes selection), EXCLUDES the stale fragment inside terminal records under `.aw/records/` (immutable history, correct when written), and EXCLUDES `tests/deselect_notice.py`, whose hardcoded category names are a SEPARATE defect class this plan FILES rather than fixes (see E-06 and OQ-01).
+- Scope-Paths: agent_workflows/engine.py, agent_workflows/runner_shared.py, pyproject.toml, Makefile, AGENTS.md, tests/test_installer.py, tests/test_cli.py, tests/test_leak_sanitizer.py, tests/test_suite_instruction_marker_parity.py
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: low
+- From-Backlog: 3wofej
+- Set: 3wofej
+- Order: 1
+- Highest E allocated: 06
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: zb81ah
+
+## Workflow history
+- 2026-10-01 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: zb81ah verified (set 3wofej, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-6offt7-01-6offt7-derive-deselect-notice-categories.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
+- 2026-10-01 approved (aw set): status set to approved
+
+- 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Re-measured every finding at review HEAD `37402c39`; F-1, F-3, F-4, F-6, F-7's substance, F-8 and F-10 all reproduce. THREE CORRECTIONS MATTER. FIRST, THE SITE CENSUS WAS INCOMPLETE: three `tests/test_*.py` module-header comments (`test_installer.py`, `test_cli.py`, `test_leak_sanitizer.py`) each carry the same stale `-m "not slow"` claim and were missed by an authoring sweep that searched only the single-quoted spelling, so the plan would have shipped having fixed four of eight live sites while its own title claimed completeness; all three are now in scope. SECOND, E-05's PRESCRIBED TEST COLLIDES WITH P16 AND CANNOT ENFORCE WHAT V-02 DEMANDS: the plan's own `Project conventions` paragraph cites P16, whose first prohibition names `read_text()` and regex against production code, and the prescribed assertion cannot distinguish a quoted-string-only fix from one that NAMES the categories, because the quoted expression `not slow and not livecorpus` contains both names as substrings; E-05 now states the P16 narrow-exception argument explicitly and asserts a property that can actually fail. THIRD, E-03's CITED API FORM IS WRONG: `merge_aw_block` returns a 2-TUPLE `(text, action)`, not an object carrying `.action`, and it reports a preserved section through an explicit `warnings=` list parameter that the plan never passes, so an executor following the plan literally would crash and then be unable to observe the consent warning the item it is told to stop on. F-5's figures had already drifted (207 to 208 deselected, 202 to 203 slow) and F-10's baseline by 119 tests, which is exactly why E-01's re-derivation instruction is the plan's strongest feature.
+- 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `3wofej`. GATE NOTE: the item carries NO `- Blocks-Release:`, so this plan inherits none, and `- Work-Kind: chore` is INHERITED and is CORRECT: no shipped behavior is wrong, no user waits on anything, and the suite's actual selection is unchanged by this plan, so it fails the user-perceptible-impact test for `bug`. THE ITEM'S CORE CLAIM VERIFIES EXACTLY AT HEAD `d0c2b62f`: `engine.py`'s instruction literal reads `-m 'not slow'` while `pyproject.toml:171` reads `addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"`. THE ITEM'S ONE FRAMING ERROR, and the most important correction this plan carries: its closing line asks to "check whether any other managed text repeats the stale filter before assuming a single site", and the answer is YES, THREE MORE, so a single-literal fix would leave the repository still telling agents the wrong thing in three places. Measured: `agent_workflows/runner_shared.py`'s `SUITE_CHECK_ARGV` provenance comment, `pyproject.toml`'s OWN dial-2 comment (five lines above the value it describes, which is the most confusing instance of all), and `Makefile`'s `test` target comment. NONE of the three is managed text that installs anywhere, which is why the item did not predict them; all four are nonetheless the same false statement to a reader. A FIFTH SITE WAS MEASURED AND IS DELIBERATELY EXCLUDED: `tests/deselect_notice.py` hardcodes the category names in its runtime notice, which happens to be CORRECT today but is a duplicated-source defect of a different class, so E-06 files it rather than absorbing it. THE FIX SHAPE THE ITEM SUGGESTS IS ADOPTED AND VERIFIED FEASIBLE: the item asks to "consider stating the two categories by NAME", and the regression test E-05 adds is what converts that suggestion into something enforced, proven runnable at authoring by extracting the marker expression from `pyproject.toml` with a 3.9-safe regex (`tomllib` is 3.11+ and CI's matrix floor is 3.9) and asserting it appears in `engine.agents_pointer_prose`. That check FAILS at HEAD today, which is the falsifiability proof the test needs. `AGENTS.md` is in `- Scope-Paths:` because it is GENERATED from the `engine.py` literal and must be regenerated in the same change or the two drift; the regeneration is driven through `engine.merge_aw_block` (verified at authoring to report `action: refreshed` and produce a byte-identical file at current HEAD), never by hand-editing the managed region.
+
+## Goal
+
+Make EVERY live site that describes the default suite's marker filter say what `pyproject.toml` actually configures, naming both deselected categories explicitly, and add one test that fails if the managed instruction text and the configured `addopts` marker expression ever drift apart again. No marker semantics change and no test's selection changes: this plan corrects documentation and adds a parity guard.
+
+THE CENSUS IS EIGHT LIVE SITES, NOT FOUR, and getting that number right is the plan's main job. The backlog item assumed one; authoring found four; review found four more. The three it added are `tests/test_installer.py`, `tests/test_cli.py` and `tests/test_leak_sanitizer.py`, each carrying a module-header comment reading `excluded from the fast default run (see pyproject addopts -m "not slow")`, and the fourth is `Makefile`'s SECOND comment block (the `test-all` one, F-4), which the plan had noticed but made conditional on a premise that is false. The reason authoring missed three is instructive and is recorded so the executor does not repeat it: the authoring sweep searched the SINGLE-QUOTED spelling `-m 'not slow'`, and these three sites use the DOUBLE-QUOTED `-m "not slow"`. E-01 therefore requires the sweep be run over BOTH spellings.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: Re-confirm the diagnosis at execution HEAD
+
+- [x] E-01 RE-MEASURE the drift and the site census at execution HEAD rather than trusting this plan's figures, because `addopts` is exactly the kind of line a concurrent lane may change and because a lane may have already fixed a site. Confirm each of: (a) the verbatim `addopts` value in `pyproject.toml` (locate by the content string `addopts = "-q -n auto`), recording the marker expression exactly as configured; (b) that `engine.agents_pointer_prose` still emits a fragment that does NOT match it, by CALLING the function rather than grepping the file, since the function is what installs, and call it for BOTH `target_layout` values (`aw` and `legacy`), since review measured the stale fragment present in both; (c) the surviving site census, swept over BOTH QUOTING SPELLINGS, `-m 'not slow'` AND `-m "not slow"`, excluding `.aw/records/` and excluding any line that already reads `not slow and not livecorpus`. THE DOUBLE-QUOTED SPELLING IS NOT OPTIONAL DILIGENCE: the authoring sweep searched only the single-quoted form and that is precisely why it missed three sites (the three `tests/test_*.py` headers), so a single-spelling sweep here would repeat the exact error this E-item exists to prevent. Review measured EIGHT live sites; report the count you actually find. And (d) the measured deselection split, by running `python3 -m pytest --collect-only -q` plus `-m slow` and `-m livecorpus` collections, re-derived rather than quoted. If ANY site has drifted or been fixed, use the measured state and report the difference at finalize instead of silently absorbing it. If `addopts` itself has changed, STOP and report: the correct text depends on it and this plan's premise would need restating.
+  - Depends on: none
+  - Expected outcome: the configured marker expression, the emitted-prose mismatch for both layouts, the surviving site list from a BOTH-SPELLINGS sweep with its count, and the current deselection split all re-measured at execution HEAD, with any drift from this plan's figures reported rather than absorbed.
+  - Execution state: performed
+
+### Task group 2: Correct the managed instruction and regenerate its generated copy
+
+- [x] E-02 CORRECT the stale fragment in the managed instruction literal in `agent_workflows/engine.py`, locating it by the content string `HOW TO RUN THE SUITE: run it BARE` and editing the `-m 'not slow'` fragment inside that paragraph's text. The corrected text MUST do two things, not one: quote the configured marker expression accurately, and NAME THE TWO DESELECTED CATEGORIES so a reader learns that `livecorpus` exists at all. Naming them is the item's own suggested shape and is the part that carries the actual value: the bare quoted string `-m 'not slow and not livecorpus'` is accurate but still leaves a reader who has never heard of `livecorpus` unable to reason about it. Say, in substance, that the default run is scoped to the fast subset by deselecting two marker categories, `slow` and `livecorpus`, and keep it to one or two added clauses. THIS TEXT IS AI-FACING INSTRUCTION PROSE, so spend no effort avoiding em or en dashes here; the no-dashes rule governs user-facing prose. DO NOT restate the `livecorpus` rationale at length: `pyproject.toml`'s `markers` entry is its canonical home and duplicating it into installed instructions would fork a long measured justification into a second place that will rot. DO NOT touch any other sentence of the paragraph, in particular the forbidden-flag enumeration (`-n0`, a second `-q`, `-p no:randomly`) and the `-o addopts=""` escape, all of which remain correct.
+  - Depends on: E-01
+  - Expected outcome: `engine.agents_pointer_prose` emits an instruction paragraph quoting the configured marker expression verbatim and naming both `slow` and `livecorpus` as the deselected categories, with the rest of the paragraph unchanged.
+  - Execution state: performed
+
+- [x] E-03 REGENERATE the managed block in `AGENTS.md` from the corrected `engine.py` source THROUGH THE INSTALLER'S OWN MERGE PATH, never by hand-editing the managed region. `AGENTS.md` is generated: the region between `<!-- aw:block -->` and `<!-- /aw:block -->` is written by `engine.merge_aw_block` over `engine.agents_managed_sections`, and the backlog item states the consequence plainly, that hand-editing it means the next install overwrites the fix. Drive the regeneration (for example `aw install` against this repository, or a direct call to `engine.merge_aw_block` with `agents_managed_sections(target_layout="aw")`) and verify the resulting file differs from the pre-edit copy ONLY in the corrected sentence. VERIFIED AT REVIEW that this path is sound and currently a no-op: `merge_aw_block` over the on-disk `AGENTS.md` at HEAD `37402c39` returns action `refreshed` with output byte-identical to the file, so any diff after E-02 is attributable to E-02 alone.
+  USE THE REAL SIGNATURE, which this plan previously got wrong: `merge_aw_block(existing, sections, *, style=..., default_header=..., manifest=None, file_key='', warnings=None)` RETURNS A 2-TUPLE `(text, action)`. Unpack it as `out, action = engine.merge_aw_block(...)`; do NOT write `res.action`, which raises `AttributeError` on a tuple. The CONSENT WARNING IS NOT PRINTED AND IS NOT IN THE RETURN VALUE: `merge_aw_block` appends it to the list you pass as `warnings=`, so you MUST pass an explicit list (`warn: list[str] = []`) and INSPECT IT, or the preserved-section case this item tells you to stop on is invisible. `merge_aw_block` deliberately PRESERVES a manually modified section rather than overwriting it (the four cases are enumerated in `tests/test_section_consent.py`, and `test_merge_aw_block_case_3_warning_forwarded` is the test that pins the forwarding you are relying on). If a warning naming `AGENTS.md#aw:pointer` appears, or the returned action is not `refreshed`, STOP and report rather than forcing the write, because a forced write would destroy someone else's deliberate edit.
+  - Depends on: E-02
+  - Expected outcome: `AGENTS.md`'s managed region regenerated through the installer merge path, differing from its pre-edit state only in the corrected instruction sentence, with the returned action recorded, an explicit `warnings=` list inspected and found empty, no hand edit inside the managed markers, and no consent warning suppressed.
+  - Execution state: performed
+
+### Task group 3: Correct the seven unmanaged sites repeating the same claim
+
+- [x] E-04 CORRECT the same stale fragment at every remaining live site, each of which is an ordinary comment rather than managed installed text, so each is a direct edit with no regeneration step. Review measured SEVEN, not three. (a) `agent_workflows/runner_shared.py`: the provenance comment above `SUITE_CHECK_ARGV`, locatable by the content string `The repository's own test command, run BARE`. (b) `pyproject.toml`: its OWN dial-2 comment, locatable by the content string `so the DEFAULT run is the FAST subset`, which reads `-m "not slow"` six lines above the `addopts` value that contradicts it; this is the most confusing instance in the repository because the comment and the value it describes are in the same block, and the comment's following line ("The ~9 subprocess-heavy files are marked `slow` and excluded here") should acknowledge the second category too. (c) `Makefile`'s `test` target comment, locatable by the content string `inherits pyproject addopts`. (d) `Makefile`'s `test-all` comment, locatable by the content string `clears the default`, which describes `-m ""` as clearing "the default `not slow` filter" when it clears BOTH categories (F-4). CORRECT IT UNCONDITIONALLY: this plan previously made it conditional on being "in the same comment block" as (c), and review measured that it is NOT (the two comments are separated by the `test:` target and its recipe), so the condition was false and F-4 would have shipped unfixed. (e, f, g) The module-header comments in `tests/test_installer.py`, `tests/test_cli.py` and `tests/test_leak_sanitizer.py`, each locatable by the content string `excluded from the fast default run (see pyproject addopts`, each of which reads the DOUBLE-QUOTED `-m "not slow"`. These three were missed at authoring because the sweep searched only the single-quoted spelling. Do NOT change any recipe line, any target, any `pytestmark` assignment, or the `addopts` value itself: these are comment-only edits, a changed recipe would alter what the suite runs, and a changed `pytestmark` would change selection.
+  - Depends on: E-01
+  - Expected outcome: all seven unmanaged sites describe the configured marker expression accurately and name both categories, with no recipe, target, `pytestmark`, or configured value altered, and the deselected count unmoved.
+  - Execution state: performed
+
+### Task group 4: Keep it from regressing
+
+- [x] E-05 ADD a regression test at `tests/test_suite_instruction_marker_parity.py` that FAILS when the managed instruction text stops naming the marker expression `pyproject.toml` actually configures. It MUST FAIL FIRST: run it before E-02 and paste the failure, then run it after and paste the pass. The mechanism is prescribed rather than left to invention: read `pyproject.toml`, extract the `addopts` value and then the `-m '<expr>'` marker expression from it with a regex, call `engine.agents_pointer_prose(...)`, and assert the expression appears in the emitted prose. VERIFIED AT REVIEW: the extraction yields `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` then `not slow and not livecorpus`, and that expression is NOT in the emitted prose today while `-m 'not slow'` IS, which is the falsifiability proof.
+  ASSERT OVER BOTH `target_layout` VALUES (`aw` and `legacy`), not just one: review measured the stale fragment present in BOTH emitted variants, so a single-layout test would leave half the installed surface unpinned.
+  P16 COMPLIANCE, STATED EXPLICITLY BECAUSE IT IS NOT OBVIOUS AND A REVIEWER WILL ASK. P16's first prohibition names `read_text()` and regex searches against production code, and `pyproject.toml` is build CONFIGURATION, not production code (`agent_workflows/*.py`); P16's own narrow exception admits content verification "where the text or file itself is the artifact under test", which is exactly this case, since the instruction TEXT is the deliverable. So: reading `pyproject.toml` as an INPUT is permitted, and asserting on the RETURN VALUE of `agents_pointer_prose` is a behavioral assertion on a pure function. What remains forbidden and must NOT be done: do NOT read `agent_workflows/engine.py` with `read_text()`, `inspect`, `ast`, or a substring search. Put that reasoning in the test's own docstring, so the next reader does not delete the test as a P16 violation.
+  ASSERT A PROPERTY THAT CAN ACTUALLY FAIL, which the earlier form of this item could not. It said to "assert the two category names appear as well, so E-02's naming requirement is what is pinned"; review measured that assertion to be VACUOUS, because the quoted expression `not slow and not livecorpus` CONTAINS both category names as substrings, so `'livecorpus' in prose` is already true the instant the quoted string is corrected and can never distinguish a quoted-string-only fix from one that names the categories. Do NOT write that assertion and believe it pins naming. Write instead: (1) the configured marker expression appears verbatim; (2) the exact stale fragment `-m 'not slow'` does NOT appear (verified at review to be a genuine negative: it is not a substring of the corrected text, so this assertion flips); and (3) a MUTATION-SENSITIVITY assertion rather than a prose-shape one, namely that the expression the test extracted from `pyproject.toml` is the one in the prose, so changing `addopts` alone turns the test red. The NAMING requirement is a prose-quality judgement a human makes at review of the diff, and V-02 is where it is checked; do not pretend a substring test enforces it.
+  USE A REGEX, NOT `tomllib`: `tomllib` is 3.11+ and this repository's CI matrix floor is 3.9 (`requires-python = ">=3.9"`, and `.github/workflows/tests.yml` runs `3.9` through `3.14`), so a `tomllib` import would fail on the oldest supported interpreter. PREFER THE EXISTING READER OVER A NEW REGEX IF IT FITS: `agent_workflows/leak_sanitizer.py` already carries a hand-rolled flat-TOML reader whose docstring records this exact reason ("3.9-safe, no tomllib"); check whether its flat `key = "value"` reader reaches `[tool.pytest.ini_options] addopts` before writing a fourth parser, and if it does not, say so in one line and use the regex.
+  ANCHOR THE `pyproject.toml` PATH AT THE REPOSITORY ROOT via `tests.support.REPO_ROOT` rather than a CWD-relative path, which is P16's first option (make the property location-independent). DO NOT MARK THE TEST `livecorpus` OR `slow`: its corpus is one config file plus one pure function, neither of which an agent authoring an artifact can perturb, so it belongs in the DEFAULT run; a deselected test would not have caught this drift, and the `livecorpus` marker exists for tests over `.aw/records/` whose redness blocks every concurrent lane.
+  - Depends on: none
+  - Expected outcome: a new default-run test, anchored at `REPO_ROOT` and carrying no marker, that derives the configured marker expression from `pyproject.toml`, asserts it against the prose emitted for BOTH `target_layout` values, carries the P16 narrow-exception reasoning in its docstring, asserts no vacuous category-name substring property, and fails before E-02 and passes after.
+  - Execution state: performed
+
+### Task group 5: Record the one site deliberately not fixed
+
+- [x] E-06 FILE A SEPARATE BACKLOG ITEM for the fifth site this plan deliberately does not fix, and record it in the "Deferred / out of scope" section at finalize. `tests/deselect_notice.py` HARDCODES the category names in the runtime notice it prints (`the default run skips 'slow' and 'livecorpus'`). That string is CORRECT TODAY, so this is not a live defect and must not be filed as a `bug`: file it as a `chore` with no release gate, matching this plan's own classification reasoning. The defect class is DUPLICATED SOURCE rather than staleness: the notice re-states the category list instead of deriving it, so the moment a third category joins `addopts` the notice silently under-reports and the category becomes invisible in exactly the way this plan exists to prevent. Note in the item that this notice is the mitigation the backlog item credits for limiting the harm of the stale instruction, which is precisely why it should not itself be able to rot; and note that E-05's parity test does NOT cover it, since that test compares `addopts` against the managed instruction prose, not against the notice. Create it with `aw backlog new` rather than hand-naming a file. Do NOT fix it here: deriving the category list at runtime is a behavior change in a pytest plugin with its own test module (`tests/test_deselect_notice.py`), which is a different deliverable from correcting four comment strings.
+  - Depends on: E-01
+  - Expected outcome: one new `chore` backlog item, created with `aw backlog new` and carrying no release gate, recording the hardcoded-category-list defect in `tests/deselect_notice.py` with the reason it is a duplicated-source concern rather than a staleness one, and a matching row in this plan's deferred section.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- `AGENTS.md`'s MANAGED REGION IS GENERATED AND MUST NOT BE HAND-EDITED. The single source is the string literal in `engine.agents_pointer_prose`; `engine.agents_managed_sections` wraps it as the `aw:pointer` section and `engine.merge_aw_block` writes it between `<!-- aw:block -->` and `<!-- /aw:block -->`. The backlog item states the consequence directly: hand-edit it and the next install overwrites the fix. The repository's own precedent commits the generator and the generated file TOGETHER (commit `178c8b8c` changed `AGENTS.md` alongside the plan that authored it).
+- A SECTION WITH LOCAL MODIFICATIONS IS PRESERVED, NOT OVERWRITTEN. `merge_aw_block` implements a consent model: when the on-disk section differs from both the desired text and the recorded hash it PRESERVES the body and emits a warning naming `AGENTS.md#aw:pointer` (the cases are enumerated in `tests/test_section_consent.py`). This is why E-03 drives the installer path and STOPS on a warning rather than forcing a write.
+- THE STALE FRAGMENT ALSO LIVES IN HUNDREDS OF TERMINAL RECORDS, AND THOSE ARE CORRECTLY LEFT ALONE. Plans, reviews and walkthroughs under `.aw/records/` quote `-m 'not slow'` throughout; most were accurate when written (the `livecorpus` marker is recent) and all are immutable history under the execution contract, so editing them would falsify the record rather than fix a defect.
+- `tomllib` IS NOT AVAILABLE AT THIS REPOSITORY'S SUPPORT FLOOR. `requires-python = ">=3.9"` and CI's matrix runs `3.9` through `3.14`, while `tomllib` landed in 3.11. `agent_workflows/leak_sanitizer.py` carries a hand-rolled flat-TOML reader whose docstring records exactly this reason, which is the precedent E-05 follows.
+- TESTS ASSERT OUTCOMES, NOT SOURCE STRUCTURE (P16). A test may read a repository DATA file (`pyproject.toml`) as an input, and may assert on the RETURN VALUE of a function, but may not read production source with `inspect`, `ast`, or substring search. E-05 is written on the returned prose for this reason, which also makes it test the thing that actually installs.
+- A TEST OVER THE LIVE RECORDS TREE MUST BE `livecorpus`-MARKED AND IS THEREFORE DESELECTED BY DEFAULT, with a measured rationale recorded beside the marker in `pyproject.toml` (one occurrence cost 2h 10m and $55.02 with nothing integrated on 2026-09-19). E-05's test is bounded to a config file and a pure function specifically so it stays in the default run, since a deselected parity test would not have caught this drift.
+- `chore` VERSUS `bug` TURNS ON USER-PERCEPTIBLE IMPACT, and `AGENTS.md` adds that a live `bug` must carry `- Blocks-Release:`. Correcting instruction text changes no behavior and makes no user wait, so `chore` (inherited from the item) is correct for this plan and for the E-06 item.
+- CITE CODE BY SYMBOL OR BY A QUOTED CONTENT STRING, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). Every edit site in this plan is located by content string for that reason.
+
+## Findings
+
+| # | Severity | Finding | Evidence |
+|---|---|---|---|
+| F-1 | MEDIUM | THE ITEM'S CORE CLAIM VERIFIES: the managed instruction text and the configured `addopts` disagree about the marker filter. | `agent_workflows/engine.py` carries the fragment `-m 'not slow'` inside the paragraph beginning `HOW TO RUN THE SUITE: run it BARE`; `pyproject.toml` reads `addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"`. Calling `engine.agents_pointer_prose(target_layout="aw")` at review HEAD `37402c39` returns prose containing `-m 'not slow'` and NOT containing `not slow and not livecorpus`. Re-measured at review for BOTH layouts: the stale fragment is present in `aw` AND `legacy`, so both installed variants are wrong. |
+| F-2 | HIGH | **THE SITE CENSUS WAS INCOMPLETE BY FOUR, AND THE PLAN'S OWN TITLE CLAIMED COMPLETENESS.** Authoring found three further sites beyond the managed literal; review found FOUR MORE, for eight live sites in total. Had the plan shipped as authored it would have corrected half the repository's instances while its title said "the three other sites repeating it", leaving a reader who trusted the title with four surviving false statements. | Added at review: `tests/test_installer.py`, `tests/test_cli.py` and `tests/test_leak_sanitizer.py` each carry a module-header comment reading `excluded from the fast default run (see pyproject addopts -m "not slow")`. Plus `Makefile`'s `test-all` comment (F-4), which the plan had noticed but gated behind a false condition. Authoring's three: `agent_workflows/runner_shared.py`'s comment above `SUITE_CHECK_ARGV` beginning `The repository's own test command, run BARE`; `pyproject.toml`'s dial-2 comment `2) -m "not slow" so the DEFAULT run is the FAST subset`; `Makefile`'s `test` target comment `inherits pyproject addopts (-n auto --dist=worksteal -m 'not slow')`. |
+| F-2b | HIGH | **THE ROOT CAUSE OF THE MISSED SITES IS A SINGLE-SPELLING SWEEP, which is a repeatable error and is why E-01 now mandates both spellings.** The three missed test-header sites use the DOUBLE-QUOTED `-m "not slow"`; the authoring sweep searched the single-quoted `-m 'not slow'`. The two spellings are both live in this repository, and `pyproject.toml` itself uses the double-quoted form in its comment while using the single-quoted form inside the `addopts` value. | `grep -rn "not slow'"` over `*.py`/`*.toml`/`*.md`/`Makefile` excluding `.aw/records/` returns `Makefile:22`, `runner_shared.py:35768`, `engine.py:1414`, `AGENTS.md:80`; the separate `grep -rn 'not slow"'` additionally returns `tests/test_installer.py:58`, `tests/test_cli.py:28`, `tests/test_leak_sanitizer.py:49`, `pyproject.toml:165`. |
+| F-3 | LOW | THE MOST CONFUSING INSTANCE IS `pyproject.toml`'s OWN COMMENT, which contradicts the value it documents six lines below it, inside the same block. | The dial-2 comment says `-m "not slow"` and the block's following line says "The ~9 subprocess-heavy files are marked `slow` and excluded here", while `addopts` in the same file configures `not slow and not livecorpus`. |
+| F-4 | MEDIUM | `Makefile` carries a SECOND inaccurate phrasing, AND THE PLAN'S CONDITION FOR FIXING IT WAS MEASURABLY FALSE. Its `test-all` comment describes `-m ""` as clearing "the default `not slow` filter" when it clears both categories. E-04 originally said to correct it "if and only if it is in the same comment block being edited"; it is NOT, so as written the plan would have left F-4 unfixed while recording it as a finding. | `Makefile`, `test-all` comment: "`-m \"\"` clears the default `not slow` filter; still parallel." The two comment blocks are separated by the `test:` target and its recipe line (`test:` then a tab-indented `python3 -m pytest tests/`), so they are not one block by any reading. The recipe itself (`python3 -m pytest tests/ -m ''`) is correct and unchanged. |
+| F-5 | LOW | THE DRIFT IS MEASURABLE AND SMALL BUT NOT ZERO, AND THE AUTHORED FIGURES HAVE ALREADY MOVED. The unnamed category accounts for 5 of the deselected tests, so an agent trusting the instruction mis-attributes 5 tests to nothing at all. | At review HEAD `37402c39`: bare `--collect-only -q` reports `208 tests were deselected`; `-m slow` collects `203`; `-m livecorpus` collects `5`. The plan's authored figures (`207` total, `202` slow) at HEAD `d0c2b62f` no longer reproduce, which is exactly why E-01 re-derives rather than quoting. |
+| F-6 | MEDIUM | A FURTHER SITE EXISTS, IS CORRECT TODAY, AND IS A DIFFERENT DEFECT CLASS, so this plan files it rather than fixing it. `tests/deselect_notice.py` hardcodes the category list in its runtime notice, so it cannot be stale now but WILL silently under-report when a third category is added. | `tests/deselect_notice.py`'s `pytest_terminal_summary` writes "(the default run skips 'slow' and 'livecorpus')" as a literal inside an f-string, deriving nothing from `addopts`. The backlog item credits this notice with limiting the harm of the stale instruction ("`tests/deselect_notice.py` does announce the deselection at run time, which limits the harm"). |
+| F-7 | MEDIUM | `AGENTS.md` MUST BE REGENERATED IN THE SAME CHANGE, AND THE REGENERATION IS CURRENTLY A CLEAN NO-OP, so any diff after E-02 is attributable to E-02 alone. | `engine.merge_aw_block(AGENTS.md text, engine.agents_managed_sections(target_layout="aw"))` at review HEAD `37402c39` returns action `refreshed` with output byte-identical to the file on disk. `AGENTS.md` is additionally the ONLY markdown site: a repo-wide `grep -rn 'not slow' --include='*.md'` excluding `.aw/` returns it alone, so no README, CONTRIBUTING or `docs/` page needs touching. |
+| F-7b | HIGH | **THE PLAN CITED `merge_aw_block`'s API WRONG TWICE, AND EITHER ERROR BREAKS E-03 AS WRITTEN.** First, the function returns a 2-TUPLE `(text, action)`, not an object carrying `.action`, so the plan's "returns `action: refreshed`" phrasing invites `res.action`, which raises `AttributeError`. Second, and worse, the CONSENT WARNING E-03 tells the executor to stop on is neither printed nor returned: it is appended to a list passed as the keyword-only `warnings=` parameter, which the plan never mentions, so an executor following the plan literally cannot observe the condition the item makes its stop condition. | `inspect.signature(engine.merge_aw_block)` is `(existing: 'str', sections: 'list[AwSection]', *, style=..., default_header: 'str' = '', manifest=None, file_key: 'str' = '', warnings: 'Optional[list[str]]' = None) -> 'tuple[str, str]'`. Unpacking `out, action = engine.merge_aw_block(...)` yields `action == 'refreshed'` and `out == txt`. `tests/test_section_consent.py::test_merge_aw_block_case_3_warning_forwarded` is the test pinning the forwarding; the four consent cases are enumerated in the same module (16 passed when run with `-o addopts=""`). |
+| F-8 | MEDIUM | THE REGRESSION TEST IS FEASIBLE AND CURRENTLY FAILS, which is the falsifiability proof E-05 needs, and its mechanism is constrained by the 3.9 support floor. | Executed at review: a regex reading `addopts` from `pyproject.toml` yields `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, the inner `-m '<expr>'` yields `not slow and not livecorpus`, and `expr in engine.agents_pointer_prose(target_layout="aw")` is `False` while `"-m 'not slow'" in prose` is `True`. `requires-python = ">=3.9"`; `.github/workflows/tests.yml` matrix is `["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]`; `tomllib` is 3.11+; `agent_workflows/leak_sanitizer.py` carries TWO hand-rolled readers whose docstrings record "3.9-safe, no tomllib". |
+| F-8b | HIGH | **THE PLAN'S PRESCRIBED NAMING ASSERTION IS VACUOUS AND WOULD HAVE SHIPPED A TEST THAT CANNOT FAIL ON THE PROPERTY IT CLAIMS TO PIN.** E-05 said to "assert the two category names appear as well, so E-02's naming requirement is what is pinned rather than only the quoted expression". But the quoted expression `not slow and not livecorpus` CONTAINS both category names as substrings, so the moment the quoted string is corrected, `'livecorpus' in prose` is already True whether or not the categories are named as categories. The assertion can therefore never distinguish the two outcomes, which collides with P16's "never weaken an assertion so it passes everywhere" and with GUIDING_PRINCIPLES' citation of D78. | Measured: with `half_fixed = "addopts already supplies \`-m 'not slow and not livecorpus'\` ... (categories never named)"`, both `expr in half_fixed` and `'livecorpus' in half_fixed` are `True`. The genuine negative DOES flip: `"-m 'not slow'" in corrected_text` is `False`, because the stale fragment is not a substring of the corrected one. |
+| F-8c | MEDIUM | E-05 SITS IN TENSION WITH THE VERY P16 PARAGRAPH THIS PLAN'S OWN CONVENTIONS SECTION CITES, and the plan never argues the exception, so a future reader is entitled to delete the test as a violation. P16's first prohibition names `read_text()` and regex searches; its narrow exception admits content verification "where the text or file itself is the artifact under test", which is exactly this case. The argument is available and correct, and it was simply not made. | `GUIDING_PRINCIPLES.md` section 16: "Never use `inspect.getsource`, `inspect.getsourcelines`, `ast.parse`, `read_text()`, or substring/regex searches against production code (`agent_workflows/*.py`)" and "The one narrow exception: Content verification is permissible only where the text or file itself is the artifact under test". `pyproject.toml` is not `agent_workflows/*.py`, and `agents_pointer_prose` is called, not read. |
+| F-9 | LOW | NO PENDING PLAN CONTENDS FOR THIS PLAN'S EDIT SITES, and the runner isolates each item in its own worktree in any case. THE AUTHORED CENSUS WAS TOO NARROW and is widened here, though the conclusion is unchanged. | Review swept every pending plan declaring any of this plan's paths. TWO the plan did not name are the relevant ones: `n9ua3b` (`- Status: reviewed`) declares BOTH `agent_workflows/engine.py` AND `AGENTS.md`, and `b24o3q` declares `AGENTS.md`; NEITHER contains any occurrence of `HOW TO RUN THE SUITE` or `not slow`, so neither touches this paragraph. The plan's own named pair verifies too. |
+| F-10 | LOW | THE AUTHORED SUITE BASELINE IS STALE BY 119 TESTS, so it must be re-derived rather than compared. | `python3 -m pytest` bare at review HEAD `37402c39` on a clean tree: `3506 passed, 2 skipped, 3 warnings in 132.98s`, with `NOTE: 208 tests were deselected`. The plan's authored `3387 passed, 2 skipped, 3 warnings in 58.02s` at HEAD `d0c2b62f` no longer reproduces. The targeted set `tests/test_section_consent.py tests/test_deselect_notice.py -o addopts=""` reports `16 passed in 10.58s`. |
+| F-11 | LOW | THE `livecorpus` RATIONALE HAS A CANONICAL HOME ALREADY, so the corrected instruction should name the category and not restate its justification. | `pyproject.toml`'s `markers` entry carries the full measured rationale for `livecorpus` (including the 2026-09-19 cost figure of 2h 10m and $55.02 and why such tests are not deleted). Duplicating that into installed instruction text would fork a long justification into a second place that can rot, which is the very failure mode this plan is fixing. |
+| F-12 | MEDIUM | A DEEPER DESIGN TENSION IS REAL, CORRECTLY REFUSED, AND WORTH STATING PLAINLY: the managed paragraph asserts a fact about THIS repository's `addopts` while installing verbatim into target repositories whose `addopts` differ or are absent. Correcting the quoted string makes the sentence true here and leaves it equally false in every target, which is the strongest argument for naming the categories as a PROPERTY of this repo rather than only quoting a string. The plan's Deferred section reaches the right answer for the wrong scope (it rejects deriving at render time); the residual inaccuracy in targets is not a defect this plan introduces and is not one it can fix. | `agents_pointer_prose(target_layout=...)` is a pure function over a static literal with no filesystem read, and a repo-wide grep finds exactly two callers, both inside `engine.py` (one concatenating the prose into the written AGENTS text, one passing `.splitlines()` as the `aw:pointer` section body in `engine.agents_managed_sections`), both installing the same text. The paragraph's surrounding sentences (`-n0` is "4x to 6x slower here", the `-q` compounding claim) are already this-repo-specific in the same way, so the class of inaccuracy predates this plan. |
+## Proposed changes (ordered, validatable)
+
+1. Re-measure the configured marker expression, the emitted-prose mismatch for both layouts, the surviving site census over BOTH quoting spellings, and the deselection split at execution HEAD (E-01).
+2. Correct the managed instruction literal in `agent_workflows/engine.py`, naming both deselected categories (E-02).
+3. Regenerate `AGENTS.md`'s managed block through `engine.merge_aw_block`, unpacking its 2-tuple and inspecting an explicit `warnings=` list, never by hand (E-03).
+4. Correct the SEVEN unmanaged comment sites: `runner_shared.py`, `pyproject.toml`, BOTH `Makefile` comment blocks, and the three `tests/test_*.py` module headers (E-04).
+5. Add `tests/test_suite_instruction_marker_parity.py`, anchored at `REPO_ROOT`, unmarked, asserting over both layouts, carrying its P16 exception argument, failing-first then passing (E-05).
+6. File the `tests/deselect_notice.py` hardcoded-category-list defect as a separate `chore` backlog item and record it as deferred (E-06).
+
+## Deferred / out of scope (with reason)
+
+- CHANGING `addopts` OR ANY MARKER SEMANTICS: explicitly out of scope. This plan makes the documentation match the configuration, never the reverse. The `livecorpus` deselection is a deliberate, measured decision recorded beside the marker in `pyproject.toml`, and backlog `xuc9v0` already warns against dropping `-m 'not slow'` without measuring. No test's selection changes, which is why the bare suite count should be unmoved.
+  - Carrier-Declined: There is no defect here to carry. The configured value is the CORRECT one and the instruction text is what was wrong; this row exists to fence the plan against a tempting over-reach, not to record an outstanding obligation.
+- THE STALE FRAGMENT IN TERMINAL RECORDS UNDER `.aw/records/`: out of scope by class, not filed. Executed plans, reviews and walkthroughs quote `-m 'not slow'` in many places. Most were accurate when written, since the `livecorpus` marker postdates them, and all are immutable history under the execution contract ("Never change what a plan already in `.aw/records/plans/executed/` RECORDS"). A citation that was correct when written is already in its correct terminal state.
+  - Carrier-Declined: A won't-fix rather than a deferral. Rewriting these would falsify history by making an older record appear to describe a configuration that did not yet exist, so the only correct resolution of such an item would be to close it unfixed.
+- FIXING `tests/deselect_notice.py`'s HARDCODED CATEGORY LIST: out of scope here and FILED instead (E-06). It is a different defect class (duplicated source, not staleness), it is correct today so it is not a live defect, and changing a pytest plugin's runtime behavior alongside its own test module is a separate deliverable from correcting comment strings. E-05's parity test does not cover it, which the E-06 item must say so the gap is recorded rather than assumed closed. See OQ-01 for the question of whether the notice should derive the list at all.
+  - Carrier: 6offt7
+- A SINGLE SHARED CONSTANT FOR THE MARKER EXPRESSION: considered and deliberately not done, not filed. It is tempting to have `engine.py` derive the quoted expression from `pyproject.toml` at runtime so the text cannot drift. Rejected on two grounds: the managed text INSTALLS INTO TARGET REPOSITORIES whose own `pyproject.toml` has different (or no) `addopts`, so deriving from this repository's configuration would produce a claim that is false in the target; and reading build configuration at instruction-render time would add a filesystem dependency to a pure text function. The parity TEST is the right layer, which is what E-05 implements.
+  - Carrier-Declined: No carrier because there is no defect and no deferred work: this is a design option evaluated and refused with its reason, and the alternative that addresses the same risk is being implemented in this plan as E-05.
+
+## Scope check
+
+- Over-scope: none. `agent_workflows/engine.py` holds the E-02 managed literal; `AGENTS.md` is its GENERATED copy, regenerated by E-03 through the installer merge path and declared here precisely because the two must move together; `agent_workflows/runner_shared.py`, `pyproject.toml`, `Makefile`, `tests/test_installer.py`, `tests/test_cli.py` and `tests/test_leak_sanitizer.py` hold the seven E-04 comment sites; `tests/test_suite_instruction_marker_parity.py` is the new E-05 test. E-01 is read-only measurement. E-06 writes a backlog item through `aw backlog new`, whose output path is tool-chosen under `.aw/records/backlog/open/`; that is a records artifact created by the sanctioned verb rather than a hand edit, so it is deliberately not listed as a code scope path. THE THREE TEST FILES ARE IN SCOPE FOR THEIR MODULE-HEADER COMMENT ONLY: no test body, no assertion, no import and NO `pytestmark` line may change, since altering a `pytestmark` would change selection, which this plan forbids itself.
+- Under-scope: the declared paths cover every intended edit. NO `.spec.md` file is touched, so no spec amendment is declared and none is required: the instruction text is not spec-governed and the marker semantics are unchanged. FOUR NEGATIVE CONSTRAINTS CARRY REAL WEIGHT. FIRST, `tests/deselect_notice.py` and `tests/test_deselect_notice.py` must NOT appear in the changed set; E-06 files that work instead, and their presence would mean the fence was crossed. SECOND, no file under `.aw/records/` other than the E-06 item may be modified. THIRD, the `addopts` VALUE on `pyproject.toml`'s assignment line and every `Makefile` recipe line must be byte-identical afterwards: only comments change in those two files, and V-04 requires that proof. FOURTH, the `pytestmark = pytest.mark.slow` line in each of the three touched test modules must be byte-identical, and the bare suite's DESELECTED count must be unmoved, which is the observable proof that no selection changed.
+  ONE RESIDUAL INACCURACY IS KNOWINGLY LEFT IN PLACE AND IS NOT A DEFECT THIS PLAN INTRODUCES (F-12): the corrected paragraph still asserts a fact about THIS repository's `addopts` while installing verbatim into target repositories whose `addopts` differ or are absent. The plan's Deferred section explains why deriving at render time is the wrong fix. Naming the categories as a property, rather than only quoting a string, is the mitigation available within this scope, and it is why E-02's naming requirement is not cosmetic.
+
+## Required tests / validation
+
+- `tests/test_suite_instruction_marker_parity.py` run BEFORE E-02, output pasted, FAILING, since a parity test that cannot fail proves nothing. At authoring the underlying assertion is measurably False at HEAD `d0c2b62f`.
+- The same test run AFTER E-02 and E-03, output pasted, passing.
+- Proof the new test is SELECTED by the default run rather than deselected, since `addopts` carries `-m 'not slow and not livecorpus'` and a deselected parity test would not have caught this drift: run it bare and show it collects and runs rather than reporting `deselected`.
+- `python3 -m pytest tests/test_section_consent.py tests/test_deselect_notice.py -o addopts=""` as the targeted regression set: the first covers the managed-block merge and consent behavior E-03 depends on (including `test_merge_aw_block_case_3_warning_forwarded`, the test that pins the `warnings=` forwarding E-03 now relies on), the second pins the runtime notice E-06 deliberately leaves alone. Measured at review: `16 passed in 10.58s`. `-o addopts=""` clears the configured defaults wholesale, which is the repository's prescribed way to reach a narrowed run rather than fighting the flags one at a time.
+- `python3 -m pytest tests/test_installer.py tests/test_cli.py tests/test_leak_sanitizer.py -o addopts=""` ADDED AT REVIEW, because E-04 now edits these three modules. They are `slow`-marked and therefore absent from the bare run, so the bare suite would NOT catch a comment edit that accidentally broke one of them (for example by disturbing the `pytestmark` line or an import). Paste the result. This is the only validation surface that covers the three files E-04 newly touches.
+- The full suite run BARE as `python3 -m pytest`, with the `N passed` summary line pasted. Configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`; do NOT add `-n0` (4x to 6x slower here), a second `-q` (compounds to `-qq` and suppresses the very summary line this requires pasted), or `-p no:randomly`. RE-DERIVE THE BASELINE ON THE PRE-CHANGE TREE rather than treating any figure here as a bar: authoring measured `3387 passed` at HEAD `d0c2b62f` and review measured `3506 passed, 2 skipped, 3 warnings in 132.98s` at HEAD `37402c39`, a drift of 119 tests in a few days, which is why the figure is context and never the criterion. The PROPERTY to hold is green, plus exactly the tests E-05 adds, and since this plan changes no marker and no selection the DESELECTED count must also be unmoved.
+- A re-measured deselection split (bare `--collect-only`, plus `-m slow` and `-m livecorpus` collections) proving the corrected text's claim about which categories are excluded is the measured truth rather than a transcription.
+- `aw check` after E-06, to prove the new backlog item is well-formed and that an item filed without a release gate does not trip a gate rule.
+- `aw ipd lint --phase pre-transition` conforming before any terminal transition.
+
+## Spec / documentation sync
+
+N/A for spec amendment, with reason: no `.spec.md` path is declared in `- Scope-Paths:` and none is touched, so the runners' declared-spec-edit announcement should report none. The marker semantics, the `addopts` value and every test's selection are unchanged, so no contract any other plan is reviewed against moves. DOCUMENTATION IS THE SUBSTANCE OF THIS PLAN rather than a follow-on chore: `AGENTS.md`'s managed block is regenerated from `engine.py` by E-03 (never hand-edited), and the `pyproject.toml` and `Makefile` comments are corrected by E-04. The one durable record added beyond this plan's own finalize prose is the E-06 backlog item, created with `aw backlog new` rather than hand-named.
+
+## Open questions
+
+### OQ-01: Should `tests/deselect_notice.py` derive the deselected category names from `addopts` instead of hardcoding them?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Carrier-Declined: The QUESTION owes no work unless the answer is yes, so filing a carrier for it now would presuppose the maintainer's answer. The underlying OBSERVATION is not at risk of vanishing: it is recorded as finding F-6 with its evidence, and E-06 files the concrete defect (the hardcoded list) as its own backlog item regardless of how this design question is answered. If the maintainer answers yes, that answer is the trigger to file the derivation work.
+- Resolution or deferral rationale: DEFERRED TO THE MAINTAINER as a design call, and deliberately not resolved here, because the cheap-looking fix has a real cost and the choice is a judgement about where truth should live. The notice currently prints a hardcoded "skips 'slow' and 'livecorpus'", which is accurate today (F-6) and silently wrong the moment a third category is added, which is the same duplicated-source failure this plan is fixing elsewhere. But deriving the list properly means parsing a marker EXPRESSION rather than reading a list: `-m 'not slow and not livecorpus'` is a boolean expression, and a general reader of it is more machinery than the notice deserves, while a naive `not (\w+)` regex would be a second approximation that can also be wrong. A cheaper middle option exists, printing the configured `-m` expression VERBATIM instead of a prose category list, which cannot go stale because it quotes rather than interprets. NOT BLOCKING: this plan's four corrections and its parity test stand however the question is answered, and E-06 records the defect either way.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: the execution HEAD sha, plus pasted output of: the verbatim `addopts` line from `pyproject.toml`; a CALL to `engine.agents_pointer_prose` for BOTH `target_layout="aw"` AND `target_layout="legacy"`, each showing whether the configured marker expression is present and whether the stale fragment is (a grep of `engine.py` is NOT sufficient, because the emitted prose is what installs, and one layout is not sufficient, because review measured the fragment in both); the site census from a sweep over BOTH quoting spellings (`-m 'not slow'` and `-m "not slow"`) excluding `.aw/records/`, with the COUNT stated and compared against review's eight; and the deselection split from bare `--collect-only` plus `-m slow` and `-m livecorpus` collections. Must state explicitly whether anything drifted from review's figures (`208` total deselected, `203` slow, `5` livecorpus, HEAD `37402c39`), and if `addopts` itself changed, must show the plan STOPPED rather than proceeding.
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    Execution HEAD sha: `72b8d317c9724208088cfcecdf5e956d0eb154d8`
+    Verbatim `addopts` line from `pyproject.toml`:
+    ```
+    171:addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"
+    ```
+    CALL to `engine.agents_pointer_prose` for BOTH layouts on execution HEAD:
+    ```
+    layout=aw: configured_marker_present=False, stale_fragment_present=True
+    layout=legacy: configured_marker_present=False, stale_fragment_present=True
+    ```
+    Site census sweep over BOTH quoting spellings (`-m 'not slow'` and `-m "not slow"`) excluding `.aw/records/`:
+    Measured count: 8 live sites in scope (identical to review census):
+    1. `agent_workflows/engine.py:1414` (managed source literal)
+    2. `AGENTS.md:80` (managed block generated copy)
+    3. `agent_workflows/runner_shared.py:35896` (SUITE_CHECK_ARGV comment)
+    4. `pyproject.toml:165` (dial-2 comment)
+    5. `Makefile:22` (test target comment; plus line 29 test-all comment clearing filter)
+    6. `tests/test_installer.py:58` (header comment)
+    7. `tests/test_cli.py:28` (header comment)
+    8. `tests/test_leak_sanitizer.py:49` (header comment)
+    (Docstrings in `tests/test_uninstall_layout_artifacts.py:76` and `tests/test_deep_cleanup_regenerable.py:83` were also observed, which describe class-scoped marks and sit outside declared `- Scope-Paths:`).
+    Deselection split re-derived:
+    `python3 -m pytest --collect-only -q`:
+    ```
+    NOTE: 208 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    ```
+    `python3 -m pytest --collect-only -q -m slow -o addopts=""`:
+    ```
+    203/3748 tests collected (3545 deselected) in 6.41s
+    ```
+    `python3 -m pytest --collect-only -q -m livecorpus -o addopts=""`:
+    ```
+    5/3748 tests collected (3743 deselected) in 6.79s
+    ```
+    Explicit drift statement: Exactly 208 deselected (203 slow + 5 livecorpus). Zero drift from review's figures (208 total, 203 slow, 5 livecorpus). `addopts` itself did NOT change; plan proceeded.
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: pasted `git diff agent_workflows/engine.py`, AND pasted output of CALLING `engine.agents_pointer_prose` for BOTH layouts showing (a) the configured marker expression present verbatim, (b) both category names `slow` and `livecorpus` present, and (c) the bare stale fragment `-m 'not slow'` absent. A diff alone is insufficient: the installed artifact is the function's return value. Must also confirm the paragraph's forbidden-flag enumeration (`-n0`, the second `-q`, `-p no:randomly`) and the `-o addopts=""` escape are unchanged.
+  THE NAMING REQUIREMENT IS CHECKED HERE BY HUMAN READING, NOT BY THE TEST, and that division is deliberate: F-8b measured that a substring assertion CANNOT distinguish a quoted-string-only fix from one that names the categories, because the quoted expression contains both names. So QUOTE the added clause in full in this evidence block and state in one sentence why it teaches a reader that `livecorpus` is a marker CATEGORY rather than merely appearing inside a quoted flag string. Also confirm it does not restate the `livecorpus` rationale at length (F-11).
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `git diff agent_workflows/engine.py`:
+    ```diff
+    @@ -1411,8 +1411,9 @@
+             "README for detail.\n\n"
+             "HOW TO RUN THE SUITE: run it BARE, as `python3 -m pytest` (or `make test`). Do NOT bolt on "
+             "flags to 'help'. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal "
+    -        "-m 'not slow'`, so a bare run is already quiet, already parallel, and already scoped to the "
+    -        "fast subset. Specifically do NOT pass `-n0`, which disables xdist and makes the suite several "
+    +        "-m 'not slow and not livecorpus'`, so a bare run is already quiet, already parallel, and "
+    +        "already scoped to the fast subset by deselecting two marker categories, `slow` and `livecorpus`. "
+    +        "Specifically do NOT pass `-n0`, which disables xdist and makes the suite several "
+             "times slower here (measured repeatedly in the 4x to 6x range on this repo, varying with core "
+             "count and machine load, so treat the ratio as a range and not as a fixed constant); do NOT "
+             "add another `-q`, which compounds with the configured one into `-qq` and suppresses the very "
+    ```
+    CALLING `engine.agents_pointer_prose` for BOTH layouts:
+    ```
+    layout=aw: configured=True, slow=True, livecorpus=True, stale=False
+    layout=legacy: configured=True, slow=True, livecorpus=True, stale=False
+    ```
+    Forbidden-flag enumeration (`-n0`, second `-q`, `-p no:randomly`) and `-o addopts=""` escape confirmed unchanged.
+    Added clause quoted in full:
+    `by deselecting two marker categories, `slow` and `livecorpus`.`
+    Explanation: The clause explicitly introduces `slow` and `livecorpus` under the noun phrase "two marker categories", teaching the reader that `livecorpus` is an explicitly defined pytest marker category alongside `slow` rather than an opaque substring in an option flag.
+    Confirmed: It does not restate the `livecorpus` rationale at length.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: pasted `git diff AGENTS.md` showing the managed region changed ONLY in the corrected sentence, plus pasted evidence that the regeneration went through the installer merge path rather than a hand edit (the `aw install` output, or a driven `engine.merge_aw_block`). The merge evidence MUST show the 2-TUPLE UNPACKED and BOTH halves inspected: paste the returned `action` string and paste the contents of the explicit `warnings=` list you passed, showing it empty. A run that never passed a `warnings=` list has not checked the consent condition at all and does not satisfy this item (F-7b). PLUS pasted proof of parity after the fact: `merge_aw_block` over the post-edit `AGENTS.md` returning a byte-identical result, which proves a later install will not revert the fix (the exact failure the backlog item warns about). If a warning naming `AGENTS.md#aw:pointer` WAS emitted, or the action was not `refreshed`, the evidence must show the plan stopped and reported instead of forcing the write.
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `git diff AGENTS.md`:
+    ```diff
+    @@ -77,7 +77,7 @@ USE THE TOOLED COMMIT PATH. You MUST commit through `aw commit`, not raw `git co
+     ### Agent execution contract
+     When you execute a task or plan here you MUST: commit ONLY files you changed, limited to the paths you name, through `aw commit <plan> -- <paths>` (or `aw commit --no-plan -m <msg> -- <paths>` when no plan governs the change), never `git add -A`/bare/`-a`, and never push; when you report tests passed, paste the ACTUAL runner output (never claim success you did not run); write no em or en dashes in USER-FACING prose you author (READMEs, CHANGELOG, docs meant for end users) - this keeps user-facing text from reading as machine-written; it does NOT apply to internal or AI-facing artifacts (IPDs/plans, research findings, prompts, specs, walkthroughs, commit messages, code comments), where you should spend no effort avoiding dashes. When asked to REVIEW or report, do NOT modify or commit anything: report and wait. Never change what a plan already in `.aw/records/plans/executed/` RECORDS (its steps, evidence, results, or status): close a post-execution gap with a new corrective IPD, not an in-place edit. You MAY append a dated `## Workflow history` line to it that points at later work (for example 'partly replaced by <id6>'), since that adds to the record without rewriting it. Never create or push a git tag, a GitHub Release, or a registry/PyPI upload except inside release-review Section 9 after an explicit human GO (see `RELEASING.md`); no ad-hoc `git tag` or `git push --follow-tags`. See `CONTRIBUTING.md` and the `.aw/records/plans` README for detail.
+
+    -HOW TO RUN THE SUITE: run it BARE, as `python3 -m pytest` (or `make test`). Do NOT bolt on flags to 'help'. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`, so a bare run is already quiet, already parallel, and already scoped to the fast subset. Specifically do NOT pass `-n0`, which disables xdist and makes the suite several times slower here (measured repeatedly in the 4x to 6x range on this repo, varying with core count and machine load, so treat the ratio as a range and not as a fixed constant); do NOT add another `-q`, which compounds with the configured one into `-qq` and suppresses the very `N passed` summary line this contract requires you to paste; and do NOT pass `-p no:randomly`, which switches off the test-order randomization that surfaces order-dependence bugs. If you genuinely need the per-test counts from a narrowed run, clear the defaults explicitly with `python3 -m pytest -o addopts=""` rather than fighting the configured flags one at a time.
+    +HOW TO RUN THE SUITE: run it BARE, as `python3 -m pytest` (or `make test`). Do NOT bolt on flags to 'help'. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, so a bare run is already quiet, already parallel, and already scoped to the fast subset by deselecting two marker categories, `slow` and `livecorpus`. Specifically do NOT pass `-n0`, which disables xdist and makes the suite several times slower here (measured repeatedly in the 4x to 6x range on this repo, varying with core count and machine load, so treat the ratio as a range and not as a fixed constant); do NOT add another `-q`, which compounds with the configured one into `-qq` and suppresses the very `N passed` summary line this contract requires you to paste; and do NOT pass `-p no:randomly`, which switches off the test-order randomization that surfaces order-dependence bugs. If you genuinely need the per-test counts from a narrowed run, clear the defaults explicitly with `python3 -m pytest -o addopts=""` rather than fighting the configured flags one at a time.
+
+     TEST OUTCOMES, NOT CODE STRUCTURE (NO CODE-PINNING TESTS): every test you author, restore, or validate must test observable behavior and outcomes. Tests that pin code structure have no business existing: (1) NEVER write or restore tests that read production source code using `inspect`, `ast`, regex, or substring search; (2) NEVER assert on caller counts, symbol censuses, or module line counts as a proxy for correctness; (3) NEVER assert that specific text, docstrings, or comment banners remain unchanged in a script; (4) restored coverage must always exercise the code (calling functions, driving CLI commands, running subprocesses) and assert on real outputs, exit codes, and side effects (see GUIDING_PRINCIPLES P16).
+    ```
+    Installer merge execution output:
+    ```
+    action: refreshed
+    warnings: []
+    Successfully wrote regenerated AGENTS.md
+    ```
+    Post-edit parity check output:
+    ```
+    action2: refreshed
+    warnings2: []
+    Post-edit merge parity check passed: byte-identical and refreshed (out2 == out)
+    ```
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: pasted `git diff` over ALL SEVEN sites (`agent_workflows/runner_shared.py pyproject.toml Makefile tests/test_installer.py tests/test_cli.py tests/test_leak_sanitizer.py`) showing every comment corrected and naming both categories, with the COUNT of corrected sites stated and reconciled against V-01's census. PLUS proof that only comments changed, which is the load-bearing negative here: the `addopts` assignment line must be byte-identical (paste it), every `Makefile` recipe line must be unchanged (`git diff` must show no changed line beginning with a tab), and each of the three test modules' `pytestmark = pytest.mark.slow` line must be byte-identical (paste each). PLUS `python3 -m pytest tests/test_installer.py tests/test_cli.py tests/test_leak_sanitizer.py -o addopts=""` passing, since these three are `slow`-marked and the bare suite would not otherwise exercise them. PLUS a re-run of `python3 -m pytest --collect-only -q` showing the SAME deselected count as V-01 measured, proving the edits changed no selection. `Makefile`'s `test-all` comment MUST be among the corrected set: paste it, since F-4 records that the plan's earlier conditional would have left it stale.
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `git diff` over all 7 unmanaged sites:
+    ```diff
+    diff --git a/Makefile b/Makefile
+    --- a/Makefile
+    +++ b/Makefile
+    @@ -19,14 +19,14 @@ install-dev:
+     # pytest and pytest-xdist are TEST-ONLY dependencies (the `test` extra in pyproject.toml):
+     # not imported at runtime and not shipped in the wheel.
+     # FAST default run for routine use (e.g. after every IPD): inherits pyproject addopts
+    -# (`-n auto --dist=worksteal -m 'not slow'`), so it parallelizes AND skips the heavy
+    -# subprocess/install/conformance tests marked `slow`. ~24s vs ~2m41s for the full suite.
+    +# (`-n auto --dist=worksteal -m 'not slow and not livecorpus'`), so it parallelizes AND skips the heavy
+    +# subprocess/install/conformance tests marked `slow` and live records tests marked `livecorpus`. ~24s vs ~2m41s for the full suite.
+     test:
+     	python3 -m pytest tests/
+
+     # FULL suite including the `slow` subprocess/integration tests (CI runs the fast
+     # suite plus an advisory slow step). Use for release-review or before shipping.
+    -# `-m ""` clears the default `not slow` filter; still parallel.
+    +# `-m ""` clears the default `not slow and not livecorpus` filter (including `slow` and `livecorpus`); still parallel.
+     test-all:
+     	python3 -m pytest tests/ -m ''
+
+    diff --git a/agent_workflows/runner_shared.py b/agent_workflows/runner_shared.py
+    --- a/agent_workflows/runner_shared.py
+    +++ b/agent_workflows/runner_shared.py
+    @@ -35893,9 +35893,10 @@ SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
+
+
+     #: The repository's own test command, run BARE. `pyproject.toml` `addopts` already supplies
+    -#: `-q -n auto --dist=worksteal -m 'not slow'`, so adding `-n0` (4-6x slower), a second `-q`
+    -#: (suppresses the summary line this check parses) or `-p no:randomly` is forbidden by the repo
+    -#: contract and would also change what the gate measures.
+    +#: `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'` (deselecting `slow` and
+    +#: `livecorpus`), so adding `-n0` (4-6x slower), a second `-q` (suppresses the summary line this
+    +#: check parses) or `-p no:randomly` is forbidden by the repo contract and would also change
+    +#: what the gate measures.
+     SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
+
+
+    diff --git a/pyproject.toml b/pyproject.toml
+    --- a/pyproject.toml
+    +++ b/pyproject.toml
+    @@ -162,8 +162,8 @@ markers = [
+     #     root conftest.py auto-installs it as a last resort if it is somehow missing.
+     #     `--dist=worksteal` lets idle workers steal queued tests so one straggler cannot
+     #     stall the whole run.
+    -#  2) `-m "not slow"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
+    -#     The ~9 subprocess-heavy files are marked `slow` and excluded here; CI runs the
+    +#  2) `-m "not slow and not livecorpus"` so the DEFAULT run is the FAST subset (pure-logic unit tests, ~24s).
+    +#     The ~9 subprocess-heavy files are marked `slow` and live records tests are marked `livecorpus` and excluded here; CI runs the
+     #     fast suite plus an advisory slow step; run the FULL suite for release-review
+     #     with `make test-all` (which passes `-m ""`).
+     # To force serial when debugging a test-isolation issue: `make test-serial`
+    diff --git a/tests/test_cli.py b/tests/test_cli.py
+    --- a/tests/test_cli.py
+    +++ b/tests/test_cli.py
+    @@ -25,7 +25,7 @@ from tests.support import init_repo
+     from agent_workflows import cli, config as CFG
+
+     # Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
+    -# `-m "not slow"`). Run with `make test-all`.
+    +# `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
+     pytestmark = pytest.mark.slow
+
+     _ANSI = re.compile(r"\033\[[0-9;]*m")
+    diff --git a/tests/test_installer.py b/tests/test_installer.py
+    --- a/tests/test_installer.py
+    +++ b/tests/test_installer.py
+    @@ -55,7 +55,7 @@ from agent_workflows import reporting_contract
+     from agent_workflows.term import Term
+
+     # Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
+    -# `-m "not slow"`). Run with `make test-all`.
+    +# `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
+     pytestmark = pytest.mark.slow
+
+
+    diff --git a/tests/test_leak_sanitizer.py b/tests/test_leak_sanitizer.py
+    --- a/tests/test_leak_sanitizer.py
+    +++ b/tests/test_leak_sanitizer.py
+    @@ -46,7 +46,7 @@ from agent_workflows import leak_sanitizer as ls
+     from tests.support import REPO_ROOT
+
+     # Heavy subprocess/scan suite; excluded from the fast default run (see pyproject addopts
+    -# `-m "not slow"`). Run with `make test-all`.
+    +# `-m "not slow and not livecorpus"`, deselecting `slow` and `livecorpus`). Run with `make test-all`.
+     pytestmark = pytest.mark.slow
+
+    ```
+    Count of corrected unmanaged sites: 7 sites (all comment-only), matching census.
+    `addopts` line in `pyproject.toml` byte-identical:
+    ```toml
+    addopts = "-q -n auto --dist=worksteal -m 'not slow and not livecorpus'"
+    ```
+    `Makefile` recipe lines: `git diff Makefile | grep '^+\t'` returns empty.
+    `pytestmark` lines in the three test modules byte-identical:
+    ```python
+    tests/test_installer.py:59:pytestmark = pytest.mark.slow
+    tests/test_cli.py:29:pytestmark = pytest.mark.slow
+    tests/test_leak_sanitizer.py:50:pytestmark = pytest.mark.slow
+    ```
+    Targeted test execution results:
+    - `tests/test_leak_sanitizer.py`: `14 passed in 4.05s`
+    - `tests/test_installer.py`: `122 passed in 290.74s`
+    - `tests/test_cli.py`: `63 passed, 1 deselected in 276.52s` (pre-existing defect in `SubcommandDescriptionTests.test_every_subparser_has_fuller_description` discovered at pre-change baseline, tracked under `g0bdgg` / plan `ypnk56`)
+    Deselected count re-run:
+    ```
+    NOTE: 208 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    ```
+    Count is 208, identical to V-01.
+    `Makefile`'s `test-all` comment in corrected set:
+    `# `-m ""` clears the default `not slow and not livecorpus` filter (including `slow` and `livecorpus`); still parallel.`
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: TWO pasted runs of `tests/test_suite_instruction_marker_parity.py`, the BEFORE run FAILING (run against the pre-E-02 tree) and the AFTER run passing. A pass-only run is NOT acceptable evidence: without the failing run the test is not shown to be falsifiable. PLUS pasted proof the test is SELECTED by the default run rather than deselected (a bare run showing it collects and runs). PLUS pasted evidence of the test's construction against its constraints: that it carries NO `pytest.mark.slow` and NO `pytest.mark.livecorpus`; that it anchors `pyproject.toml` at `tests.support.REPO_ROOT` rather than a CWD-relative path; that it uses a REGEX or the existing `leak_sanitizer` reader rather than `tomllib` (a `tomllib` import would fail on the 3.9 floor CI still runs), with a one-line statement of which was chosen and why; that it asserts over BOTH `target_layout` values; and that it does NOT read `engine.py`'s source via `inspect`, `ast`, `read_text()`, or substring search.
+  PLUS TWO ASSERTIONS ABOUT THE TEST'S OWN SENSITIVITY, because F-8b measured the plan's earlier prescription to be vacuous. FIRST, paste the test's docstring showing it carries the P16 narrow-exception argument (that `pyproject.toml` is configuration rather than `agent_workflows/*.py`, and that the instruction TEXT is the artifact under test), so a later reader does not delete the test as a P16 violation (F-8c). SECOND, demonstrate mutation sensitivity on the axis that matters: temporarily change the `addopts` marker expression in a SCRATCH copy (never the tracked file) or monkeypatch the extracted expression, and paste the FAILING node id, proving the test tracks `addopts` rather than merely matching a constant it hardcoded. Confirm explicitly that the test does NOT rely on `'livecorpus' in prose` as its naming proof.
+  PLUS the `N passed` summary line from a bare full-suite run, compared against a baseline RE-DERIVED on the pre-change tree (review measured `3506 passed, 2 skipped` at HEAD `37402c39`; do not treat that as the bar), with the deselected count also unmoved.
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    BEFORE run (pre-E-02, failing):
+    ```
+    =========================== short test summary info ============================
+    FAILED tests/test_suite_instruction_marker_parity.py::SuiteInstructionMarkerParityTests::test_instruction_quotes_configured_addopts_marker_filter
+    ============================== 1 failed in 0.15s ===============================
+    ```
+    AFTER run (post-E-02, passing):
+    ```
+    ============================== 1 passed in 0.11s ===============================
+    ```
+    Proof test is SELECTED in default bare run:
+    ```
+    python3 -m pytest tests/test_suite_instruction_marker_parity.py
+    . [100%]
+    1 passed in 1.99s
+    ```
+    Parser choice: Uses `leak_sanitizer._parse_simple_toml_strings` plus `re.search` for `-m '<expr>'`, which is 3.9-compatible without importing `tomllib`.
+    Module docstring:
+    ```python
+    """Regression test for parity between pyproject.toml addopts and managed instruction text.
+
+    P16 compliance note:
+    pyproject.toml is build configuration, not production code (agent_workflows/*.py).
+    P16's narrow exception permits content verification where the text or file itself is
+    the artifact under test, which applies here because the instruction text emitted by
+    engine.agents_pointer_prose is the installed artifact. Asserting on the return value
+    of agents_pointer_prose is a behavioral assertion on a pure function.
+    Production source (agent_workflows/engine.py) is not read with read_text(), inspect,
+    ast, or substring search.
+    """
+    ```
+    Mutation sensitivity run (monkeypatching extracted marker expression with `'not slow and not mutated_marker'`):
+    ```
+    FAILED tests/test_suite_instruction_marker_parity.py::SuiteInstructionMarkerParityTests::test_instruction_quotes_configured_addopts_marker_filter
+    AssertionError: 'not slow and not mutated_marker' not found in ... : Configured marker expression 'not slow and not mutated_marker' missing in layout=aw prose
+    pytest exit code under mutated marker: 1
+    ```
+    Confirmed: Test does NOT assert `'livecorpus' in prose`.
+    Bare full-suite summary line:
+    Pre-change baseline at HEAD: `3538 passed, 2 skipped, 3 warnings in 88.98s` (208 deselected)
+    Post-change run: `3539 passed, 2 skipped, 3 warnings in 65.03s` (208 deselected)
+    Net difference: Exactly +1 test passed (`test_suite_instruction_marker_parity.py`), 208 deselected unmoved.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: pasted `aw backlog new ...` invocation and its output naming the created item path; pasted front matter of the created item showing `- Work-Kind: chore` and NO `- Blocks-Release:` (a gate here would be wrong: the notice string is correct today, so there is no live defect to gate); pasted `aw check` output showing the new item well-formed with no gate finding; and confirmation that `tests/deselect_notice.py` and `tests/test_deselect_notice.py` were NOT modified by this plan (a `git diff --name-only` showing both absent), since the scope fence forbids it. The item's text must state both that the notice is correct today and that E-05's parity test does not cover it.
+  - Observed evidence: PASS. Detailed evidence recorded below.
+    `aw backlog new` invocation and output:
+    ```
+    $ aw backlog new --summary "Derive deselected category names in tests/deselect_notice.py instead of hardcoding" --priority low --work-kind chore --slug "derive-deselect-notice-categories" --body "..." --apply
+    aw backlog new: wrote .aw/records/backlog/open/20261001-6offt7-01-6offt7-derive-deselect-notice-categories.backlog.md
+    ```
+    Created item front matter:
+    ```markdown
+    - Id: 6offt7
+    - Status: open
+    - Set: 6offt7
+    - Priority: low
+    - Work-Kind: chore
+    - Summary: Derive deselected category names in tests/deselect_notice.py instead of hardcoding
+    ```
+    (No `- Blocks-Release:` is present).
+    `aw check` verification:
+    ```
+    $ aw check 2>&1 | grep "6offt7" || echo "6offt7 has NO findings"
+    6offt7 has NO findings
+    ```
+    Scope fence verification:
+    `git status --porcelain tests/deselect_notice.py tests/test_deselect_notice.py` output is empty; neither file was touched.
+    Item body text confirms notice is correct today and `tests/test_suite_instruction_marker_parity.py` does not cover it.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+EXECUTION CONTRACT. Commit ONLY the files this plan changed, limited to the declared `- Scope-Paths:`, through `aw commit <plan> -- <paths>`; never `git add -A`, never bare `git add`, never `-a`, never `--no-verify`, and never push. Paste the ACTUAL runner output for every test claim; a green summary you did not run is a fabrication. Run the suite BARE (`python3 -m pytest`) and do not bolt on `-n0`, a second `-q`, or `-p no:randomly`; use `-o addopts=""` when a narrowed run is genuinely needed.
+
+HARD HONESTY RULE FOR THIS PLAN. The deliverable is a claim about what the suite does, so a validation that merely re-asserts the claim is worthless. FIVE specific traps, the last two added at review because the plan as authored walked into both. FIRST, evidence for E-02 must come from CALLING `agents_pointer_prose`, not from grepping `engine.py`: the function's return value is what installs into a target repository, and a source grep can pass while the emitted prose is wrong. SECOND, the BEFORE run of E-05's test must actually fail; if it passes before E-02, the test is not measuring what it claims and must be fixed rather than accepted. THIRD, do not report the bare suite count as a match against any figure written here: authoring measured `3387 passed` and review measured `3506 passed` days apart, so re-derive the baseline on the pre-change tree and judge on the PROPERTY (green, plus exactly the tests E-05 adds, with the deselected count unmoved).
+FOURTH, DO NOT TREAT A CATEGORY-NAME SUBSTRING CHECK AS PROOF THAT THE CATEGORIES ARE NAMED. The corrected quoted expression contains both words, so `'livecorpus' in prose` is true the instant the string is fixed and proves nothing about naming (F-8b). The naming requirement is verified by a human reading the quoted clause in V-02, and E-05 must not claim to enforce it.
+FIFTH, DO NOT TRUST THIS PLAN'S API DESCRIPTIONS WITHOUT CHECKING THE SIGNATURE, because one of them was wrong: `merge_aw_block` returns a 2-tuple and reports a preserved section through a `warnings=` list, not through a return attribute and not on stdout (F-7b). If any other API citation here does not match the signature you observe, use the signature and report the discrepancy at finalize.
+
+OPEN QUESTIONS. OQ-01 is `open` with `- Blocking: no` and `- Owner: maintainer`, and it is genuinely the maintainer's design call (whether `tests/deselect_notice.py` should derive its category list). Every `E-*` and `V-*` in this plan is coherent under either answer, and E-06 files the concrete defect regardless, so no question gates execution.
+
+SCOPE FENCE, DECLARED SO THE RUNNER CAN RECONCILE IT AFTERWARDS (not an instruction to stop). NINE paths, exactly the declared `- Scope-Paths:` (six originally plus the three `tests/test_*.py` modules review added to the census). FIVE NEGATIVE CONSTRAINTS. FIRST, do NOT change the `addopts` VALUE or any marker semantics; V-04 requires the assignment line byte-identical and the deselected count unmoved, precisely so a later reader can see this plan changed documentation and not selection. SECOND, do NOT hand-edit inside `AGENTS.md`'s `<!-- aw:block -->` markers; E-03 regenerates it through the installer path, and V-03 requires post-edit merge parity proving a later install will not revert the fix. THIRD, do NOT touch `tests/deselect_notice.py` or `tests/test_deselect_notice.py`; E-06 files that work instead. FOURTH, do NOT edit the stale fragment inside any terminal record under `.aw/records/`: those were correct when written and are immutable history. FIFTH, in the three `tests/test_*.py` modules do NOT change anything but the module-header comment: no test body, no import, and above all no `pytestmark = pytest.mark.slow` line, since that would change selection and V-04 requires each one pasted byte-identical.
+
+POST-GATE LIFECYCLE. After every `E-*` is performed and every `V-*` verified with concrete pasted evidence, and with `aw ipd lint --phase pre-transition` conforming, run the terminal transition through `aw ipd finalize` (which appends the dated `## Workflow history` line, sets the terminal `Status:`, moves this plan out of `.aw/records/plans/pending/`, and makes the path-scoped lifecycle commit); in a managed lane, report results and let the runner finalize. Do NOT hand-roll the move. This transition is NOT an `E-*` item. If any item cannot be completed, STOP and report it rather than transitioning the plan.

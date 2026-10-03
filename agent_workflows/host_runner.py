@@ -102,7 +102,14 @@ class TaskPacket(NamedTuple):
 
 
 class RawWorkerResult(NamedTuple):
-    """The raw (pre-validation) result of a worker process: exit + captured streams + diff."""
+    """The raw (pre-validation) result of a worker process: exit + captured streams + diff.
+
+    `truncated` records whether captured stdout was shortened by a declared output bound.
+    It carries `capture_command`'s already-computed fact (or the corresponding slice in
+    the runner double seam). Truncation deliberately does NOT affect `classify_worker_state`,
+    because output volume is not a completion signal (a truncated worker with a real diff
+    is still completed; the bound controls capture cost, not whether work occurred).
+    """
 
     exit_code: int
     stdout: str
@@ -112,6 +119,7 @@ class RawWorkerResult(NamedTuple):
     timed_out: bool
     cancelled: bool
     duration_ms: float
+    truncated: bool = False
 
 
 # A runner callable double for tests: (argv, cwd, timeout) -> (exit_code, stdout, stderr).
@@ -136,6 +144,12 @@ def run_worker_process(
     `run_evidence.capture_command` (argv-list, shell=False). ``diff_capturer`` optionally returns the
     worker's (diff, changed_files); ``cancel_check`` lets the coordinator request cancellation before
     spawn (a cooperative cancel seam for tests + the scheduler).
+
+    The output bound ``packet.max_output_bytes`` applies to stdout on raw bytes before decoding
+    (errors="replace"), matching `run_evidence.capture_command`, so the returned decoded string's
+    UTF-8 encoded length is not a strict hard ceiling if a multi-byte boundary replacement occurs.
+    Captured stderr is deliberately left unbounded here and in `capture_command` (design decision
+    for shared-vs-per-stream budget tracked in backlog `lijmwy`).
     """
     if not packet.argv:
         raise HostRunnerError(
@@ -162,16 +176,27 @@ def run_worker_process(
         exit_code, stdout, stderr = runner(
             list(packet.argv), packet.cwd, packet.timeout_seconds
         )
+        truncated = False
+        if packet.max_output_bytes is not None:
+            stdout_bytes = (stdout or "").encode("utf-8")
+            if len(stdout_bytes) > packet.max_output_bytes:
+                stdout_bytes = stdout_bytes[: packet.max_output_bytes]
+                stdout = stdout_bytes.decode("utf-8", errors="replace")
+                truncated = True
+        # Note: stderr is deliberately unbounded here and in capture_command (backlog lijmwy).
     else:
         tool_event, _envelope = _ev.capture_command(
             packet.run_id,
             list(packet.argv),
             cwd=packet.cwd,
             timeout=packet.timeout_seconds,
+            max_output_bytes=packet.max_output_bytes,
         )
         exit_code = int(tool_event.get("exit_code", _SPAWN_FAIL_EXIT))
-        stdout = tool_event.get("stdout", "") or ""
-        stderr = tool_event.get("stderr", "") or ""
+        stdout = str(tool_event.stdout or "")
+        stderr = str(tool_event.stderr or "")
+        truncated = bool(tool_event.get("truncated", False))
+        # Note: stderr is deliberately unbounded in capture_command (backlog lijmwy).
     duration_ms = (time.monotonic() - start) * 1000.0
     if exit_code == _TIMEOUT_EXIT:
         timed_out = True
@@ -189,6 +214,7 @@ def run_worker_process(
         timed_out=timed_out,
         cancelled=False,
         duration_ms=duration_ms,
+        truncated=truncated,
     )
 
 
@@ -307,10 +333,23 @@ def evidence_gate(tool_event: Mapping[str, Any]):
     A nonzero exit -> EV-FAILED-EXIT; empty output -> EV-MISSING-OUTPUT; a non-record/unknown-kind
     'evidence' -> EV-FABRICATED-TEXT; an expired probe -> EV-EXPIRED-PROBE. Returns the
     EvidenceValidationResult so a host exit-0 with no verified side effect cannot become completed.
+
+    When the caller explicitly declared an output bound (recorded via the tool event's `max_bytes`
+    key), truncation is an expected, asked-for outcome rather than evidence tampering. In that case,
+    if EV-TRUNCATED-OUTPUT is the only finding, the gate accepts the evidence as valid. Undeclared
+    truncation (where `max_bytes` is absent or None) still rejects to prevent unrequested output loss.
+    Any other finding (such as EV-MISSING-OUTPUT when max_output_bytes=0, or EV-FAILED-EXIT) still rejects.
     """
-    return _ev.validate_evidence(
+    res = _ev.validate_evidence(
         tool_event, require_full_output=True, check_filesystem=False
     )
+    if (
+        not res.ok
+        and tool_event.get("max_bytes") is not None
+        and all(f.code == "EV-TRUNCATED-OUTPUT" for f in res.findings)
+    ):
+        return _ev.EvidenceValidationResult(True, ())
+    return res
 
 
 def run_task(

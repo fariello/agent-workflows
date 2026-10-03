@@ -333,10 +333,11 @@ def run_work_begin(args: argparse.Namespace) -> int:
     blocking, advisory = _validate_plan_via_engine(repo_root, plan_path)
     if advisory:
         print(
-            f"aw work begin: note - {len(advisory)} advisory (warning) finding(s) on {plan_path.name} (not blocking):"
+            f"aw work begin: note - {len(advisory)} advisory finding(s) on {plan_path.name} (not blocking):"
         )
         for d in advisory:
-            print(f"  {d.rule}: {d.detail}")
+            sev = getattr(d, "severity", "") or "unclassified"
+            print(f"  [{sev}] {d.rule}: {d.detail}")
     if blocking:
         print(
             f"aw work begin: refusing to start - {len(blocking)} finding(s) on {plan_path.name}:"
@@ -743,10 +744,11 @@ def run_commit(args: argparse.Namespace) -> int:
         blocking, advisory = _validate_plan_via_engine(repo_root, plan_path)
         if advisory:
             print(
-                f"aw commit: note - {len(advisory)} advisory (warning) finding(s) on {plan_path.name} (not blocking):"
+                f"aw commit: note - {len(advisory)} advisory finding(s) on {plan_path.name} (not blocking):"
             )
             for d in advisory:
-                print(f"  {d.rule}: {d.detail}")
+                sev = getattr(d, "severity", "") or "unclassified"
+                print(f"  [{sev}] {d.rule}: {d.detail}")
         if blocking:
             print(
                 f"aw commit: refusing - {len(blocking)} finding(s) on {plan_path.name}:"

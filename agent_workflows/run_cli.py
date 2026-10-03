@@ -43,6 +43,7 @@ from typing import Any, Dict, List, Optional, Union
 from agent_workflows import run_engine, run_recovery, run_state
 from agent_workflows import run_evidence as evidence
 from agent_workflows import run_ledger_store as store
+from agent_workflows.project_context import resolve_verb_repo_root
 from agent_workflows.runner_shared import path_is_within_analytics, state_root
 
 # ---- exit-code table (awoptimize Order 07 E-03) --------------------------------------------------
@@ -338,7 +339,7 @@ def _classify_absent_target(target: str, repo_dir: Optional[str]) -> str:
     try:
         from agent_workflows.run_viewer import resolve_target_runs_detailed
 
-        repo_root = Path(repo_dir) if repo_dir else Path(".")
+        repo_root = resolve_verb_repo_root(repo_dir)
         resolved, _unresolved = resolve_target_runs_detailed([target], repo_root)
     except Exception:
         # A classification failure must never turn a working refusal into a traceback: the operator
@@ -495,7 +496,7 @@ def _run_show(args: argparse.Namespace) -> int:
     if not target:
         return _emit_no_target(args)
 
-    repo_dir = getattr(args, "dir", None)
+    repo_dir = resolve_verb_repo_root(getattr(args, "dir", None))
     ledger_file = resolve_ledger_path(target, repo_dir)
     machine = _machine(args)
 
@@ -603,7 +604,7 @@ def _run_evidence(args: argparse.Namespace) -> int:
     if not target:
         return _emit_no_target(args)
 
-    repo_dir = getattr(args, "dir", None)
+    repo_dir = resolve_verb_repo_root(getattr(args, "dir", None))
     ledger_file = resolve_ledger_path(target, repo_dir)
     machine = _machine(args)
 
@@ -728,7 +729,7 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
     if not target:
         return _emit_no_target(args)
 
-    repo_dir = getattr(args, "dir", None)
+    repo_dir = resolve_verb_repo_root(getattr(args, "dir", None))
     ledger_file = resolve_ledger_path(target, repo_dir)
     machine = _machine(args)
 
@@ -868,7 +869,8 @@ def _resolve_or_error(args: argparse.Namespace) -> tuple[Optional[Path], int]:
     target = getattr(args, "target", None)
     if not target:
         return None, _emit_no_target(args)
-    ledger_file = resolve_ledger_path(target, getattr(args, "dir", None))
+    repo_dir = resolve_verb_repo_root(getattr(args, "dir", None))
+    ledger_file = resolve_ledger_path(target, repo_dir)
     if not ledger_file:
         # Both the wording and the EMIT live in the shared emitters, so this helper's SEVEN callers
         # and the three formerly-inline emitters cannot drift apart (`i1hlgx` + `d91i3e` E-01). The

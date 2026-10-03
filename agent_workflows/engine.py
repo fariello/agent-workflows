@@ -1411,8 +1411,9 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "README for detail.\n\n"
         "HOW TO RUN THE SUITE: run it BARE, as `python3 -m pytest` (or `make test`). Do NOT bolt on "
         "flags to 'help'. `pyproject.toml` `addopts` already supplies `-q -n auto --dist=worksteal "
-        "-m 'not slow'`, so a bare run is already quiet, already parallel, and already scoped to the "
-        "fast subset. Specifically do NOT pass `-n0`, which disables xdist and makes the suite several "
+        "-m 'not slow and not livecorpus'`, so a bare run is already quiet, already parallel, and "
+        "already scoped to the fast subset by deselecting two marker categories, `slow` and `livecorpus`. "
+        "Specifically do NOT pass `-n0`, which disables xdist and makes the suite several "
         "times slower here (measured repeatedly in the 4x to 6x range on this repo, varying with core "
         "count and machine load, so treat the ratio as a range and not as a fixed constant); do NOT "
         "add another `-q`, which compounds with the configured one into `-qq` and suppresses the very "
@@ -1448,8 +1449,8 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "machine identifying info (home paths, usernames, hostnames, private repo names, session "
         "ids), RUN it and consume its output rather than eyeballing: `aw sanitize --agent` (alias of "
         "`aw check-local-leaks --agent`; without the CLI, `python3 -m agent_workflows "
-        "check-local-leaks . --agent`). It prints one tab-separated `location\\trule\\tseverity` "
-        "record per finding on stdout and exits nonzero on a `fail`. This holds even when no "
+        "check-local-leaks . --agent`). It emits a canonical `aw.agent/v1` `result` record with "
+        "`{location, rule}` diagnostics on stdout and exits nonzero on a `fail`. This holds even when no "
         "pre-commit hook or CI check is installed in the repo.\n\n"
         "### Ask self-contained questions\n"
         "When you ask a human a decision through an interactive prompt, put the ENTIRE question set "
@@ -3769,6 +3770,46 @@ def is_shim_customized_vs_expected(content: str, expected: str) -> bool:
     return norm_actual != norm_expected
 
 
+# Pinned historical records-root README hashes (closed census of 5 commits, 3 distinct hashes; F-02).
+# Hashed via manifest.normalize_for_hash (manifest.hash_content) under the M13 invariant.
+RETIRED_RECORDS_ROOT_README_HASHES: frozenset[str] = frozenset(
+    {
+        # f296f6f4 and earlier: heading '# .agents/'
+        "7bc1cdde5ef768f1d05ca8979db8cca78c42cff25815537521b08cce8a41ab7f",
+        # e2a362bf: heading '# .aw/records/'
+        "d31ab028bcc84f3172a3db9dfd04fd8e3dbb1148765c817d9072cf2ec3d350e5",
+    }
+)
+
+
+def classify_records_root_readme(content: str, expected: str) -> str:
+    """Classify records-root README content against framework shipped versions.
+
+    Returns a three-valued classification:
+      * 'current': normalized content hash matches expected current template.
+      * 'known-stale': normalized content hash matches one of the retired shipped templates.
+      * 'user-owned': content does not match any shipped template version.
+
+    The retired set is CLOSED BY CENSUS (F-02). Any text outside the retired set
+    and differing from expected is treated as user-owned by construction. The direction
+    of this fallback is deliberate: an unrecognized text is 'user-owned', so a missed
+    hash costs a stale file surviving (the status quo) and never a destroyed user file.
+
+    Normalization tolerance bound: this classifies by normalized body via
+    manifest.hash_content (manifest.normalize_for_hash). It is deliberately blind
+    to whitespace, indentation, line endings, and 'description:' lines. The backup
+    taken prior to repair (E-02) is the recovery path for a user whose file only
+    differed by such normalization-invisible edits.
+    """
+    actual_hash = manifest_mod.hash_content(content)
+    expected_hash = manifest_mod.hash_content(expected)
+    if actual_hash == expected_hash:
+        return "current"
+    if actual_hash in RETIRED_RECORDS_ROOT_README_HASHES:
+        return "known-stale"
+    return "user-owned"
+
+
 def is_stale_shim_customized(content: str) -> bool:
     """Decide if a stale shim (command removed from manifest) has user customizations.
 
@@ -5989,6 +6030,7 @@ def collect_scaffold_members(
             "prompt_library",
             "backlog",
             "reviews",
+            "releases",
         ):
             _dir = dirs.get(key)
             if _dir:
@@ -6112,18 +6154,57 @@ def ensure_plans_readmes(
     """Create a records-root README.md, plans README.md, and each lifecycle bucket README.
 
     No-clobber (a user's own README is never overwritten), staged, dry-run aware. Modeled
-    on `ensure_workflow_artifacts_readme`. Templates live under the source
-    workflows templates directory; the records-root template is selected by layout
-    (`agents-README.md` for aw, `agents-legacy-README.md` for legacy). A bucket with
-    no template is skipped defensively.
+    on `ensure_workflow_artifacts_readme`. A records-root README still carrying a retired
+    framework-shipped text is repaired (backed up first unless --no-backup), while a
+    user-owned file is preserved. Templates live under the source workflows templates
+    directory; the records-root template is selected by layout (`agents-README.md` for aw,
+    `agents-legacy-README.md` for legacy). A bucket with no template is skipped defensively.
     """
     targets = collect_scaffold_members(
         plan.repo_root, plan.source_root, category="plans"
+    )
+    layout = resolve_target_layout(plan.repo_root)
+    record_root_readme = (
+        ".aw/records/README.md" if layout == "aw" else ".agents/README.md"
     )
 
     for rel_path, content_bytes in targets.items():
         readme_path = plan.repo_root / rel_path
         if readme_path.is_file():
+            if rel_path == record_root_readme:
+                try:
+                    current_text = readme_path.read_text(encoding="utf-8")
+                except OSError:
+                    skipped.append(f"{rel_path} [already current]")
+                    continue
+                expected_text = content_bytes.decode("utf-8", errors="replace")
+                verdict = classify_records_root_readme(current_text, expected_text)
+                if verdict == "current":
+                    skipped.append(f"{rel_path} [already current]")
+                    continue
+                if verdict == "user-owned":
+                    # Deliberately preserved customized file (D85 F6, E-02(c)).
+                    skipped.append(f"{rel_path} [preserved]")
+                    continue
+                if verdict == "known-stale":
+                    # Repair the known-stale records-root README (E-02).
+                    # Do not prompt (E-02(d)): the classification has already proven the file
+                    # is the framework's own retired output and not the user's.
+                    if plan.dry_run:
+                        installed.append(f"{rel_path} [overwrite, dry-run]")
+                        continue
+                    if plan.backup:
+                        timestamp = _plan_backup_timestamp(plan)
+                        backup = create_backup_path(
+                            plan.repo_root, Path(rel_path), timestamp
+                        )
+                        backup.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(readme_path, backup)
+                    readme_path.write_bytes(content_bytes)
+                    if use_git:
+                        git_add_optional(plan.repo_root, rel_path)
+                    installed.append(f"{rel_path} [overwrite]")
+                    continue
             skipped.append(f"{rel_path} [already current]")
             continue
         if plan.dry_run:

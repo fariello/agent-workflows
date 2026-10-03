@@ -1,0 +1,66 @@
+# Review findings: plan p22nrx
+
+- Subject-Id: p22nrx
+- Subject-Type: ipd
+- Reviewed-At: 2026-10-01
+- Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+
+## Round 1
+
+Reviewed in a lane worktree at HEAD `cceb80d88`. Structural preflight `aw ipd lint --phase author
+--agent` CONFORMED before revision (exit 0, `findings: 0`), and `--phase review-finalize --agent`
+conforms after. No pre-review snapshot was owed: `git status --porcelain` was empty, so the plan was
+committed and unmodified. `aw check release-gates --agent` conforms. NO PRODUCTION FILE WAS MODIFIED
+at any point: the single `render_stream.py` prototype written to re-reproduce F-07 was reverted with
+`git checkout --` and `git status --porcelain` is empty again.
+
+NINE OF THE PLAN'S TEN FINDINGS WERE INDEPENDENTLY RE-MEASURED AND HOLD AS WRITTEN. F-02 reproduces
+across all four refusal branches plus a fifth (`exists:ipd:<id6>`), each `reason.startswith(token +
+":")` returning `True`. F-03 reproduces: `review_findings.GatingBlock.describe` composes
+`f"{self.plan_id6}: ..."`, so the findings-gate reason is prefixed with the BARE id6 and not the
+token. F-04's five-surface census is complete and was verified by enumerating every reader of
+`unsatisfied_dependency_reasons` and every `reasons.get`/`why.get` composition in the package: the
+five the plan names are the only ones, and `render_transient_dependency_waits` is indeed a surface the
+backlog item did not count. F-05 holds: the selector phrase `not in this run` sits in the refusal's
+tail while the stripped prefix is at position 0. F-06 holds by import:
+`run_selection_policy`'s module-level first-party imports are exactly `selectors` and `status_set`,
+and `render_stream` binds `run_selection_policy` at module level. F-07 RE-REPRODUCED on this tree by
+applying a prototype to the diagnostics arm: `1 failed, 68 passed`, failing on exactly the assertion
+the plan names. F-10 holds. The plan's claim that `tests/test_orchestrator_probe_cache.py` does not
+exist is correct, so the import convention is genuinely unpoliced.
+
+THE ONE FINDING THAT HAD DRIFTED IS F-09, which is PR-003, and its conclusion survives: two of the
+three overlapping plans have EXECUTED since authoring, and neither touched a reason composition, which
+is why all five edit sites are still byte-identical to the plan's quotations.
+
+THE SUBSTANTIVE FINDING IS PR-001, and it was found by DEMONSTRATION rather than by reading: the
+prescribed two-spelling predicate was coded verbatim and run over every reason shape the three live
+producers emit, which surfaced a third prefix spelling the plan does not account for and which it
+would have shipped unfixed.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | HIGH | UNDER-SCOPE | rubric D (anti-regression / invariants); rubric E (testing) | `agent_workflows/runner_shared.py` `dependency_status_detailed._block` ("Report the token AS DECLARED, not its canonical rewrite"); `runner_shared.edge_satisfied` (`tok = edge.canonical()`); `runner_shared.parse_dependency_token` (bare-id6 accommodation, citing `tools/ipdrunner/*-driver-manifest.json`); `agent_workflows/oc_runipd.py` `--manifest`; `agent_workflows/agy_runipd.py` `--manifest` | **E-01's PREDICATE MISSES A THIRD PREFIX SPELLING, WHICH IS THE WORST-DUPLICATED SHAPE IN THE TREE.** The DECLARED token and the CANONICAL token are not always equal: a dependency declared as a BARE id6 is normalized by `parse_dependency_token` to `executed:<id6>`, `edge_satisfied` prefixes its refusal with `edge.canonical()`, but `_block` keys the reason map on the token AS DECLARED. So for declared `jefifu` the helper is asked to strip `jefifu:` (both the token and its own last colon-separated field, which coincide for a bare id6) from a reason beginning `executed:jefifu:`, and neither prescribed spelling matches. The line prints the id6 THREE times. The input is live: the shipped legacy manifest carries bare-id6 `dependencies` in 19 entries and BOTH hosts accept it through `--manifest`. Measured: the prescribed helper returned the reason UNCHANGED; a three-spelling form stripped it correctly and agreed with the prescribed form on all six other shapes. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-01 now requires a third candidate (the token's canonical rewrite) derived WITHOUT importing a parser - accept the reason's leading non-whitespace run only when it ends in `:` and its own last colon-separated field equals the declared token's last field, a test that is self-referential by construction and so preserves OQ-02's safety argument and F-06's two-import purity. Demonstrated at review over nine cases (all six prefixed shapes stripped, both token-free shapes unchanged, mid-sentence token preserved, idempotent throughout). E-06 gains case (vii) asserting the count falls 3 -> 1 for this shape; V-01 gains evidence item (f) requiring it measured against a LIVE non-executed target; V-06 gains a PREDICATE revert check requiring case (vii) to go RED against the two-spelling form. F-11 records the measurement; `- Scope:`, the proposed-changes list and the gate were swept. |
+| PR-002 | MEDIUM | UNDER-SCOPE | project rule (`check.ipd-uncarried-obligation`, registered `error`) | `aw check all` naming this plan under `check.ipd-uncarried-obligation`; `agent_workflows/check_engine.py` `check_durable_carrier`, `carrier_severity_for_plan` | **SIX DEFERRAL ROWS CARRY NO DURABLE CARRIER, AND THE RULE IS `error` FOR THIS PLAN, NOT ADVISORY.** Every bullet in `## Deferred / out of scope` lacks `Carrier`, `Carrier-Evidence` and `Carrier-Declined`, so each records an obligation that vanishes the moment the plan reaches `executed` (the rule's own wording). Measured: `carrier_severity_for_plan` returns `error` for this plan's `- Date:`, and `check_durable_carrier` returns one `Drift` naming all six rows. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | All six rows now carry a typed field, each judged on the merits rather than blanket-declined: `Carrier: 8mohre` for the in-queue-mislabelled defect (genuinely carried, still pending); `Carrier-Evidence:` naming the two now-EXECUTED plans for the recovery hint and the malformed-entry guard; and `Carrier-Declined:` with a stated reason for the three rows that are design boundaries or layout preferences rather than outstanding work. The `verdict.detail` row's declination is backed by a measurement rather than a judgement (a two-cause detail retains exactly one tail prefix, a single-cause detail none). Re-ran the shipped predicate: no finding for this plan. |
+| PR-003 | MEDIUM | IN-SCOPE | rubric G (plan executability); live-artifact re-derivation convention | `ls .aw/records/plans/executed/*8eei5p*`, `*cup9r7*`; `python3 -m pytest tests/test_dependency_block_reporting.py tests/test_run_selection_policy.py`; bare `python3 -m pytest` | **TWO PLANS THE PLAN CALLS `pending` HAVE EXECUTED, AND BOTH BASELINE COUNTS ARE STALE BY A WIDE MARGIN.** F-09 and two deferral rows describe `8eei5p` and `cup9r7` as pending; both are now under `executed/` with `- Status: executed`. The pair baseline is `69 passed`, not the stated `61`; the bare suite is `3745 passed, 2 skipped`, not the stated `3387 passed, 2 skipped`. An executor comparing against `3387` on a tree at `3745` reads a 358-test gain as a catastrophe. The plan's conclusions are unaffected, which is itself worth stating: neither executed plan touched a reason composition, so all five edit sites remain byte-identical and F-07 still reproduces. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-09's statuses corrected (`zhqt51` and `jefifu` are the live ones, both `approved`); F-12 added recording the executions, the corrected baselines and the re-reproduced F-07 (`1 failed, 68 passed`). Both baselines corrected in the conventions section and in `## Required tests / validation`, each now accompanied by an explicit instruction to RE-DERIVE at execution and judge on "no NEW failure" rather than on a matching total, per the live-artifact convention. The gate repeats the instruction. |
+| PR-004 | LOW | IN-SCOPE | project rule (`check.plan-spec-link-missing`); AGENTS.md attestation rule | `aw check all` suggesting `aw ipd set p22nrx --from-spec 25kzda`; `agent_workflows/check_engine.py` `check_plan_spec_link_missing` (registered `info`) | **THE PLAN TRIPS AN ADVISORY WHOSE SUGGESTED FIX WOULD WRITE A FALSE PROVENANCE, AND SAYS NOTHING ABOUT IT.** `aw check` reports `check.plan-spec-link-missing` because `- Scope:` cites `25kzda` while no `- From-Spec:` is present, and offers a one-command fix. Taking it would be wrong: the plan graduated from backlog `csjq81`, and it cites the spec only to record what the spec does NOT govern (F-10). An executor or a later reviewer clearing the advisory mechanically would assert a graduation that did not happen. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | `## Spec / documentation sync` now records that the absence is deliberate, that the rule is registered `info` (non-failing) and is a nudge for a spec-graduated plan, and that writing the link would be the same class of false attestation AGENTS.md forbids for `- Readiness:` and `- Approval:`. The gate repeats the prohibition so nobody silently converts an honest absence into a false link. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | How should E-01 obtain the DECLARED token's canonical form, given F-06's two-import purity property forbids importing `parse_dependency_token` into `run_selection_policy`? | Derive it from the REASON rather than from the token: accept the reason's leading non-whitespace run as a candidate prefix only when it ends in `:` and its own last colon-separated field equals the declared token's last colon-separated field. | (a) Import `runner_shared.parse_dependency_token` function-locally, rejected because `run_selection_policy` must not import a runner (F-06; the module's own comments record other plans depending on its two-import purity) and because a function-local import at a reporting hot path adds a cycle risk for no gain. (b) Import `ipd_schema`, rejected because it pulls in `artifact_core`, `backlog`, `lifecycle_dirs` and `plans`, a far larger graph than the predicate needs. (c) Reimplement the token grammar in the helper, rejected as a second parser that would drift from the shared one. (d) Strip any leading `<word>:`, rejected as unsafe because it could remove a prefix naming a DIFFERENT target. | `agent_workflows/run_selection_policy.py` module-level imports are exactly `selectors` and `status_set`; `agent_workflows/ipd_schema.py` imports four first-party modules; demonstrated at review over nine reason shapes, stripping all six self-referential prefixes, leaving both token-free shapes byte-identical, preserving a mid-sentence `executed:aaa111`, and idempotent on every case. | yes |
+| D-2 | Is the `check.plan-spec-link-missing` advisory on this plan a defect to fix or expected output to document? | Expected output; document the deliberate absence and forbid writing `- From-Spec:`. | Writing `- From-Spec: 25kzda` as `aw check` suggests, rejected because the plan graduated from backlog `csjq81` and cites the spec only to record what it does not govern, so the link would assert a provenance that did not happen. | The rule is registered `info` in `agent_workflows/check_engine.py`'s rule table and its evaluator `check_plan_spec_link_missing` documents itself as an advisory nudge; the plan carries `- From-Backlog: csjq81`; AGENTS.md forbids writing another role's attestation field. | yes |
+| D-3 | Three deferral rows describe design boundaries rather than outstanding work. Declare `Carrier-Declined`, or file backlog items to satisfy the carrier rule mechanically? | `Carrier-Declined` with a stated reason per row, and for the `verdict.detail` row a MEASUREMENT rather than a judgement. | Filing three backlog items, rejected because each would assert an open defect that measurement says does not exist (a producer-string edit this plan proves harmful, a residual multi-cause prefix measured as one occurrence, and a layout preference with no alleged defect), and because inventing carriers to silence a rule is exactly the gaming the rule's own neighbours are written to prevent. | The rule's recovery text accepts `Carrier-Declined` as a first-class escape; `check_durable_carrier` re-run after the edit returns no finding for this plan; the `verdict.detail` residue was measured on a real two-permanent-cause item built from the real `classify_drain_block`. | yes |
+
+### Deferred and open
+
+(none)
+
+Neither open question was reopened: OQ-01 and OQ-02 are both `- Blocking: no` and both `resolved`, and
+OQ-02's resolution was STRENGTHENED rather than reopened, because PR-001 widens the predicate OQ-02
+reasons about and the demonstration confirming the widening preserves all three of its safety
+restrictions is now recorded in the resolution itself.

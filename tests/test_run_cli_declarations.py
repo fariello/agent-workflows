@@ -228,3 +228,271 @@ def test_runs_resume_exit_3_is_unreachable_and_undeclared(tmp_path: Path) -> Non
         )
     findings = exc_info.value.findings
     assert any(f.code == "RL-E030" for f in findings)
+
+
+def _create_terminal_ledger(
+    ledger_path: Path, terminal_status: str, moved_to: str
+) -> None:
+    _create_valid_one_record_ledger(ledger_path)
+    store = RunLedgerStore(ledger_path)
+    store.append(
+        {
+            "schema_version": 1,
+            "kind": "terminal_transaction",
+            "run_id": "run-0000abcd",
+            "parent": "",
+            "actor": "coordinator",
+            "terminal_status": terminal_status,
+            "moved_to": moved_to,
+        }
+    )
+
+
+def _create_corrupted_ledger(ledger_path: Path) -> None:
+    _create_valid_one_record_ledger(ledger_path)
+    store = RunLedgerStore(ledger_path)
+    store.append(
+        {
+            "schema_version": 1,
+            "kind": "step_attempt",
+            "run_id": "run-0000abcd",
+            "parent": "",
+            "step": "s1",
+            "attempt": 1,
+            "actor": "runtime",
+            "state": "performed",
+            "input_digest": "sha256:" + "0" * 64,
+        }
+    )
+    lines = ledger_path.read_bytes().decode("utf-8").splitlines()
+    data = json.loads(lines[1])
+    data["prev_hash"] = "0" * 64
+    lines[1] = json.dumps(data)
+    ledger_path.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
+
+
+def test_runs_next_declared_exit_codes_are_reachable(tmp_path: Path) -> None:
+    """Drive the real CLI in a subprocess for each of 0, 2, 3, 5, 7 and verify it is in decl.exit_contract."""
+    decl = get_declaration("runs next")
+    assert decl is not None
+
+    # Code 0: terminal complete ledger
+    term_complete = tmp_path / "term_complete.jsonl"
+    _create_terminal_ledger(
+        term_complete, terminal_status="complete", moved_to="executed"
+    )
+    res_0 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "next", str(term_complete)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_0.returncode == 0
+    assert 0 in decl.exit_contract
+
+    # Code 2: absent path, empty file, bad flag
+    res_2_absent = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows",
+            "runs",
+            "next",
+            str(tmp_path / "nonexistent.jsonl"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res_2_absent.returncode == 2
+    assert 2 in decl.exit_contract
+
+    empty_ledger = tmp_path / "empty_ledger.jsonl"
+    empty_ledger.touch()
+    res_2_empty = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "next", str(empty_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_2_empty.returncode == 2
+
+    res_2_badflag = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows",
+            "runs",
+            "next",
+            "--this-flag-does-not-exist",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res_2_badflag.returncode == 2
+
+    # Code 3: clean one-record valid ledger (non-terminal, no runnable steps)
+    clean_ledger = tmp_path / "clean_ledger.jsonl"
+    _create_valid_one_record_ledger(clean_ledger)
+    res_3 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "next", str(clean_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_3.returncode == 3
+    assert 3 in decl.exit_contract
+
+    # Code 5: chain-broken two-record ledger
+    broken_ledger = tmp_path / "broken_ledger.jsonl"
+    _create_corrupted_ledger(broken_ledger)
+    res_5 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "next", str(broken_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_5.returncode == 5
+    assert 5 in decl.exit_contract
+
+    # Code 7: healthy non-ledger JSONL
+    non_ledger = tmp_path / "non_ledger.jsonl"
+    non_ledger.write_bytes(b'{"hello": "world"}\n')
+    res_7 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "next", str(non_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_7.returncode == 7
+    assert 7 in decl.exit_contract
+
+    # Exact-set assertion in both directions
+    measured_codes = {
+        res_0.returncode,
+        res_2_absent.returncode,
+        res_3.returncode,
+        res_5.returncode,
+        res_7.returncode,
+    }
+    assert measured_codes == {0, 2, 3, 5, 7}
+    assert set(decl.exit_contract) == measured_codes
+    assert decl.exit_contract == (0, 2, 3, 5, 7)
+
+
+def test_runs_status_declared_exit_codes_are_reachable(tmp_path: Path) -> None:
+    """Drive the real CLI in a subprocess for each of 0, 1, 2, 3, 5, 7 and verify it is in decl.exit_contract."""
+    decl = get_declaration("runs status")
+    assert decl is not None
+
+    # Code 0: terminal complete ledger
+    term_complete = tmp_path / "term_complete.jsonl"
+    _create_terminal_ledger(
+        term_complete, terminal_status="complete", moved_to="executed"
+    )
+    res_0 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "status", str(term_complete)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_0.returncode == 0
+    assert 0 in decl.exit_contract
+
+    # Code 1: clean one-record valid ledger (non-terminal, pending)
+    clean_ledger = tmp_path / "clean_ledger.jsonl"
+    _create_valid_one_record_ledger(clean_ledger)
+    res_1 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "status", str(clean_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_1.returncode == 1
+    assert 1 in decl.exit_contract
+
+    # Code 2: absent path, empty file, bad flag
+    res_2_absent = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows",
+            "runs",
+            "status",
+            str(tmp_path / "nonexistent.jsonl"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res_2_absent.returncode == 2
+    assert 2 in decl.exit_contract
+
+    empty_ledger = tmp_path / "empty_ledger.jsonl"
+    empty_ledger.touch()
+    res_2_empty = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "status", str(empty_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_2_empty.returncode == 2
+
+    res_2_badflag = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows",
+            "runs",
+            "status",
+            "--this-flag-does-not-exist",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res_2_badflag.returncode == 2
+
+    # Code 3: terminal cancelled ledger
+    term_cancelled = tmp_path / "term_cancelled.jsonl"
+    _create_terminal_ledger(
+        term_cancelled, terminal_status="cancelled", moved_to="not-executed"
+    )
+    res_3 = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agent_workflows",
+            "runs",
+            "status",
+            str(term_cancelled),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res_3.returncode == 3
+    assert 3 in decl.exit_contract
+
+    # Code 5: chain-broken two-record ledger
+    broken_ledger = tmp_path / "broken_ledger.jsonl"
+    _create_corrupted_ledger(broken_ledger)
+    res_5 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "status", str(broken_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_5.returncode == 5
+    assert 5 in decl.exit_contract
+
+    # Code 7: healthy non-ledger JSONL
+    non_ledger = tmp_path / "non_ledger.jsonl"
+    non_ledger.write_bytes(b'{"hello": "world"}\n')
+    res_7 = subprocess.run(
+        [sys.executable, "-m", "agent_workflows", "runs", "status", str(non_ledger)],
+        capture_output=True,
+        text=True,
+    )
+    assert res_7.returncode == 7
+    assert 7 in decl.exit_contract
+
+    # Exact-set assertion in both directions
+    measured_codes = {
+        res_0.returncode,
+        res_1.returncode,
+        res_2_absent.returncode,
+        res_3.returncode,
+        res_5.returncode,
+        res_7.returncode,
+    }
+    assert measured_codes == {0, 1, 2, 3, 5, 7}
+    assert set(decl.exit_contract) == measured_codes
+    assert decl.exit_contract == (0, 1, 2, 3, 5, 7)

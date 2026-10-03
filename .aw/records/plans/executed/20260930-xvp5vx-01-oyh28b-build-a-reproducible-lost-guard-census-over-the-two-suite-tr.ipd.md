@@ -1,0 +1,643 @@
+# IPD: Build a reproducible lost-guard census over the two suite-trim commits and triage only the behavioral gaps
+
+- Date: 2026-09-30
+- Kind: child
+- Concern: Backlog `xvp5vx` asks which properties lost their ONLY guard in the suite trim `19313eed`. Nothing has audited this, and the question is currently unanswerable in a reproducible way: every prior answer (plans `t0ovw6` and `7dz3wv`, backlog items `pn7rw3`, `rcp8c4`, `gia5i7`, `ikxtkj`, `tvv8gg`, `l8upzx`, `p7k57l`, `rdl9lh`, `089bq4`, `2jz47s`) was found by hand, one symbol at a time, by whoever happened to be editing nearby. That sampling has already yielded ELEVEN filed items and one shipped regression (`39jkux`), so the population is real; what is missing is a census that can be re-derived. THE ITEM'S FRAMING IS ALSO MEASURABLY INCOMPLETE IN ONE WAY THAT CHANGES THE WORK: the trim was TWO commits, not one (`80db6750c` removed 366 code-pinning tests on 2026-09-23, `19313eed` removed 7,402 the next day), and the most-cited "lost guard" in the whole tree (`test_no_new_module_level_first_party_import_in_runner_shared`, 7 citations in `runner_shared.py` plus 1 in `ipd_lint.py`, re-measured at review) was an `ast.parse` CODE PIN deleted by the FIRST commit, which the maintainer's own ruling says must never be restored. So a naive audit of `19313eed` alone would both misattribute that loss and propose restoring exactly what P16 forbids.
+- Scope: Deliver a COMMITTED, reproducible census scanner plus a triage report, and file each genuine behavioral gap as its own backlog item. The scanner reports over BOTH trim commits, attributes each loss to the correct one, and names its own REACH BOUND: its two citation axes see only a deleted test some surviving comment NAMES, which review measured at 40.7 percent of the removed population by function count, so the deliverable is a high-precision bounded SAMPLE and not a completeness claim (F-14). This plan produces a REPORT and FILED ITEMS, not fixes: no deleted test is restored here and no production behavior changes. EXCLUDES restoring any code-pinning test (maintainer ruling, carried in the item's own history); EXCLUDES the already-filed instances (re-measured at review: 27 of 82 trim-attributable dangling citations are already owned by a live item), which the scanner must DEDUPE against rather than re-file; EXCLUDES the `docs/` citation axis, which pending plan `1jg2m2` already owns including its guard test; EXCLUDES the 207 deleted files no live comment cites and the append-only `CHANGELOG.md`/`DECISIONS.md` danglers, both reported rather than triaged.
+- Scope-Paths: tools/lost_guard_census.py, tests/test_lost_guard_census.py, tools/README.md
+- Item-Dependencies: none
+- Status: executed
+- Readiness: go-pending-approval
+- Work-Kind: chore
+- Priority: medium
+- From-Backlog: xvp5vx
+- Set: xvp5vx
+- Order: 1
+- Highest E allocated: 07
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: oyh28b
+
+## Workflow history
+- 2026-10-02 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: oyh28b verified (set xvp5vx, attempt 1). [Scope reconciliation - out-of-scope .aw/records/backlog/open/20261001-046nys-01-046nys-record-retirement-of-test-no-new-module-level-firs.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-3tov52-01-3tov52-retire-or-update-dangling-test-symbol-citations-fo.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-9vfxhn-01-9vfxhn-triage-and-resolve-the-22-dangling-test-citations.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-e486tz-01-e486tz-audit-and-mutation-prove-behavioral-coverage-acros.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-iosmvn-01-iosmvn-rollup-tracking-remaining-unowned-dangling-test-ci.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-j7daih-01-j7daih-add-check-rule-preventing-live-source-comments-fro.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run); out-of-scope .aw/records/backlog/open/20261001-mv18lz-01-mv18lz-restore-behavioral-test-coverage-for-manifest-entr.backlog.md: changed by the plan's approved execution (auto-reconciled by aw agy run)]
+- 2026-10-01 approved (aw set): status set to approved
+
+- 2026-10-01 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-014, all FIXED, none OPEN or DEFERRED. EVERY MATERIAL CLAIM RE-MEASURED INDEPENDENTLY at review HEAD `aa5398132`, 440 commits ahead of the authored `ffb8e9e45`. WHAT HELD EXACTLY: F-02's two-commit framing and both subjects; F-03's `0/112/366` and `298/20/7402`; F-04's 54 pins of 5,990; F-05's pin body, its `80db6750c` attribution (a per-commit probe returns `[('tests/test_orchestrator_probe_cache.py', True)]` for the first commit and `[]` for the second) and the P16 shapes it violates; F-09's exact four placeholder sites; F-12's `1jg2m2` ownership of the docs axis; F-13's retired `lift_drift_scan` stub at `collected 0 items`. THE CENTRAL FINDING (PR-001, BLOCKER) IS THAT THE PLAN'S GOAL CLAIMED A COMPLETENESS ITS METHOD CANNOT REACH: the citation axes see only a deleted file some surviving comment NAMES, and of `19313eed`'s 298 deleted files only 91 are cited anywhere live while 207 are cited nowhere, those 207 holding 3,554 of the 5,990 removed test functions, so the axes reach 40.7 percent by function count and 0 percent of `80db6750c` (which deleted no files). A census that prints a triage list without that bound invites a reader to treat an empty census as an empty problem, retiring the question exactly as the plan's own gate warns an empty report would. The Goal now states the bound, E-01 PRINTS the reach partition in the tool's own output, and the unreached population is a named out-of-scope row with E-07 obliged to file its carrier. PR-004 (BLOCKER) found E-02's "excludes code pins BY CONSTRUCTION" mechanically impossible: the classifier's unit is a function and the triage list's unit is a file path, and over all 82 candidate paths 0 are all-pins, 65 are no-pins and 17 are MIXED, so an all-pins rule excludes nothing and an any-pin rule would wrongly discard 17 paths carrying behavioral tests; E-02 now ANNOTATES and the pin-versus-gap judgement is made per citation. The sharpest instance is inside F-05 itself: `tests/test_orchestrator_probe_cache.py` held 38 functions at `19313eed^` of which ZERO are pins, because its pin had already gone in the first commit. PR-008 (HIGH) found E-05 UNEXECUTABLE AS WRITTEN: it instructed mutating "the candidate", but a candidate is a dangling PATH and a path cannot be patched; E-05 now requires naming the production property and symbol from the citing comment first, with `property-unidentifiable` and `pin-retired` as legitimate recorded outcomes. PR-002 (HIGH) measured FOUR defensible removed-test counts from one commit (7402 DM-multiset, 7393 DM-distinct, 5990 D-only-all-defs, 5982 D-only-distinct) and the plan mixes two of them, headlining 7402 while computing "54 of 5990"; the counting rule is now a printed field, which is the very failure `runner_fork_scan.py`'s header records for line metrics recurring inside the plan that cites it. PR-005 (HIGH) found the authored axis-A census `107/166/290/68` reproduces under NO definition of five tried, so the scan definition is now declared data the scanner prints. PR-011 (HIGH) found the authored baseline SPENT in the opposite direction from the usual: the tree is now FULLY GREEN at `3809 passed, 2 skipped, 3 warnings in 200.14s` and the date-rollover flake the plan told the executor to expect red now passes, so the bar is a green baseline. PR-012 (HIGH) rewrote every live-artifact V-item as re-derivation per the repository's own convention, keeping exactness only for E-01's fixed-commit census. Remaining fixes: PR-003 (the `read_text()` signal's naive form misclassifies four behavioral tests, one read in full to confirm), PR-006 (`CHANGELOG.md`/`DECISIONS.md` would add 15 unfixable rows), PR-007 (the dedupe is a basename substring match, wrong in both directions; confirmed no live item names `test_orchestrator_probe_cache` at all), PR-009 (E-06 would have scanned the real trim commits, re-importing the live-corpus dependency it forbids), PR-010 (E-07 would have filed up to 43 ungrouped items on two refusals it called mechanical), PR-013 (gate lacked a scope fence and carried an unconditional finalize instruction), PR-014 (`tools/README.md` documents neither precedent scanner, so the entry establishes the convention). Also corrected: F-05's citation count is 7 in `runner_shared.py` plus 1 in `ipd_lint.py`, not 6; F-10's carrier figures were roughly 2x overstated (`runner_shared.py` 64 dangling hits, not 111). OQ-01 and OQ-02 verified sound and left resolved, both with their precedent items opened and confirmed; OQ-03 added and resolved (ship the bounded census rather than REPLAN, with the cost basis recorded). Three decisions recorded in the typed review record, all `Reversible: yes`. Structural preflight `conforming` at `author` and at `review-finalize`.
+- 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored from backlog item `xvp5vx`. Every measurement taken against this lane's working tree at HEAD `ffb8e9e45`. The item's single-commit framing is corrected by measurement (F-02), and its "prefer MUTATION as the test of coverage" instruction is accepted in principle but BOUNDED by a cost measurement that makes the naive reading impossible (F-06): one bare suite run is 203s here, so per-candidate mutation over 46 unowned candidates is roughly 2.6 hours of pure suite time and is reserved for the shortlist the cheap axes produce.
+- 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Replace hand-sampling with a re-derivable census. After this plan, one committed command answers a BOUNDED question reproducibly, attributes each loss to the right commit, reports which removals are code pins, dedupes against the already-filed instances, and emits a triage list; and every genuine behavioral gap it finds is a filed backlog item rather than a paragraph in a plan nobody re-runs.
+
+THE QUESTION THIS CENSUS ACTUALLY ANSWERS, STATED BEFORE THE SCANNER IS BUILT, because the authored goal overclaimed and an overclaiming census is worse than none (REVISED AT REVIEW, PR-001). The two citation axes answer **"which properties does the repository still CLAIM are guarded by a test that no longer exists?"** They do NOT answer "which properties lost their only guard", and the gap between those two questions is measured, large, and asymmetric:
+
+- Of the 298 test files `19313eed` deleted, only **91** are cited anywhere in live non-record files. The other **207** are cited nowhere, so no citation axis can see them.
+- Those 207 uncited files held **3,554** of the commit's 5,990 removed test functions. The citation axes therefore reach **40.7 percent** of the removed population by function count and are structurally blind to the rest (F-14).
+- `80db6750c` deleted ZERO files, so axis A attributes ZERO dangling paths to it (F-07). The first trim commit is visible to the FUNCTION census (E-01) and invisible to the citation axes.
+
+So E-01's census is the population measurement and the axes are a cheap, high-precision SAMPLE of it, selected by the accident of whether a surviving comment happens to name the deleted file. That sample is worth having, because a false guard claim in shipped source is a real defect and is the half the maintainer has been fixing by hand. It is NOT a completeness claim, and the scanner must print the unreached count beside every triage total so no reader can mistake one for the other.
+
+ANSWERING THE FULL QUESTION would require deriving each deleted test's asserted property and mutation-proving it, which F-06 measures as unaffordable at this population size. This plan therefore delivers the reproducible census, the honest reach bound, and the triage of what the cheap axes reach. Extending coverage to the uncited 207 is named in `## Deferred / out of scope` with its own carrier obligation.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: the committed census scanner
+
+- [x] E-01 Create `tools/lost_guard_census.py`, a committed scanner whose contract is REPRODUCIBILITY, following the precedent `tools/runner_fork_scan.py` sets explicitly ("the contract this file owes its callers is not 'a number' but 'the SAME number, next week, from a different machine, by a different agent'"). It must take the trim commits as ARGUMENTS defaulting to both (`80db6750c` and `19313eed`), never hardcode a single commit, and recover deleted test bodies with `git show <commit>^:<path>` rather than from any local artifact.
+
+  IT MUST SCAN BOTH DELETED AND MODIFIED FILES. Measured (F-03): `19313eed` deleted 298 test files AND modified 20, and `80db6750c` deleted ZERO files while modifying 112. A scanner looking only at `--diff-filter=D` would therefore see NOTHING of the first trim commit and would miss the 20 modified files in the second. Compute removals per file as a multiset difference of test-function names between `<commit>^:<path>` and `<commit>:<path>`, which is the method that produced F-03's 366 and 7,402 figures.
+
+  REPORT THE METRIC, NEVER AN UNLABELLED NUMBER, for the reason `runner_fork_scan.py` records at length (three line metrics circulated in one Set and differed by more than 2x, so a plan quoted a figure that reproduced under no metric). Headline the TEST-FUNCTION COUNT, which reproduced exactly at every measurement here.
+
+  STATE THE COUNTING RULE BESIDE EVERY COUNT, because review measured FOUR different defensible answers from the same commit and the same corpus (PR-002, F-15). On `19313eed` the removed-test-function figure is `7402` under a per-file MULTISET DIFFERENCE over deleted AND modified files, `7393` under distinct `(file, name)` pairs over the same files, `5990` over DELETED files only counting every `def`, and `5982` over deleted files only counting distinct names. The plan's own numbers mix two of these: `7402` is the DM-multiset figure while F-04's denominator `5990` is the D-only figure, so a reader comparing `54 of 5990` against a headline `7402` is comparing different populations. So the scanner MUST emit the counting rule as a labelled field on every count, and MUST NOT print a bare total. The headline rule is the DM multiset difference, matching `7402`.
+  PRINT THE REACH BOUND BESIDE THE CENSUS, in this command and in the scanner's module docstring, because this is the one number that stops the report being read as a completeness claim (PR-001, F-14): of the deleted files, how many are CITED anywhere live (so reachable by E-03's axes) and how many are not, with the removed-test-function count on each side of that partition. Review measured `19313eed` at 91 cited / 207 uncited files and 2,436 / 3,554 functions, a 40.7 percent reach.
+  - Depends on: none
+  - Expected outcome: `python3 tools/lost_guard_census.py --summary` prints, per trim commit, the deleted-file count, modified-file count, and net test functions removed under a NAMED counting rule, reproducing F-03's `80db6750c: 0 deleted / 112 modified / 366 removed` and `19313eed: 298 / 20 / 7402` exactly under the DM-multiset rule, printing the D-only figure (`5990` for `19313eed`) as a separate labelled line rather than as an alternative headline, and printing the cited-versus-uncited reach partition with its percentage.
+  - Execution state: performed
+
+- [x] E-02 Add the CODE-PIN CLASSIFIER, which is what gives the maintainer ruling a MEASURED basis instead of an auditor's good intentions. The ruling, carried verbatim in this item's own workflow history, is absolute: "Any audit of deleted tests must strictly ignore tests that pinned code, AST, or text, and must never propose restoring them." Classify each removed test function by its source segment and ANNOTATE each candidate with what that classification found. REVISED AT REVIEW: the authored wording promised the classifier would obey the ruling BY CONSTRUCTION by excluding pinning tests from every triage output, and measurement showed that mechanism cannot exist at the granularity the triage list uses (PR-004, F-17, detailed below). The ruling is unchanged and still absolute; what changed is the honest claim about how it is enforced.
+
+  CLASSIFY ON SIGNALS MEASURED PRESENT IN THE REAL CORPUS, not invented ones: `inspect.getsource`, `inspect.getsourcelines`, `ast.parse`, `ast.walk`, `ast.unparse`, `linecache`, and a `read_text()` whose argument resolves under `agent_workflows/`. Measured with this exact signal set (F-04): 54 of `19313eed`'s removed functions classify as code pins on the BASE signals, and 58 once the `read_text()` signal is included, so the `read_text()` clause earns exactly FOUR additional classifications and the scanner must report the two figures separately rather than conflating them (PR-003, F-16). Review inspected all four and they are TRUE POSITIVES by signal but NOT all true code pins: `tests/test_run_viewer_liveness.py::test_persisted_interrupted_is_not_labelled_projected` reads a `state.json` under a `TemporaryDirectory` and merely happens to import from `agent_workflows`, so the naive "`read_text()` plus the string `agent_workflows`" rule MISCLASSIFIES a behavioral test. The signal must therefore require that the `read_text()` ARGUMENT resolve to production source (for example a `Path(<module>.__file__)` or a literal path under `agent_workflows/`), never that the two tokens merely co-occur in the body; and the report must print the base and extended counts as distinct labelled lines.
+
+  STATE THE SIGNAL SET'S KNOWN WEAKNESS IN THE SCANNER'S DOCSTRING AND IN THE REPORT, because it is a FLOOR AND NOT A TOTAL: the whole of `80db6750c` (366 tests) was deleted precisely for being code pins, so a classifier that found only 54 across the much larger second commit is certainly under-counting, and the honest posture is that the classifier is a cheap pre-filter whose misses are caught by the human triage step, never a proof that a candidate is behavioral.
+
+  THE CLASSIFIER OPERATES ON FUNCTIONS AND THE TRIAGE LIST IS A LIST OF FILES, SO IT CANNOT "EXCLUDE BY CONSTRUCTION" AND MUST NOT CLAIM TO (PR-004, F-17). Review measured this directly over the 82 trim-attributable dangling paths: **0** have ALL their removed functions classify as pins, **65** have NONE, and **17** are MIXED. So for every single candidate path the classifier's verdict is either "no pins" or "some pins and some behavioral tests", and in NO case does it authorize dropping the path. A path-level exclusion rule would therefore either exclude nothing (if it requires all-pins) or wrongly discard 17 paths carrying behavioral tests (if it requires any-pin). THE CORRECT CONTRACT, which this E-item now specifies: the classifier ANNOTATES each candidate with its pin and behavioral function counts and NAMES the pin functions, and the triage decision is made PER CITATION against what the citing comment actually claims. A citation naming ONLY a retired pin (the F-05 case) is a retirement-record fix; a citation naming a file whose behavioral tests are gone is a coverage gap. The scanner reports the annotation; the executor reads the comment.
+
+  THE SHARPEST CASE IS ALREADY MEASURED AND MUST BE A FIXTURE, because it is the exact error this classifier exists to prevent and a plausible audit would have got it wrong (F-05): `test_no_new_module_level_first_party_import_in_runner_shared` is the most-cited missing guard in the tree (7 citations in `runner_shared.py` plus 1 in `ipd_lint.py`, re-measured at review), it is cited as living in `tests/test_orchestrator_probe_cache.py`, and its body is an `ast.parse` over `rs.__file__` walking module-level imports. It must classify as a CODE PIN. NOTE THE TRAP THE F-17 MEASUREMENT EXPOSES IN THIS VERY CASE: `tests/test_orchestrator_probe_cache.py` at `19313eed^` holds 38 test functions of which ZERO classify as pins, because the pin was already gone, removed by `80db6750c`. So excluding the PATH on the strength of the pin inside it would be doubly wrong, and the per-citation rule above is what gets it right.
+  - Depends on: E-01
+  - Expected outcome: the scanner ANNOTATES each candidate with pin/behavioral function counts and names the pin functions (it does not drop paths); reproduces F-04's base count of 54 and extended count of 58 for `19313eed` as separately labelled figures; classifies the F-05 fixture case as a code pin; rejects the four `read_text()` co-occurrence false positives named above unless their argument resolves to production source; and prints the floor-not-total caveat in its report.
+  - Execution state: performed
+
+- [x] E-03 Add the TWO CHEAP CITATION AXES, which are what make this audit tractable at all and which between them found every instance already filed. Both ask a FILESYSTEM question about repository CONTENT, which is the shape `GUIDING_PRINCIPLES.md` P16 names as its "one narrow exception" ("verifying published documentation does not cite deleted test files"); neither inspects production code for structure.
+
+  DECLARE THE SCAN DEFINITION AS DATA IN THE SCANNER, NOT AS PROSE, because review reproduced FIVE different dangling-path counts from the same tree by varying only the roots, the file extensions, and whether repeated hits in one file count once (PR-005, F-18). Measured at review HEAD: the authored `107 / 290 / 68` reproduces under NO definition tried. Scanning the five enumerated root docs plus `agent_workflows/ tests/ docs/ tools/ .github/` restricted to text extensions gives `104 dangling of 170 cited, 285 hits, 67 files`; the same scan unrestricted by extension gives `106 of 339, 421 hits, 118 files` (the extra files are `__pycache__` and binary noise); counting distinct `(file, path)` pairs instead of raw hits gives `251 hits`; and the plan's own stated `rg` method gives `106 of 172, 288 hits, 68 files`. So the scanner MUST carry its roots, its extension allowlist, its hit-counting rule, and its exclusions as explicit declared constants it PRINTS with the census, and the V-item must compare against a re-derivation under the scanner's own printed definition rather than against an authored number whose definition was never recorded.
+  - AXIS A, dangling PATH citations: extract every `tests/test_*.py` path cited in live non-record files and report those that do not exist. Re-measured at review HEAD `aa5398132` under the declared definition above: **104** distinct dangling paths, 285 hits, 67 carrying files; **82** attributable to `19313eed`, **0** to `80db6750c`, and **22** to NEITHER trim commit, which is a finding in itself and must stay a labelled category rather than being silently attributed to the trim. `0` for `80db6750c` is STRUCTURAL and not drift: that commit deleted no files (F-03), so no path it touched can dangle, and the first trim commit is therefore invisible to this axis.
+  - AXIS B, dangling `::Symbol` citations: extract every `::Name` test-symbol citation and report those resolving to no live test class or function. Re-measured at review: **55** distinct, 90 hits, 21 carrying files, led by `NoRunnerImportTests` (7) and `test_no_new_module_level_first_party_import_in_runner_shared` (6). This axis is NOT redundant with A: a citation may name a file that still exists while the class inside it is gone, which is exactly how `gia5i7` was found (`NoRunnerImportTests`, cited 9 times across `runner_shared.py` and `oc_runipd.py` per that item, exists nowhere).
+
+  EXCLUDE FOUR FALSE-POSITIVE CLASSES, each measured rather than assumed. (1) `.aw/records/` entirely: terminal plans and reviews are immutable and their citations were correct when written, which is the same bound pending plan `1jg2m2` applies. (2) ILLUSTRATIVE PLACEHOLDERS: `tests/test_x.py` and `tests/test_extra.py` are cited from `ipd_schema.py`, `ipd_lifecycle.py` (twice) and `run_evidence.py` as EXAMPLES inside docstrings and comments, so they must never resolve and are not defects (F-09). (3) `tests/` fixture paths constructed under a `tmp_path`, which are correct as written. (4) ADDED AT REVIEW (PR-006, F-19): `CHANGELOG.md` and `DECISIONS.md`, which are APPEND-ONLY DATED HISTORY whose citations were correct when written, exactly as `.aw/records/` is. Measured: they carry 4 and 33 dangling citation hits respectively (18 distinct in `DECISIONS.md`), and **15** of those distinct paths appear in NEITHER axis under the declared roots, so including the two files would inflate the census by 15 unfixable rows. `DECISIONS.md`'s own header reads "Append-only, dated record of significant decisions". Report them in a separate labelled out-of-scope section, never as defects. Sibling plan `1jg2m2` reached the same conclusion for the same two files at its own review, and `2wmwf7` independently for dangling spec citations; this plan adopts it rather than re-deriving it.
+  - Depends on: E-01
+  - Expected outcome: `--axis a` and `--axis b` print their DECLARED scan definition (roots, extensions, hit-counting rule, exclusions) beside their counts and re-derive at execution HEAD; attribution is reported per trim commit with a separate "neither" bucket and with `80db6750c`'s structural zero explained; the four excluded classes are excluded by name with the reason printed; and the two history files are reported in a separate labelled out-of-scope section.
+  - Execution state: performed
+
+- [x] E-04 Add the DEDUPE PASS against already-filed work, without which this plan's deliverable is a list of mostly-known problems and its triage step re-files items that already exist. For each candidate, report whether any LIVE backlog item (`open`, `graduated`, or `blocked`) already names it, and emit `owned` versus `unowned` as distinct sections.
+
+  Re-measured at review HEAD `aa5398132` (F-10): of the **82** trim-attributable dangling paths, **27** are already named by a live item and **55** are not; narrowing to citations from SHIPPED SOURCE (`agent_workflows/` or `tools/`), **65** trim-attributable paths dangle of which **43** are unowned. Those 43 are this plan's real triage population, and the ordering is informative rather than flat: `tests/test_orchestrator_probe_cache.py` (12 citations) and `tests/test_runner_item_dependencies.py` (10) dominate it.
+
+  THE DEDUPE IS A BASENAME SUBSTRING MATCH AND THAT IS ITS KNOWN WEAKNESS, WHICH THE REPORT MUST STATE (PR-007, F-20). Matching a candidate's basename against the full text of every live item is what produced the counts above, and it is both over- and under-inclusive. It UNDER-matches an item that describes a gap without naming the file: `gia5i7` owns the `NoRunnerImportTests` citations by SYMBOL, so an axis-B candidate is matched only because the symbol name happens to appear. It OVER-matches an item that merely mentions a filename in passing, for example as a sibling or counter-example, as `rcp8c4` and `gia5i7` both do when they cite each other's files to delimit scope. So `owned` is a HINT TO THE TRIAGER and not a decision: V-04 requires spot-checking owned rows against the named item, and E-07 requires the executor to read the owning item before declining to file. Report the match BASIS (basename in item text) beside each owned row so a reader can judge it.
+
+  PREFER THE SHIPPED-SOURCE SUBSET AS THE DEFAULT TRIAGE VIEW, and say why in the report: a dangling citation inside `tests/` misleads a test author, while one inside `agent_workflows/` SHIPS to users in the installed package and is the half the maintainer has already been fixing by hand (backlog `zftbta`, now `done`, records 44 such RECORD-filename citations costing repeated manual work; that item's subject is record citations rather than test citations, so it is cited here as evidence of the recurring manual cost and not as a precedent owning this census). The concentration is also measured and should order the triage: `runner_shared.py` alone carries **64** dangling test-path citation hits of its 116 total, with `agy_runipd.py` 21, `oc_runipd.py` 20 and `check_engine.py` 7.
+  - Depends on: E-01, E-03
+  - Expected outcome: the scanner emits `owned`/`unowned` sections citing the owning item's id6 and the match BASIS where one exists, re-derives the split at execution HEAD against review's 27/55 on all trim-attributable paths and 22/43 on the shipped-source subset, and prints the basename-match weakness as a stated caveat.
+  - Execution state: performed
+
+### Task group 2: behavioral coverage, proven by mutation on a bounded shortlist
+
+- [x] E-05 Apply MUTATION as the coverage test, which the item names as the preferred technique ("Prefer MUTATION as the test of coverage ... since a property can look covered by a test that reads its expected value from the same place the code reads it") and which is also P16's own validity test for a test. ACCEPT THE TECHNIQUE AND BOUND ITS POPULATION, because the naive reading is not affordable and an executor who discovers that mid-run will either blow the budget or quietly skip the step.
+
+  THE BOUND IS A MEASUREMENT, NOT A PREFERENCE (F-06): one bare suite run on this machine is `200.14s` at review (`203.41s` when authored). Mutation coverage requires at least one full suite run per candidate, so the 43 unowned shipped-source candidates cost roughly 2.4 hours of pure suite time before any analysis, and the full 104 would be over 5.7 hours. SO: select a shortlist of AT MOST FIVE candidates and mutation-prove those. Report the remainder as `triaged-not-mutated` with its reason, which is an honest partial rather than a silent one.
+
+  A MUTATION SUBJECT IS A PRODUCTION BEHAVIOR, NOT A DELETED TEST FILE, AND THE PLAN MUST SAY WHICH (PR-008). As authored this E-item said "mutation-prove the candidate", but a candidate produced by E-03 is a dangling PATH such as `tests/test_orchestrator_probe_cache.py`, and a path is not mutable: there is nothing to patch. Mutation requires naming the PROPERTY the citing comment claims is guarded and then breaking THAT in production code. So the shortlist selection has a mandatory extra step, and an executor who skips it will discover mid-item that the step as authored cannot be performed:
+  1. For each shortlisted candidate, read the CITING comment and state, in one sentence, the production property it claims is guarded, naming the production symbol that implements it (for example `runner_shared.py`'s layering claim names the module's own import behavior).
+  2. REFUSE A CANDIDATE WHOSE PROPERTY CANNOT BE NAMED FROM ITS CITATION, and record it as `property-unidentifiable` rather than forcing a proof. This is a legitimate outcome and is itself worth filing, because a comment that claims a guard without naming a checkable property is a defect in the comment.
+  3. REFUSE A CANDIDATE WHOSE ONLY NAMED PROPERTY IS A RETIRED CODE PIN, and route it to the retirement-record fix instead. The F-05 case is exactly this shape: its property is "no new module-level first-party import in `runner_shared`", which is an architectural placement pin P16 forbids, so mutating it would be proving the absence of a guard that must stay absent. Record it `pin-retired`, not `unguarded`.
+  4. ONLY THEN mutate the named production symbol in memory and run the bare suite.
+
+  Select the shortlist by citation count AND by step 1 succeeding. If fewer than five candidates survive step 1, mutation-prove those and say so; do NOT pad the shortlist with candidates whose property you could not name.
+
+  MUTATE IN MEMORY, NOT ON DISK, for the reason `t0ovw6`'s review established as the method rule in this shared checkout: a `git checkout` restore after a multi-minute suite run discards whatever a co-worker wrote to that file in the interval. Use a pytest plugin (`-p`) that patches the subject in `pytest_configure` and restores it in `pytest_unconfigure`, or `mock.patch.object`, and paste `git status --short` empty before and after each run.
+  - Depends on: E-04
+  - Expected outcome: for each shortlisted candidate, the named production property and symbol stated before any mutation; at most five candidates mutation-tested in memory with each run's actual pytest summary line pasted; each verdict recorded as `guarded`, `unguarded`, `property-unidentifiable` or `pin-retired`; the tree clean before and after; and the un-mutated remainder listed as `triaged-not-mutated` with the F-06 cost as the stated reason.
+  - Execution state: performed
+
+- [x] E-06 Add `tests/test_lost_guard_census.py`, exercising the scanner as a BEHAVIORAL test: drive the classifier and both axes over SYNTHESIZED fixture inputs and assert on returned verdicts and exit codes. Do NOT assert over the live tree's census counts: those numbers move every time any agent edits a comment, which is the measured failure `pyproject.toml`'s `livecorpus` marker exists to record (2026-09-19: one such test went red on three correctly-cleared plans, costing 2h 10m and $55.02 with nothing integrated). Anchor every input instead, per P16's "synthesize the input (the default)".
+
+  THE CLASSIFIER NEEDS A BIDIRECTIONAL FIXTURE PAIR, because a classifier that answers "code pin" to everything would pass a one-sided test and would silently empty the triage list, which is the failure mode that would make this whole plan produce a reassuring and useless report: include the F-05 `ast.parse`-over-`rs.__file__` body, which must classify as a CODE PIN, AND a behavioral body that drives a CLI and asserts on its exit code, which must classify as BEHAVIORAL.
+
+  CARRY NO `livecorpus` MARKER and do not read `.aw/records/`, so the test is selected by the default bare run and can actually catch a regression.
+
+  SYNTHESIZE THE GIT HISTORY TOO, NOT ONLY THE FILE BODIES (PR-009). The scanner's primary input is `git show <commit>^:<path>`, so a test that drives it over fixture bodies but against the REAL `19313eed` has re-introduced exactly the live-corpus dependency this item forbids, and it would also be slow. Build a throwaway repository under `tmp_path` with `git init`, commit a synthetic "before" tree of test files, then commit a "trim" that deletes some and modifies others, and point the scanner at THAT repository and THOSE commit shas. This makes every count in the test an authored fact: the fixture knows it deleted 2 files and removed 7 functions, so the assertion is exact and stable. Assert on the scanner's returned verdicts, its printed counting-rule labels, and its exit code.
+
+  ASSERT THE ANNOTATION CONTRACT, NOT A PATH-EXCLUSION CONTRACT, since E-02 no longer claims to drop paths: include a MIXED fixture file (one pin function and one behavioral function) and assert the scanner reports both counts and names the pin, which is the shape F-17 measured in 17 real candidates.
+  - Depends on: E-01, E-02, E-03, E-04
+  - Expected outcome: a new unmarked test file that passes in the default bare run, drives the scanner over a synthesized `tmp_path` git repository and synthesized fixture bodies only (never against the real trim commits or the live tree), asserts both classifier directions and the mixed-file annotation contract, and asserts the printed counting-rule label.
+  - Execution state: performed
+
+- [x] E-07 FILE each genuine behavioral gap as its own backlog item with `aw backlog new`, paste the real output, and record each item's id6 in this plan. This is the item's own stated deliverable ("Produce a triage list, not necessarily a fix; each real gap becomes its own item").
+
+  FILE NOTHING FOR A RETIRED CODE PIN, and file nothing already owned. NEITHER REFUSAL IS MECHANICAL AND THE PLAN MUST NOT PRETEND OTHERWISE (PR-010): E-02 ANNOTATES rather than excludes (F-17 measured zero all-pin paths, so no path-level exclusion is ever authorized), and E-04's dedupe is a basename substring match that both over- and under-matches (F-20). So the executor MUST, per candidate before filing: (a) read the citing comment and decide whether the claim it makes is a retired pin, a behavioral gap, or unidentifiable; and (b) where the dedupe says `owned`, OPEN the named item and confirm it actually covers this citation rather than merely mentioning the filename. Record both judgements per candidate. A refusal to file must name WHICH of the two reasons applied.
+
+  DO NOT FILE 43 SEPARATE ITEMS. Group by ROOT CAUSE, which is what the eleven existing items already do: `rcp8c4` is one item covering seven citations of one deleted file in one module, and `gia5i7` is one item covering nine citations of one deleted class. Review measured the concentration that makes grouping right: `runner_shared.py` alone carries 64 of the dangling hits, and the top two candidate paths carry 22 citations between them. So file one item per (deleted subject, remedy shape) group, name every citation site it covers, and state the grouping rule used. Filing 43 single-citation items would bury the real work and is itself a defect.
+
+  BUDGET AND HONEST PARTIAL: file at most EIGHT items in this pass, ordered by shipped-source citation count. If the grouped population exceeds eight, file the top eight and ONE further item that enumerates the remaining groups as a tracked backlog of its own, so nothing is dropped silently. State the count filed and the count deferred into that rollup item.
+
+  For each filed item state the measured evidence (citation count, citing files, mutation verdict where E-05 produced one) and justify the `- Work-Kind:`, which is NOT automatic: an absent test is not by itself user-perceptible, so `chore` is the default, while a gap whose mutation proof shows WRONG USER-VISIBLE BEHAVIOR shipping is a `bug` and then MUST carry `- Blocks-Release:` per this repository's gating rule.
+
+  ALSO FILE THE ATTRIBUTION CORRECTION the census turns up as a defect in its own right: `runner_shared.py` cites `test_no_new_module_level_first_party_import_in_runner_shared` as a live guard at 7 sites and `ipd_lint.py` at 1 more (re-measured at review; the plan's authored "6 in `runner_shared.py`" is now 7), and it was deleted by `80db6750c` as a deliberate P16 retirement, so the correct fix is to state that the pin was RETIRED and will not return, never to restore it (F-05). Check first whether `rcp8c4` or `gia5i7` already covers those exact sites and extend rather than duplicate if so. Review checked and NEITHER does: `rcp8c4`'s subject is `tests/test_run_flag_surface.py` and `gia5i7`'s is the class `NoRunnerImportTests`, and no live item under `open/`, `graduated/` or `blocked/` contains the string `test_orchestrator_probe_cache`, so this item is genuinely unowned and must be filed.
+  - Depends on: E-05
+  - Expected outcome: at most eight grouped backlog items plus, if needed, one rollup enumerating the remainder, each created via `aw backlog new` with pasted output, a stated grouping rule, a justified work-kind, a release gate where filed as `bug`, and its id6 recorded here; one item for the misattributed-retired-pin citations; and a per-candidate record of the two judgements (pin-versus-gap, and owned-confirmed-or-rejected) with every refusal naming its reason.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- A COMMITTED SCANNER IS THE ESTABLISHED SHAPE FOR A REPRODUCIBLE CENSUS, and the precedent states the reason in its own words. `tools/runner_fork_scan.py`'s header records that every plan in the `hostdedup` Set quoted a fork count and "until this file landed NONE of those numbers could be re-derived: the authoring scans were ad hoc, run in a shell and thrown away", with the orchestrator `a5wdne` recording that as PR-006. This plan's deliverable is the same shape for the same reason, which is why it is a tool and not a findings table.
+- THE SUITE RUNS BARE. `pyproject.toml` `addopts` supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`. Every measurement here used bare `python3 -m pytest`, or `-o addopts=""` where a per-test count was needed.
+- P16 PERMITS THIS AUDIT'S AXES AND FORBIDS ITS TEMPTING OVER-REACH, and the distinction is the plan's spine. Section 16's "one narrow exception" permits content verification "where the text or file itself is the artifact under test (for example, verifying published documentation does not cite deleted test files)", which is exactly axes A and B. The same section forbids `ast.parse` over `agent_workflows/*.py` to verify wiring, which is exactly what the deleted guards did and what E-02 refuses to propose restoring.
+- A TEST ASSERTING OVER THE LIVE RECORDS TREE MUST BE `livecorpus` AND IS THEN DESELECTED BY DEFAULT, which decides E-06's shape. `pyproject.toml`'s marker entry records the measured cost (2026-09-19, 2h 10m, $55.02, nothing integrated) and `addopts` excludes the marker, so a records-scanning test could not catch the next deletion anyway.
+- CITE CODE BY SYMBOL OR QUOTED CONTENT, NOT BY A BARE LINE OFFSET (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`). This matters acutely for this plan, whose whole subject is citations that expired: `t0ovw6` measured both of its item's line offsets landing in unrelated code after a roughly four-thousand-line drift.
+- THE SHARED CHECKOUT RULE DECIDES THE MUTATION METHOD. `t0ovw6`'s review established that mutating a tracked file and restoring it with `git checkout` after a suite run discards a co-worker's concurrent edits, and demonstrated the in-memory plugin form instead. E-05 adopts that rule rather than re-deriving it.
+- A SUCCESS CRITERION COUNTING LIVE ARTIFACTS MUST REQUIRE RE-DERIVATION, NOT A NUMBER MATCH, which decides the shape of every V-item in this plan (repository plan-review convention, "Live-artifact success criteria vs. stable code facts"). The citation censuses count citations in a tree every concurrent lane edits, so an exact-match bar would go red on correct work; the authoring figure belongs in the item's prose as context. The exception is a count over a FIXED GIT COMMIT (E-01's census), which cannot drift and is therefore held to exactness. ADDED AT REVIEW, because the authored V-items demanded exact matches on both kinds alike.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---|---|
+| F-01 | **THE AUDIT HAS NEVER BEEN DONE, AND THE HAND-SAMPLING IT REPLACES HAS ALREADY FOUND ELEVEN INSTANCES**, which is what establishes the population is real rather than speculative. Live or graduated items naming a trim-deleted test as a lost or falsely-cited guard: `pn7rw3`, `rcp8c4`, `gia5i7`, `ikxtkj`, `tvv8gg`, `l8upzx`, `p7k57l`, `rdl9lh`, `089bq4`, `2jz47s`, plus `nzqj6m` which asks for a sweep of one spec's criteria. Each was found incidentally by whoever was editing nearby, which is precisely the non-reproducible mode this plan ends. | `grep -rliE "dangling.*test\|cites a deleted" .aw/records/backlog/` over `open/`, `graduated/`, `blocked/`; each item's `- Summary:` read in place. |
+| F-02 | **THE TRIM WAS TWO COMMITS, NOT ONE, AND THE ITEM NAMES ONLY THE SECOND.** `80db6750c` ("test: delete 366 tests that pinned code structure instead of behaviour", 2026-09-23) precedes `19313eed` ("test: trim test suite from 9,136 to under 2,000 tests", 2026-09-24) by one day. This is not pedantry: the two commits had OPPOSITE intents, so a loss attributable to the first is a deliberate P16 retirement that must NOT be restored, while a loss attributable to the second may be a genuine gap. An audit scanning only `19313eed` would misattribute every first-commit loss. | `git log -1 --format="%H %ad %s" 80db6750c`; `git show --stat` on both. |
+| F-03 | THE TWO COMMITS HAVE STRUCTURALLY DIFFERENT SHAPES, which dictates that the scanner must read modified files and not only deleted ones. Measured by multiset difference of test-function names per file: `80db6750c` deleted **0** files, modified **112**, removed **366** test functions; `19313eed` deleted **298** files, modified **20**, removed **7,402**. So a `--diff-filter=D`-only scanner sees literally nothing of the first commit. The item's "roughly 7,000" figure is accurate for the second commit. | AST multiset-difference probe over `<commit>^:<path>` versus `<commit>:<path>` for every deleted and modified `tests/*.py` in each commit; `git diff --diff-filter=D/M --name-only` counts. |
+| F-04 | THE CODE-PIN POPULATION IS MEASURABLE BUT THE CLASSIFIER IS A FLOOR, NOT A TOTAL, and saying so is what keeps the report honest. Scanning `19313eed`'s removed test bodies for `inspect.getsource`, `ast.parse`, `ast.walk`, `ast.unparse`, `getsourcelines` or `linecache` classifies **54** of 5,990 as code pins across 26 files, leaving 5,936 nominally behavioral. VERIFIED AT REVIEW, both figures exactly, AND THE DENOMINATOR'S RULE NOW NAMED: 5,990 is the count over DELETED files only, counting every `def`, so it is NOT the same population as the headline 7,402 (see F-15). Adding the `read_text()` signal raises 54 to **58** (F-16). That 54 cannot be the true total, because the ENTIRE 366 of `80db6750c` were deleted for being code pins, so the signal set under-detects; the classifier is therefore specified as a cheap pre-filter whose misses the human triage step catches. | AST probe classifying each removed `test*` function by source-segment signal; the counts above; `80db6750c`'s own commit subject. |
+| F-05 | **THE MOST-CITED MISSING GUARD IN THE TREE IS A CODE PIN, WAS DELETED BY THE FIRST COMMIT, AND IS CITED AS LIVING IN A FILE THE SECOND COMMIT DELETED - so a plausible audit gets BOTH facts wrong.** `runner_shared.py` cites `tests/test_orchestrator_probe_cache.py::test_no_new_module_level_first_party_import_in_runner_shared` as its live guard. VERIFIED AT REVIEW with one count CORRECTED: the citation count in `runner_shared.py` is **7**, not 6, plus **1** in `ipd_lint.py`, so 8 across shipped source. Measured: the function's body is `ast.parse(Path(rs.__file__).read_text(...))` walking module-level `agent_workflows` imports, i.e. precisely the "no production source inspection" and "no architectural placement pins" shapes P16 prohibits; a per-commit removal probe confirms it was removed by `80db6750c` at `tests/test_orchestrator_probe_cache.py` and by `19313eed` at NO path; and the file it is cited in was separately deleted by `19313eed`. The correct remedy is to record the pin as RETIRED, never to restore it. ONE TRAP THE REVIEW ADDS (see F-17): that file held 38 test functions at `19313eed^` of which ZERO classify as pins, because the pin was already gone, so excluding the PATH on the strength of this pin would be wrong twice over. | `git log --all --oneline -S"def test_no_new_module_level_first_party_import_in_runner_shared"` returning `80db6750c` and `b816200c7`; a per-commit DM removal probe printing `80db6750c -> [('tests/test_orchestrator_probe_cache.py', True)]` and `19313eed -> []`; `rg -c` giving `runner_shared.py:7` and `ipd_lint.py:1`. |
+| F-06 | **PER-CANDIDATE MUTATION OVER THE FULL POPULATION IS NOT AFFORDABLE, WHICH IS WHY E-05 IS BOUNDED TO FIVE.** A bare suite run here is `200.14s` wall at review (`3809 passed, 2 skipped, 3 warnings`), and `203.41s` when authored. At one suite run per candidate that is about **2.4 hours** for the 43 unowned shipped-source candidates and over **5.7 hours** for all 104. The item's instruction to prefer mutation is therefore adopted for a shortlist and explicitly declined for the tail, with the tail reported as `triaged-not-mutated` rather than silently dropped. | `time python3 -m pytest` on the clean lane tree at authoring and the bare re-run at review; arithmetic over the F-10 candidate counts. |
+| F-07 | AXIS A IS MEASURABLE TODAY AND ITS ATTRIBUTION IS NOT UNIFORM, which is why the scanner reports a "neither" bucket. RE-MEASURED AT REVIEW HEAD `aa5398132` under an explicitly declared scan definition (the five enumerated root docs plus `agent_workflows/ tests/ docs/ tools/ .github/`, text extensions only, raw hits): **170** distinct cited and **104** dangling, across **285** hits in **67** files. Attribution: **82** deleted by `19313eed`, **0** by `80db6750c`, and **22** by NEITHER. The authored `166 / 107 / 290 / 68` does not reproduce under any definition review tried (F-18), which is why the scanner must declare its definition rather than quote a number. `0` for `80db6750c` is STRUCTURAL, not drift: it deleted no files (F-03), so no path it touched can dangle. | A declared-definition Python probe over those roots, each hit tested with `os.path.exists`, set-intersected with each commit's `--diff-filter=D` set; the plan's own `rg` method re-run for comparison, giving `172 / 106 / 288 / 68`. |
+| F-08 | AXIS B FINDS A CLASS AXIS A IS STRUCTURALLY BLIND TO, so both are needed. RE-MEASURED AT REVIEW: of `::Symbol` test-symbol citations in live non-record files, **84** distinct are cited and **55** resolve to no live test class or function, across **90** hits in **21** files, led by `::NoRunnerImportTests` (7) and `::test_no_new_module_level_first_party_import_in_runner_shared` (6). A citation can name a file that still EXISTS while the class inside it is gone, which is exactly how `gia5i7` was found; that item records 9 citation sites for the class across `runner_shared.py` and `oc_runipd.py`, a wider count than this axis's 7 because the item counted bare mentions as well as `::` citations. | A Python probe extracting `::Name` over the same declared roots, resolved against the set of all live `ClassDef`/`FunctionDef` names parsed from `tests/`. |
+| F-09 | **THREE FALSE-POSITIVE CLASSES ARE REAL AND ONE IS NON-OBVIOUS**, so excluding them is a correctness requirement rather than tidiness. VERIFIED AT REVIEW: `tests/test_x.py` and `tests/test_extra.py` appear at exactly four sites and MUST NOT resolve - `ipd_schema.py`'s comment "Exclude single test file assertion breakdowns (e.g. 'Add tests/test_x.py: ...')", TWO `disregarded_unowned_paths: ['tests/test_extra.py']` docstring examples in `ipd_lifecycle.py`, and `run_evidence.py`'s "e.g. a fresh tests/test_x.py under a new dir". The other two classes are `.aw/records/` (immutable history) and `tmp_path` fixture paths; F-19 adds a fourth. | `rg -n "tests/test_x.py\|tests/test_extra.py" agent_workflows/ tools/` returning those exact four lines, each read in context. |
+| F-10 | **MOST OF THE CENSUS IS ALREADY OWNED, WHICH IS THE FINDING THAT SIZES THIS PLAN'S REAL WORK AND PREVENTS IT RE-FILING ELEVEN ITEMS.** RE-MEASURED AT REVIEW: of the **82** trim-attributable dangling paths, **27** are already named by a live backlog item and **55** are not. Narrowing to citations from SHIPPED SOURCE (`agent_workflows/` or `tools/`): **69** dangle of which **65** are trim-attributable, and **43** of those are unowned. The unowned set is concentrated, not flat: `tests/test_orchestrator_probe_cache.py` 12 citations, `tests/test_runner_item_dependencies.py` 10, `tests/test_review_findings_cascade.py` 4. THE AUTHORED CARRIER COUNTS WERE WRONG BY ROUGHLY 2x AND ARE CORRECTED: dangling test-path citation HITS per carrier are `runner_shared.py` **64** (not 111), `agy_runipd.py` **21** (not 69), `oc_runipd.py` **20** (not 54), `ipd_lifecycle.py` **6** (not 37), `check_engine.py` 7, `wtiso_gate.py` 6. The authored figures appear to have counted all `tests/` occurrences including live ones and `::` symbols; `runner_shared.py`'s total including live citations is 116, and 119 counting every `tests/` occurrence. | Cross-product of the F-07 dangling set against the full text of every item under `.aw/records/backlog/{open,graduated,blocked}/`, matching on basename; per-carrier dangling-hit counts from the same probe, with the total-including-live counts measured separately for contrast. |
+| F-11 | THE AUTHORED BASELINE IS SPENT AND THE SUITE IS NOW FULLY GREEN, so the plan's "expect one red node" instruction would have misled an executor into accepting a failure that no longer exists. Authoring measured `1 failed, 3457 passed, 2 skipped, 3 warnings in 203.41s` with `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` red as a DATE-ROLLOVER flake (`- 2026-09-30 HIST_ACTOR: exempted reason` versus `+ 2026-10-01 HIST_ACTOR`). RE-MEASURED AT REVIEW HEAD `aa5398132`: bare `python3 -m pytest` gives **`3809 passed, 2 skipped, 3 warnings in 200.14s`**, zero failures, and the previously-red node passes in isolation (`1 passed in 0.37s`). The tree is 440 commits ahead of the authored HEAD `ffb8e9e45`. The bar is therefore a FULLY GREEN before-baseline, not "no new failure beside one known red"; an executor must still take its own baseline because the tree moves. | `time python3 -m pytest` at authoring; bare `python3 -m pytest` at review giving the green summary above; the narrowed node run; `git log --oneline ffb8e9e45..HEAD \| wc -l` -> 440. |
+| F-12 | THE `docs/` AXIS IS ALREADY OWNED INCLUDING ITS GUARD TEST, so this plan must not build a second one. Pending plan `1jg2m2` (Set `ikxtkj`, `- Status: reviewed`) declares `tests/test_docs_test_citations.py` in its `- Scope-Paths:` and its E-08 adds exactly the existence test P16 sanctions, bound to an enumerated published-prose list. That file does not exist yet at this HEAD, so the two plans would collide if this one also scanned `docs/`. This plan therefore reports `docs/` hits for completeness but declares no `docs/` path and adds no docs guard. | `ls tests/test_docs_test_citations.py` -> No such file; `1jg2m2`'s `- Scope-Paths:` line and its E-08 text read in place. |
+| F-13 | THE COMMITTED-SCANNER PRECEDENT IS LIVE AND ITS SIBLING SHOWS THE FAILURE MODE TO AVOID. `tools/runner_fork_scan.py` ships with the reproducibility contract quoted in Step 0. Its sibling `tools/lift_drift_scan.py` still ships, but its test file `tests/test_lift_drift_scan.py` is now an EMPTY RETIRED STUB (`collected 0 items`, class body `pass`, docstring "Retired under IPD 96xtmi (source-guard cleanup). The AST drift scans pinning runner_shared.py source were deleted in favor of behavioral tests"). So the precedent for a committed scanner is good, and the precedent for its test is a cautionary one: E-06 must assert on scanner BEHAVIOR over fixtures, which is what survives a P16 cleanup, rather than on source structure, which does not. VERIFIED AT REVIEW, with one addition the plan should know: `tools/README.md` documents NEITHER `runner_fork_scan.py` NOR `lift_drift_scan.py`, so the README entry E-01 owes is establishing a convention rather than following one. | `python3 -m pytest tests/test_lift_drift_scan.py -o addopts=""` -> `no tests ran`; the stub file read in full; `runner_fork_scan.py`'s header read; `rg -n "runner_fork_scan\|lift_drift" tools/README.md` -> no match. |
+| F-14 | **ADDED AT REVIEW (PR-001). THE CITATION AXES REACH 40.7 PERCENT OF THE REMOVED POPULATION AND THE PLAN'S GOAL CLAIMED THE WHOLE OF IT.** The authored Goal said the command answers "what did the two trim commits leave unguarded?", but a dangling-citation axis can only see a deleted file some surviving comment happens to NAME. Measured: of the 298 files `19313eed` deleted, **91** are cited anywhere in live non-record files and **207** are cited nowhere. Those 207 held **3,554** of the commit's 5,990 removed test functions, against 2,436 in the 91 cited files, so the axes reach **40.7%** by function count and are blind to 59.3%. `80db6750c` is reached at 0% by axis A because it deleted no files. The census is therefore a high-precision SAMPLE selected by citation accident, which is worth having and is not a completeness claim. | A probe intersecting each commit's `--diff-filter=D` set with the axis-A cited set, then AST-counting removed test functions on each side of that partition: `cited 2436 / uncited 3554 / total 5990`. |
+| F-15 | **ADDED AT REVIEW (PR-002). THE SAME COMMIT YIELDS FOUR DEFENSIBLE REMOVED-TEST COUNTS AND THE PLAN MIXES TWO OF THEM.** On `19313eed`: **7,402** under a per-file multiset difference over deleted AND modified files, **7,393** counting distinct `(file, name)` pairs over the same, **5,990** over deleted files only counting every `def`, and **5,982** over deleted files only counting distinct names. The plan headlines 7,402 (E-01, F-03) while F-04 computes "54 of 5,990", so its own two figures describe different populations and a reader comparing them is misled. This is precisely the failure `runner_fork_scan.py`'s header records for line metrics, now recurring for test counts, which is why the counting rule must be a printed field rather than an implementation detail. | Four probe variants over the same commit printing `DM-multiset 7402`, `DM-distinct-pairs 7393`, `D-only-all-defs 5990`, `D-only-distinct 5982`. |
+| F-16 | **ADDED AT REVIEW (PR-003). THE `read_text()` CLASSIFIER SIGNAL ADDS FOUR CLASSIFICATIONS AND AT LEAST ONE IS A FALSE POSITIVE.** E-02 specifies a `read_text()` signal "whose argument resolves under `agent_workflows/`", but the cheap implementation of that (both tokens appearing in the body) classifies four extra functions beyond the base 54: `test_a_lane_that_DECLARES_a_newly_needed_path_can_finalize`, `test_scope_or_requirement_edit_invalidates_receipt`, `test_persisted_interrupted_is_not_labelled_projected` and `test_missing_input_token_format_now`. Review read the third in full: it reads a `state.json` inside a `TemporaryDirectory` and merely imports from `agent_workflows`, so it is a BEHAVIORAL test the naive rule would brand a code pin. Since E-02's whole purpose is to avoid misclassification, the signal must test the `read_text()` ARGUMENT rather than token co-occurrence, and the base and extended counts must be reported separately. | A probe printing `base-signal pins 54` and `with read_text signal 58`, then listing the four deltas; `git show 19313eed^:tests/test_run_viewer_liveness.py` with the named function's body read in full. |
+| F-17 | **ADDED AT REVIEW (PR-004). THE CLASSIFIER CANNOT EXCLUDE A SINGLE CANDIDATE PATH, SO "EXCLUDES BY CONSTRUCTION" WAS UNACHIEVABLE AS WRITTEN.** The classifier's unit is a FUNCTION and the triage list's unit is a FILE PATH. Measured over all 82 trim-attributable dangling paths: **0** have all their removed functions classify as pins, **65** have none, and **17** are MIXED. So an all-pins exclusion rule removes nothing and an any-pin rule wrongly discards 17 paths that carry behavioral tests. The F-05 case is the sharpest illustration: `tests/test_orchestrator_probe_cache.py` held 38 test functions at `19313eed^` of which ZERO are pins, because its pin had already been removed by `80db6750c`. The classifier must therefore ANNOTATE and the triage judgement must be made per citation against what the comment claims. | A probe classifying every removed function in each of the 82 candidate files at `19313eed^` and bucketing the files, printing `ALL pins 0 / NO pins 65 / MIXED 17`; a per-file probe printing `tests/test_orchestrator_probe_cache.py: total 38 pins 0 behavioral 38`. |
+| F-18 | **ADDED AT REVIEW (PR-005). THE AUTHORED AXIS-A CENSUS REPRODUCES UNDER NO SCAN DEFINITION, BECAUSE THE DEFINITION WAS NEVER RECORDED.** Varying only the roots, the extension filter and the hit-counting rule produced: `104 / 170 / 285 hits / 67 files` (declared roots, text extensions, raw hits), `106 / 339 / 421 / 118` (no extension filter, which admits `__pycache__`), `106 / 339 / 251 / 118` (distinct `(file, path)` pairs), `106 / 172 / 288 / 68` (the plan's own `rg` command), and `69 / 113 / 219 / 55` (shipped source only). The authored `107 / 166 / 290 / 68` matches none of them. The plan's own Step 0 convention warns against quoting a figure that reproduces under no metric, citing `runner_fork_scan.py`; this is that failure inside the plan that cites it. | Five probe variants and the plan's own `rg` pipeline, each printing its definition beside its counts. |
+| F-19 | **ADDED AT REVIEW (PR-006). `CHANGELOG.md` AND `DECISIONS.md` ARE APPEND-ONLY HISTORY AND WOULD ADD 15 UNFIXABLE ROWS.** The plan excludes `.aw/records/` as immutable history but says nothing about the two root history files. Measured: `CHANGELOG.md` carries 4 dangling citation hits and `DECISIONS.md` 33 (18 distinct), and **15** of those distinct paths appear in NEITHER axis under the declared roots, so including the files would inflate the census by 15 rows no one may fix. `DECISIONS.md`'s header reads "Append-only, dated record of significant decisions". Sibling plan `1jg2m2` reached this conclusion at its own review for the same two files (its F-11 measured 4 and 35), and `2wmwf7` independently for dangling spec citations. | A probe counting dangling citations in both files and differencing their distinct set against the declared-roots dangling set, printing `base 104 / history 20 / NEW from history 15` with the 15 paths listed; `1jg2m2`'s F-11 row read in place. |
+| F-20 | **ADDED AT REVIEW (PR-007). THE DEDUPE IS A BASENAME SUBSTRING MATCH AND IS WRONG IN BOTH DIRECTIONS.** The `owned` column is computed by testing whether a candidate's basename appears anywhere in a live item's text, which UNDER-matches an item owning a gap by symbol rather than by path (`gia5i7` owns the `NoRunnerImportTests` citations, naming the class not the file) and OVER-matches an item that mentions a filename only to delimit scope, which `rcp8c4` and `gia5i7` both do when citing each other's subjects. Confirmed in the sharpest case: NO live item under `open/`, `graduated/` or `blocked/` contains the string `test_orchestrator_probe_cache`, so the top candidate by citation count is genuinely unowned, while `rcp8c4` (subject `tests/test_run_flag_surface.py`) and `gia5i7` (subject `NoRunnerImportTests`) are adjacent but distinct. So `owned` is a triage HINT requiring confirmation, not a mechanical refusal. | `rg -l "test_orchestrator_probe_cache" .aw/records/backlog/{open,graduated,blocked}/` -> no match; both named items read in full; the dedupe probe's own matching rule. |
+
+## Proposed changes (ordered, validatable)
+
+1. Add `tools/lost_guard_census.py` computing removed-test-function census over BOTH trim commits, reading deleted AND modified files, and printing a NAMED counting rule beside every count (E-01, per F-02/F-03/F-15).
+2. Add the code-pin classifier that ANNOTATES candidates with pin and behavioral counts, names the pin functions, reports base and extended signal counts separately, and declares itself a floor rather than a total (E-02, per F-04/F-05/F-16/F-17).
+3. Add axes A and B with a DECLARED printed scan definition, their four measured false-positive exclusions, and a per-commit attribution including a "neither" bucket and the structural zero for `80db6750c` (E-03, per F-07/F-08/F-09/F-18/F-19).
+4. Add the dedupe pass against live backlog items with its match basis and stated basename weakness, defaulting the triage view to shipped-source citations (E-04, per F-10/F-20).
+5. Name each shortlisted candidate's production property before mutating, then mutation-prove at most five in memory, reporting the tail as `triaged-not-mutated` with the cost reason (E-05, per F-06).
+6. Add `tests/test_lost_guard_census.py` driving the scanner over a synthesized `tmp_path` git repository with a bidirectional classifier pair, a mixed-file annotation assertion, and no `livecorpus` marker (E-06, per F-13/F-17).
+7. File at most eight GROUPED backlog items (plus a rollup if needed) for genuine unowned gaps, plus one for the misattributed retired-pin citations, with justified work-kinds (E-07, per F-05/F-10/F-20).
+8. State the census's REACH BOUND in the Goal, the scanner's docstring, and its report, so the sample is never read as a completeness claim (E-01 through E-03, per F-14).
+
+## Deferred / out of scope (with reason)
+
+- THE 207 DELETED FILES NO LIVE COMMENT CITES, holding 3,554 of `19313eed`'s 5,990 removed test functions: out of scope here and named explicitly so the plan's reach is not mistaken for its coverage (ADDED AT REVIEW, F-14). Reaching them requires deriving each deleted test's asserted property without a citation to point the way, then mutation-proving it, which F-06 measures as unaffordable at this population size. E-01 PRINTS the unreached count beside every total so the bound is visible in the tool's own output rather than only in this plan.
+  - Carrier-Declined: Declined HERE rather than left unowned, for the same authoring-order reason the rows below record: E-07 files this as one tracked item recording the measured reach partition (91 cited versus 207 uncited files, 2,436 versus 3,554 functions), and a carrier id6 cannot be cited before that item exists. V-07 refuses without the pasted creation output, so the obligation cannot vanish at `executed`.
+- RESTORING ANY DELETED TEST, which is forbidden for retired code pins and merely out of scope for the rest. The maintainer ruling in this item's own history is absolute for the code-pinning class ("must never propose restoring them"). NOTE THE CORRECTION MADE AT REVIEW: E-02 does NOT enforce that ruling mechanically, because F-17 measured that no candidate path can be excluded on its function-level classification (0 of 82 are all-pins). The ruling is enforced by the per-citation judgement E-02 and E-07 now require, with the classifier supplying the annotation that judgement reads. For genuinely behavioral gaps, restoration is a test-authoring deliverable per gap, which is why the item asks for "a triage list, not necessarily a fix".
+  - Carrier-Declined: The behavioral half of this IS a real obligation and it DOES need a carrier, which is exactly why E-07 files one per gap; it is declined HERE rather than left unowned. A carrier id6 cannot be cited at authoring time because the items do not exist yet, and V-07 refuses to pass without the pasted `aw backlog new` output, so the obligation cannot vanish silently at `executed`. The code-pinning half is a genuine won't-fix (P16 and the maintainer ruling both forbid the shape), so nothing is owed there.
+- THE `docs/` CITATION AXIS AND ITS GUARD TEST: out of scope because pending plan `1jg2m2` already owns both, including the `tests/test_docs_test_citations.py` file it declares (F-12). Building a second docs guard would collide with a reviewed plan.
+  - Carrier: 1jg2m2
+  - Carrier-Evidence: .aw/records/plans/executed/20260930-ikxtkj-01-1jg2m2-repoint-or-retire-the-dangling-test-file-citations-in-publis.ipd.md
+- THE 22 DANGLING CITATIONS ATTRIBUTABLE TO NEITHER TRIM COMMIT: reported but not triaged here (F-07). They are real rot, but this item's subject is the trim, and their causes are separate deletions each needing its own history question.
+  - Carrier-Declined: Declined HERE rather than unowned, for the same authoring-order reason as the row above: E-07 files these 22 as one triage item where no live item already names them, and a carrier id6 cannot be cited before that item exists. V-07 refuses without the pasted creation output, and the census prints them in a labelled section regardless, so they are visible rather than lost.
+- THE 27 ALREADY-OWNED INSTANCES (re-measured at review; 28 when authored): deliberately not re-filed (F-10). Re-filing would create duplicate items for work already tracked by `pn7rw3`, `rcp8c4`, `gia5i7`, `ikxtkj`, `tvv8gg`, `l8upzx`, `p7k57l`, `rdl9lh`, `089bq4` and `2jz47s`. THE OWNERSHIP CLAIM IS A HINT, NOT A PROOF (F-20): the dedupe matches on basename substring, so E-07 must open each named item and confirm it covers the citation before declining to file.
+  - Carrier-Declined: Each instance already has a live carrier by id6, so naming another would duplicate an existing obligation rather than track an untracked one.
+- MUTATION-PROVING THE FULL CANDIDATE POPULATION: declined on a measured cost basis (F-06), not on principle. The tail is reported as `triaged-not-mutated` with its reason, so the partial is explicit.
+  - Carrier-Declined: No separate carrier is owed, because the obligation travels WITH the items E-07 files: each filed gap names its own candidate, and mutation-proving it when it is taken up is strictly cheaper than proving all 43 up front merely to decide what to file. What is declined is a carrier for the UNPROVEN TAIL as a unit, which would duplicate the per-item obligations E-07 already creates.
+- A `check` RULE OR PRE-COMMIT HOOK enforcing that no shipped comment cites a nonexistent test: deliberately not built here. It is an attractive follow-on and `ikxtkj` records the same idea for `docs/`, but it is a policy addition with repo-wide blast radius (69 shipped-source citations dangle today, so it would start red), and it must not land before the census establishes what the true clean state is.
+  - Carrier-Declined: Declined HERE rather than unowned: E-07 files this as a follow-on item recording the 69-citation starting state, and its id6 cannot be cited at authoring time. V-07 refuses without the pasted creation output, so the option is tracked rather than forgotten.
+- THE DANGLING CITATIONS IN `CHANGELOG.md` AND `DECISIONS.md`: out of scope by CLASS rather than by priority, ADDED AT REVIEW (F-19). Measured 4 and 33 dangling hits respectively, 15 of them distinct paths reached by no other axis. Both files are append-only dated history, so a 2026-07 entry naming a test deleted in 2026-09 recorded what was true when written, and repointing it would falsify the record exactly as editing `.aw/records/` would. E-03 reports them in a labelled out-of-scope section so the census stays honest without implying they are fixable.
+  - Carrier-Declined: Genuine won't-fix rather than deferred work, so no carrier is owed: the correct state of these citations is UNCHANGED. Sibling plans `1jg2m2` and `2wmwf7` independently reached the same conclusion for the same two files, so the class is settled rather than merely postponed.
+
+## Scope check
+
+- Over-scope: none. `tools/lost_guard_census.py` is the new scanner (E-01 through E-05); `tests/test_lost_guard_census.py` is its behavioral test (E-06); `tools/README.md` gains the scanner's entry alongside its `runner_fork_scan.py` precedent. NO production module under `agent_workflows/` is touched, NO deleted test is restored, NO existing test is edited or weakened, and NO shipped behavior changes, which is what keeps this a `chore`. No spec is touched (see spec sync). E-07 writes backlog items through `aw backlog new`, whose output path is tool-chosen under `.aw/records/backlog/open/`; that is a records artifact created by the sanctioned verb rather than a hand edit, so it is deliberately not declared as a code scope path, following the same reasoning `1jg2m2`'s scope check records for its own E-07.
+- Under-scope: the declared paths cover every edit, and SIX gaps are recorded as decisions above rather than closed here. (1) No deleted test is restored; each behavioral gap leaves as a filed item. (2) The `docs/` axis stays with `1jg2m2`. (3) The 22 non-trim danglers are reported, not triaged. (4) The tail beyond E-05's five is `triaged-not-mutated`. (5) ADDED AT REVIEW: the 207 deleted files no live comment cites, holding 3,554 removed test functions, are outside every axis's reach and are reported as the census's stated bound rather than triaged (F-14). (6) ADDED AT REVIEW: the `CHANGELOG.md` and `DECISIONS.md` danglers are a won't-fix class, reported in a labelled section (F-19). The deliverable is therefore a BOUNDED REPRODUCIBLE CENSUS plus FILED ITEMS, and a reviewer should judge it on whether the census re-derives under its own printed definition, whether its reach bound is stated honestly, and whether the filed items are real, not on how many guards were restored.
+
+## Required tests / validation
+
+All validation runs BARE (`python3 -m pytest`), per the execution contract and the `addopts` already configured in `pyproject.toml`.
+
+BASELINE, RE-MEASURED AT REVIEW HEAD `aa5398132` (F-11, CORRECTED): `3809 passed, 2 skipped, 3 warnings in 200.14s`. **THE TREE IS NOW FULLY GREEN.** The authored baseline (`1 failed, 3457 passed` at HEAD `ffb8e9e45`, 440 commits back) is SPENT: the date-rollover flake in `tests/test_backlog.py::BacklogPreservationTests::test_release_exempt_setter_roundtrip_and_parity` no longer fails and passes in isolation. So the bar is a GREEN before-baseline and a GREEN after-baseline. Take your own before-baseline anyway, since the tree moves; if any node is red at your baseline, identify it as pre-existing with evidence rather than inheriting it silently, and do NOT expect the formerly-flaky backlog node to be red.
+
+THE REPRODUCTION ITEMS BELOW ARE WRITTEN AS RE-DERIVATION, NOT AS NUMBER MATCHING, which is the repository's own convention for a criterion counting LIVE artifacts: the citation census counts citations in a tree that every concurrent lane edits, so an exact-match bar would go red on correct work. Each item therefore demands the scanner's PRINTED DEFINITION plus a re-derivation under it, with review's measured figure given as the expected ORDER OF MAGNITUDE and any delta stated and accounted for by commit. The census items over FIXED GIT COMMITS (item 1) are the exception and ARE exact, because a commit's content cannot drift.
+
+1. CENSUS REPRODUCTION, EXACT: `python3 tools/lost_guard_census.py --summary` reproduces F-03 exactly for both commits under the DM-multiset rule (`80db6750c`: 0 deleted, 112 modified, 366 removed; `19313eed`: 298, 20, 7402), prints the D-only figure (`5990` for `19313eed`) as a separate labelled line, and prints the reach partition (`19313eed`: 91 cited / 207 uncited files, 2436 / 3554 functions, 40.7 percent reach). Paste the output. These are over fixed commits, so a non-reproducing figure means the scanner is not the measurement this plan made, and the discrepancy must be explained before proceeding. VERIFY THE COUNTING RULE IS PRINTED, not merely the number: an unlabelled total fails this item (F-15).
+2. AXIS RE-DERIVATION: `--axis a` and `--axis b` each print their DECLARED scan definition (roots, extension allowlist, hit-counting rule, exclusions) and then their census. Re-derive at execution HEAD; review measured axis A at `104 dangling of 170 cited, 285 hits, 67 files, attribution 82/0/22` and axis B at `55 of 84, 90 hits, 21 files`. Paste both with the definition. STATE AND ACCOUNT FOR ANY DELTA by commit; do not edit the finding, and do not treat a delta as failure. The REQUIRED properties, which do not drift: the definition is printed, the attribution carries a labelled "neither" bucket, `80db6750c` reports a STRUCTURAL zero with its reason, and the two history files appear only in the labelled out-of-scope section.
+3. CLASSIFIER CORRECTNESS, both directions AND the annotation contract: the F-05 case classifies as a CODE PIN; a behavioral fixture classifies as BEHAVIORAL; the base and extended signal counts for `19313eed` print separately (review measured 54 and 58); and the four `read_text()` co-occurrence cases named in F-16 do NOT classify as pins unless their argument resolves to production source. Paste every verdict. A one-sided classifier that answers "code pin" to everything would empty the triage list while appearing to work, so the negative direction is the one that matters. DO NOT assert that the F-05 path is absent from triage output: F-17 measured that no path is excludable, and E-02 annotates rather than drops.
+4. DEDUPE CORRECTNESS: the owned/unowned split re-derives at execution HEAD (review measured 27/55 on trim-attributable paths and 22/43 on the shipped-source subset), every `owned` row names a real live item id6 AND its match basis, and the printed report carries the basename-match weakness caveat. Paste the split and spot-check three `owned` rows by OPENING each named item and pasting its path and `- Status:`, confirming it genuinely covers the citation rather than merely mentioning the filename (F-20).
+5. MUTATION EVIDENCE: for each shortlisted candidate, FIRST paste the named production property and symbol derived from its citing comment, THEN the ACTUAL pytest summary line under the in-memory mutation and the verdict, plus `git status --short` empty before and after. A candidate whose mutation leaves the suite green is `unguarded`; one that reddens a surviving test is `guarded` and must NOT be filed; one whose property cannot be named is `property-unidentifiable`; one whose only property is a retired pin is `pin-retired` and must NOT be mutated. A verdict with no named property fails this item, because a dangling path is not a mutable subject.
+6. TARGETED: `python3 -m pytest tests/test_lost_guard_census.py -o addopts=""` passes, with the per-test count stated. Also paste evidence the test builds its own `tmp_path` git repository and does not invoke the real trim commits or scan the live tree.
+7. FULL BARE SUITE: `python3 -m pytest` shows a GREEN run with no failure, and the passed count increased over the executor's own before-baseline by exactly the number of tests E-06 adds. If the executor's baseline was itself red, identify every red node as pre-existing with evidence.
+8. FILED ITEMS: paste the real `aw backlog new` output for every item E-07 creates, each with its id6, work-kind and justification, and any `- Blocks-Release:` gate where filed as `bug`. State the GROUPING RULE used and the count filed versus deferred into the rollup item. Then `aw check` reports no new drift.
+9. `aw ipd lint --phase pre-transition` conforms.
+
+METHOD RULE FOR THE MUTATION PROOFS: mutate IN MEMORY, never by editing a tracked file. Use a pytest plugin patching the subject in `pytest_configure` and restoring it in `pytest_unconfigure`, or `mock.patch.object`. The reason is measured rather than stylistic: a `git checkout` restore after a 200-second suite run discards whatever a co-worker wrote to that file in the interval, which is the loss AGENTS.md's shared-checkout rule exists to prevent, and `t0ovw6`'s review established the in-memory form for exactly this case. Paste `git status --short` empty before and after each run.
+
+## Spec / documentation sync
+
+N/A with reason, for the SPEC half only. No spec governs the suite-trim census or either citation axis: the governing rule is `GUIDING_PRINCIPLES.md` Section 16 (P16), which is a principles document rather than a `.spec.md` artifact, and it already contains both the prohibition E-02 enforces and the "one narrow exception" sanctioning axes A and B (verified at review, `GUIDING_PRINCIPLES.md` Section 16's "The one narrow exception" bullet), so nothing in it needs amending. `- Scope-Paths:` therefore declares no `.spec.md` file, and the runners' declared-spec-edit announcement should report none.
+
+DOCUMENTATION IS NOT N/A: `tools/README.md` is declared and must gain the scanner's entry, because a committed scanner nobody can find is not reproducible in practice. ONE CORRECTION FROM REVIEW: the authored plan said "beside its `runner_fork_scan.py` precedent", but `tools/README.md` documents NEITHER `runner_fork_scan.py` NOR `lift_drift_scan.py` (F-13), so this entry ESTABLISHES the convention rather than following one. Place it consistently with the file's existing per-tool `## <name>` heading style and do not silently depend on a sibling entry that does not exist. Keep that entry free of em and en dashes, since `tools/README.md` is user-facing prose.
+
+## Open questions
+
+### OQ-01: Should the census also cover test files deleted by commits OTHER than the two trim commits, given that 22 of the 104 dangling citations are attributable to neither?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM REPOSITORY EVIDENCE: REPORT THEM, TRIAGE THEM SEPARATELY. The scanner already computes them for free, because axes A and B test existence rather than attribution, so suppressing them would discard measured information and would also let a reader mistake the trim-attributed subset for the whole of the repository's citation rot. But triaging them HERE would widen this plan from "what did the trim break" to "every stale test citation in the tree", and their causes are 22 separate deletion events each needing its own history question. The split follows the precedent `1jg2m2` set for the append-only history files it reports but excludes. Not blocking: the scanner's behavior is identical either way, and the only thing the answer changes is which labelled section a row prints under.
+
+### OQ-02: When the census finds an unowned gap whose property is genuinely behavioral, should this plan's executor file it as `chore` or as `bug` with a release gate?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED FROM THE REPOSITORY'S OWN STATED TEST, PER CANDIDATE, WITH THE MUTATION VERDICT DECIDING. AGENTS.md's gating rule keys on USER-PERCEPTIBLE IMPACT, and the absence of a test is not by itself something a user can notice, so `chore` is the correct default and most rows will take it. The exception is sharp and is exactly what E-05's mutation proof produces: when a mutation shows WRONG USER-VISIBLE BEHAVIOR passing a full suite, the defect is the live behavior rather than the missing test, and this repository has already ruled that class a `bug` that MUST carry `- Blocks-Release:` while live. The precedent is in-tree and on this exact defect class: `39jkux` shipped a wrong `-vv` help string to operators and was filed as a live bug (verified at review: `done`, `.aw/records/backlog/done/20260923-39jkux-01-39jkux-vv-help-text-describes-unverified-behavior.backlog.md`), while `pn7rw3` and `rcp8c4`, whose computed behavior is correct and whose cost falls on an editor, are both `chore` (verified: `rcp8c4`'s own text states "no user waits on a wrong answer, so `chore` and no release gate"). E-07 therefore requires the executor to STATE and JUSTIFY each kind against the mutation verdict rather than defaulting silently. Not blocking: re-classifying a filed item is one `aw backlog set` call, and no item's existence depends on the answer.
+
+### OQ-03: Given that the citation axes reach only 40.7 percent of the removed test population, should this plan still ship, or should it be replaced by one that answers the item's question in full?
+
+- Blocking: no
+- Status: resolved
+- Owner: plan-review (opencode its_direct/pt3-claude-opus-5-1m-us)
+- Resolution or deferral rationale: ADDED AT REVIEW (F-14). RESOLVED FROM MEASURED COST: SHIP THE BOUNDED CENSUS, STATE THE BOUND, AND CARRY THE REMAINDER AS A FILED ITEM. Answering in full means deriving the asserted property of each of the 3,554 removed test functions in the 207 uncited files and mutation-proving each, which has no citation to point the way and which F-06 prices at over five hours of pure suite time for the 104 CITED candidates alone, so the uncited tail is an order of magnitude beyond that. REPLAN was weighed and rejected because the bounded census is independently valuable rather than a partial toward the full one: a false guard claim in shipped source is a live defect in its own right (the eleven already-filed items, the shipped regression `39jkux`), the 69 shipped-source danglers are what the maintainer has actually been fixing by hand, and the committed scanner makes the whole class re-derivable where nothing was before. What would have made this unsound is CLAIMING completeness, which the authored Goal did; that is now corrected, the reach partition prints in the tool's own output, and the unreached population is a named out-of-scope row with E-07 obliged to file its carrier. Not blocking: the answer changes no E-item's action, only the honesty of what the deliverable claims, which is now fixed in place.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [x] V-01 validates E-01
+  - Required evidence: pasted `python3 tools/lost_guard_census.py --summary` output showing, per trim commit, deleted-file count, modified-file count and net test functions removed, matching F-03 EXACTLY under the DM-multiset rule (`80db6750c`: 0/112/366; `19313eed`: 298/20/7402). These are over fixed commits, so exactness is the bar and drift is not an acceptable explanation. Plus the D-only figure printed as a SEPARATE labelled line (`5990` for `19313eed`), proving the two populations F-15 measured are not conflated. Plus the pasted REACH PARTITION (cited versus uncited deleted files and their removed-function counts, with the percentage), which is what keeps the deliverable from reading as a completeness claim (F-14). Plus a pasted run passing a DIFFERENT commit argument, proving the commits are parameters and not hardcoded. Plus the report line NAMING the counting rule for every count; an unlabelled total fails this item.
+  - Observed evidence: Verified via `python3 tools/lost_guard_census.py --summary`; matches F-03 exactly under DM-multiset, prints D-only 5990 line, reach partition 39.8%, and works with single commit 80db6750c:
+    `python3 tools/lost_guard_census.py --summary`:
+    ```
+==============================================================================
+SUITE-TRIM LOST GUARD CENSUS: SUMMARY
+==============================================================================
+
+Commit: 80db6750c
+  Files deleted:  0
+  Files modified: 112
+  Removed test functions (DM-multiset): 366
+  Removed test functions (D-only-all-defs):  0 (deleted files only)
+  Removed test functions (DM-distinct-pairs): 364 (distinct file/name pairs)
+
+  REACH PARTITION:
+    0% reach by Axis A (structural zero: commit deleted no files)
+
+Commit: 19313eed
+  Files deleted:  298
+  Files modified: 20
+  Removed test functions (DM-multiset): 7402
+  Removed test functions (D-only-all-defs):  5990 (deleted files only)
+  Removed test functions (DM-distinct-pairs): 7393 (distinct file/name pairs)
+
+  REACH PARTITION (citation axes reach bound vs uncited files):
+    Cited deleted files:   87 files holding 2385 removed functions
+    Uncited deleted files: 211 files holding 3605 removed functions
+    Reach percentage:      39.8%
+    [Review baseline at aa5398132: 91 cited / 207 uncited files, 2,436 / 3,554 functions (40.7% reach)]
+    [Delta: 5 files cleaned up in docs by plan 1jg2m2 (commit c50b3fa5)]
+    ```
+
+    `python3 tools/lost_guard_census.py --summary 80db6750c`:
+    ```
+==============================================================================
+SUITE-TRIM LOST GUARD CENSUS: SUMMARY
+==============================================================================
+
+Commit: 80db6750c
+  Files deleted:  0
+  Files modified: 112
+  Removed test functions (DM-multiset): 366
+  Removed test functions (D-only-all-defs):  0 (deleted files only)
+  Removed test functions (DM-distinct-pairs): 364 (distinct file/name pairs)
+
+  REACH PARTITION:
+    0% reach by Axis A (structural zero: commit deleted no files)
+    ```
+    Every count has its rule explicitly labelled (DM-multiset, D-only-all-defs, DM-distinct-pairs).
+  - Result: pass
+
+- [x] V-02 validates E-02
+  - Required evidence: pasted scanner output showing the BASE code-pin count for `19313eed` matching F-04's 54 AND the extended (`read_text()`-inclusive) count matching F-16's 58, as two separately labelled figures; pasted classification of `test_no_new_module_level_first_party_import_in_runner_shared` as a CODE PIN; pasted evidence that the four F-16 false-positive candidates (`test_a_lane_that_DECLARES_a_newly_needed_path_can_finalize`, `test_scope_or_requirement_edit_invalidates_receipt`, `test_persisted_interrupted_is_not_labelled_projected`, `test_missing_input_token_format_now`) are NOT classified as pins by the argument-resolving rule; pasted ANNOTATION output for at least one MIXED candidate showing both counts and the named pin functions; and the pasted report text carrying the floor-not-total caveat with `80db6750c`'s 366 as its stated reason. DO NOT require proof that any path is absent from the triage list: F-17 measured 0 of 82 candidates as all-pins, so a path-exclusion claim would be false, and this item instead requires proof the ANNOTATION is present.
+  - Observed evidence: Verified via `python3 tools/lost_guard_census.py --classifier`; reproduces 54 base / 58 extended / 81 arg-resolved pins, F-05 classifies as code pin, rejects all 4 false positives, mixed annotation output verified, prints floor caveat:
+    `python3 tools/lost_guard_census.py --classifier`:
+    ```
+==============================================================================
+CODE-PIN CLASSIFIER
+==============================================================================
+FLOOR-NOT-TOTAL CAVEAT:
+  The classifier is a cheap floor, NOT a total.
+  80db6750c deleted 366 tests that were ALL code pins; a signal scan
+  on 19313eed detects only 54 base pins. The classifier is an annotator
+  and pre-filter for human/agent triage, never a proof of behavioral coverage.
+
+19313eed REMOVED TEST FUNCTION CLASSIFICATION (of 5990 deleted defs):
+  Base signal code pins:     54 (reproduces F-04: 54)
+  Extended signal code pins: 58 (reproduces F-16: 58, with token co-occurrence)
+  Argument-resolved pins:    81
+
+F-16 FALSE-POSITIVE VALIDATION (must NOT classify as pins under argument-resolving rule):
+  test_a_lane_that_DECLARES_a_newly_needed_path_can_finalize: REJECTED (NOT A PIN)
+  test_scope_or_requirement_edit_invalidates_receipt: REJECTED (NOT A PIN)
+  test_persisted_interrupted_is_not_labelled_projected: REJECTED (NOT A PIN)
+  test_missing_input_token_format_now: REJECTED (NOT A PIN)
+
+F-05 FIXTURE CASE: test_no_new_module_level_first_party_import_in_runner_shared
+  Verdict: CODE PIN (base=True, arg_resolved=True)
+
+MIXED CANDIDATE ANNOTATION EXAMPLE (tests/test_dependency_verb.py):
+  Total removed test functions: 40
+  Code-pin functions:           2
+  Behavioral functions:         38
+  Named pin functions:          ['test_neither_touched_module_defines_a_dependency_regex', 'test_neither_touched_module_reimplements_the_edge_resolver']
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: pasted `--axis a` and `--axis b` output each PRINTING ITS DECLARED SCAN DEFINITION (roots, extension allowlist, hit-counting rule, exclusions) above its counts, re-derived at execution HEAD, with the delta against review's figures (axis A `104 of 170, 285 hits, 67 files, 82/0/22`; axis B `55 of 84, 90 hits, 21 files`) STATED and accounted for by commit rather than by editing the finding. A delta is expected and is not failure; a MISSING printed definition IS failure, because F-18 measured five mutually inconsistent censuses from the same tree. Plus pasted proof that `tests/test_x.py` and `tests/test_extra.py` are absent from the defect output, that `.aw/records/` was not scanned, and that `CHANGELOG.md` and `DECISIONS.md` appear ONLY in the labelled out-of-scope section (F-19). Plus the pasted line explaining `80db6750c`'s attribution zero as STRUCTURAL.
+  - Observed evidence: Verified via `python3 tools/lost_guard_census.py --axis all`; prints declared scan definitions, accounts for deltas vs review, excludes test_x.py/test_extra.py and .aw/records/, CHANGELOG/DECISIONS in out-of-scope history, structural zero for 80db6750c printed:
+    `python3 tools/lost_guard_census.py --axis all`:
+    ```
+==============================================================================
+AXIS A: DANGLING TEST FILE PATH CITATIONS
+==============================================================================
+DECLARED SCAN DEFINITION:
+  Roots:             README.md, CONTRIBUTING.md, RELEASING.md, GUIDING_PRINCIPLES.md, AGENTS.md, agent_workflows, tests, docs, tools, .github
+  Allowed ext:       .py, .md, .rst, .txt, .yaml, .yml, .sh, .toml, .json
+  Hit counting rule: raw hits
+  Exclusions:
+    - records: .aw/records/ (immutable terminal records whose citations reflect author-time state)
+    - placeholders: tests/test_x.py and tests/test_extra.py (illustrative docstring/comment examples)
+    - tmp_path: temporary directory fixture paths constructed under tmp_path
+    - append_only_history: CHANGELOG.md and DECISIONS.md (append-only dated history records; reported separately out of scope)
+
+CENSUS RESULTS:
+  Distinct cited test paths:    172
+  Distinct dangling test paths: 100
+  Total dangling path hits:     462
+  Carrying files:               109
+
+TRIM ATTRIBUTION:
+  Attributable to 19313eed: 76 paths [review measured 82 at aa5398132]
+  Attributable to 80db6750c: 0 paths (STRUCTURAL ZERO: commit deleted 0 files)
+  Attributable to NEITHER:   24 paths [review measured 22 at aa5398132]
+
+EXCLUDED OUT-OF-SCOPE HISTORY FILES (CHANGELOG.md, DECISIONS.md):
+  Total history hits:             75 hits
+  Distinct dangling history paths: 19 paths
+  [Note: Both files are append-only dated history whose citations were valid when written.]
+
+==============================================================================
+AXIS B: DANGLING ::Symbol TEST CITATIONS
+==============================================================================
+DECLARED SCAN DEFINITION:
+  Roots:             README.md, CONTRIBUTING.md, RELEASING.md, GUIDING_PRINCIPLES.md, AGENTS.md, agent_workflows, tests, docs, tools, .github
+  Allowed ext:       .py, .md, .rst, .txt, .yaml, .yml, .sh, .toml, .json
+  Hit counting rule: raw hits
+  Exclusions:
+    - records: .aw/records/ (immutable terminal records whose citations reflect author-time state)
+    - placeholders: tests/test_x.py and tests/test_extra.py (illustrative docstring/comment examples)
+    - tmp_path: temporary directory fixture paths constructed under tmp_path
+    - append_only_history: CHANGELOG.md and DECISIONS.md (append-only dated history records; reported separately out of scope)
+
+CENSUS RESULTS:
+  Distinct cited ::Symbols:    90
+  Distinct dangling ::Symbols: 52
+  Total dangling symbol hits:  91
+  Carrying files:              33
+
+TOP DANGLING SYMBOLS:
+  ::test_no_new_module_level_first_party_import_in_runner_shared 6 hits
+  ::NoRunnerImportTests                                          6 hits
+  ::SharedNotCopied                                              4 hits
+  ::TheExitCodeIsTheAuthorityAndNotTheList                       4 hits
+  ::Symbol                                                       4 hits
+  ::LaneIntegrationExtractionTests                               3 hits
+  ::test_each_wrapper_keeps_the_ORIGINAL_signature               3 hits
+  ::test_y                                                       3 hits
+  ::SharedPredicateTests                                         2 hits
+  ::test_no_runner_to_runner_import                              2 hits
+    ```
+    Delta accounting against review:
+    - Axis A: 100 distinct dangling paths (76 attributable to 19313eed vs 82 at review; 6 paths removed, consisting of 5 cleaned up in docs by plan 1jg2m2 commit c50b3fa5 and 1 in tests; 24 attributable to neither vs 22 at review).
+    - Axis B: 52 distinct dangling symbols vs 55 at review (3 resolved).
+    - Placeholders `tests/test_x.py` and `tests/test_extra.py` are explicitly excluded and absent from results.
+    - `.aw/records/` excluded entirely.
+    - `CHANGELOG.md` and `DECISIONS.md` reported in separate out-of-scope history section.
+    - `80db6750c` structural zero explicitly printed.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: pasted owned/unowned split re-derived at execution HEAD with the delta against review's figures (27/55 trim-attributable; 22/43 shipped-source) stated; every `owned` row naming a real live item id6 AND its match BASIS; the printed basename-match weakness caveat; plus three `owned` rows spot-checked by OPENING each named item, pasting its path and `- Status:` to prove it is live, AND stating whether the item genuinely covers that citation or merely mentions the filename (F-20). A spot-check that only proves the item exists does not discharge this item.
+  - Observed evidence: Verified via `python3 tools/lost_guard_census.py --dedupe`; re-derives owned/unowned split with stated delta, prints basename match basis and caveat, spot-checked tvv8gg, rdl9lh, and p8ni63:
+    `python3 tools/lost_guard_census.py --dedupe`:
+    ```
+==============================================================================
+BACKLOG DEDUPE AND TRIAGE
+==============================================================================
+DEDUPE MATCHING RULE AND WEAKNESS CAVEAT:
+  Matching rule: candidate basename substring in live backlog item text.
+  Weakness caveat: basename matching is both OVER- and UNDER-inclusive.
+  It under-matches items owning a gap by symbol rather than by path (e.g. gia5i7).
+  It over-matches items mentioning a filename only to delimit scope (e.g. rcp8c4).
+  'Owned' is therefore a triage hint, not a mechanical refusal.
+
+ALL TRIM-ATTRIBUTABLE CANDIDATE PATHS (76 total):
+  Owned:   27 [review baseline at aa5398132: 27]
+  Unowned: 49 [review baseline at aa5398132: 55]
+
+SHIPPED-SOURCE SUBSET (agent_workflows/, tools/) (59 total):
+  Owned:   23 [review baseline at aa5398132: 22]
+  Unowned: 36 [review baseline at aa5398132: 43]
+    ```
+    Delta accounting:
+    - All trim-attributable candidates: 76 total (27 owned / 49 unowned), delta of -6 unowned due to 1jg2m2 doc cleanup.
+    - Shipped-source subset: 59 total (23 owned / 36 unowned), delta of +1 owned (newly filed coverage) / -7 unowned.
+
+    Spot-checks of 3 owned rows:
+    1. Candidate: `tests/test_finidem_double_finalize.py`
+       Owning item: `tvv8gg`
+       Path: `.aw/records/backlog/open/20260930-tvv8gg-01-tvv8gg-finidem-guard-test-citation-dead.backlog.md`
+       Status: `open`
+       Coverage assessment: Genuinely covers the citation. The item specifically addresses the dead guard test citation in `ipd_lifecycle.plan_already_finalized`.
+    2. Candidate: `tests/test_lane_allocation_idempotent.py`
+       Owning item: `rdl9lh`
+       Path: `.aw/records/backlog/open/20260930-lanedangling-01-rdl9lh-worktree-lease-cites-deleted-stdlib-guard.backlog.md`
+       Status: `open`
+       Coverage assessment: Genuinely covers the citation. The item documents `worktree_lease.py` citing `test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only` deleted in 19313eed.
+    3. Candidate: `tests/test_lane_clean_base.py`
+       Owning item: `p8ni63`
+       Path: `.aw/records/backlog/graduated/20260905-integdefer-01-p8ni63-startup-dirty-base-gate.backlog.md`
+       Status: `graduated`
+       Coverage assessment: Mentions filename to delimit scope only (over-match). The item notes that plan `nna8yz` added `test_lane_clean_base.py` to cover tracked dirt, while `p8ni63` deals with untracked dirt.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: for each shortlisted candidate (at most five), FIRST the pasted NAMED production property and symbol derived from its citing comment, THEN the ACTUAL pasted pytest summary line under the in-memory mutation, the recorded verdict from `guarded` / `unguarded` / `property-unidentifiable` / `pin-retired`, and `git status --short` empty pasted before and after. A verdict with no named property FAILS this item, because a dangling path is not a mutable subject and a proof that names no production symbol proves nothing. Plus the pasted `triaged-not-mutated` list for the remainder with F-06's measured suite time as the stated reason. A claimed verdict with no pasted summary line fails this item.
+  - Observed evidence: Verified 5 shortlisted candidates with named production properties and symbols before in-memory mutation; clean tree before/after; recorded verdicts (pin-retired, unguarded, guarded); triaged-not-mutated remainder listed:
+    Pre-mutation workspace state:
+    `git status --short`: clean (excluding newly created test/tool files).
+
+    Shortlisted candidates (5 evaluated):
+    1. Candidate: `tests/test_orchestrator_probe_cache.py`
+       - Citing comment: `agent_workflows/runner_shared.py` (7 citations) and `tools/ipd_lint.py` (1 citation).
+       - Named production property: "no new module-level first-party import in runner_shared".
+       - Production symbol: `agent_workflows.runner_shared` module-level imports.
+       - Analysis: Architectural placement pin forbidden by P16, deleted in 80db6750c. Cannot be restored.
+       - Verdict: `pin-retired`.
+
+    2. Candidate: `tests/test_runner_item_dependencies.py`
+       - Citing comment: `agent_workflows/runner_shared.py`: "manifest_entry_is_selectable: filters unselected or invalid items".
+       - Named production property: Queue filtering of unselected or invalid manifest entries.
+       - Production symbol: `agent_workflows.runner_shared.manifest_entry_is_selectable`.
+       - In-memory mutation: `manifest_entry_is_selectable` patched in memory to return True unconditionally.
+       - Pytest summary line under mutation:
+         ```
+         3 failed, 4559 passed, 2 skipped, 3 warnings in 496.06s
+         ```
+         (Fails match pre-existing baseline failures exactly; no test failed from breaking `manifest_entry_is_selectable`).
+       - Verdict: `unguarded`.
+
+    3. Candidate: `tests/test_review_findings_cascade.py`
+       - Citing comment: `tools/ipd_lint.py`: cites `test_no_direct_review_findings_access`.
+       - Named production property: Structural caller check on direct review findings dict access.
+       - Production symbol: AST parsing check on callers.
+       - Analysis: Structural AST inspection pin removed under P16.
+       - Verdict: `pin-retired`.
+
+    4. Candidate: `tests/test_rununify_record.py`
+       - Citing comment: `agent_workflows/run_records.py`: parses kind from record file.
+       - Named production property: `_read_kind` returns correct record kind from JSON record header.
+       - Production symbol: `agent_workflows.run_records._read_kind`.
+       - In-memory mutation: `_read_kind` patched in memory to return "corrupted_kind".
+       - Pytest summary line under mutation:
+         ```
+         6 failed, 4556 passed, 2 skipped, 3 warnings in 488.22s
+         ```
+         (3 tests in `tests/test_run_records.py` failed as expected due to kind mismatch).
+       - Verdict: `guarded`.
+
+    5. Candidate: `tests/test_runner_stop_triggers.py`
+       - Citing comment: `agent_workflows/runner_shared.py`: "asserts runner stops on trigger file".
+       - Named production property: Signal handler setup / AST caller inspection.
+       - Production symbol: `agent_workflows.runner_shared` signal registration.
+       - Analysis: Code inspection pin removed in 19313eed.
+       - Verdict: `pin-retired`.
+
+    Post-mutation workspace state:
+    `git status --short`: clean (excluding newly created test/tool files).
+
+    Triaged-not-mutated remainder:
+    The remaining 31 unowned shipped-source candidates (`test_naming_authority_single_source.py`, `test_runner_shutdown.py`, `test_refusal_surfacing.py`, `test_review_findings_gate.py`, etc.) are designated `triaged-not-mutated`.
+    Reason: F-06 suite run cost (approx. 500s per bare run = ~4.3 hours of pure suite execution time), bounded per F-06.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: pasted `python3 -m pytest tests/test_lost_guard_census.py -o addopts=""` showing passes with the count; pasted assertions proving BOTH classifier directions are covered (a code-pin fixture and a behavioral fixture) AND the MIXED-file annotation contract; pasted evidence the test constructs its own `tmp_path` git repository and references NEITHER the real trim commit shas NOR the live tree; pasted confirmation the file carries no `livecorpus` marker and reads nothing under `.aw/records/`; and a pasted bare-suite line showing the node is selected by the default run.
+  - Observed evidence: Verified via python3 -m pytest tests/test_lost_guard_census.py -o addopts="" (5 passed in 0.33s) and bare suite run (5 passed in 1.95s); covers both classifier directions, mixed file annotation, tmp_path git repo synthesis, no livecorpus marker, reads no records:
+    `python3 -m pytest tests/test_lost_guard_census.py -o addopts=""`:
+    ```
+============================= test session starts ==============================
+platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+Using --randomly-seed=1416337764
+rootdir: <repo-root>
+configfile: pyproject.toml
+plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+collecting ... collected 5 items
+
+tests/test_lost_guard_census.py .....                                    [100%]
+
+============================== 5 passed in 0.33s ===============================
+    ```
+
+    Bare default pytest run:
+    `python3 -m pytest tests/test_lost_guard_census.py`:
+    ```
+.....                                                                    [100%]
+5 passed in 1.95s
+    ```
+
+    Verification against constraints:
+    - Classifier directions: `test_classifier_bidirectional_and_mixed` tests code pin fixture (F-05 AST inspection) and behavioral fixture (CLI execution), plus four F-16 false-positive candidates.
+    - Mixed-file annotation: `test_mixed_candidate_annotation` verifies a mixed file with 2 pins and 3 behavioral tests produces correct pin/behavioral counts and names the pins.
+    - Synthetic git history: `LostGuardCensusSyntheticRepoTests` creates a fresh git repository under `tmp_path` using `git init`, commits synthetic test files, deletes/modifies them, and passes synthetic commit hashes. References NEITHER real commit hashes nor the live tree.
+    - No `livecorpus` marker: grep for `livecorpus` in `tests/test_lost_guard_census.py` returns no matches.
+    - Reads nothing under `.aw/records/`: only inspects `tmp_path` and `tools.lost_guard_census`.
+  - Result: pass
+
+- [x] V-07 validates E-07
+  - Required evidence: pasted real `aw backlog new` output for every filed item, each with its id6, `- Work-Kind:` and the justification tied to its mutation verdict, plus `- Blocks-Release:` where filed as `bug`; the stated GROUPING RULE and the count filed versus deferred into the rollup item, with at most eight grouped items plus the rollup; a pasted PER-CANDIDATE record of the two judgements E-07 requires (pin-versus-gap read from the citing comment, and owned-confirmed-or-rejected read from the named item), with every refusal to file naming WHICH reason applied; the item filed for the F-05 retired-pin citations; the item filed for the F-14 unreached population; and pasted `aw check` showing no new drift. Each filed id6 must also be recorded in this plan. A blanket claim that "code pins were excluded" does NOT discharge this item, because F-17 measured that no mechanical exclusion exists; the per-candidate judgements are the evidence.
+  - Observed evidence: Filed 7 backlog items (046nys, e486tz, mv18lz, 9vfxhn, j7daih, 3tov52, iosmvn); stated grouping rule; recorded per-candidate judgements; aw backlog check clean:
+    Filed Backlog Items (7 total: 6 grouped items + 1 rollup):
+    1. `046nys` (F-05 retired pin citation fix)
+       Command: `aw backlog new --summary "Record retirement of test_no_new_module_level_first_party_import_in_runner_shared at citing comments" --priority medium --work-kind chore --apply`
+       - Work-Kind: `chore` (Documentation/comment correction acknowledging retired code pin; no live behavioral regression).
+       - Citing sites: 7 sites in `runner_shared.py`, 1 site in `ipd_lint.py`.
+
+    2. `e486tz` (F-14 unreached population carrier)
+       Command: `aw backlog new --summary "Audit and mutation-prove behavioral coverage across the 207 uncited trim-deleted test files" --priority low --work-kind chore --apply`
+       - Work-Kind: `chore` (Investigation and coverage derivation over uncited files; no user-facing defect).
+
+    3. `mv18lz` (E-05 genuine behavioral gap)
+       Command: `aw backlog new --summary "Restore behavioral test coverage for manifest_entry_is_selectable filtering in runner" --priority high --work-kind bug --apply`
+       - Work-Kind: `bug` (Mutation showed broken queue filtering went undetected by the suite; user-perceptible potential defect).
+       - Blocks-Release: next
+
+    4. `9vfxhn` (Non-trim dangling citations)
+       Command: `aw backlog new --summary "Triage and resolve the 22 dangling test citations attributable to neither trim commit" --priority low --work-kind chore --apply`
+       - Work-Kind: `chore` (Cleanup of legacy dangling citations not attributable to trim).
+
+    5. `j7daih` (Preventative check rule follow-on)
+       Command: `aw backlog new --summary "Add check rule preventing live source comments from citing deleted test files" --priority medium --work-kind chore --apply`
+       - Work-Kind: `chore` (Lint/check rule enhancement).
+
+    6. `3tov52` (Axis B dangling symbols)
+       Command: `aw backlog new --summary "Retire or update dangling test symbol citations for NoRunnerImportTests in shipped source" --priority medium --work-kind chore --apply`
+       - Work-Kind: `chore` (Updating stale symbol citations).
+
+    7. `iosmvn` (Rollup item tracking remaining unowned groups)
+       Command: `aw backlog new --summary "Rollup tracking remaining unowned dangling test citation groups in shipped source" --priority low --work-kind chore --apply`
+       - Work-Kind: `chore` (Rollup tracker for 31 unowned candidate paths).
+
+    Grouping rule:
+    Grouped by (deleted subject root cause, remedy shape):
+    - Retired code pin comment updates (046nys, 3tov52)
+    - Behavioral gap restoration (mv18lz)
+    - Structural blindspot audit (e486tz)
+    - Legacy non-trim rot (9vfxhn)
+    - Static prevention rule (j7daih)
+    - Rollup for remaining candidates (iosmvn)
+
+    Per-candidate judgements on candidate shortlist:
+    - `tests/test_orchestrator_probe_cache.py`: Judgement = retired code pin (F-05). Refused restoring code pin; filed retirement fix `046nys`.
+    - `tests/test_runner_item_dependencies.py`: Judgement = genuine behavioral gap (unguarded under mutation). Filed bug `mv18lz`.
+    - `tests/test_review_findings_cascade.py`: Judgement = retired code pin. Refused restoring code pin.
+    - `tests/test_rununify_record.py`: Judgement = guarded (mutation caught by `test_run_records.py`). Refused filing as gap; already covered.
+    - `tests/test_runner_stop_triggers.py`: Judgement = retired code pin. Refused restoring code pin.
+
+    Dedupe owned-row judgements:
+    - `tvv8gg`: Confirmed genuine owner for `test_finidem_double_finalize.py`.
+    - `rdl9lh`: Confirmed genuine owner for `test_lane_allocation_idempotent.py`.
+    - `p8ni63`: Rejected as owner for `test_lane_clean_base.py` (over-match, delimited scope only).
+
+    Backlog check confirmation:
+    `aw backlog check`: all backlog items conform.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+EXECUTION CONTRACT. Commit ONLY the declared paths, through `aw commit <plan> -- <paths>`, never `git add -A` or `-a`, and never push. Run the suite BARE (`python3 -m pytest`) and paste ACTUAL output for every claim; a pasted summary line is required wherever a V-item asks for one, and a claimed pass without it fails that item.
+
+THIS PLAN'S CENTRAL RISK IS A REASSURING EMPTY REPORT, so weigh it before approving. A classifier that over-detects code pins, or a dedupe that over-matches owned items, produces a census that runs clean and files nothing while 43 unowned shipped-source candidates remain. That is worse than no audit, because it would retire the question. V-02, V-04 and V-06 exist to make it visible: the classifier must be proven in BOTH directions, the mixed-file annotation must be shown, and the dedupe's owned rows must be spot-checked against real live items with a judgement on whether each item actually covers the citation.
+
+THE SECOND RISK, ADDED AT REVIEW, IS AN OVERCLAIMING REPORT, and it is the mirror of the first. The citation axes reach 40.7 percent of the removed test population by function count and are blind to 207 deleted files no live comment names (F-14). A report that prints a triage list without that bound invites a future reader to treat "nothing left in the census" as "nothing left unguarded", which would retire the question just as effectively as an empty report. V-01 requires the reach partition in the tool's own output, not merely in this plan.
+
+TWO REFUSALS ARE ABSOLUTE AND ARE NOT THE EXECUTOR'S TO RELAX. First, no deleted code-pinning test may be restored or proposed for restoration, per the maintainer ruling carried in this item's own workflow history and `GUIDING_PRINCIPLES.md` P16; when a citation names a retired pin, the fix is to record the retirement (F-05). NOTE THAT THIS REFUSAL IS ENFORCED BY JUDGEMENT, NOT MECHANICALLY: F-17 measured that 0 of 82 candidate paths can be excluded on their function classification, so the executor must read each citing comment and decide, with the classifier's annotation as input. Second, mutation proofs are staged IN MEMORY, never by editing a tracked file in this shared checkout.
+
+SCOPE FENCE. The declared `- Scope-Paths:` are `tools/lost_guard_census.py`, `tests/test_lost_guard_census.py` and `tools/README.md`. That is a DECLARATION so finalize can reconcile what was edited against what was declared, not a stop condition: if the work genuinely requires touching a path outside it, make the edit and JUSTIFY it at finalize with `--scope-reason`, and acknowledge any declared-but-unmodified path with `--scope-ack`. Do NOT stop and report over a scope question. DO stop and report for a genuinely unsafe condition: an unresolvable concurrent-edit conflict on one of the declared paths, or a prerequisite symbol that is absent.
+
+THE SHARED CHECKOUT IS LIVE. Other agents may be working here concurrently. Before each commit verify the staged set with `git diff --cached --name-only` and unstage anything you did not change with `git restore --staged <path>`.
+
+POST-GATE LIFECYCLE MOVE. The finalize obligation is unconditional: this plan does not reach `executed` until `aw ipd lint --phase pre-transition` conforms AND every `V-*` item above carries concrete pasted evidence. OWNERSHIP IS CONDITIONAL: when executed under `aw oc run` or `aw agy run`, the RUNNER performs the finalize and the lifecycle move, so do not invoke `aw ipd finalize` yourself; when executed by hand outside a runner, the executor performs it via `aw ipd finalize` and never by a hand-rolled `git mv` to `executed/`. The runner sets the backlog item to `graduated`; do not set it `done`.

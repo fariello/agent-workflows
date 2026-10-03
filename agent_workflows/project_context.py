@@ -12,6 +12,8 @@ Invariants:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import Enum
 import json
 import functools
 import os
@@ -315,6 +317,28 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
     """Resolve the repo root a repo-scoped ``aw`` verb should operate on (IPD awretrofit Order 06).
 
     - An EXPLICIT ``--dir`` is honored verbatim (resolved, no climb) - the operator asked for it.
+      THIS IS A DECIDED RULE (IPD ci9kx2-02 `lmyeas` OQ-01, from backlog `5gmi12`), not an oversight.
+      The resolver is shared across both read-class and write-class callers, and a uniform upward climb
+      is unsafe for multiple load-bearing reasons:
+      1. Shared write-class callers: Of the resolver's call sites, roughly 19 invocations are
+         WRITE-class operations (e.g., `work_cmd` allocating a git worktree and committing,
+         `status_set.run_set_command` and `backlog.run_set` moving records between lifecycle dirs,
+         five `git_mv` helpers, and seven record-authoring verbs). An upward climb would silently retarget
+         those file mutations and lifecycle transitions at an ancestor project.
+      2. Recursive delete hazard: `workflow_artifacts_prune.run_archive` resolves its target root and
+         its delete helper executes ``shutil.rmtree(target, ignore_errors=False)``. A non-project `--dir`
+         is today a safe no-op returning 0; under an ancestor climb it would delete the ancestor
+         project's run-artifacts subtree.
+      3. `$HOME` is commonly a project root: Measured on developer machines, `is_project_dir(Path.home())`
+         is frequently True because home contains a `.aw/` with durable children (`config` and `projects`).
+         A climb from an arbitrary scratch directory under home would resolve to `$HOME`, causing write
+         verbs to target the user's home records tree.
+      4. Lane-ancestry hazard: Isolated lane worktrees allocated by the test/execution runners live at
+         `.aw/worktrees/<id6>` under a project root by construction. The first project-root ancestor of a
+         lane is the shared checkout (and then `$HOME`), which runners deliberately avoid modifying mid-run.
+         Climbing would risk retargeting lane-scoped writes and release-gate scans at the shared checkout.
+      The remedy for a verb that cannot survey an explicit subdirectory is to REFUSE AND NAME THE ROOT
+      (as `aw attention` and `aw ipd board` do via `no_project_message`), never to climb silently.
     - Otherwise CLIMB from cwd via ``find_project_root``; if an AW project root is found, use it (so
       the verb works from any subdirectory, git-style).
     - If no project root is found, fall through to cwd (the caller then emits the no-project message
@@ -327,8 +351,9 @@ def resolve_verb_repo_root(explicit_dir: Optional[str] = None) -> Path:
     fallback SILENTLY, so run outside a project it produces an empty or misplaced result with no
     explanation of why.
 
-    RE-DERIVE THE SURFACE, DO NOT TRUST A TRANSCRIBED LIST. Measured 2026-09-21 on this file's HEAD:
-    64 call sites across 21 modules (including this definition), counted with
+    RE-DERIVE THE SURFACE, DO NOT TRUST A TRANSCRIBED LIST. Measured 2026-10-01 on this file's HEAD:
+    87 call sites across 25 modules (including this definition; 44 AST invocations across 24 modules),
+    counted with
 
         grep -rn --include=*.py resolve_verb_repo_root agent_workflows/
 
@@ -362,11 +387,17 @@ def no_project_message(
     command line was checked and is not an AW project, that only that directory was checked with no
     upward climb (honored verbatim), and does not suggest passing ``--dir``.
 
-    WHEN ``start_dir`` IS INSIDE A GIT REPOSITORY the message gains a FOURTH fact and an offer: it
-    names the git root and prints the literal ``aw install <root>`` that would fix the condition
-    (IPD nogitmsg `quqyc4` E-01, from backlog `okm6e6`). The commonest way to reach this message is
-    to stand in a real repository that simply has no agent-workflows installed, and without this the
-    message could describe the problem but never name the one action that resolves it.
+    WHEN ``start_dir`` IS INSIDE A REAL AW PROJECT (IPD ci9kx2-02 `lmyeas` E-03), the refusal names
+    the enclosing project root and provides the literal corrected command (`aw <verb> --dir <root>`).
+    It explains that `--dir` does not climb, and does NOT claim that agent-workflows is not installed
+    in the project.
+
+    WHEN ``start_dir`` IS INSIDE A GIT REPOSITORY WITH NO AW PROJECT the message gains a FOURTH fact
+    and an offer: it names the git root and prints the literal ``aw install <root>`` that would fix
+    the condition (IPD nogitmsg `quqyc4` E-01, from backlog `okm6e6`). The commonest way to reach
+    this message is to stand in a real repository that simply has no agent-workflows installed, and
+    without this the message could describe the problem but never name the one action that resolves
+    it.
 
     ``start_dir`` IS A PARAMETER RATHER THAN A ``Path.cwd()`` READ ON PURPOSE. Both call sites have
     already resolved a root via ``resolve_verb_repo_root``, so a ``cwd()`` read here would let the
@@ -378,9 +409,8 @@ def no_project_message(
     PROBING FOR GIT HERE IS A MESSAGE CONCERN AND MUST NEVER BE PROMOTED INTO ``find_project_root``
     (`quqyc4` E-02). Root detection is DELIBERATELY git-blind: a ``.aw/`` tree can exist without git,
     and a bare ``.git`` ancestor with no AW marker is NOT an AW project (IPD awretrofit Order 06,
-    OQ-01), a rule locked by ``tests/test_awretrofit_project_root_climb.py``'s
-    ``test_bare_git_ancestor_is_not_a_root``. This function only decides what to SAY once that climb
-    has already failed; it never decides what counts as a project.
+    OQ-01), an unpinned rule (the test that formerly locked it was deleted). This function only decides
+    what to SAY once that climb has already failed; it never decides what counts as a project.
     """
 
     where = Path(start_dir) if start_dir is not None else Path.cwd()
@@ -397,12 +427,19 @@ def no_project_message(
             f"Are you inside your repository? cd into the repo (or a subdirectory of it), "
             f"or pass --dir <repo>."
         )
-    git_root = _find_git_root(str(where))
-    if git_root is not None:
+    classification = classify_project_dir(where)
+    if classification.is_inside_project and explicit:
         msg += (
-            f"\n{git_root} IS a git repository, but agent-workflows is not installed in it.\n"
-            f"Install it there with: aw install {git_root}"
+            f"\n{classification.root} IS an agent-workflows project root, but explicit --dir is honored verbatim with no upward climb.\n"
+            f"Run with: aw {verb} --dir {classification.root}"
         )
+    else:
+        git_root = _find_git_root(str(where))
+        if git_root is not None and not is_project_dir(git_root):
+            msg += (
+                f"\n{git_root} IS a git repository, but agent-workflows is not installed in it.\n"
+                f"Install it there with: aw install {git_root}"
+            )
     return msg
 
 
@@ -416,6 +453,8 @@ def git_root_for_message(start_dir: Optional[str | Path] = None) -> Optional[str
     """
 
     where = Path(start_dir) if start_dir is not None else Path.cwd()
+    if find_project_root(where) is not None:
+        return None
     return _find_git_root(str(where))
 
 
@@ -428,6 +467,73 @@ def is_project_dir(repo_root: str | Path) -> bool:
     return _is_project_marker(p / ".aw") or _is_project_marker(
         p / ".agents", legacy=True
     )
+
+
+class ProjectLocationCase(str, Enum):
+    """The three cases a resolved directory can have with respect to an AW project."""
+
+    IS_PROJECT_ROOT = "is-project-root"
+    IS_ROOT = "is-project-root"  # alias
+    INSIDE_PROJECT = "inside-project"
+    NO_PROJECT = "no-project"
+
+
+@dataclass(frozen=True)
+class ProjectClassification:
+    """Classification of a directory with respect to AW project roots.
+
+    Pure, read-only, and side-effect-free.
+    - ``case``: one of ``ProjectLocationCase``.
+    - ``root``: the enclosing AW project root when inside an AW project (or the directory itself
+      when it is a project root), or None when in no project.
+    """
+
+    case: ProjectLocationCase
+    root: Optional[Path] = None
+
+    @property
+    def is_root(self) -> bool:
+        """True if the classified directory is itself an AW project root."""
+        return self.case == ProjectLocationCase.IS_PROJECT_ROOT
+
+    @property
+    def is_inside_project(self) -> bool:
+        """True if the classified directory is strictly inside an AW project (ancestor is root)."""
+        return self.case == ProjectLocationCase.INSIDE_PROJECT
+
+    @property
+    def is_no_project(self) -> bool:
+        """True if the classified directory is not in or under any AW project."""
+        return self.case == ProjectLocationCase.NO_PROJECT
+
+    @property
+    def enclosing_root(self) -> Optional[Path]:
+        """The enclosing AW project root if inside a project, else None."""
+        return self.root if self.case == ProjectLocationCase.INSIDE_PROJECT else None
+
+
+def classify_project_dir(path: Optional[str | Path] = None) -> ProjectClassification:
+    """Classify a directory as a project root, inside a project, or in no project.
+
+    Composes the existing ``is_project_dir`` and ``find_project_root`` predicates without
+    re-implementing root detection or walking the filesystem independently. Pure, read-only,
+    and side-effect-free. Git-blind: root detection does not check for git repositories.
+
+    Returns a ``ProjectClassification`` with:
+    - ``case=ProjectLocationCase.IS_PROJECT_ROOT`` if ``path`` is itself an AW project root.
+    - ``case=ProjectLocationCase.INSIDE_PROJECT`` and ``root=<enclosing_root>`` if ``path`` is
+      inside an AW project whose root is an ancestor.
+    - ``case=ProjectLocationCase.NO_PROJECT`` and ``root=None`` if ``path`` is not in any AW project.
+    """
+    p = Path(path).resolve() if path is not None else Path.cwd().resolve()
+    if is_project_dir(p):
+        return ProjectClassification(case=ProjectLocationCase.IS_PROJECT_ROOT, root=p)
+    enclosing = find_project_root(p)
+    if enclosing is not None:
+        return ProjectClassification(
+            case=ProjectLocationCase.INSIDE_PROJECT, root=enclosing
+        )
+    return ProjectClassification(case=ProjectLocationCase.NO_PROJECT, root=None)
 
 
 def read_project_identity(repo_root: str | Path) -> Dict[str, Optional[str]]:

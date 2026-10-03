@@ -106,8 +106,8 @@ def test_every_apply_written_gitkeep_appears_in_preview(tmp_path: Path) -> None:
     }
 
     assert (
-        len(apply_gitkeeps) == 22
-    ), f"Expected 22 .gitkeep files from apply, found {len(apply_gitkeeps)}"
+        len(apply_gitkeeps) == 23
+    ), f"Expected 23 .gitkeep files from apply, found {len(apply_gitkeeps)}"
     for gk in apply_gitkeeps:
         assert (
             gk in preview_headers

@@ -16,10 +16,11 @@ import contextlib
 import json
 import os
 import re
+import select
 import subprocess
 import sys
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Callable
 
@@ -651,6 +652,9 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     should_color as should_color,
 )
+from agent_workflows.term import (
+    should_unicode as should_unicode,
+)
 from agent_workflows.runner_shared import (
     state_root as state_root,
 )
@@ -872,6 +876,7 @@ __all__ = [
     # from the driver keep working after the local duplicates were deleted.
     "extract_newest_history_entry",
     "is_plan_review_approved",
+    "observe_host_model",
 ]
 
 
@@ -1031,9 +1036,15 @@ class StallWatchdog(runner_shared.StallWatchdog):
         process: subprocess.Popen,
         timeout: float | None = 900.0,
         check_interval: float = 1.0,
+        *,
+        progress_checker: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(
-            process, timeout, check_interval, reaper=lambda p: terminate_process(p)
+            process,
+            timeout,
+            check_interval,
+            reaper=lambda p: terminate_process(p),
+            progress_checker=progress_checker,
         )
 
 
@@ -1049,9 +1060,11 @@ class StallWatchdog(runner_shared.StallWatchdog):
 # assertion (`tests/test_oc_runipd.py`) checks the argv against THIS name, so a literal here that drifted
 # from the descriptor would keep passing while the runner wrote the other value.
 FULL_AUTO_ACTOR = runner_shared.OC_HOST_LABELS.full_auto_actor
-FULL_AUTO_APPROVAL_MESSAGE = (
-    "auto-approved by --full-auto: review readiness cleared (not human approval)"
-)
+# Plan 90z361 E-02: READ FROM RUNNER_SHARED rather than defined as an independent literal. The actor
+# above is host-VARYING and so is descriptor data; the approval message is host-INVARIANT and so is a
+# shared constant. Both are references for the same underlying reason: exactly one place each value
+# is written.
+FULL_AUTO_APPROVAL_MESSAGE = runner_shared.FULL_AUTO_APPROVAL_MESSAGE
 
 
 def set_plan_approved(
@@ -1247,11 +1260,27 @@ def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
 
 
 def close_backlog_item(
-    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
+    repo: Path,
+    item_path: Path,
+    item_id6: str,
+    evidence: str,
+    message: str,
+    *,
+    gate_root: Path | None = None,
+    lane_carrier_ref: str | None = None,
+    lane_carrier_path: str | None = None,
 ) -> tuple[int, str]:
     """Close an item through the gated setter. See `runner_shared.close_backlog_item`."""
     return runner_shared.close_backlog_item(
-        repo, item_path, item_id6, evidence, message, run_checked=run_checked
+        repo,
+        item_path,
+        item_id6,
+        evidence,
+        message,
+        gate_root=gate_root,
+        lane_carrier_ref=lane_carrier_ref,
+        lane_carrier_path=lane_carrier_path,
+        run_checked=run_checked,
     )
 
 
@@ -1292,6 +1321,7 @@ def process_backlog_close(
         run_checked=run_checked,
         close_backlog_item=close_backlog_item,
         commit_backlog_close=commit_backlog_close,
+        host_label=runner_shared.OC_HOST_LABELS.command,
     )
 
 
@@ -1854,6 +1884,8 @@ def initialize_run(args: argparse.Namespace) -> Path:
     Freezes queue items with "from_backlog" and runs report_untracked_dirt_at_run_start.
     Evaluates __file__ in the runner module so driver identity attributes to this host.
     """
+    # zdgc6t E-04: refuse contradictory verification flags before anything durable exists.
+    runner_shared.refuse_contradictory_verification_flags(args)
     # runprofile-03 (`3cm15q`) E-02: FIRST statement in the function, deliberately. The launch
     # identity is decided before the repository is even validated, so no ordering change can later
     # slip a durable write ahead of a refusal.
@@ -2784,8 +2816,9 @@ def run_opencode(
     # streamfmt (mm6wuz) E-05: read from the FROZEN run options (not from `args`), which is the same
     # path `output_mode` takes, so a resume honors the tier the run was created or resumed with.
     verbosity = int(options.get("verbosity") or 0)
-    pal = Palette(should_color(sys.stdout))
+    pal = Palette(should_color(sys.stdout), use_unicode=should_unicode(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     popen_kwargs: dict[str, Any] = {
         "cwd": agent_dir,
@@ -2973,6 +3006,9 @@ def run_opencode(
             # rather than from `action` alone, which only knows `review`/`execute`. `None` when the
             # entry signals nothing, which renders no activity cell rather than a guessed one.
             activity=activity_for_item(item),
+            runner="opencode",
+            model=options.get(model_key),
+            variant=options.get(variant_key),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # The countdown the operator sees must come from the watchdog that kills, so the
@@ -2987,6 +3023,7 @@ def run_opencode(
         # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
         # (which keeps emitting housekeeping lines) is still correctly killed.
         observer = stall_progress.SubagentProgressObserver()
+        watchdog.progress_checker = observer.poll
 
         def _subagent_progress() -> None:
             watchdog.touch()
@@ -3355,6 +3392,228 @@ def execute_item(
         driver_module=sys.modules[__name__],
         tracker=tracker,
     )
+
+
+# attmodel Order 02 (`ov2c9n`) E-02 / E-03 / E-04:
+#
+# The source label 'export-session-current' names the mechanism (opencode export)
+# and its grain (session-current, not turn-specific). Because info.model is the session's
+# current model, a late read of a shared session would report a successor's model
+# if called after later turns run. The read is therefore executed immediately after
+# the turn ends, before subsequent turns launch, observing the model at that window
+# without claiming unfalsifiable turn-level provenance.
+HOST_MODEL_SOURCE = "export-session-current"
+
+# Chosen timeout bound: 25.0 seconds. Re-derived on the executing box by timing bounded
+# 4 KiB reads across three real sessions (including a 284 MB export) over two trials each:
+# cold trials measured 5.13s to 15.67s (worst-case 15.67s on the 284 MB session), and warm
+# trials measured 4.22s to 7.69s. 25.0s provides generous headroom (~1.6x) over the 15.67s
+# maximum observed latency while reliably terminating hung processes.
+DEFAULT_HOST_MODEL_TIMEOUT = 25.0
+
+HOST_MODEL_PREFIX_BYTES = 4096
+
+
+def is_host_model_observation_enabled(repo_root: Path | str | None) -> bool:
+    """Check whether host model observation is enabled via repository telemetry config.
+
+    Defaults to True (DEFAULT ON). Operators can opt out without code changes by setting
+    `"enabled": false` or `"observe_host_model": false` under `"run_analytics_telemetry"`
+    in `.aw/config/project.json` or `.aw/config/local.json`.
+    """
+    if repo_root is None:
+        return True
+    try:
+        from agent_workflows.run_analytics_config import (
+            _coerce_bool,
+            read_local_settings,
+            read_project_settings,
+            read_telemetry_config,
+        )
+
+        for reader in (read_local_settings, read_project_settings):
+            settings = reader(repo_root)
+            if "observe_host_model" in settings:
+                return _coerce_bool(settings["observe_host_model"], True)
+        return bool(read_telemetry_config(repo_root).enabled)
+    except Exception:
+        return True
+
+
+def _extract_model_from_prefix(prefix_text: str) -> dict[str, Any] | None:
+    """Extract model identity from an opencode export JSON prefix.
+
+    The joined identifier f'{providerID}/{id}' is recorded in host_model, with
+    providerID and id preserved separately. The joined form is NOT asserted to equal
+    the frozen launch model value even when no substitution happened (e.g. the launch
+    value may use a profile alias or a differently-spelled prefix; run_dashboard._normalize_model
+    already strips uri/, google/, anthropic/, openai/ for this reason). Comparing the two
+    is Order 03's decision and this reader records what the host reported honestly.
+    """
+    match = re.search(r'"model"\s*:\s*(\{[^{}]*\})', prefix_text)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(1))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    model_id = data.get("id")
+    if not model_id or not isinstance(model_id, str):
+        return None
+    provider_id = data.get("providerID")
+    if provider_id and isinstance(provider_id, str):
+        joined = f"{provider_id}/{model_id}"
+        p_str = provider_id
+    else:
+        joined = model_id
+        p_str = ""
+
+    rec: dict[str, Any] = {
+        "host_model": joined,
+        "host_model_provider": p_str,
+        "host_model_source": HOST_MODEL_SOURCE,
+        "id": model_id,
+        "providerID": p_str,
+    }
+    variant = data.get("variant")
+    if variant is not None:
+        rec["host_model_variant"] = str(variant)
+        rec["variant"] = str(variant)
+    return rec
+
+
+def observe_host_model(
+    session_id: str,
+    options: Mapping[str, Any] | None = None,
+    *,
+    launcher: Callable[..., Any] | None = None,
+    timeout: float = DEFAULT_HOST_MODEL_TIMEOUT,
+    repo_root: Path | str | None = None,
+) -> dict[str, Any] | None:
+    """Bounded, streaming, never-raising observation of the OpenCode host model.
+
+    Interrogates the host using `opencode export <session_id>`, reading only the first
+    4 KiB prefix from stdout before terminating the process. Returns a dictionary with
+    host_model, host_model_provider, host_model_source, and optionally host_model_variant,
+    or None on any failure/timeout/opt-out.
+    """
+    if not session_id or not isinstance(session_id, str):
+        return None
+    opts = options or {}
+    effective_repo = repo_root or opts.get("repo")
+    if effective_repo and not is_host_model_observation_enabled(effective_repo):
+        return None
+
+    # Resolves the binary from options.get("opencode") or "opencode", identical to
+    # run_opencode's launch resolution, falling back to "opencode" when the key is absent.
+    # This ensures custom host binaries pinned via --opencode are interrogated rather than
+    # falling back to an unpinned PATH binary.
+    binary = opts.get("opencode") or "opencode"
+    cmd = [binary, "export", session_id]
+
+    try:
+        if launcher is not None:
+            proc = launcher(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        else:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception:
+        return None
+
+    # Check if the process exited nonzero immediately
+    try:
+        initial_poll = proc.poll() if hasattr(proc, "poll") else None
+    except Exception:
+        initial_poll = None
+    if initial_poll is not None and initial_poll != 0:
+        return None
+
+    raw_bytes = bytearray()
+    timed_out = False
+    deadline = time.monotonic() + timeout
+
+    try:
+        stdout_stream = getattr(proc, "stdout", None)
+        if stdout_stream is None:
+            return None
+
+        fd = None
+        if hasattr(stdout_stream, "fileno"):
+            try:
+                fd = stdout_stream.fileno()
+            except Exception:
+                fd = None
+
+        while len(raw_bytes) < HOST_MODEL_PREFIX_BYTES:
+            rem = deadline - time.monotonic()
+            if rem <= 0:
+                timed_out = True
+                break
+            if fd is not None:
+                r, _, _ = select.select([fd], [], [], rem)
+                if not r:
+                    timed_out = True
+                    break
+                try:
+                    chunk = os.read(fd, HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
+                except Exception:
+                    break
+                if not chunk:
+                    break
+                raw_bytes.extend(chunk)
+            else:
+                try:
+                    chunk = stdout_stream.read(HOST_MODEL_PREFIX_BYTES - len(raw_bytes))
+                except (TimeoutError, Exception):
+                    timed_out = True
+                    break
+                if not chunk:
+                    break
+                raw_bytes.extend(chunk)
+
+            # Check if model object is already in the read prefix
+            if (
+                _extract_model_from_prefix(raw_bytes.decode("utf-8", errors="replace"))
+                is not None
+            ):
+                break
+
+    except Exception:
+        return None
+    finally:
+        try:
+            if timed_out:
+                if hasattr(proc, "kill"):
+                    proc.kill()
+                if hasattr(proc, "wait"):
+                    proc.wait(timeout=1.0)
+            else:
+                if hasattr(proc, "terminate"):
+                    proc.terminate()
+                try:
+                    if hasattr(proc, "wait"):
+                        proc.wait(timeout=1.0)
+                except Exception:
+                    if hasattr(proc, "kill"):
+                        proc.kill()
+                    if hasattr(proc, "wait"):
+                        proc.wait(timeout=1.0)
+        except Exception:
+            pass
+
+    if timed_out:
+        return None
+
+    try:
+        post_poll = proc.poll() if hasattr(proc, "poll") else None
+    except Exception:
+        post_poll = None
+    if post_poll is not None and post_poll != 0 and not raw_bytes:
+        return None
+
+    text = raw_bytes.decode("utf-8", errors="replace")
+    return _extract_model_from_prefix(text)
 
 
 # runrecon-02 (`fduoj4`) E-01: one-line wrapper over the shared `reconcile_interrupted`, binding THIS
@@ -3981,8 +4240,15 @@ def run_queue(
     # driver, and both hosts import that module directly rather than one host importing from the
     # other. `refusal_of_item` is `r2i1b1`'s ONE reader, passed in so a recorded refusal reaches this
     # line through that plan's seam instead of a second read of the same key.
+    in_queue_id6s = [
+        str(it["id6"])
+        for it in state.get("queue", [])
+        if isinstance(it, dict) and it.get("id6")
+    ]
     for _disposition_line in render_queue_dispositions(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_disposition_line)
     # specvis st5klo E-03: the PRIMARY end-of-run site. Sited with the summary table rather than on a
@@ -4013,7 +4279,9 @@ def run_queue(
     # in the pure `run_selection_policy` module, never in a driver, and `refusal_of_item` is
     # `r2i1b1`'s ONE reader, so a recorded refusal's own remedy is SOURCED rather than duplicated here.
     for _summary_line in render_disposition_summary(
-        state.get("queue", []), refusal_reader=refusal_of_item
+        state.get("queue", []),
+        refusal_reader=refusal_of_item,
+        in_queue_id6s=in_queue_id6s,
     ):
         print(_summary_line)
     print(render_continuation_hint(state, run_dir))
@@ -4346,7 +4614,7 @@ LAUNCH IDENTITY (model / variant / agent):
         "--verify",
         "--audit",
         dest="validate",
-        action=argparse.BooleanOptionalAction,
+        action=runner_shared.RecordingBooleanOptionalAction,
         # hostdefault-02 (`ybkmzp`) E-03: `None`, NOT `False`, matching this driver's `resume` parser
         # which has always shipped `default=None` for exactly this reason. The flag is a genuine
         # TRI-STATE now: `None` means the operator said nothing, which falls THROUGH to the
@@ -4438,7 +4706,7 @@ LAUNCH IDENTITY (model / variant / agent):
         "--verify",
         "--audit",
         dest="validate",
-        action=argparse.BooleanOptionalAction,
+        action=runner_shared.RecordingBooleanOptionalAction,
         default=None,
         help="Override turn-2 independent verification of executed plans",
     )
@@ -5044,6 +5312,9 @@ def main(argv: list[str] | None = None) -> int:
             print(run_dir / "execution-report.md")
             return 0
         if args.command == "resume":
+            # zdgc6t E-04: refuse contradictory verification flags before any state is loaded or written
+            # and before apply_run_policy_flags_on_resume can flip unrelated options (F-11).
+            runner_shared.refuse_contradictory_verification_flags(args)
             # runflags-01 (`uyeko5`) E-06: REFUSE a flag spec 2.1 freezes, before any state is loaded
             # or written. Scoped to `--retry-budget`, the one flag spec `:131` explicitly freezes ("the
             # frozen value cannot change on resume"). The blanket `:129` reading is NOT implemented,

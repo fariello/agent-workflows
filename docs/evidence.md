@@ -13,8 +13,10 @@ the last intact record when a write was interrupted.
 ## Provenance envelopes
 
 `build_evidence_envelope` wraps a step's tool events, captured output, and artifact references.
-`build_tool_event` and `capture_command` record what ran and what it produced. The environment
-is filtered (`filter_environment`) so secret-bearing keys never land verbatim.
+`build_tool_event` and `capture_command` record what ran and what it produced: the ledger record
+carries the digest and length of output, while output text is handed to callers out of band and
+is deliberately not persisted. The environment is filtered (`filter_environment`) so secret-bearing
+keys never land verbatim.
 
 ## Redaction
 

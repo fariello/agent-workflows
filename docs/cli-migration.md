@@ -33,9 +33,6 @@ Under `--agent`, legacy byte forms are replaced by `aw.agent/v1` JSONL:
      style commands used to print. They are now `aw.agent/v1` `diagnostics` inside a record.
   3. The `aw find` and `aw search` path lines (bare `path` or `path:line` text). They are now
      `aw.agent/v1` `item` records followed by a `summary` record.
-
-Note: The accuracy of these three legacy byte-form claims is under separate review (see backlog `qczq5r`).
-
 If you depended on text scraping, you should migrate to `--agent`. There is no flag that
 restores legacy shapes under `--agent`.
 
