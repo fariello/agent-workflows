@@ -36,41 +36,41 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Re-measure before changing anything
 
-- [ ] E-01 RE-DERIVE, at execution HEAD, the five facts the rest of this plan rests on, rather than trusting the numbers in this plan or in the backlog item. (1) That `inspect_lane`'s docstring still contains the quoted string `stays_stdlib_only`, and that `tests/test_lane_allocation_idempotent.py` is still absent. (2) WHICH COMMIT REMOVED THE TEST FUNCTION, via `git log -S stays_stdlib_only --all -- tests/`; the backlog item says `19313eed`, authoring measured `80db6750c` removed the FUNCTION first and `19313eed` the FILE a day later. If that ordering no longer reproduces, correct it and say so, because the whole "may not be restored as-written" argument depends on the earlier commit's stated purpose. (3) That the deleted body was a SOURCE PARSE, by reading it at `git show 80db6750c -- tests/test_lane_allocation_idempotent.py` and confirming it calls `read_text` on `WL.__file__`. (4) That `worktree_lease` still has ZERO module-level first-party imports and exactly ONE function-local one, in `lane_merged_into_target`. (5) That no SURVIVING test already enforces this property (search `tests/` for `stdlib_only`, `worktree_lease` plus `sys.modules`, and `first_party`). IF A SURVIVING GUARD IS FOUND, STOP AND REPORT: the fix then collapses to a one-line citation correction and this plan is over-scoped.
+- [x] E-01 RE-DERIVE, at execution HEAD, the five facts the rest of this plan rests on, rather than trusting the numbers in this plan or in the backlog item. (1) That `inspect_lane`'s docstring still contains the quoted string `stays_stdlib_only`, and that `tests/test_lane_allocation_idempotent.py` is still absent. (2) WHICH COMMIT REMOVED THE TEST FUNCTION, via `git log -S stays_stdlib_only --all -- tests/`; the backlog item says `19313eed`, authoring measured `80db6750c` removed the FUNCTION first and `19313eed` the FILE a day later. If that ordering no longer reproduces, correct it and say so, because the whole "may not be restored as-written" argument depends on the earlier commit's stated purpose. (3) That the deleted body was a SOURCE PARSE, by reading it at `git show 80db6750c -- tests/test_lane_allocation_idempotent.py` and confirming it calls `read_text` on `WL.__file__`. (4) That `worktree_lease` still has ZERO module-level first-party imports and exactly ONE function-local one, in `lane_merged_into_target`. (5) That no SURVIVING test already enforces this property (search `tests/` for `stdlib_only`, `worktree_lease` plus `sys.modules`, and `first_party`). IF A SURVIVING GUARD IS FOUND, STOP AND REPORT: the fix then collapses to a one-line citation correction and this plan is over-scoped.
   - Depends on: none
   - Expected outcome: a recorded execution-HEAD measurement of all five facts with the HEAD sha stated, each either confirmed or corrected in writing, and an explicit STOP if fact (5) finds an existing guard.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Add the guard, which is what makes the docstring fix honest
 
-- [ ] E-02 ADD a new behavioral guard file `tests/test_worktree_lease_stdlib_only.py` whose central test asserts the IMPORT-SET OUTCOME in an ISOLATED SUBPROCESS. The probe must (a) `import agent_workflows` alone and snapshot `{m for m in sys.modules if m.startswith("agent_workflows")}`, (b) then `import agent_workflows.worktree_lease`, (c) print the set difference minus `agent_workflows.worktree_lease` itself. The test asserts that difference is EMPTY. DERIVE THE BASELINE, DO NOT HARDCODE IT: authoring measured the package `__init__` pulling in `agent_workflows._compat` and `agent_workflows.versioning` (via its `from . import versioning` / `from ._compat import packaged_source_root` lines), and a hardcoded four-name allowlist would break the next time `__init__` legitimately changes, which is the brittleness that gets a guard deleted. USE A SUBPROCESS, NOT AN IN-PROCESS CHECK, and state the reason in the docstring: authoring measured that an in-process form reports a FALSE POSITIVE whenever any earlier test in the same worker already imported `runner_shared`, and `pyproject.toml`'s `addopts` runs `-n auto` with `pytest-randomly` active, so an order-dependent guard would flake. Pin the subprocess to THIS tree with `tests/support.pinned_env()`, following the established precedent in `tests/test_lane_import_root.py`, whose module docstring explains that an editable install's `.pth` can otherwise silently resolve the main checkout's package from a lane worktree. THIS IS NOT A CODE-STRUCTURE PIN: it runs the real import and asserts over real interpreter state, reading no production source text, per `GUIDING_PRINCIPLES.md` P16's "No production source inspection" bullet.
+- [x] E-02 ADD a new behavioral guard file `tests/test_worktree_lease_stdlib_only.py` whose central test asserts the IMPORT-SET OUTCOME in an ISOLATED SUBPROCESS. The probe must (a) `import agent_workflows` alone and snapshot `{m for m in sys.modules if m.startswith("agent_workflows")}`, (b) then `import agent_workflows.worktree_lease`, (c) print the set difference minus `agent_workflows.worktree_lease` itself. The test asserts that difference is EMPTY. DERIVE THE BASELINE, DO NOT HARDCODE IT: authoring measured the package `__init__` pulling in `agent_workflows._compat` and `agent_workflows.versioning` (via its `from . import versioning` / `from ._compat import packaged_source_root` lines), and a hardcoded four-name allowlist would break the next time `__init__` legitimately changes, which is the brittleness that gets a guard deleted. USE A SUBPROCESS, NOT AN IN-PROCESS CHECK, and state the reason in the docstring: authoring measured that an in-process form reports a FALSE POSITIVE whenever any earlier test in the same worker already imported `runner_shared`, and `pyproject.toml`'s `addopts` runs `-n auto` with `pytest-randomly` active, so an order-dependent guard would flake. Pin the subprocess to THIS tree with `tests/support.pinned_env()`, following the established precedent in `tests/test_lane_import_root.py`, whose module docstring explains that an editable install's `.pth` can otherwise silently resolve the main checkout's package from a lane worktree. THIS IS NOT A CODE-STRUCTURE PIN: it runs the real import and asserts over real interpreter state, reading no production source text, per `GUIDING_PRINCIPLES.md` P16's "No production source inspection" bullet.
   - Depends on: E-01
   - Expected outcome: `tests/test_worktree_lease_stdlib_only.py` exists and its import-set test passes, asserting an empty first-party delta derived at runtime rather than compared against a hardcoded module list, running in a `pinned_env` subprocess.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 ADD to the same file a SECOND, positive test that `lane_merged_into_target` still resolves its delegate through the FUNCTION-LOCAL import. This exists because E-02's assertion is satisfiable the WRONG way: deleting the lazy delegation entirely would also make the import delta empty, turning a landing predicate into a constant `False` while the guard went green. The test must assert the CONTRAST authoring measured: `agent_workflows.runner_shared` is ABSENT from `sys.modules` before the call and PRESENT after it, with the call made on a branch name that does not exist so the predicate's documented fail-toward-preservation path returns `False` without needing a fixture lane. THIS TEST MUST ALSO RUN IN A `pinned_env()` SUBPROCESS, for the same reason as E-02 and with a STRONGER effect: an in-process "absent before" assertion is not merely flaky but near-certain to fail, because review measured 34 test modules under `tests/` that import `runner_shared` at module level, and collecting even one of them (`tests/test_lane_import_root.py`) leaves `agent_workflows.runner_shared` in `sys.modules`. Pass a fresh temporary directory (the test's `tmp_path` or `tempfile.mkdtemp()`) as `repo_root` rather than `Path('.')`, so the call never touches a real repository. Review demonstrated this exact shape: a `pinned_env()` subprocess printed `FILE=<this worktree>/agent_workflows/worktree_lease.py`, `BEFORE=False`, `RET=False`, `AFTER=True`. Keep this a separate test from E-02 because it asserts a different property (lazy delegation still wired) through a different mechanism (calling the function), and because its failure means something different from E-02's.
+- [x] E-03 ADD to the same file a SECOND, positive test that `lane_merged_into_target` still resolves its delegate through the FUNCTION-LOCAL import. This exists because E-02's assertion is satisfiable the WRONG way: deleting the lazy delegation entirely would also make the import delta empty, turning a landing predicate into a constant `False` while the guard went green. The test must assert the CONTRAST authoring measured: `agent_workflows.runner_shared` is ABSENT from `sys.modules` before the call and PRESENT after it, with the call made on a branch name that does not exist so the predicate's documented fail-toward-preservation path returns `False` without needing a fixture lane. THIS TEST MUST ALSO RUN IN A `pinned_env()` SUBPROCESS, for the same reason as E-02 and with a STRONGER effect: an in-process "absent before" assertion is not merely flaky but near-certain to fail, because review measured 34 test modules under `tests/` that import `runner_shared` at module level, and collecting even one of them (`tests/test_lane_import_root.py`) leaves `agent_workflows.runner_shared` in `sys.modules`. Pass a fresh temporary directory (the test's `tmp_path` or `tempfile.mkdtemp()`) as `repo_root` rather than `Path('.')`, so the call never touches a real repository. Review demonstrated this exact shape: a `pinned_env()` subprocess printed `FILE=<this worktree>/agent_workflows/worktree_lease.py`, `BEFORE=False`, `RET=False`, `AFTER=True`. Keep this a separate test from E-02 because it asserts a different property (lazy delegation still wired) through a different mechanism (calling the function), and because its failure means something different from E-02's.
   - Depends on: E-02
   - Expected outcome: a second passing test, run in a `pinned_env()` subprocess, demonstrating `runner_shared` is absent before and present after a `lane_merged_into_target` call, so the stdlib-only guard cannot be satisfied by removing the delegation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 PROVE THE GUARD IS SENSITIVE by mutation, and record the output, since an insensitive guard is exactly the hollow pin this plan exists to replace. TEMPORARILY inject `from agent_workflows import runner_shared` at module level in `agent_workflows/worktree_lease.py`, run the new test file, confirm the E-02 test FAILS, then RESTORE the file and confirm it is byte-identical (`git status --porcelain` clean for that path) and the test passes again. Authoring's run of this showed the delta going from `<none>` to 26 modules. THEN RUN A SECOND MUTATION that proves E-03, since E-03 exists precisely to catch the wrong-way fix E-02 cannot see: replace `lane_merged_into_target`'s body with a bare `return False` (removing the function-local `runner_shared` import), run the file, and confirm the E-03 test FAILS while the E-02 test still PASSES; restore the same way and re-confirm a clean `git status --porcelain` and a passing file. The contrast is the evidence: mutation 1 must turn E-02 red, mutation 2 must turn E-03 red with E-02 green. DO THIS WITH A RESTORING WRAPPER (write the mutation, run, restore in a `finally`), never by hand-editing and remembering to undo it: a mutation left behind would commit the very defect the guard forbids. Record the failure message the test actually produced, because that message is what a future engineer will have to act on.
+- [x] E-04 PROVE THE GUARD IS SENSITIVE by mutation, and record the output, since an insensitive guard is exactly the hollow pin this plan exists to replace. TEMPORARILY inject `from agent_workflows import runner_shared` at module level in `agent_workflows/worktree_lease.py`, run the new test file, confirm the E-02 test FAILS, then RESTORE the file and confirm it is byte-identical (`git status --porcelain` clean for that path) and the test passes again. Authoring's run of this showed the delta going from `<none>` to 26 modules. THEN RUN A SECOND MUTATION that proves E-03, since E-03 exists precisely to catch the wrong-way fix E-02 cannot see: replace `lane_merged_into_target`'s body with a bare `return False` (removing the function-local `runner_shared` import), run the file, and confirm the E-03 test FAILS while the E-02 test still PASSES; restore the same way and re-confirm a clean `git status --porcelain` and a passing file. The contrast is the evidence: mutation 1 must turn E-02 red, mutation 2 must turn E-03 red with E-02 green. DO THIS WITH A RESTORING WRAPPER (write the mutation, run, restore in a `finally`), never by hand-editing and remembering to undo it: a mutation left behind would commit the very defect the guard forbids. Record the failure message the test actually produced, because that message is what a future engineer will have to act on.
   - Depends on: E-03
   - Expected outcome: pasted evidence of the E-02 test failing under the injected import, and of the E-03 test failing (with E-02 passing) under the removed delegation, each followed by a passing run after restoration, plus a clean `git status --porcelain agent_workflows/worktree_lease.py` after each restore, and the verbatim failure messages.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Correct the citation the guard now backs
 
-- [ ] E-05 REPLACE the dangling citation in `inspect_lane`'s docstring. The parenthetical currently reads that the property is "pinned by `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`, which forbids this module even NAMING a run-context parameter"; it must name the new guard instead. TWO PRECISION REQUIREMENTS, because an inaccurate replacement recreates this defect in a new place. FIRST, do not carry over the "forbids ... even NAMING a run-context parameter" clause: that described the deleted body's `run_dir` substring assertion, and the new guard asserts an IMPORT SET, so repeating it would overstate what the guard checks. Describe what the new test actually asserts. SECOND, PRESERVE every other sentence in that docstring verbatim, in particular the `7ckptx` R5.5 RETENTION explanation of why the inventory cannot live here and the conclusion that retention classification belongs at the driver call site; this item changes a citation, not the module's documented design. Leave the two OTHER dangling citations of the same dead file alone (they are in `runner_shared.py`, concern signal-handler registration, and belong to `iosmvn`; see the deferred section).
+- [x] E-05 REPLACE the dangling citation in `inspect_lane`'s docstring. The parenthetical currently reads that the property is "pinned by `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`, which forbids this module even NAMING a run-context parameter"; it must name the new guard instead. TWO PRECISION REQUIREMENTS, because an inaccurate replacement recreates this defect in a new place. FIRST, do not carry over the "forbids ... even NAMING a run-context parameter" clause: that described the deleted body's `run_dir` substring assertion, and the new guard asserts an IMPORT SET, so repeating it would overstate what the guard checks. Describe what the new test actually asserts. SECOND, PRESERVE every other sentence in that docstring verbatim, in particular the `7ckptx` R5.5 RETENTION explanation of why the inventory cannot live here and the conclusion that retention classification belongs at the driver call site; this item changes a citation, not the module's documented design. Leave the two OTHER dangling citations of the same dead file alone (they are in `runner_shared.py`, concern signal-handler registration, and belong to `iosmvn`; see the deferred section).
   - Depends on: E-04
   - Expected outcome: `inspect_lane`'s docstring cites `tests/test_worktree_lease_stdlib_only.py` and describes the import-set property accurately, with every unrelated sentence unchanged and no reference to `stays_stdlib_only` remaining in that file.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Prove the change is safe in the suite it ships into
 
-- [ ] E-06 RUN THE FULL FAST SUITE BARE as `python3 -m pytest`, with no added flags, and RUN THE NEW FILE TWICE UNDER DIFFERENT RANDOM SEEDS to demonstrate the order-independence F-08 identified as the specific flake risk. This is a separate item from E-02 through E-04 because those validate the new guard in isolation while this one validates that the guard behaves correctly as one test among thousands under `-n auto --dist=worksteal` with randomized ordering, which is the only configuration it will ever actually run in. If the suite shows failures, DETERMINE WHETHER THEY PRE-EXIST by re-running the same selection at the base commit before attributing anything to this change, and report the comparison either way rather than asserting the failures are unrelated.
+- [x] E-06 RUN THE FULL FAST SUITE BARE as `python3 -m pytest`, with no added flags, and RUN THE NEW FILE TWICE UNDER DIFFERENT RANDOM SEEDS to demonstrate the order-independence F-08 identified as the specific flake risk. This is a separate item from E-02 through E-04 because those validate the new guard in isolation while this one validates that the guard behaves correctly as one test among thousands under `-n auto --dist=worksteal` with randomized ordering, which is the only configuration it will ever actually run in. If the suite shows failures, DETERMINE WHETHER THEY PRE-EXIST by re-running the same selection at the base commit before attributing anything to this change, and report the comparison either way rather than asserting the failures are unrelated.
   - Depends on: E-05
   - Expected outcome: a bare full-suite run with its `N passed` summary captured, plus two differently-seeded passing runs of the new test file, plus an explicit pre-existing-versus-caused determination for any failure observed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,9 +108,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Deferred / out of scope (with reason)
 
 - **THE TWO `runner_shared.py` SIGNAL-HANDLER CITATIONS (F-10).** Both cite the same dead file, and all four test files that comment names are absent, so the claim that guards "FORBID registering a handler" is as unbacked as the one this plan fixes. Out of scope on three grounds: it is a DIFFERENT property (SIGINT/SIGTERM registration, owned by `runstop` Phase 5 `71vjbn`), the fix needs its own judgement about whether that prohibition should be re-guarded or merely re-described, and the rollup item `iosmvn` already exists to track unowned dangling citations. Folding it in here would also push a `low`-priority single-citation fix into a second subsystem.
+  - Carrier: iosmvn
 - **THE DELETED GUARD'S `append_jsonl(` AND `run_dir` SUBSTRING ASSERTIONS.** Not restored in any form. They are production-source substring searches, prohibited by P16 and by `AGENTS.md`'s no-code-pinning rule. The ledger/run-context property they approximated is partly covered by the behavioral consequence this plan DOES pin: importing a ledger or run-context module would show up in E-02's import delta. The residue (a run-context parameter NAMED but imported from nowhere) is deliberately left unguarded rather than guarded by a forbidden mechanism.
+  - Carrier-Declined: prohibited by GUIDING_PRINCIPLES.md P16 and AGENTS.md; no behavioral equivalent exists for unimported parameter names.
 - **A GENERAL DANGLING-CITATION CHECKER.** `tools/lost_guard_census.py` already measures this class (101 distinct dangling test paths, 469 hits, at the authoring run) and `iosmvn` tracks the unowned remainder. Promoting the census to a blocking gate is a much larger decision about 101 existing violations and is not this item's concern.
+  - Carrier: iosmvn
 - **THE `19313eed`-VERSUS-`80db6750c` MISATTRIBUTION IN THE BACKLOG ITEM'S OWN TEXT.** F-02 corrects it here, in the plan, rather than editing the item: the production contract forbids modifying the item's requirements, and its `## Workflow history` is an append-only dated record of what the filer measured at the time.
+  - Carrier-Declined: historical record in backlog item workflow history is immutable per repository contract; correction is recorded permanently in F-02 of this plan.
 
 ## Scope check
 
@@ -149,35 +153,197 @@ N/A, with reason. No spec governs `worktree_lease`'s import posture; the propert
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The execution HEAD sha, plus pasted output for each of the five facts: (1) the `grep` hit showing `stays_stdlib_only` still in `worktree_lease.py` and the failed `ls` for `tests/test_lane_allocation_idempotent.py`; (2) `git log --oneline -S "stays_stdlib_only" --all -- tests/` output AND the `git merge-base --is-ancestor 80db6750c 19313eed7` exit code, with an explicit statement of whether F-02's two-commit ordering reproduced or is corrected; (3) the deleted body's `read_text` line quoted from `git show`; (4) the module's module-level first-party import count (expect 0) and the location of the single function-local one; (5) the searches for a surviving guard with their results. A bare assertion that the facts hold FAILS this item. If fact (5) found a surviving guard, the required evidence is instead the STOP report naming it.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD sha: `d6aca9515f133266b0806332e7374c429a41b21c`
+    (1) Dangling citation and absent test file:
+    ```
+    $ grep -n "stays_stdlib_only" agent_workflows/worktree_lease.py
+    396:    `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`, which forbids
+    $ ls tests/test_lane_allocation_idempotent.py
+    ls: cannot access 'tests/test_lane_allocation_idempotent.py': No such file or directory
+    ```
+    (2) Commit deletion history and ordering:
+    ```
+    $ git log --oneline -S "stays_stdlib_only" --all -- tests/
+    80db6750c test: delete 366 tests that pinned code structure instead of behaviour
+    7a6bc48ac fix(laneorphan): lane allocation adopts or attempt-scopes instead of hard-failing
+    $ git merge-base --is-ancestor 80db6750c 19313eed7
+    ancestor rc=0
+    ```
+    F-02's two-commit ordering reproduced in full: `80db6750c` deleted the test function on 2026-09-23, and `19313eed` deleted the file on 2026-09-24; `80db6750c` is an ancestor of `19313eed7`.
+    (3) Deleted test body calls `read_text` on `WL.__file__` (source parse):
+    ```python
+    -    def test_worktree_lease_stays_stdlib_only(self):
+    -        # Plan `2c122z` E-06 DEPENDS on this: it reuses allocate_worktree for disposable candidate
+    -        # worktrees, so a ledger/run-context import here would couple a low-level primitive to run
+    -        # state and would misrecord candidates as lanes.
+    -        source = Path(WL.__file__).read_text(encoding="utf-8")
+    -        imports = [
+    -            line.strip()
+    -            for line in source.splitlines()
+    -            if line.startswith("import ") or line.startswith("from ")
+    -        ]
+    -        self.assertTrue(imports)
+    -        for line in imports:
+    -            self.assertNotIn("agent_workflows", line, f"non-stdlib import: {line}")
+    -        self.assertNotIn("append_jsonl(", source, "no ledger call in the primitive")
+    -        self.assertNotIn("run_dir", source, "no run context in the primitive")
+    ```
+    (4) Module import counts:
+    AST walk confirms module-level first-party imports: 0.
+    Single function-local import at line 347 of `agent_workflows/worktree_lease.py`: `from agent_workflows import runner_shared` in `lane_merged_into_target`.
+    (5) Search for surviving guards:
+    `grep -rn "stdlib_only" tests/` -> 3 hits (`test_ipd_schema.py`, `test_ipd_authoring.py`, `test_ipd_lint.py`), none for `worktree_lease`.
+    `grep -rn "worktree_lease" tests/ | grep "sys.modules"` -> no hits.
+    `grep -rn "first_party" tests/` -> hits in `test_lost_guard_census.py` for `runner_shared`, none for `worktree_lease`.
+    No surviving guard found.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `python3 -m pytest tests/test_worktree_lease_stdlib_only.py` output showing the import-set test passing, PLUS the probe's own printed delta showing it empty. ALSO paste the test source region that derives the baseline, to demonstrate the baseline is computed at runtime and not a hardcoded module list (a hardcoded list FAILS this item, per F-07). ALSO confirm by inspection that the test spawns a subprocess via `sys.executable` and passes `support.pinned_env()`, since an in-process form is the measured flake in F-08.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_worktree_lease_stdlib_only.py` output:
+    ```
+    ..                                                                       [100%]
+    2 passed in 14.35s
+    ```
+    Probe's printed delta:
+    ```
+    BASELINE=["agent_workflows", "agent_workflows._compat", "agent_workflows.versioning"]
+    AFTER=["agent_workflows", "agent_workflows._compat", "agent_workflows.versioning", "agent_workflows.worktree_lease"]
+    DELTA=[]
+    ```
+    Test source region dynamically computing baseline at runtime:
+    ```python
+            # Derive baseline at runtime rather than hardcoding module names.
+            baseline = {m for m in sys.modules if m.startswith("agent_workflows")}
+            import agent_workflows.worktree_lease
 
-- [ ] V-03 validates E-03
+            after = {m for m in sys.modules if m.startswith("agent_workflows")}
+            delta = sorted(list(after - baseline - {"agent_workflows.worktree_lease"}))
+    ```
+    Subprocess spawn confirmed via `sys.executable` and `support.pinned_env()`:
+    ```python
+        proc = subprocess.run(
+            [sys.executable, "-c", probe],
+            env=support.pinned_env(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: Pasted test output showing the lazy-delegation test passing, and the asserted contrast made explicit: `agent_workflows.runner_shared` NOT in `sys.modules` before the `lane_merged_into_target` call and IN `sys.modules` after it. A test that only asserts the post-call presence FAILS this item, because the before-state is what distinguishes lazy delegation from a module-level import. ALSO confirm by inspection that the before/after observation is made inside a `sys.executable` subprocess with `support.pinned_env()`; an in-process form FAILS this item, because the ambient worker's `sys.modules` already holds `runner_shared` from other test modules.
   - Observed evidence:
-  - Result: pending
+    `python3 -m pytest tests/test_worktree_lease_stdlib_only.py` passes `test_lane_merged_into_target_lazy_delegation`.
+    Probe contrast output:
+    ```
+    FILE=<this-worktree>/agent_workflows/worktree_lease.py
+    BEFORE=False
+    RET=False
+    AFTER=True
+    ```
+    Explicit contrast: `agent_workflows.runner_shared` is NOT in `sys.modules` before `lane_merged_into_target` is invoked (`BEFORE=False`), and IS present in `sys.modules` after the invocation (`AFTER=True`), with `ret` returning `False` on a nonexistent branch in a fresh temp directory (`RET=False`).
+    Subprocess execution with `support.pinned_env()` confirmed by inspection:
+    ```python
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            proc = subprocess.run(
+                [sys.executable, "-c", probe, tmp_dir],
+                env=support.pinned_env(),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: THE MUTATION TRANSCRIPT, in full: the injected line, the pasted FAILING test run under mutation including its verbatim assertion message, the pasted PASSING run after restoration, and `git status --porcelain agent_workflows/worktree_lease.py` returning empty. State the measured first-party module count under mutation (authoring saw 26 extra; context only, not a bar). PLUS THE SECOND MUTATION TRANSCRIPT: the `return False` replacement, a pasted run showing the E-03 test FAILING and the E-02 test PASSING, the passing run after restoration, and a second empty `git status --porcelain agent_workflows/worktree_lease.py`. A claim that either guard "would fail" without a pasted failing run FAILS this item.
   - Observed evidence:
-  - Result: pending
+    MUTATION 1 TRANSCRIPT (injected module-level import `from agent_workflows import runner_shared` in `worktree_lease.py`):
+    Failing run under mutation:
+    ```
+    FF                                                                       [100%]
+    =================================== FAILURES ===================================
+    _ WorktreeLeaseStdlibOnlyTests.test_worktree_lease_imports_no_first_party_modules _
+    ...
+    AssertionError: Lists differ: ['agent_workflows.agent_schema', ... 'agent_workflows.term'] != []
+    First list contains 27 additional elements.
+    ...
+    Importing agent_workflows.worktree_lease pulled in unexpected first-party modules: ['agent_workflows.agent_schema', 'agent_workflows.artifact_core', 'agent_workflows.artifact_naming', 'agent_workflows.attention_contract', 'agent_workflows.backlog', 'agent_workflows.config', 'agent_workflows.home_path_patterns', 'agent_workflows.ipd_schema', 'agent_workflows.layout', 'agent_workflows.leak_sanitizer', 'agent_workflows.lifecycle_dirs', 'agent_workflows.lifecycle_style', 'agent_workflows.model_vocab', 'agent_workflows.plans', 'agent_workflows.project_context', 'agent_workflows.project_schema', 'agent_workflows.record_placement', 'agent_workflows.record_producers', 'agent_workflows.render_stream', 'agent_workflows.research_contract', 'agent_workflows.result_types', 'agent_workflows.run_selection_policy', 'agent_workflows.runner_profiles', 'agent_workflows.runner_shared', 'agent_workflows.selectors', 'agent_workflows.status_set', 'agent_workflows.term']
+    ```
+    Measured first-party module delta count under mutation: 27 extra modules.
+    Passing run after restoration:
+    `2 passed in 12.20s`
+    `git status --porcelain agent_workflows/worktree_lease.py`: clean (empty).
 
-- [ ] V-05 validates E-05
+    MUTATION 2 TRANSCRIPT (replaced `lane_merged_into_target` body with `return False`):
+    Run under mutation showing E-03 failing and E-02 passing:
+    ```
+    .F                                                                       [100%]
+    =================================== FAILURES ===================================
+    __ WorktreeLeaseStdlibOnlyTests.test_lane_merged_into_target_lazy_delegation ___
+    ...
+    AssertionError: False is not true : agent_workflows.runner_shared MUST be present in sys.modules after lane_merged_into_target is called
+    ----------------------------- Captured stdout call -----------------------------
+    FILE=<this-worktree>/agent_workflows/worktree_lease.py
+    BEFORE=False
+    RET=False
+    AFTER=False
+    =========================== short test summary info ============================
+    FAILED tests/test_worktree_lease_stdlib_only.py::WorktreeLeaseStdlibOnlyTests::test_lane_merged_into_target_lazy_delegation
+    1 failed, 1 passed in 11.95s
+    ```
+    Passing run after restoration:
+    `2 passed in 11.67s`
+    `git status --porcelain agent_workflows/worktree_lease.py`: clean (empty).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: `git diff agent_workflows/worktree_lease.py` pasted, showing ONLY docstring lines changed, no import added or removed, and the new citation naming `tests/test_worktree_lease_stdlib_only.py`. Confirm by `grep -n "stays_stdlib_only" agent_workflows/worktree_lease.py` returning NOTHING. Confirm the diff does NOT reintroduce the "even NAMING a run-context parameter" clause (OQ-02). Confirm the `7ckptx` R5.5 RETENTION sentences and the "Retention classification belongs where the run context is, at the driver call site" conclusion are present and unchanged in the post-edit file.
   - Observed evidence:
-  - Result: pending
+    `git diff agent_workflows/worktree_lease.py` output:
+    ```diff
+    diff --git a/agent_workflows/worktree_lease.py b/agent_workflows/worktree_lease.py
+    index 30bbfcb2d..488668ff8 100644
+    --- a/agent_workflows/worktree_lease.py
+    +++ b/agent_workflows/worktree_lease.py
+    @@ -393,8 +393,8 @@ def inspect_lane(
+         owner record, and one of the five `LANE_STATES`.
 
-- [ ] V-06 validates E-06
+         STILL RUN-CONTEXT-FREE, and it must stay that way (pinned by
+    -    `tests/test_lane_allocation_idempotent.py::test_worktree_lease_stays_stdlib_only`, which forbids
+    -    this module even NAMING a run-context parameter). It takes no run directory and no item record, so
+    +    `tests/test_worktree_lease_stdlib_only.py`, which asserts importing this module pulls in
+    +    no first-party modules beyond the package baseline). It takes no run directory and no item record, so
+         the spec `7ckptx` R5.5 RETENTION inventory cannot live here: measured, `inventory_lane` given
+         neither answers EVERY lane unclassifiable ("no run directory or item was supplied"), so consulting
+         it from this reading would make even a provably empty lane non-reclaimable. Retention
+    ```
+    `grep -n "stays_stdlib_only" agent_workflows/worktree_lease.py` returns exit code 1 (nothing).
+    The diff modifies only docstring lines, introduces no imports, does NOT reintroduce the "even NAMING a run-context parameter" clause, and preserves the `7ckptx` R5.5 RETENTION sentences and "Retention classification belongs where the run context is, at the driver call site" verbatim.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted BARE `python3 -m pytest` summary line showing the full fast suite passing with its `N passed` count and no new failures, run with no added flags (a run carrying `-n0`, a second `-q`, or `-p no:randomly` FAILS this item, per the execution contract). PLUS evidence of order-independence: two runs of the new test file under DIFFERENT random seeds, both passing, with the seeds stated. PLUS `aw ipd lint --phase pre-transition` on this plan reporting conforming. If the suite has pre-existing unrelated failures, name each one and paste the base-commit comparison showing it fails identically there; do not attribute them to this change without that comparison.
   - Observed evidence:
-  - Result: pending
+    Bare full fast suite run (`python3 -m pytest` with no added flags):
+    ```
+    5054 passed, 2 skipped, 3 warnings in 820.19s (0:13:40)
+    ```
+    Order-independence runs under two different seeds:
+    Seed 12345:
+    `python3 -m pytest tests/test_worktree_lease_stdlib_only.py --randomly-seed=12345`
+    Output: `2 passed in 14.39s`
+    Seed 67890:
+    `python3 -m pytest tests/test_worktree_lease_stdlib_only.py --randomly-seed=67890`
+    Output: `2 passed in 16.09s`
+    `aw ipd lint --phase pre-transition` passes conforming with no errors.
+  - Result: pass
 
 ## Approval and execution gate
 
