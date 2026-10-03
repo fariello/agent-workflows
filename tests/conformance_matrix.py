@@ -214,7 +214,7 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
             "rather than an envelope."
         ),
     ),
-    # known_broken (4):
+    # known_broken (3):
     "config show": Exemption(
         reason_kind="known_broken",
         citation="dtq6jr",
@@ -229,15 +229,6 @@ EXEMPTION_REGISTRY: Dict[str, Exemption] = {
         reason_kind="known_broken",
         citation="dtq6jr",
         reason="Crashes with ImportError: cannot import name 'format_agent_json'. Owned by open backlog item dtq6jr.",
-    ),
-    "upgrade-test": Exemption(
-        reason_kind="known_broken",
-        citation="lbbo9s",
-        reason=(
-            "Bare command group with required subcommands; invoked without a subcommand it prints "
-            "an argparse usage block and exits 2, while COMMAND_INVENTORY erroneously declares "
-            "agent_record_kind='result'. Owned by filed backlog item lbbo9s."
-        ),
     ),
     # not_runnable (16):
     "ipd begin": Exemption(
