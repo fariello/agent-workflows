@@ -24,6 +24,7 @@ now under way. The direction of the 2.x line (in progress, not all shipped in th
 
 Major storage-layout boundary. The logical model (D126-D129) was superseded by the PHYSICAL `.aw/` hierarchy specified in `20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md` (D130, D134-D137), which the framework now implements and has migrated its own repository onto:
 
+- Fixed: repeated same-status re-assertions on aw backlog set --status now deduplicate against the newest existing record instead of appending redundant history records, matching the behavior of the positional spelling.
 - Fixed: corrected the message prefix printed by aw specs set --status when inheriting a release gate from a backlog item, so it attributes the notice to aw specs set rather than aw set.
 - Fixed: unified artifact workflow history dates onto the UTC clock across all history writers per spec 2vev8j Section 4.4, while human-facing artifact filename date prefixes deliberately remain on the local machine clock per DECISIONS.md D55.
 - Added: status setters (aw backlog set, aw specs set, and aw set) gain an opt-in --rewrite-citations flag (default off) to rewrite citing Scope-Paths in pending plans when relocating records, guarded by a fail-closed check that skips in-flight plans with live begin receipts (D159).
