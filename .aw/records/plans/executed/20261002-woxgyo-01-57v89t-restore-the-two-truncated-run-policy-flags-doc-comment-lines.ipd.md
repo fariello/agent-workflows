@@ -8,7 +8,7 @@
 - Scope: Make the `RUN_POLICY_FLAGS` doc-comment whole and correctly attached, and give the `ON_CONFLICT_*` constants a comment of their own. Three parts. FIRST, restore the two lost lines VERBATIM from `git show 7dd1c486c^:agent_workflows/runner_shared.py` ("`#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and`" / "`#: therefore the first that can reach the shipped \`[RUN-MIXED-TYPES]\` gate.`"), so the `--type` paragraph closes the sentence it starts. SECOND, replace the doubled `#: #:` line with a single-prefixed `#:` comment owning the `ON_CONFLICT_*` family, matching the `ON_INTEGRATION_BLOCKED_*` family's shape in this same file. THIRD, restore the ADJACENCY the first two parts would otherwise break, by moving the `ON_CONFLICT_*` constant group and its new comment ABOVE the `RUN_POLICY_FLAGS` doc-comment rather than between that doc-comment and its symbol. EXCLUDES every behavioral change: no constant value, tuple membership, flag spelling, `help` string, default, signature or executable statement is touched, and V-04 proves the whole-module claim by AST comparison rather than asserting it. EXCLUDES adding, weakening or deleting any test; the item itself says "no test is needed beyond showing the module still imports and the suite count is unmoved", and a test that read this comment back would be exactly the source-reading code pin `AGENTS.md` and `GUIDING_PRINCIPLES` P16 forbid. EXCLUDES the seven stale `tests/test_run_flag_surface.py` guard citations in this same file, one of which sits in this very doc-comment block: that is `rcp8c4`'s subject, already carried by pending plan `8wpjeq`, whose E-04(a) explicitly forbids touching this damage so the two diffs stay separable. EXCLUDES the undeclared `--on-conflict ask` value and the `--action` gap that the same region's prose bears on, both carried by `n5gsea`. EXCLUDES the 129 other module-level constants in this file that carry no `#:` doc-comment at all: they are a pre-existing documentation gap, not splice damage, and sweeping them would turn a two-site repair into a 36,000-line documentation project.
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261002-woxgyo-01-57v89t-restore-the-two-truncated-run-policy-flags-doc-comment-lines.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Work-Kind: chore
 - Priority: low
 - From-Backlog: woxgyo
@@ -18,9 +18,9 @@
 - Readiness: go-pending-approval
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 57v89t
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 57v89t verified (set woxgyo, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004. Every load-bearing claim re-verified at lane HEAD `dd8001247` (single `#: #:` site, `7dd1c486c` hunk, verbatim recovery at 100/75 chars, `[RUN-MIXED-TYPES]` live, ruff 0.16.3 vs pinned v0.4.4, `8wpjeq` E-04(a) boundary); relocation shape re-prototyped AST EQUAL. Fixed: AST/baseline ref pinned to a recorded pre-edit SHA (PR-001), sibling citation count made relative to the pre-edit measurement (PR-002), false test-reference count removed (PR-003), formatter comparison made header-insensitive (PR-004).
 
