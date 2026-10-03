@@ -28774,6 +28774,91 @@ material question arose, say so in the summary. Explicitly confirm pushed=false.
 {defect_report_prompt_block()}{reporting_contract.prompt_block()}"""
 
 
+def resolve_cli_host(
+    labels: HostLabels | None = None,
+    host: str | None = None,
+) -> str:
+    """Derive the CLI host noun (e.g. 'opencode' or 'antigravity')."""
+    effective_labels = (
+        labels
+        if labels is not None
+        else (
+            AGY_HOST_LABELS
+            if host == "agy"
+            else (OC_HOST_LABELS if host == "oc" else None)
+        )
+    )
+    if (
+        effective_labels is not None
+        and effective_labels.argv_tokens
+        and len(effective_labels.argv_tokens) > 1
+    ):
+        return str(effective_labels.argv_tokens[1])
+    if effective_labels is not None:
+        return str(effective_labels.id)
+    return str(host or "opencode")
+
+
+def ensure_frozen_host_capabilities(
+    state: dict[str, Any],
+    cli_host: str,
+    *,
+    run_dir: Path | None = None,
+    detect_host_fn: Any = None,
+) -> Any:
+    """Return the HostSandboxCapabilities for `cli_host` frozen in `state`.
+
+    bqtgmo (E-03 / E-04 / E-06): Reads the run-scoped frozen descriptor under the
+    `state["host_capabilities"]` key instead of re-probing per item.
+
+    Self-healing for older/resumed runs: If `state["host_capabilities"]` is absent
+    or invalid, measures once on demand, records the snapshot into `state["host_capabilities"]`,
+    and persists state to `run_dir` if provided, so that even a resumed run never probes
+    per item.
+    """
+    from agent_workflows import host_sandbox_profile as _hsp
+
+    frozen = state.get("host_capabilities")
+    if (
+        isinstance(frozen, dict)
+        and "descriptor" in frozen
+        and isinstance(frozen["descriptor"], dict)
+    ):
+        return _hsp.HostSandboxCapabilities.from_dict(frozen["descriptor"])
+
+    # Absence is self-healing: measure once on demand and freeze into state.
+    probe_fn = (
+        detect_host_fn if detect_host_fn is not None else _hsp.detect_host_capabilities
+    )
+    try:
+        caps = probe_fn(cli_host)
+    except Exception as exc:
+        caps = _hsp.HostSandboxCapabilities()
+        caps.probe_notes["on_demand_probe_error"] = f"{type(exc).__name__}: {exc}"
+
+    # Spec 25kzda 5.2 descriptor fields recorded:
+    # - host: cli_host
+    # - observed_at: timestamp from utc_now()
+    # - descriptor: JSON snapshot from HostSandboxCapabilities.to_dict()
+    # Fields required by spec 25kzda 5.2 that are NOT recorded here (gap documented per bqtgmo E-03):
+    # - exact version
+    # - mode/configuration
+    # - evidence digest
+    # - expiry (TTL)
+    # - assurance tier
+    state["host_capabilities"] = {
+        "host": cli_host,
+        "observed_at": utc_now(),
+        "descriptor": caps.to_dict(),
+    }
+    if run_dir is not None:
+        try:
+            save_state(run_dir, state)
+        except Exception:
+            pass
+    return caps
+
+
 def initialize_run_core(
     args: argparse.Namespace,
     *,
@@ -29207,6 +29292,17 @@ def initialize_run_core(
     isolate_review = isolation.get("review", True)
     isolate_plan = isolation.get("plan", isolate_review)
 
+    cli_host = resolve_cli_host(labels=labels, host=host)
+    try:
+        from agent_workflows import host_sandbox_profile as _hsp
+
+        caps = _hsp.detect_host_capabilities(cli_host)
+    except Exception as exc:
+        from agent_workflows import host_sandbox_profile as _hsp
+
+        caps = _hsp.HostSandboxCapabilities()
+        caps.probe_notes["initialization_probe_error"] = f"{type(exc).__name__}: {exc}"
+
     state = {
         "schema_version": SCHEMA_VERSION,
         "run_id": run_id,
@@ -29223,6 +29319,21 @@ def initialize_run_core(
         "session_id": initial_session,
         "set_sessions": set_sessions,
         "session_turn_counts": {},
+        # Spec 25kzda 5.2 descriptor fields recorded:
+        # - host: cli_host
+        # - observed_at: timestamp from utc_now()
+        # - descriptor: JSON snapshot from HostSandboxCapabilities.to_dict()
+        # Fields required by spec 25kzda 5.2 that are NOT recorded here (gap documented per bqtgmo E-03):
+        # - exact version
+        # - mode/configuration
+        # - evidence digest
+        # - expiry (TTL)
+        # - assurance tier
+        "host_capabilities": {
+            "host": cli_host,
+            "observed_at": utc_now(),
+            "descriptor": caps.to_dict(),
+        },
         "options": {
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
@@ -32531,7 +32642,7 @@ def execute_item_core(
                 if host_labels.argv_tokens and len(host_labels.argv_tokens) > 1
                 else host_labels.id
             )
-            caps = _hsp.detect_host_capabilities(cli_host)
+            caps = ensure_frozen_host_capabilities(state, cli_host, run_dir=run_dir)
             item_id = str(item.get("id6") or "<unknown>")
             preflight = _hsp.preflight_host_capabilities(
                 contract_action,
