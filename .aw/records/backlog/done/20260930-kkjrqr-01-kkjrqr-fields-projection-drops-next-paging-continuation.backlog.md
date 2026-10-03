@@ -1,5 +1,5 @@
 - Id: kkjrqr
-- Status: graduated
+- Status: done
 - Graduated-To: kkjrqr
 - Blocks-Release: next
 - Set: kkjrqr
@@ -8,6 +8,7 @@
 - Summary: a --fields projection drops a summary's next paging continuation, so a truncated agent answer can carry no command to retrieve the rest
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 6rcby1 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-kkjrqr-01-6rcby1-preserve-a-summary-s-next-paging-continuation-through-a-fiel.ipd.md); evidence .aw/records/plans/executed/20261001-kkjrqr-01-6rcby1-preserve-a-summary-s-next-paging-continuation-through-a-fiel.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 6rcby1
 - 2026-09-30 created (aw backlog): a --fields projection drops a summary's next paging continuation, so a truncated agent answer can carry no command to retrieve the rest
 
