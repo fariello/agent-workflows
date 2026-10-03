@@ -1,5 +1,5 @@
 - Id: in7pfz
-- Status: graduated
+- Status: done
 - Graduated-To: in7pfz
 - Set: in7pfz
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Neither aw backlog check nor aw specs check detects a duplicated single-valued metadata field, so a duplicated - Blocks-Release: or - From-Backlog: on a backlog item or spec is invisible while the same duplicate on a plan is reported as IPD-M102
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 1znlxy executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-in7pfz-01-1znlxy-detect-a-duplicated-single-valued-metadata-bullet-on-a-spec.ipd.md); evidence .aw/records/plans/executed/20261001-in7pfz-01-1znlxy-detect-a-duplicated-single-valued-metadata-bullet-on-a-spec.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221834Z-1991716: 1znlxy
 - 2026-09-30 created (aw backlog): Neither aw backlog check nor aw specs check detects a duplicated single-valued metadata field, so a duplicated - Blocks-Release: or - From-Backlog: on a backlog item or spec is invisible while the same duplicate on a plan is reported as IPD-M102
 
