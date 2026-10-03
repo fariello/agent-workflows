@@ -6,7 +6,7 @@
 - Scope: Delete the one unreachable function and nothing else. EXCLUDES touching `_BACKLOG_DONE_RE`, `_staged_backlog_done_items`, `check_release_gate_consistency` (either arm), `evaluate_blocking_close`, or any rule id or severity. EXCLUDES deleting, renaming or re-homing any other symbol (F-13 measures that no other dead private helper exists in the module, so there is nothing else to sweep even opportunistically). EXCLUDES adding a lint rule, a census test, or any guard that would pin the absence of a symbol (such a test is forbidden by the repository's no-code-pinning contract). EXCLUDES any behavior change: after this plan every check rule returns byte-identical findings.
 - Scope-Paths: agent_workflows/check_engine.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: dtcgsz
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: dtcgsz verified (set gateatrest, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Re-measured at HEAD `ac9648ed5`: F-01 (AST census 1 def, 0 refs), F-04 (`596dd9acb` sole commit, 1 occurrence), F-06, F-07 (40/6 tests), F-08, F-09 (`release-gates` 0 findings), F-10 (F811 passes), F-13 (57 private functions, only `_backlog_done_dirs` unreferenced) all reproduce. Fixed: E-01's ambiguous padding/line-count (now exactly 7 lines, boundary verified in-memory with `ruff format --check`), an unspecified census command (now pasted verbatim), V-01's suite bar keyed to authoring-time failures (now the executor's own baseline), the post-gate backlog wording (item is already graduated; the runner's backlog close advances it), and two miscounts in F-02/F-03.
