@@ -1,5 +1,5 @@
 - Id: gia5i7
-- Status: graduated
+- Status: done
 - Graduated-To: gia5i7
 - Set: gia5i7
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: runner_shared cites the test class NoRunnerImportTests at eight sites and it exists nowhere in tests/
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 9vtas9 executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-gia5i7-01-9vtas9-strike-the-seven-dangling-norunnerimporttests-citations-and.ipd.md); evidence .aw/records/plans/executed/20261001-gia5i7-01-9vtas9-strike-the-seven-dangling-norunnerimporttests-citations-and.ipd.md
 - 2026-10-01 set (aw backlog): graduated by run run-20260930T053059Z-3200713: 9vtas9
 - 2026-09-29 created (aw backlog): runner_shared cites the test class NoRunnerImportTests at eight sites and it exists nowhere in tests/
 
