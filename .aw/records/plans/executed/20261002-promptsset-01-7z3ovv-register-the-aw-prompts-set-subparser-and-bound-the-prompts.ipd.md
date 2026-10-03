@@ -6,7 +6,7 @@
 - Scope: IN: (1) register a `set` subparser on the `prompts` family so the shipped dispatch arm and the shipped `CommandDeclaration` both become reachable, with the flag surface the declaration already names; (2) narrow `status_set.TYPE_STATUSES["prompts"]` from the copied plans vocabulary to the five real buckets DERIVED from `lifecycle_dirs.LIFECYCLE_SUBDIRS["prompts"]` (never re-listed), keeping `done` as the existing `executed` alias that `normalize_target_status` already implements; (3) make the setter write a prompt's status into its single leading `<!-- aw-prompt: ... -->` metadata comment instead of prepending a `- Status:` bullet, because the bullet is a measured corruption of a pasteable prompt and a measured `aw check prompts` error. OUT: the plan does NOT register any other missing prompts verb (`aw prompts check` is retired by maintainer decision, see Deferred), does NOT touch the untyped `aw set`'s own grammar, does NOT change which prompts a selector MATCHES, does NOT touch any other tree's vocabulary, and does NOT alter the five bucket names or the `attention_contract` class mapping.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/status_set.py, agent_workflows/prompts.py, agent_workflows/command_surface.py, tests/test_status_set.py, tests/test_exit_contract_conformance.py, tests/test_prompts_set_surface.py, tests/test_status_set_descriptive_safety.py, docs/artifact-lifecycles.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: low
@@ -17,9 +17,9 @@
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7z3ovv
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7z3ovv verified (set promptsset, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006, PR-007. Re-verified at lane HEAD 83888bf53 (F-01..F-04, F-11 reproduce). Fixed: 68sur3 already graduated to gm9baj so E-07 no longer edits it and coordinates with gm9baj's allow-set (PR-001); in-process narrowing measured 4 failed existing prompt tests, now re-targeted in E-06 with tests/test_status_set_descriptive_safety.py added to scope (PR-002); live-count bars replaced by re-derived baseline and per-leaf scenario rows (PR-003); shared commit flags on the new leaf (PR-004); path-scoped negative-control stash (PR-005); scope fence + conditional finalize (PR-006); OQ owners (PR-007).
 
