@@ -6,7 +6,7 @@
 - Scope: Introduce one shared, echo-safe retry-command builder in `status_set` that reconstructs the INVOKED VERB from the parsed namespace's routing dest and appends the caller's DECLARED flags from that same namespace; route all three hint sites in `status_set` through it (the confirmation refusal, the terminal-reopen override hint, and the missing-`--actor` hint); replace the missing-`--actor` hint's `repr()` quoting with `shlex.quote`; deliberately OMIT `--dir` from the echo because echoing it crashes the `--agent` renderer; and pin all of it with behavioral tests that assert the emitted command is both runnable and equivalent to the caller's request.
 - Scope-Paths: agent_workflows/status_set.py, tests/test_status_set.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode model=its_direct/pt3-claude-opus-5-1m-us
 - Id: 5poaqh
-- Approval: 2026-09-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (antigravity): Make setter refusal hints echo command that reproduces caller request [Scope reconciliation - out-of-scope .aw/records/backlog/open/20260930-auf552-01-auf552-backlog-and-status-set-history-dates-desync-across.backlog.md: filed defect for backlog and status-set history date desync across UTC midnight] [Scope attribution - 29 changed path(s) OUTSIDE Scope-Paths were DISREGARDED as not attributable to this execution (evidence: run-record-exact), so no --scope-reason was demanded for them: .aw/records/backlog/done/20260921-19lmbe-01-19lmbe-backlog-set-status-ignores-dry-run.backlog.md, .aw/records/backlog/graduated/20260922-runverdict-01-ildjse-wire-run-state-machine-into-the-host-runners.backlog.md, .aw/records/backlog/graduated/20260929-denypush-01-sv9ce4-host-granular-network-filtering.backlog.md, .aw/records/backlog/graduated/20260929-fcnz1r-01-fcnz1r-unify-backlog-set-dispatch-paths.backlog.md, .aw/records/backlog/graduated/20260930-dirsilent-01-rgl2d4-silent-resolver-callers-under-report.backlog.md (... and 24 more; see disregarded_no_evidence_paths in the finalize evidence)]
 - 2026-09-30 approved (aw set): status set to approved
 - 2026-09-29 reviewed (opencode model=its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all fixed
 
