@@ -18,6 +18,7 @@ from pathlib import Path
 from agent_workflows import run_analytics_cli as analytics_cli
 from agent_workflows import run_analytics_spa as spa
 from agent_workflows import run_dashboard as dash
+from agent_workflows import verifier_corroboration as vc
 
 
 def _jl(path: Path, objs) -> None:
@@ -437,6 +438,156 @@ class AnalyzePublishesDashboardTests(unittest.TestCase):
         finally:
             analytics_cli._render_dashboard_html = orig
         self.assertEqual(docs["index.html"], docs["report.html"])
+
+
+class TestUnifiedToolExtractionRouting(unittest.TestCase):
+    """E-07: Behavioral tests pinning cross-consumer tool call agreement between dashboard and corroboration."""
+
+    def test_cross_consumer_tool_agreement_matrix(self) -> None:
+        """Matrix of oc and agy events: session_stats and extract_session_commands derive from the same call."""
+        events = [
+            # oc bash
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "bash",
+                    "state": {
+                        "status": "completed",
+                        "input": {"command": "pytest tests"},
+                    },
+                },
+            },
+            # agy run_command
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "run_command",
+                    "duration_seconds": 1.0,
+                    "tool_info": {"parameters": {"CommandLine": "git status"}},
+                },
+            },
+            # oc padded tool name
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": " bash ",
+                    "state": {"status": "completed", "input": {"command": "make test"}},
+                },
+            },
+            # agy padded tool name
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": " run_command ",
+                    "duration_seconds": 1.0,
+                    "tool_info": {"parameters": {"CommandLine": "python3 main.py"}},
+                },
+            },
+            # oc blank command
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "bash",
+                    "state": {"status": "completed", "input": {"command": "   "}},
+                },
+            },
+            # agy blank command
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "run_command",
+                    "duration_seconds": 1.0,
+                    "tool_info": {"parameters": {"CommandLine": "   "}},
+                },
+            },
+            # all four delegations
+            {
+                "type": "tool_use",
+                "part": {"tool": "task", "state": {"status": "completed", "input": {}}},
+            },
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "browser_subagent",
+                    "duration_seconds": 1.0,
+                    "tool_info": {},
+                },
+            },
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "subagent",
+                    "state": {"status": "completed", "input": {}},
+                },
+            },
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_name": "invoke_subagent",
+                    "duration_seconds": 1.0,
+                    "tool_info": {},
+                },
+            },
+            # error
+            {
+                "type": "tool_use",
+                "part": {
+                    "tool": "read",
+                    "state": {"status": "error", "input": {"filePath": "missing.py"}},
+                },
+            },
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            for idx, ev in enumerate(events):
+                p = Path(td) / f"event_{idx}.jsonl"
+                p.write_text(json.dumps(ev) + "\n", encoding="utf-8")
+                stats = dash.session_stats(p)
+                extracted = vc.extract_session_commands(p)
+
+                tc = vc.tool_call_from_event(ev)
+                self.assertIsNotNone(tc)
+                assert tc is not None
+
+                # 1. Tool name agreement
+                self.assertEqual(set(stats["tools"].keys()), {tc.tool})
+
+                # 2. Command text presence
+                cmd_count = sum(stats["commands"].values())
+                if tc.command is not None:
+                    self.assertEqual(cmd_count, 1)
+                    self.assertEqual(len(extracted.commands), 1)
+                    self.assertEqual(extracted.commands[0].command, tc.command)
+                else:
+                    self.assertEqual(cmd_count, 0)
+                    self.assertEqual(len(extracted.commands), 0)
+
+                # 3. Error flag agreement
+                err_count = stats["tool_errors"]
+                self.assertEqual(err_count, 1 if tc.error else 0)
+
+                # 4. Delegation flag agreement
+                del_count = stats["categories"].get("subagent", 0)
+                self.assertEqual(del_count, 1 if tc.delegation else 0)
+                self.assertEqual(extracted.delegation_count, 1 if tc.delegation else 0)
+
+    def test_dashboard_subagent_categories_e04(self) -> None:
+        """E-04: TOOL_CATEGORIES maps task, browser_subagent, subagent, invoke_subagent to subagent."""
+        for name in ("task", "browser_subagent", "subagent", "invoke_subagent"):
+            self.assertEqual(dash.tool_category(name), "subagent")
+
+    def test_dashboard_schema_version_is_3(self) -> None:
+        """E-04 / OQ-02: DASHBOARD_SCHEMA_VERSION is 3."""
+        self.assertEqual(dash.DASHBOARD_SCHEMA_VERSION, 3)
 
 
 if __name__ == "__main__":

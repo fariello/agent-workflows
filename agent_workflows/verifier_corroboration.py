@@ -46,10 +46,10 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 __all__ = [
     "CORROBORATED",
@@ -68,6 +68,7 @@ __all__ = [
     "MatchResult",
     "ObservedCommand",
     "SessionReadResult",
+    "ToolCall",
     "check_verifier_corroboration",
     "compute_verifier_corroboration",
     "corroborate_verifier_turn",
@@ -75,7 +76,9 @@ __all__ = [
     "match_claims_to_observed",
     "match_single_claim",
     "normalize_command",
+    "session_event_host",
     "split_command_segments",
+    "tool_call_from_event",
 ]
 
 # --- Verdict and Reason Code Constants ------------------------------------------------
@@ -161,6 +164,19 @@ SUBAGENT_TOOLS: frozenset[str] = frozenset(
 # --- Data Structures ------------------------------------------------------------------
 
 
+class ToolCall(NamedTuple):
+    """Normalized record of a single tool call from a session log."""
+
+    tool: str
+    host: str
+    command: str | None
+    path: str | None
+    seconds: float
+    error: bool
+    delegation: bool
+    command_missing: bool = False
+
+
 @dataclass(frozen=True)
 class ObservedCommand:
     """One shell command invocation observed in a session log."""
@@ -243,6 +259,164 @@ class CorroborationVerdict:
 # --- Log Extraction (E-01, E-02) -----------------------------------------------------
 
 
+def session_event_host(obj: Any) -> str:
+    """Identify session event host format ('agy', 'oc', or '').
+
+    Checks 'event' in obj first, then 'type' and 'part' in obj.
+    """
+    if not isinstance(obj, (dict, Mapping)):
+        return ""
+    if "event" in obj:
+        return "agy"
+    if "type" in obj and "part" in obj:
+        return "oc"
+    return ""
+
+
+def _to_float(v: Any) -> float:
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return float(v)
+    return 0.0
+
+
+def tool_call_from_event(obj: Any) -> ToolCall | None:
+    """Extract a normalized ToolCall record from a single session event object.
+
+    Pure stdlib-only. Takes ONE already-decoded JSON object and returns a ToolCall
+    record if the event is a completed/terminal tool call, or None if the event is
+    not a tool call (such as step_finish, step_start, error, result, agent_response,
+    or a non-terminal tool state).
+
+    DESIGN DECISIONS:
+    1. Tool-Name Whitespace (E-02, resolving F-07):
+       The tool name is stripped via .strip() on BOTH hosts.
+       Rationale:
+       (a) An unstripped tool name is a host-formatting artifact rather than a
+           distinct tool.
+       (b) run_dashboard was internally inconsistent because run_dashboard.tool_category
+           does .strip() before lookup, causing categories={'shell': 1} alongside
+           tools={' bash ': 1}.
+       (c) Stripping ensures the dashboard's tools counter agrees with its own
+           categories counter.
+
+    2. Whitespace-Only Command Text (E-03, resolving F-08):
+       A command string that is empty after stripping is treated as ABSENT
+       (command=None, command_missing=True).
+       Rationale:
+       (a) A blank string is not an executable command; counting it as one inflates
+           the dashboard's commands histogram with an un-actionable 'other' bucket.
+       (b) The distinguishable command_missing=True flag allows extract_session_commands
+           to increment missing_command_count for shell calls without command text,
+           while cleanly distinguishing them from non-shell calls (command_missing=False).
+
+    3. Subagent Vocabulary (E-04, resolving F-09):
+       The delegation flag is set for any tool name in SUBAGENT_TOOLS:
+       {'task', 'browser_subagent', 'subagent', 'invoke_subagent'}.
+       Evidence:
+       - 'invoke_subagent' is referenced in-tree as a real Antigravity tool name
+         (stall_progress lists 'invoke_subagent' alongside 'schedule' and 'manage_task'
+         as tool names that start background tasks, and its docstring cites it).
+       - 'subagent' has no in-tree occurrence outside SUBAGENT_TOOLS and CATEGORY_ORDER.
+       - Neither appears in committed fixtures, which use only 'task' and
+         'browser_subagent'. This is a consistency fix backed by one in-tree reference.
+    """
+    if not isinstance(obj, (dict, Mapping)):
+        return None
+
+    if "event" in obj:
+        su = obj.get("step_update")
+        if not isinstance(su, (dict, Mapping)):
+            return None
+        state = su.get("state")
+        stype = su.get("step_type")
+        if (state != "DONE" and state != "ERROR") or stype != "tool":
+            return None
+        tool_name = str(su.get("tool_name") or "").strip()
+        is_error = state == "ERROR"
+        is_delegation = tool_name in SUBAGENT_TOOLS
+        secs = _to_float(su.get("duration_seconds"))
+        info = su.get("tool_info")
+        info_dict = info if isinstance(info, (dict, Mapping)) else {}
+        params = info_dict.get("parameters")
+        params_dict = params if isinstance(params, (dict, Mapping)) else {}
+
+        command: str | None = None
+        command_missing = False
+        if tool_name == "run_command":
+            raw_cmd = params_dict.get("CommandLine")
+            if raw_cmd is None:
+                command_missing = True
+            else:
+                s_cmd = str(raw_cmd)
+                if not s_cmd.strip():
+                    command_missing = True
+                else:
+                    command = s_cmd
+
+        fpath = params_dict.get("AbsolutePath") or params_dict.get("TargetFile")
+        path = str(fpath) if fpath else None
+        return ToolCall(
+            tool_name,
+            "agy",
+            command,
+            path,
+            secs,
+            is_error,
+            is_delegation,
+            command_missing,
+        )
+
+    if "type" in obj and "part" in obj:
+        if obj.get("type") != "tool_use":
+            return None
+        part = obj.get("part")
+        part_dict = part if isinstance(part, (dict, Mapping)) else {}
+        tool_name = str(part_dict.get("tool") or "").strip()
+        state = part_dict.get("state")
+        state_dict = state if isinstance(state, (dict, Mapping)) else {}
+        is_error = state_dict.get("status") == "error"
+        is_delegation = tool_name in SUBAGENT_TOOLS
+
+        t = state_dict.get("time")
+        t_dict = t if isinstance(t, (dict, Mapping)) else {}
+        end_val = t_dict.get("end")
+        secs = (
+            (_to_float(end_val) - _to_float(t_dict.get("start"))) / 1000.0
+            if end_val
+            else 0.0
+        )
+
+        inp = state_dict.get("input")
+        inp_dict = inp if isinstance(inp, (dict, Mapping)) else {}
+        command = None
+        command_missing = False
+        if tool_name == "bash":
+            raw_cmd = inp_dict.get("command")
+            if raw_cmd is None:
+                command_missing = True
+            else:
+                s_cmd = str(raw_cmd)
+                if not s_cmd.strip():
+                    command_missing = True
+                else:
+                    command = s_cmd
+
+        fpath = inp_dict.get("filePath")
+        path = str(fpath) if fpath else None
+        return ToolCall(
+            tool_name,
+            "oc",
+            command,
+            path,
+            secs,
+            is_error,
+            is_delegation,
+            command_missing,
+        )
+
+    return None
+
+
 def extract_session_commands(path: Path | str) -> SessionReadResult:
     """Extract ordered shell commands and non-shell signals from a session log.
 
@@ -289,73 +463,25 @@ def extract_session_commands(path: Path | str) -> SessionReadResult:
                 valid_events += 1
 
                 # Discriminate host format:
-                # Antigravity: "event" in obj
-                # OpenCode: "type" in obj and "part" in obj
-                if "event" in obj:
-                    session_format = "agy"
-                    su = obj.get("step_update")
-                    if isinstance(su, dict):
-                        state = su.get("state")
-                        stype = su.get("step_type")
-                        if state in ("DONE", "ERROR") and stype == "tool":
-                            tool_name = str(su.get("tool_name") or "").strip()
-                            is_error = state == "ERROR"
-                            if tool_name in SUBAGENT_TOOLS:
-                                delegation_count += 1
-                            elif tool_name == "run_command":
-                                info = su.get("tool_info")
-                                params = (
-                                    info.get("parameters")
-                                    if isinstance(info, dict)
-                                    else None
-                                )
-                                cmd = (
-                                    params.get("CommandLine")
-                                    if isinstance(params, dict)
-                                    else None
-                                )
-                                if cmd is None or not str(cmd).strip():
-                                    missing_command_count += 1
-                                else:
-                                    commands.append(
-                                        ObservedCommand(
-                                            command=str(cmd),
-                                            tool=tool_name,
-                                            host="agy",
-                                            error=is_error,
-                                        )
-                                    )
-                elif "type" in obj and "part" in obj:
-                    session_format = "oc"
-                    kind = obj.get("type")
-                    if kind == "tool_use":
-                        part = obj.get("part")
-                        if isinstance(part, dict):
-                            tool_name = str(part.get("tool") or "").strip()
-                            state = part.get("state")
-                            state_dict = state if isinstance(state, dict) else {}
-                            is_error = state_dict.get("status") == "error"
+                host = session_event_host(obj)
+                if host:
+                    session_format = host
 
-                            if tool_name in SUBAGENT_TOOLS:
-                                delegation_count += 1
-                            elif tool_name == "bash":
-                                inp = state_dict.get("input")
-                                cmd = (
-                                    inp.get("command")
-                                    if isinstance(inp, dict)
-                                    else None
-                                )
-                                if cmd is None or not str(cmd).strip():
-                                    missing_command_count += 1
-                                else:
-                                    commands.append(
-                                        ObservedCommand(
-                                            command=str(cmd),
-                                            tool=tool_name,
-                                            host="oc",
-                                            error=is_error,
-                                        )
-                                    )
+                tc = tool_call_from_event(obj)
+                if tc is not None:
+                    if tc.delegation:
+                        delegation_count += 1
+                    elif tc.command is not None:
+                        commands.append(
+                            ObservedCommand(
+                                command=tc.command,
+                                tool=tc.tool,
+                                host=tc.host,
+                                error=tc.error,
+                            )
+                        )
+                    elif tc.command_missing:
+                        missing_command_count += 1
     except OSError:
         return SessionReadResult(reason_code=INDETERMINATE_LOG_UNREADABLE)
 

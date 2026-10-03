@@ -1,5 +1,5 @@
 - Id: 2mjfo7
-- Status: graduated
+- Status: done
 - Graduated-To: runverdict
 - Set: runverdict
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: Unify run_dashboard's two per-host session-log tool-call readers onto the shared verifier_corroboration extractor
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD e08ssu executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-runverdict-10-e08ssu-route-run-dashboard-s-two-per-host-tool-call-readers-through.ipd.md); evidence .aw/records/plans/executed/20261002-runverdict-10-e08ssu-route-run-dashboard-s-two-per-host-tool-call-readers-through.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: e08ssu
 - 2026-09-30 created (aw backlog): Filed as the durable carrier for a duplication plan bjx20r identifies and deliberately leaves in place
 
