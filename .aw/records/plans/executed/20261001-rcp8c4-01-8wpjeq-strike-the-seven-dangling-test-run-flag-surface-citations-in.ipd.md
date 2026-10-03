@@ -8,7 +8,7 @@
 - Scope: Make all seven sites in `agent_workflows/runner_shared.py` state the truth about what guards spec `25kzda` 2.1's flag surface. At each site, strike the claim that `tests/test_run_flag_surface.py` enforces the property and replace it with (i) the OBLIGATION that survives, stated as a convention the author must honor BY HAND (a flag registered in `RUN_POLICY_FLAGS` must be declared in spec 2.1 in the same change, and the converse), and (ii) the fact that the bidirectional check was deleted in `19313eed` and was NOT replaced, following the wording precedent executed plan `t0ovw6` established in this same package ("deleted in `19313eed`; no live guard currently enforces this"). ALSO correct the five `the contract test` references inside the same flag-surface region that assert a live enforcing test WITHOUT naming the file, since they are the same false claim escaping the item's search string. EXCLUDES restoring `tests/test_run_flag_surface.py` or authoring any replacement that reads production source with `ast`/`inspect`/regex, forbidden by the maintainer ruling the item carries and by `GUIDING_PRINCIPLES` P16. EXCLUDES changing any executable statement, signature, default, choice tuple, help string or flag spelling: this is a comment-and-docstring edit and V-05 proves it by AST comparison of the whole module. EXCLUDES FIXING the two measured divergences (`--action` and `--on-conflict ask`), which are filed as `n5gsea` and need a maintainer decision about a public surface. EXCLUDES editing spec `25kzda` itself, including its 2026-09-21 history note at the `- 2026-09-21 note (aw specs):` line and its Section 5.3a `CONFIGURED, NOT FLAGGED` bullet, both of which repeat the same stale claim; the item forbids rewriting the dated history record and the plan declares no `.spec.md` path. EXCLUDES the truncated-doc-comment damage in the same block, filed as `woxgyo`. EXCLUDES the three sibling dangling-guard families in this file (`NoRunnerImportTests`, `test_no_new_module_level_first_party_import_in_runner_shared`, the `should_color` trio), each owned by another plan or carrier.
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261001-rcp8c4-01-8wpjeq-strike-the-seven-dangling-test-run-flag-surface-citations-in.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: 25kzda
 - Work-Kind: chore
@@ -19,9 +19,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 8wpjeq
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 8wpjeq verified (set rcp8c4, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006. At lane HEAD 749efe321 the seven sites were already rewritten by 972817ced (executed h65phz), so the plan is narrowed to the measured residue: the initialize_run_core misattribution to 19313eed (removed by b1e304bc7) (PR-002), the done xvp5vx presented as live coverage carrier (PR-003), and the unnamed contract-test claims including the now-false {dest: False} idiom premise (PR-004); <base>-anchored AST proof and baseline-relative suite bar (PR-005); sibling plans 57v89t/1dkj1n and OQ owner (PR-006).
 - 2026-10-01 same-status (aw set): status unchanged (to-review)
