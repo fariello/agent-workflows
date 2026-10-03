@@ -6,7 +6,7 @@
 - Scope: Make `agent_workflows/runner_shared.py` state the no-runner-import rule truthfully, at the eight sites where it currently claims a test enforces it. Strike the seven `NoRunnerImportTests` citations and correct the module docstring's "asserts the absence by AST" prohibition bullet, replacing each false enforcement claim with the DESIGN POINT that survives without a guard: the rule itself (this module may not import either host driver, at module level or lazily, because importing a DIVERGED symbol would silently give both drivers one host's behavior and would create an import cycle), stated as a CONVENTION that nothing mechanically checks, plus the injection mechanism each site is actually justifying (`edge_satisfied_fn` threading in `closure_target_admission`, the `suite_check` parameter in `reintegrate_lane` and in `make_integration_validation_runner`, the duplicated-and-pinned `SUITE_FAILURE_LIST_CAP`, the injected `pinned_child_env`/`pinned_module_argv` in the `driver_begin` lift note, the permitted `runner_profiles` peer import in `resolve_verification_decision`, and the function-local `ipd_lint`/`selectors` imports in the retirement note). A reader must end up knowing the constraint is real and unenforced, never that it is enforced, and never that it was abandoned. EXCLUDES restoring `NoRunnerImportTests` or authoring any replacement, by maintainer ruling and by `GUIDING_PRINCIPLES` P16, which forbids a test that reads production source with `ast`/`inspect`/regex. EXCLUDES changing any executable statement, signature, parameter, default or constant value in the file: this is a comment-and-docstring edit and V-05 proves it by AST comparison of the whole module. EXCLUDES the `tests/test_runner_shared.py` side, which belongs to approved plan `ery0ia` and to reviewed plan `x3zno3`. EXCLUDES the three sibling dangling-guard families measured in the same file (`test_no_new_module_level_first_party_import_in_runner_shared` at seven sites, `test_run_flag_surface.py` at seven sites which is backlog `rcp8c4`'s declared subject, and the single `TheSharedModuleStaysCleanTests`/`test_review_findings_cascade.py`/`test_runner_shared_imports_neither_runner` citations), each named by carrier in Deferred.
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261001-gia5i7-01-9vtas9-strike-the-seven-dangling-norunnerimporttests-citations-and.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: aw oc run
 - Id: 9vtas9
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9vtas9 verified (set gia5i7, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Re-measured at lane HEAD 916664e94: invariant holds (no runipd import; fresh-interpreter []), 6 not 7 NoRunnerImportTests sites (09622d3ed removed closure_target_admission's block incl. TheSharedModuleStaysCleanTests); headwater sentence wraps so the single-line grep bar was unsatisfiable, replaced with a newline-tolerant check; SUITE_FAILURE_LIST_CAP pin test measured absent and SUITE_FAILURE_LINE_LIMIT now lives in runner_shared; stale carriers xvp5vx(done)/pn7rw3 repointed to 046nys, 3tov52, x3zno3. New F-11 records it. Review record: .aw/records/reviews/20261002-gia5i7-01-9vtas9-strike-the-seven-dangling-norunnerimporttests-citations-and.review.md.
 
