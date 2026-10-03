@@ -37930,9 +37930,9 @@ class BacklogCloseVerdict(NamedTuple):
 # in the shared module for that function to move at all; leaving a SECOND copy behind would reproduce
 # exactly the defect this Set exists to end (a fix reaching one caller and not the other), one layer
 # down from the record itself. `agy_runipd` already bound this by name FROM this module, and
-# `tests/test_runner_backlog_close.py::SharedNotCopied` asserts object identity between the two hosts;
-# a shared definition re-exported here under the same name satisfies that assertion, because both hosts
-# now name the SAME object rather than one naming the other's.
+# `tests/test_runner_delegation_and_host_independence.py` asserts object identity across the two hosts
+# and `runner_shared`; a shared definition re-exported here under the same name satisfies that
+# assertion, because both hosts now name the SAME object rather than one naming the other's.
 # (The import itself is hoisted to the top-of-file shared-import block, per E402.)
 
 
