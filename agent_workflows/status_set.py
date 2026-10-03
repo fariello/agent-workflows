@@ -21,6 +21,7 @@ import argparse
 import contextlib
 import datetime
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -1681,12 +1682,128 @@ def _auto_index_types(
                         )
 
 
+# Flags declared on any `set` family spelling that are safe to echo.
+# This is an explicit ALLOW-LIST of non-path flags (IPD 5poaqh E-02, F-19).
+# Path-valued flags (--dir, --evidence, --gate-dir, --scope-reason, --scope-ack)
+# are deliberately EXCLUDED because:
+# (1) CommandResult.to_agent_record calls assert_valid_agent_record, whose
+#     _HOME_PATH_RE raises ValueError on an operator-local home path in any field;
+# (2) normalizing to repo-relative paths produces invalid arguments from caller's cwd;
+# (3) a hint without --dir already preserves today's cwd-dependent behavior (F-14).
+# Mode flags (--agent, --json, --color, --no-color, --interactive, --no-interactive,
+# --dry-run) and --yes are excluded because they are rendering/safety options, not part
+# of the requested mutation.
+_RETRY_FLAG_ALLOWLIST: tuple[tuple[str, str, bool], ...] = (
+    # (dest, flag_name, is_value_flag)
+    (
+        "message",
+        "--message",
+        True,
+    ),  # Always long form; -m is not on specs/backlog set (F-17)
+    ("actor", "--actor", True),
+    ("by_human", "--by-human", False),
+    ("priority", "--priority", True),
+    ("work_kind", "--work-kind", True),
+    ("from_backlog", "--from-backlog", True),
+    ("graduated_to", "--graduated-to", True),
+    ("blocks_release", "--blocks-release", True),
+    ("gate_kind", "--gate-kind", True),
+    ("gate_ref", "--gate-ref", True),
+    ("gate_summary", "--gate-summary", True),
+    ("force", "--force", False),
+    ("allow_open_questions", "--allow-open-questions", False),
+    ("no_commit", "--no-commit", False),
+    ("commit", "--commit", False),
+    ("status", "--status", True),
+    ("date", "--date", True),
+)
+
+
+def _retry_command(
+    args: argparse.Namespace | None,
+    raw_args: list[str],
+    scoped_type: str | None = None,
+    extra: list[str] | str | None = None,
+) -> str:
+    """Reconstruct an echo-safe retry command reproducing the caller's request.
+
+    Adheres to three governing rules (IPD 5poaqh E-01):
+    RULE 1: RECONSTRUCT THE VERB FROM THE ROUTING DEST, NOT FROM A GUESS.
+      `cli._dispatch` sets `args.command` to the family name and a per-family dest to `set`.
+      When a family dest equals 'set', emit `aw {args.command} set`. When `args.command == 'set'`,
+      emit `aw set`. Preserves alias spellings (e.g. `aw spec set` vs `aw specs set`).
+    RULE 2: FALL BACK WHEN NAMESPACE CARRIES NO ROUTING INFORMATION.
+      Hand-built namespaces (e.g. from `work_cmd.run_finish` or `run_dependencies_set_command`)
+      lack a `command` attribute. In that case, fall back to `aw set` with `raw_args`.
+    RULE 3: PRESERVE LEADING-TYPE-TOKEN SPELLING.
+      On the untyped verb, `run_set_command` adopts a leading type token out of `raw_args`,
+      so echoing `raw_args` verbatim reproduces `aw set plans reviewed <sel>`. Do NOT
+      additionally synthesize a type token from `scoped_type` for a typed verb.
+
+    Echo-safe flag allow-list (IPD 5poaqh E-02):
+      Appends caller's declared flags from `args` using an explicit ALLOW-LIST of non-path
+      flags. All path-valued flags (--dir, --evidence, --gate-dir, --scope-reason, --scope-ack)
+      are deliberately excluded because echoing operator-local home paths causes
+      `CommandResult.to_agent_record` to fail schema validation with ValueError. Consequently,
+      a command pasted from a different working directory than the original invocation may not
+      resolve, which preserves the status quo behavior.
+      Renderer/mode flags (--agent, --json, --color, --no-color, --interactive, --no-interactive,
+      --dry-run) and --yes are not echoed; extra tokens are supplied by the caller.
+      The flag --message is always echoed in long form because the -m alias is not declared
+      on `aw specs set` or `aw backlog set`.
+    """
+    cmd = getattr(args, "command", None) if args is not None else None
+    family_dest = (
+        (
+            (getattr(args, f"{cmd}_command", None) if cmd else None)
+            or getattr(args, "specs_command", None)
+            or getattr(args, "ipd_command", None)
+            or getattr(args, "backlog_command", None)
+            or getattr(args, "prompts_command", None)
+        )
+        if args is not None
+        else None
+    )
+
+    if cmd and family_dest == "set":
+        verb = f"aw {cmd} set"
+    elif cmd == "set":
+        verb = "aw set"
+    else:
+        # Rule 2 fallback
+        verb = "aw set"
+
+    tokens: list[str] = [verb]
+    if raw_args:
+        tokens.extend(raw_args)
+
+    if args is not None:
+        for dest, flag, is_value in _RETRY_FLAG_ALLOWLIST:
+            val = getattr(args, dest, None)
+            if is_value:
+                if val is not None and str(val).strip():
+                    tokens.append(flag)
+                    tokens.append(shlex.quote(str(val)))
+            else:
+                if val:
+                    tokens.append(flag)
+
+    if extra:
+        if isinstance(extra, str):
+            tokens.append(extra)
+        else:
+            tokens.extend(extra)
+
+    return " ".join(tokens)
+
+
 def _delegate_plan_executed_to_finalize(
     plan_recs: list[ArtifactRecord],
     all_recs: list[ArtifactRecord],
     repo_root: Path,
     args: argparse.Namespace,
     term,
+    scoped_type: str | None = "plans",
 ) -> int:
     """Route a plan -> `executed` `aw set`/`ipd set` request into the gated `aw ipd finalize` (Order wezhxg).
 
@@ -1734,10 +1851,16 @@ def _delegate_plan_executed_to_finalize(
     for rec in plan_recs:
         selector = rec.id6 or rec.path.name
         if not actor:
-            hint = (
-                f"aw set executed {selector} --actor <agent/model> --message <summary>"
+            extra_tokens = (
+                ["--actor <agent/model>", "--message <summary>"]
                 if not message
-                else f"aw set executed {selector} --actor <agent/model> --message {message!r}"
+                else ["--actor <agent/model>"]
+            )
+            hint = _retry_command(
+                args,
+                ["executed", selector],
+                scoped_type=scoped_type,
+                extra=extra_tokens,
             )
             summary = (
                 "moving a plan to 'executed' now delegates into the gated `aw ipd finalize`, which "
@@ -2329,7 +2452,12 @@ def run_set_command(
     ]
     if _plan_executed:
         return _delegate_plan_executed_to_finalize(
-            _plan_executed, matched_records, repo_root, args, term
+            _plan_executed,
+            matched_records,
+            repo_root,
+            args,
+            term,
+            scoped_type=scoped_type,
         )
 
     # setterguard `4bc1nd` E-02: REFUSE WALKING A PLAN BACKWARDS OUT OF A TERMINAL DISPOSITION.
@@ -2422,7 +2550,12 @@ def run_set_command(
                         description="Write a corrective IPD instead (the AGENTS.md route)",
                     ),
                     NextAction(
-                        command=f"aw set {' '.join(raw_args)} --allow-terminal-reopen --yes",
+                        command=_retry_command(
+                            args,
+                            raw_args,
+                            scoped_type=scoped_type,
+                            extra=["--allow-terminal-reopen", "--yes"],
+                        ),
                         description="Override: reopen anyway, recorded in the artifact history",
                     ),
                 ],
@@ -2469,7 +2602,9 @@ def run_set_command(
             )
             for r in matched_records
         ]
-        cmd_str = f"aw set {' '.join(raw_args)} --yes"
+        cmd_str = _retry_command(
+            args, raw_args, scoped_type=scoped_type, extra=["--yes"]
+        )
         res = CommandResult(
             command="set",
             status="cannot-run",

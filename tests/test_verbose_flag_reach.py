@@ -14,6 +14,8 @@ import io
 import json
 import unittest
 
+import pytest
+
 from agent_workflows import cli
 
 
@@ -89,6 +91,7 @@ class VerboseFlagReachTests(unittest.TestCase):
         args = parser.parse_args(["check", "plans", "--agent", "--verbose"])
         self.assertTrue(getattr(args, "verbose", False))
 
+    @pytest.mark.livecorpus
     def test_verbose_flag_end_to_end_observable_difference(self) -> None:
         """Drive check plans in-process and assert compact vs verbose observable difference.
 

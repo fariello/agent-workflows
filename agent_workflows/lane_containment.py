@@ -1113,13 +1113,22 @@ def evaluate_policy_observation(
 #: RESET BY: observed progress, which clears the pending ask and disarms the bound. RESETTABLE.
 #:
 #: SHIPS AT `0`, MEANING DISABLED, and that is a REQUIREMENT rather than caution (R4.4b). Detection
-#: would be PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is UNVERIFIED
-#: against a real ask: the last real run's stdout carried ZERO permission-typed events, and the
-#: evidence that motivated a plain-text pattern came from opencode's LOG FILE rather than stdout.
-#: Shipping it armed on an unproven detector is non-conforming, because a false positive kills a
-#: healthy turn. CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is currently the ONLY bound covering
-#: a permission deadlock. Set this to 30 only together with a captured stream from a real provoked
-#: ask showing the line the detector matched.
+#: on stdout is IMPOSSIBLE: measured 2026-10-01 at HEAD `ce55ef615` (research `7so8uz`), across 788,504
+#: recorded stdout events in 2,414 `.aw/records/runs/*/sessions/*.jsonl` streams, the complete type
+#: census carries six event types (step_update 273,961, tool_use 148,886, step_start 135,208,
+#: step_finish 135,049, text 94,623, error 10) and ZERO permission-typed events. A permission ask is a
+#: host-internal event that never reaches stdout. The host log DOES carry it (`message=asking ...
+#: permission=<class>`, 1,552 asks measured in research `7so8uz`, 1,166 on driver turns), but arming
+#: a log-fed bound at the spec's own 30s default would have killed 15 of 1,149 healthy turns while
+#: catching nothing the `StallWatchdog` does not already catch (all 17 silent asks are covered).
+#:
+#: CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is currently the ONLY bound covering a permission
+#: deadlock.
+#:
+#: RESIDUAL LIMITS: the R4.1 deny posture applies to ISOLATED opencode turns only (`oc_runipd.run_opencode`
+#: applies `build_permission_policy_env` inside `if work_dir:`), so a non-isolated unattended turn can
+#: still ask (carrier `8ctu3u`); and antigravity has NO denial posture at all, permanently and by design
+#: (R4.1, R4.1c), so there `MAX_TURN_TIMEOUT` is the whole of the bound half.
 PERMISSION_TIMEOUT: float = 0.0
 
 #: Seconds from child-process start after which the turn is terminated no matter what.
@@ -1344,6 +1353,15 @@ class TurnBoundWatch:
 
         Idempotent while an ask is already pending, so a repeated observation does not extend the
         window: the bound measures from the FIRST observed ask, which is when waiting began.
+
+        NO PRODUCTION CALLERS BY DECISION, not by omission. Measured 2026-10-01 at HEAD `ce55ef615`
+        (research `7so8uz`): a permission ask is a host-internal event that never reaches stdout
+        (zero permission-typed events across 788,504 recorded stdout stream events), and a log-fed bound
+        was refused on measurement (15 false kills of 1,149 healthy turns at the 30s default, with
+        zero cases missed by the stall watchdog). The one condition that would reopen wiring is a host
+        whose stdout stream carries a permission-typed event, which opencode's stream does not. The
+        method earns its place by keeping the mechanism correct and tested so a future host whose stream
+        does carry the event needs no redesign (covered by tests/test_permission_bound_disabled.py).
         """
 
         if self.permission_timeout <= 0:

@@ -1,5 +1,5 @@
 - Id: ieg7q6
-- Status: graduated
+- Status: done
 - Graduated-To: 8mkt5l
 - Set: 8mkt5l
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: artifact_audit index cache cannot see an in-place record - Id: rewrite, so a stale id6 keeps resolving
 
 ## Workflow history
+- 2026-10-02 done (aw backlog): closed by aw agy run: IPD 0a7v0x executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261001-8mkt5l-02-0a7v0x-close-the-artifact-audit-cache-s-blindness-to-an-in-place-re.ipd.md); evidence .aw/records/plans/executed/20261001-8mkt5l-02-0a7v0x-close-the-artifact-audit-cache-s-blindness-to-an-in-place-re.ipd.md
 - 2026-10-01 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 0a7v0x
 - 2026-10-01 note (aw backlog): FALSIFICATION of this item's named remedy, measured 2026-10-01 at HEAD 8ca1d979c while authoring plan 0a7v0x. This item closes by instructing a future executor to 'adopt candidate B, whose cost is already measured'. Candidate B (per-file mtime+size) DOES NOT CLOSE THE ROUTE even unpinned: an id6 is a fixed-width 6-char token (check_engine._ID_LINE_RE pins [0-9a-z]{6}), so an in-place id6 rewrite is SIZE-PRESERVING and st_size can never discriminate, leaving only the file mtime and the same ~1ms tick the directory mtime had. Measured BLIND in 149/200 immediate-rewrite trials (0/200 after a 50ms sleep), at 4.10x the shipped signature's cost (71.18ms vs 17.34ms). Plan 0a7v0x therefore does NOT change _dir_signature; it verifies a tier-one identity claim in find_artifact instead (479us overhead, 1.3% of a lookup, 0.006% of the rebuild it avoids). Plan 0a7v0x also found two wrong answers beyond the stale positive recorded above (a WRONG PATH with no filename change anywhere, and a PHANTOM COLLISION where an in-place fix to a duplicate id6 still reports the collision), and found that the dominant production path bypasses this cache entirely (run_viewer threads one explicit artifact_index= through 9 call sites). See plan 0a7v0x F-03/F-04/F-06. No requirement of this item is changed by this note.
 - 2026-09-30 created (aw backlog): artifact_audit index cache cannot see an in-place record - Id: rewrite, so a stale id6 keeps resolving

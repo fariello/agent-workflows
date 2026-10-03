@@ -2790,7 +2790,16 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
 
     # ---- rung 2: BOTH bounds, asserted SEPARATELY -------------------------------------------------
 
-    def poll(self, *, dirty, ages, timeout=1800.0, staleness=3600.0, interval=0.1):
+    def poll(
+        self,
+        *,
+        dirty,
+        ages,
+        timeout=1800.0,
+        staleness=3600.0,
+        interval=0.1,
+        merge_check=None,
+    ):
         slept: list = []
         seq_dirty = list(dirty)
         seq_ages = list(ages)
@@ -2809,6 +2818,8 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         def _age(_repo):
             return seq_ages.pop(0) if seq_ages else 0.0
 
+        _merge = (lambda _repo: False) if merge_check is None else merge_check
+
         outcome = runner_shared.poll_for_integration_window(
             pathlib.Path("/nonexistent"),
             ("src/x.py",),
@@ -2819,6 +2830,7 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
             now=fake_now,
             overlap=_overlap,
             activity_age=_age,
+            merge_check=_merge,
         )
         return outcome, slept
 
@@ -2854,6 +2866,24 @@ class IntegrationDeferralLadderTests(unittest.TestCase):
         outcome_unmeas, slept_unmeas = self.poll(dirty=[["x"]] * 5, ages=[None] * 5)
         self.assertEqual(outcome_unmeas.bound, runner_shared.POLL_BOUND_STALE)
         self.assertEqual(slept_unmeas, [])
+
+        # Preserved bound constants
+        self.assertEqual(runner_shared.POLL_BOUND_COUNT, "poll-count-exhausted")
+        self.assertEqual(runner_shared.POLL_BOUND_STALE, "main-inactive")
+        self.assertEqual(runner_shared.POLL_BOUND_CLEARED, "dirt-cleared")
+        self.assertEqual(runner_shared.POLL_BOUND_MERGE, "merge-in-progress")
+
+        # Injected dirty-overlap sequence with explicit merge_check=lambda _repo: False
+        outcome_explicit, slept_explicit = self.poll(
+            dirty=[["src/x.py"], ["src/x.py"], []],
+            ages=[10.0] * 5,
+            interval=0.1,
+            merge_check=lambda _repo: False,
+        )
+        self.assertTrue(outcome_explicit.cleared)
+        self.assertEqual(outcome_explicit.bound, runner_shared.POLL_BOUND_CLEARED)
+        self.assertEqual(outcome_explicit.polls, 2)
+        self.assertEqual(len(slept_explicit), 2)
 
     def test_main_last_activity_is_the_NEWER_of_head_time_and_dirty_mtime(self):
         import subprocess

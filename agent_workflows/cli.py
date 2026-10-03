@@ -2076,6 +2076,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "together with a <plan> selector."
         ),
     )
+    p_commit.add_argument(
+        "--scope-reason",
+        dest="scope_reason",
+        action="append",
+        default=None,
+        metavar="PATH=WHY",
+        help="Record a reason for an out-of-scope changed path (repeatable). Justifies the change "
+        "at the commit gate and records it in the begin receipt for finalize to consume.",
+    )
     # dest is `path_argv` (NOT `command`); it captures the WHOLE tail including the optional plan
     # selector, which `work_cmd.run_commit` splits on the `--` marker.
     p_commit.add_argument(

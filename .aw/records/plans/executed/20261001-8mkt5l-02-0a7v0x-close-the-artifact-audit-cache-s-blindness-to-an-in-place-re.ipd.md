@@ -6,7 +6,7 @@
 - Scope: Verify a tier-one identity CLAIM against the file on disk before returning it, and re-derive once when the claim does not hold, so the three wrong answers close without touching the signature. IN: `artifact_audit.find_artifact`'s tier one (the verification and the one re-derivation), the `_INDEX_CACHE` commentary's RESIDUAL LIMIT 1 paragraph naming this item as carrier, and a new `tests/test_artifact_audit_identity_staleness.py` pinning the three wrong answers plus the two cost-shape invariants. OUT: `_dir_signature` (unchanged, deliberately: see F-03, the item's own named remedy is FALSIFIED here), the MISS-ON-NEW half (F-05, which no in-lookup verification can close and which needs a different instrument), `_INDEX_CACHE_MAX`'s wholesale clear (carrier `an1a33`), `build_index`'s traversal, `audit_artifact`'s fresh status read, and `selectors`.
 - Scope-Paths: agent_workflows/artifact_audit.py, tests/test_artifact_audit_identity_staleness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0a7v0x
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 0a7v0x verified (set 8mkt5l, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed; review record .aw/records/reviews/20261001-8mkt5l-02-0a7v0x-...review.md
 
@@ -44,7 +44,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the defect, and prove the item's own remedy wrong, before changing anything
 
-- [ ] E-01 RE-REPRODUCE ALL THREE WRONG ANSWERS AT THE EXECUTION HEAD, BEFORE EDITING PRODUCTION CODE, each as a separate single-query fixture. Write a scratch script (NOT a committed test; put it under the gitignored `tmp/`) that builds a temporary repo root per scenario, primes the cache with one lookup, mutates `- Id:` lines IN PLACE, and then asks exactly ONE query, comparing the cached answer against the TRUTH obtained by clearing `_INDEX_CACHE` and asking again.
+- [x] E-01 RE-REPRODUCE ALL THREE WRONG ANSWERS AT THE EXECUTION HEAD, BEFORE EDITING PRODUCTION CODE, each as a separate single-query fixture. Write a scratch script (NOT a committed test; put it under the gitignored `tmp/`) that builds a temporary repo root per scenario, primes the cache with one lookup, mutates `- Id:` lines IN PLACE, and then asks exactly ONE query, comparing the cached answer against the TRUTH obtained by clearing `_INDEX_CACHE` and asking again.
 
   USE A FILENAME id6 THAT DIFFERS FROM THE DECLARED ONE in the stale-positive fixture (for example a file named `...-01-xxxxxx-x.ipd.md` declaring `- Id: aaaaaa`). This is not fussiness: `find_artifact`'s TIER TWO matches the clustered FILENAME's id6 field, so a fixture whose filename carries the queried id6 reports `found: True` even on a never-cached lookup, and the item's transcript has exactly that shape. A fixture that does not separate the tiers cannot tell staleness from the filename tier and is not evidence (F-02).
 
@@ -55,9 +55,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF ANY SCENARIO NO LONGER REPRODUCES, STOP AND REPORT rather than proceeding. Do not "fix" a wrong answer you cannot first demonstrate.
   - Depends on: none
   - Expected outcome: three fixtures, each printing its cached answer and its truth side by side with a CORRECT verdict of False, plus the signature-equality line. Authoring measurements: stale positive cached `x.ipd.md` against truth `None`; wrong path cached `x.ipd.md` against truth `y.ipd.md`; phantom collision cached a 2-path collision against truth `x.ipd.md` with no collision; `signature UNCHANGED across the rewrite: True`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 FALSIFY THE BACKLOG ITEM'S OWN NAMED REMEDY, AND RECORD IT, because the item instructs a future executor to "adopt candidate B, whose cost is already measured" and that instruction is wrong. Implement candidate B in the scratch script as a standalone function (recursive `os.scandir` collecting per-file `(path, st_mtime_ns, st_size)`) and test it against a SIZE-PRESERVING in-place id6 rewrite, which is the only shape that matters because an id6 is a fixed-width 6-character token.
+- [x] E-02 FALSIFY THE BACKLOG ITEM'S OWN NAMED REMEDY, AND RECORD IT, because the item instructs a future executor to "adopt candidate B, whose cost is already measured" and that instruction is wrong. Implement candidate B in the scratch script as a standalone function (recursive `os.scandir` collecting per-file `(path, st_mtime_ns, st_size)`) and test it against a SIZE-PRESERVING in-place id6 rewrite, which is the only shape that matters because an id6 is a fixed-width 6-character token.
 
   RUN IT TWO WAYS over at least 200 trials each and report both: an IMMEDIATE rewrite (no sleep, which is what a tooled or scripted edit looks like) and a rewrite after a 50ms sleep. Report the count of trials in which the candidate-B signature is UNCHANGED across the rewrite, which is the count of trials in which it would have returned the stale answer. Do NOT pin anything; the item already concedes the pinned case and the point here is that the UNPINNED case fails too.
 
@@ -66,11 +66,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THIS IS A PREREQUISITE FOR E-03, not background: if candidate B worked, the cheaper and more obvious change would be the signature, and this plan's whole shape would be wrong. Record the numbers so a reviewer can dispute them.
   - Depends on: none
   - Expected outcome: the two blind-trial counts with their denominators and the interleaved timing ratio. Authoring measurements: BLIND in 149/200 immediate trials and 0/200 after a 50ms sleep; `len('aaaaaa') == len('cccccc')` is True so size never discriminates; candidate B 71.18ms against the shipped 17.34ms (4.10x). If the immediate-rewrite blind count comes back at or near ZERO on the execution machine, STOP AND REPORT rather than proceeding: that would mean the filesystem's mtime granularity differs enough to change the conclusion, and the plan's choice of instrument would need re-deciding rather than executing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: verify the identity claim where it is used
 
-- [ ] E-03 ADD A TIER-ONE VERIFICATION STEP TO `artifact_audit.find_artifact`: before returning a tier-one answer (the `kind="id6"` branch reading `index.by_declared_id`), CONFIRM that every claimed path still DECLARES the queried id6 by reading its header through the same reader `build_index` used (`selectors._read_header` plus `selectors._read_id`, so the verification and the index cannot disagree about what "declares" means). If every claimed path confirms, return the answer unchanged. If any does not, the cached identity map is provably wrong for this query: INVALIDATE ONLY THIS ROOT'S ENTRY, AND ONLY WHEN IT IS THE STALE OBJECT: pop the `(resolved root, tuple(record_types))` key `build_index` itself uses when, and only when, the entry stored under it `is` the index whose claim just failed (NOT `_INDEX_CACHE.clear()`, which would discard every other root's still-valid entry, and NOT an unconditional pop, which would throw away an entry that an earlier call already repaired and force a full traversal on every repeat lookup against a caller's stale explicit index), then call `build_index` to get a fresh index, and answer the query by running ALL THREE TIERS against that fresh index (a stale positive's correct answer may legitimately be a tier-two or tier-three hit, or nothing), with verification disabled for that inner pass.
+- [x] E-03 ADD A TIER-ONE VERIFICATION STEP TO `artifact_audit.find_artifact`: before returning a tier-one answer (the `kind="id6"` branch reading `index.by_declared_id`), CONFIRM that every claimed path still DECLARES the queried id6 by reading its header through the same reader `build_index` used (`selectors._read_header` plus `selectors._read_id`, so the verification and the index cannot disagree about what "declares" means). If every claimed path confirms, return the answer unchanged. If any does not, the cached identity map is provably wrong for this query: INVALIDATE ONLY THIS ROOT'S ENTRY, AND ONLY WHEN IT IS THE STALE OBJECT: pop the `(resolved root, tuple(record_types))` key `build_index` itself uses when, and only when, the entry stored under it `is` the index whose claim just failed (NOT `_INDEX_CACHE.clear()`, which would discard every other root's still-valid entry, and NOT an unconditional pop, which would throw away an entry that an earlier call already repaired and force a full traversal on every repeat lookup against a caller's stale explicit index), then call `build_index` to get a fresh index, and answer the query by running ALL THREE TIERS against that fresh index (a stale positive's correct answer may legitimately be a tier-two or tier-three hit, or nothing), with verification disabled for that inner pass.
 
   WHY THE KEY MUST BE POPPED BEFORE REBUILDING, demonstrated at review rather than assumed: `build_index` returns the cached object whenever `_dir_signature` matches, and E-01 proves the signature is byte-equal across an in-place `- Id:` rewrite, so calling `build_index(root)` to "rebuild" WITHOUT invalidating first returns THE SAME STALE OBJECT and the re-derivation silently re-answers from the wrong map. Measured in the review lane (`tmp/pr/demo.py`): `build_index after in-place rewrite returns SAME stale object: True`; after popping the key, `fresh after pop-key: True None ['20261001-sx-01-xxxxxx-x.ipd.md']` (the fresh map no longer claims `aaaaaa` and now indexes the file under `cccccc`), and `next call reuses fresh (no rebuild): True`, so the repaired entry is re-cached and later lookups stay warm.
 
@@ -85,18 +85,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE `_dir_signature`. E-01 shows the signature is structurally blind here (it is byte-equal across the rewrite) and E-02 shows the per-file alternative fails anyway, so a signature change is both insufficient and expensive. A reviewer who wants the signature changed is proposing a different plan.
   - Depends on: E-01, E-02
   - Expected outcome: `git diff -- agent_workflows/artifact_audit.py` shows the verification confined to the tier-one branch, covering the collision list as well as the single hit, with at most one re-derivation and the explicit-index path handled without mutating the caller's index; re-running E-01's three fixtures now shows the cached answer EQUAL to the truth in all three. Authoring prototyped exactly this (without editing production code) and measured all three scenarios correcting: stale positive `None`, wrong path `y.ipd.md`, phantom collision `x.ipd.md` with no collision.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 MEASURE THE VERIFICATION'S COST ON THIS REPOSITORY AND RECORD IT, because this change adds a file read to the hot path of the one consumer the cache exists for, and a cost claim no one measured is the way a cache fix becomes a cache regression. Sample REAL ids from this repository's own index (not a fixture), at least 200 of them that resolve uniquely, warm the page cache, then median the per-lookup wall time with and without the verification.
+- [x] E-04 MEASURE THE VERIFICATION'S COST ON THIS REPOSITORY AND RECORD IT, because this change adds a file read to the hot path of the one consumer the cache exists for, and a cost claim no one measured is the way a cache fix becomes a cache regression. Sample REAL ids from this repository's own index (not a fixture), at least 200 of them that resolve uniquely, warm the page cache, then median the per-lookup wall time with and without the verification.
 
   REPORT THREE RELATIONSHIPS, NOT THREE ABSOLUTES, since the absolutes are machine- and load-dependent and were measured here varying by more than 4x between runs: the absolute per-lookup overhead in microseconds, that overhead as a percentage of a warm lookup, and that overhead as a percentage of ONE cold `build_index`, which is the rebuild the cache exists to avoid and therefore the budget this change spends against.
 
   THE DIRECTION IS WHAT MUST HOLD. Authoring measured 479us of overhead, 1.3% of a warm lookup, and 0.006% of a cold rebuild, on 300 real ids with a cold build at 8327ms. If the verification measures as a LARGE fraction of a warm lookup on the execution machine (say above 25%), STOP AND REPORT rather than absorbing it: that would mean the header read is not cheap relative to the lookup on that filesystem and the remedy's shape should be re-decided, not shipped.
   - Depends on: E-03
   - Expected outcome: the two medians with their sample size and the three derived relationships, each with the command that produced it, plus the cold-build figure the percentage is taken against. Authoring: today 37.361ms, verified 37.840ms over 300 real ids, overhead 479us (1.3%), cold build 8327ms (223x a warm hit), overhead 0.006% of a rebuild.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 UPDATE THE `_INDEX_CACHE` COMMENTARY'S `RESIDUAL LIMIT 1` PARAGRAPH, which currently describes this defect as open and names this item as its carrier. That paragraph reads "An in-place edit to a file's `- Id:` line changes no filename and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still resolve a stale id6. Tracked under backlog carrier `ieg7q6`." After E-03 the first clause stays TRUE (the signature is still blind, deliberately) while the second becomes FALSE for a tier-one answer, so leaving it would tell the next reader a closed hole is open and invite them to re-fix it.
+- [x] E-05 UPDATE THE `_INDEX_CACHE` COMMENTARY'S `RESIDUAL LIMIT 1` PARAGRAPH, which currently describes this defect as open and names this item as its carrier. That paragraph reads "An in-place edit to a file's `- Id:` line changes no filename and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still resolve a stale id6. Tracked under backlog carrier `ieg7q6`." After E-03 the first clause stays TRUE (the signature is still blind, deliberately) while the second becomes FALSE for a tier-one answer, so leaving it would tell the next reader a closed hole is open and invite them to re-fix it.
 
   REWRITE IT TO SAY WHAT IS NOW TRUE AND WHAT IS STILL NOT. The signature remains blind to an in-place `- Id:` rewrite BY DESIGN; the three wrong answers are closed at the point of USE by verifying a tier-one claim, with the per-lookup cost E-04 measured; and the MISS-ON-NEW half stays open, meaning the record's NEW id6 is unfindable from a cached index until something else invalidates it. Name its sibling in the same class too: a collision CREATED in place (Y rewritten to an id6 X already declares) is reported as a clean single hit on X until the index is rebuilt, because X's claim still verifies and nothing on the hit path reads Y (review measured `cached: ...x.ipd.md collisions []` against `truth collisions: [x, y]`). It is the same failure shape as the miss (the cache fails to assert something TRUE, here Y's claim), and the comment must say so rather than implying every in-place identity drift is closed.
 
@@ -105,11 +105,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO STATE WHY THE SIGNATURE WAS NOT CHANGED, with E-02's numbers, because the obvious next reader's instinct is exactly the per-file signature the backlog item names. One sentence recording that it is size-blind on an id6 rewrite and 4x the cost is what stops that work being redone.
   - Depends on: E-03, E-04
   - Expected outcome: `git diff -- agent_workflows/artifact_audit.py` shows the old `RESIDUAL LIMIT 1` text replaced; the post-edit text quotes no claim E-01, E-02 or E-04 falsified; the surviving `record_dirs` cost warning and the fresh-status claim elsewhere in the block are UNTOUCHED (prove this affirmatively, since a careless rewrite of a neighbouring paragraph is the likely failure); and the `RESIDUAL LIMIT 2` over-invalidation paragraph with its `an1a33` carrier is untouched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin the outcome
 
-- [ ] E-06 ADD `tests/test_artifact_audit_identity_staleness.py` WITH ONE OUTCOME TEST PER WRONG ANSWER PLUS TWO COST-SHAPE TESTS. Each test builds a temporary repo root, primes the cache, rewrites `- Id:` lines IN PLACE, and asserts the lookup's answer EQUALS what a freshly built index returns. Assert against the FRESH-INDEX answer rather than a hardcoded expectation, so the test states the invariant ("a cached answer equals the truth") rather than a snapshot. Clear `_INDEX_CACHE` in `setUp` AND `tearDown`: it is module-level shared state and `pyproject.toml`'s `addopts` randomizes test order, so a neighbouring entry would make these pass or fail for the wrong reason.
+- [x] E-06 ADD `tests/test_artifact_audit_identity_staleness.py` WITH ONE OUTCOME TEST PER WRONG ANSWER PLUS TWO COST-SHAPE TESTS. Each test builds a temporary repo root, primes the cache, rewrites `- Id:` lines IN PLACE, and asserts the lookup's answer EQUALS what a freshly built index returns. Assert against the FRESH-INDEX answer rather than a hardcoded expectation, so the test states the invariant ("a cached answer equals the truth") rather than a snapshot. Clear `_INDEX_CACHE` in `setUp` AND `tearDown`: it is module-level shared state and `pyproject.toml`'s `addopts` randomizes test order, so a neighbouring entry would make these pass or fail for the wrong reason.
 
   GIVE EVERY FIXTURE A FILENAME id6 THAT DIFFERS FROM ITS DECLARED id6, for the reason E-01 states: tier two matches the filename, so a fixture sharing the two cannot distinguish a verified tier-one answer from a filename-tier fallback, and would pass against the unfixed code.
 
@@ -122,7 +122,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT ASSERT THE MISS-ON-NEW CASE PASSES. It does not, deliberately (F-05). If a test for it is added it must assert the CURRENT documented behavior and say in its docstring that the limit is deliberate with its reason, so a future reader does not read a missing test as an oversight.
   - Depends on: E-03
   - Expected outcome: six tests passing after E-03; each of the three wrong-answer tests RED against the pre-E-03 code; the first cost test RED if the cache is removed; the second cost test RED if the verification re-derives unconditionally; the explicit-index test RED against the pre-E-03 code on (a) and RED on (c) if the cache-entry pop is made unconditional. The file reads no production source text.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -224,37 +224,341 @@ No user-facing document changes. `docs/` is untouched, and the prose this plan e
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the raw output for all THREE wrong-answer fixtures, each with the command that produced it, each showing the CACHED answer beside the TRUTH (a freshly built index's answer) and a CORRECT verdict of False. The three must be: stale positive (cached a path, truth `None`), wrong path (cached one filename, truth a DIFFERENT filename, with no file added, removed or renamed), and phantom collision (cached a two-path collision, truth a clean single resolution). CONFIRM AFFIRMATIVELY that each fixture's file carries a filename id6 DIFFERENT from its declared id6, and paste the filenames showing it, because a fixture sharing the two passes against the unfixed code via tier two and is not evidence (F-02). Also paste the signature-equality line showing `_dir_signature` is byte-equal across the rewrite. If any scenario fails to reproduce, do NOT mark this item: report it, because the fix's justification rests on these three.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three wrong-answer fixtures reproduced; byte-equal directory signature confirmed; verdict cached == truth False.
+    Command: `python3 tmp/reproduce_e01.py`
+    Raw output:
+    ```
+    === Scenario 1: Stale Positive ===
+    File X filename: 20261001-set1-01-xxxxxx-plan-x.ipd.md (filename id6: xxxxxx, declared: aaaaaa -> cccccc)
+    Signature before == after: True
+    Cached answer: path=20261001-set1-01-xxxxxx-plan-x.ipd.md collisions=[] kind=id6
+    Truth answer:  path=None collisions=[] kind=None
+    Verdict cached == truth (CORRECT): False
 
-- [ ] V-02 validates E-02
+    === Scenario 2: Wrong Path ===
+    File X filename: 20261001-set1-01-xxxxxx-plan-x.ipd.md (filename id6: xxxxxx, declared: aaaaaa -> cccccc)
+    File Y filename: 20261001-set1-02-yyyyyy-plan-y.ipd.md (filename id6: yyyyyy, declared: bbbbbb -> aaaaaa)
+    Signature before == after: True
+    Cached answer: path=20261001-set1-01-xxxxxx-plan-x.ipd.md collisions=[] kind=id6
+    Truth answer:  path=20261001-set1-02-yyyyyy-plan-y.ipd.md collisions=[] kind=id6
+    Verdict cached == truth (CORRECT): False
+
+    === Scenario 3: Phantom Collision ===
+    File X filename: 20261001-set1-01-xxxxxx-plan-x.ipd.md (filename id6: xxxxxx, declared: aaaaaa)
+    File Y filename: 20261001-set1-02-yyyyyy-plan-y.ipd.md (filename id6: yyyyyy, declared: aaaaaa -> bbbbbb)
+    Signature before == after: True
+    Cached answer: path=None collisions=['20261001-set1-01-xxxxxx-plan-x.ipd.md', '20261001-set1-02-yyyyyy-plan-y.ipd.md'] kind=id6
+    Truth answer:  path=20261001-set1-01-xxxxxx-plan-x.ipd.md collisions=[] kind=id6
+    Verdict cached == truth (CORRECT): False
+    ```
+    Confirmation: Each fixture file affirmatively carries a filename id6 (`xxxxxx` for X, `yyyyyy` for Y) distinct from its declared id6 (`aaaaaa`, `bbbbbb`). Signature equality confirmed (`Signature before == after: True`). All 3 wrong answers reproduced with cached == truth verdict of False.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste candidate B's blind-trial counts for BOTH timing modes with their denominators (immediate rewrite and after a 50ms sleep), each with the command, and paste the candidate-B implementation used so a reviewer can confirm it carries per-file `st_mtime_ns` AND `st_size` and recurses (a weaker implementation would falsify nothing). Paste the interleaved warm timing of candidate B against the shipped `_dir_signature` on this repository with its sample size and the ratio, confirming the page cache was warmed and the two were interleaved. State explicitly that NO mtime or size pinning was used, since the item already concedes the pinned case and the finding is about the unpinned one. Authoring: 149/200 immediate, 0/200 after a sleep, 71.18ms against 17.34ms (4.10x). If the immediate-rewrite count comes back at or near zero, do NOT mark this item and do NOT proceed to E-03: report it, because the plan's choice of instrument rests on this falsification.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Candidate B falsified: blind in 140/200 immediate trials and 0/200 after 50ms sleep; measured 3.75x timing overhead.
+    Command: `python3 tmp/falsify_e02.py`
+    Candidate B implementation:
+    ```python
+    def candidate_b_signature(repo_root: Path, record_types: Sequence[str] = ()) -> tuple:
+        sig: List[tuple] = []
+        for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
+            if not base.is_dir():
+                continue
+            stack = [base]
+            while stack:
+                cur = stack.pop()
+                try:
+                    with os.scandir(cur) as it:
+                        for entry in it:
+                            try:
+                                if entry.is_dir(follow_symlinks=False):
+                                    stack.append(Path(entry.path))
+                                elif entry.is_file(follow_symlinks=False):
+                                    st = entry.stat(follow_symlinks=False)
+                                    sig.append((str(entry.path), st.st_mtime_ns, st.st_size))
+                            except OSError:
+                                continue
+                except OSError:
+                    continue
+        return tuple(sorted(sig))
+    ```
+    Raw output:
+    ```
+    Checking size preservation:
+    len('aaaaaa') == len('cccccc'): True (size is never a discriminator for an id6 swap)
 
-- [ ] V-03 validates E-03
+    Running 200 immediate trials (no sleep, no pinning)...
+    Immediate rewrite: candidate B signature BLIND in 140/200 trials
+    Running 200 trials with 50ms sleep (no pinning)...
+    After 50ms sleep: candidate B signature BLIND in 0/200 trials
+
+    Running interleaved warm timing on this repository...
+    shipped (dir mtime + names) median: 49.15 ms
+    candidate B (per-file mtime+size) median: 184.44 ms
+    ratio (candidate B / shipped): 3.75x (over 50 interleaved trials)
+    ```
+    Explicit confirmation: No mtime or size pinning was used. Immediate rewrite resulted in candidate B signature blind in 140/200 trials. Timing ratio measured 3.75x overhead over the shipped signature with page cache warmed and trials interleaved.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` limited to `find_artifact`, showing the verification confined to the `kind == "id6"` tier-one branch, reading through `selectors._read_header` plus `selectors._read_id` (the same reader `build_index` uses), covering the COLLISION LIST as well as the single hit, re-deriving AT MOST ONCE, invalidating ONLY this root's `_INDEX_CACHE` key and only when the stored entry `is` the index whose claim failed (never `_INDEX_CACHE.clear()`), popping that key BEFORE calling `build_index` (otherwise the matching signature hands back the same stale object), answering from the fresh index through all three tiers, and handling the explicit-`artifact_index` case through the same route WITHOUT mutating the caller's index. Then paste E-01's three fixtures RE-RUN against the new code, all three now showing the cached answer EQUAL to the truth. Paste a fourth run proving the explicit-index path is also fixed: pass `artifact_index=` explicitly, rewrite in place, and show the answer now matches the truth while the caller's index object is unchanged (assert its identity before and after, and that its `by_declared_id` still holds the old mapping), then repeat the same call and show the traversal did NOT run again (wrapped `selectors._iter_paths` count unchanged). Confirm AFFIRMATIVELY that the diff changes no other function: `_dir_signature`, `build_index`, `audit_artifact` and `audit_tracked_artifact` are untouched, and paste `git diff --stat` showing only the expected files.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified find_artifact verification implemented; all 3 fixtures and explicit-index test resolve to truth; git diff scoped.
+    `git diff -- agent_workflows/artifact_audit.py` limited to `find_artifact`:
+    ```diff
+    @@ -1173,6 +1173,7 @@ def find_artifact(
+         *,
+         record_types: Sequence[str] = TYPE_PRECEDENCE,
+         artifact_index: Optional[ArtifactIndex] = None,
+    +    _verify_tier_one: bool = True,
+     ) -> ArtifactLookup:
+         """Locate the artifact declaring ``id6`` (or named by ``stem``), through ``selectors``.
 
-- [ ] V-04 validates E-04
+    @@ -1200,12 +1200,51 @@ def find_artifact(
+         # collision is reported rather than masked by the type ordering.
+         if id6:
+             exact = index.by_declared_id.get(id6, ())
+    -        if len(exact) == 1:
+    -            return ArtifactLookup(path=exact[0], kind="id6")
+    -        if len(exact) > 1:
+    -            return ArtifactLookup(
+    -                path=None, collisions=sorted(exact, key=str), kind="id6"
+    -            )
+    +        if exact:
+    +            if _verify_tier_one:
+    +                # Verify that every claimed path still declares the queried id6, reading through the
+    +                # same selectors._read_header and selectors._read_id reader build_index used.
+    +                # Both single hits and collision lists are verified.
+    +                def _claims_id6(p: Path) -> bool:
+    +                    hdr = _sel._read_header(p)
+    +                    return hdr is not None and _sel._read_id(hdr) == id6
+    +
+    +                if not all(_claims_id6(p) for p in exact):
+    +                    # Invalidate only this root's entry, and ONLY when it is the stale object.
+    +                    # Popping before rebuild is mandatory: build_index checks _dir_signature,
+    +                    # which is structurally blind to an in-place - Id: rewrite, so without
+    +                    # popping the key first build_index would return the same stale object.
+    +                    # Popping ONLY when cached[1] is index protects repeat lookups against a
+    +                    # caller's stale explicit index from evicting a fresh cache entry and forcing
+    +                    # repeated disk traversals.
+    +                    try:
+    +                        cache_key = (str(repo_root.resolve()), tuple(record_types))
+    +                    except OSError:
+    +                        cache_key = (str(repo_root), tuple(record_types))
+    +                    cached_entry = _INDEX_CACHE.get(cache_key)
+    +                    if cached_entry is not None and cached_entry[1] is index:
+    +                        _INDEX_CACHE.pop(cache_key, None)
+    +
+    +                    # Re-derive once from a fresh index. When the caller passed artifact_index=,
+    +                    # the caller owns that object's lifetime; we deliberately do NOT mutate the
+    +                    # caller's ArtifactIndex, leaving it untouched while answering this query
+    +                    # from the rebuilt index.
+    +                    fresh = build_index(repo_root, record_types=record_types)
+    +                    return find_artifact(
+    +                        repo_root,
+    +                        id6,
+    +                        stem,
+    +                        record_types=record_types,
+    +                        artifact_index=fresh,
+    +                        _verify_tier_one=False,
+    +                    )
+    +
+    +            if len(exact) == 1:
+    +                return ArtifactLookup(path=exact[0], kind="id6")
+    +            if len(exact) > 1:
+    +                return ArtifactLookup(
+    +                    path=None, collisions=sorted(exact, key=str), kind="id6"
+    +                )
+     ```
+    Re-run output of all four scenarios (`python3 tmp/reproduce_e01.py`):
+    ```
+    === Scenario 1: Stale Positive ===
+    File X filename: 20261001-set1-01-xxxxxx-plan-x.ipd.md (filename id6: xxxxxx, declared: aaaaaa -> cccccc)
+    Signature before == after: True
+    Cached answer: path=None collisions=[] kind=None
+    Truth answer:  path=None collisions=[] kind=None
+    Verdict cached == truth (CORRECT): True
+
+    === Scenario 2: Wrong Path ===
+    File X filename: 20261001-set1-01-xxxxxx-plan-x.ipd.md (filename id6: xxxxxx, declared: aaaaaa -> cccccc)
+    File Y filename: 20261001-set1-02-yyyyyy-plan-y.ipd.md (filename id6: yyyyyy, declared: bbbbbb -> aaaaaa)
+    Signature before == after: True
+    Cached answer: path=20261001-set1-02-yyyyyy-plan-y.ipd.md collisions=[] kind=id6
+    Truth answer:  path=20261001-set1-02-yyyyyy-plan-y.ipd.md collisions=[] kind=id6
+    Verdict cached == truth (CORRECT): True
+
+    === Scenario 3: Phantom Collision ===
+    File X filename: 20261001-set1-01-xxxxxx-plan-x.ipd.md (filename id6: xxxxxx, declared: aaaaaa)
+    File Y filename: 20261001-set1-02-yyyyyy-plan-y.ipd.md (filename id6: yyyyyy, declared: aaaaaa -> bbbbbb)
+    Signature before == after: True
+    Cached answer: path=20261001-set1-01-xxxxxx-plan-x.ipd.md collisions=[] kind=id6
+    Truth answer:  path=20261001-set1-01-xxxxxx-plan-x.ipd.md collisions=[] kind=id6
+    Verdict cached == truth (CORRECT): True
+
+    === Scenario 4: Explicit artifact_index ===
+    Caller index identity unchanged: True (id=135300263054672)
+    Caller index mapping unchanged: True
+    Answer matches truth: True
+    First call traversals: 10
+    Repeat call traversals (should not re-traverse): 0 (total: 10)
+    Repeat answer matches truth: True
+    ```
+    Confirmation: `_dir_signature`, `build_index`, `audit_artifact`, and `audit_tracked_artifact` are untouched.
+    `git diff --stat agent_workflows/artifact_audit.py`:
+    `agent_workflows/artifact_audit.py | 58 +++++++++++++++++++++++++++++++++++++++---`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the two medians (today and verified) with their sample size and the command, confirming at least 200 REAL uniquely-resolving ids were drawn from this repository's own index rather than from a fixture, and that the page cache was warmed first. Paste the three derived relationships: absolute overhead in microseconds, overhead as a percentage of a warm lookup, and overhead as a percentage of one cold `build_index`, with the cold figure the last is taken against. Authoring: 479us, 1.3%, 0.006%, against a cold build of 8327ms. The absolutes will differ and that is expected (they varied by more than 4x between runs in the authoring lane); what must be reported is that the overhead is a SMALL fraction of a lookup. If it measures above roughly a quarter of a warm lookup, do NOT mark this item: report it, because the remedy's shape would need re-deciding rather than shipping.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured 300 real repository IDs: warm lookup overhead 143.79 us (1.76%), cold rebuild ratio 0.00734% (1958.17 ms rebuild).
+    Command: `python3 tmp/measure_e04.py`
+    Raw output:
+    ```
+    Sample size: 300 real uniquely-resolving ids from repo index
+    Cold build_index: 1958.17 ms
+    Unverified (today) median per lookup: 8184.49 us (8.1845 ms)
+    Verified median per lookup:           8328.28 us (8.3283 ms)
+    Absolute overhead:                    143.79 us (0.1438 ms)
+    Overhead as percentage of warm lookup: 1.76%
+    Overhead as percentage of cold rebuild: 0.00734%
+    ```
+    Confirmation: Sample size of 300 real uniquely-resolving IDs drawn from repository index. Page cache warmed before measurement. Overhead is 143.79 us, which is 1.76% of a warm lookup (< 25%) and 0.00734% of a cold rebuild (1958.17 ms).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff -- agent_workflows/artifact_audit.py` for the comment block. PROVE THE REMOVAL: quote the post-edit text and show the claim "a cached `by_declared_id` can still resolve a stale id6" is GONE, replaced by text stating that the three wrong answers are closed at the point of use, that the signature remains blind BY DESIGN with E-02's measurement as the reason, and that the miss-on-new half remains open. PROVE THE PRESERVATION, since a careless rewrite of a neighbouring paragraph is the likely failure: quote the post-edit text showing the `record_dirs` cost warning survives with its measured number, the fresh-status claim survives, and `RESIDUAL LIMIT 2`'s over-invalidation paragraph with its `an1a33` carrier is byte-unchanged. Show that the text names NO carrier id6 for the deferred miss half and contains no promise to file an item, matching the Deferred section's declination. Paste `aw find an1a33` and `aw find 1sn4h0` resolving to exactly one backlog file each, proving the carriers this plan cites are live rather than invented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RESIDUAL LIMIT 1 commentary updated; stale claim removed; fresh-status, RESIDUAL LIMIT 2, and record_dirs preserved; carriers live.
+    `git diff -- agent_workflows/artifact_audit.py` for comment block:
+    ```diff
+    @@ -1046,9 +1046,17 @@ class ArtifactIndex:
+     # ONLY PATH FACTS ARE CACHED HERE: a record's `- Status:` is always read fresh in `audit_artifact`,
+     # so an in-place status edit needs no cache invalidation.
+     #
+    -# RESIDUAL LIMIT 1 (carrier `ieg7q6`): An in-place edit to a file's `- Id:` line changes no filename
+    -# and no directory mtime, so a name-set signature cannot see it; a cached `by_declared_id` can still
+    -# resolve a stale id6. Tracked under backlog carrier `ieg7q6`.
+    +# RESIDUAL LIMIT 1: An in-place edit to a file's `- Id:` line changes no filename and no directory
+    +# mtime, so the invalidation signature remains blind to it BY DESIGN: widening the signature to per-file
+    +# mtime and size fails on a size-preserving id6 rewrite in 140/200 immediate trials and costs ~3.8x.
+    +# The three wrong answers reachable from a stale hit (stale positive, wrong path, phantom collision)
+    +# are closed at the point of USE in `find_artifact` by verifying tier-one identity claims against disk
+    +# (<0.01% of a rebuild). The MISS-ON-NEW half remains open: a record's newly assigned id6 is unfindable
+    +# from a cached index until an invalidation occurs, and similarly an in-place collision created by
+    +# rewriting Y to X's id6 returns a clean single hit on X because X's claim verifies and nothing reads Y.
+    +# Both are omissions (failing to assert something true) rather than false assertions; closing them would
+    +# require re-deriving on every miss or checking every file on every hit, spending full rebuilds on normal
+    +# queries. No carrier is owed (deferred under plan 0a7v0x / F-05).
+     #
+     # RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56
+     # directories while `build_index` enumerates records from only 33, leaving 23 watched-but-not-enumerated
+    ```
+    Proof of removal: The sentence `a cached by_declared_id can still resolve a stale id6. Tracked under backlog carrier ieg7q6.` is removed.
+    Proof of preservation:
+    - Fresh status comment preserved: `# ONLY PATH FACTS ARE CACHED HERE: a record's `- Status:` is always read fresh in `audit_artifact`,`
+    - RESIDUAL LIMIT 2 preserved: `# RESIDUAL LIMIT 2 / OVER-INVALIDATION (carrier `an1a33`): The recursive walk fingerprints 56...`
+    - `record_dirs` cost warning in `_dir_signature` docstring preserved: `selectors.record_dirs per type. That is deliberate and measured: record_dirs consults the project/registry backend on every call (~1.6ms each, ~16ms per signature across the vocabulary)...`
+    - No carrier id6 named for deferred miss half, and no promise to file an item.
+    Carriers verified with `aw find`:
+    ```
+    $ aw find an1a33
+    ●  graduated     an1a33  .aw/records/backlog/graduated/20260930-8mkt5l-01-an1a33-audit-cache-wholesale-clear-eviction.backlog.md
+    $ aw find 1sn4h0
+    ●  graduated     1sn4h0  .aw/records/backlog/graduated/20260930-8mkt5l-01-1sn4h0-restore-artifact-audit-verdict-coverage.backlog.md
+    ```
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_identity_staleness.py -v` showing all six tests PASSING by name. Then paste the RED-BEFORE-GREEN evidence, without which this item may not be marked: for EACH of the three wrong-answer tests, the FAILING output against the pre-E-03 code, followed by `git status --short agent_workflows/` proving the file was restored. Then paste BOTH opposite mutations: with the cache lookup disabled in a scratch copy, the cache-still-used test FAILING; with the verification's early return dropped so it re-derives unconditionally, the no-re-derivation test FAILING; each followed by proof of restoration. Also paste the explicit-index test FAILING against the pre-E-03 code, and FAILING on its repeat-call traversal assertion when the cache-entry pop is made unconditional in a scratch copy, each followed by proof of restoration. Paste `python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py -v` showing the predecessor's six tests still PASSING unchanged, and confirm that file was not edited. PROVE P16 COMPLIANCE of the new file: paste a grep for `inspect`, `getsource`, `ast`, and any `read_text` of a path under `agent_workflows/`, showing zero matches. Confirm each test clears `_INDEX_CACHE` in `setUp` and `tearDown`.
 
     ALSO CARRY THE WHOLE-PLAN NO-REGRESSION EVIDENCE HERE, as the last item before commit, since it belongs to no single E-item. Paste the BARE `python3 -m pytest` output INCLUDING its `N passed` summary line, AND the two pre-change baseline runs F-09 requires, and reconcile BY NODE ID against the union of their failures rather than by total. Name every post-change failure and classify it as pre-existing (present in a baseline run) or new; any failure naming `artifact_audit`, `find_artifact`, `build_index` or the index cache is this plan's and must be fixed, not explained. Report the pre-existing set explicitly rather than silently, per the Deferred section's declination. Paste `aw ipd lint` on this plan reporting conforming, and `aw sanitize --agent` clean. Paste `git diff --cached --name-only` before committing, showing EXACTLY the two declared `- Scope-Paths:` entries and nothing else, and confirm no `tmp/` scratch file is staged; if any other path appears, unstage it with `git restore --staged <path>` and re-verify, since this is a shared checkout and another party's work must never enter this commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 6 new tests pass; red-before-green verified; opposite mutations verified; predecessor tests pass; P16 compliant; full suite reconciled.
+    All six tests passing:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_artifact_audit_identity_staleness.py -v
+    tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_stale_positive_returns_fresh_truth PASSED [ 16%]
+    tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_phantom_collision_returns_fresh_truth PASSED [ 33%]
+    tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_wrong_path_returns_fresh_truth PASSED [ 50%]
+    tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_cost_shape_true_tier_one_answer_does_not_rederive PASSED [ 66%]
+    tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_cost_shape_cache_is_reused_on_unchanged_tree PASSED [ 83%]
+    tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_explicit_artifact_index_preserves_caller_object_and_revalidates_without_extra_traversal PASSED [100%]
+    ============================== 6 passed in 1.62s ===============================
+    ```
+    Red-before-green evidence (pre-E-03 code):
+    ```
+    FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_stale_positive_returns_fresh_truth - AssertionError: PosixPath(...) != None
+    FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_wrong_path_returns_fresh_truth - AssertionError: PosixPath(...plan-x.ipd.md) != PosixPath(...plan-y.ipd.md)
+    FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_phantom_collision_returns_fresh_truth - AssertionError: None != PosixPath(...)
+    FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_explicit_artifact_index_preserves_caller_object_and_revalidates_without_extra_traversal - AssertionError: PosixPath(...) != None
+    ========================= 4 failed, 2 passed in 1.62s ==========================
+    ```
+    Proof of restoration:
+    `$ git status --short agent_workflows/` -> `M agent_workflows/artifact_audit.py`
+
+    Opposite Mutation 1 (cache lookup disabled in build_index):
+    `FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_cost_shape_cache_is_reused_on_unchanged_tree - AssertionError: 20 != 30`
+    Proof of restoration: `$ git status --short agent_workflows/` -> `M agent_workflows/artifact_audit.py`
+
+    Opposite Mutation 2 (unconditional re-derivation in find_artifact):
+    `FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_cost_shape_true_tier_one_answer_does_not_rederive - AssertionError: 10 != 0`
+    Proof of restoration: `$ git status --short agent_workflows/` -> `M agent_workflows/artifact_audit.py`
+
+    Explicit-index unconditional pop mutation:
+    `FAILED tests/test_artifact_audit_identity_staleness.py::TestArtifactAuditIdentityStaleness::test_explicit_artifact_index_preserves_caller_object_and_revalidates_without_extra_traversal - AssertionError: 10 != 20`
+    Proof of restoration: `$ git status --short agent_workflows/` -> `M agent_workflows/artifact_audit.py`
+
+    Predecessor tests passing unchanged:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_artifact_audit_index_cache.py -v
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route2_untyped_tree_with_pinned_mtime PASSED [ 16%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_memoization_cache_reuses_index_and_invalidates_on_change PASSED [ 33%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route2_untyped_tree_addition_detected PASSED [ 50%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route3_deep_directory_addition_detected PASSED [ 66%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_compound_route3_deep_directory_with_pinned_mtime PASSED [ 83%]
+    tests/test_artifact_audit_index_cache.py::TestArtifactAuditIndexCache::test_route1_same_tick_addition_detected PASSED [100%]
+    ============================== 6 passed in 1.47s ===============================
+    ```
+    Predecessor file `tests/test_artifact_audit_index_cache.py` untouched (`git status` confirms untracked/modified does not include it).
+
+    P16 compliance:
+    `$ grep -E "inspect|getsource|ast" tests/test_artifact_audit_identity_staleness.py || echo "No matches found"` -> `No matches found`
+    `$ grep "read_text" tests/test_artifact_audit_identity_staleness.py` -> exit 1, no matches found.
+    `_INDEX_CACHE` cleared in both `setUp` and `tearDown`.
+
+    Whole-plan no-regression evidence:
+    Baseline Run 1 (pre-change bare `python3 -m pytest`):
+    `6 failed, 4655 passed, 2 skipped, 3 warnings in 666.48s (0:11:06)`
+    Node IDs:
+    - `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`
+    - `tests/test_ipd_lint.py::AllRootRegressionTests::test_all_bare_in_this_repo_retains_baseline_exit_code`
+    - `tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference`
+    - `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit`
+    - `tests/test_freeze_time_refusal.py::TestPreservedBehaviorCases::test_5_3a_in_run_failure_cascades_fail_depend_and_independent_item_completes`
+    - `tests/test_fields_flag_reach.py::FieldsFlagReachTests::test_fields_flag_end_to_end_projection`
+
+    Baseline Run 2 (pre-change bare `python3 -m pytest`):
+    `3 failed, 4658 passed, 2 skipped, 3 warnings in 581.67s (0:09:41)`
+    Node IDs:
+    - `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs`
+    - `tests/test_ipd_lint.py::AllRootRegressionTests::test_all_bare_in_this_repo_retains_baseline_exit_code`
+    - `tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference`
+
+    Post-change bare `python3 -m pytest`:
+    `4 failed, 4663 passed, 2 skipped, 3 warnings in 503.64s (0:08:23)`
+    Failures reconciled by Node ID:
+    - `tests/test_ipd_lint.py::AllRootRegressionTests::test_all_bare_in_this_repo_retains_baseline_exit_code` (pre-existing in Baseline 1 and 2)
+    - `tests/test_statusline_behavior.py::TestStatuslineBoxInvariants::test_box_renderer_invariants_across_swept_inputs` (pre-existing in Baseline 1 and 2)
+    - `tests/test_typecheck_gate.py::TypecheckGateTests::test_typecheck_gate_clean_exit` (pre-existing in Baseline 1)
+    - `tests/test_verbose_flag_reach.py::VerboseFlagReachTests::test_verbose_flag_end_to_end_observable_difference` (pre-existing in Baseline 1 and 2)
+    All 4 post-change failures are pre-existing in baseline runs; 0 new failures. Zero failures name `artifact_audit`, `find_artifact`, `build_index`, or `test_artifact_audit_index_cache`.
+
+    Lint and Sanitize:
+    `$ aw ipd lint .aw/records/plans/pending/20261001-8mkt5l-02-0a7v0x-close-the-artifact-audit-cache-s-blindness-to-an-in-place-re.ipd.md` -> `conforming`
+    `$ aw sanitize --agent` -> `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Staged paths verification:
+    `$ git diff --cached --name-only` confirms exactly the declared Scope-Paths and no scratch files.
+  - Result: pass
 
 ## Approval and execution gate
 

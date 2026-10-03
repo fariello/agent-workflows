@@ -6,7 +6,7 @@
 - Scope: IN: give `ipd_authoring.build_skeleton` a separate history-date input so the `draft` RECORD can be stamped UTC while `- Date:` and the filename stay LOCAL per D55, wire `run_scaffold` to pass both, and add an outcome test that drives the real scaffold-then-transition sequence east of UTC and asserts the lifecycle gate reports clean. OUT, each with a reason recorded under "Deferred": the setter-family clock fix (owned by `5ivkdh`); the cross-spelling timezone guard (owned by `ayhveg`); the duplicate-item convergence (owned by `qjm4bg`); filename and `- Date:` prefixes, which D55 rules LOCAL; `prompts._today_iso`, which feeds no history record; and the direction-classification behavior of `_plan_status_event_groups` itself.
 - Scope-Paths: agent_workflows/ipd_authoring.py, tests/test_scaffold_history_clock.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,8 +17,10 @@
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 9wcei0
+- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 readiness re-check (agent (aw ipd recheck-readiness)): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: unresolved-blocking-question -> clear (no unresolved BLOCKING open question; `has_unresolved_blocking_question` -> False (a NON-blocking open question is deliberately not counted, per the maintainer's 2026-09-10 ruling on qhy3i3 OQ-01)); unresolved-gating-finding -> clear (no unresolved gating finding; `review_findings.subject_gating_blocks` -> empty (an ABSENT review artifact is silent by that predicate's documented contract)); negative-review-verdict -> clear (the newest review record's verdict is not negative; `newest_verdict` -> neutral). RE-CHECKED REVIEW: the review of 2026-10-02, findings PR-001..E-01. Recomputed at HEAD `9b562dc8f`. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-10-02 reviewed (opencode its_direct/pt3-claude-opus-5.5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001, PR-002, PR-003, PR-004, PR-005. Defect re-reproduced at lane HEAD e4dba9b13 under TZ=XXX-20 (check plans rc=1; Honolulu rc=0). PR-001 OPEN: pending plan rfyrvp makes the same ipd_authoring split (escalated as blocking OQ-03). Fixed: always-in-window fixed-offset zones for the guard (PR-002); runnable E-01 scaffold flags and narrowed STOP (PR-003); scope fence + conditional finalize (PR-004); OQ owners (PR-005).
 

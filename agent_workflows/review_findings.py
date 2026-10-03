@@ -1097,10 +1097,8 @@ def review_attestation_missing(
 #:
 #: Matching on this field rather than on prose is the whole point: the escalation contract REQUIRES
 #: the question to carry it, so the match is made on a declared identity and never on a guess about
-#: which finding a question is "about".
-_OQ_FINDING_REF_RE = re.compile(
-    r"(?mi)^-[ \t]*Finding:[ \t]*([A-Za-z][A-Za-z0-9_-]*)[ \t]*$"
-)
+#: which finding a question is "about". Accepts single or comma-separated finding ids.
+_OQ_FINDING_REF_RE = re.compile(r"(?mi)^-[ \t]*Finding:[ \t]*(.+?)[ \t]*$")
 
 
 class StaleFinding(NamedTuple):
@@ -1155,18 +1153,20 @@ def _resolved_escalated_questions(plan_text: str) -> Dict[str, Tuple[str, str]]:
         if not heading:
             continue
         qid = heading.group(1)
-        finding_id: Optional[str] = None
+        finding_ids: List[str] = []
         status: Optional[str] = None
         for line in block[1:]:
             m = _OQ_FINDING_REF_RE.match(line.strip())
-            if m and finding_id is None:
-                finding_id = m.group(1).strip()
+            if m:
+                for tok in re.split(r"[,;\s]+", m.group(1).strip()):
+                    if tok and re.match(r"^[A-Za-z][A-Za-z0-9_-]*$", tok):
+                        finding_ids.append(tok)
                 continue
             m2 = re.match(r"(?i)^-[ \t]*Status:[ \t]?(.*)$", line.strip())
             if m2 and status is None:
                 status = m2.group(1).strip().lower()
-        if finding_id:
-            out[finding_id] = (qid, status or "")
+        for fid in finding_ids:
+            out[fid] = (qid, status or "")
     return out
 
 
