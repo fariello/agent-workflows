@@ -14784,29 +14784,7 @@ class RunPolicyFlag(NamedTuple):
 RESUME_REFUSE = "refuse"
 RESUME_NONE_DEFAULT = "none-default"
 
-#: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
-#:
-#: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
-#: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
-#: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
-#: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
-#:
-#: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
-#: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
-#: refusal with no sanctioned override is how an operator learns to work around a gate instead of
-#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
-#: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
-#: that spec 2.1 declare every row here in the same change remains in force.
-#:
-#: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
-#: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
-#:
-#: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
-#: by the row that preceded it: `uyeko5` put `--type` in the contract test's
-#: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
-#: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
-#: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
-#: #: Active runner conflict resolution modes.
+#: Active runner conflict resolution modes.
 ON_CONFLICT_DROP = "drop"
 ON_CONFLICT_REFUSE = "refuse"
 ON_CONFLICT_FORCE = "force"
@@ -14834,6 +14812,30 @@ CANONICAL_ON_CONFLICT_CHOICES = (
 )
 DEFAULT_ON_CONFLICT = ON_CONFLICT_DROP
 
+#: Spec 25kzda 2.1's policy flags, in the order the spec's grammar block lists them.
+#:
+#: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
+#: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
+#: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
+#: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
+#:
+#: `--allow-dirty-base` JOINED with dirtybase Order 01 (`3i0aaz`), which added the dirty-base refusal
+#: on the shared-tree path and therefore needed the CONSENT half in the same change: shipping a
+#: refusal with no sanctioned override is how an operator learns to work around a gate instead of
+#: through it. Spec 2.1 declares it in the same commit: the data-driven test (`tests/test_run_flag_surface.py`)
+#: was deleted in `19313eed` and is currently unguarded (carrier: backlog `xvp5vx`), but the requirement
+#: that spec 2.1 declare every row here in the same change remains in force.
+#:
+#: THE COUNT IS DELIBERATELY NOT STATED. It said "NINE" and was already one edit behind by the time a
+#: tenth arrived; the contract test derives the expected set from the spec for exactly this reason.
+#:
+#: `--type` JOINED with specsweep Order 01 (`ui8b9b`), and it is the row whose ARRIVAL was planned for
+#: by the row that preceded it: `uyeko5` put `--type` in the contract test's
+#: `DECLARED_BUT_NOT_OWNED_HERE` with a named reason and owner, so taking ownership MOVES that row
+#: rather than adding a second one. It is the table's first `"multi-choice"` kind, because spec 2.1
+#: spells it `[--type <...>]...` - REPEATABLE, with 2.3 making repetition mean the UNION of the named
+#: types, which is also what makes it the first flag able to produce a genuinely mixed selection and
+#: therefore the first that can reach the shipped `[RUN-MIXED-TYPES]` gate.
 RUN_POLICY_FLAGS: tuple = (
     # specsweep-01 (`ui8b9b`) E-01: `--type`, MOVED out of the contract test's
     # `DECLARED_BUT_NOT_OWNED_HERE` rather than added beside it. Spec 2.1 already DECLARED it, so no

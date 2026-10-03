@@ -1,5 +1,5 @@
 - Id: woxgyo
-- Status: graduated
+- Status: done
 - Graduated-To: woxgyo
 - Set: woxgyo
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: runner_shared RUN_POLICY_FLAGS doc-comment lost its final two lines to a mangled merge in 7dd1c486c, which also double-prefixed an ON_CONFLICT comment
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD 57v89t executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-woxgyo-01-57v89t-restore-the-two-truncated-run-policy-flags-doc-comment-lines.ipd.md); evidence .aw/records/plans/executed/20261002-woxgyo-01-57v89t-restore-the-two-truncated-run-policy-flags-doc-comment-lines.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T222151Z-2118435: 57v89t
 - 2026-10-01 created (aw backlog): Found while measuring rcp8c4's seven stale test_run_flag_surface citations: the same doc-comment block carries a separate, unrelated defect
 
