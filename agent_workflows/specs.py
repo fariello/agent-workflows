@@ -987,22 +987,15 @@ def run_set(args) -> int:
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_from_backlog_line(new_text, from_backlog_arg)
-        if from_backlog_arg != "-" and getattr(args, "blocks_release", None) is None:
-            from agent_workflows import backlog as _backlog
+        from agent_workflows.status_set import inherit_from_backlog_release_gate
 
-            _carrier_m = re.search(
-                r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$", new_text
-            )
-            if _carrier_m is None:
-                _item_gate = _backlog.blocks_release_of_item(
-                    _repo_root_of(path), from_backlog_arg
-                )
-                if _item_gate:
-                    new_text = _releases.set_blocks_release_line(new_text, _item_gate)
-                    sys.stdout.write(
-                        f"aw set: inherited - Blocks-Release: {_item_gate} from backlog item "
-                        f"{from_backlog_arg} (graduation handoff: the gate travels with the work)\n"
-                    )
+        new_text = inherit_from_backlog_release_gate(
+            new_text,
+            _repo_root_of(path),
+            from_backlog_arg,
+            getattr(args, "blocks_release", None),
+            verb_label="aw specs set",
+        )
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
     residual = validate_spec(path, new_text)
     if residual:
@@ -1078,65 +1071,10 @@ def run_set(args) -> int:
         for rp in rewritten_citations:
             if rp not in touched_paths:
                 touched_paths.append(rp)
-    _offer_specs_set_commit(args, repo_root, touched_paths, new)
+    from agent_workflows.status_set import _offer_self_commit
+
+    _offer_self_commit(args, repo_root, touched_paths, new, "specs")
     return 0
-
-
-def _offer_specs_set_commit(
-    args, repo_root: Path, paths: List[str], new_status: str
-) -> None:
-    """Offer to path-scoped-commit the spec file(s) rewritten by the `--status` form (jgcm68 E-06).
-
-    Interactive-gated via child-01 ``offer_commit``: TTY prompts, non-interactive-without-``--commit``
-    is a NO-OP; path-scoped to exactly ``paths``; no push, no ``add -A``. A commit failure is non-fatal.
-    """
-    from agent_workflows import git_commit_helper as _gch
-
-    if not paths:
-        return
-    # jgcm68 D2: unstage these files first (no-op if not pre-staged) so the helper re-stages them.
-    _gch._git(Path(repo_root), ["reset", "--quiet", "HEAD", "--", *paths])
-    outcome = _gch.offer_commit(
-        Path(repo_root),
-        paths,
-        message=f"chore(specs): set status {new_status}",
-        assume_yes=bool(
-            getattr(args, "commit", False)
-            or (
-                getattr(args, "yes", False)
-                and not (
-                    getattr(args, "agent", False)
-                    or getattr(args, "json", False)
-                    or getattr(args, "as_agent", False)
-                )
-            )
-        )
-        if args
-        else False,
-        no_commit=bool(getattr(args, "no_commit", False)) if args else False,
-        on_unrelated_staged="scope",
-    )
-    is_agent_or_json = (
-        bool(
-            getattr(args, "agent", False)
-            or getattr(args, "json", False)
-            or getattr(args, "as_agent", False)
-        )
-        if args
-        else False
-    )
-    if is_agent_or_json:
-        if outcome.status == _gch.STATUS_ERROR:
-            sys.stderr.write(f"warning: self-commit skipped: {outcome.message}\n")
-        return
-    if outcome.status == _gch.STATUS_COMMITTED:
-        sys.stdout.write(
-            f"Committed {len(outcome.staged)} path(s): {outcome.commit}:\n"
-        )
-        for p in outcome.staged:
-            sys.stdout.write(f"{p}\n")
-    elif outcome.status == _gch.STATUS_ERROR:
-        sys.stdout.write(f"warning: self-commit skipped: {outcome.message}\n")
 
 
 def run_migrate(args) -> int:
