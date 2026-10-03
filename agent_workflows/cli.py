@@ -12523,6 +12523,173 @@ def _run_archive(args: argparse.Namespace, term: Term) -> int:
     return r if isinstance(r, int) else 0
 
 
+def _build_search_continuation(
+    args: argparse.Namespace,
+    norm: str,
+    pattern: str,
+    hits: int,
+) -> str:
+    """Construct runnable continuation command for search (E-03)."""
+    import shlex
+    from agent_workflows import agent_schema as _schema
+
+    parts = ["aw", "search"]
+    flag_types = list(getattr(args, "types", None) or [])
+    if flag_types:
+        parts.extend(["--types", ",".join(flag_types)])
+    elif norm != "all":
+        parts.append(norm)
+
+    clean_pat = _schema.redact_home_paths(pattern)
+    parts.append(shlex.quote(clean_pat) if " " in clean_pat else clean_pat)
+
+    flag_status = list(getattr(args, "status", None) or [])
+    if flag_status:
+        parts.extend(["--status", ",".join(flag_status)])
+    if getattr(args, "full", False):
+        parts.append("--full")
+
+    parts.extend(["--agent", "--limit", str(hits)])
+    return " ".join(parts)
+
+
+def _build_check_continuation(
+    target: str,
+    total: int,
+    *,
+    is_source_citations: bool = False,
+    is_source_anchors: bool = False,
+    include_retired: bool = False,
+) -> str:
+    """Construct runnable continuation command for check (E-04)."""
+    if is_source_citations:
+        return f"aw check --source-citations --agent --limit {total}"
+    if is_source_anchors:
+        return f"aw check --source-anchors --agent --limit {total}"
+    parts = ["aw", "check", target]
+    if include_retired:
+        parts.append("--all")
+    parts.extend(["--agent", "--limit", str(total)])
+    return " ".join(parts)
+
+
+def _emit_bounded_agent_record(
+    result: Any,
+    ctx: Any,
+    *,
+    payload_key: str = "diagnostics",
+    search_hits: Optional[int] = None,
+    search_matches: Optional[List[Dict[str, Any]]] = None,
+    continuation_cmd: Optional[str] = None,
+    repo_root: Optional[Any] = None,
+) -> int:
+    """Emit bounded agent record under ctx.limit or fall back to standard renderer emit.
+
+    Reused across all aw check emit sites and aw search (E-04).
+    On ctx.is_agent, builds an unprojected agent record, bounds the payload under ctx.limit,
+    records total/emitted/omitted counts, sets complete=False when truncated, applies --fields
+    projection, and serializes through agent_schema.render_jsonl_record.
+    On non-agent (human / --json), emits standard CommandResult unmodified.
+    """
+    import dataclasses
+    from agent_workflows import agent_schema as _schema
+    from agent_workflows.renderers import get_renderer
+
+    if (
+        not ctx.is_agent
+        or result.exit_code == 2
+        or result.status in ("error", "cannot-run")
+    ):
+        return get_renderer(ctx).emit(result, ctx)
+
+    # 1. Build unprojected agent record (clearing fields so projection does not strip payload early)
+    clean_ctx = dataclasses.replace(ctx, fields=None) if ctx.fields else ctx
+    rec = result.to_agent_record(clean_ctx)
+
+    # 2. Check vs Search handling
+    if payload_key == "matches":
+        # Search path (E-02, E-03)
+        hits = search_hits if search_hits is not None else result.data.get("hits", 0)
+        # Decision on search hit keys (E-02 / V-02):
+        # We carry all three keys ({"path", "line", "text"}) rather than dropping "text".
+        # Carrying "text" allows consuming agents to inspect matching line content directly
+        # without secondary file reads, matching the shape in data["matches"]. To prevent
+        # leakage and validator crashes on unsanitized home paths (F-09), "path" is normalized
+        # via normalize_repo_path and "text" is sanitized via redact_home_paths.
+        if search_matches is not None:
+            raw_matches = search_matches
+        else:
+            raw_matches = result.data.get("matches", [])
+
+        agent_matches = [
+            {
+                "path": _schema.normalize_repo_path(m.get("path", ""), repo_root),
+                "line": m.get("line", 0),
+                "text": _schema.redact_home_paths(m.get("text", "")),
+            }
+            for m in raw_matches
+        ]
+
+        # Fix reported hit count at search call site without altering shared CommandResult.data (E-02).
+        # data is ALSO the --json payload, so setting findings on data would break --json invariance.
+        rec["findings"] = hits
+        rec["matches"] = agent_matches
+
+        tot = hits
+        limit = ctx.limit
+        if limit is not None and limit < tot:
+            # Bound truncates: outcome must flip to "partial" and complete to False (greenwash guard, E-03)
+            rec["matches"] = agent_matches[:limit]
+            rec["total"] = tot
+            rec["emitted"] = limit
+            rec["omitted"] = tot - limit
+            rec["complete"] = False
+            rec["outcome"] = "partial"
+            rec["exit"] = 0
+            if continuation_cmd:
+                rec["next"] = _schema.redact_home_paths(continuation_cmd)
+        else:
+            rec["complete"] = True
+            if hits == 0:
+                rec["outcome"] = "findings"
+                rec["exit"] = 1
+            else:
+                rec["outcome"] = "clean"
+                rec["exit"] = 0
+
+    else:
+        # Check path (E-04)
+        diags = rec.get("diagnostics", [])
+        tot = len(diags)
+        limit = ctx.limit
+        # Slicing diagnostics post-to_agent_record preserves true findings count and exit code (OQ-03).
+        # We do NOT bound data["policy_findings"] because that array is the versioned machine finding
+        # shape carried in data, which --json serializes verbatim; --limit is token-control for the
+        # agent record and bounding the --json payload would break scope invariance.
+        if limit is not None and limit < tot:
+            rec["diagnostics"] = diags[:limit]
+            rec["total"] = tot
+            rec["emitted"] = limit
+            rec["omitted"] = tot - limit
+            rec["complete"] = False
+            if continuation_cmd:
+                rec["next"] = _schema.redact_home_paths(continuation_cmd)
+
+    # 3. Apply field projection (token control --fields)
+    if ctx.fields:
+        rec = _schema.filter_record_fields(rec, ctx.fields)
+
+    # 4. Serialize and write to stdout
+    line = _schema.render_jsonl_record(rec)
+    try:
+        ctx.stdout.write(line)
+        ctx.stdout.flush()
+    except (BrokenPipeError, OSError):
+        pass
+
+    return rec.get("exit", result.exit_code)
+
+
 def _run_search(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
@@ -12546,6 +12713,22 @@ def _run_search(
     )
 
     ctx = context or select_output(args)
+    limit_val = getattr(args, "limit", None)
+    if limit_val is not None and limit_val <= 0:
+        # Refuse non-positive --limit (E-05, OQ-02).
+        # Precedent: run_analytics_query._parse_limit refuses rather than clamping.
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="search",
+                status="cannot-run",
+                exit_code=2,
+                summary="--limit must be a positive integer.",
+                next_actions=[NextAction(command="aw search --help")],
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", "--limit must be a positive integer.")
+        return 2
+
     raw_type = getattr(args, "type", None)
     raw_selector = list(getattr(args, "selector", None) or [])
     flag_types = list(getattr(args, "types", None) or [])
@@ -12893,7 +13076,16 @@ def _run_search(
                 "filters": filters_data,
             },
         )
-        return get_renderer(ctx).emit(res, ctx)
+        continuation_cmd = _build_search_continuation(args, norm, pattern, hits)
+        return _emit_bounded_agent_record(
+            res,
+            ctx,
+            payload_key="matches",
+            search_hits=hits,
+            search_matches=json_results,
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
 
     if not hits:
         term.empty_result(
@@ -12937,6 +13129,25 @@ def _run_check(
     raw_type = getattr(args, "type", None) or "all"
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
     include_retired = bool(getattr(args, "all", False))
+
+    limit_val = getattr(args, "limit", None)
+    if limit_val is not None and limit_val <= 0:
+        # Refuse non-positive --limit (E-05, OQ-02).
+        # Precedent: run_analytics_query._parse_limit refuses rather than clamping.
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="check",
+                status="cannot-run",
+                exit_code=2,
+                summary="--limit must be a positive integer.",
+                next_actions=[NextAction(command="aw check --help")],
+                data={"target": raw_type, "repo_root": str(repo_root)},
+                verified=True,
+                complete=False,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        term.status("fail", "--limit must be a positive integer.")
+        return 2
 
     if getattr(args, "source_citations", False):
         from agent_workflows import agent_schema as _schema
@@ -13010,7 +13221,16 @@ def _run_check(
             verified=True,
             complete=True,
         )
-        return get_renderer(ctx).emit(result, ctx)
+        continuation_cmd = _build_check_continuation(
+            "source-citations", len(diagnostics), is_source_citations=True
+        )
+        return _emit_bounded_agent_record(
+            result,
+            ctx,
+            payload_key="diagnostics",
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
 
     if getattr(args, "source_anchors", False):
         from agent_workflows import agent_schema as _schema
@@ -13094,7 +13314,16 @@ def _run_check(
             verified=True,
             complete=True,
         )
-        return get_renderer(ctx).emit(result, ctx)
+        continuation_cmd = _build_check_continuation(
+            "source-anchors", len(diagnostics), is_source_anchors=True
+        )
+        return _emit_bounded_agent_record(
+            result,
+            ctx,
+            payload_key="diagnostics",
+            continuation_cmd=continuation_cmd,
+            repo_root=repo_root,
+        )
 
     if raw_type in ("release-gates", "release-gate", "release_gates", "release_gate"):
         norm = "release-gates"
@@ -13318,7 +13547,18 @@ def _run_check(
         verified=True,
         complete=True,
     )
-    return get_renderer(ctx).emit(result, ctx)
+    continuation_cmd = _build_check_continuation(
+        target_label,
+        len(diagnostics),
+        include_retired=include_retired,
+    )
+    return _emit_bounded_agent_record(
+        result,
+        ctx,
+        payload_key="diagnostics",
+        continuation_cmd=continuation_cmd,
+        repo_root=repo_root,
+    )
 
 
 def _run_migrate_layout(args: argparse.Namespace, term: Term) -> int:
