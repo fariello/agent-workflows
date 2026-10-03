@@ -1,5 +1,5 @@
 - Id: h9kgjp
-- Status: graduated
+- Status: done
 - Graduated-To: runclidoc
 - Set: h9kgjp
 - Priority: low
@@ -7,6 +7,7 @@
 - Summary: run_cli module docstring contradicts its own exit constants (folds invalid-evidence into 1 while EXIT_INVALID_EVIDENCE is 4; omits 3, 4 and 6)
 
 ## Workflow history
+- 2026-10-03 done (aw backlog): closed by aw agy run: IPD arhzce executed (every IPD carrier is executed and this run executed .aw/records/plans/executed/20261002-runclidoc-01-arhzce-make-run-cli-s-module-docstring-agree-with-its-own-module-by.ipd.md); evidence .aw/records/plans/executed/20261002-runclidoc-01-arhzce-make-run-cli-s-module-docstring-agree-with-its-own-module-by.ipd.md
 - 2026-10-02 graduated (aw backlog): graduated by run run-20261001T221821Z-1985969: arhzce
 - 2026-09-30 created (aw backlog): run_cli module docstring contradicts its own exit constants (folds invalid-evidence into 1 while EXIT_INVALID_EVIDENCE is 4; omits 3, 4 and 6)
 
