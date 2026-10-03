@@ -10,7 +10,7 @@
 - Scope: Give `plans_archive`'s plan-date resolution the SAME tiers `plans_refs._preserved_date` now has, so a plan whose `- Date:` is absent or unparseable is shelved and aged by the date its own FILENAME already records instead of by a fabricated constant. The tier order here is deliberately FRONT MATTER FIRST, then the clustered filename, then the legacy `YYYYMMDD-HHMM-NN` filename, then the historical `20260101` last resort; OQ-01 resolves that this INVERTS `949enf`'s order on purpose and measures why. Route both consumers (`plan_shard_move` and `sweep_candidates`) through the one resolver so the two sites cannot drift. Add the shard-placement and sweep-age regression coverage this module has never had, in `tests/test_plans_archive.py`. EXCLUDES: changing the `20260101` last-resort constant or making the archive verb REFUSE instead of falling back (OQ-02); repairing the one already-mis-shelved `qrokie` record or moving ANY committed plan (carried by `tf4jz5`); making `aw ipd lint` flag an unparseable `- Date:` value (carried by `5h8u3z`, plan `fqcax0`); adding an `aw check` rule for a shard that disagrees with a plan's date, or for a filename date that disagrees with metadata (carried by `mt6j1p`); `plans_refs.py`, `research_archive.py`, and `check_engine.py`, all of which stay byte-unchanged; and changing which plans are ELIGIBLE for archival (`_at_disposition_root`), the one-shot stickiness that makes a wrong shard permanent, or the shard grammar itself.
 - Scope-Paths: agent_workflows/plans_archive.py, tests/test_plans_archive.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -21,9 +21,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6i8knl
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 6i8knl verified (set dkfthf, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode/its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (MEDIUM, fixed: filename tiers accept impossible dates such as 20261399, which would shard to 202613 and age 0; calendar validation plus guard test added), PR-002 (LOW, fixed: conditional lifecycle ownership, gate text). Claims re-verified; corpus replay re-measured 0 changed over 1082 terminal plans. Review record .aw/records/reviews/20261001-dkfthf-01-6i8knl-give-the-archive-verb-s-plan-date-the-same-filename-tiers-th.review.md.
 
@@ -41,7 +41,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin both consequences before changing anything
 
-- [ ] E-01 REPRODUCE THE WRONG-SHARD PLACEMENT AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. Add a test that seeds a terminal plan at an `executed/` root named `20260714-grp-03-abc123-probe.ipd.md` whose body carries NO `- Date:` line, calls `plans_archive.plan_shard_move`, and asserts the destination's shard directory is `202607`. That MUST FAIL at HEAD, where the destination is `executed/202601/...` (measured at authoring).
+- [x] E-01 REPRODUCE THE WRONG-SHARD PLACEMENT AS A FAILING TEST FIRST, so the fix is demonstrated rather than asserted. Add a test that seeds a terminal plan at an `executed/` root named `20260714-grp-03-abc123-probe.ipd.md` whose body carries NO `- Date:` line, calls `plans_archive.plan_shard_move`, and asserts the destination's shard directory is `202607`. That MUST FAIL at HEAD, where the destination is `executed/202601/...` (measured at authoring).
   ADD THE MALFORMED CASE IN THE SAME ITEM AND TREAT IT AS THE PRIMARY ONE, because the corpus scan found ZERO absent-`- Date:` plans and exactly ONE malformed (F-02), so malformed is the only shape this defect has actually taken here. Seed a second plan under a clustered name dated `20260715` carrying the exact production string `- Date: 2026-07-23 (fleshed 2026-07-26 from research)` and assert shard `202607`. The module's regex is anchored `^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$`, so the trailing parenthetical defeats the match and the line is treated as absent.
   ADD THE IMPOSSIBLE-FILENAME-DATE CASE (review PR-001): a plan named `20261399-grp-03-abc123-probe.ipd.md` with no `- Date:` line must NOT shard to `202613`; it falls through to the `20260101` last resort (`202601`). This passes at HEAD (the filename is never read) and must still pass after E-03, which is what pins the calendar-date validation.
   ADD THE MUST-NOT-CHANGE GUARD TOO, so the fix is provably narrow: a plan with a GOOD `- Date: 20260716` under a clustered name dated `20260716` must shard to `202607` both before and after. At HEAD this already passes, which is what makes it a guard rather than a new assertion.
@@ -49,40 +49,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   CALL THE HELPERS DIRECTLY, NOT THROUGH THE CLI. The existing tests in this file drive `plans_archive.plan_shard_move` and `plans_archive.sweep_candidates` as functions, which is the right level here: the defect is in date resolution, not in argument parsing, and a CLI test would add `_dirs`/`resolve_verb_repo_root` to the surface under test for no gain. Keep the file's `.agents/plans` layout, which its `_plan` helper already writes and which `_dirs` still read-falls-back to.
   - Depends on: none
   - Expected outcome: Two new shard-placement tests FAILING at HEAD (absent `- Date:`, malformed `- Date:`), each showing the destination shard as `202601` where the filename's real date demands `202607`, plus two guard tests PASSING at HEAD (good `- Date:`; impossible filename date).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 REPRODUCE THE EARLY SWEEP AS A SEPARATE FAILING TEST, because it is a different consequence with a different trigger and collapsing it into E-01 would hide which half regressed. Seed a plan whose filename date is `20260714` with an unusable `- Date:`, call `sweep_candidates(pdir, older_than_days=14, today=date(2026,7,20))`, and assert it is NOT a candidate: its real age is 6 days. At HEAD it IS returned, because `_age_days('20260101', date(2026,7,20))` is `200.0` (measured). Pass an explicit `today` rather than relying on `date.today()`, which the file's existing sweep tests work around by computing a `recent` date string; an explicit `today` is already supported by the signature and makes the assertion stable.
+- [x] E-02 REPRODUCE THE EARLY SWEEP AS A SEPARATE FAILING TEST, because it is a different consequence with a different trigger and collapsing it into E-01 would hide which half regressed. Seed a plan whose filename date is `20260714` with an unusable `- Date:`, call `sweep_candidates(pdir, older_than_days=14, today=date(2026,7,20))`, and assert it is NOT a candidate: its real age is 6 days. At HEAD it IS returned, because `_age_days('20260101', date(2026,7,20))` is `200.0` (measured). Pass an explicit `today` rather than relying on `date.today()`, which the file's existing sweep tests work around by computing a `recent` date string; an explicit `today` is already supported by the signature and makes the assertion stable.
   SEED THE SIBLING CONTROL IN THE SAME CALL, because the side-by-side contrast is the evidence. An otherwise identical plan carrying a good `- Date: 20260714` must ALSO be absent from the candidate list, at HEAD and after. One call returning one plan and not the other is a sharper proof than two separate runs.
   EXERCISE THE BRANCH THAT IS ACTUALLY VULNERABLE, which is the correction F-03 makes to the backlog item's reading. `sweep_candidates` has TWO branches, and the set-cohesion one takes `min(set_ages[set_id])`, so a fabricated age CANNOT drag in a multi-member set (measured: a three-member set with one bad member swept 0 of 3). A test built on the item's prose would therefore have passed before the fix. Use a SINGLE-MEMBER set, or a plan with NO `- Set:` line (the `else` branch; eleven terminal plans in this corpus have no `- Set:`), and say in the test name or a comment which branch is under test.
   - Depends on: none
   - Expected outcome: One new sweep test FAILING at HEAD, showing a 6-day-old plan returned as a candidate at `older_than_days=14` while its good-`- Date:` sibling in the same call is correctly excluded. The test exercises the single-member or no-Set branch, not the min-protected multi-member one.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: add the missing tiers
 
-- [ ] E-03 GIVE `plans_archive` ONE DATE RESOLVER WITH THE FULL TIERS AND ROUTE BOTH CONSUMERS THROUGH IT. The resolver takes the plan's FILENAME and its TEXT (the current `_plan_date(text)` cannot see a filename at all, which is the whole defect) and resolves in this order: (1) the front-matter `- Date:` when it parses; (2) the clustered filename's date; (3) the legacy `YYYYMMDD-HHMM-NN` filename's date; (4) the existing `20260101` constant as the last resort. Then call it from `plan_shard_move` in place of `_plan_date(text)` and from `sweep_candidates` in place of `p_date = _plan_date(text)`, so the two sites cannot drift the way this module and `plans_refs` did.
+- [x] E-03 GIVE `plans_archive` ONE DATE RESOLVER WITH THE FULL TIERS AND ROUTE BOTH CONSUMERS THROUGH IT. The resolver takes the plan's FILENAME and its TEXT (the current `_plan_date(text)` cannot see a filename at all, which is the whole defect) and resolves in this order: (1) the front-matter `- Date:` when it parses; (2) the clustered filename's date; (3) the legacy `YYYYMMDD-HHMM-NN` filename's date; (4) the existing `20260101` constant as the last resort. Then call it from `plan_shard_move` in place of `_plan_date(text)` and from `sweep_candidates` in place of `p_date = _plan_date(text)`, so the two sites cannot drift the way this module and `plans_refs` did.
   THE TIER ORDER IS FRONT MATTER FIRST AND THAT INVERTS `949enf`, DELIBERATELY; COMMENT IT, because a reader who knows the sibling fix will otherwise "align" the two and silently change behavior. The reason is measured (OQ-01, F-06): front-matter-first touches ONLY the no-match branch, so it is provably a NO-OP on every input where today's code already produces an answer, and a corpus replay over all 938 terminal plans shows 938 unchanged and 0 changed. Filename-first would additionally change the result for a plan whose `- Date:` is usable but DISAGREES with its filename (`- Date: 20260801` under a `20260716-` name yields `20260801` today and `20260716` under filename-first), which is a behavior change nothing asked for and which `mt6j1p` holds open as an undecided question. `949enf` had a reason to invert this that does not apply here, and the comment must name it: a RENAME must not recompute the date it is preserving, whereas an ARCHIVE is merely reading a date to place a file.
   REACH THE TWO FILENAME GRAMMARS THROUGH `artifact_naming`, NOT A NEW LOCAL REGEX. Use `_naming._CLUSTERED_RE` and `_naming._LEGACY_TIMESTAMP_RE`, the same two `plans_refs._preserved_date` consumes. `plans_archive` does NOT import `artifact_naming` today, so add that import; it is the package's single naming authority, it imports only `artifact_core`, and authoring verified `import agent_workflows.plans_archive, agent_workflows.artifact_naming` raises no cycle. Authoring measured `_LEGACY_TIMESTAMP_RE.match('20260723-1100-07-clean-delta-and-tracking-modes-design-spec.md').group('date')` as `20260723`, so the legacy tier recovers exactly the date the live casualty's name no longer carries.
   A FILENAME DATE MUST BE A REAL CALENDAR DATE TO BE USED (review PR-001). Both `_CLUSTERED_RE` and `_LEGACY_TIMESTAMP_RE` accept any eight digits, so a name like `20261399-grp-03-abc123-probe.ipd.md` matches. Measured at review: `artifact_core.shard_for_date('20261399')` is `202613`, `is_valid_shard_dirname('202613')` is `True`, and `plans_archive._age_days('20261399')` is `0.0`, so that plan would be shelved into a nonexistent month and NEVER swept. Validate a filename-tier date with `datetime.strptime(value, "%Y%m%d")` and FALL THROUGH to the next tier when it fails. Do NOT change the front-matter tier's acceptance (it already accepts any eight digits today); tightening it would alter an existing answer, which the 0-changed replay forbids.
   DO NOT IMPORT `plans_refs` TO SHARE ITS HELPER, and do not extract one into `artifact_core`. `plans_refs._preserved_date` has the OPPOSITE tier order, so it is not reusable here even though it looks it, and that is the substantive reason rather than a style preference. A shared helper would have to be parameterized by tier order, which makes one function that does two things and hides the asymmetry this plan is required to comment. `plans_refs` also does not import `plans_archive` today and the direction should stay that way. Two deliberate definitions with a comment each is the correct shape; the defect was never duplication as such, it was a duplicated FALLBACK with no filename tier.
   - Depends on: E-01, E-02
   - Expected outcome: One new resolver in `plans_archive` called from both `plan_shard_move` and `sweep_candidates`, with a comment recording the deliberate front-matter-first order and its measured reason, and a filename-tier date accepted only when it is a real calendar date. E-01's two failing tests and E-02's failing test pass; the guards and every pre-existing test in the file still pass. `plans_refs.py` byte-unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 REPLAY THE LIVE CORPUS AND PROVE THE CHANGE IS PURELY ADDITIVE, so the claim that this touches only the no-match branch is measured on real data and not only on seeded fixtures. Resolve the date for every plan under `.aw/records/plans/{executed,superseded,not-executed}` with the OLD function and the NEW resolver, and report how many differ. Authoring prototyped the exact tiers and measured 938 unchanged, 0 changed (re-measured at review over 1082 terminal plans and all 1266 plan records: 0 changed; the population grows, so re-derive it), so a nonzero changed-count is a SIGNAL THAT THE TIERS ARE WRONG, not a result to accept: investigate before proceeding.
+- [x] E-04 REPLAY THE LIVE CORPUS AND PROVE THE CHANGE IS PURELY ADDITIVE, so the claim that this touches only the no-match branch is measured on real data and not only on seeded fixtures. Resolve the date for every plan under `.aw/records/plans/{executed,superseded,not-executed}` with the OLD function and the NEW resolver, and report how many differ. Authoring prototyped the exact tiers and measured 938 unchanged, 0 changed (re-measured at review over 1082 terminal plans and all 1266 plan records: 0 changed; the population grows, so re-derive it), so a nonzero changed-count is a SIGNAL THAT THE TIERS ARE WRONG, not a result to accept: investigate before proceeding.
   REPORT THE ONE FILE WHOSE OUTCOME IMPROVES SEPARATELY, because the replay above deliberately measures the RESOLVED DATE and that is unchanged for the casualty (its filename reads `20260101` too, so every tier agrees on a wrong answer). State plainly that this fix does NOT repair `20260101-instsafe-07-qrokie-...` and cannot: its real `20260723` survives only in git history and in `tf4jz5`'s scope. A reader must not infer from "0 changed" that the casualty is fine, nor from the casualty that the fix failed.
   THE DELIVERABLE IS EVIDENCE, NOT A CODE CHANGE. If the replay shows any plan's resolved date changing, stop and explain what it found.
   - Depends on: E-03
   - Expected outcome: A recorded replay over all terminal plans showing 0 resolved dates changed, plus an explicit statement that the one live casualty is NOT repaired by this plan and why. No code change in this item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: fence the permanence claim
 
-- [ ] E-05 PIN THE ONE-SHOT STICKINESS AS A TEST OF CURRENT BEHAVIOR, since it is what makes a wrong shard permanent and it must keep working as-is. Apply a shard move, then call `plan_shard_move` on the LANDED path and assert it returns `None`: `_at_disposition_root` requires exactly two path components, so an already-sharded plan is ineligible for re-archival (measured at authoring). This test PASSES at HEAD and after, and that is the point: it is a guard proving this plan did not quietly make archival re-entrant while adding a date tier.
+- [x] E-05 PIN THE ONE-SHOT STICKINESS AS A TEST OF CURRENT BEHAVIOR, since it is what makes a wrong shard permanent and it must keep working as-is. Apply a shard move, then call `plan_shard_move` on the LANDED path and assert it returns `None`: `_at_disposition_root` requires exactly two path components, so an already-sharded plan is ineligible for re-archival (measured at authoring). This test PASSES at HEAD and after, and that is the point: it is a guard proving this plan did not quietly make archival re-entrant while adding a date tier.
   THIS IS NOT A FIX AND MUST NOT BECOME ONE. Do not add a re-shard path, do not make an already-sharded plan eligible, and do not change `_at_disposition_root`. Whether a mis-shelved plan should be repairable is a real question and it belongs to `tf4jz5` (the one record) and `mt6j1p` (detecting the class), not here. The file already has `test_pending_not_eligible` covering the other ineligible case, so this sits beside an established pattern.
   - Depends on: E-03
   - Expected outcome: One test passing both before and after, showing an already-sharded plan is ineligible for re-archival, with `_at_disposition_root` unmodified. A failure here after E-03 means the fix changed eligibility, which is out of scope.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -186,30 +186,162 @@ IF THE EXECUTOR FINDS a spec, README, or DECISIONS entry asserting the `20260101
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: The pytest output for the absent-`- Date:` and malformed-`- Date:` shard-placement tests run against UNFIXED source, pasted verbatim, each showing the destination shard observed as `202601` where `202607` was asserted. A PASS here is a FAILURE of this validation: a test that does not fail at HEAD does not pin this defect. Plus the good-`- Date:` and impossible-filename-date guards shown PASSING in that same pre-fix run, and a statement that the `_plan` helper's existing defaults and its dependent tests were not changed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-fix pytest execution on `tests/test_plans_archive.py` demonstrated failure of both shard-placement tests at HEAD, each observing destination shard '202601' where '202607' was asserted:
+    ```
+    _______ ShardMoveTests.test_shard_move_malformed_date_uses_filename_tier _______
+    [gw4] linux -- Python 3.14.6 python3
 
-- [ ] V-02 validates E-02
+    self = <tests.test_plans_archive.ShardMoveTests testMethod=test_shard_move_malformed_date_uses_filename_tier>
+
+        def test_shard_move_malformed_date_uses_filename_tier(self):
+            p = _plan(
+                self.root,
+                "executed",
+                "20260715-grp-03-abc124-probe.ipd.md",
+                plan_id="abc124",
+                raw_date="2026-07-23 (fleshed 2026-07-26 from research)",
+            )
+            mv = A.plan_shard_move(self.pdir, p)
+            self.assertIsNotNone(mv)
+    >       self.assertEqual(mv.new_path.parent.name, "202607")
+    E       AssertionError: '202601' != '202607'
+    E       - 202601
+    E       ?      ^
+    E       + 202607
+    E       ?      ^
+
+    tests/test_plans_archive.py:133: AssertionError
+    ________ ShardMoveTests.test_shard_move_absent_date_uses_filename_tier _________
+    [gw5] linux -- Python 3.14.6 python3
+
+    self = <tests.test_plans_archive.ShardMoveTests testMethod=test_shard_move_absent_date_uses_filename_tier>
+
+        def test_shard_move_absent_date_uses_filename_tier(self):
+            p = _plan(
+                self.root,
+                "executed",
+                "20260714-grp-03-abc123-probe.ipd.md",
+                plan_id="abc123",
+                include_date=False,
+            )
+            mv = A.plan_shard_move(self.pdir, p)
+            self.assertIsNotNone(mv)
+    >       self.assertEqual(mv.new_path.parent.name, "202607")
+    E       AssertionError: '202601' != '202607'
+    E       - 202601
+    E       ?      ^
+    E       + 202607
+    E       ?      ^
+
+    tests/test_plans_archive.py:121: AssertionError
+    ```
+    In that same pre-fix run, the good-`- Date:` guard (`test_shard_move_good_date_guard`) and the impossible-filename-date guard (`test_shard_move_impossible_filename_date_falls_back_to_last_resort`) passed (12 passed, 3 failed). The `_plan` helper's existing parameter defaults (`date_="20260701"`, `set_id=None`, `order=None`, `raw_date=None`, `include_date=True`) were preserved identically, and all nine pre-existing dependent tests in the file ran and passed without modification.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: The early-sweep test shown FAILING against unfixed source, with the observed candidate list containing the 6-day-old plan at `older_than_days=14`, beside the good-`- Date:` sibling shown EXCLUDED in the same call. State in one explicit sentence which `sweep_candidates` branch the test exercises (single-member set or no-`- Set:`) and why the multi-member set-cohesion branch was deliberately NOT used, since a test on that branch would have passed before the fix (F-03).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Pre-fix pytest execution on `tests/test_plans_archive.py` showed the early-sweep test failing against unfixed source:
+    ```
+    ______ ArchiveVerbTests.test_sweep_excludes_young_plan_with_unusable_date ______
+    [gw8] linux -- Python 3.14.6 python3
 
-- [ ] V-03 validates E-03
+    self = <tests.test_plans_archive.ArchiveVerbTests testMethod=test_sweep_excludes_young_plan_with_unusable_date>
+
+        def test_sweep_excludes_young_plan_with_unusable_date(self):
+            # Exercises the no-Set else branch of sweep_candidates (F-03), where an unusable date
+            # causes early sweep because min(set_ages) cannot protect it. The multi-member set-cohesion
+            # branch was deliberately not used because min(set_ages) would have masked the defect at HEAD.
+            _plan(
+                self.root,
+                "executed",
+                "20260714-noset-01-bad001-b.ipd.md",
+                plan_id="bad001",
+                include_date=False,
+                set_id=None,
+            )
+            _plan(
+                self.root,
+                "executed",
+                "20260714-noset-02-good01-g.ipd.md",
+                plan_id="good01",
+                date_="20260714",
+                set_id=None,
+            )
+            cands = [
+                p.name
+                for p in A.sweep_candidates(
+                    self.pdir, older_than_days=14, today=date(2026, 7, 20)
+                )
+            ]
+            self.assertFalse(
+                any("good01" in n for n in cands),
+                f"good-Date sibling unexpectedly in candidates: {cands}",
+            )
+    >       self.assertFalse(
+                any("bad001" in n for n in cands),
+                f"6-day-old plan unexpectedly in candidates: {cands}",
+            )
+    E       AssertionError: True is not false : 6-day-old plan unexpectedly in candidates: ['20260714-noset-01-bad001-b.ipd.md']
+
+    tests/test_plans_archive.py:311: AssertionError
+    ```
+    The test exercises the no-`- Set:` `else` branch of `sweep_candidates`, where an unusable date causes early sweep because `min(set_ages)` cannot protect it; the multi-member set-cohesion branch was deliberately NOT used because `min(set_ages)` takes the age of the youngest member and would have masked the defect by causing the pre-fix test to pass (F-03). In that same call, the good-`- Date:` sibling `20260714-noset-02-good01-g.ipd.md` was correctly excluded (`assertFalse(any("good01" in n for n in cands))` passed).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: All five tests from E-01 and E-02 now PASSING, pasted, including the impossible-filename-date guard, plus every pre-existing test in the file still passing. Plus the `git diff` of `plans_archive.py` showing the new resolver with its four tiers and the calendar-date validation on the filename tiers, BOTH call sites converted (`plan_shard_move` and `sweep_candidates`), the `artifact_naming` import added, and the comment recording the deliberate front-matter-first order with its measured reason (OQ-01). Plus negative proof of the fence: `git diff --stat` listing only `plans_archive.py` and `tests/test_plans_archive.py`, and specifically not `plans_refs.py`, `research_archive.py`, or `check_engine.py`. Plus the bare `python3 -m pytest` summary compared against the baseline YOU measured on a clean tree before editing (not F-10's `3565`), with zero failures.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All five tests from E-01 and E-02 plus every pre-existing test in `tests/test_plans_archive.py` now pass:
+    ```
+    tests/test_plans_archive.py::DefaultAgeTests::test_default_age PASSED    [  6%]
+    tests/test_plans_archive.py::ArchiveVerbTests::test_sweep_custom_age_duration PASSED [ 13%]
+    tests/test_plans_archive.py::ArchiveVerbTests::test_sweep_set_cohesion PASSED [ 20%]
+    tests/test_plans_archive.py::ArchiveVerbTests::test_sweep_selects_aged_only PASSED [ 26%]
+    tests/test_plans_archive.py::ArchiveVerbTests::test_targeted_archive_by_id PASSED [ 33%]
+    tests/test_plans_archive.py::ArchiveVerbTests::test_sweep_excludes_young_plan_with_unusable_date PASSED [ 40%]
+    tests/test_plans_archive.py::ShardMoveTests::test_shard_move_good_date_guard PASSED [ 46%]
+    tests/test_plans_archive.py::ShardMoveTests::test_shard_move_impossible_filename_date_falls_back_to_last_resort PASSED [ 53%]
+    tests/test_plans_archive.py::ShardMoveTests::test_move_is_tracked_git_rename PASSED [ 60%]
+    tests/test_plans_archive.py::ShardMoveTests::test_shard_move_correct_week_keeps_name_and_id PASSED [ 66%]
+    tests/test_plans_archive.py::ShardMoveTests::test_pending_not_eligible PASSED [ 73%]
+    tests/test_plans_archive.py::ShardMoveTests::test_shard_move_malformed_date_uses_filename_tier PASSED [ 80%]
+    tests/test_plans_archive.py::ShardMoveTests::test_already_sharded_plan_ineligible_for_rearchival PASSED [ 86%]
+    tests/test_plans_archive.py::ShardMoveTests::test_sharded_plan_visible_in_manifest PASSED [ 93%]
+    tests/test_plans_archive.py::ShardMoveTests::test_shard_move_absent_date_uses_filename_tier PASSED [100%]
+    15 passed in 2.10s
+    ```
+    `git diff agent_workflows/plans_archive.py` shows the new resolver `_resolve_plan_date` with four tiers, calendar-date validation, BOTH call sites converted (`plan_shard_move` and `sweep_candidates`), `artifact_naming` import added as `_naming`, and the comment recording the deliberate front-matter-first order citing OQ-01 / F-06 / 949enf / mt6j1p.
+    Negative proof of fence (`git diff --stat`):
+    ```
+     agent_workflows/plans_archive.py |  52 +++++++++++++++-
+     tests/test_plans_archive.py      | 125 +++++++++++++++++++++++++++++++++++----
+     2 files changed, 165 insertions(+), 12 deletions(-)
+    ```
+    `plans_refs.py`, `research_archive.py`, and `check_engine.py` are byte-unchanged.
+    Baseline on clean tree before editing measured 4790 passed, 2 skipped, 3 warnings (+6 new cases in `test_plans_archive.py` passing with zero regressions).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: The corpus replay output over all terminal plans, showing the count whose resolved date differs between the old `_plan_date` and the new resolver, which must be `0`. A NONZERO COUNT IS A FAILED VALIDATION, not a stronger one: it means the tiers changed an answer the old code already produced, which contradicts F-06 and must be investigated before proceeding. Plus one explicit sentence that `20260101-instsafe-07-qrokie-...` is NOT repaired by this plan and why (its filename carries the fabricated date too, so every tier agrees), so no reader mistakes the 0 for inertness or the casualty for a failure.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Corpus replay output over all terminal plans in `.aw/records/plans/{executed,superseded,not-executed}`:
+    ```
+    Terminal plans: total=1102, unchanged=1102, changed=0
+    All plans: total=1281, unchanged=1281, changed=0
+    ```
+    Exactly 0 resolved dates changed across all 1102 terminal plans and all 1281 plan records in the corpus.
+    `20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` is NOT repaired by this plan and cannot be: its filename carries the fabricated `20260101` date too (from a prior rename commit `05c4deb1e`), so both the old function and the new resolver agree on `20260101`; its real historical date `20260723` survives only in git history and is owned by `tf4jz5`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: The re-archival ineligibility test shown PASSING both BEFORE and AFTER the change, pasted, with the `plan_shard_move` return on an already-sharded path shown as `None`. Plus proof that `_at_disposition_root` is unmodified (absent from the `git diff` of `plans_archive.py` except as context). A FAILURE here after E-03 means the fix changed archival eligibility, which is out of scope and must be reverted, not accommodated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The re-archival ineligibility test `test_already_sharded_plan_ineligible_for_rearchival` passed both before and after the change:
+    ```
+    tests/test_plans_archive.py::ShardMoveTests::test_already_sharded_plan_ineligible_for_rearchival PASSED
+    ```
+    The landed path's call to `A.plan_shard_move(self.pdir, mv.new_path)` returns `None` because `_at_disposition_root` requires exactly two path components (`len(rel_parts) == 2`).
+    `_at_disposition_root` is completely unmodified in `plans_archive.py` (it does not appear in `git diff agent_workflows/plans_archive.py`).
+  - Result: pass
 
 ## Approval and execution gate
 

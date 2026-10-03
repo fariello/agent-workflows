@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import artifact_naming as _naming
 from agent_workflows import plans_index as _idx
 
 PLANS_DIR = ".agents/plans"
@@ -56,6 +57,51 @@ def _plan_date(text: str) -> str:
     return raw.replace("-", "") if "-" in raw else raw
 
 
+def _resolve_plan_date(filename: str, text: str) -> str:
+    """Resolve a plan's date across four tiers: front matter, clustered filename, legacy filename, 20260101.
+
+    NOTE THE DELIBERATE INVERSION OF 949enf's TIER ORDER:
+    `plans_refs._preserved_date` reads filename first, but this resolver reads
+    FRONT MATTER FIRST. That inversion is deliberate and measured (OQ-01, F-06):
+    front-matter-first touches only the no-match branch and is provably a no-op on
+    every input where existing code produces an answer (0 changed across the corpus).
+    Filename-first would additionally change the result whenever a usable `- Date:`
+    disagrees with a filename (e.g. `- Date: 20260801` under a `20260716-` name),
+    which is an unrequested behavior change and an undecided question (mt6j1p).
+    Furthermore, 949enf's reason to invert does not apply here: a RENAME must not
+    recompute the date it is preserving, whereas an ARCHIVE is merely reading a
+    date to place a file.
+
+    Filename dates are additionally validated as real calendar dates with
+    `datetime.strptime` (review PR-001) to fall through on impossible dates (like
+    `20261399`), while front-matter acceptance is preserved unchanged.
+    """
+    m = re.search(r"(?m)^- Date:\s*(\d{8}|\d{4}-\d{2}-\d{2})\s*$", text)
+    if m:
+        raw = m.group(1)
+        return raw.replace("-", "") if "-" in raw else raw
+
+    parsed_clustered = _naming._CLUSTERED_RE.match(filename)
+    if parsed_clustered:
+        d = parsed_clustered.group("date")
+        try:
+            datetime.strptime(d, "%Y%m%d")
+            return d
+        except ValueError:
+            pass
+
+    parsed_legacy = _naming._LEGACY_TIMESTAMP_RE.match(filename)
+    if parsed_legacy:
+        d = parsed_legacy.group("date")
+        try:
+            datetime.strptime(d, "%Y%m%d")
+            return d
+        except ValueError:
+            pass
+
+    return "20260101"
+
+
 def _shard_target(
     plans_dir: Path, disposition: str, plan_date: str, filename: str
 ) -> Path:
@@ -71,7 +117,9 @@ def plan_shard_move(plans_dir: Path, plan_path: Path) -> Optional[ShardMove]:
         return None  # not at a terminal-dir root (hot/standing, or already sharded)
     text = plan_path.read_text(encoding="utf-8")
     m = _ID_RE.search(text)
-    dst = _shard_target(plans_dir, parts[0], _plan_date(text), plan_path.name)
+    dst = _shard_target(
+        plans_dir, parts[0], _resolve_plan_date(plan_path.name, text), plan_path.name
+    )
     return ShardMove(m.group(1) if m else None, plan_path, dst)
 
 
@@ -178,7 +226,7 @@ def sweep_candidates(
             continue
         sm = re.search(r"(?m)^- Set:\s*(.+?)\s*$", text)
         set_id = sm.group(1).strip() if sm else ""
-        p_date = _plan_date(text)
+        p_date = _resolve_plan_date(p.name, text)
         age = _age_days(p_date, today)
         if set_id:
             set_ages.setdefault(set_id, []).append(age)

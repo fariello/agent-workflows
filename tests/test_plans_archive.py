@@ -24,19 +24,35 @@ def _init_git(root: Path):
 
 
 def _plan(
-    root, disposition, name, *, plan_id, date_="20260701", set_id=None, order=None
+    root,
+    disposition,
+    name,
+    *,
+    plan_id,
+    date_="20260701",
+    set_id=None,
+    order=None,
+    raw_date=None,
+    include_date=True,
 ):
     d = root / ".agents" / "plans" / disposition
     d.mkdir(parents=True, exist_ok=True)
-    meta = [
-        f"- Date: {date_}",
-        "- Kind: child",
-        "- Concern: x.",
-        "- Scope: x.",
-        "- Status: executed",
-        "- Author: t",
-        f"- Id: {plan_id}",
-    ]
+    meta = []
+    if include_date:
+        date_line = (
+            f"- Date: {raw_date}" if raw_date is not None else f"- Date: {date_}"
+        )
+        meta.append(date_line)
+    meta.extend(
+        [
+            "- Kind: child",
+            "- Concern: x.",
+            "- Scope: x.",
+            "- Status: executed",
+            "- Author: t",
+            f"- Id: {plan_id}",
+        ]
+    )
     if set_id:
         meta += [f"- Set: {set_id}", f"- Order: {order}"]
     (d / name).write_text(
@@ -91,6 +107,60 @@ class ShardMoveTests(unittest.TestCase):
         self.assertEqual(
             e[0].disposition, "executed"
         )  # top-level disposition preserved
+
+    def test_shard_move_absent_date_uses_filename_tier(self):
+        p = _plan(
+            self.root,
+            "executed",
+            "20260714-grp-03-abc123-probe.ipd.md",
+            plan_id="abc123",
+            include_date=False,
+        )
+        mv = A.plan_shard_move(self.pdir, p)
+        self.assertIsNotNone(mv)
+        self.assertEqual(mv.new_path.parent.name, "202607")
+
+    def test_shard_move_malformed_date_uses_filename_tier(self):
+        p = _plan(
+            self.root,
+            "executed",
+            "20260715-grp-03-abc124-probe.ipd.md",
+            plan_id="abc124",
+            raw_date="2026-07-23 (fleshed 2026-07-26 from research)",
+        )
+        mv = A.plan_shard_move(self.pdir, p)
+        self.assertIsNotNone(mv)
+        self.assertEqual(mv.new_path.parent.name, "202607")
+
+    def test_shard_move_impossible_filename_date_falls_back_to_last_resort(self):
+        p = _plan(
+            self.root,
+            "executed",
+            "20261399-grp-03-abc125-probe.ipd.md",
+            plan_id="abc125",
+            include_date=False,
+        )
+        mv = A.plan_shard_move(self.pdir, p)
+        self.assertIsNotNone(mv)
+        self.assertEqual(mv.new_path.parent.name, "202601")
+
+    def test_shard_move_good_date_guard(self):
+        p = _plan(
+            self.root,
+            "executed",
+            "20260716-grp-03-abc126-probe.ipd.md",
+            plan_id="abc126",
+            date_="20260716",
+        )
+        mv = A.plan_shard_move(self.pdir, p)
+        self.assertIsNotNone(mv)
+        self.assertEqual(mv.new_path.parent.name, "202607")
+
+    def test_already_sharded_plan_ineligible_for_rearchival(self):
+        mv = A.plan_shard_move(self.pdir, self.p)
+        self.assertIsNotNone(mv)
+        A.apply_shard_moves(self.root, self.pdir, [mv])
+        self.assertIsNone(A.plan_shard_move(self.pdir, mv.new_path))
 
 
 class ArchiveVerbTests(unittest.TestCase):
@@ -207,6 +277,41 @@ class ArchiveVerbTests(unittest.TestCase):
             target=None, dir=str(self.root), age="invalid", apply=False
         )
         self.assertEqual(A.run_archive(bad_args), 2)
+
+    def test_sweep_excludes_young_plan_with_unusable_date(self):
+        # Exercises the no-Set else branch of sweep_candidates (F-03), where an unusable date
+        # causes early sweep because min(set_ages) cannot protect it. The multi-member set-cohesion
+        # branch was deliberately not used because min(set_ages) would have masked the defect at HEAD.
+        _plan(
+            self.root,
+            "executed",
+            "20260714-noset-01-bad001-b.ipd.md",
+            plan_id="bad001",
+            include_date=False,
+            set_id=None,
+        )
+        _plan(
+            self.root,
+            "executed",
+            "20260714-noset-02-good01-g.ipd.md",
+            plan_id="good01",
+            date_="20260714",
+            set_id=None,
+        )
+        cands = [
+            p.name
+            for p in A.sweep_candidates(
+                self.pdir, older_than_days=14, today=date(2026, 7, 20)
+            )
+        ]
+        self.assertFalse(
+            any("good01" in n for n in cands),
+            f"good-Date sibling unexpectedly in candidates: {cands}",
+        )
+        self.assertFalse(
+            any("bad001" in n for n in cands),
+            f"6-day-old plan unexpectedly in candidates: {cands}",
+        )
 
 
 class DefaultAgeTests(unittest.TestCase):
