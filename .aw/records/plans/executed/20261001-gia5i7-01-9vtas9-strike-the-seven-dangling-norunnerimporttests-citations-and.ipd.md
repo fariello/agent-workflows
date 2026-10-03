@@ -6,7 +6,7 @@
 - Scope: Make `agent_workflows/runner_shared.py` state the no-runner-import rule truthfully, at the eight sites where it currently claims a test enforces it. Strike the seven `NoRunnerImportTests` citations and correct the module docstring's "asserts the absence by AST" prohibition bullet, replacing each false enforcement claim with the DESIGN POINT that survives without a guard: the rule itself (this module may not import either host driver, at module level or lazily, because importing a DIVERGED symbol would silently give both drivers one host's behavior and would create an import cycle), stated as a CONVENTION that nothing mechanically checks, plus the injection mechanism each site is actually justifying (`edge_satisfied_fn` threading in `closure_target_admission`, the `suite_check` parameter in `reintegrate_lane` and in `make_integration_validation_runner`, the duplicated-and-pinned `SUITE_FAILURE_LIST_CAP`, the injected `pinned_child_env`/`pinned_module_argv` in the `driver_begin` lift note, the permitted `runner_profiles` peer import in `resolve_verification_decision`, and the function-local `ipd_lint`/`selectors` imports in the retirement note). A reader must end up knowing the constraint is real and unenforced, never that it is enforced, and never that it was abandoned. EXCLUDES restoring `NoRunnerImportTests` or authoring any replacement, by maintainer ruling and by `GUIDING_PRINCIPLES` P16, which forbids a test that reads production source with `ast`/`inspect`/regex. EXCLUDES changing any executable statement, signature, parameter, default or constant value in the file: this is a comment-and-docstring edit and V-05 proves it by AST comparison of the whole module. EXCLUDES the `tests/test_runner_shared.py` side, which belongs to approved plan `ery0ia` and to reviewed plan `x3zno3`. EXCLUDES the three sibling dangling-guard families measured in the same file (`test_no_new_module_level_first_party_import_in_runner_shared` at seven sites, `test_run_flag_surface.py` at seven sites which is backlog `rcp8c4`'s declared subject, and the single `TheSharedModuleStaysCleanTests`/`test_review_findings_cascade.py`/`test_runner_shared_imports_neither_runner` citations), each named by carrier in Deferred.
 - Scope-Paths: agent_workflows/runner_shared.py, .aw/records/plans/pending/20261001-gia5i7-01-9vtas9-strike-the-seven-dangling-norunnerimporttests-citations-and.ipd.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: chore
 - Priority: low
@@ -16,9 +16,9 @@
 - Highest E allocated: 05
 - Author: aw oc run
 - Id: 9vtas9
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 9vtas9 verified (set gia5i7, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Re-measured at lane HEAD 916664e94: invariant holds (no runipd import; fresh-interpreter []), 6 not 7 NoRunnerImportTests sites (09622d3ed removed closure_target_admission's block incl. TheSharedModuleStaysCleanTests); headwater sentence wraps so the single-line grep bar was unsatisfiable, replaced with a newline-tolerant check; SUITE_FAILURE_LIST_CAP pin test measured absent and SUITE_FAILURE_LINE_LIMIT now lives in runner_shared; stale carriers xvp5vx(done)/pn7rw3 repointed to 046nys, 3tov52, x3zno3. New F-11 records it. Review record: .aw/records/reviews/20261002-gia5i7-01-9vtas9-strike-the-seven-dangling-norunnerimporttests-citations-and.review.md.
 
@@ -35,35 +35,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: re-measure, because the population provably moves
 
-- [ ] E-01 RE-MEASURE the citation population and the invariant at execution HEAD before editing anything, and record each result with the command that produced it. The population is NOT stable: two of nine citations have already been removed by unrelated plans since the item was filed (F-02), so an authoring count must never be trusted as an execution count. Measure exactly five things. (a) `grep -c 'NoRunnerImportTests' agent_workflows/runner_shared.py` and the per-line listing, which at authoring is `7` at the sites E-03 and E-04 enumerate by symbol. (b) `grep -rc 'NoRunnerImportTests' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`, which at authoring is `0` for both, confirming the file is the sole remaining carrier. (c) A DEFINITION search, not a name search: `grep -rn 'class NoRunnerImport\|def test_runner_shared_imports_neither_runner' tests/`, which must return nothing; a bare name search is insufficient because every surviving occurrence anywhere in the repository is prose. (d) The INVARIANT ITSELF, which this plan must not weaken: `grep -nE '^\s*(from|import)\s' agent_workflows/runner_shared.py | grep -i runipd` returning nothing, plus a fresh-interpreter `python3 -c "import agent_workflows.runner_shared, sys; print([m for m in sys.modules if m.endswith('_runipd')])"` printing `[]`. (e) Whether the module docstring's prohibition bullet still contains the enforcement claim, which decides whether E-03 has a subject. The sentence WRAPS across two physical lines ("`tests/test_runner_shared.py` asserts the" / "absence by AST, so the rule is enforced and not merely documented."), so a single-line `grep 'asserts the absence by AST'` returns NOTHING even while the claim is present (measured at review HEAD `916664e94`). Use a newline-tolerant check: `python3 -c "import re,agent_workflows.runner_shared as m; print(bool(re.search(r'asserts\s+the\s+absence\s+by\s+AST', m.__doc__)))"`. IF A GUARD HAS BEEN RESTORED, do not delete the citation that names it: narrow the edit to the citations that still dangle and report the restoration. IF THE INVARIANT IS BROKEN (an import now exists), STOP and report: that is a real defect this plan has no authority to fix and the comments would then be stale in the opposite direction.
+- [x] E-01 RE-MEASURE the citation population and the invariant at execution HEAD before editing anything, and record each result with the command that produced it. The population is NOT stable: two of nine citations have already been removed by unrelated plans since the item was filed (F-02), so an authoring count must never be trusted as an execution count. Measure exactly five things. (a) `grep -c 'NoRunnerImportTests' agent_workflows/runner_shared.py` and the per-line listing, which at authoring is `7` at the sites E-03 and E-04 enumerate by symbol. (b) `grep -rc 'NoRunnerImportTests' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`, which at authoring is `0` for both, confirming the file is the sole remaining carrier. (c) A DEFINITION search, not a name search: `grep -rn 'class NoRunnerImport\|def test_runner_shared_imports_neither_runner' tests/`, which must return nothing; a bare name search is insufficient because every surviving occurrence anywhere in the repository is prose. (d) The INVARIANT ITSELF, which this plan must not weaken: `grep -nE '^\s*(from|import)\s' agent_workflows/runner_shared.py | grep -i runipd` returning nothing, plus a fresh-interpreter `python3 -c "import agent_workflows.runner_shared, sys; print([m for m in sys.modules if m.endswith('_runipd')])"` printing `[]`. (e) Whether the module docstring's prohibition bullet still contains the enforcement claim, which decides whether E-03 has a subject. The sentence WRAPS across two physical lines ("`tests/test_runner_shared.py` asserts the" / "absence by AST, so the rule is enforced and not merely documented."), so a single-line `grep 'asserts the absence by AST'` returns NOTHING even while the claim is present (measured at review HEAD `916664e94`). Use a newline-tolerant check: `python3 -c "import re,agent_workflows.runner_shared as m; print(bool(re.search(r'asserts\s+the\s+absence\s+by\s+AST', m.__doc__)))"`. IF A GUARD HAS BEEN RESTORED, do not delete the citation that names it: narrow the edit to the citations that still dangle and report the restoration. IF THE INVARIANT IS BROKEN (an import now exists), STOP and report: that is a real defect this plan has no authority to fix and the comments would then be stale in the opposite direction.
   - Depends on: none
   - Expected outcome: five results pasted with their exact commands, each stated explicitly as present or absent rather than implied by empty output. At REVIEW HEAD `916664e94` (2026-10-02): (a) `6`, because the `closure_target_admission` site was already removed by `09622d3ed` (see the review correction under Findings), so E-04(b) has no subject; (e) `True`. At authoring HEAD `b87641ff2`: (a) `7`; (b) `0` and `0`; (c) no match, exit 1; (d) no import statement naming `runipd`, and `[]` from the fresh interpreter, so the rule HOLDS; (e) present.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 ESTABLISH the suite baseline this plan's V-items compare against, since a comment-only edit to a module both drivers import must move no count. Run the suite BARE as `python3 -m pytest`, with no added flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` line this plan requires pasted, and disable the order randomization. Also run `python3 -m pytest tests/test_runner_shared.py -o addopts=""` for the per-file count, clearing the defaults explicitly rather than fighting them. Record both numbers with `git rev-parse --short HEAD`.
+- [x] E-02 ESTABLISH the suite baseline this plan's V-items compare against, since a comment-only edit to a module both drivers import must move no count. Run the suite BARE as `python3 -m pytest`, with no added flags: the configured `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow and not livecorpus'`, and adding `-n0`, a second `-q`, or `-p no:randomly` would respectively make the run several times slower, suppress the `N passed` line this plan requires pasted, and disable the order randomization. Also run `python3 -m pytest tests/test_runner_shared.py -o addopts=""` for the per-file count, clearing the defaults explicitly rather than fighting them. Record both numbers with `git rev-parse --short HEAD`.
   - Depends on: E-01
   - THE AUTHORING NUMBERS ARE CONTEXT, NOT AN ACCEPTANCE BAR. The bar is that YOUR OWN pre-edit baseline equals YOUR OWN post-edit count; it is NOT that either matches a figure recorded here. This repository is under concurrent development and the suite demonstrably drifts by over a hundred tests in days (the sibling plan `x3zno3` recorded `3387` at authoring and `3523` at review). Do NOT treat a difference from the numbers below as a defect or as a reason to stop.
   - Expected outcome: two counts pasted with YOUR execution HEAD, explicitly labelled as the baseline V-05 compares against. At authoring HEAD `b87641ff2`: bare suite `3609 passed, 2 skipped, 3 warnings in 70.83s`, with the runner's own note that `208 tests were deselected by -m/-k`; `tests/test_runner_shared.py` `126 passed`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: correct the headwater claim
 
-- [ ] E-03 CORRECT THE MODULE DOCSTRING'S PROHIBITION BULLET, which is the source every other citation in this file defers to and which the backlog item does not name. The sentence to fix is the final clause of the first bullet under "WHAT MAY NEVER HAPPEN HERE": "`tests/test_runner_shared.py` asserts the absence by AST, so the rule is enforced and not merely documented." That is false twice over, and the second half is the damaging half: no AST assertion over this module's source exists anywhere in `tests/test_runner_shared.py` (E-01(c), and F-04 records that the file's only `inspect` uses are four `inspect.signature`/`inspect.Parameter` calls on live objects, which read signatures rather than source), so the claim that the rule is "enforced and not merely documented" asserts exactly the opposite of the truth. KEEP the entire preceding reasoning UNCHANGED, because it is correct and is the most valuable sentence in the bullet: the prohibition on importing either runner at module level or lazily, the statement that the import cycle is the lesser reason, and the real reason that importing a DIVERGED symbol would silently give BOTH drivers that runner's behavior, "a behavior change wearing a de-duplication's clothes". REPLACE only the enforcement clause, stating that the AST guard that formerly asserted this (`NoRunnerImportTests`) was deleted in `19313eed` and was NOT replaced, so the rule is a CONVENTION this module is held to by review rather than a property any test checks; and record that the invariant does still hold in fact, with the two checks E-01(d) ran, so a reader knows the rule is live and merely unguarded rather than abandoned. Do NOT touch the other three bullets, the admission rule, the INJECTED list, or the two stale fingerprint claims above it (those are `ery0ia`'s and `rcp8c4`'s subjects; see Deferred).
+- [x] E-03 CORRECT THE MODULE DOCSTRING'S PROHIBITION BULLET, which is the source every other citation in this file defers to and which the backlog item does not name. The sentence to fix is the final clause of the first bullet under "WHAT MAY NEVER HAPPEN HERE": "`tests/test_runner_shared.py` asserts the absence by AST, so the rule is enforced and not merely documented." That is false twice over, and the second half is the damaging half: no AST assertion over this module's source exists anywhere in `tests/test_runner_shared.py` (E-01(c), and F-04 records that the file's only `inspect` uses are four `inspect.signature`/`inspect.Parameter` calls on live objects, which read signatures rather than source), so the claim that the rule is "enforced and not merely documented" asserts exactly the opposite of the truth. KEEP the entire preceding reasoning UNCHANGED, because it is correct and is the most valuable sentence in the bullet: the prohibition on importing either runner at module level or lazily, the statement that the import cycle is the lesser reason, and the real reason that importing a DIVERGED symbol would silently give BOTH drivers that runner's behavior, "a behavior change wearing a de-duplication's clothes". REPLACE only the enforcement clause, stating that the AST guard that formerly asserted this (`NoRunnerImportTests`) was deleted in `19313eed` and was NOT replaced, so the rule is a CONVENTION this module is held to by review rather than a property any test checks; and record that the invariant does still hold in fact, with the two checks E-01(d) ran, so a reader knows the rule is live and merely unguarded rather than abandoned. Do NOT touch the other three bullets, the admission rule, the INJECTED list, or the two stale fingerprint claims above it (those are `ery0ia`'s and `rcp8c4`'s subjects; see Deferred).
   - Depends on: E-02
   - Expected outcome: the bullet states the prohibition and its real reason unchanged, names `19313eed` as having removed the guard, describes the rule as an unenforced convention, and asserts no test enforces it. the newline-tolerant check from E-01(e) prints `False` (a single-line grep is NOT sufficient evidence; it returns nothing even before the edit).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: strike the seven citations, preserving each design point
 
-- [ ] E-04 STRIKE THE FOUR `NoRunnerImportTests` CITATIONS THAT JUSTIFY AN INJECTION SEAM, preserving in each case the still-true design point and the mechanism, and removing only the false claim that a test enforces it. Each is named by its enclosing symbol or by its quoted sentence, never by line number. (a) The `reintegrate_lane` design-note comment, numbered point 3 "THE SUITE CHECK IS INJECTED, NEVER IMPORTED", which reads that `run_suite_check` is defined here and "`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks THIS module and fails on any import naming `runipd`, at module level or lazily inside a function". KEEP the whole substantive argument: that it is a PARAMETER exactly as `run_checked` and `host_label` already are on `integrate_lane_branch`, and critically KEEP "Copying its body would fork its fail-closed reading of exit 124/127", which is an independent reason that stands on its own. (b) [ALREADY DONE UPSTREAM, re-measured at review: `09622d3ed` (yu47nf) rewrote this region and removed the whole "THE PREDICATE IS INJECTED, NEVER IMPORTED" block including both dead-guard citations; `grep -c 'TheSharedModuleStaysCleanTests\|Two shipped guards' agent_workflows/runner_shared.py` is `0`. If E-01 confirms the site is gone, record "no subject" for (b) and do NOT re-insert anything. The original instruction is kept for the case where E-01 finds it present:] The `closure_target_admission` comment "THE PREDICATE IS INJECTED, NEVER IMPORTED", which cites BOTH `NoRunnerImportTests::test_runner_shared_imports_neither_runner` AND `tests/test_rununify_host_descriptor.py::TheSharedModuleStaysCleanTests` as "Two shipped guards enforce it" and claims a lazy import "FAILS both, measured". BOTH are absent (F-07: the whole `test_rununify_host_descriptor.py` file was deleted by the same commit), so the "two shipped guards" clause must go entirely rather than being reduced to one. KEEP the architecture reasoning and the `edge_satisfied_fn` threading, and KEEP the skip-not-fake behavior statement. (c) The `make_integration_validation_runner` docstring paragraph "``suite_check`` IS INJECTED AND DEFAULTS None", carrying the same AST-walk sentence; keep the adoptability argument, the exit-124/127 fork warning, and the None-default explanation including that it is "NOT a way to opt out of revalidation". (d) The `driver_begin` lift note's parenthetical "(see the prohibition at the top, enforced by `tests/test_runner_shared.py::NoRunnerImportTests`)"; keep the whole closure argument about `pinned_child_env`/`pinned_module_argv` being defined in `oc_runipd` and not reachable here, and keep the `818uru` OQ-02 ruling citation, which is a real record. In every case, point the reader at the module docstring's corrected prohibition bullet rather than at a test, so the rule has ONE statement of its enforcement status and the seven sites cannot drift from it again.
+- [x] E-04 STRIKE THE FOUR `NoRunnerImportTests` CITATIONS THAT JUSTIFY AN INJECTION SEAM, preserving in each case the still-true design point and the mechanism, and removing only the false claim that a test enforces it. Each is named by its enclosing symbol or by its quoted sentence, never by line number. (a) The `reintegrate_lane` design-note comment, numbered point 3 "THE SUITE CHECK IS INJECTED, NEVER IMPORTED", which reads that `run_suite_check` is defined here and "`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks THIS module and fails on any import naming `runipd`, at module level or lazily inside a function". KEEP the whole substantive argument: that it is a PARAMETER exactly as `run_checked` and `host_label` already are on `integrate_lane_branch`, and critically KEEP "Copying its body would fork its fail-closed reading of exit 124/127", which is an independent reason that stands on its own. (b) [ALREADY DONE UPSTREAM, re-measured at review: `09622d3ed` (yu47nf) rewrote this region and removed the whole "THE PREDICATE IS INJECTED, NEVER IMPORTED" block including both dead-guard citations; `grep -c 'TheSharedModuleStaysCleanTests\|Two shipped guards' agent_workflows/runner_shared.py` is `0`. If E-01 confirms the site is gone, record "no subject" for (b) and do NOT re-insert anything. The original instruction is kept for the case where E-01 finds it present:] The `closure_target_admission` comment "THE PREDICATE IS INJECTED, NEVER IMPORTED", which cites BOTH `NoRunnerImportTests::test_runner_shared_imports_neither_runner` AND `tests/test_rununify_host_descriptor.py::TheSharedModuleStaysCleanTests` as "Two shipped guards enforce it" and claims a lazy import "FAILS both, measured". BOTH are absent (F-07: the whole `test_rununify_host_descriptor.py` file was deleted by the same commit), so the "two shipped guards" clause must go entirely rather than being reduced to one. KEEP the architecture reasoning and the `edge_satisfied_fn` threading, and KEEP the skip-not-fake behavior statement. (c) The `make_integration_validation_runner` docstring paragraph "``suite_check`` IS INJECTED AND DEFAULTS None", carrying the same AST-walk sentence; keep the adoptability argument, the exit-124/127 fork warning, and the None-default explanation including that it is "NOT a way to opt out of revalidation". (d) The `driver_begin` lift note's parenthetical "(see the prohibition at the top, enforced by `tests/test_runner_shared.py::NoRunnerImportTests`)"; keep the whole closure argument about `pinned_child_env`/`pinned_module_argv` being defined in `oc_runipd` and not reachable here, and keep the `818uru` OQ-02 ruling citation, which is a real record. In every case, point the reader at the module docstring's corrected prohibition bullet rather than at a test, so the rule has ONE statement of its enforcement status and the seven sites cannot drift from it again.
   - Depends on: E-03
   - Expected outcome: all four sites retain their design point, their mechanism and their independent reasons, and none names a test as enforcing the rule. No executable statement changes at any of the four.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 STRIKE THE REMAINING THREE `NoRunnerImportTests` CITATIONS, which justify something OTHER than an injection seam and so need different replacement text rather than the same sentence repeated. (a) The `SUITE_FAILURE_LIST_CAP` `#:` doc-comment, which says the cap is read from the driver's extractor, that "this module may not import a driver (`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks it and fails on any import naming `runipd`), so the value is duplicated as a CONSTANT and pinned equal by a test rather than imported". TWO claims here and they must be treated DIFFERENTLY: strike the guard citation, but VERIFY the second claim before touching it, because a pin test for this constant may genuinely exist (`test_the_cap_CONSTANT_still_equals_the_DRIVERS_extractor_limit` is named in executed plan `n9na1c`'s evidence). If it exists, KEEP that claim and the "A drift between the two makes the cap check miss, which is why it is asserted" sentence verbatim; if it does not, correct it too and say the equality is maintained by hand. Report which you found. MEASURED AT REVIEW, so the executor knows what to expect: `grep -rn 'SUITE_FAILURE_LIST_CAP\|SUITE_FAILURE_LINE_LIMIT' tests/ --include=*.py` returns NOTHING (the only hit is the unread fingerprint fixture JSON), so no pin test exists. ALSO the comment's premise has moved: `SUITE_FAILURE_LINE_LIMIT` is no longer a driver constant but is DEFINED IN THIS MODULE (`runner_shared.SUITE_FAILURE_LINE_LIMIT: int = 40`, re-homed by `12adf6883`, with `oc_runipd` re-exporting it), so the stated reason for duplicating it ("this module may not import a driver") no longer applies at all. Correct the comment to say the cap mirrors `SUITE_FAILURE_LINE_LIMIT` defined in this same module, that their equality is maintained by hand with no test asserting it, and that the import-rule rationale is obsolete. Do NOT change either constant's value or replace one with the other (that is an executable change, refused by V-05's AST comparison); if the executor judges the duplicate should be collapsed, file it with `aw backlog new`. (b) The retirement-helper comment explaining WHY two imports are function-local, which ends "this is a cost decision and NOT an evasion of the no-runner-import rule, which `tests/test_runner_shared.py::NoRunnerImportTests` enforces at module AND lazy scope". Keep the entire cost argument (`ipd_lint`'s 52-module import closure, the verified-by-closure-walk claim that neither module reaches a runner) and the "NOT an evasion" framing, which is the point of the comment; strike only the enforcement clause. (c) The `resolve_verification_decision` docstring paragraph "IMPORTING `runner_profiles` HERE IS PERMITTED", which says the admission rules forbid importing either RUNNER "(enforced by AST in `tests/test_runner_shared.py::NoRunnerImportTests`, which rejects any module name containing `runipd`)". Keep the permission and its reason unchanged (`runner_profiles` is a peer importing only `agent_workflows.config`, so no cycle and nothing to trip), and strike the parenthetical. Do NOT change the tri-state `validate` paragraph, the `DriverError` paragraph, or any part of the function body.
+- [x] E-05 STRIKE THE REMAINING THREE `NoRunnerImportTests` CITATIONS, which justify something OTHER than an injection seam and so need different replacement text rather than the same sentence repeated. (a) The `SUITE_FAILURE_LIST_CAP` `#:` doc-comment, which says the cap is read from the driver's extractor, that "this module may not import a driver (`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks it and fails on any import naming `runipd`), so the value is duplicated as a CONSTANT and pinned equal by a test rather than imported". TWO claims here and they must be treated DIFFERENTLY: strike the guard citation, but VERIFY the second claim before touching it, because a pin test for this constant may genuinely exist (`test_the_cap_CONSTANT_still_equals_the_DRIVERS_extractor_limit` is named in executed plan `n9na1c`'s evidence). If it exists, KEEP that claim and the "A drift between the two makes the cap check miss, which is why it is asserted" sentence verbatim; if it does not, correct it too and say the equality is maintained by hand. Report which you found. MEASURED AT REVIEW, so the executor knows what to expect: `grep -rn 'SUITE_FAILURE_LIST_CAP\|SUITE_FAILURE_LINE_LIMIT' tests/ --include=*.py` returns NOTHING (the only hit is the unread fingerprint fixture JSON), so no pin test exists. ALSO the comment's premise has moved: `SUITE_FAILURE_LINE_LIMIT` is no longer a driver constant but is DEFINED IN THIS MODULE (`runner_shared.SUITE_FAILURE_LINE_LIMIT: int = 40`, re-homed by `12adf6883`, with `oc_runipd` re-exporting it), so the stated reason for duplicating it ("this module may not import a driver") no longer applies at all. Correct the comment to say the cap mirrors `SUITE_FAILURE_LINE_LIMIT` defined in this same module, that their equality is maintained by hand with no test asserting it, and that the import-rule rationale is obsolete. Do NOT change either constant's value or replace one with the other (that is an executable change, refused by V-05's AST comparison); if the executor judges the duplicate should be collapsed, file it with `aw backlog new`. (b) The retirement-helper comment explaining WHY two imports are function-local, which ends "this is a cost decision and NOT an evasion of the no-runner-import rule, which `tests/test_runner_shared.py::NoRunnerImportTests` enforces at module AND lazy scope". Keep the entire cost argument (`ipd_lint`'s 52-module import closure, the verified-by-closure-walk claim that neither module reaches a runner) and the "NOT an evasion" framing, which is the point of the comment; strike only the enforcement clause. (c) The `resolve_verification_decision` docstring paragraph "IMPORTING `runner_profiles` HERE IS PERMITTED", which says the admission rules forbid importing either RUNNER "(enforced by AST in `tests/test_runner_shared.py::NoRunnerImportTests`, which rejects any module name containing `runipd`)". Keep the permission and its reason unchanged (`runner_profiles` is a peer importing only `agent_workflows.config`, so no cycle and nothing to trip), and strike the parenthetical. Do NOT change the tri-state `validate` paragraph, the `DriverError` paragraph, or any part of the function body.
   - Depends on: E-04
   - Expected outcome: `grep -c 'NoRunnerImportTests' agent_workflows/runner_shared.py` returns `0`, every one of the three sites retains its own distinct argument, and the `SUITE_FAILURE_LIST_CAP` pin claim is either preserved as verified-true or corrected as verified-false, with the measurement reported either way.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -100,8 +100,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - THE SEVEN `test_no_new_module_level_first_party_import_in_runner_shared` CITATIONS in this same file (F-09), plus the one in `agent_workflows/ipd_lint.py`. Same root commit, same fix shape, same module, and still a different claim: that one asserts a guard on MODULE-LEVEL FIRST-PARTY imports generally, whose replacement text must decide what now holds the import-graph property, where this plan's subject is the narrower no-runner-import rule. Fixing both here would double the site count and mix two properties in one chore. (Carrier corrected at review: `xvp5vx` is `done`; its census plan `oyh28b` filed this exact family as open backlog `046nys`.)
   - Carrier: 046nys
-- THE SEVEN `tests/test_run_flag_surface.py` CITATIONS in this same file. These are the DECLARED subject of open backlog item `rcp8c4`, which already carries its own measurement of all seven sites and a caveat this plan's ruling does not settle (whether a spec-to-table consistency test, as opposed to a code pin, may be reinstated). Editing them here would pre-empt that item's open question and strand its analysis.
+- THE SEVEN `tests/test_run_flag_surface.py` CITATIONS in this same file. These are the DECLARED subject of open backlog item `rcp8c4`, which already carries its own measurement of all seven sites and a caveat this plan's ruling does not settle (whether a spec-to-table consistency test, as opposed to a code pin, may be reinstated). Editing them here would pre-empt that item's open question and strand its analysis. (Carrier finished: executed plan `8wpjeq` closed `rcp8c4` to done).
   - Carrier: rcp8c4
+  - Carrier-Evidence: .aw/records/backlog/done/20260929-rcp8c4-01-rcp8c4-stale-test-guard-citations-runner-shared.backlog.md
 - THE TWO FALSE FINGERPRINT-HARNESS CLAIMS in this file's module docstring (F-10): "holds the pre-move fingerprint of every symbol below and FAILS if a body drifted", and "pins the list so it cannot grow silently". Same defect class, different subject (the move harness rather than the import rule), and the test file already contradicts the first in its own docstring. `ery0ia` (`approved`) is deleting the dead exemption tables on the test side of exactly this harness, so the production-side wording should be corrected against that landed state rather than guessed at now. (Carrier corrected at review: `xvp5vx` is `done` and `ery0ia` has EXECUTED; open backlog `3tov52`, "Retire or update dangling test-symbol citations for code pins in runner_shared and agy_runipd", is the live owner of this residue.)
   - Carrier: 3tov52
 - `runner_shared.should_color`'s DOCSTRING and the `test_runner_refork_guard`/`test_rununify_run_queue`/`test_orchestrator_probe_cache` citations it carries. Same file, same class of defect, and already OWNED: reviewed plan `x3zno3` declares this path and this subject specifically (F-08). Touching it here would duplicate an approved plan's E-04.
@@ -139,30 +140,248 @@ N/A with reason. No spec governs these comments, and `- Scope-Paths:` therefore 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: all five measurements pasted with the exact command that produced each, and each stated explicitly as present or absent rather than implied by empty output. (a) The `grep -c` count AND the `grep -n` per-line listing of `NoRunnerImportTests` in `agent_workflows/runner_shared.py`, so the sites E-04 and E-05 enumerate are visibly the sites that exist. (b) The counts for `oc_runipd.py` and `agy_runipd.py`. (c) The DEFINITION search `grep -rn 'class NoRunnerImport\|def test_runner_shared_imports_neither_runner' tests/` with its exit status, plus the plain-name occurrence count in `tests/` so the difference between "mentioned" and "defined" is visible. (d) BOTH invariant checks: the import-statement grep returning nothing, and the fresh-interpreter `sys.modules` probe printing `[]`. (e) Whether `asserts the absence by AST` is present. If any count differs from the authoring figures in E-01's expected outcome, state the difference and attribute it; a difference is EXPECTED and is not a finding. If any guard was restored, state which citation is consequently NOT being deleted. If check (d) shows the invariant broken, this V-item FAILS and the plan stops.
   - Observed evidence:
-  - Result: pending
+    All five measurements taken at execution HEAD `a24fad1d7` before edits:
+    (a) `grep -c 'NoRunnerImportTests' agent_workflows/runner_shared.py`:
+    Output: `6` (present at 6 sites; expected difference from authoring count 7 because `closure_target_admission` was removed upstream by `09622d3ed`).
+    `grep -n 'NoRunnerImportTests' agent_workflows/runner_shared.py`:
+    Output:
+    ```
+    11220:#      (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks
+    16833:    either RUNNER (enforced by AST in `tests/test_runner_shared.py::NoRunnerImportTests`, which
+    17551:# `tests/test_runner_shared.py::NoRunnerImportTests` enforces at module AND lazy scope.
+    24989:#: driver (`tests/test_runner_shared.py::NoRunnerImportTests` AST-walks it and fails on any import
+    25624:    (re-homed from `oc_runipd`), and `tests/test_runner_shared.py::NoRunnerImportTests` AST-walks this
+    26486:# `tests/test_runner_shared.py::NoRunnerImportTests`), so the lift condition is closure over names
+    ```
+    `grep -c 'TheSharedModuleStaysCleanTests\|Two shipped guards' agent_workflows/runner_shared.py`:
+    Output: `0` (absent; confirmed removed upstream by `09622d3ed`).
+    (b) `grep -rc 'NoRunnerImportTests' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py`:
+    Output:
+    ```
+    agent_workflows/oc_runipd.py:0
+    agent_workflows/agy_runipd.py:0
+    ```
+    Stated explicitly: absent from both runners.
+    (c) Definition search:
+    `grep -rn 'class NoRunnerImport\|def test_runner_shared_imports_neither_runner' tests/` -> exit code 1 (absent; no matches).
+    Plain-name search:
+    `grep -rn 'NoRunnerImport' tests/` -> exit code 1 (absent; 0 matches in tests/).
+    (d) Invariant checks:
+    `grep -nE '^\s*(from|import)\s' agent_workflows/runner_shared.py | grep -i runipd` -> exit code 1 (absent; no import statement naming `runipd` exists).
+    `python3 -c "import agent_workflows.runner_shared, sys; print([m for m in sys.modules if m.endswith('_runipd')])"` -> `[]` (absent; neither runner imported). Invariant HOLDS.
+    (e) Module docstring AST enforcement claim:
+    `python3 -c "import re,agent_workflows.runner_shared as m; print(bool(re.search(r'asserts\s+the\s+absence\s+by\s+AST', m.__doc__)))"` -> `True` (present).
+    No guards were restored. Check (d) confirms the invariant holds.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: the pasted tail of a BARE `python3 -m pytest` showing its `N passed` summary line, plus the pasted tail of `python3 -m pytest tests/test_runner_shared.py -o addopts=""` showing its per-file count, plus `git rev-parse --short HEAD`. The bare run must NOT be given `-n0`, a second `-q`, or `-p no:randomly`; state explicitly that none was added. These two numbers ARE the baseline V-05 compares against, and the evidence must say so and must state that they are your own measurement at your own HEAD. A difference from the authoring figures (`3609 passed, 2 skipped` and `126 passed`) is EXPECTED under concurrent development and is not a finding.
   - Observed evidence:
-  - Result: pending
+    Execution HEAD: `git rev-parse --short HEAD` -> `a24fad1d7` (full commit: `a24fad1d7d9b7e170835d8c47727754b2c939428`).
+    No flags (`-n0`, second `-q`, or `-p no:randomly`) were added to either run.
 
-- [ ] V-03 validates E-03
+    (1) Bare suite baseline run (`python3 -m pytest`):
+    ```
+    FAILED tests/test_ipd_lint.py::ContinuationSubfieldOutcomeTests::test_corpus_verdict_neutrality_delta
+    1 failed, 4852 passed, 2 skipped, 3 warnings in 865.82s (0:14:25)
+    NOTE: 245 tests were deselected by -m/-k and did not run (the default run skips 'slow' and 'livecorpus'); run everything with: make test-all
+    ```
+    (Note: The single pre-existing failure in `test_corpus_verdict_neutrality_delta` is an un-marked live-corpus test reading 1286 distinct live-corpus paths under `.aw/records/`, where another party's artifact caused a mismatch before this lane began; 4852 tests passed).
+
+    (2) Per-file suite baseline run (`python3 -m pytest tests/test_runner_shared.py -o addopts=""`):
+    ```
+    ======================== 135 passed in 80.66s (0:01:20) ========================
+    ```
+    These two measurements (4852 passed in bare suite, 135 passed in `tests/test_runner_shared.py`) are this lane's recorded pre-edit baseline at execution HEAD `a24fad1d7`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: the post-edit prohibition bullet QUOTED IN FULL, so a reviewer can judge the replacement prose and not merely a count. It must visibly (i) retain the prohibition on importing either runner at module level or lazily, (ii) retain the real reason (the diverged-symbol argument, with the import cycle named as the lesser reason), (iii) name `19313eed` as having deleted the guard, (iv) state that NO test now enforces the rule, and (v) state that the invariant nonetheless still holds in fact, with the E-01(d) checks as its basis. PLUS the newline-tolerant E-01(e) check printing `False`, pasted beside its pre-edit `True`. A single-line `grep` returning nothing is NOT evidence: it returns nothing before the edit too, because the sentence wraps. A replacement that merely deletes the enforcement clause without stating (iv) and (v) FAILS this item: a reader must not be left unable to tell whether the rule was abandoned, which is the exact ambiguity the backlog item identifies as the expensive failure mode.
   - Observed evidence:
-  - Result: pending
+    Post-edit module docstring prohibition bullet quoted in full:
+    ```
+  * This module MUST NOT import either runner, at module level or lazily inside a function. The
+    import cycle is the lesser reason. The real one is that importing a DIVERGED symbol from one
+    runner into shared code would silently give BOTH drivers that runner's behavior, which is a
+    behavior change wearing a de-duplication's clothes. The AST guard that formerly asserted this
+    was deleted in `19313eed` and was not replaced; no test currently
+    enforces the rule, which is a convention this module is held to by review rather than by
+    mechanical checking. The invariant nonetheless still holds in fact (no import naming `runipd`
+    exists in this module and a fresh interpreter importing it leaves neither runner in `sys.modules`).
+    ```
+    Visibly conforms to all five checks:
+    (i) retains the prohibition on importing either runner at module level or lazily: "This module MUST NOT import either runner, at module level or lazily inside a function."
+    (ii) retains the real reason: "The import cycle is the lesser reason. The real one is that importing a DIVERGED symbol from one runner into shared code would silently give BOTH drivers that runner's behavior, which is a behavior change wearing a de-duplication's clothes."
+    (iii) names `19313eed` as having deleted the guard: "The AST guard that formerly asserted this was deleted in `19313eed` and was not replaced;"
+    (iv) states that NO test now enforces the rule: "no test currently enforces the rule, which is a convention this module is held to by review rather than by mechanical checking."
+    (v) states that the invariant nonetheless still holds in fact: "The invariant nonetheless still holds in fact (no import naming `runipd` exists in this module and a fresh interpreter importing it leaves neither runner in `sys.modules`)."
 
-- [ ] V-04 validates E-04
+    PLUS newline-tolerant check `python3 -c "import re,agent_workflows.runner_shared as m; print(bool(re.search(r'asserts\s+the\s+absence\s+by\s+AST', m.__doc__)))"`:
+    Pre-edit: `True`
+    Post-edit: `False`
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THE FOUR INJECTION-SEAM PASSAGES QUOTED IN FULL, one per sub-letter, each with a one-line statement naming the design point PRESERVED, plus `grep -n 'NoRunnerImportTests' agent_workflows/runner_shared.py` showing none of the four sites still matches. Specific checks a reviewer will make, each of which must be visible in the quoted text: (a) `reintegrate_lane`'s numbered point 3 must still carry the exit-124/127 body-fork warning and the `run_checked`/`host_label` precedent; (b) EITHER the pasted E-01 measurement showing the site is absent (expected, `09622d3ed`), with `grep -c 'Two shipped guards\|TheSharedModuleStaysCleanTests' agent_workflows/runner_shared.py` returning `0`, OR, if it was present, `closure_target_admission`'s passage must contain NO "two shipped guards" clause and must NOT cite `TheSharedModuleStaysCleanTests` either, since that guard is equally absent (F-07), while retaining the architecture reasoning, the `edge_satisfied_fn` threading, and the skip-not-fake statement; (c) `make_integration_validation_runner`'s `suite_check` paragraph must still carry the exit-124/127 warning, the adoptability argument, and the "NOT a way to opt out of revalidation" clause; (d) the `driver_begin` lift note must still carry the closure argument about `pinned_child_env`/`pinned_module_argv` and the `818uru` OQ-02 ruling citation. A site that merely deleted the citation and left no statement of the rule's enforcement status FAILS this item: each must point at the module docstring's corrected bullet (E-03) so the file has ONE statement of that status.
   - Observed evidence:
-  - Result: pending
+    All four injection-seam passages quoted in full with design point preserved:
 
-- [ ] V-05 validates E-05
+    (a) `reintegrate_lane` numbered point 3:
+    ```python
+#   3. THE SUITE CHECK IS INJECTED, NEVER IMPORTED. `run_suite_check` is defined in `runner_shared`
+#      (re-homed from `oc_runipd`), and importing a driver here is prohibited (see the module docstring's
+#      prohibition bullet; no live guard enforces it). Copying its body would fork its fail-closed
+#      reading of exit 124/127. So it is a PARAMETER, exactly as `run_checked` and `host_label` already
+#      are on `integrate_lane_branch` (see this module's docstring).
+    ```
+    Design point preserved: Parameter injection of `run_suite_check` avoids forking its fail-closed reading of exit 124/127 without violating the no-runner-import convention. Points to module docstring's prohibition bullet (E-03).
+
+    (b) `closure_target_admission`:
+    Confirmed absent upstream by `09622d3ed` (yu47nf) as measured in E-01:
+    `grep -c 'Two shipped guards\|TheSharedModuleStaysCleanTests' agent_workflows/runner_shared.py` -> `0`.
+    No subject; no re-insertion.
+
+    (c) `make_integration_validation_runner` `suite_check` paragraph:
+    ```python
+    ``suite_check`` IS INJECTED AND DEFAULTS None, which is what keeps this change adoptable and is the
+    same discipline `reintegrate_lane` already documents. `run_suite_check` is defined in `runner_shared`
+    (re-homed from `oc_runipd`), and importing a driver here is prohibited (see the module docstring's
+    prohibition bullet; no live guard enforces it). Copying its body would fork its fail-closed reading
+    of exit 124/127. Each host passes its own. The None DEFAULT means every EXISTING caller (including the
+    tests that patch this factory) keeps its previous three-positional-argument call shape and gets the
+    honest refusal described below rather than a silent pass; it is NOT a way to opt out of revalidation.
+    ```
+    Design point preserved: `suite_check` parameter injection with `None` default keeps the factory adoptable and preserves fail-closed exit-124/127 handling while explicitly not opting out of revalidation. Points to module docstring's prohibition bullet (E-03).
+
+    (d) `driver_begin` lift note:
+    ```python
+# WHY `driver_begin` TAKES TWO INJECTED DEPENDENCIES, since the plan that ordered this lift expected
+# none. `pinned_child_env` and `pinned_module_argv` are defined in `oc_runipd` and are the ONLY
+# definitions in the package; agy reaches them by IMPORTING them from `oc_runipd`, which makes them
+# the SAME OBJECT in both hosts but does NOT make them reachable from HERE. This module may never
+# import a runner (see the module docstring's prohibition bullet; no live guard enforces it), so the
+# lift condition is closure over names THIS module can resolve, and neither name is one. They are
+# therefore INJECTED, which is the maintainer's ruled mechanism for this exact situation (`818uru`
+# OQ-02) and is already how `run_checked` -- the OTHER nested-`aw` launcher, sitting in this same
+# module -- consumes this SAME `pinned_child_env` dependency. Each host keeps a one-line wrapper at the
+# original name and signature, so no call site in either driver was rewritten, and the duplicated
+# LAUNCHER BODY (the thing this Set exists to remove) now exists exactly once.
+    ```
+    Design point preserved: Dependency injection of `pinned_child_env` and `pinned_module_argv` per `818uru` OQ-02 preserves name closure and avoids importing `oc_runipd`, keeping one deduplicated launcher body. Points to module docstring's prohibition bullet (E-03).
+
+    None of the four sites still matches `NoRunnerImportTests`:
+    `grep -n 'NoRunnerImportTests' agent_workflows/runner_shared.py` returns nothing (exit 1).
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: FOUR artifacts. (1) `grep -c 'NoRunnerImportTests' agent_workflows/runner_shared.py` returning `0`, and `grep -rn 'NoRunnerImportTests' agent_workflows/` returning nothing at all, which is the cumulative check that E-04 and E-05 together left no citation anywhere in the package. (2) THE THREE REMAINING PASSAGES QUOTED IN FULL with the design point preserved named for each: the retirement-helper note must still carry the `ipd_lint` 52-module cost argument and the "NOT an evasion" framing, and `resolve_verification_decision`'s passage must still permit the `runner_profiles` peer import with its no-cycle reason. (3) THE `SUITE_FAILURE_LIST_CAP` PIN CLAIM ADJUDICATED BY MEASUREMENT, not by assumption: paste the definition search for a test asserting the cap equals the driver's limit (for example `grep -rn 'SUITE_FAILURE_LINE_LIMIT' tests/`), state whether such a test EXISTS, and show the surviving comment matches what you found - the pin claim kept verbatim if it exists, corrected to say the equality is maintained by hand if it does not. Reporting this site done without that measurement FAILS the item, because it would substitute one unverified claim for another. (4) THE WHOLE-EDIT PROSE-ONLY AND BEHAVIOR-NEUTRAL PROOF, which belongs here because this is the last edit and the file's cumulative state is only final now: an AST comparison of `agent_workflows/runner_shared.py` before (`git show HEAD:agent_workflows/runner_shared.py`) and after (the working copy) that strips every docstring expression from the module and from every function and class and compares `ast.dump(..., include_attributes=False)`, printing an explicit EQUAL or NOT-EQUAL verdict and reporting EQUAL (necessary because comments are invisible to the AST while a docstring edit is not, so this is what makes "comment-only" a measurement rather than a promise); the INVARIANT re-checked after the edit, with the import-statement grep returning nothing and the fresh-interpreter probe printing `[]`, so the file's new factual claim is true at the commit that makes it; and SUITE PARITY, a bare `python3 -m pytest` whose `N passed` equals V-02's OWN recorded baseline exactly plus `python3 -m pytest tests/test_runner_shared.py -o addopts=""` equal to its own baseline. A count that moved in either direction is a FAILURE of this V-item, not a note, because a comment-and-docstring change cannot move it. ONE EXCEPTION, which must be EVIDENCED rather than assumed: if another plan (`ery0ia` is `approved` and may land in this checkout) merged between V-02 and here, name the commit, re-baseline at it, and state the difference is attributable to that commit rather than to this plan, so a neighbour's change neither is blamed on this edit nor masks a real regression.
   - Observed evidence:
-  - Result: pending
+    (1) Cumulative check:
+    `grep -c 'NoRunnerImportTests' agent_workflows/runner_shared.py` -> `0` (exit 1).
+    `grep -rn 'NoRunnerImportTests' agent_workflows/ --include="*.py"` -> empty (exit 1).
+    No citation remains anywhere in the package source.
+
+    (2) The three remaining passages quoted in full with design point preserved:
+    Site (a) `SUITE_FAILURE_LIST_CAP`:
+    ```python
+#: The truncation cap the failing-id lists are subject to. This mirrors `SUITE_FAILURE_LINE_LIMIT`
+#: defined in this same module (re-homed from `oc_runipd`); their equality is maintained by hand with
+#: no test asserting it, and the former rationale for duplicating it as a constant to avoid importing
+#: a driver is obsolete.
+SUITE_FAILURE_LIST_CAP: int = 40
+    ```
+    Design point preserved: The constant value 40 is preserved verbatim without executable change, mirroring `SUITE_FAILURE_LINE_LIMIT` in the same module.
+
+    Site (b) Retirement-helper note:
+    ```python
+# WHY THE TWO IMPORTS ARE LOCAL rather than at module scope. `ipd_lint`'s import closure is 52 modules
+# and pulls in `check_engine`/`attention`; paying that on every `import runner_shared` would tax every
+# runner start for a function most runs never call. Neither module reaches a runner (verified by
+# closure walk: `runner_shared` is absent from `ipd_lint`'s and `selectors`' transitive imports), so
+# this is a cost decision and NOT an evasion of the no-runner-import rule (see the module docstring's
+# prohibition bullet).
+    ```
+    Design point preserved: Startup cost optimization via lazy imports of `ipd_lint` and `selectors` is preserved as a cost decision with verified closure neutrality, not an evasion of the no-runner-import rule. Points to module docstring's prohibition bullet (E-03).
+
+    Site (c) `resolve_verification_decision`:
+    ```python
+    IMPORTING `runner_profiles` HERE IS PERMITTED. This module's admission rules forbid importing
+    either RUNNER (see the module docstring's prohibition bullet); `runner_profiles` is a peer
+    module that imports only `agent_workflows.config`, so there is no cycle.
+    ```
+    Design point preserved: Peer import of `runner_profiles` remains permitted because it only imports `config.py` and creates no cycle or runner dependency. Points to module docstring's prohibition bullet (E-03).
+
+    (3) `SUITE_FAILURE_LIST_CAP` pin claim measurement:
+    Command: `grep -rn 'SUITE_FAILURE_LINE_LIMIT' tests/` -> exit code 1 (no match).
+    Command: `grep -rn 'SUITE_FAILURE_LIST_CAP' tests/ --include=*.py` -> exit code 1 (no match).
+    Finding: NO test asserting the cap equals the driver's limit exists. The surviving comment accurately states that their equality is maintained by hand with no test asserting it, and that the former driver-import rationale is obsolete because `SUITE_FAILURE_LINE_LIMIT` is now defined in `runner_shared.py` itself.
+
+    (4) Whole-edit prose-only and behavior-neutral proof:
+    AST comparison stripping all docstring expressions across the module:
+    ```python
+python3 -c "
+import ast, subprocess
+
+class DocstringStripper(ast.NodeTransformer):
+    def _strip_docstring(self, body):
+        if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+            return body[1:]
+        return body
+
+    def visit_Module(self, node):
+        node.body = self._strip_docstring(node.body)
+        self.generic_visit(node)
+        return node
+
+    def visit_FunctionDef(self, node):
+        node.body = self._strip_docstring(node.body)
+        self.generic_visit(node)
+        return node
+
+    def visit_AsyncFunctionDef(self, node):
+        node.body = self._strip_docstring(node.body)
+        self.generic_visit(node)
+        return node
+
+    def visit_ClassDef(self, node):
+        node.body = self._strip_docstring(node.body)
+        self.generic_visit(node)
+        return node
+
+src_before = subprocess.check_output(['git', 'show', 'HEAD:agent_workflows/runner_shared.py'], text=True)
+with open('agent_workflows/runner_shared.py') as f:
+    src_after = f.read()
+
+t_before = ast.parse(src_before)
+DocstringStripper().visit(t_before)
+d_before = ast.dump(t_before, include_attributes=False)
+
+t_after = ast.parse(src_after)
+DocstringStripper().visit(t_after)
+d_after = ast.dump(t_after, include_attributes=False)
+
+print('EQUAL' if d_before == d_after else 'NOT-EQUAL')
+"
+    ```
+    Output: `EQUAL`.
+    Proves all edits are strictly comment and docstring changes with zero executable AST alteration.
+
+    Invariant re-check post-edit:
+    `grep -nE '^\s*(from|import)\s' agent_workflows/runner_shared.py | grep -i runipd` -> exit code 1 (no import naming `runipd` exists).
+    `python3 -c "import agent_workflows.runner_shared, sys; print([m for m in sys.modules if m.endswith('_runipd')])"` -> `[]`.
+    Invariant HOLDS.
+
+    Suite parity:
+    Pre-edit bare suite baseline: `1 failed, 4852 passed, 2 skipped, 3 warnings in 865.82s`
+    Post-edit bare suite: `1 failed, 4852 passed, 2 skipped, 3 warnings in 635.39s`
+    Passed count: 4852 passed (exact match).
+    Pre-edit `tests/test_runner_shared.py -o addopts=""`: `135 passed in 80.66s`
+    Post-edit `tests/test_runner_shared.py -o addopts=""`: `135 passed in 87.33s`
+    Passed count: 135 passed (exact match).
+  - Result: pass
 
 ## Approval and execution gate
 
