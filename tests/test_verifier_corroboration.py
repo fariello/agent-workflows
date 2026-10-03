@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -914,3 +915,169 @@ class TestCorroborationInteractionAndOutcomeEquality:
             details_old_str = "\n".join(details_old)
             assert "corroboration" not in details_old_str
             assert "test: python3 -m pytest tests/" in details_old_str
+
+
+class TestSharedToolCallExtraction:
+    """E-07: Tests pinning shared tool call extraction properties and behavioral purity."""
+
+    def test_behavioral_import_purity(self) -> None:
+        """E-07: In a fresh interpreter, importing verifier_corroboration pulls only itself among first-party modules."""
+        code = (
+            "import sys\n"
+            "import agent_workflows\n"
+            "before = set(k for k in sys.modules if k.startswith('agent_workflows'))\n"
+            "import agent_workflows.verifier_corroboration\n"
+            "after = set(k for k in sys.modules if k.startswith('agent_workflows'))\n"
+            "newly_added = after - before\n"
+            "assert newly_added == {'agent_workflows.verifier_corroboration'}, f'{newly_added}'\n"
+        )
+        res = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True
+        )
+        assert (
+            res.returncode == 0
+        ), f"Import purity failed:\nstdout: {res.stdout}\nstderr: {res.stderr}"
+
+    def test_session_event_host_discrimination(self) -> None:
+        """E-01: Discriminate host format: agy takes precedence on ambiguous events."""
+        assert vc.session_event_host({"event": "step_update"}) == "agy"
+        assert vc.session_event_host({"type": "tool_use", "part": {}}) == "oc"
+        assert (
+            vc.session_event_host(
+                {"event": "step_update", "type": "tool_use", "part": {}}
+            )
+            == "agy"
+        )
+        assert vc.session_event_host({}) == ""
+
+    def test_tool_name_whitespace_resolution_e02(self) -> None:
+        """E-02 (F-07): Tool name whitespace is stripped on both hosts."""
+        oc_ev = {
+            "type": "tool_use",
+            "part": {
+                "tool": " bash ",
+                "state": {
+                    "status": "completed",
+                    "input": {"command": "python3 -m pytest tests/"},
+                },
+            },
+        }
+        agy_ev = {
+            "event": "step_update",
+            "step_update": {
+                "state": "DONE",
+                "step_type": "tool",
+                "tool_name": " run_command ",
+                "duration_seconds": 1.0,
+                "tool_info": {
+                    "parameters": {"CommandLine": "python3 -m pytest tests/"}
+                },
+            },
+        }
+        tc_oc = vc.tool_call_from_event(oc_ev)
+        assert tc_oc is not None
+        assert tc_oc.tool == "bash"
+        assert tc_oc.command == "python3 -m pytest tests/"
+
+        tc_agy = vc.tool_call_from_event(agy_ev)
+        assert tc_agy is not None
+        assert tc_agy.tool == "run_command"
+        assert tc_agy.command == "python3 -m pytest tests/"
+
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(oc_ev) + "\n")
+            f.flush()
+            res = vc.extract_session_commands(f.name)
+            assert len(res.commands) == 1
+            assert res.commands[0].tool == "bash"
+
+    def test_whitespace_only_command_resolution_e03(self) -> None:
+        """E-03 (F-08): Whitespace-only command is treated as absent with command_missing=True."""
+        oc_ev = {
+            "type": "tool_use",
+            "part": {
+                "tool": "bash",
+                "state": {"status": "completed", "input": {"command": "   "}},
+            },
+        }
+        agy_ev = {
+            "event": "step_update",
+            "step_update": {
+                "state": "DONE",
+                "step_type": "tool",
+                "tool_name": "run_command",
+                "duration_seconds": 1.0,
+                "tool_info": {"parameters": {"CommandLine": "   "}},
+            },
+        }
+        read_ev = {
+            "type": "tool_use",
+            "part": {
+                "tool": "read",
+                "state": {"status": "completed", "input": {"filePath": "foo.py"}},
+            },
+        }
+        tc_oc = vc.tool_call_from_event(oc_ev)
+        assert tc_oc is not None
+        assert tc_oc.command is None
+        assert tc_oc.command_missing is True
+
+        tc_agy = vc.tool_call_from_event(agy_ev)
+        assert tc_agy is not None
+        assert tc_agy.command is None
+        assert tc_agy.command_missing is True
+
+        tc_read = vc.tool_call_from_event(read_ev)
+        assert tc_read is not None
+        assert tc_read.command is None
+        assert tc_read.command_missing is False
+
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(oc_ev) + "\n")
+            f.flush()
+            res = vc.extract_session_commands(f.name)
+            assert len(res.commands) == 0
+            assert res.missing_command_count == 1
+
+    def test_subagent_vocabulary_resolution_e04(self) -> None:
+        """E-04 (F-09): All four subagent tools set delegation=True and increment delegation_count."""
+        for name in sorted(vc.SUBAGENT_TOOLS):
+            oc_ev = {
+                "type": "tool_use",
+                "part": {
+                    "tool": name,
+                    "state": {"status": "completed", "input": {}},
+                },
+            }
+            tc = vc.tool_call_from_event(oc_ev)
+            assert tc is not None
+            assert tc.delegation is True
+
+            with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+                f.write(json.dumps(oc_ev) + "\n")
+                f.flush()
+                res = vc.extract_session_commands(f.name)
+                assert res.delegation_count == 1
+
+    def test_agy_command_line_key_extraction(self) -> None:
+        """E-07: Verify agy CommandLine extraction for run_command."""
+        agy_ev = {
+            "event": "step_update",
+            "step_update": {
+                "state": "DONE",
+                "step_type": "tool",
+                "tool_name": "run_command",
+                "duration_seconds": 1.0,
+                "tool_info": {"parameters": {"CommandLine": "python3 -m pytest"}},
+            },
+        }
+        tc = vc.tool_call_from_event(agy_ev)
+        assert tc is not None
+        assert tc.command == "python3 -m pytest"
+
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as f:
+            f.write(json.dumps(agy_ev) + "\n")
+            f.flush()
+            res = vc.extract_session_commands(f.name)
+            assert len(res.commands) == 1
+            assert res.commands[0].command == "python3 -m pytest"

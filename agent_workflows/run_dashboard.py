@@ -38,6 +38,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from agent_workflows.run_analytics_schema import resolve_attempt_model
 from agent_workflows.runner_shared import canonical_terminal_status
+from agent_workflows.verifier_corroboration import tool_call_from_event
 
 __all__ = [
     "DASHBOARD_SCHEMA_VERSION",
@@ -51,7 +52,7 @@ __all__ = [
     "render_dashboard",
 ]
 
-DASHBOARD_SCHEMA_VERSION = 2
+DASHBOARD_SCHEMA_VERSION = 3
 ASSETS_DIRNAME = "run_dashboard_assets"
 STATS_CACHE_FILENAME = "dashboard-session-stats.json"
 UNRECORDED = "(unrecorded)"
@@ -72,6 +73,7 @@ TOOL_CATEGORIES: dict[str, str] = {
     "todowrite": "todo",
     "todoread": "todo",
     "task": "subagent",
+    "subagent": "subagent",
     "webfetch": "web",
     "skill": "other",
     # Antigravity
@@ -87,6 +89,7 @@ TOOL_CATEGORIES: dict[str, str] = {
     "manage_task": "todo",
     "schedule": "wait",
     "browser_subagent": "subagent",
+    "invoke_subagent": "subagent",
 }
 
 CATEGORY_ORDER: tuple[str, ...] = (
@@ -284,33 +287,18 @@ def _oc_line(
             stats["cost"] += float(part["cost"])
             stats["has_cost"] = True
     elif kind == "tool_use":
-        state: Mapping[str, Any] = (
-            part["state"] if isinstance(part.get("state"), Mapping) else {}
-        )
-        name = str(part.get("tool") or "")
-        inp: Mapping[str, Any] = (
-            state["input"] if isinstance(state.get("input"), Mapping) else {}
-        )
-        t: Mapping[str, Any] = (
-            state["time"] if isinstance(state.get("time"), Mapping) else {}
-        )
-        secs = (
-            (_num(t.get("end")) - _num(t.get("start"))) / 1000.0
-            if t.get("end")
-            else 0.0
-        )
-        command = inp.get("command") if name == "bash" else None
-        fpath = inp.get("filePath")
-        _record_tool(
-            stats,
-            name,
-            error=state.get("status") == "error",
-            seconds=secs,
-            command=str(command) if command is not None else None,
-            path=str(fpath) if fpath else None,
-            read_paths=read_paths,
-            edit_paths=edit_paths,
-        )
+        tc = tool_call_from_event(obj)
+        if tc is not None:
+            _record_tool(
+                stats,
+                tc.tool,
+                error=tc.error,
+                seconds=tc.seconds,
+                command=tc.command,
+                path=tc.path,
+                read_paths=read_paths,
+                edit_paths=edit_paths,
+            )
     elif kind == "error":
         stats["error_messages"] += 1
 
@@ -346,25 +334,18 @@ def _agy_line(
             stats["reasoning"] += _num(usage.get("thinking_tokens"))
             stats["cache_read"] += _num(usage.get("cache_read_tokens"))
     elif stype == "tool":
-        name = str(su.get("tool_name") or "")
-        info: Mapping[str, Any] = (
-            su["tool_info"] if isinstance(su.get("tool_info"), Mapping) else {}
-        )
-        params: Mapping[str, Any] = (
-            info["parameters"] if isinstance(info.get("parameters"), Mapping) else {}
-        )
-        command = params.get("CommandLine") if name == "run_command" else None
-        fpath = params.get("AbsolutePath") or params.get("TargetFile")
-        _record_tool(
-            stats,
-            name,
-            error=state == "ERROR",
-            seconds=secs,
-            command=str(command) if command is not None else None,
-            path=str(fpath) if fpath else None,
-            read_paths=read_paths,
-            edit_paths=edit_paths,
-        )
+        tc = tool_call_from_event(obj)
+        if tc is not None:
+            _record_tool(
+                stats,
+                tc.tool,
+                error=tc.error,
+                seconds=tc.seconds,
+                command=tc.command,
+                path=tc.path,
+                read_paths=read_paths,
+                edit_paths=edit_paths,
+            )
     elif stype == "error_message":
         stats["error_messages"] += 1
 
