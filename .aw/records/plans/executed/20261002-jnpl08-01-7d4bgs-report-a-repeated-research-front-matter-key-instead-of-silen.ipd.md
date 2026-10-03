@@ -6,7 +6,7 @@
 - Scope: Add ONE repeated-key drift rule over the research tree's fenced-YAML front matter, emitted from `research_index.check_drift` (so it surfaces through `aw research index --check` and `aw check research --all`), registered in `check_engine.RULE_REGISTRY` at `error`, and covered by behavioral tests in `tests/test_research_index.py`. Judge the RAW TEXT of the leading `---` block, because the collapsed mapping `parse_frontmatter` returns structurally cannot carry the evidence. Agree with the sibling bullet-tree rule `backlog.metadata-bullet-repeated` (executed plan `7ohskw`) on the `-repeated` naming and the `error` severity, so one defect class has one vocabulary across the two dialects. OUT, each for a stated reason: changing `parse_frontmatter`'s RETURN CONTRACT or its last-wins behavior (five production modules consume it and a contract change is a different, larger deliverable; OQ-01 records the alternatives); any WRITE-PATH guard (pending plan `deftzy` closes the research write paths that can create a duplicate, and this rule is the complement that catches a HAND EDIT no write-path guard can see); the unsafe-descriptive research rule (pending plan `xnogdl`, backlog `cvxbbu`); and extending the rule to any other tree (no other records tree uses the fenced-YAML dialect: all 127 fenced-YAML docs under `.aw/records/` are research docs).
 - Scope-Paths: agent_workflows/research_index.py, agent_workflows/check_engine.py, tests/test_research_index.py, .aw/records/research/README.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Work-Kind: bug
 - Priority: medium
@@ -17,9 +17,9 @@
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7d4bgs
-- Approval: 2026-10-03, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-03 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 7d4bgs verified (set jnpl08, attempt 1).
 - 2026-10-03 approved (aw set): status set to approved
 - 2026-10-02 reviewed (aw set): plan-review revisions applied; see review record
 
