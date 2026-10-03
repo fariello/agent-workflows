@@ -841,5 +841,58 @@ class CommitGatewayClaimConsistencyTests(unittest.TestCase):
         self.assertEqual(requiring_actions, [])
 
 
+class GuaranteeRowEnforcementStatusTests(unittest.TestCase):
+    """Invariant: nothing in this package denies a push or enforces hook preservation
+    as a boundary, so any artifact reporting otherwise is the fail-open drift backlog
+    ymlyqf recorded.
+
+    The tests pin the measurements stated in spec 25kzda 5.2 guarantee rows 1 and 3:
+    Leg A (row 1): no shipped finding code names Section 4.1's 'Push attempt' abort class,
+    and 'RUN-NO-PUSH' is absent from RUN_FINDING_CODES_BY_CODE, while 'Push attempt' is
+    deliberately retained in ABORT_CLASSES.
+    Leg B (row 3): 'hook_preserving_commit' is recorded in UNREPRESENTED_SPEC_CAPABILITIES,
+    is not in HostSandboxCapabilities fields under either spelling, and is not a member of
+    RUNNER_SAFETY_CAPABILITIES.
+
+    Three existing assertions are near-misses that do not cover these invariants:
+    (1) tests/test_run_finding_abort_partition.py's
+        test_conditional_abort_not_unconditional_and_abort_classes_exhaustive checks only
+        the forward direction (every row.abort_classes member is in ABORT_CLASSES), which
+        cannot detect a code newly naming 'Push attempt';
+    (2) test_spec_defines_exactly_twelve_run_codes asserts RUN-NO-PUSH is absent from the
+        spec's parsed 4.2 table, not from the run_evidence module;
+    (3) RequirementMapTests.test_requirement_map_structure_and_coverage only checks that
+        each req.unrepresented entry is a key of UNREPRESENTED_SPEC_CAPABILITIES, which
+        is the reverse implication and is silent about hook_preserving_commit.
+    """
+
+    def test_row_1_push_denial_enforcement_status(self):
+        # Leg A: no shipped finding code lists 'Push attempt' in abort_classes
+        codes_naming_push_attempt = [
+            row.code
+            for row in run_evidence.RUN_FINDING_CODES
+            if "Push attempt" in row.abort_classes
+        ]
+        self.assertEqual(codes_naming_push_attempt, [])
+
+        # RUN-NO-PUSH is absent from RUN_FINDING_CODES_BY_CODE
+        self.assertNotIn("RUN-NO-PUSH", run_evidence.RUN_FINDING_CODES_BY_CODE)
+
+        # 'Push attempt' is intentionally retained in ABORT_CLASSES
+        self.assertIn("Push attempt", run_evidence.ABORT_CLASSES)
+
+    def test_row_3_hook_preserving_commit_enforcement_status(self):
+        # Leg B: 'hook_preserving_commit' is a key of UNREPRESENTED_SPEC_CAPABILITIES
+        self.assertIn("hook_preserving_commit", hsp.UNREPRESENTED_SPEC_CAPABILITIES)
+
+        # No field in HostSandboxCapabilities represents it
+        field_names = {f.name for f in dataclasses.fields(HostSandboxCapabilities)}
+        self.assertNotIn("hook_preserving_commit", field_names)
+        self.assertNotIn("supports_hook_preserving_commit", field_names)
+
+        # Not in RUNNER_SAFETY_CAPABILITIES
+        self.assertNotIn("hook_preserving_commit", RUNNER_SAFETY_CAPABILITIES)
+
+
 if __name__ == "__main__":
     unittest.main()
