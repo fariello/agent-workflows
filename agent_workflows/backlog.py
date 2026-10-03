@@ -1579,6 +1579,23 @@ def run_set(args) -> int:
     src = res.paths[0]
     text = src.read_text(encoding="utf-8")
     item = parse_item(text)
+
+    # cc2m29 E-05: Consult shared transition predicate before modifying item, before dry-run,
+    # and before any gate-default or metadata write. Case-fold the prior status (PR-003) so an
+    # uppercase source token (- Status: DONE) does not bypass the gate. Skip self-edge.
+    # Refuse with exit code 1 (domain finding), matching specs.run_set and status_set.
+    raw_prior = item.status or ""
+    prior_status = raw_prior.strip().lower()
+    norm_new_status = new_status.strip().lower()
+    if prior_status and prior_status != norm_new_status:
+        from agent_workflows import attention_contract as _ac
+
+        if not _ac.backlog_transition_allowed(prior_status, norm_new_status):
+            sys.stderr.write(
+                f"aw backlog set: illegal transition {prior_status} -> {new_status}\n"
+            )
+            return 1
+
     item.status = new_status
     if new_status == "blocked":
         gk = getattr(args, "gate_kind", None)

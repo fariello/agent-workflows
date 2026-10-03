@@ -118,6 +118,25 @@ are kept. That inline block is the durable copy, because it is the one that is c
 the one that survives a clone. The `aw record-history <id6>` sidecar is an additional machine-local
 activity log: it is gitignored, so never rely on it as the only home for a reason worth keeping.
 
+## Legal status transitions
+
+Status moves are validated against an enumerated transition table, with `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract` as its single authority. Both setter spellings (`aw backlog set <status> <selector>` and `aw backlog set <path> --status <status>`) enforce this table and fail closed with exit code 1 on an unenumerated move.
+
+Permitted moves:
+- `open` -> `graduated`, `blocked`, `parked`, `done`
+- `graduated` -> `open`, `blocked`, `parked`, `done`
+- `blocked` -> `open`, `graduated`, `parked`, `done`
+- `parked` -> `open`, `blocked`
+- `done` -> `open`, `graduated`
+
+Refused moves:
+- `parked -> done` and `parked -> graduated`: parked items are deliberate set-asides and must be reopened to `open` before design handoff or completion, recording the activation in history.
+- `done -> blocked` and `done -> parked`: a completed item cannot be directly re-blocked or re-parked in place without reopening.
+
+### Reopen policy
+
+A `done` item may be reopened to `open` or `graduated` as a corrective move. This is deliberate policy rather than an oversight. Reopening to `open` is required by the release gate contract (reopening a closed bug re-defaults its release gate) and is pinned by tests in `tests/test_backlog_gate_follows_status.py`. Reopening to `graduated` supports situations where partial deliverables landed and active plan handoff continues.
+
 ## Promotion to a plan
 
 When a backlog item becomes committed execution work, author an IPD under `.aw/records/plans/pending/`,

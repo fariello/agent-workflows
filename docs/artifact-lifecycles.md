@@ -308,13 +308,23 @@ stateDiagram-v2
     [*] --> parked: aw backlog new --status parked
     open --> graduated: plan/spec written with From-Backlog
     open --> blocked: --gate-kind + --gate-ref
-    blocked --> open: gate cleared
     open --> parked
-    parked --> open: committed to
-    graduated --> done: linked plans executed
     open --> done: small fix, with --evidence
-    done --> [*]
+    graduated --> open: rollback or un-graduate
+    graduated --> blocked
+    graduated --> parked
+    graduated --> done: linked plans executed
+    blocked --> open: gate cleared
+    blocked --> graduated
+    blocked --> parked
+    blocked --> done
+    parked --> open: committed to
+    parked --> blocked
+    done --> open: corrective reopen
+    done --> graduated: corrective reopen
 ```
+
+The exact table is `BACKLOG_TRANSITIONS` in `agent_workflows.attention_contract`. A `done` item may be reopened to `open` or `graduated` as a corrective move (for example, reopening a closed bug re-defaults its release gate, and partial deliveries retain graduation).
 
 ### Graduating an item
 

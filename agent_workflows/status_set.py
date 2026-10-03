@@ -886,14 +886,41 @@ def validate_transition_allowed(
                 "--work-kind ...`",
             )
 
-    if rec.record_type == "backlog" and norm_status == "blocked":
-        gk = getattr(args, "gate_kind", None)
-        gr = getattr(args, "gate_ref", None)
-        if not gk or not gr:
-            return (
-                False,
-                "Moving backlog item to blocked requires --gate-kind and --gate-ref",
-            )
+    if rec.record_type == "backlog":
+        from agent_workflows import attention_contract as _ac
+
+        # ORDERING CONSEQUENCE: this pre-flight loop runs BEFORE the evaluate_blocking_close
+        # loop in run_set_command. A request that is BOTH an illegal transition and an
+        # illegitimate release-gate close will now report the TRANSITION refusal and not
+        # the gate refusal. Both exit 1, so no exit code changes; only the message does.
+        #
+        # THREE COMPOSITION CONSTRAINTS:
+        # (1) SKIP THE SELF-EDGE: X -> X returns ok=True for every backlog status (measured).
+        #     aw backlog note exists so annotation does not need a transition call;
+        #     a same-status set is documented misuse, not an invalid transition error.
+        # (2) CASE-FOLD THE SOURCE: read_artifact_record captures - Status: token verbatim;
+        #     an uppercase - Status: DONE would bypass an unfolded check (matching plans).
+        #     Live corpus measured zero non-canonical tokens, so this is prophylactic.
+        # (3) PRESERVE EXISTING ->blocked GATE-FLAG RULE: checking gate flags is a distinct
+        #     question from transition legality and preserves its own refusal and message.
+        raw_source = rec.status or ""
+        old_status = normalize_target_status(raw_source, "backlog").strip().lower()
+
+        if old_status and old_status != norm_status:
+            if not _ac.backlog_transition_allowed(old_status, norm_status):
+                return (
+                    False,
+                    f"Illegal backlog transition {old_status} -> {norm_status}",
+                )
+
+        if norm_status == "blocked":
+            gk = getattr(args, "gate_kind", None)
+            gr = getattr(args, "gate_ref", None)
+            if not gk or not gr:
+                return (
+                    False,
+                    "Moving backlog item to blocked requires --gate-kind and --gate-ref",
+                )
 
     # THE ACTOR SHAPE GATE (plan fn2l1u E-07). Refused HERE, in the shared pre-flight, so the CLI
     # reports a one-line refusal BEFORE any record in the batch is written; `apply_status_change`

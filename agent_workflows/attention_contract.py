@@ -503,6 +503,50 @@ SPEC_TRANSITIONS: Dict[str, FrozenSet[str]] = {
     "superseded": frozenset(("draft",)),  # corrective un-supersede only
 }
 
+# Legal backlog transitions (plan cc2m29 E-03).
+# Keyed old -> set of allowed new. Key set is validated against _LD.LIFECYCLE_SUBDIRS["backlog"].
+#
+# Edge justifications against measured repository practice (E-02 fence):
+# - open -> {graduated, blocked, parked, done}:
+#   Standard forward routes. `->graduated` for plan/spec handoff with From-Backlog;
+#   `->blocked` when gated; `->parked` to shelve as an uncommitted maybe;
+#   `->done` for direct fix with evidence or de-gate.
+# - graduated -> {open, blocked, parked, done}:
+#   `->open` is the runner's automated containment rollback when handoff verification
+#   fails and the operator remedy (F-06); `->blocked` when gated during execution;
+#   `->parked` to shelve active work; `->done` when linked plans execute.
+# - blocked -> {open, graduated, parked, done}:
+#   `->open` when gate clears; `->graduated` when gate resolves directly into active
+#   handoff (measured in corpus); `->parked` to shelve; `->done` when resolved directly.
+# - parked -> {open, blocked}:
+#   `->open` when committed to; `->blocked` when discovered to depend on an external gate.
+# - done -> {open, graduated}:
+#   Deliberate corrective reopening. `->open` is pinned by shipped test suite
+#   (tests/test_backlog_gate_follows_status.py, F-07) and required for release-gate
+#   re-defaulting; `->graduated` is measured in the live corpus (item x7wfyx, F-05)
+#   when partial deliverables land and active plan handoff continues.
+#   The doc diagram in docs/artifact-lifecycles.md previously drew `done` as terminal,
+#   which is narrower than shipped behavior and would break existing tests.
+#
+# Refused edges (the non-self complement over the 5x5 matrix):
+# - parked -> done: parked is a deliberate set-aside ("uncommitted maybe") and must
+#   be reopened to open before it can be closed done, so history records un-parking.
+# - parked -> graduated: an uncommitted maybe must be reopened before design handoff.
+# - done -> blocked: a done item needing more work must be reopened to open/graduated,
+#   never re-blocked in place.
+# - done -> parked: a done item cannot be shelved as a maybe without reopening first.
+BACKLOG_TRANSITIONS: Dict[str, FrozenSet[str]] = {
+    "open": frozenset(("graduated", "blocked", "parked", "done")),
+    "graduated": frozenset(("open", "blocked", "parked", "done")),
+    "blocked": frozenset(("open", "graduated", "parked", "done")),
+    "parked": frozenset(("open", "blocked")),
+    "done": frozenset(("open", "graduated")),
+}
+
+assert set(BACKLOG_TRANSITIONS.keys()) == set(
+    _LD.LIFECYCLE_SUBDIRS["backlog"]
+), "BACKLOG_TRANSITIONS keys must match lifecycle_dirs.LIFECYCLE_SUBDIRS['backlog']"
+
 # Transition authority (spec Section 7). ``by_human`` means the mechanism requires an explicit
 # --by-human attestation (a conscious speed bump recording attributed human approval; NOT anti-malicious crypto;
 # see APPROVAL_FLOOR). ``evidence`` means a resolvable implementation-evidence citation is required.
@@ -576,6 +620,15 @@ def transition_allowed(old: str, new: str) -> bool:
     """True iff ``old -> new`` is a legal spec transition (Section 7)."""
 
     return new in SPEC_TRANSITIONS.get(old, frozenset())
+
+
+def backlog_transition_allowed(old: str, new: str) -> bool:
+    """True iff ``old -> new`` is a legal backlog transition.
+
+    Fail-closed on unknown source status (returns False).
+    """
+
+    return new in BACKLOG_TRANSITIONS.get(old, frozenset())
 
 
 # --------------------------------------------------------------------------------------
