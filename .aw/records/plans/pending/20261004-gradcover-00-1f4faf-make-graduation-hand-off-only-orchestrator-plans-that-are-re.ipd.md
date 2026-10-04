@@ -19,6 +19,7 @@
 - Id: 1f4faf
 
 ## Workflow history
+- 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `8mabmu` (PR-002): correction to Concern point (4): `axozpe` names its final-measurement owner as "Order 04" (resolved to `rlhmt9` only through its child table), not by id6; Order 01 A.4 and Order 02 E-01 now credit an Order number present in the table.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `jm27py` (PR-003): Order 01 `hm1h3l` now also carries `- From-Spec: none` (it cites `2vev8j` without editing it), so the authoring note below that every plan EXCEPT Order 01 carries it is superseded: every plan in the Set carries it.
 - 2026-10-04 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-006 (PR-006 open, blocking OQ-03)
 

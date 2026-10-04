@@ -19,6 +19,7 @@
 - Id: hm1h3l
 
 ## Workflow history
+- 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `8mabmu` (finding PR-002): A.4's named-child credit now accepts an Order number present in the child table as well as an id6. Measured: `axozpe`, the motivating false refusal, names its owner only as "Order 04"; the id6-only text would have left it refused. The review verdict and blocking OQ-03 of this plan are unchanged.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `jm27py` (finding PR-003): added `- From-Spec: none`. This plan amends specs rather than being produced from one, and its Concern cites `2vev8j` without editing it, so after `jm27py` the Scope-Paths exemption alone would still leave `check.plan-spec-link-missing` firing on it. Metadata only; no amendment text changed, so the 2026-10-04 review verdict stands.
 - 2026-10-04 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (PR-006 open, blocking OQ-03)
 
@@ -108,7 +109,7 @@ A.3 Section 2.5b, the bullet beginning "A DELIVERED but unusable answer": REPLAC
 
 A.4 Section 2.5b: ADD a new bullet immediately after A.3:
 
-> - WORK EXPLICITLY ASSIGNED TO A NAMED CHILD IS COVERED. An obligation stated in the orchestrator's prose that names, by id6, a child listed in the orchestrator's own `## Child IPDs` table as the plan that performs it (for example "Order 04 `rlhmt9` carries the final cross-child measurement") is covered and MUST NOT be reported. The probe prompt states this rule and is sent the child table. The rule does not let prose assign work to a plan outside the table, to an unnamed "later child", or to the orchestrator itself.
+> - WORK EXPLICITLY ASSIGNED TO A NAMED CHILD IS COVERED. An obligation stated in the orchestrator's prose that names a child listed in the orchestrator's own `## Child IPDs` table as the plan that performs it, by that child's id6 OR by an Order number present in the table (for example "Order 04 `rlhmt9` carries the final cross-child measurement", or "which Order 04 carries as the last child" when the table has a `04` row), is covered and MUST NOT be reported. The probe prompt states this rule and is sent the child table. The rule does not let prose assign work to a plan outside the table, to an unnamed "later child", or to the orchestrator itself.
 
 A.5 Section 2.5b, the bullet beginning "In an interactive terminal the operator must type the exact phrase `run uncovered`" (the spec has three bullets beginning "In an interactive terminal"; this is the one inside 2.5b): ADD at the end of that bullet:
 
