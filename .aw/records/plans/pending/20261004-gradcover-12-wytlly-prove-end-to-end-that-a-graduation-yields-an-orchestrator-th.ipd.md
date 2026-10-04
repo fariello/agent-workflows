@@ -5,7 +5,7 @@
 - Concern: Each child of Set `gradcover` proves its own surface, but the defect the Set exists to fix only shows across surfaces: a graduation run produced orchestrators that a later review run refused (2026-10-03). Nothing short of driving the real runner through graduate, then review, then orchestrate, over the same records, shows the surfaces agree. This is the Set's final cross-child measurement; the orchestrator `1f4faf` assigns it here rather than carrying it.
 - Scope: IN: one integration test module that, inside a temp repository seeded with `--records-backend repository`, drives the real `aw oc run` entry point (in process, with the host turn and the probe replaced by scripted doubles through the existing injection seams) over a fixture backlog item through three runs: (A) graduate, where the scripted agent writes an orchestrator plus children, first with an uncovered whole-Set obligation and then, on the correction turn, with that obligation assigned to a child by id6; (B) `--action review` over the produced Set; (C) an orchestrate pass with the children marked `executed` by fixture; plus the refusal variant of (A) with the correction never made. Then the bare suite. OUT: any production code change; any real model call; changing any other test.
 - Scope-Paths: tests/test_gradcover_end_to_end.py
-- Item-Dependencies: executed:sbiv1j, executed:dalmk4
+- Item-Dependencies: executed:sbiv1j, executed:dalmk4, executed:5etev3
 - Status: to-review
 - From-Spec: none
 - Work-Kind: bug
@@ -13,12 +13,13 @@
 - Blocks-Release: f33nrj
 - Set: gradcover
 - Order: 12
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: wytlly
 
 ## Workflow history
 
+- 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of orchestrator `1f4faf` (findings PR-002, PR-003): added `executed:5etev3` to `- Item-Dependencies:` because Runs B and C assert Order 04's behavior (no run-start probe on a review run; the retirement-time re-check) and Order 04 was not reachable through `sbiv1j` or `dalmk4`; added E-05/V-05, the cross-surface ONE PREDICATE parity check that the orchestrator's `## Cross-IPD validation` previously carried with no owner. This plan owns the orchestrator's Completion criteria 1, 2 and 13 (the authoring line below says 11, which is `jm27py`'s since Order 13 was added).
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 12 of Set `gradcover`, the final child, owning the whole-Set measurement named in the orchestrator's Completion criteria 1, 2 and 11.
 
 ## Goal
@@ -55,6 +56,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the mutation makes E-02 fail; the bare suite shows no new failing node id.
   - Execution state: pending
 
+- [ ] E-05 Write the ONE PREDICATE parity scenario the orchestrator `1f4faf` assigns here: one fixture orchestrator whose children are all at `to-review` and whose recorded probe verdict (pre-recorded through `record_probe_verdict`, never a model call) is a FAIL with one quoted passage. Drive five surfaces over it and collect each one's findings: `aw ipd set reviewed <id6> --agent` (subprocess), `aw ipd lint --phase review-finalize --agent` (subprocess), `aw check plans --agent` (subprocess), a backlog production run whose scripted agent writes exactly that Set (in process), and `dispatch_orchestrator_item` on a copy with every child moved to `executed` by fixture (in process). Assert every surface refuses and reports the same finding code and the same quoted passage.
+  - Depends on: E-01
+  - Expected outcome: five refusals carrying one identical finding code and one identical quote; no surface passes the fixture.
+  - Execution state: pending
+
 ## Project conventions discovered (Step 0)
 
 - IN-PROCESS RUNNER TESTS WITH INJECTED HOSTS ARE THE ESTABLISHED PATTERN (`tests/test_backlog_production.py`, `tests/test_orchestrator_retirement.py`); the real spawn is refused under pytest by `_assert_probe_spawn_is_permitted`.
@@ -76,6 +82,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 2. Refusal scenario with setter refusals (E-02).
 3. Resume scenario over an integrated earlier handoff (E-03).
 4. Mutation proof and bare suite (E-04).
+5. Cross-surface parity of the one readiness predicate (E-05).
 
 ## Deferred / out of scope (with reason)
 
@@ -129,6 +136,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-04 validates E-04
   - Required evidence: paste the mutation run failing E-02 and the restored run passing; the test file's runtime; a grep for source-structure reads returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only the declared path.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste the parity scenario passing, then paste, for each of the five surfaces, the finding code and quoted passage it reported (one line per surface) showing they are identical. Paste a mutation in which one surface is made to skip the shared check (monkeypatched inside the test run, never by editing production source) failing the scenario.
   - Observed evidence:
   - Result: pending
 
