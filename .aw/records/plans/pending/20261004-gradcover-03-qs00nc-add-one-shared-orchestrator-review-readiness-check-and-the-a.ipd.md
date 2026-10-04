@@ -19,7 +19,8 @@
 
 ## Workflow history
 
-- 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 03 of Set `gradcover`. Implements spec `25kzda` Section 2.5d and `ipd-structure-and-linting` Section 9 rule 19 as amended by Order 01. Every later gate in the Set calls the function this plan adds.
+- 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `hm1h3l` (finding PR-001): the `aw ipd lint` MUST-check list and its "MUST make no model calls" sentence are in `ipd-structure-and-linting` Section 10 ("Deterministic linter contract"), not Section 9; three citations corrected. The same review widened the asking consumers of `25kzda` 2.5d to include the post-review and retirement-time checks; the shared function's `ask=True` path already serves them.
+- 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 03 of Set `gradcover`. Implements spec `25kzda` Section 2.5d and `ipd-structure-and-linting` Section 10 rule 19 as amended by Order 01. Every later gate in the Set calls the function this plan adds.
 
 ## Goal
 
@@ -64,7 +65,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - ONE IMPLEMENTATION, SEVERAL CONSUMERS is the established pattern: `check_engine.evaluate_blocking_close` backs both backlog setter spellings, three `aw check` rules and a pre-commit hook; `ipd_lint.orchestrator_row_conformance` backs lint, `/plan-review` and both runners (spec `r07vma` R3).
 - `ipd_lint` IMPORTS ARE FUNCTION-LOCAL FOR FIRST-PARTY CYCLES. The orchestrator-row section states that `ipd_set_plan` imports `ipd_lint` at module level, so `ipd_lint` must import other first-party modules inside function bodies; the same applies to the new module's use of `runner_shared`.
-- `aw ipd lint` MUST BE MODEL-FREE (`ipd-structure-and-linting` Section 9). The rule reads the verdict store; only `aw ipd coverage` asks.
+- `aw ipd lint` MUST BE MODEL-FREE (`ipd-structure-and-linting` Section 10). The rule reads the verdict store; only `aw ipd coverage` asks.
 - THE VERDICT STORE IS SHARED ACROSS WORKTREES through `ipd_lifecycle.checkout_control_root`, so a verdict recorded in a lane is visible to the driver and vice versa (`probe_verdict_store_path` docstring).
 - EXIT CODES follow `docs/cli-output-contract.md`: 0 clean, 1 findings, 2 cannot-run.
 - Tests assert behavior, never code structure (`GUIDING_PRINCIPLES.md` P16).
@@ -114,7 +115,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-Implements spec `25kzda` Section 2.5d and `ipd-structure-and-linting` Section 9 rule 19 (both added by Order 01). No spec edited here. `docs/cli-human-guide.md` is not changed by this plan; the new subcommand is documented by its `--help` text, and Order 11 updates authoring guidance.
+Implements spec `25kzda` Section 2.5d and `ipd-structure-and-linting` Section 10 rule 19 (both added by Order 01). No spec edited here. `docs/cli-human-guide.md` is not changed by this plan; the new subcommand is documented by its `--help` text, and Order 11 updates authoring guidance.
 
 ## Open questions
 

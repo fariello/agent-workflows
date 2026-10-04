@@ -2,11 +2,12 @@
 
 - Date: 2026-10-04
 - Kind: child
-- Concern: Five approved or implemented specs jointly forbid or fail to require what this Set must build. Spec `25kzda` Section 2.5b says the coverage check runs "over the orchestrators IN THAT RUN'S QUEUE only", regardless of action, which is what blocked three `--action review` runs on 2026-10-03; its Sections 4.8 and 4.9 define production success per plan with no Set-level check, which is how 11 backlog items reached `graduated` with refused orchestrators; its Sections 3.2 to 3.4 never say that an orchestrator's status is gated. Spec `77tr3o` R-12 places the check only "before a run spends an agent turn", not at retirement or at status change, and point 3 states the check "IS NOT A LINTER RULE" in terms an implementer could read as forbidding any lint consumer of it. Spec `r07vma` R9 and Section 3a limit 1 describe the probe as reading the full prose sections with no owner credit, and limit 5 says "nothing detects the omission" of a needed final child. Spec `ipd-structure-and-linting` Section 9's MUST-check list has no orchestrator readiness rule. Spec `ipd-spec` enumerates the only legal backward plan transitions (`approved -> reviewed`, `auto-approved -> reviewed`, `reviewed -> to-review`), so an orchestrator found not ready cannot be returned to `draft`, and a plan whose inputs changed after approval cannot be demoted past `reviewed` (measured: `ipd_lifecycle.validate_transition('to-review','draft')` returns `ok=False`, "missing predecessor"); spec `2vev8j` Section 4.8 requires every legal backward edge to be enumerated there. Without amendment, Orders 02 to 10 would each have to contradict an approved contract, which is the dead end `51vw4y` recorded.
+- Concern: Five approved or implemented specs jointly forbid or fail to require what this Set must build. Spec `25kzda` Section 2.5b says the coverage check runs "over the orchestrators IN THAT RUN'S QUEUE only", regardless of action, which is what blocked three `--action review` runs on 2026-10-03; its Sections 4.8 and 4.9 define production success per plan with no Set-level check, which is how 11 backlog items reached `graduated` with refused orchestrators; its Sections 3.2 to 3.4 never say that an orchestrator's status is gated. Spec `77tr3o` R-12 places the check only "before a run spends an agent turn", not at retirement or at status change, and point 3 states the check "IS NOT A LINTER RULE" in terms an implementer could read as forbidding any lint consumer of it. Spec `r07vma` R9 and Section 3a limit 1 describe the probe as reading the full prose sections with no owner credit, and limit 5 says "nothing detects the omission" of a needed final child. Spec `ipd-structure-and-linting` Section 10's ("Deterministic linter contract") MUST-check list has no orchestrator readiness rule. Spec `ipd-spec` enumerates the only legal backward plan transitions (`approved -> reviewed`, `auto-approved -> reviewed`, `reviewed -> to-review`), so an orchestrator found not ready cannot be returned to `draft`, and a plan whose inputs changed after approval cannot be demoted past `reviewed` (measured: `ipd_lifecycle.validate_transition('to-review','draft')` returns `ok=False`, "missing predecessor"); spec `2vev8j` Section 4.8 requires every legal backward edge to be enumerated there. Without amendment, Orders 02 to 10 would each have to contradict an approved contract, which is the dead end `51vw4y` recorded.
 - Scope: Edit exactly five spec files to state the new contract, append a dated `aw specs note` history line to each through the tool, and run `aw specs check` on each. IN: the text amendments enumerated in Proposed changes, by section name. OUT: any code, any test, any plan other than this one, any change to a spec's `- Status:`, and any amendment not enumerated here. The `C-*` requirement-ownership format is NOT introduced.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: no-go
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj
@@ -17,7 +18,9 @@
 - Id: hm1h3l
 
 ## Workflow history
+- 2026-10-04 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (PR-006 open, blocking OQ-03)
 
+- 2026-10-04 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 to PR-007. Fixed: lint MUST-check list is Section 10, not 9 (PR-001); 2.5d now lists the four consumers that may ask and covers could-not-ask at retirement and after review (PR-002); A.7 no longer requires an unimplemented review skip that would deadlock every orchestrator without a verdict (PR-003); E.1 loop-freedom scoped to automated demotion (PR-004); wording, anchor, grep and gate fixes (PR-005, PR-007). OPEN, blocking: OQ-03 / PR-006.
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 01 of Set `gradcover` at the maintainer's instruction to put detailed spec amendments in the plan that edits the specs, citing sections by name and never by line number. Every amendment below is written as the text the executor inserts or the exact change it makes, so a reviewer can approve the contract before any code exists.
 
 ## Goal
@@ -45,7 +48,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw specs check` on the `r07vma` file reports conforming; limit 5 names Set `gradcover` as what now detects an omitted final child; `- Status:` still reads `approved`.
   - Execution state: pending
 
-- [ ] E-04 Amend spec `ipd-structure-and-linting` exactly as Proposed changes D.1 and D.2 state: add item 19 to Section 9's MUST-check list and a paragraph after that list. Append the history line with `aw specs note`.
+- [ ] E-04 Amend spec `ipd-structure-and-linting` exactly as Proposed changes D.1 and D.2 state: add item 19 to Section 10's ("Deterministic linter contract") MUST-check list and a paragraph after that list. Append the history line with `aw specs note`.
   - Depends on: E-03
   - Expected outcome: `aw specs check` on the `ipd-structure-and-linting` file reports conforming; item 19 exists and names `IPD-S408`; `- Status:` still reads `implemented`.
   - Execution state: pending
@@ -80,7 +83,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | `77tr3o` R-12 point 3 says "THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED", and explains that the pre-transition checkpoint must keep Kind-parity. What R-5 rejected was a linter EXEMPTION that lets an orchestrator skip evidence; a lint rule that REFUSES an unready orchestrator at `review-finalize` is the opposite direction and does not touch Kind-parity at `pre-transition`. Point 3 must say so, or Order 03's lint consumer reads as a violation. | R-5's OQ-1 resolution text ("the linter learns a `Kind: orchestrator` + runner-rollup exemption" was REJECTED); `ipd_lint.check_orchestrator_rows` already exists as an orchestrator-only lint rule (`IPD-S407`) gated to `review-finalize`, `pre-execution` and `pre-transition`, so an orchestrator-specific lint rule is already shipped precedent |
 | F-05 | `r07vma` Section 3a limit 5 states "a parent can conform perfectly while its author simply omitted a needed final child. R1b names the remedy but nothing detects the omission". That limit is exactly what this Set closes, so leaving it unamended would make the spec wrong. | the quoted limit 5 text |
 | F-06 | The probe's answer contract is a bare sentinel line (`PROBE_SENTINEL_EXECUTIONS`/`PROBE_SENTINEL_NO_EXECUTIONS`), and `classify_probe_reply` treats anything else as `unknown`. A refusal therefore cannot name what was found; `axozpe`'s refusal is unactionable. 2.5b must permit a quote block or Order 02 breaks the strict-parser rule 2.5b states. | `PROBE_PROMPT_TEMPLATE` ("Reply with EXACTLY ONE of these two lines and NOTHING else"); `classify_probe_reply` equality test |
-| F-07 | `ipd-structure-and-linting` Section 9 says `aw ipd lint` "MUST make no model calls". A readiness lint rule must therefore READ a recorded probe verdict, never ask for one. The verdict store (`runner_shared.read_probe_verdict`) is a local file read, so this is compatible. | the quoted Section 9 sentence; `read_probe_verdict` reads `probe_verdict_store_path` only |
+| F-07 | `ipd-structure-and-linting` Section 10 ("Deterministic linter contract", not Section 9, which is "Lint checkpoints and lifecycle state") says `aw ipd lint` "MUST make no model calls". A readiness lint rule must therefore READ a recorded probe verdict, never ask for one. The verdict store (`runner_shared.read_probe_verdict`) is a local file read, so this is compatible. | the quoted Section 9 sentence; `read_probe_verdict` reads `probe_verdict_store_path` only |
 | F-08 | The existing correction machinery is specified once: `25kzda` 5.5 lists "missing expected artifact or failed deterministic check for which a bounded correction is safe" as retryable. A Set-level production refusal is that class, so Order 07 needs only a sentence naming it, not a new retry rule. | the quoted 5.5 retryable list |
 
 ## Proposed changes (ordered, validatable)
@@ -95,7 +98,7 @@ A.1 Section 2.5b, the bullet beginning "It runs ONCE per run": REPLACE with:
 
 A.2 Section 2.5b: ADD a new bullet immediately after A.1:
 
-> - THE CHECK IS REPEATED AT THE RETIREMENT POINT. Immediately before the runner retires an orchestrator (Section 2.5b's premise, spec `77tr3o` R-1 to R-6), it re-evaluates the orchestrator review-readiness check of Section 2.5d against the orchestrator's CURRENT on-disk text. A recorded passing verdict for that exact text is served from the cache and spends nothing; any other answer refuses the retirement with the `finalize-refused` reason and the quoted finding. This closes the case in which an orchestrator was edited by a child's turn after the run-start probe.
+> - THE CHECK IS REPEATED AT THE RETIREMENT POINT. Immediately before the runner retires an orchestrator (Section 2.5b's premise, spec `77tr3o` R-1 to R-6), it re-evaluates the orchestrator review-readiness check of Section 2.5d against the orchestrator's CURRENT on-disk text. A recorded passing verdict for that exact text is served from the cache and spends nothing; a cache miss asks the probe once; any answer other than a pass, INCLUDING a could-not-ask, refuses the retirement with the `finalize-refused` reason and the quoted finding (Section 2.5d UNAVAILABILITY), leaving the orchestrator in `pending/` without failing the run. This closes the case in which an orchestrator was edited by a child's turn after the run-start probe.
 
 A.3 Section 2.5b, the bullet beginning "A DELIVERED but unusable answer": REPLACE with:
 
@@ -105,7 +108,7 @@ A.4 Section 2.5b: ADD a new bullet immediately after A.3:
 
 > - WORK EXPLICITLY ASSIGNED TO A NAMED CHILD IS COVERED. An obligation stated in the orchestrator's prose that names, by id6, a child listed in the orchestrator's own `## Child IPDs` table as the plan that performs it (for example "Order 04 `rlhmt9` carries the final cross-child measurement") is covered and MUST NOT be reported. The probe prompt states this rule and is sent the child table. The rule does not let prose assign work to a plan outside the table, to an unnamed "later child", or to the orchestrator itself.
 
-A.5 Section 2.5b, the bullet beginning "In an interactive terminal": ADD at the end of that bullet:
+A.5 Section 2.5b, the bullet beginning "In an interactive terminal the operator must type the exact phrase `run uncovered`" (the spec has three bullets beginning "In an interactive terminal"; this is the one inside 2.5b): ADD at the end of that bullet:
 
 > The flag and the phrase apply ONLY to this run-start gate. They do not satisfy the retirement-time re-check (A.2), the status-change gate, or the production gate of Section 2.5d, each of which refuses and names its own remedy.
 
@@ -120,17 +123,17 @@ A.6 ADD a new Section 2.5d immediately after Section 2.5c:
 > 3. its checklist rows conform to spec `r07vma` R1a (`IPD-S407`);
 > 4. the coverage probe's verdict for the orchestrator's CURRENT text is a recorded pass.
 >
-> Conditions 1 to 3 are deterministic. Condition 4 is READ from the verdict store by every consumer except the two that may ASK: the production action of Sections 4.8 and 4.9, and the `aw ipd coverage` command, which asks once and records the answer. No other consumer spends a model call, so `aw ipd lint` and `aw check` remain model-free.
+> Conditions 1 to 3 are deterministic. Condition 4 is READ from the verdict store by every consumer except the four that may ASK on a miss (and record the answer): the production action of Sections 4.8 and 4.9, the post-review check `IPD-REVIEW-ORCHESTRATOR-READY` of Section 4.4, the retirement-time re-check of Section 2.5b, and the `aw ipd coverage` command. Each of these is already spending a run's or an operator's turn on this orchestrator, so one cached probe call is proportionate. `aw ipd set`, `aw ipd lint` and `aw check` NEVER ask, so the setter and the linters remain model-free.
 >
 > CONSUMERS. The function is called by: `aw ipd set` for a target of `to-review`, `reviewed`, `approved` or `auto-approved` on an orchestrator plan (refuse); `aw ipd lint` at `review-finalize` and `pre-execution` (rule `IPD-S408`); `aw check plans` (rule `check.orchestrator-not-review-ready`); the production verification codes `SPEC-PLAN-SET` and `BACKLOG-GRADUATE-SET`; the review verification code `IPD-REVIEW-ORCHESTRATOR-READY`; and the retirement-time re-check of Section 2.5b.
 >
-> UNAVAILABILITY. When condition 4 cannot be established because the probe could not be asked, the status-change and production consumers REFUSE and leave the plan or its source where it is, naming the command to retry (`aw ipd coverage <id6>`). This differs deliberately from the run-start gate, which warns and proceeds: at a status change or a production handoff nothing has started, so refusing costs nothing, whereas proceeding would record a readiness claim nobody established.
+> UNAVAILABILITY. When condition 4 cannot be established because the probe could not be asked, the status-change, production, post-review and retirement-time consumers REFUSE and leave the plan or its source where it is, naming the command to retry (`aw ipd coverage <id6>`). A refused retirement leaves the orchestrator in `pending/` and is not a failure of the run, exactly as the other retirement refusals of spec `77tr3o` are. This differs deliberately from the run-start gate, which warns and proceeds: at each of these points refusing costs a later retry and nothing else, whereas proceeding would record a readiness claim nobody established.
 >
-> EVERY REFUSAL names the failing condition, the child id6 or quoted passage it concerns, and the exact command or edit that fixes it, on the human surface and as an `aw.agent/v1` record. The remedy text follows spec `r07vma` R7: it states the invariant, forbids satisfying it by deleting the checklist, and names both legitimate remedies (add a child that owns the work and a row for it, or assign the work in prose to an existing child by id6, or remove it if it is redundant).
+> EVERY REFUSAL names the failing condition, the child id6 or quoted passage it concerns, and the exact command or edit that fixes it, on the human surface and as an `aw.agent/v1` record. The remedy text follows spec `r07vma` R7: it states the invariant, forbids satisfying it by deleting the checklist, and names the legitimate remedies (add a child that owns the work and a row for it, or assign the work in prose to an existing child by id6, or remove it if it is redundant).
 
 A.7 Section 3.2, the IPD dispatch table: ADD one row after the `to-review` row:
 
-> | Orchestrator plan in `draft` or `to-review` that fails Section 2.5d | Yellow skip with every Section 2.5d finding quoted; do not review it. | Same skip. | Reviewing it, or setting it `reviewed`, while its children are missing or unready. |
+> | Orchestrator plan in `draft` or `to-review` | As the matching row above (a `draft` orchestrator's `to-review` transition is itself gated by Section 2.5d). After the review turn, evaluate Section 2.5d (`IPD-REVIEW-ORCHESTRATOR-READY`, Section 4.4; the probe may be asked); when it is not ready, return the plan to `to-review` and correct within the retry budget (Section 5.5). | Same. | Setting it `reviewed` while Section 2.5d fails. |
 
 and ADD this sentence after the table's closing paragraph:
 
@@ -198,7 +201,7 @@ C.4 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R9's probe b
 
 ### D. Spec `ipd-structure-and-linting`
 
-D.1 Section 9 (the `aw ipd lint` MUST-check list): ADD item 19 after item 18:
+D.1 Section 10 "Deterministic linter contract" (the `aw ipd lint` MUST-check list, the list beginning "For a new or migrated IPD, it MUST check at least"): ADD item 19 after item 18:
 
 > 19. for an orchestrator plan at the `review-finalize` and `pre-execution` checkpoints, that it is ready for review per spec `25kzda` Section 2.5d (`IPD-S408`), evaluating conditions 1 to 3 directly and condition 4 by READING the recorded coverage verdict for the plan's current text, never by asking a model. An absent or stale verdict is a finding that names `aw ipd coverage <id6>` as the remedy. At the `author` checkpoint the rule is advisory only, so a plan being written is not refused for children not yet written.
 
@@ -206,15 +209,15 @@ D.2 ADD a paragraph immediately after the MUST-check list:
 
 > Rule 19 is the one orchestrator-specific REFUSAL this command applies beyond `IPD-S407`. It does not change what `pre-transition` requires of an orchestrator (spec `77tr3o` R-5 and R-12 point 3): Kind-parity at `pre-transition` is unchanged. The check is the shared function, not a second implementation, so `aw ipd lint`, `aw check plans` and `aw ipd set` report identical findings for the same plan.
 
-D.3 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 9 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading a recorded probe verdict, model-free) and a paragraph stating it does not alter pre-transition Kind-parity.`
+D.3 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 10 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading a recorded probe verdict, model-free) and a paragraph stating it does not alter pre-transition Kind-parity.`
 
 ### E. Spec `ipd-spec` (authoring and executing an IPD)
 
 E.1 The `## Workflow history` convention bullet, the sentence beginning "The only legal backward lifecycle transitions are": REPLACE that sentence with:
 
-> Every BACKWARD move between the non-terminal plan statuses is legal (`approved` or `auto-approved` to `reviewed`, `to-review` or `draft`; `reviewed` to `to-review` or `draft`; `to-review` to `draft`), because a plan whose spec, scope, dependencies or cited code changed after it was approved in a way that affects how it would be implemented, or that would undo work implemented since, is unsafe to execute and MUST be demoted. Added 2026-10-04 by plan `hm1h3l`; this supersedes the earlier three-edge enumeration (spec `2vev8j` 4.8 asked for the legal edges to be enumerated here, and this sentence is that enumeration). A backward move into a terminal status, and any move out of a terminal status, stays illegal (that is the separate terminal-reopen guard). EVERY BACKWARD MOVE IS LOUD: it requires a reason (`--message`), the setter prints a warning naming the plan, the old and new status and the reason, and the workflow-history line records `demoted <from> -> <to>: <reason>`; a move out of `approved` or `auto-approved` additionally records `APPROVAL WITHDRAWN`. A demotion can never start a loop, because promotion and demotion of an orchestrator are decided by the same check (spec `25kzda` 2.5d) over the same recorded verdict for the same text: for unchanged text the check cannot both pass (allowing promotion) and fail (requiring demotion), so a plan can only move again after someone edits it. No runner ever promotes a plan to `approved` (`25kzda` 4.5), so an automated demotion is never followed by an automated re-approval.
+> Every BACKWARD move between the non-terminal plan statuses is legal (`approved` or `auto-approved` to `reviewed`, `to-review` or `draft`; `reviewed` to `to-review` or `draft`; `to-review` to `draft`), because a plan whose spec, scope, dependencies or cited code changed after it was approved in a way that affects how it would be implemented, or that would undo work implemented since, is unsafe to execute and MUST be demoted. Added 2026-10-04 by plan `hm1h3l`; this supersedes the earlier three-edge enumeration (spec `2vev8j` 4.8 asked for the legal edges to be enumerated here, and this sentence is that enumeration). A backward move into a terminal status, and any move out of a terminal status, stays illegal (that is the separate terminal-reopen guard). EVERY BACKWARD MOVE IS LOUD: it requires a reason (`--message`), the setter prints a warning naming the plan, the old and new status and the reason, and the workflow-history line records `demoted <from> -> <to>: <reason>`; a move out of `approved` or `auto-approved` additionally records `APPROVAL WITHDRAWN`. An AUTOMATED demotion can never start a loop. For an orchestrator, promotion (to `to-review`, `reviewed`, `approved` or `auto-approved`) and automated demotion are decided by the same check (spec `25kzda` 2.5d) over the same recorded verdict for the same text: for unchanged text the check cannot both pass (allowing promotion) and fail (requiring demotion), so it can only move again after someone edits it. For any other plan no tool demotes automatically, so every demotion is a deliberate, reasoned act. No runner ever writes `approved` (`25kzda` 4.5), and a runner's `auto-approved` of an orchestrator passes the same check, so an automated demotion is never followed by an automated re-approval of unchanged text.
 
-E.2 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): every backward move between non-terminal plan statuses is now legal and mandatory when a plan's inputs changed materially after approval; every backward move requires a reason, warns, and records 'demoted <from> -> <to>: <reason>' (plus APPROVAL WITHDRAWN when leaving approved/auto-approved); loop-freedom stated (one check decides promotion and demotion; runners never approve).`
+E.2 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): every backward move between non-terminal plan statuses is now legal and mandatory when a plan's inputs changed materially after approval; every backward move requires a reason, warns, and records 'demoted <from> -> <to>: <reason>' (plus APPROVAL WITHDRAWN when leaving approved/auto-approved); loop-freedom stated for automated demotion (one check decides an orchestrator's promotion and demotion; no tool demotes another plan automatically; runners never write approved).`
 
 ## Deferred / out of scope (with reason)
 
@@ -235,7 +238,7 @@ E.2 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): every backwa
 - `python3 -m agent_workflows specs check <path>` for each of the five files, pasted, each conforming.
 - `python3 -m agent_workflows check specs`, pasted, with no new finding against a baseline measured before editing.
 - `git diff --name-only` pasted, listing exactly the five spec paths.
-- Greps pasted, each returning a hit after the edit: `2.5d Orchestrator review readiness`, `IPD-REVIEW-ORCHESTRATOR-READY`, `SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`, `whose action in this run is \`orchestrate\``, `QUOTE: `, `R-13 AN ORCHESTRATOR MAY NOT BE MARKED READY`, `IPD-S408`, `APPROVAL WITHDRAWN`.
+- Greps pasted, each returning a hit after the edit: `2.5d Orchestrator review readiness`, `IPD-REVIEW-ORCHESTRATOR-READY`, `SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`, `whose action in this run is \`orchestrate\`` (case-insensitive: A.1 writes it in capitals), `QUOTE: `, `R-13 AN ORCHESTRATOR MAY NOT BE MARKED READY`, `IPD-S408`, `APPROVAL WITHDRAWN`.
 - `grep -n '^- Status:'` on each file, pasted, showing the status unchanged (`approved`, `approved`, `approved`, `implemented`, `implemented`).
 - `aw ipd lint` on this plan conforming.
 - No suite run is required by this plan's own change (no code changes), but run the bare suite once and paste the summary line so the boundary baseline is recorded for Order 02.
@@ -259,6 +262,16 @@ THIS PLAN IS THE SPEC SYNC FOR THE WHOLE SET. It edits five specs, all declared 
 - Status: resolved
 - Owner: author
 - Resolution or deferral rationale: RESOLVED: advisory at `author`, refusing at `review-finalize` and `pre-execution` (D.1). An orchestrator is legitimately written before its children, and `aw ipd scaffold` produces it first; refusing it at `author` would block the normal authoring order.
+
+### OQ-03: Should a missing or expired coverage verdict be an error in `aw ipd lint` and `aw check`?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-006
+- Context: this plan writes the contract text the question turns on (A.6 condition 4 and D.1 rule 19: "An absent or stale verdict is a finding"). The verdict store (`runner_shared.probe_verdict_store_path`, `.aw/state/runtime/`) is gitignored by `.aw/.gitignore` `/state/`, never committed, and expires after `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS = 30`. Order 03 (`qs00nc` E-04) makes the check rule an `error`, and CI runs `aw check plans --agent` fail-closed. So CI, every other clone, and this machine after 30 days would fail on every orchestrator at `to-review` or later, permanently. Same decision as orchestrator `1f4faf` OQ-03; answer it once and record it in both plans.
+- Decision needed: (a) recommended: for the model-free consumers (`aw ipd lint`, `aw check`) an absent or expired verdict is advisory and a recorded FAIL is an error, while conditions 1 to 3 stay errors and the asking consumers still refuse; (b) persist a pass as a tracked attestation (forgeable by hand edit); (c) drop condition 4 from lint and check. The chosen answer rewrites D.1's sentence and the 2.5d CONSUMERS paragraph here, and `qs00nc` E-04/V-04.
+- Resolution or deferral rationale: open; raised by the 2026-10-04 /plan-review of `hm1h3l` (finding PR-006, carried from the `1f4faf` review).
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -299,4 +312,4 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan requires explicit human approval before execution, and approval of THIS plan is approval of the contract the rest of Set `gradcover` implements. Commit only the five declared spec paths through `aw commit <plan> -- <paths>`; never `git add -A`; never push. Do not change any spec's `- Status:`. Under a runner, the runner performs `aw ipd begin`/`aw ipd finalize`; by hand, run `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-edit `- Status: executed`.
+This plan requires explicit human approval before execution, and approval of THIS plan is approval of the contract the rest of Set `gradcover` implements. Commit only the five declared spec paths through `aw commit <plan> -- <paths>`; never `git add -A`; never push. Do not change any spec's `- Status:`. Under a runner, the runner performs `aw ipd begin`/`aw ipd finalize`; by hand, run `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Never hand-edit `- Status: executed`. Every `V-*` demands the ACTUAL pasted command output; never paraphrase or claim a check you did not run.
