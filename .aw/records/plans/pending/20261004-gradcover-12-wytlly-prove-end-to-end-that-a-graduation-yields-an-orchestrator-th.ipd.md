@@ -7,6 +7,7 @@
 - Scope-Paths: tests/test_gradcover_end_to_end.py
 - Item-Dependencies: executed:sbiv1j, executed:dalmk4
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj

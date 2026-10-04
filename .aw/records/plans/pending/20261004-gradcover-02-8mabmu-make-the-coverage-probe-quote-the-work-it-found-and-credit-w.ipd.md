@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_probe_quotes.py
 - Item-Dependencies: executed:hm1h3l
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj

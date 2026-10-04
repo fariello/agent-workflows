@@ -3,23 +3,24 @@
 - Date: 2026-10-04
 - Kind: orchestrator
 - Concern: Graduating a backlog item (or producing plans from an approved spec) through `aw oc run` / `aw agy run` routinely hands off an orchestrator plan that the next run refuses. Measured 2026-10-03: three `--action review` runs over 53 queued plans were refused before any agent turn because the orchestrator coverage probe judged 13 of the 16 pending orchestrator plans (`i18yaz`, `u4glub`, `z2l43n`, `1u4olp`, `63zo2f`, `itamry`, `u57rfv`, `4qv834`, `l8wvv3`, `qtz0us`, `axozpe`, `m0kl28`, `xhr0dj`) to "carry work no child covers"; 11 of their 13 source backlog items already read `graduated`. Four separate defects combine: (1) the production prompt (`runner_shared.build_backlog_production_prompt`, and its spec twin) says nothing about orchestrator plans or coverage; (2) the orchestrator skeleton `aw ipd scaffold --kind orchestrator` writes `- TODO: whole-Set completion criteria.`, `- TODO: cross-IPD consistency / no-drift / dependency checks.` and `TODO: how the executed plan is verified.`, which are exactly the sections the probe reads and its prompt calls uncovered work; (3) production verification (`production_checks._check_ipd_conformance`, reached through `backlog_graduate_ipd` and `spec_plan_conformance`) checks each produced plan alone and never the Set, so it sets the source `graduated` / `implementing` with a refused orchestrator; (4) the probe itself gates every queued orchestrator regardless of whether the run can retire it, answers with a bare verdict line that names nothing, and does not credit work the orchestrator explicitly assigns to a named child (`axozpe` states in its `Scope check` that child `rlhmt9` owns the final measurement and was still refused). Nothing checks orchestrator readiness when `- Status:` is set, so `to-review` currently asserts something no tool verified.
-- Scope: ORCHESTRATION ONLY. This plan sequences twelve child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child consistency checks. OUT: everything the children do, namely the four spec amendments (Order 01), the probe's answer format and named-owner rule (Order 02), the shared review-readiness check and the `aw ipd coverage` verb (Order 03), the probe's scoping and its retirement-time re-check (Order 04), the `aw ipd set` refusal and the scaffold's orchestrator default (Order 05), the production action's Set-level check (Order 06), the bounded correction turns (Order 07), resuming an unfinished handoff (Order 08), re-checking the 13 refused orchestrators (Order 09), the `aw backlog set graduated` / `aw specs set implementing` refusal (Order 10), the authoring instructions (Order 11), and the end-to-end proof (Order 12). This Set does NOT redesign record handling into an object model (a separate discussion), and does NOT add any `C-*`/`Owner:` requirement-ownership syntax (deliberately deferred, see Deferred).
-- Scope-Paths: .aw/records/plans/pending/20261004-gradcover-01-hm1h3l-amend-the-run-retirement-conformance-and-ipd-specs-for-orche.ipd.md, .aw/records/plans/pending/20261004-gradcover-02-8mabmu-make-the-coverage-probe-quote-the-work-it-found-and-credit-w.ipd.md, .aw/records/plans/pending/20261004-gradcover-03-qs00nc-add-one-shared-orchestrator-review-readiness-check-and-the-a.ipd.md, .aw/records/plans/pending/20261004-gradcover-04-5etev3-run-the-coverage-probe-only-where-a-run-can-retire-an-orches.ipd.md, .aw/records/plans/pending/20261004-gradcover-05-26m1nb-refuse-aw-ipd-set-to-review-reviewed-and-approved-for-an-orc.ipd.md, .aw/records/plans/pending/20261004-gradcover-06-r2wa38-check-the-whole-set-before-a-production-action-hands-off-a-b.ipd.md, .aw/records/plans/pending/20261004-gradcover-07-nnsa2o-send-a-refused-production-or-review-action-back-for-bounded.ipd.md, .aw/records/plans/pending/20261004-gradcover-08-24qw39-let-a-production-action-resume-an-unfinished-handoff-instead.ipd.md, .aw/records/plans/pending/20261004-gradcover-09-52opph-re-check-every-pending-orchestrator-and-send-the-failing-one.ipd.md, .aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md, .aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md, .aw/records/plans/pending/20261004-gradcover-12-wytlly-prove-end-to-end-that-a-graduation-yields-an-orchestrator-th.ipd.md
+- Scope: ORCHESTRATION ONLY. This plan sequences thirteen child plans and contributes no implementation, no test and no deliverable of its own. Every artifact is owned by exactly one child and named in the child table. IN: the dependency order, the Set-level completion criteria with the child that owns each, and the cross-child consistency checks. OUT: everything the children do, namely the four spec amendments (Order 01), the probe's answer format and named-owner rule (Order 02), the shared review-readiness check and the `aw ipd coverage` verb (Order 03), the probe's scoping and its retirement-time re-check (Order 04), the `aw ipd set` refusal and the scaffold's orchestrator default (Order 05), the production action's Set-level check (Order 06), the bounded correction turns (Order 07), resuming an unfinished handoff (Order 08), re-checking the 13 refused orchestrators (Order 09), the `aw backlog set graduated` / `aw specs set implementing` refusal (Order 10), the authoring instructions (Order 11), the end-to-end proof (Order 12), and the `From-Spec` nudge fix (Order 13). This Set does NOT redesign record handling into an object model (a separate discussion), and does NOT add any `C-*`/`Owner:` requirement-ownership syntax (deliberately deferred, see Deferred).
+- Scope-Paths: .aw/records/plans/pending/20261004-gradcover-01-hm1h3l-amend-the-run-retirement-conformance-and-ipd-specs-for-orche.ipd.md, .aw/records/plans/pending/20261004-gradcover-02-8mabmu-make-the-coverage-probe-quote-the-work-it-found-and-credit-w.ipd.md, .aw/records/plans/pending/20261004-gradcover-03-qs00nc-add-one-shared-orchestrator-review-readiness-check-and-the-a.ipd.md, .aw/records/plans/pending/20261004-gradcover-04-5etev3-run-the-coverage-probe-only-where-a-run-can-retire-an-orches.ipd.md, .aw/records/plans/pending/20261004-gradcover-05-26m1nb-refuse-aw-ipd-set-to-review-reviewed-and-approved-for-an-orc.ipd.md, .aw/records/plans/pending/20261004-gradcover-06-r2wa38-check-the-whole-set-before-a-production-action-hands-off-a-b.ipd.md, .aw/records/plans/pending/20261004-gradcover-07-nnsa2o-send-a-refused-production-or-review-action-back-for-bounded.ipd.md, .aw/records/plans/pending/20261004-gradcover-08-24qw39-let-a-production-action-resume-an-unfinished-handoff-instead.ipd.md, .aw/records/plans/pending/20261004-gradcover-09-52opph-re-check-every-pending-orchestrator-and-send-the-failing-one.ipd.md, .aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md, .aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md, .aw/records/plans/pending/20261004-gradcover-12-wytlly-prove-end-to-end-that-a-graduation-yields-an-orchestrator-th.ipd.md, .aw/records/plans/pending/20261004-gradcover-13-jm27py-stop-the-from-spec-nudge-for-a-plan-that-declares-no-spec-so.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj
 - Set: gradcover
 - Order: 0
-- Highest E allocated: 12
+- Highest E allocated: 13
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 1f4faf
 
 ## Workflow history
 
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored at the maintainer's direct instruction (2026-10-04 session: "I don't want a backlog item, I want a plan or plan set, ready to review in an IWT"), after the three refused `--action review` runs of 2026-10-03 (run directories `run-20261003T172034Z-*`, `run-20261003T172037Z-3697351`, `run-20261003T172039Z-3698091`, `run-20261003T172049Z-3698977`, whose `orchestrator-probe-gate` events record `proceed: false` over the 13 orchestrators named in Concern). There is deliberately NO backlog item and therefore no `- From-Backlog:`. `- Blocks-Release: f33nrj` (the planned 2.0.0 release record) is set because every plan here is `Work-Kind: bug` and the repository rule is that a live bug gates the next release. Authored in an isolated worktree (`aw/author/gradcover`) and not merged.
-  NO `- From-Spec:` IS SET on any plan in this Set, although nine of them implement amended `25kzda` sections and `aw check plans` nudges for the link (`check.plan-spec-link-missing`, info). The Set was not produced FROM `25kzda` by a production action; it amends it. Order 08 makes active plans carrying a spec's `From-Spec` count as that spec's continued handoff output, so linking these plans would make them part of `25kzda`'s production accounting. A reviewer who prefers the link may add it with `aw ipd set to-review <id6> --from-spec 25kzda`.
+  `- From-Spec: none` IS SET on every plan except Order 01, which amends specs and so declares each spec file in `- Scope-Paths:` instead. The Set amends `25kzda` rather than being produced from it, and Order 08 counts real `From-Spec` links as a spec's handoff output, so a real link would be wrong. Today `check.plan-spec-link-missing` (info) still nudges on `none`; Order 13 makes `none` and a declared spec edit answer it.
   THIS PLAN CARRIES ORCHESTRATION AND NOTHING ELSE. Every whole-Set obligation below names the child that performs it, including the end-to-end measurement (Order 12) and the re-check of the existing 13 orchestrators (Order 09), precisely because a runner retiring this plan skips its own E/V checkpoint.
 
 ## Goal
@@ -92,6 +93,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: wytlly reads `- Status: executed` on disk.
   - Execution state: pending
 
+- [ ] E-13 CONFIRM jm27py REACHED executed
+  - Depends on: none
+  - Expected outcome: jm27py reads `- Status: executed` on disk.
+  - Execution state: pending
+
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | Plan | Purpose | Depends on |
@@ -108,6 +114,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 10 | sbiv1j | `.aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md` | Make `aw backlog set graduated` (both spellings) and `aw specs set implementing` refuse while any plan naming the source in `- From-Backlog:` / `- From-Spec:` is not ready, and add `check.graduation-incomplete` for the reverse drift. Ordered after Order 09 so the existing graduated items are reopened before the check would flag them. | `executed:52opph` |
 | 11 | dalmk4 | `.aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md` | State the coverage rule where authors read it: both production prompts, the orchestrator skeleton's placeholders, the managed `AGENTS.md` block in `engine.py` and the installed `AGENTS.md`, and the `/plan-review` workflow. | `executed:26m1nb` |
 | 12 | wytlly | `.aw/records/plans/pending/20261004-gradcover-12-wytlly-prove-end-to-end-that-a-graduation-yields-an-orchestrator-th.ipd.md` | The Set's final cross-child measurement: drive a real graduation of a fixture backlog item through the runner with a scripted host, then a review run and an orchestrate run over the result, proving both the refusal path and the success path end to end; run the bare suite. | `executed:sbiv1j`, `executed:dalmk4` |
+| 13 | jm27py | `.aw/records/plans/pending/20261004-gradcover-13-jm27py-stop-the-from-spec-nudge-for-a-plan-that-declares-no-spec-so.ipd.md` | Make `check.plan-spec-link-missing` treat a written `- From-Spec: none` / `-` and a declared edit of the cited spec as answers, so it fires only when the relationship is undeclared. Independent of every other child. | none |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -118,10 +125,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 5. `aw backlog set graduated` and `aw specs set implementing` refuse while a plan naming the source is not ready, on both setter spellings, and `check.graduation-incomplete` reports an already-`graduated` item whose plan has fallen back. Owner: `sbiv1j`.
 6. A `--action review` run over a queue containing orchestrator plans makes no coverage probe call and is not refused by the coverage gate; an orchestrate run still probes, and a retirement re-checks immediately before it happens. Owner: `5etev3`.
 7. Every refusal and every `aw runs` row the probe produces quotes the passage it judged uncovered, and work explicitly assigned to a child in the orchestrator's own child table is not reported as uncovered. Owner: `8mabmu`.
-8. Every pending orchestrator plan in the repository has a recorded verdict; each one that fails is `draft` with its backlog item `open`. Owner: `52opph`.
+8. Every pending orchestrator plan in the repository has a recorded verdict; each one that fails is `draft` with its backlog item `open`, including any that were `approved`, whose withdrawn approvals are named. Owner: `52opph`.
 9. The production prompts, the orchestrator skeleton, the managed `AGENTS.md` block and `/plan-review` state the rule that every whole-Set obligation names the child that performs it. Owner: `dalmk4`.
 10. The four spec amendments are in place and each child cites the amended section it implements. Owner: `hm1h3l`.
-11. The bare suite shows no new failing node id at any child boundary. Owner: each child for its own boundary; `wytlly` for the final run.
+11. `check.plan-spec-link-missing` stays silent for a plan declaring `- From-Spec: none` or editing the cited spec, and still fires when the link is undeclared. Owner: `jm27py`.
+12. Every backward plan status move requires a reason, warns, and records `APPROVAL WITHDRAWN` when it leaves `approved`; a second move on unchanged text is refused. Owner: `26m1nb`.
+13. The bare suite shows no new failing node id at any child boundary. Owner: each child for its own boundary; `wytlly` for the final run.
 
 ## Cross-IPD validation
 
@@ -129,6 +138,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - NO CHILD MAY DELETE AN ORCHESTRATOR'S CHECKLIST to make a check pass, and no remedy text added by any child may suggest it. `r07vma` R2 and R7 bind every message this Set adds.
 - NO CHILD MAY WEAKEN THE CHECK AT RETIREMENT. Order 04 moves the probe's run-start call; it must ADD the retirement-time call in the same change, so there is no commit in which an orchestrate run retires an orchestrator without a check.
 - THE COULD-NOT-ASK RULE IS PRESERVED EXACTLY WHERE IT EXISTS TODAY (`25kzda` 2.5b, a run-time availability failure warns and proceeds), and Order 01 records the new and DIFFERENT rule for the setter and production paths (an unavailable probe leaves the plan or source where it is, because nothing has started and refusing costs nothing).
+- DEMOTION IS LOUD AND CANNOT LOOP. After Order 05 every backward plan move requires a reason and warns, and Order 09's demotions use it; confirm by outcome that a promote, demote, promote sequence on unchanged text refuses the second promotion (Order 05 OQ-03).
 - ORDER 09 PRECEDES ORDER 10. Order 10 makes `check.graduation-incomplete` an `aw check` error; if it landed first, the 11 already-`graduated` items whose orchestrators fail would turn `aw check` red in CI before they were reopened.
 - EACH CHILD RE-MEASURES ITS OWN SUITE BASELINE. No child trusts a baseline written at authoring.
 
@@ -140,12 +150,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Carrier-Declined: maintainer ordering on 2026-10-04; the next conversation, not this Set
 - FIXING EACH OF THE 13 REFUSED ORCHESTRATORS' CONTENT. Order 09 measures and reopens them; the actual per-Set fix (a new child, or an owner sentence) is done by re-running graduation on each reopened backlog item after this Set lands, which Order 08 makes possible. Writing 13 Set-specific fixes inside this Set would be 13 unrelated scopes.
   - Carrier-Declined: each reopened backlog item carries its own fix through a resumed graduation; Order 09 records which ones
-- THE TWO ORCHESTRATORS WITH NO BACKLOG SOURCE AND THE THREE ALREADY `approved` (`95jk4s`, `l4vw9o`, `9wzlou`). Order 09 measures them like the rest; if an approved one fails, it is reported rather than demoted, because demoting an approved plan withdraws a human approval and is the maintainer's call.
-  - Carrier-Declined: decision reserved to the maintainer; Order 09 reports it
+- A GENERAL DETECTOR THAT DEMOTES ANY APPROVED PLAN WHOSE SPEC, SCOPE, DEPENDENCIES OR CITED CODE CHANGED MATERIALLY SINCE APPROVAL. The maintainer ruled on 2026-10-04 that such a plan MUST be demoted loudly. This Set makes that demotion legal, loud and loop-free (Orders 01 and 05) and applies it to orchestrators that fail readiness (Order 09); detecting material change for ANY plan is a separate mechanism (what counts as material, which inputs to fingerprint at approval) with its own design questions.
+  - Carrier-Declined: to be specified separately at the maintainer's direction; this Set supplies the legal, loud, loop-free demotion it will use
 
 ## Scope check
 
-- Over-scope: none. This plan's `- Scope-Paths:` lists only the twelve child plan files it sequences. It declares no source file, no test file and no spec, because it changes none.
+- Over-scope: none. This plan's `- Scope-Paths:` lists only the thirteen child plan files it sequences. It declares no source file, no test file and no spec, because it changes none.
 - Under-scope: nothing is parked on this plan. The end-to-end measurement is Order 12, the existing-corpus re-check is Order 09, and the spec amendments are Order 01. The checklist contains only typed child-tracking rows.
 - IF A REVIEWER FINDS UNCOVERED WORK, the remedy is to ADD A CHILD and a row to the table, not to add an item here and not to delete the checklist.
 
@@ -155,12 +165,12 @@ This plan runs no tests of its own and ships no code. Each child validates itsel
 
 ## Open questions
 
-### OQ-01: Should the Set be twelve children, or fewer?
+### OQ-01: Should the Set be thirteen children, or fewer?
 
 - Blocking: no
 - Status: resolved
 - Owner: author
-- Resolution or deferral rationale: RESOLVED: twelve. Each child touches one surface that can be reviewed and reverted alone: the specs (01), the probe's prompt and parser (02), a new shared function and verb (03), the run-start gate (04), the plan setter and scaffold (05), the production verifier (06), the correction loop (07), duplicate detection (08), a records-only sweep (09), the backlog and spec setters (10), authoring text (11), and the end-to-end proof (12). Merging 02 and 03 was considered and rejected because 02 changes a cached model contract (every verdict digest moves) while 03 adds new code paths; reviewing them together hides which change caused a regression.
+- Resolution or deferral rationale: RESOLVED: thirteen (Order 13 was added 2026-10-04 at the maintainer's request). Each child touches one surface that can be reviewed and reverted alone: the specs (01), the probe's prompt and parser (02), a new shared function and verb (03), the run-start gate (04), the plan setter and scaffold (05), the production verifier (06), the correction loop (07), duplicate detection (08), a records-only sweep (09), the backlog and spec setters (10), authoring text (11), the end-to-end proof (12), and the `From-Spec` nudge (13). Merging 02 and 03 was considered and rejected because 02 changes a cached model contract (every verdict digest moves) while 03 adds new code paths; reviewing them together hides which change caused a regression.
 
 ### OQ-02: Should production failure leave the lane's plans on `main` as drafts, or keep them only in the preserved lane?
 
@@ -233,9 +243,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-13 validates E-13
+  - Required evidence: paste `grep -n '^- Status:' <jm27py plan path>` showing `- Status: executed`, and the path showing it under `.aw/records/plans/executed/`.
+  - Observed evidence:
+  - Result: pending
+
 ## Approval and execution gate
 
 - Size assessment: exception
-- Cohesion rationale: The orchestrator carries 12 typed child-tracking rows, one per child, which is within the 18-leaf threshold but exceeds the usual Set width; every row is a status confirmation and none carries work. The breadth reflects twelve independently reviewable surfaces, not one large change, and splitting the Set into two Sets would sever the Order 09 before Order 10 ordering that keeps `aw check` green.
+- Cohesion rationale: The orchestrator carries 13 typed child-tracking rows, one per child, which is within the 18-leaf threshold but exceeds the usual Set width; every row is a status confirmation and none carries work. The breadth reflects twelve independently reviewable surfaces, not one large change, and splitting the Set into two Sets would sever the Order 09 before Order 10 ordering that keeps `aw check` green.
 
 This plan requires explicit human approval before execution. It performs no work itself: under `aw oc run` / `aw agy run` the runner retires it once every child is `executed`; run by hand, the executor confirms each child in order and stops at the first that did not reach `executed`. The terminal transition is owned by the runner under a runner and by `aw ipd finalize` by hand; never hand-edit `- Status: executed` and never `git mv` it.

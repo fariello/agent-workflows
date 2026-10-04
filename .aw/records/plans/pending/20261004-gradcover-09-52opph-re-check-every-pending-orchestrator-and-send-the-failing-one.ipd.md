@@ -2,11 +2,12 @@
 
 - Date: 2026-10-04
 - Kind: child
-- Concern: Sixteen orchestrator plans are pending at authoring: 13 at `to-review` (`i18yaz`, `u4glub`, `z2l43n`, `1u4olp`, `63zo2f`, `itamry`, `u57rfv`, `4qv834`, `l8wvv3`, `qtz0us`, `axozpe`, `m0kl28`, `xhr0dj`), all refused by the old probe on 2026-10-03, and 3 at `approved` (`95jk4s`, `l4vw9o`, `9wzlou`). Eleven of the 13 come from backlog items already `graduated` (`ildjse`, `dvonrn`, `eeiytw`, `7yz545`, `fcnz1r`, `mflqqf`, `s8veyk`, `ariaau`, `rgl2d4`, `sv9ce4`, `qbz8i1`); `itamry`'s `0livgf` and `l8wvv3`'s `h0tiaw` are `open`. The old verdicts came from a prompt with no named-child credit and no quotes (Order 02 discards them by bumping the store schema), so some of the 13 are false refusals and some are real; nobody can tell which until they are re-probed under the new contract. After Orders 03 and 05, any that still fail are `to-review` in violation of the new rule and turn `aw check plans` red (Order 03's `check.orchestrator-not-review-ready`); after Order 10, their `graduated` backlog items would also be flagged. This plan measures every pending orchestrator and makes the records truthful.
-- Scope: RECORDS ONLY. IN: run `aw ipd coverage` over every pending orchestrator plan, recording a verdict for each; for each NOT-ready orchestrator at `to-review` or `reviewed`, return it and every child of its Set that is not `executed` to `draft` with `aw ipd set draft <id6> --message "<findings>"` (children first is not required for a backward move), and set its source backlog item from `graduated` back to `open` with `aw backlog set open <id6> --message "<orchestrator id6> not ready for review: <findings>"` (a source spec at `implementing` is set back to `approved` the same way, if any); for each NOT-ready orchestrator at `approved`, change nothing and record it for the maintainer; paste every verdict and every quoted finding into this plan's evidence. OUT: fixing any orchestrator's content (done afterwards by re-running graduation on each reopened item, which Order 08 makes possible); any code change; demoting an `approved` plan; touching any plan outside the affected Sets.
+- Concern: Sixteen orchestrator plans are pending at authoring: 13 at `to-review` (`i18yaz`, `u4glub`, `z2l43n`, `1u4olp`, `63zo2f`, `itamry`, `u57rfv`, `4qv834`, `l8wvv3`, `qtz0us`, `axozpe`, `m0kl28`, `xhr0dj`), all refused by the old probe on 2026-10-03, and 3 at `approved` (`95jk4s`, `l4vw9o`, `9wzlou`). The maintainer ruled on 2026-10-04 that an approved plan which is not safe to execute MUST be demoted loudly, so an approved orchestrator that fails is demoted like the rest. Eleven of the 13 come from backlog items already `graduated` (`ildjse`, `dvonrn`, `eeiytw`, `7yz545`, `fcnz1r`, `mflqqf`, `s8veyk`, `ariaau`, `rgl2d4`, `sv9ce4`, `qbz8i1`); `itamry`'s `0livgf` and `l8wvv3`'s `h0tiaw` are `open`. The old verdicts came from a prompt with no named-child credit and no quotes (Order 02 discards them by bumping the store schema), so some of the 13 are false refusals and some are real; nobody can tell which until they are re-probed under the new contract. After Orders 03 and 05, any that still fail are `to-review` in violation of the new rule and turn `aw check plans` red (Order 03's `check.orchestrator-not-review-ready`); after Order 10, their `graduated` backlog items would also be flagged. This plan measures every pending orchestrator and makes the records truthful.
+- Scope: RECORDS ONLY. IN: run `aw ipd coverage` over every pending orchestrator plan, recording a verdict for each; for each NOT-ready orchestrator at `to-review` or `reviewed`, return it and every child of its Set that is not `executed` to `draft` with `aw ipd set draft <id6> --message "<findings>"` (children first is not required for a backward move), and set its source backlog item from `graduated` back to `open`, and pass `--message` on every setter call because a backward move requires a reason with `aw backlog set open <id6> --message "<orchestrator id6> not ready for review: <findings>"` (a source spec at `implementing` is set back to `approved` the same way, if any); for each NOT-ready orchestrator at `approved` or `auto-approved`, demote it the same way (loudly, recording `APPROVAL WITHDRAWN`), because an approved Set that is not ready is unsafe to execute; paste every verdict and every quoted finding into this plan's evidence. OUT: fixing any orchestrator's content (done afterwards by re-running graduation on each reopened item, which Order 08 makes possible); any code change; touching any plan outside the affected Sets.
 - Scope-Paths: .aw/records/plans/pending/, .aw/records/backlog/open/, .aw/records/backlog/graduated/, .aw/records/specs/approved/, .aw/records/specs/implementing/
 - Item-Dependencies: executed:24qw39
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj
@@ -22,7 +23,7 @@
 
 ## Goal
 
-Leave every pending orchestrator plan with a recorded verdict under the new probe contract, and make the records match it: an orchestrator that is not ready for review is `draft`, its unexecuted children are `draft`, and its backlog item is `open`, each with the quoted reason in its history.
+Leave every pending orchestrator plan with a recorded verdict under the new probe contract, and make the records match it: an orchestrator that is not ready for review is `draft`, its unexecuted children are `draft`, and its backlog item is `open`, each with the quoted reason in its history, and every withdrawn approval is named in the report.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -37,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: make the records truthful
 
-- [ ] E-02 For each NOT-ready orchestrator whose status is `to-review` or `reviewed`: set every child of its Set that is not `executed` to `draft`, then the orchestrator, using `aw ipd set draft <id6> --message "returned to authoring by gradcover 52opph: <one-line findings summary>"`. Do not touch an `executed` child. Commit through `aw commit <this plan> -- <paths>`.
+- [ ] E-02 For each NOT-ready orchestrator whose status is `to-review`, `reviewed`, `approved` or `auto-approved`: set every child of its Set that is not `executed` to `draft`, then the orchestrator, using `aw ipd set draft <id6> --message "returned to authoring by gradcover 52opph: <one-line findings summary>"`. Do not touch an `executed` child. Commit through `aw commit <this plan> -- <paths>`.
   - Depends on: E-01
   - Expected outcome: every such orchestrator and its unexecuted children read `- Status: draft` with the history line; no executed plan changed.
   - Execution state: pending
@@ -47,9 +48,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: every affected backlog item reads `- Status: open` with the history line; `aw check backlog` and `aw check release-gates` report no new finding (the `Blocks-Release` gate is unchanged).
   - Execution state: pending
 
-- [ ] E-04 For each NOT-ready orchestrator at `approved`, change nothing; list it with its findings in V-04 and in the final report as a maintainer decision (demoting it would withdraw a human approval). Then run `python3 -m agent_workflows check plans` and confirm `check.orchestrator-not-review-ready` reports only those `approved` ones, if any.
+- [ ] E-04 Report every APPROVAL WITHDRAWN by E-02 by id6 with its findings, so the maintainer sees each approval that was withdrawn and why, then run `python3 -m agent_workflows check plans` and confirm `check.orchestrator-not-review-ready` reports nothing.
   - Depends on: E-03
-  - Expected outcome: `aw check plans` lists no `to-review`/`reviewed` orchestrator under `check.orchestrator-not-review-ready`; any `approved` one is listed and named in the report.
+  - Expected outcome: `aw check plans` lists no orchestrator under `check.orchestrator-not-review-ready`, and the report names every withdrawn approval.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -74,14 +75,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 1. Re-derive the population and record a verdict for each (E-01).
 2. Demote not-ready `to-review`/`reviewed` orchestrators and their unexecuted children to `draft` (E-02).
 3. Reopen their sources (E-03).
-4. Report not-ready `approved` orchestrators for a maintainer decision and confirm `aw check plans` (E-04).
+4. Report every withdrawn approval and confirm `aw check plans` (E-04).
 
 ## Deferred / out of scope (with reason)
 
 - FIXING EACH ORCHESTRATOR. After this plan, re-run `aw oc run <backlog-id6>` on each reopened item; Orders 06 to 08 make that continue the existing plans, check the Set, and correct within budget.
   - Carrier-Declined: per-Set authoring is done by each item's own resumed graduation, not by this records sweep
-- DEMOTING AN `approved` ORCHESTRATOR. A human approval is involved.
-  - Carrier-Declined: reserved to the maintainer; reported in V-04
 
 ## Scope check
 
@@ -129,7 +128,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste `python3 -m agent_workflows check plans` after, showing which orchestrators (if any) `check.orchestrator-not-review-ready` lists, and confirm each listed one is `approved`; paste the list of not-ready `approved` orchestrators with their findings for the maintainer. Paste `aw attention --format json` before and after for the moved items. Paste `aw ipd lint` on this plan conforming, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing.
+  - Required evidence: paste `python3 -m agent_workflows check plans` after, showing no `check.orchestrator-not-review-ready` finding; paste the list of withdrawn approvals (id6, previous status, findings) and each one's `APPROVAL WITHDRAWN` history line. Paste `aw attention --format json` before and after for the moved items. Paste `aw ipd lint` on this plan conforming, `aw sanitize --agent`, and `git diff --cached --name-only` immediately before committing.
   - Observed evidence:
   - Result: pending
 

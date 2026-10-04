@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_orchestrator_readiness.py
 - Item-Dependencies: executed:8mabmu
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj

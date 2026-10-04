@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/backlog.py, agent_workflows/status_set.py, agent_workflows/specs.py, tests/test_handoff_ready_gate.py
 - Item-Dependencies: executed:52opph
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj

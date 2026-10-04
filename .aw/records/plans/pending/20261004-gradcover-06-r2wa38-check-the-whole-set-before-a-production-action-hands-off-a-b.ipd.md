@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_production_set_check.py
 - Item-Dependencies: executed:qs00nc
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj

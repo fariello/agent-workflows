@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_production_correction_turn.py
 - Item-Dependencies: executed:r2wa38
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj

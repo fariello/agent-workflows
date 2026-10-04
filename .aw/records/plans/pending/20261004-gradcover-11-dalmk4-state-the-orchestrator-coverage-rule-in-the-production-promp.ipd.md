@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/ipd_authoring.py, agent_workflows/engine.py, AGENTS.md, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, tests/test_authoring_coverage_guidance.py
 - Item-Dependencies: executed:26m1nb
 - Status: to-review
+- From-Spec: none
 - Work-Kind: bug
 - Priority: high
 - Blocks-Release: f33nrj
