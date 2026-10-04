@@ -6,6 +6,7 @@
 - Scope: Edit exactly five spec files to state the new contract, append a dated `aw specs note` history line to each through the tool, and run `aw specs check` on each. IN: the text amendments enumerated in Proposed changes, by section name. OUT: any code, any test, any plan other than this one, any change to a spec's `- Status:`, and any amendment not enumerated here. The `C-*` requirement-ownership format is NOT introduced.
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
+- From-Spec: none
 - Status: reviewed
 - Readiness: no-go
 - Work-Kind: bug

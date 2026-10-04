@@ -19,6 +19,7 @@
 - Id: 1f4faf
 
 ## Workflow history
+- 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `jm27py` (PR-003): Order 01 `hm1h3l` now also carries `- From-Spec: none` (it cites `2vev8j` without editing it), so the authoring note below that every plan EXCEPT Order 01 carries it is superseded: every plan in the Set carries it.
 - 2026-10-04 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-006 (PR-006 open, blocking OQ-03)
 
 - 2026-10-04 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 to PR-006. Fixed: ONE PREDICATE parity now owned by `wytlly` E-05 (PR-002); declared missing edges `52opph` -> `26m1nb` and `wytlly` -> `5etev3` (PR-003); `52opph` no longer demotes this Set (PR-004); execution contract completed (PR-005); scaffold wording corrected (PR-001). OPEN, blocking: OQ-03 / PR-006, the machine-local verdict makes the new `error` rules fail CI on every orchestrator at `to-review` or later.
