@@ -19,6 +19,7 @@
 - Id: hm1h3l
 
 ## Workflow history
+- 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `jm27py` (finding PR-003): added `- From-Spec: none`. This plan amends specs rather than being produced from one, and its Concern cites `2vev8j` without editing it, so after `jm27py` the Scope-Paths exemption alone would still leave `check.plan-spec-link-missing` firing on it. Metadata only; no amendment text changed, so the 2026-10-04 review verdict stands.
 - 2026-10-04 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (PR-006 open, blocking OQ-03)
 
 - 2026-10-04 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 to PR-007. Fixed: lint MUST-check list is Section 10, not 9 (PR-001); 2.5d now lists the four consumers that may ask and covers could-not-ask at retirement and after review (PR-002); A.7 no longer requires an unimplemented review skip that would deadlock every orchestrator without a verdict (PR-003); E.1 loop-freedom scoped to automated demotion (PR-004); wording, anchor, grep and gate fixes (PR-005, PR-007). OPEN, blocking: OQ-03 / PR-006.
