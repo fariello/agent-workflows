@@ -6,7 +6,7 @@
 - Scope: IN: two new verifiers in `production_checks.py`, `backlog_graduate_set` and `spec_plan_set`, each calling `orchestrator_readiness.review_readiness(..., ask=True)` for every newly produced plan with `- Kind: orchestrator` and returning one finding per not-ready condition with the code and message template of the amended spec; calling them in both production branches of `execute_item_core` after the existing per-plan verifiers and before the source transition; on success, the verdict is already recorded by `review_readiness`, so the produced Set enters the next run with a cached pass; on failure, the existing finding path applies unchanged (fail-gate, refusal recorded, lane preserved, source left `open`/`approved`). OUT: the correction turn (Order 07); continuing an unfinished handoff (Order 08); the prompt text (Order 11); the readiness function (Order 03).
 - Scope-Paths: agent_workflows/production_checks.py, agent_workflows/runner_shared.py, tests/test_production_set_check.py
 - Item-Dependencies: executed:qs00nc
-- Status: reviewed
+- Status: to-review
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -19,6 +19,7 @@
 - Id: r2wa38
 
 ## Workflow history
+- 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. Maintainer ruling 2026-10-04: the coverage answer is stored in the plan itself (`25kzda` 2.5e, Order 02's `coverage_record`), not in the gitignored 30-day cache. The Set verifier writes the record into the produced orchestrator in the lane; the executor must confirm it is committed with the production output.
 - 2026-10-04 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 (all fixed)
 

@@ -6,7 +6,7 @@
 - Scope: Change the probe's prompt, its reply parser, WHERE ITS ANSWER IS RECORDED, and its refusal rendering. IN: `PROBE_PROMPT_TEMPLATE` (answer format plus the named-child rule), `classify_probe_reply` (verdict plus `QUOTE:` lines, each validated against the excerpt), a new structured result carrying the quotes, a new module `agent_workflows/coverage_record.py` that reads and writes the coverage record IN THE PLAN (spec `25kzda` 2.5e: `- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:`, `## Coverage findings`, and the matching history line), `probe_orchestrator` reading and writing that record instead of the machine-local verdict store, retiring the store (`record_probe_verdict`, `read_probe_verdict` and their file are no longer used), excluding the record from `ipd_lifecycle.frozen_region_digest` and from the coverage fingerprint, the schema registering the three fields and the section, `ProbeOutcome` carrying quotes, and `format_orchestrator_probe_refusal`/`probe_refusal_remedy`/the recorded refusal reason rendering them; `aw runs` already renders the recorded refusal, so it shows the quotes without a change. OUT: which orchestrators are probed and when (Order 04); any status-change, lint or production consumer (Orders 03, 05, 06), including lint rule `IPD-M112` (Order 03); the excerpt's section allowlist (`PROBE_PROSE_SECTIONS`, unchanged); the could-not-ask retry rule; the fingerprint's inputs (the record stores the same `probe_cache_digest` the cache keyed on).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/coverage_record.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lifecycle.py, tests/test_orchestrator_probe_quotes.py, tests/test_coverage_record.py
 - Item-Dependencies: executed:hm1h3l
-- Status: reviewed
+- Status: to-review
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -19,6 +19,7 @@
 - Id: 8mabmu
 
 ## Workflow history
+- 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. Maintainer ruling 2026-10-04: the coverage answer is stored in the plan (`25kzda` 2.5e). E-03 now writes that record (new `coverage_record` module) instead of extending the cache; new E-06 keeps the record out of both fingerprints; new E-07 switches the probe to the record and retires the cache.
 - 2026-10-04 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006
 

@@ -6,7 +6,7 @@
 - Scope: Add the shared function and its result type, the `aw ipd coverage` subcommand, the `IPD-S408` lint rule, and the `check.orchestrator-not-review-ready` check rule. IN: a new module `agent_workflows/orchestrator_readiness.py` holding `review_readiness(repo, plan_path, *, ask=False, ...)` and its result; wiring in `ipd_lint.py` (rule `IPD-S408` at `review-finalize`/`pre-execution`, advisory at `author`; and rule `IPD-M112`, which refuses a coverage record that is incomplete or has no matching history line, at every checkpoint), `check_engine.py` (rule over pending orchestrators), `cli.py` (subcommand), and `command_surface.py` (the subcommand's `CommandDeclaration`, required by `tests/test_command_surface_declarations.py` `test_zero_undeclared_parser_leaves`); one new test file. OUT: any status setter (Order 05); any runner gate or retirement change (Order 04); production verification (Order 06); prompt or template text (Order 11); the probe's prompt or parser (Order 02, already executed).
 - Scope-Paths: agent_workflows/orchestrator_readiness.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_orchestrator_readiness.py
 - Item-Dependencies: executed:8mabmu
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - From-Spec: none
 - Work-Kind: bug
@@ -19,6 +19,7 @@
 - Id: qs00nc
 
 ## Workflow history
+- 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. OQ-03 RESOLVED by the maintainer (2026-10-04): the coverage answer is stored in the plan. Condition 4 now reads the plan's record (Order 02's `coverage_record`); an absent or out-of-date record is an error in lint and check; new lint rule `IPD-M112` refuses an incomplete or unattested record; `aw ipd coverage` writes the record and gains `--commit`.
 - 2026-10-04 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (PR-001 open, blocking OQ-03)
 

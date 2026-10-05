@@ -6,7 +6,7 @@
 - Scope: IN: in `status_set.run_set_command`, for every matched plan record whose `- Kind:` is `orchestrator` and whose normalized target is `to-review`, `reviewed`, `approved` or `auto-approved`, call `orchestrator_readiness.review_readiness(..., ask=False)` and refuse with the shared human rendering or `aw.agent/v1` record; when the selection includes both an orchestrator and some of its children, apply the children first and evaluate the orchestrator after them in the same invocation; refuse the whole invocation atomically if the orchestrator then fails (no partial write); make every backward move between non-terminal statuses legal in `ipd_lifecycle._LEGAL_BACKWARD_EDGES`, requiring a reason and warning loudly on each; a regression test. OUT: gating backward transitions on readiness (every backward move stays allowed by the readiness gate so a plan can always be sent back; E-05 only makes them legal, reasoned and loud); gating the `draft` target; any non-plan record type; terminal transitions (the finalize delegation is unchanged); the scaffold (it already writes `draft` for both kinds, which this plan pins with a test rather than changes).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/ipd_lifecycle.py, agent_workflows/orchestrator_readiness.py, tests/test_orchestrator_status_gate.py, tests/test_plan_transition_gate.py, tests/test_ipd_lifecycle_backward_edges.py
 - Item-Dependencies: executed:qs00nc
-- Status: reviewed
+- Status: to-review
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -19,6 +19,7 @@
 - Id: 26m1nb
 
 ## Workflow history
+- 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. Maintainer ruling 2026-10-04: the coverage answer is stored in the plan itself (`25kzda` 2.5e, Order 02's `coverage_record`), not in the gitignored 30-day cache. Fixtures pre-write the record into the plan instead of the cache; no behavior of this plan changes.
 - 2026-10-04 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 (all fixed)
 

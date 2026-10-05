@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/specs/approved/20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md, .aw/records/specs/approved/20260906-77tr3o-01-77tr3o-runner-orchestrator-retirement.spec.md, .aw/records/specs/approved/20260919-r07vma-01-r07vma-orchestrator-conformance-parser-and-repair-loop.spec.md, .aw/records/specs/implemented/20260802-1904-01-ipd-structure-and-linting.spec.md, .aw/records/specs/implemented/20260726-1340-01-ipd-spec.spec.md
 - Item-Dependencies: none
 - From-Spec: none
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Work-Kind: bug
 - Priority: high
@@ -19,6 +19,7 @@
 - Id: hm1h3l
 
 ## Workflow history
+- 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. OQ-03 RESOLVED by the maintainer (2026-10-04): the coverage answer is stored in the plan, not in the gitignored cache. Added `25kzda` Section 2.5e (where the answer is recorded, who writes it, how it is attested, exclusion from the execution-receipt fingerprint) and lint rule 20 (`IPD-M112`); A.2, A.3, A.6 condition 4, B.2 and D.1 now read the plan's record.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `qs00nc` (finding PR-001): OQ-03 Context gains the freeze-gate ordering (`enforce_freeze_time_refusal` lints approved plans at `pre-execution` before the run-start probe). Context only; the question, options and verdict are unchanged.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `8mabmu` (finding PR-002): A.4's named-child credit now accepts an Order number present in the child table as well as an id6. Measured: `axozpe`, the motivating false refusal, names its owner only as "Order 04"; the id6-only text would have left it refused. The review verdict and blocking OQ-03 of this plan are unchanged.

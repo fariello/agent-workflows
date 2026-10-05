@@ -6,7 +6,7 @@
 - Scope: IN: restrict the run-start gate's targets to queued orchestrators whose frozen action is `orchestrate`; announce, in one line, how many queued orchestrators were not probed because the run cannot retire them; call the Order 03 shared check `orchestrator_readiness.review_readiness(..., ask=True)` inside `dispatch_orchestrator_item` on the `ORCH_DISPATCH_RETIRE` path immediately before `ipd_lifecycle.retire_orchestrator`, turning a not-ready result into the existing `ORCH_REASON_FINALIZE_REFUSED` termination with the findings as detail; keep the override flag and phrase scoped to the run-start gate only. OUT: the probe's prompt and parser (Order 02); the readiness function itself (Order 03); the retirement predicate `evaluate_set_retirement` and the transition `retire_orchestrator` (unchanged); the shape gate `enforce_orchestrator_shape_gate` (unchanged; it still runs over every queued orchestrator because it is free and deterministic).
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_orchestrator_probe_scope.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:qs00nc
-- Status: reviewed
+- Status: to-review
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -19,6 +19,7 @@
 - Id: 5etev3
 
 ## Workflow history
+- 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
 - 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. Maintainer ruling 2026-10-04: the coverage answer is stored in the plan itself (`25kzda` 2.5e, Order 02's `coverage_record`), not in the gitignored 30-day cache. E-02's cache wording changed to the plan's record; the retirement-time write must be reconciled with `_assert_rollup_touched_only_owned_paths` (a dirty plan file refuses retirement), which E-02 now requires the executor to settle and record.
 - 2026-10-04 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 (all fixed)
 
