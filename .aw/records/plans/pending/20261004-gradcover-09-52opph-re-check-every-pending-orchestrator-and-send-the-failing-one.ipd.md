@@ -3,7 +3,7 @@
 - Date: 2026-10-04
 - Kind: child
 - Concern: Sixteen orchestrator plans are pending at authoring: 13 at `to-review` (`i18yaz`, `u4glub`, `z2l43n`, `1u4olp`, `63zo2f`, `itamry`, `u57rfv`, `4qv834`, `l8wvv3`, `qtz0us`, `axozpe`, `m0kl28`, `xhr0dj`), all refused by the old probe on 2026-10-03, and 3 at `approved` (`95jk4s`, `l4vw9o`, `9wzlou`). The maintainer ruled on 2026-10-04 that an approved plan which is not safe to execute MUST be demoted loudly, so an approved orchestrator that fails is demoted like the rest. Eleven of the 13 come from backlog items already `graduated` (`ildjse`, `dvonrn`, `eeiytw`, `7yz545`, `fcnz1r`, `mflqqf`, `s8veyk`, `ariaau`, `rgl2d4`, `sv9ce4`, `qbz8i1`); `itamry`'s `0livgf` and `l8wvv3`'s `h0tiaw` are `open`. The old verdicts came from a prompt with no named-child credit and no quotes (Order 02 discards them by bumping the store schema), so some of the 13 are false refusals and some are real; nobody can tell which until they are re-probed under the new contract. After Orders 03 and 05, any that still fail are `to-review` in violation of the new rule and turn `aw check plans` red (Order 03's `check.orchestrator-not-review-ready`); after Order 10, their `graduated` backlog items would also be flagged. This plan measures every pending orchestrator and makes the records truthful.
-- Scope: RECORDS ONLY. IN: run `aw ipd coverage` over every pending orchestrator plan, recording a verdict for each; for each NOT-ready orchestrator at `to-review` or `reviewed`, return it and every child of its Set that is not `executed` to `draft` with `aw ipd set draft <id6> --message "<findings>"` (children first is not required for a backward move), and set its source backlog item from `graduated` back to `open`, and pass `--message` on every setter call because a backward move requires a reason with `aw backlog set open <id6> --message "<orchestrator id6> not ready for review: <findings>"` (a source spec at `implementing` is set back to `approved` the same way, if any); for each NOT-ready orchestrator at `approved` or `auto-approved`, demote it the same way (loudly, recording `APPROVAL WITHDRAWN`), because an approved Set that is not ready is unsafe to execute; paste every verdict and every quoted finding into this plan's evidence. EXCLUDED FROM DEMOTION: every plan of Set `gradcover` itself (this plan's own Set, including orchestrator `1f4faf`); record its verdict, and if it is not ready STOP and report the quoted findings to the maintainer rather than demoting a Set that is mid-execution. OUT: fixing any orchestrator's content (done afterwards by re-running graduation on each reopened item, which Order 08 makes possible); any code change; touching any plan outside the affected Sets.
+- Scope: RECORDS ONLY. IN: run `aw ipd coverage` over every pending orchestrator plan, which records the answer IN EACH PLAN (`25kzda` 2.5e), and commit those plan edits; for each NOT-ready orchestrator at `to-review` or `reviewed`, return it and every child of its Set that is not `executed` to `draft` with `aw ipd set draft <id6> --message "<findings>"` (children first is not required for a backward move), and set its source backlog item from `graduated` back to `open`, and pass `--message` on every setter call because a backward move requires a reason with `aw backlog set open <id6> --message "<orchestrator id6> not ready for review: <findings>"` (a source spec at `implementing` is set back to `approved` the same way, if any); for each NOT-ready orchestrator at `approved` or `auto-approved`, demote it the same way (loudly, recording `APPROVAL WITHDRAWN`), because an approved Set that is not ready is unsafe to execute; paste every verdict and every quoted finding into this plan's evidence. EXCLUDED FROM DEMOTION: every plan of Set `gradcover` itself (this plan's own Set, including orchestrator `1f4faf`); record its verdict, and if it is not ready STOP and report the quoted findings to the maintainer rather than demoting a Set that is mid-execution. OUT: fixing any orchestrator's content (done afterwards by re-running graduation on each reopened item, which Order 08 makes possible); any code change; touching any plan outside the affected Sets.
 - Scope-Paths: .aw/records/plans/pending/, .aw/records/backlog/open/, .aw/records/backlog/graduated/, .aw/records/specs/approved/, .aw/records/specs/implementing/
 - Item-Dependencies: executed:24qw39, executed:26m1nb
 - Status: to-review
@@ -18,13 +18,14 @@
 - Id: 52opph
 
 ## Workflow history
+- 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): wording updated for the maintainer ruling 2026-10-04: `aw ipd coverage` now writes each answer into the plan, and the sweep commits those edits.
 
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of orchestrator `1f4faf` (findings PR-003, PR-004): added `executed:26m1nb` to `- Item-Dependencies:` because the backward `aw ipd set draft --message` edge this plan uses is added by Order 05 and was not reachable through the Order 08 chain; excluded Set `gradcover`'s own plans from demotion so this sweep cannot return its own mid-execution Set to `draft`.
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 09 of Set `gradcover`. Placed after Order 08 so a reopened backlog item can be re-graduated by continuing its existing plans, and before Order 10 so `check.graduation-incomplete` never fires on items this plan is about to reopen. The maintainer agreed on 2026-10-04 that the 13 refused orchestrators are re-checked and, where still failing, returned to `draft`.
 
 ## Goal
 
-Leave every pending orchestrator plan with a recorded verdict under the new probe contract, and make the records match it: an orchestrator that is not ready for review is `draft`, its unexecuted children are `draft`, and its backlog item is `open`, each with the quoted reason in its history, and every withdrawn approval is named in the report.
+Leave every pending orchestrator plan carrying a recorded coverage answer under the new probe contract, and make the records match it: an orchestrator that is not ready for review is `draft`, its unexecuted children are `draft`, and its backlog item is `open`, each with the quoted reason in its history, and every withdrawn approval is named in the report.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -32,9 +33,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure
 
-- [ ] E-01 Re-derive the population at execution time (do not trust the list in Concern): every plan under `.aw/records/plans/pending/` whose metadata `- Kind:` is `orchestrator` (read with `ipd_lint.parse`, never a whole-file substring scan). Run `python3 -m agent_workflows ipd coverage <id6> --agent` for each and save every record. Plans of Set `gradcover` are measured but are never demoted by E-02 or E-03 (if `1f4faf` is not ready, stop after E-01 and report its findings). Build a table: orchestrator id6, status, source backlog or spec id6 and its status, ready yes/no, and each finding (code, subject, quoted passage).
+- [ ] E-01 Re-derive the population at execution time (do not trust the list in Concern): every plan under `.aw/records/plans/pending/` whose metadata `- Kind:` is `orchestrator` (read with `ipd_lint.parse`, never a whole-file substring scan). Run `python3 -m agent_workflows ipd coverage <id6> --agent --commit` for each and save every record. Plans of Set `gradcover` are measured but are never demoted by E-02 or E-03 (if `1f4faf` is not ready, stop after E-01 and report its findings). Build a table: orchestrator id6, status, source backlog or spec id6 and its status, ready yes/no, and each finding (code, subject, quoted passage).
   - Depends on: none
-  - Expected outcome: one recorded verdict per pending orchestrator, and the table pasted into V-01.
+  - Expected outcome: every pending orchestrator carries a `- Coverage:` record with its history line, committed, and the table pasted into V-01.
   - Execution state: pending
 
 ### Task group 2: make the records truthful
@@ -58,7 +59,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - STATUS CHANGES GO THROUGH THE SETTERS, never text edits (`25kzda` 3.3 / `z7nbn1` 3.3). `aw ipd set draft` requires the backward edges Order 05 adds (E-05 of `26m1nb`).
 - `graduated -> open` IS LEGAL for a backlog item (`attention_contract.BACKLOG_TRANSITIONS['graduated']` contains `open`).
-- `aw ipd coverage` SPENDS A MODEL CALL PER ORCHESTRATOR on a cache miss; with Order 02's schema bump every pending orchestrator is a miss. At authoring that is 16 calls.
+- `aw ipd coverage` SPENDS A MODEL CALL PER ORCHESTRATOR whose plan has no current coverage record; since Order 02 moves the answer into the plan, every pending orchestrator starts with none. At authoring that is 16 calls.
 - SHARED CHECKOUT. Other agents may be editing these plans; re-read each plan immediately before setting it and stop on a conflicting concurrent edit (`AGENTS.md`, "Shared checkout").
 - Cite code by SYMBOL (`module.function`) or by a quoted content string, with a line number only appended to one of those and never alone: an offset expires before this plan executes (spec `ipd-structure-and-linting` Section 10.2; advisory `IPD-C801`).
 
@@ -73,7 +74,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Proposed changes (ordered, validatable)
 
-1. Re-derive the population and record a verdict for each (E-01).
+1. Re-derive the population and record a coverage answer in each plan (E-01).
 2. Demote not-ready `to-review`/`reviewed` orchestrators and their unexecuted children to `draft` (E-02).
 3. Reopen their sources (E-03).
 4. Report every withdrawn approval and confirm `aw check plans` (E-04).
@@ -114,7 +115,7 @@ No spec or document is edited. The records are brought into line with spec `25kz
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the population command and its output, then the table (one row per orchestrator: id6, status, source and source status, ready, findings with quotes). Paste the count of `aw ipd coverage` calls that hit the model versus the cache.
+  - Required evidence: paste the population command and its output, then the table (one row per orchestrator: id6, status, source and source status, ready, findings with quotes). Paste the count of `aw ipd coverage` calls that asked the model versus read a current record, and the commit that recorded the answers.
   - Observed evidence:
   - Result: pending
 

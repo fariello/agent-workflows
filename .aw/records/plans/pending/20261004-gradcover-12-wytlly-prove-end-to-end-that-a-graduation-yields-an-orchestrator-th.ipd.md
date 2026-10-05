@@ -18,6 +18,7 @@
 - Id: wytlly
 
 ## Workflow history
+- 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): wording updated for the maintainer ruling 2026-10-04 (coverage answer stored in the plan).
 
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of orchestrator `1f4faf` (findings PR-002, PR-003): added `executed:5etev3` to `- Item-Dependencies:` because Runs B and C assert Order 04's behavior (no run-start probe on a review run; the retirement-time re-check) and Order 04 was not reachable through `sbiv1j` or `dalmk4`; added E-05/V-05, the cross-surface ONE PREDICATE parity check that the orchestrator's `## Cross-IPD validation` previously carried with no owner. This plan owns the orchestrator's Completion criteria 1, 2 and 13 (the authoring line below says 11, which is `jm27py`'s since Order 13 was added).
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 12 of Set `gradcover`, the final child, owning the whole-Set measurement named in the orchestrator's Completion criteria 1, 2 and 11.
@@ -32,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the success path
 
-- [ ] E-01 Write the success scenario in `tests/test_gradcover_end_to_end.py`. Seed a temp repository with one `open` backlog item (`Work-Kind: bug`, `Blocks-Release` on a fixture release). Run A: graduate it through the runner with a scripted host whose first turn writes an orchestrator, two children at `to-review`, and a `## Completion criteria` line "the full suite passes after both children" naming no owner; a scripted probe that answers "contains executions" with that line quoted; and a scripted correction turn that rewrites the line to "... Owner: `<child-2-id6>`". Assert: one correction turn spent; the backlog item ends `graduated`; a `pass` verdict is stored for the orchestrator's final digest; the refusal recorded on the first attempt quotes the line. Run B: `--action review` over the produced Set with a scripted reviewer that sets each plan `reviewed`; assert zero probe calls at run start, the orchestrator ends `reviewed`, and `IPD-REVIEW-ORCHESTRATOR-READY` passed. Run C: with the children moved to `executed` by fixture, run the orchestrate pass; assert the retirement-time re-check is served from the cache (zero probe calls) and the orchestrator is retired to `executed`.
+- [ ] E-01 Write the success scenario in `tests/test_gradcover_end_to_end.py`. Seed a temp repository with one `open` backlog item (`Work-Kind: bug`, `Blocks-Release` on a fixture release). Run A: graduate it through the runner with a scripted host whose first turn writes an orchestrator, two children at `to-review`, and a `## Completion criteria` line "the full suite passes after both children" naming no owner; a scripted probe that answers "contains executions" with that line quoted; and a scripted correction turn that rewrites the line to "... Owner: `<child-2-id6>`". Assert: one correction turn spent; the backlog item ends `graduated`; the orchestrator file carries `- Coverage: pass` with a fingerprint matching its final text and the coverage history line; the refusal recorded on the first attempt quotes the line. Run B: `--action review` over the produced Set with a scripted reviewer that sets each plan `reviewed`; assert zero probe calls at run start, the orchestrator ends `reviewed`, and `IPD-REVIEW-ORCHESTRATOR-READY` passed. Run C: with the children moved to `executed` by fixture, run the orchestrate pass; assert the retirement-time re-check reads the recorded pass from the plan (zero probe calls) and the orchestrator is retired to `executed`.
   - Depends on: none
   - Expected outcome: all three runs complete as asserted, with the probe call counts 1 (A, first attempt) plus 1 (A, after correction), 0 (B), 0 (C).
   - Execution state: pending
@@ -56,7 +57,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the mutation makes E-02 fail; the bare suite shows no new failing node id.
   - Execution state: pending
 
-- [ ] E-05 Write the ONE PREDICATE parity scenario the orchestrator `1f4faf` assigns here: one fixture orchestrator whose children are all at `to-review` and whose recorded probe verdict (pre-recorded through `record_probe_verdict`, never a model call) is a FAIL with one quoted passage. Drive five surfaces over it and collect each one's findings: `aw ipd set reviewed <id6> --agent` (subprocess), `aw ipd lint --phase review-finalize --agent` (subprocess), `aw check plans --agent` (subprocess), a backlog production run whose scripted agent writes exactly that Set (in process), and `dispatch_orchestrator_item` on a copy with every child moved to `executed` by fixture (in process). Assert every surface refuses and reports the same finding code and the same quoted passage.
+- [ ] E-05 Write the ONE PREDICATE parity scenario the orchestrator `1f4faf` assigns here: one fixture orchestrator whose children are all at `to-review` and whose coverage record (pre-written into the plan with `coverage_record.write`, never a model call) is a FAIL with one quoted passage in `## Coverage findings`. Drive five surfaces over it and collect each one's findings: `aw ipd set reviewed <id6> --agent` (subprocess), `aw ipd lint --phase review-finalize --agent` (subprocess), `aw check plans --agent` (subprocess), a backlog production run whose scripted agent writes exactly that Set (in process), and `dispatch_orchestrator_item` on a copy with every child moved to `executed` by fixture (in process). Assert every surface refuses and reports the same finding code and the same quoted passage.
   - Depends on: E-01
   - Expected outcome: five refusals carrying one identical finding code and one identical quote; no surface passes the fixture.
   - Execution state: pending
@@ -120,7 +121,7 @@ No spec or document edited. This plan measures the contract of `25kzda` 2.5b, 2.
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the success scenario's assertions passing, including the probe call counts per run, the backlog item's final `- Status: graduated`, the stored verdict, and the retired orchestrator's `- Status: executed`.
+  - Required evidence: paste the success scenario's assertions passing, including the probe call counts per run, the backlog item's final `- Status: graduated`, the coverage record lines from the orchestrator file, and the retired orchestrator's `- Status: executed`.
   - Observed evidence:
   - Result: pending
 

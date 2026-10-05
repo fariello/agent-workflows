@@ -18,6 +18,7 @@
 - Id: nnsa2o
 
 ## Workflow history
+- 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): wording updated for the maintainer ruling 2026-10-04 (coverage answer stored in the plan).
 
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 07 of Set `gradcover`. Implements `25kzda` 4.4 `IPD-REVIEW-ORCHESTRATOR-READY` and the 5.5 classification of the Set-level refusals as bounded corrections, both added by Order 01. Reuses the existing correction budget and session-resume path; adds no second retry knob.
 
@@ -45,7 +46,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 After a `review` turn on an item whose plan is `- Kind: orchestrator` lands and the plan reads `reviewed`, call `orchestrator_readiness.review_readiness(repo, plan_path, ask=True, ...)`. If not ready, record `IPD-REVIEW-ORCHESTRATOR-READY` as the refusal code with the findings, return the plan to `to-review` with `aw ipd set to-review <id6> --message "<findings summary>"` (a legal backward edge), and remand the review through the same retry decision shape (its own counter) with a correction packet built the same way as E-02. On exhaustion, leave the plan `to-review`, record the findings, and do not write `- Readiness:` (spec `r07vma` R6).
   - Depends on: E-02
-  - Expected outcome: a review whose scripted agent sets an unready orchestrator `reviewed` ends with the plan `to-review` and the refusal recorded; one that fixes the finding on correction ends `reviewed` with a pass verdict recorded.
+  - Expected outcome: a review whose scripted agent sets an unready orchestrator `reviewed` ends with the plan `to-review` and the refusal recorded; one that fixes the finding on correction ends `reviewed` with a current coverage pass recorded in the plan.
   - Execution state: pending
 
 - [ ] E-04 Record every correction turn durably: append to the item's `attempts[]` the correction key, the findings it was given, and the findings after it; emit `production-set-correction` / `review-orchestrator-correction` events with the counts; make the end-of-run summary name the item and the number of correction turns spent.

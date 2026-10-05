@@ -18,6 +18,7 @@
 - Id: sbiv1j
 
 ## Workflow history
+- 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): wording updated for the maintainer ruling 2026-10-04 (coverage answer stored in the plan).
 
 - 2026-10-04 to-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): Authored as Order 10 of Set `gradcover`. Implements spec `77tr3o` R-13's source-side half. Ordered after Order 09 so the items Order 09 reopens are `open` before `check.graduation-incomplete` exists, keeping `aw check` green in CI.
 
@@ -33,7 +34,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Add `evaluate_handoff_ready(repo_root, source_type, source_id6)` to `check_engine.py`, returning a result with `ready` and a tuple of findings `(code, plan_id6, detail, remedy)`. A handoff plan is an active (non-terminal-directory) plan whose `- From-Backlog:` (for `backlog`) or `- From-Spec:` (for `spec`) names the source, read with the existing `_read_from_backlog`-style classifiers. A spec carrying `- From-Backlog:` also counts as a handoff for a backlog source and is ready when its status is `approved` or later. Findings: no handoff at all; a plan below `to-review`; a plan failing `ipd_lint.lint_file(..., checkpoint="author")`; an orchestrator failing `review_readiness(..., ask=False)` (its findings are included, quotes and all).
   - Depends on: none
-  - Expected outcome: the predicate reports each of the four failure kinds on fixtures and `ready=True` for a fixture with a ready Set and a recorded pass verdict.
+  - Expected outcome: the predicate reports each of the four failure kinds on fixtures and `ready=True` for a fixture with a ready Set whose orchestrator carries a current coverage pass.
   - Execution state: pending
 
 ### Task group 2: the consumers
@@ -55,7 +56,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 3: pin it
 
-- [ ] E-05 Add `tests/test_handoff_ready_gate.py` driving the CLI as subprocesses over fixture repositories with pre-recorded probe verdicts: each predicate failure kind; both backlog setter spellings refusing identically and writing nothing; both succeeding on a ready Set; the spec setter twin; the check rule reporting a drifted `graduated` item; and the production path still succeeding end to end (reuse one `tests/test_backlog_production.py` fixture with a ready Set) so the runner's own setter call is not refused. Prove the tests can fail by making the predicate always ready and pasting the failure.
+- [ ] E-05 Add `tests/test_handoff_ready_gate.py` driving the CLI as subprocesses over fixture repositories with coverage answers pre-written into the fixture orchestrators: each predicate failure kind; both backlog setter spellings refusing identically and writing nothing; both succeeding on a ready Set; the spec setter twin; the check rule reporting a drifted `graduated` item; and the production path still succeeding end to end (reuse one `tests/test_backlog_production.py` fixture with a ready Set) so the runner's own setter call is not refused. Prove the tests can fail by making the predicate always ready and pasting the failure.
   - Depends on: E-04
   - Expected outcome: the new file passes; the mutation fails it; `tests/test_backlog_production.py`, `tests/test_spec_production.py` and the existing release-gate tests still pass.
   - Execution state: pending
@@ -113,7 +114,7 @@ Implements spec `77tr3o` R-13 (source side) as amended by Order 01. The `.aw/rec
 - Blocking: no
 - Status: resolved
 - Owner: author
-- Resolution or deferral rationale: RESOLVED: NO, as for `aw ipd set` (Order 05 OQ-01): the setter reads the recorded verdict and an absent one is a finding naming `aw ipd coverage <id6>`. The production path records a verdict before calling the setter, so the common path never hits this.
+- Resolution or deferral rationale: RESOLVED: NO, as for `aw ipd set` (Order 05 OQ-01): the setter reads the coverage record in the plan and an absent or out-of-date one is a finding naming `aw ipd coverage <id6>`. The production path records the answer in the orchestrator before calling the setter, so the common path never hits this.
 
 ## Validation and cross-check (verify before reporting done)
 

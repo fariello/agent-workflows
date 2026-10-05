@@ -19,6 +19,7 @@
 - Id: hm1h3l
 
 ## Workflow history
+- 2026-10-04 note (opencode its_direct/pt3-claude-opus-5.5-1m-us): revised after review. OQ-03 RESOLVED by the maintainer (2026-10-04): the coverage answer is stored in the plan, not in the gitignored cache. Added `25kzda` Section 2.5e (where the answer is recorded, who writes it, how it is attested, exclusion from the execution-receipt fingerprint) and lint rule 20 (`IPD-M112`); A.2, A.3, A.6 condition 4, B.2 and D.1 now read the plan's record.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `qs00nc` (finding PR-001): OQ-03 Context gains the freeze-gate ordering (`enforce_freeze_time_refusal` lints approved plans at `pre-execution` before the run-start probe). Context only; the question, options and verdict are unchanged.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `8mabmu` (finding PR-002): A.4's named-child credit now accepts an Order number present in the child table as well as an id6. Measured: `axozpe`, the motivating false refusal, names its owner only as "Order 04"; the id6-only text would have left it refused. The review verdict and blocking OQ-03 of this plan are unchanged.
 - 2026-10-04 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `jm27py` (finding PR-003): added `- From-Spec: none`. This plan amends specs rather than being produced from one, and its Concern cites `2vev8j` without editing it, so after `jm27py` the Scope-Paths exemption alone would still leave `check.plan-spec-link-missing` firing on it. Metadata only; no amendment text changed, so the 2026-10-04 review verdict stands.
@@ -37,7 +38,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: amend the five specs
 
-- [ ] E-01 Amend spec `25kzda` with the text of Proposed changes A.1 to A.9 (Sections 2.5b, a new 2.5d, 3.2, 3.3, 3.4, 4.4, 4.8, 4.9 and 5.5, exactly as listed there), then append the A.10 history line with `aw specs note <path> --message "<A.10 text>"`.
+- [ ] E-01 Amend spec `25kzda` with the text of Proposed changes A.1 to A.9 (Sections 2.5b, a new 2.5d and 2.5e, 3.2, 3.3, 3.4, 4.4, 4.8, 4.9 and 5.5, exactly as listed there), then append the A.10 history line with `aw specs note <path> --message "<A.10 text>"`.
   - Depends on: none
   - Expected outcome: `aw specs check` on the `25kzda` file reports conforming; each of A.1 to A.9 is present verbatim or with only wording-level edits that do not change its meaning; the spec's `- Status:` still reads `approved`.
   - Execution state: pending
@@ -52,9 +53,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw specs check` on the `r07vma` file reports conforming; limit 5 names Set `gradcover` as what now detects an omitted final child; `- Status:` still reads `approved`.
   - Execution state: pending
 
-- [ ] E-04 Amend spec `ipd-structure-and-linting` exactly as Proposed changes D.1 and D.2 state: add item 19 to Section 10's ("Deterministic linter contract") MUST-check list and a paragraph after that list. Append the history line with `aw specs note`.
+- [ ] E-04 Amend spec `ipd-structure-and-linting` exactly as Proposed changes D.1 and D.2 state: add items 19 and 20 to Section 10's ("Deterministic linter contract") MUST-check list and a paragraph after that list. Append the history line with `aw specs note`.
   - Depends on: E-03
-  - Expected outcome: `aw specs check` on the `ipd-structure-and-linting` file reports conforming; item 19 exists and names `IPD-S408`; `- Status:` still reads `implemented`.
+  - Expected outcome: `aw specs check` on the `ipd-structure-and-linting` file reports conforming; item 19 exists and names `IPD-S408`, item 20 exists and names `IPD-M112`; `- Status:` still reads `implemented`.
   - Execution state: pending
 
 - [ ] E-06 Amend spec `ipd-spec` exactly as Proposed changes E.1 states: replace the enumerated legal backward transitions in its `## Workflow history` convention bullet with the rule that every backward move between non-terminal statuses is legal, loud and loop-free. Append the history line with `aw specs note`.
@@ -87,7 +88,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-04 | `77tr3o` R-12 point 3 says "THE CHECK IS NOT A LINTER RULE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED", and explains that the pre-transition checkpoint must keep Kind-parity. What R-5 rejected was a linter EXEMPTION that lets an orchestrator skip evidence; a lint rule that REFUSES an unready orchestrator at `review-finalize` is the opposite direction and does not touch Kind-parity at `pre-transition`. Point 3 must say so, or Order 03's lint consumer reads as a violation. | R-5's OQ-1 resolution text ("the linter learns a `Kind: orchestrator` + runner-rollup exemption" was REJECTED); `ipd_lint.check_orchestrator_rows` already exists as an orchestrator-only lint rule (`IPD-S407`) gated to `review-finalize`, `pre-execution` and `pre-transition`, so an orchestrator-specific lint rule is already shipped precedent |
 | F-05 | `r07vma` Section 3a limit 5 states "a parent can conform perfectly while its author simply omitted a needed final child. R1b names the remedy but nothing detects the omission". That limit is exactly what this Set closes, so leaving it unamended would make the spec wrong. | the quoted limit 5 text |
 | F-06 | The probe's answer contract is a bare sentinel line (`PROBE_SENTINEL_EXECUTIONS`/`PROBE_SENTINEL_NO_EXECUTIONS`), and `classify_probe_reply` treats anything else as `unknown`. A refusal therefore cannot name what was found; `axozpe`'s refusal is unactionable. 2.5b must permit a quote block or Order 02 breaks the strict-parser rule 2.5b states. | `PROBE_PROMPT_TEMPLATE` ("Reply with EXACTLY ONE of these two lines and NOTHING else"); `classify_probe_reply` equality test |
-| F-07 | `ipd-structure-and-linting` Section 10 ("Deterministic linter contract", not Section 9, which is "Lint checkpoints and lifecycle state") says `aw ipd lint` "MUST make no model calls". A readiness lint rule must therefore READ a recorded probe verdict, never ask for one. The verdict store (`runner_shared.read_probe_verdict`) is a local file read, so this is compatible. | the quoted Section 9 sentence; `read_probe_verdict` reads `probe_verdict_store_path` only |
+| F-07 | `ipd-structure-and-linting` Section 10 ("Deterministic linter contract", not Section 9, which is "Lint checkpoints and lifecycle state") says `aw ipd lint` "MUST make no model calls". A readiness lint rule must therefore READ a recorded answer, never ask for one. The only place an answer is kept today is `runner_shared.probe_verdict_store_path`, `.aw/state/runtime/orchestrator-probe-verdicts.json`, which `.aw/.gitignore` (`/state/`) excludes from git and `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS` expires after 30 days, so CI and other clones can never read one; hence Section 2.5e moves the answer into the plan. | the quoted Section 10 sentence; `probe_verdict_store_path`; `.aw/.gitignore`; `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS` |
 | F-08 | The existing correction machinery is specified once: `25kzda` 5.5 lists "missing expected artifact or failed deterministic check for which a bounded correction is safe" as retryable. A Set-level production refusal is that class, so Order 07 needs only a sentence naming it, not a new retry rule. | the quoted 5.5 retryable list |
 
 ## Proposed changes (ordered, validatable)
@@ -102,11 +103,11 @@ A.1 Section 2.5b, the bullet beginning "It runs ONCE per run": REPLACE with:
 
 A.2 Section 2.5b: ADD a new bullet immediately after A.1:
 
-> - THE CHECK IS REPEATED AT THE RETIREMENT POINT. Immediately before the runner retires an orchestrator (Section 2.5b's premise, spec `77tr3o` R-1 to R-6), it re-evaluates the orchestrator review-readiness check of Section 2.5d against the orchestrator's CURRENT on-disk text. A recorded passing verdict for that exact text is served from the cache and spends nothing; a cache miss asks the probe once; any answer other than a pass, INCLUDING a could-not-ask, refuses the retirement with the `finalize-refused` reason and the quoted finding (Section 2.5d UNAVAILABILITY), leaving the orchestrator in `pending/` without failing the run. This closes the case in which an orchestrator was edited by a child's turn after the run-start probe.
+> - THE CHECK IS REPEATED AT THE RETIREMENT POINT. Immediately before the runner retires an orchestrator (Section 2.5b's premise, spec `77tr3o` R-1 to R-6), it re-evaluates the orchestrator review-readiness check of Section 2.5d against the orchestrator's CURRENT on-disk text. A `- Coverage: pass` recorded IN THE PLAN for that exact text (Section 2.5e) spends nothing; an absent or out-of-date record asks the probe once and records the answer in the plan; any answer other than a pass, INCLUDING a could-not-ask, refuses the retirement with the `finalize-refused` reason and the quoted finding (Section 2.5d UNAVAILABILITY), leaving the orchestrator in `pending/` without failing the run. This closes the case in which an orchestrator was edited by a child's turn after the run-start probe.
 
 A.3 Section 2.5b, the bullet beginning "A DELIVERED but unusable answer": REPLACE with:
 
-> - THE ANSWER FORMAT IS A VERDICT LINE FOLLOWED BY QUOTED EVIDENCE. The first line is exactly one of the two sentinels. When it is the "contains executions" sentinel, every following non-empty line MUST be a quote line beginning `QUOTE: ` followed by a passage copied VERBATIM from the excerpt the probe was sent, one per uncovered obligation. A quote is valid only if its text occurs in the excerpt after whitespace normalization. A "contains executions" answer with no valid quote, a "contains no executions" answer with any following line, a reply carrying both sentinels, or any other shape is UNUSABLE and BLOCKS exactly as a positive finding does, because a permissive parser would convert a confused model into a silent pass. The valid quotes are recorded with the verdict and are reproduced in the refusal and in `aw runs`, so the operator and the authoring agent are told WHAT to fix, not only THAT something is wrong.
+> - THE ANSWER FORMAT IS A VERDICT LINE FOLLOWED BY QUOTED EVIDENCE. The first line is exactly one of the two sentinels. When it is the "contains executions" sentinel, every following non-empty line MUST be a quote line beginning `QUOTE: ` followed by a passage copied VERBATIM from the excerpt the probe was sent, one per uncovered obligation. A quote is valid only if its text occurs in the excerpt after whitespace normalization. A "contains executions" answer with no valid quote, a "contains no executions" answer with any following line, a reply carrying both sentinels, or any other shape is UNUSABLE and BLOCKS exactly as a positive finding does, because a permissive parser would convert a confused model into a silent pass. The valid quotes are recorded IN THE PLAN with the verdict (Section 2.5e) and are reproduced in the refusal and in `aw runs`, so the operator and the authoring agent are told WHAT to fix, not only THAT something is wrong.
 
 A.4 Section 2.5b: ADD a new bullet immediately after A.3:
 
@@ -125,15 +126,32 @@ A.6 ADD a new Section 2.5d immediately after Section 2.5c:
 > 1. every row of its `## Child IPDs` table names a child plan that exists in the plans tree (an unresolvable or open-ended row such as `03+` is not ready, as in spec `77tr3o` OQ-2);
 > 2. every such child carries `- Status:` `to-review`, `reviewed`, `approved`, `auto-approved` or `executed`, and passes `aw ipd lint` at the `author` checkpoint;
 > 3. its checklist rows conform to spec `r07vma` R1a (`IPD-S407`);
-> 4. the coverage probe's verdict for the orchestrator's CURRENT text is a recorded pass.
+> 4. the plan carries a coverage record (Section 2.5e) whose verdict is `pass` and whose fingerprint matches the plan's CURRENT text.
 >
-> Conditions 1 to 3 are deterministic. Condition 4 is READ from the verdict store by every consumer except the four that may ASK on a miss (and record the answer): the production action of Sections 4.8 and 4.9, the post-review check `IPD-REVIEW-ORCHESTRATOR-READY` of Section 4.4, the retirement-time re-check of Section 2.5b, and the `aw ipd coverage` command. Each of these is already spending a run's or an operator's turn on this orchestrator, so one cached probe call is proportionate. `aw ipd set`, `aw ipd lint` and `aw check` NEVER ask, so the setter and the linters remain model-free.
+> Conditions 1 to 3 are deterministic. Condition 4 is READ from the plan's own coverage record by every consumer except the four that may ASK when the record is absent or out of date (and write the answer into the plan): the production action of Sections 4.8 and 4.9, the post-review check `IPD-REVIEW-ORCHESTRATOR-READY` of Section 4.4, the retirement-time re-check of Section 2.5b, and the `aw ipd coverage` command. Each of these is already spending a run's or an operator's turn on this orchestrator, so one cached probe call is proportionate. `aw ipd set`, `aw ipd lint` and `aw check` NEVER ask, so the setter and the linters remain model-free.
 >
 > CONSUMERS. The function is called by: `aw ipd set` for a target of `to-review`, `reviewed`, `approved` or `auto-approved` on an orchestrator plan (refuse); `aw ipd lint` at `review-finalize` and `pre-execution` (rule `IPD-S408`); `aw check plans` (rule `check.orchestrator-not-review-ready`); the production verification codes `SPEC-PLAN-SET` and `BACKLOG-GRADUATE-SET`; the review verification code `IPD-REVIEW-ORCHESTRATOR-READY`; and the retirement-time re-check of Section 2.5b.
 >
 > UNAVAILABILITY. When condition 4 cannot be established because the probe could not be asked, the status-change, production, post-review and retirement-time consumers REFUSE and leave the plan or its source where it is, naming the command to retry (`aw ipd coverage <id6>`). A refused retirement leaves the orchestrator in `pending/` and is not a failure of the run, exactly as the other retirement refusals of spec `77tr3o` are. This differs deliberately from the run-start gate, which warns and proceeds: at each of these points refusing costs a later retry and nothing else, whereas proceeding would record a readiness claim nobody established.
 >
 > EVERY REFUSAL names the failing condition, the child id6 or quoted passage it concerns, and the exact command or edit that fixes it, on the human surface and as an `aw.agent/v1` record. The remedy text follows spec `r07vma` R7: it states the invariant, forbids satisfying it by deleting the checklist, and names the legitimate remedies (add a child that owns the work and a row for it, or assign the work in prose to an existing child by id6, or remove it if it is redundant).
+>
+> ### 2.5e Where the coverage answer is recorded
+>
+> The coverage answer is recorded IN THE ORCHESTRATOR PLAN ITSELF, not in a machine-local cache, so every clone, CI, and every later reviewer reads the same answer with no expiry. (Before Set `gradcover`, answers were kept only in `.aw/state/runtime/orchestrator-probe-verdicts.json`, which is gitignored and expires after 30 days, so CI and other clones could never see one.) The record is three metadata fields and, on a fail, one section:
+>
+> - `- Coverage: pass` or `- Coverage: fail`;
+> - `- Coverage-Fingerprint: <hex>`, the fingerprint of the parts of the plan the question reads (its checklist action text, its `## Child IPDs` rows, and the prose sections the probe is sent), computed by the same function that builds the probe's input, so the answer and the fingerprint cannot cover different text;
+> - `- Coverage-Checked: <YYYY-MM-DD> by <model>`;
+> - on a fail, a `## Coverage findings` section listing each quoted passage, one bullet per `QUOTE:` line of the answer.
+>
+> A record is CURRENT when its fingerprint equals the fingerprint of the plan's current text. Ticking a checkbox, filling evidence, or appending history does not change the fingerprint. Any edit to the parts the question reads does, and makes the record OUT OF DATE, which every consumer treats exactly as an absent record (the four asking consumers ask again; `aw ipd set`, `aw ipd lint` and `aw check` report it, naming `aw ipd coverage <id6>`).
+>
+> ONLY THE TOOL WRITES THE RECORD. `aw ipd coverage`, the production action, the post-review check and the retirement-time re-check write all fields together, and append a matching `## Workflow history` line `coverage <pass|fail> (<tool>): fingerprint <hex>, model <model>`. A coverage record with no matching history line is refused by `aw ipd lint` (rule `IPD-M112`), the same defense `- Readiness:` has (`IPD-M107`). This does not make forgery impossible; it makes a hand-written record visible in review and in git history, which is the standard the repository already accepts for `- Readiness:`.
+>
+> THE RECORD IS NOT PART OF THE PLAN'S EXECUTION CONTRACT. The coverage fields, the `## Coverage findings` section and their history lines are excluded from the begin-receipt fingerprint (`ipd_lifecycle.frozen_region_digest`) and from the coverage fingerprint itself, so recording an answer neither invalidates an execution receipt nor changes the text it describes.
+>
+> The machine-local verdict store is RETIRED by Set `gradcover`: no consumer reads or writes it, and its file may be deleted.
 
 A.7 Section 3.2, the IPD dispatch table: ADD one row after the `to-review` row:
 
@@ -169,7 +187,7 @@ Section 5.5: ADD after the paragraph listing the classes that are never retried:
 
 > A Set-level production refusal (`SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`) and an orchestrator review refusal (`IPD-REVIEW-ORCHESTRATOR-READY`) are in the class "failed deterministic check for which a bounded correction is safe". The correction resumes the same host session where one exists, carries only the failing findings and their quoted passages, and counts against the action's `--retry-budget` exactly as other corrections do.
 
-A.10 History line (via `aw specs note`): `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 2.5b scoped to orchestrators whose action is orchestrate, re-check added at the retirement point, answer format extended to a verdict plus verbatim QUOTE lines, named-child credit rule added, override scoped to the run-start gate; new Section 2.5d defines orchestrator review readiness and its consumers; Sections 3.2-3.4 gate orchestrator status and production on it and allow continuing an unfinished handoff; new codes IPD-REVIEW-ORCHESTRATOR-READY, SPEC-PLAN-SET, BACKLOG-GRADUATE-SET; SPEC-PLAN-COUNT and BACKLOG-GRADUATE-COUNT pass criteria accept continued output; Section 5.5 classifies the new refusals as bounded corrections. Motivated by the 2026-10-03 refusal of three review runs over 13 orchestrators handed off as graduated.`
+A.10 History line (via `aw specs note`): `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 2.5b scoped to orchestrators whose action is orchestrate, re-check added at the retirement point, answer format extended to a verdict plus verbatim QUOTE lines, named-child credit rule added, override scoped to the run-start gate; new Section 2.5d defines orchestrator review readiness and its consumers; new Section 2.5e records the coverage answer in the plan itself (Coverage, Coverage-Fingerprint, Coverage-Checked, ## Coverage findings), written only by the tool with a matching history line and excluded from the execution-receipt fingerprint, retiring the gitignored 30-day verdict cache; Sections 3.2-3.4 gate orchestrator status and production on it and allow continuing an unfinished handoff; new codes IPD-REVIEW-ORCHESTRATOR-READY, SPEC-PLAN-SET, BACKLOG-GRADUATE-SET; SPEC-PLAN-COUNT and BACKLOG-GRADUATE-COUNT pass criteria accept continued output; Section 5.5 classifies the new refusals as bounded corrections. Motivated by the 2026-10-03 refusal of three review runs over 13 orchestrators handed off as graduated.`
 
 ### B. Spec `77tr3o` (runner-owned orchestrator retirement)
 
@@ -179,7 +197,7 @@ B.1 R-12, the paragraph beginning "THEREFORE: before a run spends an agent turn"
 
 B.2 R-12 point 3: REPLACE with:
 
-> 3. THE COVERAGE CHECK DOES NOT EXEMPT AN ORCHESTRATOR FROM EVIDENCE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. The pre-transition E/V checkpoint preserves Kind-parity (identical findings for an orchestrator and a child; pinned behaviorally by `TheRejectedShapeWasNotTaken`). What R-5 rejected is a lint EXEMPTION that lets an orchestrator reach `executed` with less evidence. A lint rule that REFUSES an orchestrator which is not ready for review (spec `25kzda` 2.5d, `IPD-S408`) is the opposite direction: it adds a refusal at `review-finalize` and `pre-execution`, never relaxes `pre-transition`, and reads a recorded probe verdict rather than asking a model. It is therefore permitted and is required by R-13. The two reasons a SYNTACTIC substitute for the semantic probe is still forbidden are unchanged: the dangerous case is stated in prose and matches no syntax, and a syntactic rule's false positives would drive deletion of the checklist (point 2).
+> 3. THE COVERAGE CHECK DOES NOT EXEMPT AN ORCHESTRATOR FROM EVIDENCE, AND R-5's REJECTION OF SHAPE (a) STANDS UNCHANGED. The pre-transition E/V checkpoint preserves Kind-parity (identical findings for an orchestrator and a child; pinned behaviorally by `TheRejectedShapeWasNotTaken`). What R-5 rejected is a lint EXEMPTION that lets an orchestrator reach `executed` with less evidence. A lint rule that REFUSES an orchestrator which is not ready for review (spec `25kzda` 2.5d, `IPD-S408`) is the opposite direction: it adds a refusal at `review-finalize` and `pre-execution`, never relaxes `pre-transition`, and reads the coverage record stored in the plan rather than asking a model. It is therefore permitted and is required by R-13. The two reasons a SYNTACTIC substitute for the semantic probe is still forbidden are unchanged: the dangerous case is stated in prose and matches no syntax, and a syntactic rule's false positives would drive deletion of the checklist (point 2).
 
 B.3 ADD a new requirement after R-12:
 
@@ -207,13 +225,14 @@ C.4 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): R9's probe b
 
 D.1 Section 10 "Deterministic linter contract" (the `aw ipd lint` MUST-check list, the list beginning "For a new or migrated IPD, it MUST check at least"): ADD item 19 after item 18:
 
-> 19. for an orchestrator plan at the `review-finalize` and `pre-execution` checkpoints, that it is ready for review per spec `25kzda` Section 2.5d (`IPD-S408`), evaluating conditions 1 to 3 directly and condition 4 by READING the recorded coverage verdict for the plan's current text, never by asking a model. An absent or stale verdict is a finding that names `aw ipd coverage <id6>` as the remedy. At the `author` checkpoint the rule is advisory only, so a plan being written is not refused for children not yet written.
+> 19. for an orchestrator plan at the `review-finalize` and `pre-execution` checkpoints, that it is ready for review per spec `25kzda` Section 2.5d (`IPD-S408`), evaluating conditions 1 to 3 directly and condition 4 by READING the plan's own coverage record (spec `25kzda` 2.5e), never by asking a model. An absent coverage record, or one whose fingerprint does not match the current text, is an error that names `aw ipd coverage <id6>` as the remedy. Because the record is in the plan, the result is the same on every clone and in CI.
+> 20. that a coverage record (`- Coverage:`, `- Coverage-Fingerprint:`, `- Coverage-Checked:`) is either wholly absent or complete, and is matched by a `coverage` line in `## Workflow history` (`IPD-M112`), at every checkpoint. At the `author` checkpoint the rule is advisory only, so a plan being written is not refused for children not yet written.
 
 D.2 ADD a paragraph immediately after the MUST-check list:
 
 > Rule 19 is the one orchestrator-specific REFUSAL this command applies beyond `IPD-S407`. It does not change what `pre-transition` requires of an orchestrator (spec `77tr3o` R-5 and R-12 point 3): Kind-parity at `pre-transition` is unchanged. The check is the shared function, not a second implementation, so `aw ipd lint`, `aw check plans` and `aw ipd set` report identical findings for the same plan.
 
-D.3 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 10 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading a recorded probe verdict, model-free) and a paragraph stating it does not alter pre-transition Kind-parity.`
+D.3 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): Section 10 gains rule 19 (IPD-S408, orchestrator review readiness per 25kzda 2.5d, reading the coverage record stored in the plan, model-free) and rule 20 (IPD-M112, a coverage record must be complete and attested by a history line) and a paragraph stating it does not alter pre-transition Kind-parity.`
 
 ### E. Spec `ipd-spec` (authoring and executing an IPD)
 
@@ -242,7 +261,7 @@ E.2 History line: `AMENDED 2026-10-04 (plan hm1h3l, Set gradcover): every backwa
 - `python3 -m agent_workflows specs check <path>` for each of the five files, pasted, each conforming.
 - `python3 -m agent_workflows check specs`, pasted, with no new finding against a baseline measured before editing.
 - `git diff --name-only` pasted, listing exactly the five spec paths.
-- Greps pasted, each returning a hit after the edit: `2.5d Orchestrator review readiness`, `IPD-REVIEW-ORCHESTRATOR-READY`, `SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`, `whose action in this run is \`orchestrate\`` (case-insensitive: A.1 writes it in capitals), `QUOTE: `, `R-13 AN ORCHESTRATOR MAY NOT BE MARKED READY`, `IPD-S408`, `APPROVAL WITHDRAWN`.
+- Greps pasted, each returning a hit after the edit: `2.5d Orchestrator review readiness`, `IPD-REVIEW-ORCHESTRATOR-READY`, `SPEC-PLAN-SET`, `BACKLOG-GRADUATE-SET`, `whose action in this run is \`orchestrate\`` (case-insensitive: A.1 writes it in capitals), `QUOTE: `, `R-13 AN ORCHESTRATOR MAY NOT BE MARKED READY`, `IPD-S408`, `APPROVAL WITHDRAWN`, `2.5e Where the coverage answer is recorded`, `IPD-M112`.
 - `grep -n '^- Status:'` on each file, pasted, showing the status unchanged (`approved`, `approved`, `approved`, `implemented`, `implemented`).
 - `aw ipd lint` on this plan conforming.
 - No suite run is required by this plan's own change (no code changes), but run the bare suite once and paste the summary line so the boundary baseline is recorded for Order 02.
@@ -269,13 +288,11 @@ THIS PLAN IS THE SPEC SYNC FOR THE WHOLE SET. It edits five specs, all declared 
 
 ### OQ-03: Should a missing or expired coverage verdict be an error in `aw ipd lint` and `aw check`?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-006
-- Context: this plan writes the contract text the question turns on (A.6 condition 4 and D.1 rule 19: "An absent or stale verdict is a finding"). The verdict store (`runner_shared.probe_verdict_store_path`, `.aw/state/runtime/`) is gitignored by `.aw/.gitignore` `/state/`, never committed, and expires after `DEFAULT_PROBE_VERDICT_MAX_AGE_DAYS = 30`. Order 03 (`qs00nc` E-04) makes the check rule an `error`, and CI runs `aw check plans --agent` fail-closed. So CI, every other clone, and this machine after 30 days would fail on every orchestrator at `to-review` or later, permanently. Same decision as orchestrator `1f4faf` OQ-03; answer it once and record it in both plans. ADDED 2026-10-04 by the /plan-review of `qs00nc` (PR-001): the decision also governs `pre-execution`, which is not only a hand command: `runner_shared.enforce_freeze_time_refusal` lints every queued approved orchestrator at `pre-execution` BEFORE `enforce_orchestrator_probe_gate` in `initialize_run_core`, so an absent-verdict error there would refuse an un-probed approved orchestrator before the run-start probe could ask. Recorded as `qs00nc` OQ-03.
-- Decision needed: (a) recommended: for the model-free consumers (`aw ipd lint`, `aw check`) an absent or expired verdict is advisory and a recorded FAIL is an error, while conditions 1 to 3 stay errors and the asking consumers still refuse; (b) persist a pass as a tracked attestation (forgeable by hand edit); (c) drop condition 4 from lint and check. The chosen answer rewrites D.1's sentence and the 2.5d CONSUMERS paragraph here, and `qs00nc` E-04/V-04.
-- Resolution or deferral rationale: open; raised by the 2026-10-04 /plan-review of `hm1h3l` (finding PR-006, carried from the `1f4faf` review).
+- Resolution or deferral rationale: RESOLVED 2026-10-04 by the maintainer, in session: STORE THE ANSWER IN THE PLAN ITSELF. The question arose because the answer lived only in a gitignored file that expires after 30 days, so CI and other clones could never see one. With the answer recorded in the plan (new `25kzda` Section 2.5e: `Coverage`, `Coverage-Fingerprint`, `Coverage-Checked`, and `## Coverage findings` on a fail), every clone and CI read the same answer, so an absent or out-of-date record CAN safely be an error in `aw ipd lint` and `aw check`. The fingerprint is kept, stored beside the answer, so an edit after a pass is detected and reported plainly ("plan changed since the check on <date>") rather than the answer silently disappearing. Forgery by hand edit is handled as for `- Readiness:`: only the tool writes the record, it writes a matching history line, and `aw ipd lint` refuses a record without one (`IPD-M112`). Recorded in A.2, A.3, A.6, the new Section 2.5e, B.2 and D.1.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -297,7 +314,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the `git diff` of the `ipd-structure-and-linting` file; paste a grep returning item 19 with `IPD-S408` and the D.2 paragraph's "Kind-parity at `pre-transition` is unchanged". Paste `specs check` conforming, `- Status: implemented` unchanged, and the new history line.
+  - Required evidence: paste the `git diff` of the `ipd-structure-and-linting` file; paste greps returning item 19 with `IPD-S408` and item 20 with `IPD-M112` and the D.2 paragraph's "Kind-parity at `pre-transition` is unchanged". Paste `specs check` conforming, `- Status: implemented` unchanged, and the new history line.
   - Observed evidence:
   - Result: pending
 
