@@ -3322,6 +3322,7 @@ def run_queue(
                 terminal_states=TERMINAL_STATES,
                 success_states=EXECUTION_SUCCESS_STATES,
                 recovery_hint=runner_shared.AGY_HOST_LABELS.dependency_block_recovery,
+                host="agy",
             )
             save_state(run_dir, state)
             continue

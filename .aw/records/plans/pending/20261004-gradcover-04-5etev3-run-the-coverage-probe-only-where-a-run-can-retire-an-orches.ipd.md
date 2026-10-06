@@ -40,30 +40,30 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: scope the run-start probe
 
-- [ ] E-01 Give `queued_orchestrator_targets` a keyword `actions` filter (default `None` meaning all, so `enforce_orchestrator_shape_gate` is unchanged) and call it from `enforce_orchestrator_probe_gate` with `actions={"orchestrate"}`. The frozen action is the right key because the in-run `--full-auto` bridge in `execute_item_core` rewrites a promoted review item only to `execute`, never to `orchestrate` (the `item["action"] = "execute"` assignment after `set_plan_approved`), so no orchestrator becomes retirable mid-run without having been `orchestrate` at queue build; and queue build already promotes a `reviewed` orchestrator to `auto-approved` under `--full-auto` BEFORE `action_for` runs, so it is frozen `orchestrate` and is probed. Measured at review: `action_for('orchestrator', s)` is `undetermined`/`review`/`orchestrate`/`orchestrate`/`orchestrate` for `draft`/`to-review`/`reviewed`/`approved`/`auto-approved`. When the filtered target list is EMPTY, record the event with `probed: []`, `calls: 0` and the skipped field, and proceed without prompting. Emit one stderr line and one `orchestrator-probe-gate` event field naming the count and id6s of queued orchestrators NOT probed because their action is not `orchestrate`, so an operator can see they were deliberately skipped. Leave the could-not-ask, override and interactive-phrase behavior otherwise unchanged.
+- [x] E-01 Give `queued_orchestrator_targets` a keyword `actions` filter (default `None` meaning all, so `enforce_orchestrator_shape_gate` is unchanged) and call it from `enforce_orchestrator_probe_gate` with `actions={"orchestrate"}`. The frozen action is the right key because the in-run `--full-auto` bridge in `execute_item_core` rewrites a promoted review item only to `execute`, never to `orchestrate` (the `item["action"] = "execute"` assignment after `set_plan_approved`), so no orchestrator becomes retirable mid-run without having been `orchestrate` at queue build; and queue build already promotes a `reviewed` orchestrator to `auto-approved` under `--full-auto` BEFORE `action_for` runs, so it is frozen `orchestrate` and is probed. Measured at review: `action_for('orchestrator', s)` is `undetermined`/`review`/`orchestrate`/`orchestrate`/`orchestrate` for `draft`/`to-review`/`reviewed`/`approved`/`auto-approved`. When the filtered target list is EMPTY, record the event with `probed: []`, `calls: 0` and the skipped field, and proceed without prompting. Emit one stderr line and one `orchestrator-probe-gate` event field naming the count and id6s of queued orchestrators NOT probed because their action is not `orchestrate`, so an operator can see they were deliberately skipped. Leave the could-not-ask, override and interactive-phrase behavior otherwise unchanged.
   - Depends on: none
   - Expected outcome: a run whose queued orchestrators are all `review` makes zero probe calls and is not refused by the coverage gate; a run with an `orchestrate` orchestrator still probes it; the event lists both the probed and the skipped id6s.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: re-check at retirement
 
-- [ ] E-02 In `dispatch_orchestrator_item`, on the `ORCH_DISPATCH_RETIRE` branch, after `plan_path` is located and before `_lifecycle.retire_orchestrator` is called, call `orchestrator_readiness.review_readiness(repo, plan_path, ask=True, state=state, host=<host>)` (function-local import), passing `retry_budget=frozen_retry_budget(state)` through to the probe so the re-check uses the run's frozen budget. `<host>` is the `oc`/`agy` string `probe_argv` branches on, obtained per E-03. ONLY CONDITION 4 (COVERAGE) DECIDES HERE: the retirement re-check refuses on the result's coverage findings (absent or out-of-date record after asking, recorded `fail` quotes, could-not-ask, `unknown`) and IGNORES its condition 1 to 3 findings, because at this point those conditions are already enforced, differently and authoritatively, by the retirement gates: rows by `evaluate_set_retirement` (unauthored rows refuse), children by the same predicate's terminal allowlist `set_retirement_terminal_statuses` (`executed`, `superseded`, `not-executed`), and row conformance by `retire_orchestrator`'s `IPD-S407` gate. Applying 2.5d condition 2 here would REGRESS backlog `31y86f`: a Set with a deliberately `superseded` child is retirement-eligible (measured at review: `evaluate_set_retirement` returns `eligible=True` for a Set with one `superseded/` and one `executed/` child) but fails condition 2, whose ready list excludes `superseded`; and a child whose turn landed `- Status: executed` while still under `pending/` (the `test_reconsidered_then_retired_in_the_same_run_on_both_hosts` fixture) lints `IPD-S404`/`IPD-M105` at `author`. Select the coverage findings by the finding codes Order 03 assigns to condition 4 (one named constant set, defined beside `review_readiness` in `orchestrator_readiness` if Order 03 did not already export one; if it must be added there, record the out-of-scope edit with `--scope-reason`). When not ready, do NOT call `retire_orchestrator`; rewrite the decision to `ORCH_DISPATCH_TERMINATE` with `ORCH_REASON_FINALIZE_REFUSED` and a detail of the form `retirement re-check refused: <finding subject>: <quoted passage>; <shared remedy>; ...`, and let the EXISTING terminate tail write the refusal (it already calls `record_refusal` with `orchestrator_refusal_text(decision.reason)` and appends `orchestrator-deferred` with `terminated: True`); do not add a second `record_refusal` call. The existing `ORCH_REASON_FINALIZE_REFUSED` remedy says to retire "through `aw ipd finalize`", which does not fit this cause, so the detail itself carries the Order 03 shared remedy per finding (for could-not-ask, `aw ipd coverage <id6>`); leave the shared remedy constant unchanged. Treat could-not-ask as not ready (spec `25kzda` 2.5d UNAVAILABILITY). The item's status is whatever the existing terminate tail writes for `finalize-refused` today (`terminal_status`, default `fail-depend`), exactly as every other retirement refusal; the plan file stays in `pending/`; do not invent a new status.
+- [x] E-02 In `dispatch_orchestrator_item`, on the `ORCH_DISPATCH_RETIRE` branch, after `plan_path` is located and before `_lifecycle.retire_orchestrator` is called, call `orchestrator_readiness.review_readiness(repo, plan_path, ask=True, state=state, host=<host>)` (function-local import), passing `retry_budget=frozen_retry_budget(state)` through to the probe so the re-check uses the run's frozen budget. `<host>` is the `oc`/`agy` string `probe_argv` branches on, obtained per E-03. ONLY CONDITION 4 (COVERAGE) DECIDES HERE: the retirement re-check refuses on the result's coverage findings (absent or out-of-date record after asking, recorded `fail` quotes, could-not-ask, `unknown`) and IGNORES its condition 1 to 3 findings, because at this point those conditions are already enforced, differently and authoritatively, by the retirement gates: rows by `evaluate_set_retirement` (unauthored rows refuse), children by the same predicate's terminal allowlist `set_retirement_terminal_statuses` (`executed`, `superseded`, `not-executed`), and row conformance by `retire_orchestrator`'s `IPD-S407` gate. Applying 2.5d condition 2 here would REGRESS backlog `31y86f`: a Set with a deliberately `superseded` child is retirement-eligible (measured at review: `evaluate_set_retirement` returns `eligible=True` for a Set with one `superseded/` and one `executed/` child) but fails condition 2, whose ready list excludes `superseded`; and a child whose turn landed `- Status: executed` while still under `pending/` (the `test_reconsidered_then_retired_in_the_same_run_on_both_hosts` fixture) lints `IPD-S404`/`IPD-M105` at `author`. Select the coverage findings by the finding codes Order 03 assigns to condition 4 (one named constant set, defined beside `review_readiness` in `orchestrator_readiness` if Order 03 did not already export one; if it must be added there, record the out-of-scope edit with `--scope-reason`). When not ready, do NOT call `retire_orchestrator`; rewrite the decision to `ORCH_DISPATCH_TERMINATE` with `ORCH_REASON_FINALIZE_REFUSED` and a detail of the form `retirement re-check refused: <finding subject>: <quoted passage>; <shared remedy>; ...`, and let the EXISTING terminate tail write the refusal (it already calls `record_refusal` with `orchestrator_refusal_text(decision.reason)` and appends `orchestrator-deferred` with `terminated: True`); do not add a second `record_refusal` call. The existing `ORCH_REASON_FINALIZE_REFUSED` remedy says to retire "through `aw ipd finalize`", which does not fit this cause, so the detail itself carries the Order 03 shared remedy per finding (for could-not-ask, `aw ipd coverage <id6>`); leave the shared remedy constant unchanged. Treat could-not-ask as not ready (spec `25kzda` 2.5d UNAVAILABILITY). The item's status is whatever the existing terminate tail writes for `finalize-refused` today (`terminal_status`, default `fail-depend`), exactly as every other retirement refusal; the plan file stays in `pending/`; do not invent a new status.
   - Depends on: E-01
   - Dirty-plan ordering (settled at review from Order 02 `8mabmu` E-07, no executor choice left): when the re-check asks, `probe_orchestrator` writes the record AND makes its own path-scoped commit of the plan file before returning, so the plan is clean again when `retire_orchestrator` later runs `_assert_rollup_touched_only_owned_paths`; when the plan already had another party's uncommitted edit, `probe_orchestrator` writes nothing and the retirement is refused by that existing dirty-plan gate, which is correct. Do NOT add a second commit path here. If Order 02 as executed does not commit at write (check `coverage_record.write`'s `commit` behavior before editing), STOP and report, because the retirement would then always refuse after an ask.
   - Expected outcome: an orchestrator whose text changed during the run to add uncovered prose is not retired, its item carries a `Refusal` whose reason contains the new passage, and `retire_orchestrator` is never called; an unchanged orchestrator whose plan carries a current `- Coverage: pass` record is retired with zero model calls; a could-not-ask refuses and names `aw ipd coverage <id6>`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Make the host available to `dispatch_orchestrator_item` without forking it. Neither host loop passes a host today (`oc_runipd.run_queue` and `agy_runipd.run_queue` pass only `recovery_hint=...HOST_LABELS.dependency_block_recovery`), and run state's `host_capabilities.host` is `resolve_cli_host`'s CLI identity (`opencode`/`antigravity`), NOT the `oc`/`agy` string `probe_argv` branches on, so reading it as-is would send an agy run's re-check through the opencode argv. Add keyword-only `host: str | None = None`, `asker: Any = None` and `runner: Any = None` parameters to `dispatch_orchestrator_item` (the latter two passed straight through to `review_readiness` as test seams; no host loop passes them), pass `host="oc"` from `oc_runipd.run_queue` and `host="agy"` from `agy_runipd.run_queue` (the literals each module passes to `initialize_run_core`), and when `host` is `None` (an existing direct caller) map `state["host_capabilities"]["host"] == "antigravity"` to `agy`, else `oc`. Confirm the override flag `--allow-uncovered-orchestrator-work` does NOT bypass the retirement-time check (spec `25kzda` 2.5b A.5): the re-check must not read any field the run-start gate writes for the override.
+- [x] E-03 Make the host available to `dispatch_orchestrator_item` without forking it. Neither host loop passes a host today (`oc_runipd.run_queue` and `agy_runipd.run_queue` pass only `recovery_hint=...HOST_LABELS.dependency_block_recovery`), and run state's `host_capabilities.host` is `resolve_cli_host`'s CLI identity (`opencode`/`antigravity`), NOT the `oc`/`agy` string `probe_argv` branches on, so reading it as-is would send an agy run's re-check through the opencode argv. Add keyword-only `host: str | None = None`, `asker: Any = None` and `runner: Any = None` parameters to `dispatch_orchestrator_item` (the latter two passed straight through to `review_readiness` as test seams; no host loop passes them), pass `host="oc"` from `oc_runipd.run_queue` and `host="agy"` from `agy_runipd.run_queue` (the literals each module passes to `initialize_run_core`), and when `host` is `None` (an existing direct caller) map `state["host_capabilities"]["host"] == "antigravity"` to `agy`, else `oc`. Confirm the override flag `--allow-uncovered-orchestrator-work` does NOT bypass the retirement-time check (spec `25kzda` 2.5b A.5): the re-check must not read any field the run-start gate writes for the override.
   - Depends on: E-02
   - Expected outcome: both hosts reach the same re-check through the one shared function with the correct host string; an agy run's re-check composes the agy argv; a run started with the override flag still refuses a retirement whose re-check fails.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: pin it
 
-- [ ] E-04 Add `tests/test_orchestrator_probe_scope.py`, using the existing in-process `initialize_run` test pattern with an injected `asker` double: (a) a queue of one `review` orchestrator plus children makes zero asker calls and proceeds; (b) a queue with one `orchestrate` orchestrator calls the asker once; (c) the event records skipped id6s; (d) `dispatch_orchestrator_item` over a fixture Set whose children are all `executed` and whose orchestrator text was edited after a recorded pass (the edit adds uncovered prose to an allowlisted `PROBE_PROSE_SECTIONS` section, so the fingerprint changes) refuses retirement and records a refusal quoting the new passage; (e) the same with unchanged text retires with zero asker calls; (f) the override flag does not change (d); (g) a could-not-ask at retirement refuses and names `aw ipd coverage <id6>`; (h) both hosts' `run_queue` reach the re-check with their own host string; (i) a Set with one `superseded/` child and one `executed/` child and a current `pass` record still retires (the `31y86f` property; it fails if E-02 lets a condition 1 to 3 finding refuse). SEAMS, since neither `run_queue` nor today's `dispatch_orchestrator_item` takes an asker: E-03 adds keyword-only `asker=None, runner=None` to `dispatch_orchestrator_item`, passed through to `review_readiness`, which (d) to (g) and (i) use directly; (h) drives the real `run_queue` and patches `runner_shared.ask_orchestrator_probe` with a wrapper that calls the real function with a `runner` double recording `argv[0]` (demonstrated at review: with `host="agy"` the recorded token is `agy`, and `probe_argv(..., host="oc")` begins `opencode`). Fixtures for (d), (e), (g), (h), (i) write the coverage record into the fixture orchestrators with `coverage_record.write` (non-git fixtures: pass Order 02's no-commit option, or rely on its documented never-raises behavior on a failed commit, and record which); the real spawn raises under pytest (`_assert_probe_spawn_is_permitted`). Prove the test can fail by restoring the unfiltered target list (fails (a)), by removing the re-check call (fails (d)), and by letting every readiness finding refuse (fails (i)), pasting all three. EXISTING TESTS: `tests/test_orchestrator_retirement.py` reaches the RETIRE branch with only `retire_orchestrator` patched; after E-02 those paths ask the probe first and would raise `DriverError` under pytest. Measured at review by a dispatch spy over that file plus `test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_dependency_block_reporting.py`, `test_orchestrator_not_approved_reason.py`, `test_reaskscore_composed.py`, `test_action_table_runner_parity.py`, `test_run_viewer.py` and `test_driver_attestation_gate.py` (400 passed): exactly three tests reach the branch, all in `tests/test_orchestrator_retirement.py` (`test_reconsidered_then_retired_in_the_same_run_on_both_hosts`, `test_the_orchestrate_branch_SHORT_CIRCUITS_before_execute_item_on_both_hosts`, both retiring, and `test_each_cause_yields_a_DISTINCT_reason_and_a_detail_that_substantiates_it`, whose patched transition refuses). That list is context; RE-DERIVE it at execution with the bare suite (any `DriverError` naming the coverage probe is a test that needs a record). Make them pass WITHOUT changing what they assert, by writing a current `pass` coverage record into each fixture orchestrator in their setup, and record which tests were touched.
+- [x] E-04 Add `tests/test_orchestrator_probe_scope.py`, using the existing in-process `initialize_run` test pattern with an injected `asker` double: (a) a queue of one `review` orchestrator plus children makes zero asker calls and proceeds; (b) a queue with one `orchestrate` orchestrator calls the asker once; (c) the event records skipped id6s; (d) `dispatch_orchestrator_item` over a fixture Set whose children are all `executed` and whose orchestrator text was edited after a recorded pass (the edit adds uncovered prose to an allowlisted `PROBE_PROSE_SECTIONS` section, so the fingerprint changes) refuses retirement and records a refusal quoting the new passage; (e) the same with unchanged text retires with zero asker calls; (f) the override flag does not change (d); (g) a could-not-ask at retirement refuses and names `aw ipd coverage <id6>`; (h) both hosts' `run_queue` reach the re-check with their own host string; (i) a Set with one `superseded/` child and one `executed/` child and a current `pass` record still retires (the `31y86f` property; it fails if E-02 lets a condition 1 to 3 finding refuse). SEAMS, since neither `run_queue` nor today's `dispatch_orchestrator_item` takes an asker: E-03 adds keyword-only `asker=None, runner=None` to `dispatch_orchestrator_item`, passed through to `review_readiness`, which (d) to (g) and (i) use directly; (h) drives the real `run_queue` and patches `runner_shared.ask_orchestrator_probe` with a wrapper that calls the real function with a `runner` double recording `argv[0]` (demonstrated at review: with `host="agy"` the recorded token is `agy`, and `probe_argv(..., host="oc")` begins `opencode`). Fixtures for (d), (e), (g), (h), (i) write the coverage record into the fixture orchestrators with `coverage_record.write` (non-git fixtures: pass Order 02's no-commit option, or rely on its documented never-raises behavior on a failed commit, and record which); the real spawn raises under pytest (`_assert_probe_spawn_is_permitted`). Prove the test can fail by restoring the unfiltered target list (fails (a)), by removing the re-check call (fails (d)), and by letting every readiness finding refuse (fails (i)), pasting all three. EXISTING TESTS: `tests/test_orchestrator_retirement.py` reaches the RETIRE branch with only `retire_orchestrator` patched; after E-02 those paths ask the probe first and would raise `DriverError` under pytest. Measured at review by a dispatch spy over that file plus `test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_dependency_block_reporting.py`, `test_orchestrator_not_approved_reason.py`, `test_reaskscore_composed.py`, `test_action_table_runner_parity.py`, `test_run_viewer.py` and `test_driver_attestation_gate.py` (400 passed): exactly three tests reach the branch, all in `tests/test_orchestrator_retirement.py` (`test_reconsidered_then_retired_in_the_same_run_on_both_hosts`, `test_the_orchestrate_branch_SHORT_CIRCUITS_before_execute_item_on_both_hosts`, both retiring, and `test_each_cause_yields_a_DISTINCT_reason_and_a_detail_that_substantiates_it`, whose patched transition refuses). That list is context; RE-DERIVE it at execution with the bare suite (any `DriverError` naming the coverage probe is a test that needs a record). Make them pass WITHOUT changing what they assert, by writing a current `pass` coverage record into each fixture orchestrator in their setup, and record which tests were touched.
   - Depends on: E-03
   - Expected outcome: the new file passes; each of the three mutations fails its case; `tests/test_orchestrator_retirement.py` passes with its assertions unchanged; no test reads production source.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -136,25 +136,188 @@ Implements spec `25kzda` 2.5b A.1, A.2, A.5 and `77tr3o` R-12 (B.1) as amended b
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff of `queued_orchestrator_targets` and `enforce_orchestrator_probe_gate`. Paste test (a)'s asker call count (0) and proceed result, test (b)'s call count (1), and test (c)'s event record showing `probed` and the new skipped field.
   - Observed evidence:
-  - Result: pending
+    Diff of `queued_orchestrator_targets`:
+    ```python
+    def queued_orchestrator_targets(
+        state: Mapping[str, Any],
+        *,
+        repo: Path,
+        actions: Container[str] | None = None,
+    ) -> tuple[ProbeTarget, ...]:
+        targets: list[ProbeTarget] = []
+        for item in state.get("queue") or []:
+            if not isinstance(item, dict):
+                continue
+            if (item.get("kind") or "") != "orchestrator":
+                continue
+            if actions is not None:
+                act = item.get("action") or action_for(
+                    item.get("kind"), item.get("initial_status") or item.get("status")
+                )
+                if act not in actions:
+                    continue
+    ```
 
-- [ ] V-02 validates E-02
+    Diff of `enforce_orchestrator_probe_gate`:
+    ```python
+        targets = queued_orchestrator_targets(
+            state, repo=Path(repo), actions={"orchestrate"}
+        )
+        skipped_id6s = [
+            str(item.get("id6") or "")
+            for item in (state.get("queue") or [])
+            if isinstance(item, dict)
+            and (item.get("kind") or "") == "orchestrator"
+            and (
+                item.get("action")
+                or action_for(
+                    item.get("kind"), item.get("initial_status") or item.get("status")
+                )
+            )
+            != "orchestrate"
+            and item.get("id6")
+        ]
+        ...
+        if not targets:
+            _emit({"proceed": True, "probed": [], "calls": 0, "skipped": skipped_id6s})
+            return ProbeGateDecision(proceed=True, calls=0)
+    ```
+
+    Test (a) asker call count: 0, proceed: True
+    Test (b) asker call count: 1, probed: ["orc002"]
+    Test (c) event: `{"at": "2026-10-06T17:21:00Z", "event": "orchestrator-probe-gate", "proceed": true, "probed": ["orc03a"], "skipped": ["orc03b"], "calls": 1}`
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the diff of the RETIRE branch. Paste test (d)'s recorded refusal (code `finalize-refused`, reason containing the quoted passage), item status, and the `retire_orchestrator` spy's call count (0); test (e)'s `orchestrator-finalized` event with asker call count 0; test (g)'s refusal naming `aw ipd coverage <id6>`; and test (i)'s `orchestrator-finalized` event for the Set with a `superseded/` child, proving only coverage findings refuse here. State whether a condition-4 code set was exported by Order 03 or added (with its `--scope-reason`), and paste `coverage_record.write`'s commit behavior as checked before editing (the dirty-plan ordering prerequisite).
   - Observed evidence:
-  - Result: pending
+    RETIRE branch in `dispatch_orchestrator_item`:
+    ```python
+        if plan_path is not None:
+            from agent_workflows import orchestrator_readiness as _orch_ready
 
-- [ ] V-03 validates E-03
+            readiness = _orch_ready.review_readiness(
+                repo,
+                plan_path,
+                ask=True,
+                state=state,
+                host=resolved_host,
+                retry_budget=frozen_retry_budget(state),
+                asker=asker,
+                runner=runner,
+            )
+            coverage_findings = [
+                f for f in readiness.findings if f.code in _orch_ready.CONDITION_4_CODES
+            ]
+            if coverage_findings:
+                finding_parts = [
+                    f"{f.subject}: {f.detail}; {f.remedy}" for f in coverage_findings
+                ]
+                decision = decision._replace(
+                    outcome=ORCH_DISPATCH_TERMINATE,
+                    reason=ORCH_REASON_FINALIZE_REFUSED,
+                    detail=f"retirement re-check refused: {'; '.join(finding_parts)}",
+                )
+            else:
+                result = _lifecycle.retire_orchestrator(...)
+    ```
+    Test (d): decision.outcome = ORCH_DISPATCH_TERMINATE, decision.reason = ORCH_REASON_FINALIZE_REFUSED ("finalize-refused"), detail contains "the database must be migrated manually before child execution", item["status"] = "fail-depend", retire_spy.call_count = 0.
+    Test (e): `orchestrator-finalized` emitted for `orc005`, asker_calls = 0.
+    Test (g): refusal detail contains `aw ipd coverage orc007`, retire_spy.call_count = 0.
+    Test (i): `orchestrator-finalized` emitted for `orc009` with a superseded/ child (`chi09b`) and executed/ child (`chi09a`), retire_spy.call_count = 1.
+    Condition-4 code set: already exported by Order 03 in `agent_workflows/orchestrator_readiness.py` as `CONDITION_4_CODES = frozenset({"orchestrator-uncovered-work", "orchestrator-coverage-fail", "orchestrator-probe-unavailable", "orchestrator-coverage-unknown", "orchestrator-coverage-unrecorded", "orchestrator-coverage-outdated"})`; no out-of-scope edit needed.
+    `coverage_record.write` commit behavior: defaults to `commit=True`, performs path-scoped commit of the plan file via `_commit_plan` unless `commit=False` is requested.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the diffs in both host modules showing `host="oc"` and `host="agy"` passed to `dispatch_orchestrator_item`, and the new `host`/`asker`/`runner` parameters with the `None` host fallback. Paste test (h)'s recorded argv first token per host (`opencode` for oc, `agy` for agy), and test (f)'s output showing the override flag did not change the refusal.
   - Observed evidence:
-  - Result: pending
+    In `agent_workflows/oc_runipd.py`:
+    ```python
+    decision = dispatch_orchestrator_item(
+        repo,
+        run_dir,
+        state,
+        runnable,
+        actor=actor,
+        terminal_states=TERMINAL_STATES,
+        success_states=EXECUTION_SUCCESS_STATES,
+        recovery_hint=OC_HOST_LABELS.dependency_block_recovery,
+        host="oc",
+    )
+    ```
+    In `agent_workflows/agy_runipd.py`:
+    ```python
+    decision = dispatch_orchestrator_item(
+        repo,
+        run_dir,
+        state,
+        runnable,
+        actor=actor,
+        terminal_states=TERMINAL_STATES,
+        success_states=EXECUTION_SUCCESS_STATES,
+        recovery_hint=AGY_HOST_LABELS.dependency_block_recovery,
+        host="agy",
+    )
+    ```
+    In `agent_workflows/runner_shared.py`:
+    ```python
+    def dispatch_orchestrator_item(
+        repo: Path,
+        run_dir: Path,
+        state: dict[str, Any],
+        item: dict[str, Any],
+        *,
+        actor: str,
+        terminal_states: Container[str],
+        success_states: Container[str],
+        recovery_hint: str | None = None,
+        host: str | None = None,
+        asker: Any = None,
+        runner: Any = None,
+    ) -> OrchestratorDispatch:
+        ...
+        resolved_host = host
+        if resolved_host is None:
+            caps = (state.get("host_capabilities") or {}) if isinstance(state, dict) else {}
+            resolved_host = "agy" if caps.get("host") == "antigravity" else "oc"
+    ```
+    Test (h) recorded host tokens: `("oc", "opencode")` and `("agy", "agy")`.
+    Test (f) override flag output: state options included `allow_uncovered_orchestrator_work="accepted risk at launch"`, decision terminated with `ORCH_REASON_FINALIZE_REFUSED`, `retire_spy.call_count = 0`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the new file passing with its count; each of the three mutations (unfiltered targets, removed re-check, every finding refusing) failing its case and the revert passing; the list of existing tests in `tests/test_orchestrator_retirement.py` given a recorded coverage answer; a grep for source-structure reads returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only the declared paths.
   - Observed evidence:
-  - Result: pending
+    New test file `tests/test_orchestrator_probe_scope.py`:
+    `9 passed in 1.47s`
+    Three mutations:
+    - Mutation 1 (unfiltered targets): fails test_case_a with `AssertionError: 1 != 0 : review orchestrator must not trigger probe calls`; revert passes (1 passed, 8 deselected in 1.57s).
+    - Mutation 2 (removed re-check): fails test_case_d with `AssertionError: 'retirement re-check refused:' not found in ...`; revert passes (1 passed, 8 deselected in 1.25s).
+    - Mutation 3 (every finding refusing): fails test_case_i with `AssertionError: 'terminate' != 'retire'`; revert passes (1 passed, 8 deselected in 1.35s).
+    Existing tests in `tests/test_orchestrator_retirement.py` given recorded coverage answer:
+    - `test_reconsidered_then_retired_in_the_same_run_on_both_hosts`
+    - `test_each_cause_yields_a_DISTINCT_reason_and_a_detail_that_substantiates_it`
+    - `test_the_orchestrate_branch_SHORT_CIRCUITS_before_execute_item_on_both_hosts`
+    Source-structure inspection grep check:
+    grep -E "inspect|ast\.|getsource" tests/test_orchestrator_probe_scope.py -> empty (0 matches).
+    BARE `python3 -m pytest` output:
+    `5147 passed, 2 skipped, 3 warnings in 265.59s (0:04:25)` (reconciled: baseline 5138 passed + 9 new tests = 5147 passed).
+    `aw ipd lint` output:
+    `20261004-gradcover-04-5etev3 [high] [blocking] conforming`
+    `aw sanitize --agent` output:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+    Staged changes scope check:
+    agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py
+    agent_workflows/runner_shared.py
+    tests/test_orchestrator_retirement.py
+    tests/test_orchestrator_probe_scope.py
+    .aw/records/plans/pending/20261004-gradcover-04-5etev3-run-the-coverage-probe-only-where-a-run-can-retire-an-orches.ipd.md
+  - Result: pass
 
 ## Approval and execution gate
 

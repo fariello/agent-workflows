@@ -3540,7 +3540,9 @@ class AnOrchestratorIsRetiredMidRun(DispatchRunCase):
     """
 
     def _set(self, setid="midrun"):
-        self.write_plan(
+        from agent_workflows import coverage_record as cr
+
+        orc_path = self.write_plan(
             bucket="pending",
             id6="orc100",
             order=0,
@@ -3549,6 +3551,7 @@ class AnOrchestratorIsRetiredMidRun(DispatchRunCase):
             setid=setid,
             declared=("01",),
         )
+        cr.write(orc_path, verdict=cr.COVERAGE_PASS, commit=False)
         self.child = self.write_plan(
             bucket="pending",
             id6="chi100",
@@ -4134,7 +4137,9 @@ class TheFourRefusalReasonsAreDistinguishable(DispatchRunCase):
 
         # 4. the transition refuses. Exercised through the dispatcher, because the rewrite from RETIRE
         #    to TERMINATE happens there and nowhere else.
-        self.write_plan(
+        from agent_workflows import coverage_record as cr
+
+        orc403_path = self.write_plan(
             bucket="pending",
             id6="orc403",
             order=0,
@@ -4143,6 +4148,7 @@ class TheFourRefusalReasonsAreDistinguishable(DispatchRunCase):
             setid="refuse",
             declared=("01",),
         )
+        cr.write(orc403_path, verdict=cr.COVERAGE_PASS, commit=False)
         self.write_plan(
             bucket="executed",
             id6="chi403",
@@ -4276,7 +4282,9 @@ class TheAgyHostActsOnTheDecision(DispatchRunCase):
                     "distinguish a missing BRANCH from a missing DECIDER"
                 )
                 continue
-            self.write_plan(
+            from agent_workflows import coverage_record as cr
+
+            orc800_path = self.write_plan(
                 bucket="pending",
                 id6="orc800",
                 order=0,
@@ -4285,6 +4293,7 @@ class TheAgyHostActsOnTheDecision(DispatchRunCase):
                 setid="branch",
                 declared=("01",),
             )
+            cr.write(orc800_path, verdict=cr.COVERAGE_PASS, commit=False)
             self.write_plan(
                 bucket="executed",
                 id6="chi800",

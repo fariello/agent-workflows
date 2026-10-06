@@ -18852,7 +18852,10 @@ class ProbeTarget(NamedTuple):
 
 
 def queued_orchestrator_targets(
-    state: Mapping[str, Any], *, repo: Path
+    state: Mapping[str, Any],
+    *,
+    repo: Path,
+    actions: Container[str] | None = None,
 ) -> tuple[ProbeTarget, ...]:
     """The orchestrators IN THIS RUN'S QUEUE, in queue order. Never the whole corpus.
 
@@ -18869,6 +18872,12 @@ def queued_orchestrator_targets(
             continue
         if (item.get("kind") or "") != "orchestrator":
             continue
+        if actions is not None:
+            act = item.get("action") or action_for(
+                item.get("kind"), item.get("initial_status") or item.get("status")
+            )
+            if act not in actions:
+                continue
         try:
             path = resolve_plan_path(
                 Path(repo),
@@ -19225,7 +19234,23 @@ def enforce_orchestrator_probe_gate(
     """
 
     labels = AGY_HOST_LABELS if host == "agy" else OC_HOST_LABELS
-    targets = queued_orchestrator_targets(state, repo=Path(repo))
+    targets = queued_orchestrator_targets(
+        state, repo=Path(repo), actions={"orchestrate"}
+    )
+    skipped_id6s = [
+        str(item.get("id6") or "")
+        for item in (state.get("queue") or [])
+        if isinstance(item, dict)
+        and (item.get("kind") or "") == "orchestrator"
+        and (
+            item.get("action")
+            or action_for(
+                item.get("kind"), item.get("initial_status") or item.get("status")
+            )
+        )
+        != "orchestrate"
+        and item.get("id6")
+    ]
     budget = (
         resolve_retry_budget(None)
         if retry_budget is None
@@ -19234,6 +19259,38 @@ def enforce_orchestrator_probe_gate(
     justification = (override_justification or "").strip()
     enabled_color = should_color(sys.stderr) if color is None else bool(color)
     pal = Palette(enabled_color)
+
+    if skipped_id6s:
+        count = len(skipped_id6s)
+        noun = "orchestrator" if count == 1 else "orchestrators"
+        styled_skipped = ", ".join(pal(x, "bold", "yellow") for x in skipped_id6s)
+        print(
+            f"orchestrator coverage probe: skipped {count} queued {noun} ({styled_skipped}) "
+            "whose action is not `orchestrate` (this run cannot retire them)",
+            file=sys.stderr,
+        )
+
+    def _emit(event: str, payload: dict[str, Any]) -> None:
+        append_jsonl(
+            Path(run_dir) / "events.jsonl", {"at": utc_now(), "event": event, **payload}
+        )
+
+    if not targets:
+        _emit(
+            "orchestrator-probe-gate",
+            {
+                "proceed": True,
+                "probed": [],
+                "skipped": skipped_id6s,
+                "calls": 0,
+            },
+        )
+        return ProbeGateDecision(
+            proceed=True,
+            outcomes=(),
+            calls=0,
+            message="",
+        )
 
     outcomes: list[ProbeOutcome] = []
     calls = 0
@@ -19253,11 +19310,6 @@ def enforce_orchestrator_probe_gate(
     blocking = [o for o in outcomes if o.blocks]
     unavailable = [o for o in outcomes if o.answer == PROBE_ANSWER_COULD_NOT_ASK]
     by_id = {str(item.get("id6")): item for item in state.get("queue") or []}
-
-    def _emit(event: str, payload: dict[str, Any]) -> None:
-        append_jsonl(
-            Path(run_dir) / "events.jsonl", {"at": utc_now(), "event": event, **payload}
-        )
 
     if not blocking:
         warned = bool(unavailable)
@@ -19297,6 +19349,7 @@ def enforce_orchestrator_probe_gate(
             {
                 "proceed": True,
                 "probed": [o.id6 for o in outcomes],
+                "skipped": skipped_id6s,
                 "calls": calls,
                 "warned_past": warned,
             },
@@ -19367,6 +19420,7 @@ def enforce_orchestrator_probe_gate(
             {
                 "proceed": True,
                 "probed": [o.id6 for o in outcomes],
+                "skipped": skipped_id6s,
                 "calls": calls,
                 "override": "flag",
                 "justification": justification,
@@ -19411,6 +19465,7 @@ def enforce_orchestrator_probe_gate(
             {
                 "proceed": True,
                 "probed": [o.id6 for o in outcomes],
+                "skipped": skipped_id6s,
                 "calls": calls,
                 "override": "interactive",
                 "blocking": [o.id6 for o in blocking],
@@ -19433,6 +19488,7 @@ def enforce_orchestrator_probe_gate(
         {
             "proceed": False,
             "probed": [o.id6 for o in outcomes],
+            "skipped": skipped_id6s,
             "calls": calls,
             "blocking": [o.id6 for o in blocking],
             "reason": reason,
@@ -20673,6 +20729,9 @@ def dispatch_orchestrator_item(
     success_states: Container[str],
     terminal_status: str = "fail-depend",
     recovery_hint: str | None = None,
+    host: str | None = None,
+    asker: Any = None,
+    runner: Any = None,
 ) -> OrchestratorDispatch:
     """PERFORM the retire/reconsider/terminate outcome for one `orchestrate` item. BOTH HOSTS.
 
@@ -20724,6 +20783,12 @@ def dispatch_orchestrator_item(
     """
     from agent_workflows import ipd_lifecycle as _lifecycle
 
+    if host is None:
+        caps = state.get("host_capabilities") or {}
+        resolved_host = "agy" if caps.get("host") == "antigravity" else "oc"
+    else:
+        resolved_host = host
+
     setid = str(item.get("setid") or "")
     id6 = str(item.get("id6") or "")
     # See the docstring: a refusal from a PREVIOUS dispatch of this same item must not survive into
@@ -20748,43 +20813,69 @@ def dispatch_orchestrator_item(
                 plan_path = membership.orchestrator.path
         result = None
         if plan_path is not None:
-            result = _lifecycle.retire_orchestrator(
+            from agent_workflows import orchestrator_readiness as _orch_ready
+
+            readiness = _orch_ready.review_readiness(
                 repo,
                 plan_path,
-                actor,
-                setid=setid,
-                run_id=str(state.get("run_id") or "") or None,
-                children=[m.id6 for m in read_set_membership(repo, setid).children],
-                eligibility=eligibility,
-                apply=True,
-                driver_attestation=get_run_attestation(run_dir),
+                ask=True,
+                state=state,
+                host=resolved_host,
+                retry_budget=frozen_retry_budget(state),
+                asker=asker,
+                runner=runner,
             )
-        if result is not None and result.exit_code == 0:
-            item["status"] = "executed"
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "orchestrator-finalized",
-                    "id6": id6,
-                    "setid": setid,
-                    "reason": ORCH_DISPATCH_RETIRE,
-                    "detail": decision.detail,
-                },
+            coverage_findings = [
+                f for f in readiness.findings if f.code in _orch_ready.CONDITION_4_CODES
+            ]
+            if coverage_findings:
+                finding_parts = [
+                    f"{f.subject}: {f.detail}; {f.remedy}" for f in coverage_findings
+                ]
+                decision = decision._replace(
+                    outcome=ORCH_DISPATCH_TERMINATE,
+                    reason=ORCH_REASON_FINALIZE_REFUSED,
+                    detail=f"retirement re-check refused: {'; '.join(finding_parts)}",
+                )
+            else:
+                result = _lifecycle.retire_orchestrator(
+                    repo,
+                    plan_path,
+                    actor,
+                    setid=setid,
+                    run_id=str(state.get("run_id") or "") or None,
+                    children=[m.id6 for m in read_set_membership(repo, setid).children],
+                    eligibility=eligibility,
+                    apply=True,
+                    driver_attestation=get_run_attestation(run_dir),
+                )
+        if decision.outcome == ORCH_DISPATCH_RETIRE:
+            if result is not None and result.exit_code == 0:
+                item["status"] = "executed"
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "orchestrator-finalized",
+                        "id6": id6,
+                        "setid": setid,
+                        "reason": ORCH_DISPATCH_RETIRE,
+                        "detail": decision.detail,
+                    },
+                )
+                return decision
+            # The transition REFUSED (or the orchestrator's own file could not be located). TERMINATE:
+            # a refusal here is structural, so retrying it on the next iteration would spin forever.
+            why = (
+                result.message
+                if result is not None
+                else f"the orchestrator plan file for Set {setid!r} could not be located on disk"
             )
-            return decision
-        # The transition REFUSED (or the orchestrator's own file could not be located). TERMINATE:
-        # a refusal here is structural, so retrying it on the next iteration would spin forever.
-        why = (
-            result.message
-            if result is not None
-            else f"the orchestrator plan file for Set {setid!r} could not be located on disk"
-        )
-        decision = decision._replace(
-            outcome=ORCH_DISPATCH_TERMINATE,
-            reason=ORCH_REASON_FINALIZE_REFUSED,
-            detail=f"retirement transition refused: {why}",
-        )
+            decision = decision._replace(
+                outcome=ORCH_DISPATCH_TERMINATE,
+                reason=ORCH_REASON_FINALIZE_REFUSED,
+                detail=f"retirement transition refused: {why}",
+            )
 
     if decision.outcome == ORCH_DISPATCH_RECONSIDER:
         # WRITE NO STATUS. The item stays `queued`, exactly as one skipped by the inner selection pass
