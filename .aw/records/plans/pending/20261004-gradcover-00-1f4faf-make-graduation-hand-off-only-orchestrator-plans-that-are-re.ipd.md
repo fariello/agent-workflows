@@ -19,6 +19,7 @@
 - Id: 1f4faf
 
 ## Workflow history
+- 2026-10-06 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `dalmk4` (finding PR-001): Order 11 now also depends on `5etev3`, `r2wa38` and `sbiv1j`, because the `AGENTS.md` text it installs describes their gates; E-11 and the child-table row updated to match. The review verdict and readiness of this plan are unchanged.
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-007..PR-010 (round 2, all fixed)
 - 2026-10-06 /plan-review (opencode its_direct/pt3-claude-opus-5.5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-007 to PR-010 (round 2). Fixed: self-gating window after Order 03 stated with its remedy (PR-007); `axozpe` evidence corrected to its `Required tests / validation` and Order 04 (PR-008); "four spec amendments" corrected to five specs (PR-009); V-* status grep made `-m1` so it cannot match open-question `- Status:` lines (PR-010). Round-1 PR-006 confirmed fixed by the maintainer's 2026-10-04 ruling (OQ-03 resolved, non-blocking).
 - 2026-10-05 to-review (aw set): returned to review after revision: maintainer ruling 2026-10-04 stores the coverage answer in the plan (25kzda 2.5e), resolving blocking OQ-03; every affected plan was rewritten to match
@@ -94,7 +95,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 - [ ] E-11 CONFIRM dalmk4 REACHED executed
-  - Depends on: E-05
+  - Depends on: E-04, E-05, E-06, E-10
   - Expected outcome: dalmk4 reads `- Status: executed` on disk.
   - Execution state: pending
 
@@ -122,7 +123,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | 08 | 24qw39 | `.aw/records/plans/pending/20261004-gradcover-08-24qw39-let-a-production-action-resume-an-unfinished-handoff-instead.ipd.md` | Let a production action over an `open` backlog item (or `approved` spec) whose existing plans are unfinished CONTINUE them instead of refusing with `BACKLOG-GRADUATE-COUNT`'s duplicate-active branch, and hand the agent the list of existing plans with their failures. | `executed:nnsa2o` |
 | 09 | 52opph | `.aw/records/plans/pending/20261004-gradcover-09-52opph-re-check-every-pending-orchestrator-and-send-the-failing-one.ipd.md` | Run `aw ipd coverage` over every pending orchestrator plan, record the answer in each plan, return each failing orchestrator and its children to `draft`, reopen its backlog item to `open`, and write the measured results into this plan's evidence so the per-Set fixes can be done by resumed graduation. Measures but never demotes this Set's own plans. | `executed:24qw39`, `executed:26m1nb` |
 | 10 | sbiv1j | `.aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md` | Make `aw backlog set graduated` (both spellings) and `aw specs set implementing` refuse while any plan naming the source in `- From-Backlog:` / `- From-Spec:` is not ready, and add `check.graduation-incomplete` for the reverse drift. Ordered after Order 09 so the existing graduated items are reopened before the check would flag them. | `executed:52opph` |
-| 11 | dalmk4 | `.aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md` | State the coverage rule where authors read it: both production prompts, the orchestrator skeleton's placeholders, the managed `AGENTS.md` block in `engine.py` and the installed `AGENTS.md`, and the `/plan-review` workflow. | `executed:26m1nb` |
+| 11 | dalmk4 | `.aw/records/plans/pending/20261004-gradcover-11-dalmk4-state-the-orchestrator-coverage-rule-in-the-production-promp.ipd.md` | State the coverage rule where authors read it: both production prompts, the orchestrator skeleton's placeholders, the managed `AGENTS.md` block in `engine.py` and the installed `AGENTS.md`, and the `/plan-review` workflow. | `executed:26m1nb`, `executed:5etev3`, `executed:r2wa38`, `executed:sbiv1j` |
 | 12 | wytlly | `.aw/records/plans/pending/20261004-gradcover-12-wytlly-prove-end-to-end-that-a-graduation-yields-an-orchestrator-th.ipd.md` | The Set's final cross-child measurement: drive a real graduation of a fixture backlog item through the runner with a scripted host, then a review run and an orchestrate run over the result, proving both the refusal path and the success path end to end; own the cross-surface ONE PREDICATE parity check (its E-05); run the bare suite. | `executed:sbiv1j`, `executed:dalmk4`, `executed:5etev3` |
 | 13 | jm27py | `.aw/records/plans/pending/20261004-gradcover-13-jm27py-stop-the-from-spec-nudge-for-a-plan-that-declares-no-spec-so.ipd.md` | Make `check.plan-spec-link-missing` treat a written `- From-Spec: none` / `-` and a declared edit of the cited spec as answers, so it fires only when the relationship is undeclared. Independent of every other child. | none |
 
