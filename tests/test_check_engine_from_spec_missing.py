@@ -19,7 +19,7 @@ Verifies:
 3. check_plan_spec_link_missing:
    - pending plan citing known spec with no edge (1 info finding naming plan and spec)
    - same plan carrying the edge (0 findings)
-   - same carrying - From-Spec: - (finding, via source_link_is_absent)
+   - same carrying - From-Spec: - or none (0 findings, explicit answer; IPD jm27py)
    - same file under executed/ (0 findings)
    - plan citing no known spec (0 findings)
    - empty known-spec-id union (returns [], fail-safe)
@@ -278,6 +278,7 @@ class TestCheckPlanSpecLinkMissing(unittest.TestCase):
             self.assertEqual(len(drifts), 0)
 
     def test_plan_carrying_absent_sentinel(self) -> None:
+        """IPD jm27py: a written '- From-Spec: -' is an explicit answer and yields no finding."""
         with TemporaryDirectory() as tmp:
             repo = _create_minimal_repo(Path(tmp))
             _create_spec(repo, "c4gd2h")
@@ -288,8 +289,179 @@ class TestCheckPlanSpecLinkMissing(unittest.TestCase):
                 from_spec="-",
             )
             drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 0)
+
+    def test_plan_carrying_from_spec_none(self) -> None:
+        """IPD jm27py: a written '- From-Spec: none' is an explicit answer (silent)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Flag plans citing spec c4gd2h without link",
+                from_spec="none",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 0)
+
+    def test_plan_carrying_from_spec_unresolved(self) -> None:
+        """IPD jm27py: '- From-Spec: unresolved' is a scaffold placeholder, not an answer (fires)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Flag plans citing spec c4gd2h without link",
+                from_spec="unresolved",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
             self.assertEqual(len(drifts), 1)
             self.assertEqual(drifts[0].rule, "check.plan-spec-link-missing")
+
+    def test_plan_carrying_empty_from_spec(self) -> None:
+        """IPD jm27py: an empty '- From-Spec:' is unanswered (fires)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Flag plans citing spec c4gd2h without link",
+                from_spec="",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 1)
+            self.assertEqual(drifts[0].rule, "check.plan-spec-link-missing")
+
+    def test_plan_editing_cited_spec_exempt(self) -> None:
+        """IPD jm27py: plan declaring an edit of the cited spec in Scope-Paths is exempt (silent)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            spec_path = _create_spec(repo, "c4gd2h")
+            spec_rel = spec_path.relative_to(repo).as_posix()
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Amends spec c4gd2h",
+                scope_paths=spec_rel,
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 0)
+
+    def test_plan_partial_spec_edit(self) -> None:
+        """IPD jm27py: plan citing two specs but editing only one reports only the other spec."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            spec1_path = _create_spec(repo, "c4gd2h")
+            _create_spec(repo, "x75obw")
+            spec1_rel = spec1_path.relative_to(repo).as_posix()
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Amends spec c4gd2h and mentions x75obw",
+                scope_paths=spec1_rel,
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 1)
+            d = drifts[0]
+            self.assertIn("x75obw", d.detail)
+            self.assertNotIn("c4gd2h", d.detail)
+            self.assertIn("x75obw", d.observed)
+            self.assertNotIn("c4gd2h", d.observed)
+            self.assertIn("x75obw", d.recovery)
+            self.assertNotIn("c4gd2h", d.recovery)
+
+    def test_plan_with_unrelated_scope_paths(self) -> None:
+        """IPD jm27py: plan citing a spec with unrelated Scope-Paths entry still fires."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Mentions spec c4gd2h",
+                scope_paths="agent_workflows/foo.py",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 1)
+            self.assertIn("c4gd2h", drifts[0].detail)
+
+    def test_plan_with_directory_scope_paths_fires(self) -> None:
+        """IPD jm27py: directory Scope-Paths entry (.aw/records/specs/approved/) does not exempt (fires)."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Mentions spec c4gd2h",
+                scope_paths=".aw/records/specs/approved/",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 1)
+            self.assertIn("c4gd2h", drifts[0].detail)
+
+    def test_plan_carrying_quoted_none_or_uppercase_none(self) -> None:
+        """IPD jm27py: quoted 'none' and uppercase 'None' are normalized and silent."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            # Quoted "none"
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Flag plans citing spec c4gd2h without link",
+                from_spec='"none"',
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 0)
+
+            # Uppercase None
+            p = (
+                repo
+                / ".aw"
+                / "records"
+                / "plans"
+                / "pending"
+                / "20260928-testset-01-0ykozn-test.ipd.md"
+            )
+            p.unlink()
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Flag plans citing spec c4gd2h without link",
+                from_spec="None",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 0)
+
+    def test_finding_recovery_and_required_names_all_three_answers(self) -> None:
+        """IPD jm27py: finding recovery and required text name link, none sentinel, and Scope-Paths."""
+        with TemporaryDirectory() as tmp:
+            repo = _create_minimal_repo(Path(tmp))
+            _create_spec(repo, "c4gd2h")
+            _create_plan(
+                repo,
+                "0ykozn",
+                concern="Flag plans citing spec c4gd2h without link",
+            )
+            drifts = check_engine.check_plan_spec_link_missing(repo)
+            self.assertEqual(len(drifts), 1)
+            d = drifts[0]
+            # Link option
+            self.assertIn("aw ipd set 0ykozn --from-spec c4gd2h", d.recovery)
+            # Explicit none hand-edit option
+            self.assertIn("- From-Spec: none", d.recovery)
+            self.assertIn("hand", d.recovery)
+            # Scope-Paths spec edit option
+            self.assertIn("Scope-Paths", d.recovery)
+
+            # Required field also reflects options
+            self.assertIn("- From-Spec: c4gd2h", d.required)
+            self.assertIn("- From-Spec: none", d.required)
+            self.assertIn("Scope-Paths", d.required)
 
     def test_plan_in_executed_dir_exempt(self) -> None:
         with TemporaryDirectory() as tmp:

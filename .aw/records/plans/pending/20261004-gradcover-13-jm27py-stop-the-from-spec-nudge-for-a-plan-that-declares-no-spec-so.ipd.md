@@ -36,22 +36,22 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rule
 
-- [ ] E-01 In `check_plan_spec_link_missing`, before parsing citations: if the plan's `- From-Spec:` value, stripped and lowercased, is `none` or `-`, skip the plan (an explicit answer). Keep `unresolved`, an empty value and a missing field as unanswered. Define the two accepted values as a named constant in `check_engine` with a comment stating why `unresolved` is excluded, rather than editing `ipd_schema.SOURCE_LINK_ABSENT_SENTINELS`, which other callers rely on. Normalize exactly as `source_link_is_absent` does (strip whitespace and surrounding quotes, then lowercase), so `"none"` and `None` count too. Also rewrite the finding's `required` and `recovery` text so it names all three answers: link it (`aw ipd set <id6> --from-spec <spec-id6>`), write `- From-Spec: none` in the front matter when the plan is not produced from a spec (state that this is a hand edit: `aw ipd set --from-spec none` is refused as an unresolvable spec id, and `--from-spec -` removes the line), or list the spec's file in `- Scope-Paths:` when the plan edits it.
+- [x] E-01 In `check_plan_spec_link_missing`, before parsing citations: if the plan's `- From-Spec:` value, stripped and lowercased, is `none` or `-`, skip the plan (an explicit answer). Keep `unresolved`, an empty value and a missing field as unanswered. Define the two accepted values as a named constant in `check_engine` with a comment stating why `unresolved` is excluded, rather than editing `ipd_schema.SOURCE_LINK_ABSENT_SENTINELS`, which other callers rely on. Normalize exactly as `source_link_is_absent` does (strip whitespace and surrounding quotes, then lowercase), so `"none"` and `None` count too. Also rewrite the finding's `required` and `recovery` text so it names all three answers: link it (`aw ipd set <id6> --from-spec <spec-id6>`), write `- From-Spec: none` in the front matter when the plan is not produced from a spec (state that this is a hand edit: `aw ipd set --from-spec none` is refused as an unresolvable spec id, and `--from-spec -` removes the line), or list the spec's file in `- Scope-Paths:` when the plan edits it.
   - Depends on: none
   - Expected outcome: a pending plan citing a known spec with `- From-Spec: none` or `- From-Spec: -` produces no finding; with `unresolved`, an empty value or no field it still produces one.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 After computing the cited id6s, drop each id6 whose spec FILE path appears LITERALLY in the plan's parsed `- Scope-Paths:` (use `ipd_schema.parse_scope_paths`; map each known id6 to its file through `_iter_spec_records` plus `_read_item_id`; compare as repo-relative POSIX paths with exact string equality). A directory or glob entry (for example `.aw/records/specs/approved/`) does NOT count even though `ipd_lifecycle._scope_match` would match it: a broad entry would silence every spec under it and is not a declaration that the plan edits THIS spec, which is a false negative. If no cited id6 remains, produce no finding; otherwise report only the remaining ones.
+- [x] E-02 After computing the cited id6s, drop each id6 whose spec FILE path appears LITERALLY in the plan's parsed `- Scope-Paths:` (use `ipd_schema.parse_scope_paths`; map each known id6 to its file through `_iter_spec_records` plus `_read_item_id`; compare as repo-relative POSIX paths with exact string equality). A directory or glob entry (for example `.aw/records/specs/approved/`) does NOT count even though `ipd_lifecycle._scope_match` would match it: a broad entry would silence every spec under it and is not a declaration that the plan edits THIS spec, which is a false negative. If no cited id6 remains, produce no finding; otherwise report only the remaining ones.
   - Depends on: E-01
   - Expected outcome: a plan citing `25kzda` whose Scope-Paths lists the `25kzda` spec file produces no finding; one citing `25kzda` and `r07vma` that edits only `25kzda` reports `r07vma` only; one whose Scope-Paths lists an unrelated path, or a directory that contains the cited spec's file, still reports.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: pin it
 
-- [ ] E-03 Update `tests/test_check_engine_from_spec_missing.py`: change `test_plan_carrying_absent_sentinel` so a written `- From-Spec: -` yields NO finding, naming the changed assertion and the reason in the commit message; add cases for `none` (silent), `unresolved` (fires), empty value (fires), the spec-edit exemption (silent), the partial spec-edit case (fires for the other spec only), an unrelated Scope-Paths entry (fires), a directory entry containing the cited spec's file (fires), and quoted `"none"` / uppercase `None` (silent); assert the finding's recovery text names all three answers. Run the rule over the real tree and paste the before and after finding counts with the list of plans that stopped being flagged, confirming each one declares `none`/`-` or edits the cited spec. Expected on today's tree: every `gradcover` plan stops being flagged (Order 01 `hm1h3l` cites `2vev8j` without editing it, and carries `- From-Spec: none` for that reason since the 2026-10-04 review of this plan); re-derive the list at execution rather than trusting this sentence. Prove the tests can fail by reverting E-01 and pasting the failure.
+- [x] E-03 Update `tests/test_check_engine_from_spec_missing.py`: change `test_plan_carrying_absent_sentinel` so a written `- From-Spec: -` yields NO finding, naming the changed assertion and the reason in the commit message; add cases for `none` (silent), `unresolved` (fires), empty value (fires), the spec-edit exemption (silent), the partial spec-edit case (fires for the other spec only), an unrelated Scope-Paths entry (fires), a directory entry containing the cited spec's file (fires), and quoted `"none"` / uppercase `None` (silent); assert the finding's recovery text names all three answers. Run the rule over the real tree and paste the before and after finding counts with the list of plans that stopped being flagged, confirming each one declares `none`/`-` or edits the cited spec. Expected on today's tree: every `gradcover` plan stops being flagged (Order 01 `hm1h3l` cites `2vev8j` without editing it, and carries `- From-Spec: none` for that reason since the 2026-10-04 review of this plan); re-derive the list at execution rather than trusting this sentence. Prove the tests can fail by reverting E-01 and pasting the failure.
   - Depends on: E-02
   - Expected outcome: the updated file passes; the mutation fails it; on the real tree the findings that disappear are exactly the declared ones.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -115,20 +115,138 @@ No spec governs this rule (its only home is the `check_engine` rule table and th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark. Accepted validation results: blocked, failed, pass, pending; terminal gate demands 'pass'.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the diff and test output for `none` (no finding), `-` (no finding), `unresolved` (finding), empty (finding), missing (finding).
   - Observed evidence:
-  - Result: pending
+    Diff:
+    ```diff
+    +_FROM_SPEC_LINE_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(.*?)[ \t]*$")
+    +
+    +# IPD jm27py E-01: explicit "no spec source" sentinels that silence check.plan-spec-link-missing.
+    +# `unresolved` is deliberately excluded because it is the scaffold's placeholder for "not decided
+    +# yet" (ipd_authoring._AUTHORING_PLACEHOLDERS), so treating it as an answer would turn the nudge's
+    +# main target into a false negative.
+    +PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
+    ...
+    +        # Check existing From-Spec (E-01: skip explicit "none" or "-")
+    +        m_fs = _FROM_SPEC_LINE_RE.search(text)
+    +        if m_fs is not None:
+    +            raw_target = m_fs.group(1)
+    +            cleaned_target = raw_target.strip().strip("\"'").strip().lower()
+    +            if cleaned_target in PLAN_SPEC_LINK_NO_SOURCE_SENTINELS:
+    +                continue
+    +            if not _ipd_schema.source_link_is_absent(raw_target):
+    +                # Valid edge already present
+    +                continue
+    ```
+    Test output:
+    ```
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_unresolved PASSED [ 20%]
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_pending_plan_missing_edge PASSED [ 40%]
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_absent_sentinel PASSED [ 60%]
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_none PASSED [ 80%]
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_empty_from_spec PASSED [100%]
+    ======================= 5 passed, 32 deselected in 0.37s =======================
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the diff and test output for the spec-edit exemption (no finding), the partial case (finding naming only the other spec), and the unrelated Scope-Paths entry (finding).
   - Observed evidence:
-  - Result: pending
+    Diff:
+    ```diff
+    +_SCOPE_PATHS_LINE_RE = _re.compile(r"(?m)^-\s*Scope-Paths:[ \t]*(.*)$")
+    ...
+    +    spec_files_by_id6: Dict[str, Set[str]] = {}
+    +    resolved_root = repo_root.resolve()
+    +    for sp, stext in _iter_spec_records(repo_root):
+    +        sid = _read_item_id(stext)
+    +        if sid:
+    +            try:
+    +                rel = sp.resolve().relative_to(resolved_root).as_posix()
+    +            except (ValueError, OSError):
+    +                rel = sp.as_posix()
+    +            spec_files_by_id6.setdefault(sid, set()).add(rel)
+    ...
+    +        # E-02: drop each cited id6 whose spec file path appears literally in Scope-Paths
+    +        m_sp = _SCOPE_PATHS_LINE_RE.search(text)
+    +        if m_sp is not None:
+    +            sp_raw = m_sp.group(1)
+    +            parsed_paths, _is_gf, _errs = _ipd_schema.parse_scope_paths(sp_raw)
+    +            if parsed_paths:
+    +                scope_set = set(parsed_paths)
+    +                cited = [
+    +                    tok
+    +                    for tok in cited
+    +                    if not any(
+    +                        spec_file in scope_set
+    +                        for spec_file in spec_files_by_id6.get(tok, ())
+    +                    )
+    +                ]
+    +                if not cited:
+    +                    continue
+    ```
+    Test output:
+    ```
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_editing_cited_spec_exempt PASSED [ 33%]
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_partial_spec_edit PASSED [ 66%]
+    tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_with_unrelated_scope_paths PASSED [100%]
+    ======================= 3 passed, 34 deselected in 0.34s =======================
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the updated test file passing with its count and the changed assertion; the real-tree before/after counts with the list of plans no longer flagged, each shown to declare `none`/`-` or to edit the cited spec; the mutation failing and the revert passing; a grep for source-structure reads in the test file returning nothing. Paste the BARE `python3 -m pytest` summary reconciled against your baseline, `aw ipd lint` conforming, `aw sanitize --agent`, and `git diff --cached --name-only` listing only the two declared paths.
   - Observed evidence:
-  - Result: pending
+    Updated test file passing (37 passed, changed assertion: test_plan_carrying_absent_sentinel now asserts len(drifts) == 0):
+    ```
+    .....................................                                    [100%]
+    37 passed in 2.98s
+    ```
+
+    Real-tree before/after counts:
+    Before: 24 findings
+    After: 13 findings
+    Plans no longer flagged (11 total: 10 gradcover plans declaring - From-Spec: none, plus 1 plan editing both cited specs in Scope-Paths):
+    - .aw/records/plans/pending/20261004-gradcover-02-8mabmu-make-the-coverage-probe-quote-the-work-it-found-and-credit-w.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-03-qs00nc-add-one-shared-orchestrator-review-readiness-check-and-the-a.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-04-5etev3-run-the-coverage-probe-only-where-a-run-can-retire-an-orches.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-05-26m1nb-refuse-aw-ipd-set-to-review-reviewed-and-approved-for-an-orc.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-06-r2wa38-check-the-whole-set-before-a-production-action-hands-off-a-b.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-07-nnsa2o-send-a-refused-production-or-review-action-back-for-bounded.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-08-24qw39-let-a-production-action-resume-an-unfinished-handoff-instead.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-09-52opph-re-check-every-pending-orchestrator-and-send-the-failing-one.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-10-sbiv1j-refuse-aw-backlog-set-graduated-and-aw-specs-set-implementin.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20261004-gradcover-13-jm27py-stop-the-from-spec-nudge-for-a-plan-that-declares-no-spec-so.ipd.md (- From-Spec: none)
+    - .aw/records/plans/pending/20260930-lifegate-02-e25iy9-delete-the-driver-token-and-the-location-guess-and-check-the.ipd.md (Scope-Paths includes .aw/records/specs/approved/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md and .aw/records/specs/to-review/20260920-llbr2b-01-llbr2b-lifecycle-automation-policy.spec.md)
+
+    Mutation failure:
+    Mutated PLAN_SPEC_LINK_NO_SOURCE_SENTINELS = frozenset():
+    ```
+    FAILED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_absent_sentinel
+    FAILED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_from_spec_none
+    FAILED tests/test_check_engine_from_spec_missing.py::TestCheckPlanSpecLinkMissing::test_plan_carrying_quoted_none_or_uppercase_none
+    3 failed, 34 passed in 2.98s
+    ```
+    Revert passing:
+    ```
+    37 passed in 2.98s
+    ```
+
+    Grep for source-structure reads:
+    `grep -iE "inspect|ast" tests/test_check_engine_from_spec_missing.py` exited 1 (no matches).
+
+    Bare pytest summary reconciled:
+    Baseline: `5083 passed, 2 skipped, 3 warnings in 416.60s (0:06:56)`
+    Post-edit: `5092 passed, 2 skipped, 3 warnings in 254.56s (0:04:14)`
+    Delta: +9 new tests passed.
+
+    aw ipd lint conforming:
+    `- >  ◕  approved     plan        20261004-gradcover-13-jm27py  [high]  [blocking]  conforming`
+
+    aw sanitize --agent:
+    `{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}`
+  - Result: pass
 
 ## Approval and execution gate
 

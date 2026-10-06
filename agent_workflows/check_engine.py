@@ -24,7 +24,7 @@ import os
 import re as _re
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Set, Tuple
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
@@ -251,8 +251,10 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.spec-anchor-stale": RuleSpec(
         "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
-    # IPD 0ykozn (backlog 1zknu7): advisory pending-scoped nudge flagging a pending plan whose
-    # front-matter bullets cite a resolvable spec id6 while carrying no `- From-Spec:`.
+    # IPD 0ykozn (backlog 1zknu7), amended by IPD jm27py: advisory pending-scoped nudge flagging a
+    # pending plan whose front-matter bullets cite a resolvable spec id6 while carrying neither a valid
+    # `- From-Spec:` link, an explicit "no spec source" sentinel (`none` or `-`), nor an edit of that
+    # spec in its `- Scope-Paths:`.
     # Advisory by design (`info` severity) because citing a spec as a constraint does not necessarily
     # mean graduating from it (OQ-02). Scoped to `pending/` so terminal plans (executed/superseded)
     # are never examined, while the nudge remains visible on `aw check plans` throughout authoring.
@@ -6541,6 +6543,14 @@ def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
 _TARGET_BULLET_RE = _re.compile(r"^-\s*(?:Concern|Scope|Scope-Paths):[ \t]*(.*)$")
 _CITED_SPEC_TOKEN_RE = _re.compile(r"\b([0-9a-z]{6})\b")
 _PLAN_SPEC_LINK_MISSING_RULE = "check.plan-spec-link-missing"
+_FROM_SPEC_LINE_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(.*?)[ \t]*$")
+_SCOPE_PATHS_LINE_RE = _re.compile(r"(?m)^-\s*Scope-Paths:[ \t]*(.*)$")
+
+# IPD jm27py E-01: explicit "no spec source" sentinels that silence check.plan-spec-link-missing.
+# `unresolved` is deliberately excluded because it is the scaffold's placeholder for "not decided
+# yet" (ipd_authoring._AUTHORING_PLACEHOLDERS), so treating it as an answer would turn the nudge's
+# main target into a false negative.
+PLAN_SPEC_LINK_NO_SOURCE_SENTINELS: FrozenSet[str] = frozenset({"-", "none"})
 
 
 def parse_cited_spec_ids(plan_text: str, known_spec_ids: Iterable[str]) -> List[str]:
@@ -6585,9 +6595,10 @@ def check_plan_spec_link_missing(
 ) -> List[_core.Drift]:
     """Pending-scoped advisory rule flagging a pending plan citing a known spec without From-Spec.
 
-    IPD 0ykozn E-04 / PR-501.
+    IPD 0ykozn E-04 / PR-501; amended by IPD jm27py.
     Flags a plan in a `pending/` lane whose `- Concern:`, `- Scope:`, or `- Scope-Paths:` front matter
-    cites a resolvable spec id6 while carrying no `- From-Spec:`.
+    cites a resolvable spec id6 while carrying neither a valid `- From-Spec:` link, an explicit
+    "no spec source" sentinel (`none` or `-`), nor an edit of that spec in its `- Scope-Paths:`.
     Pending-scoping ensures historical records (executed/superseded) are never examined, while keeping
     the advisory nudge visible on `aw check plans` throughout the plan's authoring/review lifecycle.
     """
@@ -6600,6 +6611,17 @@ def check_plan_spec_link_missing(
 
     from agent_workflows import ipd_schema as _ipd_schema
 
+    spec_files_by_id6: Dict[str, Set[str]] = {}
+    resolved_root = repo_root.resolve()
+    for sp, stext in _iter_spec_records(repo_root):
+        sid = _read_item_id(stext)
+        if sid:
+            try:
+                rel = sp.resolve().relative_to(resolved_root).as_posix()
+            except (ValueError, OSError):
+                rel = sp.as_posix()
+            spec_files_by_id6.setdefault(sid, set()).add(rel)
+
     for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
         if "pending" not in p.parts:
             continue
@@ -6608,11 +6630,14 @@ def check_plan_spec_link_missing(
         except OSError:
             continue
 
-        # Check existing From-Spec
-        m_fs = _ITEM_FROM_SPEC_RE.search(text)
+        # Check existing From-Spec (E-01: skip explicit "none" or "-")
+        m_fs = _FROM_SPEC_LINE_RE.search(text)
         if m_fs is not None:
-            target = m_fs.group(1)
-            if not _ipd_schema.source_link_is_absent(target):
+            raw_target = m_fs.group(1)
+            cleaned_target = raw_target.strip().strip("\"'").strip().lower()
+            if cleaned_target in PLAN_SPEC_LINK_NO_SOURCE_SENTINELS:
+                continue
+            if not _ipd_schema.source_link_is_absent(raw_target):
                 # Valid edge already present
                 continue
 
@@ -6620,9 +6645,32 @@ def check_plan_spec_link_missing(
         if not cited:
             continue
 
+        # E-02: drop each cited id6 whose spec file path appears literally in Scope-Paths
+        m_sp = _SCOPE_PATHS_LINE_RE.search(text)
+        if m_sp is not None:
+            sp_raw = m_sp.group(1)
+            parsed_paths, _is_gf, _errs = _ipd_schema.parse_scope_paths(sp_raw)
+            if parsed_paths:
+                scope_set = set(parsed_paths)
+                cited = [
+                    tok
+                    for tok in cited
+                    if not any(
+                        spec_file in scope_set
+                        for spec_file in spec_files_by_id6.get(tok, ())
+                    )
+                ]
+                if not cited:
+                    continue
+
         id6 = _read_item_id(text) or p.stem
         cited_str = ", ".join(cited)
-        recovery = f"aw ipd set {id6} --from-spec {cited[0]}"
+        recovery = (
+            f"link it (aw ipd set {id6} --from-spec {cited[0]}), "
+            "write '- From-Spec: none' in front matter by hand if not produced from a spec "
+            "(aw ipd set --from-spec none is refused as an unresolvable spec id, and --from-spec - removes the line), "
+            "or list the spec's file in - Scope-Paths: if editing it"
+        )
 
         drift.append(
             enrich_drift(
@@ -6633,7 +6681,10 @@ def check_plan_spec_link_missing(
                     severity="info",
                 ),
                 observed=f"cites {cited_str} in front matter with no - From-Spec: edge",
-                required=f"- From-Spec: {cited[0]}",
+                required=(
+                    f"- From-Spec: {cited[0]}, '- From-Spec: none' if not produced from a spec, "
+                    "or the cited spec's file in - Scope-Paths: if editing it"
+                ),
                 recovery=recovery,
             )
         )
