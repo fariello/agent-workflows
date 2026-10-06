@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-malgate-00-qtz0us-apply-p15-to-the-existing-gates-audit-every-anti-malice-chec.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: bc636fe12725a3d4c73ed5e66391ca47fb8baa65bdda248b26e3c4b71ff29d75
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ariaau
@@ -18,6 +21,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint bc636fe12725, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated backlog `ariaau` as a Set of three children rather than one plan, because authoring measured three separable pieces of work with different risk profiles and different validation shapes. TWO MEASUREMENTS CHANGED THE SET'S SHAPE FROM THE ITEM'S DESCRIPTION. FIRST, the item states the `wtiso_gate.py` predicates are "Pinned by tests/test_containment_predicates.py", which implied a plan shape of 'retire the pin, then delete'; that file does not exist, having been deleted in commit `19313eed` (the 2026-09-24 suite trim), so nothing pins them, the module cites two deleted files as live enforcement at three sites, and Order 02's deletion is both smaller and safer than the item implies while gaining a citation strike the item does not mention. SECOND, the item's instruction to find comments "citing a 'determined same-user agent' or 'malicious' agent as the justification for a check" reads as a vocabulary sweep, and measurement inverted it: the large majority of hits are honest-limit DISCLAIMERS that name the hostile agent precisely in order to deny protecting against one, and those are the model P15 itself cites, so Order 03 is narrow and its primary obligation is a classification rather than a replacement. A third measurement widened Order 02: all NINE `wtiso_gate` predicates have zero product callers, not only the five raising stubs, so the honest subject is the module's whole disposition.
 - 2026-09-30 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -203,6 +207,16 @@ Three checks span the children and cannot be performed by any child alone, which
 - Owner: reviewer
 - Resolution or deferral rationale: No child declares such an edge, deliberately. `dvonrn` carries `Blocks-Release: next` and deletes the driver token from `ipd_lifecycle`, a neighbourhood Order 03 also edits, so an edge would be defensible. It is refused because it would block a comment-only fix behind a much larger release-gating behavior change, and because Order 03's E-02 explicitly checks `dvonrn`'s landed state and reconciles in EITHER order, requiring its reframed wording to survive the token's later deletion without a second edit. The residual risk is an ordinary text collision in one neighbourhood of one file, which the runner's isolated-worktree and merge-revalidate path already handles. Against that: running after `dvonrn` would be simpler, since part of Order 03's target list may already be fixed and that child would shrink.
 - Carrier-Declined: No carrier is owed under either answer. Order 03's E-02 handles both landed states inside the plan, so nothing is left unbuilt in either order, and its V-02 records which state was found.
+
+## Coverage findings
+
+- "Three checks span the children and cannot be performed by any child alone, which is why they live here."
+- "THE AUDIT-TO-ACTION RECONCILIATION (criterion 3). Read Order 01's record and Orders 02 and 03's diffs"
+- "THE DISCLAIMER FENCE HELD ACROSS BOTH REMEDIATION CHILDREN (criterion 5). Order 02 deletes prose and Order"
+- "THE SPEC SURFACE IS RECONCILED SET-WIDE. Exactly one child may amend a spec (`38pxaz`, spec `7ckptx`)."
+- "THE SET-LEVEL CROSS-CHECK a reviewer should apply, since no child can apply it alone: every mechanism enumerated in Order 01's audit with a SIMPLIFY or DELETE disposition must be either acted on by Order 02 or Order 03, or carry a named carrier outside this Set."
+- "3. EVERY SIMPLIFY OR DELETE ROW IN THAT RECORD HAS AN ACTOR: it was acted on by `38pxaz` or `dmjp0u`, or it"
+- "5. NOTHING P15 REQUIRES KEPT WAS REMOVED. `runner_shared`'s pre-work-baseline banner,"
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
