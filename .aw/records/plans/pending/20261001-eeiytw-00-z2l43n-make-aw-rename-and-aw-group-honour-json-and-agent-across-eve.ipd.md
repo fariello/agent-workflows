@@ -7,6 +7,9 @@
 - Scope-Paths: .aw/records/plans/pending/20261001-eeiytw-01-x7unul-carry-the-rename-and-group-facts-out-of-the-backends-in-a-ty.ipd.md, .aw/records/plans/pending/20261001-eeiytw-02-vfqjc0-emit-the-aw-agent-v1-payload-once-at-the-rename-and-group-di.ipd.md, .aw/records/plans/pending/20261001-eeiytw-03-gzb2rq-silence-the-nested-index-refresh-and-pin-the-machine-surface.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: c90c03dc9e479cb56c4f7bbed582b5690010b3d795205cbc8755498075d3aa7f
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: eeiytw
@@ -19,6 +22,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint c90c03dc9e47, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `eeiytw` together with its three children. Every claim in this plan and its children was MEASURED at HEAD `f824b915f` through the real CLI in throwaway git repos. The item's diagnosis is CORRECT on its headline claim and NARROWER than the defect in two measured ways, both corrected in the children rather than repeated: it says "plans" where the defect spans all nine types, and it names one un-quieted `run_index` call where there are two.
 
 ## Goal
@@ -117,6 +121,24 @@ THIS ORCHESTRATOR CARRIES ORCHESTRATION ONLY AND NO WORK OF ITS OWN. Every item 
 - Status: resolved
 - Owner: none
 - Resolution or deferral rationale: RESOLVED: NO, and the two have DIFFERENT reasons, which is why neither is carried. `aw index` genuinely has the same missing-payload defect (measured), but it also has a live open item against it, `4uw9gy`, whose own text warns that `--limit` on `index` means a hot-window size that IS honoured in the human path and that a fixer must not unify it with the other verbs; adding `index` here would collide with that item's territory and risk breaking a working feature to fix an unrelated one. `aw archive` is not a contract violation at all: its `command_surface` declaration lists neither `--json` nor `--agent` in `legacy_flags`, so no promise is being broken, and it dispatches through `_run_archive` rather than `_run_noun_verb`, so it would not even benefit from Order 02's emit site. Giving it the flags is a feature a maintainer should choose. The honest consequence, stated so this Set's `- Blocks-Release:` gate is not read as a wider claim than it is: after this Set, the missing-payload defect class is closed on `rename`, `group` and the two research spellings, and remains open on `index` and `archive`. REVERSIBLE: yes; either could be added by a later plan without undoing anything here.
+
+## Coverage findings
+
+- "Close backlog item `eeiytw` by making both verbs emit exactly one parseable `aw.agent/v1` record on stdout under `--json` and `--agent`, on every artifact type, on preview, apply and refusal, so that `json.loads(stdout)` succeeds where it raises today."
+- "The Set-wide end-to-end check, run once after Order 03: `json.loads(stdout)` succeeding for `aw rename plans --apply --json` and `aw group plans --apply --json` in a throwaway repo, which are the exact two commands backlog item `eeiytw` names."
+- "Bare `python3 -m pytest` green against the executor's own clean-tree baseline after each child."
+- "`aw check all` clean on this repository (Order 02 edits a documentation file), `aw sanitize --agent` clean, and `aw ipd lint --phase pre-transition` conforming on each child."
+- "Confirm `aw rename research --json` and `aw research mv --json` each emit exactly ONE `aw.agent/v1` record, counted explicitly, not merely "at least one"."
+- "Confirm the three are consistent in sequence: identical after 01, identical after 02, and differing after 03 by exactly the manifest line and nothing else."
+- "Confirm no loose assertion survives beside the strict one, because a passing loose assertion would hide a later regression in the strict property."
+- "Confirm no `.spec.md` file is in any child's `- Scope-Paths:` (none should be: the Set makes code obey contracts already written) and that the single documentation amendment is the one Order 02 declares (`docs/cli-output-contract.md` Section 5's `complete` value), with Section 11.3's rule text untouched."
+- "Confirm no manifest path (`INDEX.json`, `INDEX.md`) ever enters a commit, which `MutationResult`'s own docstring prohibits citing idxuntrack `4r0qp1` E-03."
+- "Confirm no child silently overwrote the other party's change."
+- "`json.loads(stdout)` SUCCEEDS for `aw rename <type> --json` and `aw group <type> --json` on at least `plans`, `specs`, `backlog` and `research`, on preview AND apply."
+- "`aw rename all` / `aw group all` emit exactly ONE record for the whole invocation, not one per expanded type, carrying the mixed outcome (the successful change AND the no-match diagnostics) that the `all` expansion really produces."
+- "No emitted record contains an absolute filesystem path, and `aw sanitize --agent` is clean."
+- "`aw index plans` and `aw research index` run directly still print their own outcome lines, proving the nested CALLER was silenced and not the verb."
+- "A commit made by `aw rename plans --apply --commit` contains no manifest path."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
