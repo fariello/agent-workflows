@@ -6,7 +6,7 @@
 - Scope: Pass `quiet=True` at the two nested `run_index` call sites that omit it, carry the regeneration into the structured payload as a `Change` rather than dropping the information, and TIGHTEN Order 02's parseability assertions for the `plans` and `research` types from payload-recoverability to strict `json.loads(stdout)`. EXCLUDES: changing `plans_index.run_index` or `research_index.run_index` themselves, changing `aw index <type>`'s own output, and the `--check` branch of either (which `wgp0g3` already addressed for a different caller).
 - Scope-Paths: agent_workflows/plans_refs.py, agent_workflows/research_refs.py, tests/test_rename_group_machine_output.py
 - Item-Dependencies: executed:vfqjc0
-- Status: to-review
+- Status: draft
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: eeiytw
@@ -18,6 +18,7 @@
 - Id: gzb2rq
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `eeiytw` as Order 03 of three children, owning the half the item calls "trivially available" plus the assertion tightening that makes the Set's claim true end to end. Every Findings row was MEASURED at HEAD `f824b915f` through the real CLI in throwaway git repos. Authoring found that the `research` path has the SAME un-quieted call, which the item does not mention (F-03).
 

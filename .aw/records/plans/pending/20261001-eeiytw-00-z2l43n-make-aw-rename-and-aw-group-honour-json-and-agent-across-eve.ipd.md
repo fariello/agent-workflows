@@ -6,7 +6,7 @@
 - Scope: Orchestrate the three children that close backlog item `eeiytw`: carry the facts out of the backends (Order 01), emit the payload once at each dispatch site (Order 02), and silence the nested manifest-refresh line so stdout is strictly parseable (Order 03). This plan performs NO work of its own; every deliverable belongs to a child.
 - Scope-Paths: .aw/records/plans/pending/20261001-eeiytw-01-x7unul-carry-the-rename-and-group-facts-out-of-the-backends-in-a-ty.ipd.md, .aw/records/plans/pending/20261001-eeiytw-02-vfqjc0-emit-the-aw-agent-v1-payload-once-at-the-rename-and-group-di.ipd.md, .aw/records/plans/pending/20261001-eeiytw-03-gzb2rq-silence-the-nested-index-refresh-and-pin-the-machine-surface.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: c90c03dc9e479cb56c4f7bbed582b5690010b3d795205cbc8755498075d3aa7f
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: z2l43n
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint c90c03dc9e47, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `eeiytw` together with its three children. Every claim in this plan and its children was MEASURED at HEAD `f824b915f` through the real CLI in throwaway git repos. The item's diagnosis is CORRECT on its headline claim and NARROWER than the defect in two measured ways, both corrected in the children rather than repeated: it says "plans" where the defect spans all nine types, and it names one un-quieted `run_index` call where there are two.

@@ -6,7 +6,7 @@
 - Scope: Map the facts Order 01 made available onto a `result_types.CommandResult` and emit it through `renderers.get_renderer` ONCE per invocation at the two dispatch sites (`cli._run_noun_verb` for `aw rename`/`aw group`, and the `research_cmd in ("set-assign","mv")` branch for the two research spellings), suppressing the backends' human prose when a machine mode is active and leaving it byte-identical when it is not. Covers all nine artifact types and the `all` expansion. EXCLUDES: the nested index-refresh line (Order 03), `aw index`, `aw archive`, and any change to the human surface.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/plans_refs.py, agent_workflows/artifact_rename.py, agent_workflows/research_refs.py, docs/cli-output-contract.md, tests/test_rename_group_machine_output.py
 - Item-Dependencies: executed:x7unul
-- Status: to-review
+- Status: draft
 - Work-Kind: bug
 - Priority: low
 - From-Backlog: eeiytw
@@ -18,6 +18,7 @@
 - Id: vfqjc0
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: Close backlog item eeiytw by making both verbs emit exactly one parseable aw.agent/v1 record
 
 - 2026-10-01 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog item `eeiytw` as Order 02 of three children, the one that actually closes the item's headline defect. Every Findings row was MEASURED at HEAD `f824b915f` through the real CLI in throwaway git repos. Authoring found a genuine CONTRADICTION in `docs/cli-output-contract.md` about the `complete` field on a preview record, at exactly the command this plan implements, and this plan amends the doc rather than picking a side silently (F-07, OQ-01).
 
