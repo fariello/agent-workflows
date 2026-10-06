@@ -6,7 +6,7 @@
 - Scope: IN: in `status_set.run_set_command`, for every matched plan record whose `- Kind:` is `orchestrator` and whose normalized target is `to-review`, `reviewed`, `approved` or `auto-approved`, call `orchestrator_readiness.review_readiness(..., ask=False)` and refuse with the shared human rendering or `aw.agent/v1` record; when the selection includes both an orchestrator and some of its children, apply the children first and evaluate the orchestrator after them in the same invocation; refuse the whole invocation atomically if the orchestrator then fails (no partial write); make every backward move between non-terminal statuses legal in `ipd_lifecycle._LEGAL_BACKWARD_EDGES`, requiring a reason and warning loudly on each; a regression test. OUT: gating backward transitions on readiness (every backward move stays allowed by the readiness gate so a plan can always be sent back; E-05 only makes them legal, reasoned and loud); gating the `draft` target; any non-plan record type; terminal transitions (the finalize delegation is unchanged); the scaffold (it already writes `draft` for both kinds, which this plan pins with a test rather than changes).
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/ipd_lifecycle.py, agent_workflows/orchestrator_readiness.py, tests/test_orchestrator_status_gate.py, tests/test_plan_transition_gate.py, tests/test_ipd_lifecycle_backward_edges.py, tests/test_status_set.py, tests/test_history_order.py
 - Item-Dependencies: executed:qs00nc
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - From-Spec: none
 - Work-Kind: bug
@@ -17,9 +17,9 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5.5-1m-us
 - Id: 26m1nb
-- Approval: 2026-10-06, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-10-06 executed (aw agy run model=Gemini-3.8-Flash-High): aw agy run self-finalize: 26m1nb verified (set gradcover, attempt 1). [Scope reconciliation - widened-scope tests/test_history_order.py: declared in Scope-Paths during execution because the approved work required it (additive widening, auto-reconciled by aw agy run); in-scope-unmodified agent_workflows/orchestrator_readiness.py: declared-but-unmodified (auto-acknowledged by aw agy run)]
 - 2026-10-06 approved (aw set): status set to approved
 - 2026-10-06 re-scope (opencode its_direct/pt3-claude-opus-5.5-1m-us): from the /plan-review of `nnsa2o` (finding PR-001): E-05 also strips `- Readiness:` on a backward move to `draft` or `to-review`. Measured: `aw ipd set to-review` on a `reviewed` plan kept `- Readiness: go-pending-approval`, which `tests/test_readiness_absence_invariant.py` refuses and which leaves a withdrawn review's readiness standing. Orders 07 and 09 demote through this setter. One clause added to E-05 and its expected outcome; the review verdict stands.
 - 2026-10-06 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-008..PR-011 (round 2, all fixed)
