@@ -2,10 +2,10 @@
 
 - Subject-Id: 5etev3
 - Subject-Type: ipd
-- Reviewed-At: 2026-10-04
+- Reviewed-At: 2026-10-06
 - Reviewer: opencode/its_direct/pt3-claude-opus-5.5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
-- Findings: PR-001 (HIGH, fixed), PR-002 (HIGH, fixed), PR-003 (MEDIUM, fixed), PR-004 (MEDIUM, fixed), PR-005 (LOW, fixed), PR-006 (LOW, fixed)
+- Findings: round 2: PR-007 (HIGH, fixed), PR-008 (MEDIUM, fixed), PR-009 (MEDIUM, fixed), PR-010 (MEDIUM, fixed), PR-011 (LOW, fixed)
 
 ## Round 1
 
@@ -43,3 +43,33 @@ raises `DriverError`.
 | D-1 | How does `dispatch_orchestrator_item` learn the host? | Keyword `host` passed by each loop, fallback mapping from `host_capabilities.host` | read state only (needs a mapping anyway, implicit); new state field (more surface) | `probe_argv`; `resolve_cli_host` measured | yes |
 | D-2 | Status of a retirement refused by the re-check? | Existing `finalize-refused` terminate path, plan left in `pending/` | new non-failing status (unspecified, touches renderers) | every other retirement refusal uses it; spec 2.5d says plan stays in `pending/` | yes |
 | D-3 | Fix existing retirement tests how? | Seed a pass verdict in their setup | patch `review_readiness` (hides the new call from those tests) | `record_probe_verdict` exists; tests keep their assertions | yes |
+
+## Round 2
+
+Re-review after the 2026-10-04 maintainer ruling moved the coverage answer into the plan (`25kzda` 2.5e). Lane
+`review-sweep-run-20261006T040814Z-944` at HEAD `c003d595e`; plan committed and byte-identical to the sealed lane input
+(no snapshot). `- Kind: child`, `IPD-S407` n/a. `aw ipd lint --phase author` clean before, `review-finalize` clean after.
+Orders 00 to 03 are `reviewed`, none executed, so `coverage_record` and `orchestrator_readiness` do not exist yet; their
+contracts were read from `8mabmu` E-03/E-07 and `qs00nc` E-01. Measured: a dispatch spy over nine runner test files
+(400 passed) shows exactly three tests reach the RETIRE branch, all in `tests/test_orchestrator_retirement.py`;
+`evaluate_set_retirement` is eligible for a Set with a `superseded/` child; `lint_file(..., checkpoint="author")` on a
+`pending/` child at `Status: executed` errors `IPD-S404`/`IPD-M105`; patching `ask_orchestrator_probe` with a wrapper over
+a `runner` double records `argv[0] == "agy"` for `host="agy"`, and `probe_argv(host="oc")` begins `opencode`.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-007 | HIGH | IN-SCOPE | A correctness / D regression | `runner_shared.evaluate_set_retirement`, `set_retirement_terminal_statuses` (`ipd_schema.TERMINAL`); `qs00nc` E-01 condition 2 and OQ-02 (ready list excludes `superseded`); `tests/test_orchestrator_retirement.py` `test_reconsidered_then_retired_in_the_same_run_on_both_hosts` fixture child at `pending/` + `Status: executed` | E-02 refused on any not-ready `review_readiness` result. Full 2.5d readiness is stricter than retirement eligibility: a Set with a deliberately superseded child (backlog `31y86f`) would never retire, and the existing mid-run fixture child would fail condition 2's `author` lint. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 refuses on condition-4 (coverage) findings only, with the reason and evidence (F-06, OQ-02); test (i) and a third mutation pin it; Scope updated; Order 01 given a re-scope note to make A.6 explicit. |
+| PR-008 | MEDIUM | IN-SCOPE | A data integrity | `ipd_lifecycle._assert_rollup_touched_only_owned_paths`; `8mabmu` E-07 "COMMIT THE RECORD AT ONCE" | E-02 left the dirty-plan ordering as an executor choice ("record which"), but Order 02 already settled it by committing at write. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 states the settled ordering, forbids a second commit path, and names a stop condition if Order 02 as executed differs; V-02 demands the check. |
+| PR-009 | MEDIUM | UNDER-SCOPE | E testability (reachability) | `dispatch_orchestrator_item` signature (no asker/runner); `oc_runipd.run_queue`/`agy_runipd.run_queue` | E-04 cases (d) to (h) require injecting an asker/runner into dispatch and `run_queue`, but no such seam exists or was planned. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-03 adds `asker`/`runner` pass-through keywords; (h) patches `ask_orchestrator_probe` with a runner-recording wrapper (demonstrated at review); V-03 names the expected tokens. |
+| PR-010 | MEDIUM | IN-SCOPE | D anti-regression / consistency | E-04 "seeding a `pass` verdict for each fixture orchestrator's digest"; `8mabmu` retires the verdict store | Stale wording from before the ruling contradicted the plan's own "write the coverage record" and was unmeasured as to which tests need it. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Replaced with writing a current coverage record; the three affected tests named as context with re-derivation required. |
+| PR-011 | LOW | IN-SCOPE | G executability | Required tests list; V-02/V-04 | `tests/test_driver_attestation_gate.py` (drives retirement) missing from the targeted run; mutation and V wording did not cover the new case. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Added to targeted run; V-02, V-03, V-04 reconciled. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Which readiness findings refuse a retirement? | Condition 4 (coverage) only | all four (regresses `31y86f`); new spec carve-out text in this plan (spec edit belongs to Order 01) | `hm1h3l` A.2 wording ("edited by a child's turn", "the quoted finding"); `evaluate_set_retirement` measured | yes |
+| D-2 | How do tests inject the probe into dispatch and `run_queue`? | `asker`/`runner` keyword pass-throughs on dispatch; patch `ask_orchestrator_probe` for `run_queue` | thread asker through `run_queue` (widens both host loops) | demonstrated wrapper recording `argv[0]` | yes |
+| D-3 | Dirty-plan ordering at retirement | Rely on Order 02's commit-at-write; no second commit path | commit in dispatch (a second commit path) | `8mabmu` E-07 | yes |
