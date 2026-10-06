@@ -11,7 +11,7 @@
   EXCLUDES, AND THIS FENCE IS LOAD-BEARING. (1) NO REQUIREMENT ON `supports_commit_gateway`. It is DECLARED AND NEVER PROBED with a False default by deliberate decision, so requiring it would refuse EVERY execute item on EVERY host; its spec-side overclaim is separately owned. (2) NO REINSTATEMENT of the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants that `01reg8` deleted on maintainer ruling `4h7tt0` OQ-02. One new class WITH a consumer is not a restoration of three classes without one, and no child may be read as reversing that ruling. (3) NO NEW PROBE. Every capability this Set consumes is already probed or already declared. (4) NO SPEC AMENDMENT: spec `25kzda` 5.2 already requires a "fresh verifier" for a mutating action and already specifies the exact per-item fail-closed refusal, and `01reg8` OQ-03 deliberately left that action table un-narrowed so a future requirement would have somewhere to land. No `.spec.md` appears in any child's `- Scope-Paths:`. (5) NO CROSS-RUN DESCRIPTOR CACHE with TTL or expiry; that is `host_capability_registry`'s separate concern.
 - Scope-Paths: .aw/records/plans/pending/20261002-hostcapgate-00-4qv834-make-the-probed-runner-safety-capabilities-gate-a-real-actio.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: 5f4117b908d1e2168db7007615002b600a656028c91284f7e40e512e64028ff4
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -25,6 +25,7 @@
 - Id: 4qv834
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The two children share two files and must not have fought over them
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint 5f4117b908d1, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `s8veyk` in lane worktree `s8veyk` at HEAD `6310b3e4`. The item's central claim HELD on re-measurement (one requirement row, empty `required`, verdict gates nothing). FOUR MEASUREMENTS SHAPED THIS SET, and two of them contradict or extend the item.

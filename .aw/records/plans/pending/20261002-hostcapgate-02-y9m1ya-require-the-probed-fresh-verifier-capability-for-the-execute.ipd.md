@@ -13,7 +13,7 @@
   EXCLUDES: requiring `supports_commit_gateway` anywhere (it is permanently False by deliberate decision, so requiring it would refuse every execute item on every host); reinstating the `ACTION_REVIEW`/`ACTION_MUTATE`/`ACTION_CONTRACTLESS_PROMPT` constants that `01reg8` deleted on maintainer ruling `4h7tt0` OQ-02 (a new class for execute is not a restoration of those three, and this plan must not be read as reversing that ruling); building any probe; changing the descriptor plumbing (Order 01 owns it); and amending spec `25kzda` 5.2's action table, which is deliberately NOT narrowed and which this plan moves toward rather than changes.
 - Scope-Paths: agent_workflows/host_sandbox_profile.py, agent_workflows/runner_shared.py, agent_workflows/run_selection_policy.py, tests/test_host_capability_extension.py, tests/test_hostcapgate_execute_requirement.py
 - Item-Dependencies: executed:bqtgmo
-- Status: to-review
+- Status: draft
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: s8veyk
@@ -24,6 +24,7 @@
 - Id: y9m1ya
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The two children share two files and must not have fought over them
 
 - 2026-10-02 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `s8veyk` in lane worktree `s8veyk` at HEAD `6310b3e4`. EVERY CLAIM IN THE ITEM WAS RE-MEASURED AND THE ITEM HELD ON ITS CENTRAL CLAIM: one requirement row, empty `required`, verdict gates nothing. THREE THINGS THE ITEM DOES NOT SAY shaped this plan.
   FIRST, THE ITEM NAMES ONE EMPTY HALF AND THERE ARE TWO. The item blames `ACTION_CAPABILITY_REQUIREMENTS`. But `RUNNER_ACTION_TO_CONTRACT_ACTION` is ALSO `{}`, and a reader who fixes only the requirement table ships a change that still gates nothing, because the runner never asks about `execute` in the first place. Both are measured here and both are in this plan's E-items; a plan that fixed one would have been verifiably useless.
