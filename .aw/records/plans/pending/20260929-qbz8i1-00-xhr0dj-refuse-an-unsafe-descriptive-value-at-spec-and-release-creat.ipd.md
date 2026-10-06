@@ -6,7 +6,7 @@
 - Scope: Orchestrate three children that together close the descriptive-value write paths (`uz05bl`), the filename derivation (`ribg85`), and the checker coverage (`ynhst5`) for the `specs` and `releases` trees. This plan holds ORCHESTRATION ONLY: every deliverable belongs to a child, and this file contributes no code, no test and no records repair of its own. EXCLUDES, in every child without exception: minting a new rule id, changing `attention_contract.is_safe_descriptive` or `MAX_DESCRIPTIVE_LEN`, changing the on-disk record grammar, guarding the shared positional `aw <tree> set` setter, and bounding a history-record message on LENGTH.
 - Scope-Paths: .aw/records/plans/pending/20260929-qbz8i1-00-xhr0dj-refuse-an-unsafe-descriptive-value-at-spec-and-release-creat.ipd.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: draft
 - Coverage: fail
 - Coverage-Fingerprint: c97ac056fead113ba7cdd2211015a2387b5473f844406d83b3e7a1025250ed91
 - Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
@@ -21,6 +21,7 @@
 - Id: xhr0dj
 
 ## Workflow history
+- 2026-10-06 draft (aw set): demoted to-review -> draft: returned to authoring by gradcover 52opph: uncovered obligation: The Set-level gate an executor must apply after the last child
 
 - 2026-10-06 coverage fail (aw oc run): fingerprint c97ac056fead, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated backlog `qbz8i1` as a Set of three independent children rather than one plan, because authoring measured three distinct defect classes on the same verbs that no single predicate closes: `is_safe_descriptive` returns True for the traversal string, and no checker can see the newline, so each half needs its own fix and its own evidence. The item's own severity assessment was also corrected: it states the injection "does not currently forge an approval", which is true for `--summary` and FALSE for `--title`, where the injected bullet wins the first-match race. Four sibling residues found while measuring were filed as durable carriers rather than left in prose (`nw9dmz`, `7w6zsl`, `m5csyi`, `llnvwj`).
