@@ -11,6 +11,9 @@
 - Scope-Paths: .aw/records/plans/pending/20260930-runwire-00-i18yaz-wire-the-run-state-machine-into-the-host-runners.ipd.md
 - Item-Dependencies: none
 - Status: to-review
+- Coverage: fail
+- Coverage-Fingerprint: 086243502328ca25458e4bf8d45aadbc015a5e2718b37f52ecfd6ba295d391b8
+- Coverage-Checked: 2026-10-06 by uri/its_direct/pt3-claude-opus-5.5-1m-us
 - Work-Kind: chore
 - Priority: medium
 - From-Backlog: ildjse
@@ -22,6 +25,7 @@
 
 ## Workflow history
 
+- 2026-10-06 coverage fail (aw oc run): fingerprint 086243502328, model uri/its_direct/pt3-claude-opus-5.5-1m-us
 - 2026-09-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `ildjse` in lane worktree `ildjse` at HEAD `cedab274`. EVERY claim in the item was re-measured rather than trusted, and the item held up on its central claim: both drivers still import none of the three modules (zero grep matches each). THREE THINGS THE ITEM DID NOT SAY that shaped this Set.
   FIRST, THE ITEM'S "THREE OVERLAPPING VOCABULARIES" IS TRUE BUT ITS IMPLIED REMEDY IS NOT. Measured, the driver and `run_state` vocabularies overlap in exactly ONE token out of 14 and 11, because they are indexed on different axes (lifecycle POSITION versus REFUSING AUTHORITY, the latter stated verbatim in the `statusvocab` comment). So "the runners still carry their own status vocabulary in parallel" cannot be fixed by adopting one vocabulary; the honest fix is a TRANSLATION plus a CHECK, which is what Order 01 does. A plan that read the item as a rename would have broken five readers.
   SECOND, ONE OF THE ITEM'S THREE MODULES IS UNREACHABLE AND THE ITEM DOES NOT SAY SO. `run_recovery`'s entire public API takes a `run_engine.RunEngine` first positional and calls `reconstruct_state()`; `RunEngine` requires a `RunLedgerStore` over a `ledger.jsonl`; no driver run writes one. `runner_shared`'s `retrywire` comment records this and explicitly forbids treating it as a decision to abandon the ledger. So "wire in all three" is not executable as stated, and this Set wires TWO and records the third as OQ-01 rather than silently dropping it or silently building a ledger.
@@ -120,6 +124,17 @@ WHY 02 DEPENDS ON 01 rather than being independent: 02's authority check asks "i
 - Owner: executor of Order 01, then maintainer
 - Carrier-Declined: The decision's PRECONDITION does not exist until this Set has run, so there is nothing for a carrier to act on yet. Promoting the check to a refusal requires evidence that it yields no false positives on a real corpus, and that corpus is produced BY Order 01's report-only check; an item filed now would have "wait for the report" as its first and only step. The decision is recorded here with its owner and its default, and the honest sequence is ship, measure, then file if the evidence supports promotion.
 - Resolution or deferral rationale: DEFAULT IS REPORT-ONLY and the executor must not change it. A refusing gate keyed on a brand-new translation would wedge live runs on a mapping defect rather than on a real illegal transition, and the driver's status writes have never been checked, so the false-positive rate is unmeasured. The safe sequence is: record first, read the corpus, then decide. If Order 01's executor finds the check fires on a CORRECT driver transition, that is a mapping defect to fix in Order 01, and it is also the evidence that report-only was the right default.
+
+## Coverage findings
+
+- "- `python3 -m pytest` run BARE (the configured `addopts` already supply `-q -n auto --dist=worksteal -m 'not slow'`), with the actual `N passed` summary line pasted, compared against a baseline measured in this same lane worktree BEFORE any edit."
+- "- The four cross-IPD checks above, each with pasted evidence."
+- "- NO SECOND STATE MACHINE: after both children, exactly one module defines the driver-status-to-`run_state` translation. Proven by grepping for the translation symbol across `agent_workflows/` and asserting one definition site."
+- "- NO PRIVATE HOST COPY: neither `oc_runipd.py` nor `agy_runipd.py` carries its own transition check or its own session-independence test; both reach the shared ones through `runner_shared`. This mirrors `tests/test_runner_refork_guard.py`'s existing role for the verdict table."
+- "- VOCABULARY UNCHANGED: the before/after member comparison from E-02, run once for the Set."
+- "- THE LEDGER FENCE HELD: neither child imports `run_engine` or `run_recovery`, and no child writes a `ledger.jsonl`. Proven by grep across both children's changed files."
+- "- The full suite passes with actual pasted output, at or above the lane's pre-work baseline."
+- "- `run_recovery` remains unimported by both drivers and that residual is recorded, not hidden."
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
